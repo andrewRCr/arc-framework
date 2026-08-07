@@ -23,7 +23,7 @@ describe("resume current-WU reconcile ceremony", () => {
     expect(installed).toBe(packaged);
     const pointerCommit = packaged.indexOf("chore(arc): resume {name}");
     const inPlaceCheckout = packaged.lastIndexOf("git checkout {branch}");
-    const reconcile = packaged.indexOf("arc wu reconcile {name} --attach-session --apply --json");
+    const reconcile = packaged.indexOf("arc wu reconcile {name} --apply --json");
     const dependentCommit = packaged.indexOf("chore(arc): reconcile {name} after resume");
 
     expect(pointerCommit).toBeGreaterThanOrEqual(0);
@@ -31,6 +31,7 @@ describe("resume current-WU reconcile ceremony", () => {
     expect(reconcile).toBeGreaterThan(inPlaceCheckout);
     expect(dependentCommit).toBeGreaterThan(reconcile);
     expect(packaged).toMatch(/Spawn[\s\S]*fresh worktree reported by `arc resume`[\s\S]*arc wu reconcile/u);
+    expect(packaged).not.toContain("--attach-session");
     expect(packaged).toContain("`clean` — continue without a write, stage, or commit.");
     expect(packaged).toMatch(/`conflict`[\s\S]*base-side\s+pointer removal is already committed/u);
   });

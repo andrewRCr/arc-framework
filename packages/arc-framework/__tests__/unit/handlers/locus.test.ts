@@ -3,43 +3,35 @@
 import { describe, expect, it } from "vitest";
 
 import { runLocusCli } from "../../../src/handlers/locus.js";
-import type { LocusEnvelopeV1 } from "../../../src/lib/locus/schema/index.js";
+import type { LocusEnvelope } from "../../../src/commands/locus.js";
 
-const SUCCESS: LocusEnvelopeV1 = {
+const ROW = {
+  checkout: {
+    path: "/repo/work",
+    head: "a".repeat(40),
+    branch: "feat/reader",
+    detached: false,
+    primary: false,
+  },
+  markerGeneration: `sha256:${"b".repeat(64)}`,
+  parentCheckoutPath: "/repo",
+  origin: null,
+  identity: null,
+  context: null,
+  lifecycleLocation: "active" as const,
+  diagnostics: [],
+  kind: "work-unit" as const,
+  subject: { kind: "work-unit" as const, key: "reader" },
+};
+
+const SUCCESS: LocusEnvelope = {
   mode: "locus",
   ok: true,
-  primaryPath: "/repo",
-  rows: [
-    {
-      kind: "managed-role",
-      checkoutPath: "/repo/work",
-      primary: false,
-      recordId: `sha256:${"1".repeat(64)}`,
-      role: {
-        kind: "work-unit",
-        subject: { kind: "work-unit", key: "reader", claimId: null },
-        parentCheckoutPath: null,
-        originEntry: null,
-      },
-      identity: null,
-      lease: {
-        leaseId: "a".repeat(32), state: "live", selfHeld: false,
-        sessionHomePath: "/repo/work",
-        attachedAt: "2026-07-20T12:00:00.000Z",
-        heartbeatAt: "2026-07-20T12:01:00.000Z",
-      },
-      frame: "active",
-      derived: {
-        workflow: "process-task-loop",
-        stage: null,
-        sessionType: "execution",
-        taskCursor: null,
-        loadSet: null,
-      },
-      diagnostics: [],
-    },
-  ],
-  diagnostics: [],
+  roster: [ROW],
+  entering: { kind: "selected", row: ROW },
+  primaryAvailability: { kind: "unsafe", checkoutPath: null, reasons: ["primary-missing"] },
+  identityDiscovery: { kind: "absent" },
+  active: null,
 };
 
 function capture() {
@@ -57,20 +49,17 @@ function capture() {
 }
 
 describe("runLocusCli", () => {
-  it("renders deterministic human output with every operational field", async () => {
+  it("renders the derived checkout, role, subject, and parent without retired state", async () => {
     const sink = capture();
 
     await runLocusCli({ json: false }, { read: async () => SUCCESS, output: sink.output });
 
     expect(sink.read()).toEqual({
       stdout: [
-        "Primary: /repo",
         "Checkout: /repo/work",
-        "Role: work-unit (work-unit:reader)",
-        "Lease: live",
-        "Session home: /repo/work",
-        "Active session locus: active",
-        "Workflow/stage: process-task-loop / -",
+        "Role: work-unit",
+        "Subject: work-unit:reader",
+        "Parent checkout: /repo",
         "",
       ].join("\n"),
       stderr: "",
@@ -78,80 +67,37 @@ describe("runLocusCli", () => {
     });
   });
 
-  it("emits one JSON envelope and succeeds when the roster has diagnostics", async () => {
+  it("emits exactly one validated JSON envelope", async () => {
     const sink = capture();
-    const envelope: LocusEnvelopeV1 = {
-      ...SUCCESS,
-      diagnostics: [{
-        code: "lease-unknown",
-        source: { kind: "record", key: "locus-reader.json" },
-        message: "Lease liveness is unavailable",
-      }],
-    };
 
-    await runLocusCli({ json: true }, { read: async () => envelope, output: sink.output });
+    await runLocusCli({ json: true }, { read: async () => SUCCESS, output: sink.output });
 
-    expect(sink.read()).toEqual({
-      stdout: `${JSON.stringify(envelope)}\n`,
-      stderr: "",
-      exitCode: 0,
-    });
+    const result = sink.read();
+    expect(JSON.parse(result.stdout)).toStrictEqual(SUCCESS);
+    expect(result.stderr).toBe("");
+    expect(result.exitCode).toBe(0);
   });
 
-  it("renders each row diagnostic inside its human row block", async () => {
+  it("renders row-local diagnostics in the human display", async () => {
     const sink = capture();
-    const envelope: LocusEnvelopeV1 = {
+    const diagnosticRow = {
+      ...ROW,
+      diagnostics: [{ code: "marker-malformed", source: "marker", message: "Marker is malformed" }],
+    };
+    const envelope: LocusEnvelope = {
       ...SUCCESS,
-      rows: [{
-        ...SUCCESS.rows[0]!,
-        diagnostics: [{
-          code: "lease-unknown",
-          source: { kind: "record", key: "locus-reader.json" },
-          message: "Lease liveness is unavailable",
-        }],
-      }],
+      roster: [diagnosticRow],
+      entering: { kind: "selected", row: diagnosticRow },
     };
 
     await runLocusCli({ json: false }, { read: async () => envelope, output: sink.output });
 
-    expect(sink.read().stdout).toBe([
-      "Primary: /repo",
-      "Checkout: /repo/work",
-      "Role: work-unit (work-unit:reader)",
-      "Lease: live",
-      "Session home: /repo/work",
-      "Active session locus: active",
-      "Workflow/stage: process-task-loop / -",
-      "Diagnostic: lease-unknown (record:locus-reader.json) Lease liveness is unavailable",
-      "",
-    ].join("\n"));
+    expect(sink.read().stdout).toContain("Diagnostic: marker-malformed Marker is malformed");
   });
 
-  it.each([
-    "identity-missing",
-    "identity-root-unavailable",
-    "git-topology-unavailable",
-    "record-root-unavailable",
-  ] as const)("emits the %s root error as JSON and exits one", async (code) => {
+  it("routes a human reader error only to stderr", async () => {
     const sink = capture();
-    const envelope: LocusEnvelopeV1 = {
-      mode: "locus",
-      ok: false,
-      error: { code, message: `${code} message` },
-    };
-
-    await runLocusCli({ json: true }, { read: async () => envelope, output: sink.output });
-
-    expect(sink.read()).toEqual({
-      stdout: `${JSON.stringify(envelope)}\n`,
-      stderr: "",
-      exitCode: 1,
-    });
-  });
-
-  it("routes a human root error only to stderr", async () => {
-    const sink = capture();
-    const envelope: LocusEnvelopeV1 = {
+    const envelope: LocusEnvelope = {
       mode: "locus",
       ok: false,
       error: { code: "identity-missing", message: "ARC identity is unavailable" },
@@ -164,44 +110,5 @@ describe("runLocusCli", () => {
       stderr: "Error [identity-missing]: ARC identity is unavailable\n",
       exitCode: 1,
     });
-  });
-
-  it("renders an identity-only subject when no durable role exists", async () => {
-    const sink = capture();
-    const identity = {
-      kind: "errand" as const,
-      key: "review-docs",
-      claimId: "b".repeat(32),
-      protection: "full" as const,
-      branch: "chore/review-docs",
-      purpose: "errand" as const,
-      origin: "description" as const,
-      originEntry: null,
-      state: "paused" as const,
-      savedHead: "c".repeat(40),
-      changeRequest: null,
-    };
-    const envelope: LocusEnvelopeV1 = {
-      mode: "locus",
-      ok: true,
-      primaryPath: "/repo",
-      rows: [{
-        kind: "identity-only",
-        checkoutPath: null,
-        primary: null,
-        recordId: null,
-        role: null,
-        identity,
-        lease: null,
-        frame: "idle",
-        derived: null,
-        diagnostics: [],
-      }],
-      diagnostics: [],
-    };
-
-    await runLocusCli({ json: false }, { read: async () => envelope, output: sink.output });
-
-    expect(sink.read().stdout).toContain("Role: identity-only (errand:review-docs)");
   });
 });

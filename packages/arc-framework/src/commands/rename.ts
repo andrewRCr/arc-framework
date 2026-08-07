@@ -9,10 +9,7 @@ import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";
 import { getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import {
-  renameWorktreeOwnershipMarker,
-  type WorktreeSubject,
-} from "../lib/git/worktree-marker.js";
+import type { WorktreeSubject } from "../lib/git/worktree-marker.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -32,7 +29,9 @@ import {
   type ReconcileWorkUnitWorktreeResult,
   type RenameWorktreeMoveResolution,
 } from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
-import { createNodeRenameLocusDriver } from "../lib/work-unit/rename-locus.js";
+import {
+  createNodeRenameWorktreeTransactionDriver,
+} from "../lib/work-unit/rename-worktree-transaction.js";
 import { renameArtifacts } from "../lib/work-unit/mutators/rename-artifacts.js";
 import { rewriteRenamedMeta } from "../lib/work-unit/mutators/rewrite-renamed-meta.js";
 import {
@@ -284,13 +283,6 @@ export async function runRenameCommand(
         oldRemoteOid: plan.oldRemoteOid,
       });
     },
-    renameMarker: async (plan) => {
-      if (plan.worktreePath === null) return "absent";
-      return (await renameWorktreeOwnershipMarker(plan.worktreePath, {
-        oldWuName: plan.sourceSlug,
-        newWuName: plan.targetSlug,
-      })).status;
-    },
     resolveWorktreeMove: async (plan) => {
       if (plan.newBranch === null) return { status: "in-place" };
       return resolveRenameWorktreeMove(exec, {
@@ -300,72 +292,80 @@ export async function runRenameCommand(
         currentLocus: command.cwd,
       });
     },
-    rekeyLocus: async (plan, move) => {
-      const checkout = await resolveRekeyCheckout(exec, move);
-      if (checkout === null) return { locus: { kind: "absent" } };
+    renameCheckout: async (plan, move) => {
+      const checkout = await resolveRenameCheckoutCoordinates(exec, move);
+      if (checkout === null) throw new Error("could not resolve the checkout rename coordinates");
       let worktree: ReconcileWorkUnitWorktreeResult | undefined;
-      const locus = await createNodeRenameLocusDriver({ exec, identity: command.identity }).rekey({
+      if (move.status === "deferred-self-move" && plan.newBranch === null) {
+        throw new Error("deferred spawned rename is missing its renamed branch");
+      }
+      const renameMovePending = move.status === "deferred-self-move" && plan.newBranch !== null
+        ? {
+            oldSlug: plan.sourceSlug,
+            newSlug: plan.targetSlug,
+            branch: plan.newBranch,
+            head: checkout.expectedHead,
+            from: move.from,
+            to: move.to,
+          }
+        : null;
+      const checkoutOutcome = await createNodeRenameWorktreeTransactionDriver({ exec }).rename({
         sourceCheckoutPath: checkout.from,
         targetCheckoutPath: checkout.to,
         sourceSlug: plan.sourceSlug,
         targetSlug: plan.targetSlug,
         expectedHead: checkout.expectedHead,
+        renameMovePending,
         ...(move.status === "move"
           ? {
-              moveWorktree: async () => {
-                worktree = await reconcileWorkUnitWorktree({
-                  exec,
-                  chdir: (path) => {
-                    process.chdir(path);
+              move: {
+                apply: async () => {
+                  worktree = await reconcileWorkUnitWorktree({
+                    exec,
+                    chdir: (path) => {
+                      process.chdir(path);
+                    },
+                    fs: nodeReconcileWorkUnitWorktreeFs,
+                  }, {
+                    mutation: "move",
+                    from: move.from,
+                    to: move.to,
+                    currentLocus: command.cwd,
+                  });
+                },
+                rollback: async () => {
+                  await reconcileWorkUnitWorktree({
+                    exec,
+                    chdir: (path) => {
+                      process.chdir(path);
+                    },
+                    fs: nodeReconcileWorkUnitWorktreeFs,
+                  }, {
+                    mutation: "move",
+                    from: move.to,
+                    to: move.from,
+                    currentLocus: command.cwd,
+                  });
                   },
-                  fs: nodeReconcileWorkUnitWorktreeFs,
-                }, {
-                  mutation: "move",
-                  from: move.from,
-                  to: move.to,
-                  currentLocus: command.cwd,
-                });
               },
             }
           : {}),
       });
-      return { locus, ...(worktree === undefined ? {} : { worktree }) };
-    },
-    reconcileWorktreeMoveMarker: async (plan, move) => {
-      const markerPath = move.status === "deferred-self-move" ? move.from : move.worktreePath;
-      let renameMovePending = null;
-      if (move.status === "deferred-self-move") {
-        const renamedBranch = plan.newBranch;
-        if (renamedBranch === null) {
-          throw new Error("deferred spawned rename is missing its renamed branch");
-        }
-        renameMovePending = {
-          oldSlug: plan.sourceSlug,
-          newSlug: plan.targetSlug,
-          branch: renamedBranch,
-          head: (await exec("git", ["rev-parse", "--verify", `${renamedBranch}^{commit}`])).stdout.trim(),
-          from: move.from,
-          to: move.to,
-        };
-      }
-      return (await renameWorktreeOwnershipMarker(markerPath, {
-        oldWuName: plan.sourceSlug,
-        newWuName: plan.targetSlug,
-      }, { renameMovePending })).status;
+      return { checkout: checkoutOutcome, ...(worktree === undefined ? {} : { worktree }) };
     },
   };
   return runRename(ctx, params);
 }
 
 /**
- * Resolve the checkout coordinates the locus rekey runs against.
+ * Resolve the checkout coordinates the marker/topology rename runs against.
  *
- * A pending move rekeys from its source to its destination; every other resolution keeps one path
- * and rekeys the subject alone. `in-place` names the primary checkout, which the roster reports
+ * A pending move spans its source and destination; every other resolution keeps one path
+ * and renames the subject alone. `in-place` names the primary checkout, which the roster reports
  * under the renamed branch rather than a slug-derived path. Returns `null` when no registered
- * checkout backs the subject, leaving nothing to rekey.
+ * checkout backs the subject.
  */
-export async function resolveRekeyCheckout(
+export async function resolveRenameCheckoutCoordinates(
   exec: GitExec,
   move: RenameWorktreeMoveResolution,
 ): Promise<{ from: string; to: string; expectedHead: string } | null> {
@@ -374,9 +374,8 @@ export async function resolveRekeyCheckout(
     : move.status === "in-place"
       ? await resolvePrimaryWorktreePath(exec)
       : move.status === "already-moved"
-        // A landed move still keys its record under the path it came from, so re-entry must rekey
-        // from there; supplying the destination as both coordinates reads the wrong key and settles
-        // absent, leaving the live checkout unmanaged and the old role behind.
+        // The transaction needs both coordinates to prove that a landed move removed the source
+        // registration and established the destination registration.
         ? move.sourceWorktreePath
         : move.worktreePath;
   if (from === null) return null;

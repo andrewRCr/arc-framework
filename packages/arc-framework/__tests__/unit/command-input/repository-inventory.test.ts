@@ -80,16 +80,6 @@ describe("repository command-input inventory", () => {
         noInput: "use-default",
       }),
       expect.objectContaining({
-        identity: "errand close:interaction.lib-locus-process-exec.ts-subprocess-execa-1",
-        mutationBoundary: "errand close locus process-inspection boundary",
-        subprocess: "close-stdin",
-      }),
-      expect.objectContaining({
-        identity: "errand abandon:interaction.lib-locus-process-exec.ts-subprocess-execa-1",
-        mutationBoundary: "errand abandon locus process-inspection boundary",
-        subprocess: "close-stdin",
-      }),
-      expect.objectContaining({
         identity: "delivery plan from-tasks:option.design-inventory",
         acquisition: "handler-required",
         schemaOwnership: "owned",

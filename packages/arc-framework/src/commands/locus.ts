@@ -1,45 +1,43 @@
-/** Pure validation and rendering for the `arc locus` read surface. */
+/** Validation and rendering for the derived, read-only `arc locus` surface. */
 
-import {
-  LocusEnvelopeV1Schema,
-  type LocusEnvelopeV1,
-  type LocusRowV1,
-} from "../lib/locus/schema/index.js";
+import { z } from "zod";
+
+import { DerivedLocusFrameValueViewSchema } from "./status/schema.js";
+import type { DerivedCheckoutRow } from "../lib/locus/derived-roster.js";
+import type { DerivedLocusFrame } from "../lib/locus/derived-reader.js";
+
+const LocusEnvelopeSchema = z.discriminatedUnion("ok", [
+  DerivedLocusFrameValueViewSchema.extend({ mode: z.literal("locus"), ok: z.literal(true) }),
+  z.strictObject({
+    mode: z.literal("locus"),
+    ok: z.literal(false),
+    error: z.strictObject({ code: z.string().min(1), message: z.string().min(1) }),
+  }),
+]);
+
+export type LocusEnvelope = ({ readonly mode: "locus"; readonly ok: true } & DerivedLocusFrame)
+  | { readonly mode: "locus"; readonly ok: false; readonly error: { readonly code: string; readonly message: string } };
 
 /** Validate one producer result before it reaches stdout. */
-export function validateLocusEnvelope(value: unknown): LocusEnvelopeV1 {
-  return LocusEnvelopeV1Schema.parse(value);
+export function validateLocusEnvelope(value: unknown): LocusEnvelope {
+  return LocusEnvelopeSchema.parse(value) as LocusEnvelope;
 }
 
-/** Render a successful roster as stable, plain human-readable text. */
-export function formatLocusEnvelope(envelope: Extract<LocusEnvelopeV1, { ok: true }>): string {
-  const blocks = envelope.rows.map(formatRow);
-  const diagnostics = envelope.diagnostics.map(formatDiagnostic);
-  return [
-    `Primary: ${envelope.primaryPath}`,
-    ...blocks.flatMap((block, index) => index === 0 ? block : ["", ...block]),
-    ...(diagnostics.length === 0 ? [] : ["", ...diagnostics]),
-    "",
-  ].join("\n");
+/** Render the worktree-derived roster without retired occupancy vocabulary. */
+export function formatLocusEnvelope(envelope: Extract<LocusEnvelope, { ok: true }>): string {
+  const rows = envelope.roster.flatMap((row, index) => index === 0 ? formatRow(row) : ["", ...formatRow(row)]);
+  return [...rows, ""].join("\n");
 }
 
-function formatRow(row: LocusRowV1): string[] {
-  const role = row.role !== null
-    ? `${row.role.kind} (${row.role.subject.kind}:${row.role.subject.key})`
-    : row.identity !== null
-      ? `identity-only (${row.identity.kind}:${row.identity.key})`
-      : "-";
+function formatRow(row: DerivedCheckoutRow): string[] {
+  const subject = row.subject === null
+    ? "-"
+    : `${row.subject.kind}:${row.subject.key}`;
   return [
-    `Checkout: ${row.checkoutPath ?? "-"}`,
-    `Role: ${role}`,
-    `Lease: ${row.lease?.state ?? "absent"}`,
-    `Session home: ${row.lease?.sessionHomePath ?? "-"}`,
-    `Active session locus: ${row.frame ?? "-"}`,
-    `Workflow/stage: ${row.derived?.workflow ?? "-"} / ${row.derived?.stage ?? "-"}`,
-    ...row.diagnostics.map(formatDiagnostic),
+    `Checkout: ${row.checkout.path}`,
+    `Role: ${row.kind}`,
+    `Subject: ${subject}`,
+    `Parent checkout: ${row.parentCheckoutPath ?? "-"}`,
+    ...row.diagnostics.map((diagnostic) => `Diagnostic: ${diagnostic.code} ${diagnostic.message}`),
   ];
-}
-
-function formatDiagnostic(item: LocusRowV1["diagnostics"][number]): string {
-  return `Diagnostic: ${item.code} (${item.source.kind}:${item.source.key}) ${item.message}`;
 }

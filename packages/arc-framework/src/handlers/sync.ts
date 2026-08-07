@@ -673,7 +673,7 @@ function errandPartialPushDetail(
   markerRecorded: boolean,
 ): string {
   const detail = outcome.kind === "conflict"
-    ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=arc errand close --force <slug> on discarded side`
+    ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=resolve the same-slug identity conflict before retrying`
     : outcome.kind;
   return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }

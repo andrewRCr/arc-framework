@@ -982,6 +982,11 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   it("fails closed when parked history presents competing structural transitions", async () => {
     const { worktree, branch } = await scaffoldActiveWu(repo, "mono");
     worktrees.push(worktree);
+    await writeWorktreeOwnershipMarker(worktree, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "mono" },
+      spawningIdentity: "test-user",
+    });
 
     const park = await runArc(["park", "mono", "--reason", "superseded"], repo);
     expect(park.exitCode, park.stdout + park.stderr).toBe(0);

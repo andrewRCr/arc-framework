@@ -4,7 +4,6 @@
  * @module
  */
 
-import { runActiveSessionInitStatus } from "../commands/active.js";
 import { runConfigSessionInitStatus } from "../commands/config.js";
 import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionRecoverProbes } from "../commands/status.js";
@@ -16,7 +15,7 @@ import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
-import { runLocusStateProbe } from "./locus-state-probe.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 export interface RecoverStatusProbeOptions {
   cwd: string;
@@ -37,12 +36,13 @@ export function createRecoverStatusProbes(
   // not an unhandled rejection that kills the process before any slot is composed.
   extensionsP.catch(() => undefined);
   return {
-    locusState: async (identity) => {
+    derivedLocusState: async (identity, activeExtensions) => {
       const resolved = await resolvedSettingsP;
-      return runLocusStateProbe({
+      return runDerivedLocusStateProbe({
         cwd,
         identity,
         baseBranch: resolved.settings["branch.base"],
+        activeExtensions,
         exec,
       });
     },
@@ -55,7 +55,6 @@ export function createRecoverStatusProbes(
     dirty,
     extensions: () => extensionsP,
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-    active: (identity, role) => runActiveSessionInitStatus({ cwd, identity, role, exec }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
   };
 }

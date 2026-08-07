@@ -32,14 +32,31 @@ re-enterable through the Errand's exact identity and checkout. A full-mode inter
 exact identity and checkout without a meta, task list, or SESSION-NOTES; partial mode must complete, promote, or
 explicitly abandon in the current session.
 
-Every state-touching Errand command uses `--json`. On `applied` / `idempotent`, render `recommendedPromptText` and
-consume returned paths, record/lease IDs, restored parent, origin back-pointer, and `nextOffer`; on `refused` or
-`error`, render the supplied text and stop. Never reconstruct allocation, preservation, cleanup, or continuation
-from Git branch shape.
+Every state-touching Errand command uses `--json`. For `open` / `materialize`, consume `operation`, `subject`, the
+non-null `allocation` and its exact `checkoutPath`, optional `parentCheckoutPath`, identity/origin settlement
+evidence, `nextOffer`, and `recommendedPromptText`. For `link`, require `allocation: null`, no parent checkout, and
+consume the exact updated subject and identity/origin evidence. For terminal `close` / `abandon` / `leave` results:
 
-When the rendered text asks for directed-command confirmation, confirm that the current session can run subsequent
-commands at `activeLocusPath`. If it cannot or the capability is uncertain, recommend a cold session at that
-checkout and stop before execution.
+- On `applied` / `idempotent`, consume `operation`, `subject`, `generation`, `checkoutPath`,
+  `parentCheckoutPath`, `settlement`, `nextOffer`, and `recommendedPromptText`. Only an `idempotent` result proving
+  terminal absence may carry null `subject` and `generation`; evidence-bearing results carry both exactly.
+- On `confirmation-required`, bind the named `operation`, exact `subject`, `generation`, `checkoutPath`, and
+  `destructiveEffect`; surface the effect and the retry command from `recommendedPromptText`, then stop. On explicit
+  approval, invoke only that verb-owned retry. The verb re-derives fresh evidence and the supplied generation
+  authorizes only that named act in that request.
+- On `refused` / `error`, render `recommendedPromptText` and stop.
+
+Promotion is a two-call transition owned by [`init-work-unit`][promote-errand-to-wu]. Consume the typed result rather
+than inspecting the renamed branch, meta, identity, or marker: `settlement.state: commit-required` retains the exact
+identity while the returned `metaPath` is committed; rerun the same command and continue only from the same exact
+`subject` and `generation` with `settlement.state: settled`. Render `recommendedPromptText` and stop on
+`confirmation-required`, `refused`, or `error`.
+
+Never reconstruct allocation, terminal authority, preservation, cleanup, or continuation from Git branch shape.
+
+When an `open` / `materialize` result asks for directed-command confirmation, confirm that the current session can
+run subsequent commands at `allocation.checkoutPath`. If it cannot or the capability is uncertain, recommend a cold
+session at that checkout and stop before execution.
 
 ## Launch
 
@@ -72,15 +89,15 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
      stdin). The verb owns both protection modes: full protection allocates the free primary or a provisioned
      transient and mints the exact v3 identity; partial protection occupies only a safe free primary and creates no
      branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
-   - **Resume mode:** consume the exact checkout and freshly attached lease selected by session-init. Do not invoke
-     `arc errand open` again; residue recovery already ran `arc locus resolve <record-id> --action resume`, and a
-     live role already ran `arc locus attach`. A remote-only eligible generation first runs
+   - **Resume mode:** consume the exact current checkout selected by session-init; its derived transient role is the
+     re-entry authority, so do not invoke `arc errand open` again. A remote-only eligible generation first runs
      `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
      candidate's claim ID and expected head; accept only its exact returned generation and path. A recorded head
      that no longer matches the fetched remote or open change request refuses materialization. Open identities,
      legacy branch-only candidates, closed or missing change requests, and partial Errands are not materializable.
 
-   Execute every subsequent command from `activeLocusPath` while retaining `sessionHomePath` for restoration.
+   Execute every subsequent command from `allocation.checkoutPath`. Retain `parentCheckoutPath` when present as the
+   warm-return parent; terminal results own the actual restoration outcome.
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
    after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add
@@ -109,7 +126,8 @@ floor judgment, generation-checked conversion, meta commit, and capture settleme
 `arc errand abandon <slug> --json`. A full identity and its local review tail abandon only when the verb proves
 provenance, cleanliness, exact refs, and host disposition. A partial Errand abandons only while its clean primary is
 at the freshly pushed base. Both modes retain the originating capture and clear its execute-bound marking; never
-simulate abandonment by deleting a branch or session locus record.
+simulate abandonment by deleting a branch, marker, or identity. Consume the typed terminal result above;
+`subject.kind` distinguishes exact full and partial authority, while `settlement` reports the retained capture.
 
 Run each review increment (one for a typical errand; a few for an extended one):
 
@@ -363,7 +381,9 @@ lane action.
    exact change request and head, closes local occupancy, and restores the optional parent WU. If work is
    deliberately interrupted before PR creation, commit and push the checkpoint first, then use `--state paused`.
    Partial mode and unpushed or unproven heads refuse. Requested work later resumes through the identity's owning
-   open or materialize driver; never leave an unleased local role as waiting state.
+   open or materialize driver; never leave a local marker as waiting state. Consume the typed terminal
+   result above; its exact `subject` / `generation`, checkout paths, and identity-tail `settlement` are the sole
+   preservation and restoration evidence.
 
 ### Ship — partial protection
 
@@ -373,11 +393,12 @@ exact partial role and remove any originating capture before the session can lea
 
 ### Complete
 
-On merge (full) or final commit (partial), invoke `arc errand close <slug> --json` and consume its typed result.
+On merge (full) or final commit (partial), invoke `arc errand close <slug> --json` and consume the typed terminal
+result above. Its exact `subject` / `generation`, checkout paths, and `settlement` are the sole closure evidence.
 
 - **Full protection** — the verb proves merge/preservation, finalizes the exact v3 identity tail, reaps refs and
-  any retained checkout safely, and drops only its origin capture. The bounded v1/v2 compatibility arm may close an
-  already-open legacy record once; `--force` is legacy-only and never bypasses v3 preservation/host checks.
+  any retained checkout safely, and drops only its origin capture. A foreign checkout requires the exact generation
+  returned by the verb's confirmation result; no bypass overrides preservation or host evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 

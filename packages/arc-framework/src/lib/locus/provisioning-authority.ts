@@ -1,13 +1,22 @@
-/** Exact full-identity and partial-role authority selection for transient provisioning. */
+/** Exact identity and partial-subject authority for transient marker provisioning. */
 
-import type { LocusRoleAuthority } from "./mutation.js";
-import type { LocusIdentityV1 } from "./schema/index.js";
+import type { LocusIdentityV1 } from "./schema/identity.js";
 import type { ProvisionTransientLocusOptions, ProvisioningProposal } from "./provisioning-types.js";
+
+export type ProvisioningAuthority =
+  | { readonly kind: "identity"; readonly identity: LocusIdentityV1 }
+  | {
+      readonly kind: "partial-errand";
+      readonly key: string;
+      readonly originEntry: string | null;
+      readonly originEntrySourceDigest: string | null;
+    }
+  | { readonly kind: "partial-housekeep"; readonly key: string };
 
 /** Resolve only an authority generation that exactly matches the allocation proposal. */
 export function resolveProvisioningAuthority(
   options: ProvisionTransientLocusOptions,
-): LocusRoleAuthority | null {
+): ProvisioningAuthority | null {
   if (options.protection === "full") {
     return options.branch !== null
       && options.identity?.protection === "full"
@@ -39,7 +48,7 @@ function identityMatches(
   return kind === proposal.subject.kind && identity.branch === branch;
 }
 
-function partialAuthorityMatches(authority: LocusRoleAuthority, proposal: ProvisioningProposal): boolean {
+function partialAuthorityMatches(authority: ProvisioningAuthority, proposal: ProvisioningProposal): boolean {
   if (authority.kind === "partial-errand") {
     return proposal.subject.kind === "errand"
       && proposal.subject.claimId === null

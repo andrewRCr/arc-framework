@@ -1,18 +1,18 @@
-/** Recovery-frame projection from one reader-validated locus state. */
+/** Recovery projection from one exact entering-checkout frame. */
 
 import { z } from "zod";
 
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
-import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
+import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+import type { DerivedCheckoutSubject } from "../locus/role-derivation.js";
 import {
-  LocusDigestSchema,
+  LocusAbsolutePathSchema,
   LocusOpaqueTextSchema,
-  type LocusIdentityV1,
-  type LocusRowV1,
-  type LocusStateV1,
+  LocusTokenSchema,
 } from "../locus/schema/index.js";
-import { isIdleWorkUnitRow, selectCheckoutWorkUnit } from "../locus/state.js";
+import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 
 /** Recovery workflow loaded for Errand sessions. */
 export const RUN_ERRAND_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/run-errand.md";
@@ -23,22 +23,40 @@ export const DRAFT_DESIGN_WORKFLOW_PATH = ".arc/system/workflows/arc/draft-desig
 /** Recovery workflow loaded for housekeeping sessions. */
 export const DRAIN_INBOX_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/drain-inbox.md";
 
-const RecoveryLocusFrameResolvedSchema = z.strictObject({
-  kind: z.literal("resolved"),
-  workflow: LocusOpaqueTextSchema,
-  sessionType: LocusOpaqueTextSchema.nullable(),
-  activeRecordId: LocusDigestSchema,
-  parentRecordId: LocusDigestSchema.nullable(),
+const WorkUnitSubjectSchema = z.strictObject({
+  kind: z.literal("work-unit"),
+  key: LocusOpaqueTextSchema,
 });
 
-/** Deterministic workflow frame selected from the shared locus graph. */
+const TransientSubjectSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("partial-errand"), key: LocusOpaqueTextSchema, claimId: z.null() }),
+  z.strictObject({
+    kind: z.enum(["errand", "groom", "housekeep"]),
+    key: LocusOpaqueTextSchema,
+    claimId: LocusTokenSchema,
+  }),
+]);
+
+const RecoverySubjectSchema = z.union([WorkUnitSubjectSchema, TransientSubjectSchema]);
+
+/** Deterministic recovery frame selected from the exact entering checkout. */
 export const RecoveryLocusFrameSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("none"),
+    subject: z.null(),
+    checkoutPath: LocusAbsolutePathSchema,
+    parentCheckoutPath: z.null(),
     workflow: z.null(),
     sessionType: z.null(),
   }),
-  RecoveryLocusFrameResolvedSchema,
+  z.strictObject({
+    kind: z.literal("resolved"),
+    subject: RecoverySubjectSchema,
+    checkoutPath: LocusAbsolutePathSchema,
+    parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
+    workflow: LocusOpaqueTextSchema,
+    sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+  }),
 ]);
 
 export type RecoveryLocusFrame = z.infer<typeof RecoveryLocusFrameSchema>;
@@ -50,7 +68,7 @@ export interface RecoveryLocusContext {
   taskCursor: TaskListCursorFileResult | null;
 }
 
-/** Fail-closed error raised when a public locus snapshot is internally inconsistent. */
+/** Fail-closed error raised when the entering checkout cannot establish its role. */
 export class RecoveryLocusContextError extends Error {
   constructor(message: string) {
     super(message);
@@ -59,267 +77,144 @@ export class RecoveryLocusContextError extends Error {
 }
 
 /**
- * Derive recovery workflow and context from the reader-owned current verdict or checkout role.
+ * Derive recovery workflow and context from the shared entering-checkout frame.
  *
- * @param options - Fresh locus state plus identity-global context pointers.
- * @returns The selected recovery frame, ordered load set, and task cursor.
+ * @param options - Fresh derived frame plus identity-global context pointers
+ * @returns The selected recovery frame, ordered load set, and task cursor
  */
 export function deriveRecoveryLocusContext(options: {
-  state: LocusStateV1;
-  checkoutPath: string;
+  state: DerivedLocusFrame;
   identity: string | null;
   workingMemoryPath: string | null;
+  activeExtensions: readonly string[];
 }): RecoveryLocusContext {
-  const { state } = options;
-  if (state.current.kind === "ambiguous") {
-    throw new RecoveryLocusContextError(
-      `Current session locus is ambiguous: ${state.current.recordIds.join(", ")}`,
-    );
+  const entering = options.state.entering;
+  if (entering.kind === "unresolved") {
+    throw new RecoveryLocusContextError(`Entering checkout is unresolved: ${entering.checkoutPath}`);
   }
-  if (state.current.kind === "none") {
-    refuseUnresolvedResidue(state);
-    const selected = selectCheckoutWorkUnit(state, options.checkoutPath);
-    if (selected.kind === "ambiguous") {
-      throw new RecoveryLocusContextError("Current checkout has an ambiguous work-unit role");
-    }
-    if (selected.kind === "resolved") {
-      if (!isIdleWorkUnitRow(selected.row)) {
-        throw new RecoveryLocusContextError("Current work-unit checkout is not an idle managed frame");
-      }
-      return workUnitContext(selected.row);
-    }
-    return {
-      frame: { kind: "none", workflow: null, sessionType: null },
-      loadSet: baseLoadSet(options),
-      taskCursor: null,
-    };
+  const row = entering.row;
+  if (row.kind === "unresolved-checkout") {
+    throw new RecoveryLocusContextError(`Entering checkout facts are unresolved: ${row.checkout.path}`);
   }
-
-  const current = state.current;
-  if (
-    state.recovery.kind !== "resume"
-    || state.recovery.activeRecordId !== current.activeRecordId
-    || state.recovery.parentRecordId !== current.parentRecordId
-  ) {
-    throw new RecoveryLocusContextError("Current and recovery session locus tokens do not match");
+  if (row.kind === "work-unit" && row.subject.kind === "work-unit") {
+    return workUnitContext(row, row.subject);
   }
-
-  const active = exactRow(state.roster.rows, current.activeRecordId, "active");
-  assertActiveRow(active);
-  const sessionHome = current.sessionHomeRecordId === null
-    ? null
-    : exactRow(state.roster.rows, current.sessionHomeRecordId, "session-home");
-  if (
-    sessionHome !== null
-    && (sessionHome.checkoutPath === null || sessionHome.checkoutPath !== active.lease?.sessionHomePath)
-  ) {
-    throw new RecoveryLocusContextError("Selected lease does not match the session-home row");
+  if (row.kind === "transient" && row.subject.kind !== "work-unit") {
+    return transientContext(options, row, row.subject);
   }
-
-  const parent = current.parentRecordId === null
-    ? null
-    : exactRow(state.roster.rows, current.parentRecordId, "parent");
-  assertParentEdge(active, parent, current.sessionHomeRecordId);
-
-  if (active.role?.kind === "work-unit") {
-    return workUnitContext(active);
-  }
-
-  assertTransientIdentity(active);
-  const parentDerived = parent === null ? null : requireWorkUnitProjection(parent, "parent");
-  const workflow = transientWorkflow(active);
-  const loadSet = appendRecoveryWorkflow(
-    parentDerived?.loadSet ?? baseLoadSet(options),
-    workflow.path,
-  );
   return {
     frame: RecoveryLocusFrameSchema.parse({
-      kind: "resolved",
-      workflow: workflow.name,
-      sessionType: parentDerived?.sessionType ?? null,
-      activeRecordId: current.activeRecordId,
-      parentRecordId: current.parentRecordId,
+      kind: "none",
+      subject: null,
+      checkoutPath: row.checkout.path,
+      parentCheckoutPath: null,
+      workflow: null,
+      sessionType: null,
     }),
-    loadSet,
-    taskCursor: parentDerived?.taskCursor ?? null,
+    loadSet: baseLoadSet(options),
+    taskCursor: null,
   };
 }
 
-function workUnitContext(row: LocusRowV1): RecoveryLocusContext {
-  if (row.recordId === null) {
-    throw new RecoveryLocusContextError("Selected work-unit row has no record ID");
-  }
-  const derived = requireWorkUnitProjection(row, "active");
+function workUnitContext(
+  row: DerivedCheckoutRow,
+  subject: Extract<DerivedCheckoutSubject, { kind: "work-unit" }>,
+): RecoveryLocusContext {
+  const context = requireWorkUnitContext(row, "entering");
   return {
     frame: RecoveryLocusFrameSchema.parse({
       kind: "resolved",
-      workflow: recoveryWorkflowForWorkUnit(derived),
-      sessionType: derived.sessionType,
-      activeRecordId: row.recordId,
-      parentRecordId: null,
+      subject,
+      checkoutPath: row.checkout.path,
+      parentCheckoutPath: null,
+      workflow: recoveryWorkflowForWorkUnit(context),
+      sessionType: context.sessionType,
     }),
-    loadSet: derived.loadSet,
-    taskCursor: derived.taskCursor,
+    loadSet: context.loadSet,
+    taskCursor: context.taskCursor,
   };
+}
+
+function transientContext(
+  options: {
+    state: DerivedLocusFrame;
+    identity: string | null;
+    workingMemoryPath: string | null;
+    activeExtensions: readonly string[];
+  },
+  row: DerivedCheckoutRow,
+  subject: Exclude<DerivedCheckoutSubject, { kind: "work-unit" }>,
+): RecoveryLocusContext {
+  const parent = resolveParentWorkUnit(options.state.roster, row.parentCheckoutPath);
+  const workflow = transientWorkflow(subject);
+  return {
+    frame: RecoveryLocusFrameSchema.parse({
+      kind: "resolved",
+      subject,
+      checkoutPath: row.checkout.path,
+      parentCheckoutPath: row.parentCheckoutPath,
+      workflow: workflow.name,
+      sessionType: parent?.sessionType ?? null,
+    }),
+    loadSet: appendRecoveryWorkflow(parent?.loadSet ?? baseLoadSet(options), workflow.path),
+    taskCursor: parent?.taskCursor ?? null,
+  };
+}
+
+function resolveParentWorkUnit(
+  rows: readonly DerivedCheckoutRow[],
+  parentCheckoutPath: string | null,
+): (NonNullable<DerivedCheckoutRow["context"]> & { workflow: string }) | null {
+  if (parentCheckoutPath === null) return null;
+  const matches = rows.filter((row) => row.checkout.path === parentCheckoutPath);
+  const parent = matches.length === 1 ? matches[0] : undefined;
+  if (parent === undefined
+    || parent.kind !== "work-unit"
+    || parent.subject.kind !== "work-unit"
+    || parent.diagnostics.length > 0
+    || parent.context === null
+    || parent.context.workflow === null) return null;
+  return { ...parent.context, workflow: parent.context.workflow };
+}
+
+function requireWorkUnitContext(
+  row: DerivedCheckoutRow,
+  label: string,
+): NonNullable<DerivedCheckoutRow["context"]> & { workflow: string } {
+  if (row.context === null || row.context.workflow === null) {
+    throw new RecoveryLocusContextError(`Selected ${label} work-unit projection is incomplete`);
+  }
+  return { ...row.context, workflow: row.context.workflow };
 }
 
 function recoveryWorkflowForWorkUnit(
-  derived: NonNullable<LocusRowV1["derived"]> & { workflow: string },
+  context: NonNullable<DerivedCheckoutRow["context"]> & { workflow: string },
 ): string {
-  if (derived.sessionType !== "planning") return derived.workflow;
-  if (derived.stage === null) {
+  if (context.sessionType !== "planning") return context.workflow;
+  if (context.stage === null) {
     throw new RecoveryLocusContextError("Selected planning work-unit projection has no stage");
   }
-  return derived.stage;
+  return context.stage;
 }
 
-function refuseUnresolvedResidue(state: LocusStateV1): void {
-  const residue = state.roster.rows.find((row) =>
-    row.kind === "managed-role"
-    && row.frame === "residue"
-    && (row.lease?.state === "dead" || row.lease?.state === "unknown"));
-  if (residue !== undefined) {
-    throw new RecoveryLocusContextError(
-      residue.lease?.state === "unknown"
-        ? "Current session locus has unknown lease residue"
-        : "Current session locus has dead or unresolved residue",
-    );
-  }
-  if (state.recovery.kind !== "none") {
-    throw new RecoveryLocusContextError(
-      `Current session locus has unresolved recovery verdict: ${state.recovery.kind}`,
-    );
-  }
-}
-
-function exactRow(
-  rows: readonly LocusRowV1[],
-  recordId: string,
-  label: string,
-): LocusRowV1 {
-  const matches = rows.filter((row) => row.recordId === recordId);
-  if (matches.length !== 1 || matches[0] === undefined) {
-    throw new RecoveryLocusContextError(
-      `Expected one ${label} row for ${recordId}; found ${matches.length}`,
-    );
-  }
-  return matches[0];
-}
-
-function assertActiveRow(row: LocusRowV1): void {
-  if (
-    row.kind !== "managed-role"
-    || row.checkoutPath === null
-    || row.role === null
-    || row.lease === null
-    || row.lease.state !== "live"
-    || row.frame !== "active"
-    || row.diagnostics.length > 0
-  ) {
-    throw new RecoveryLocusContextError("Selected active session locus row is not a live managed projection");
-  }
-}
-
-function assertParentEdge(
-  active: LocusRowV1,
-  parent: LocusRowV1 | null,
-  sessionHomeRecordId: string | null,
-): void {
-  const parentPath = active.role?.parentCheckoutPath ?? null;
-  if (parent === null) {
-    if (parentPath !== null) {
-      throw new RecoveryLocusContextError("Selected transient row has an unresolved parent path");
-    }
-    if (active.role?.kind === "work-unit" && sessionHomeRecordId !== active.recordId) {
-      throw new RecoveryLocusContextError("Selected work-unit row is not its session home");
-    }
-    return;
-  }
-  if (
-    active.role?.kind === "work-unit"
-    || parent.kind !== "managed-role"
-    || parent.role?.kind !== "work-unit"
-    || parent.checkoutPath !== parentPath
-    || parent.frame !== "suspended"
-    || !parent.diagnostics.every((item) => item.code === "lease-dead")
-    || sessionHomeRecordId !== parent.recordId
-  ) {
-    throw new RecoveryLocusContextError("Selected parent row does not match the active transient edge");
-  }
-}
-
-function requireWorkUnitProjection(
-  row: LocusRowV1,
-  label: string,
-): NonNullable<LocusRowV1["derived"]> & {
-  workflow: string;
-  loadSet: LoadSetManifest;
-} {
-  if (
-    row.role?.kind !== "work-unit"
-    || row.derived === null
-    || row.derived.workflow === null
-    || row.derived.loadSet === null
-  ) {
-    throw new RecoveryLocusContextError(`Selected ${label} work-unit projection is incomplete`);
-  }
-  return {
-    ...row.derived,
-    workflow: row.derived.workflow,
-    loadSet: row.derived.loadSet,
-  };
-}
-
-function assertTransientIdentity(row: LocusRowV1): void {
-  const role = row.role;
-  if (role === null || role.kind === "work-unit") return;
-  const identityRequired = role.subject.kind === "errand" || role.subject.kind === "groom";
-  if (!identityRequired) {
-    if (row.identity !== null) {
-      throw new RecoveryLocusContextError("Identity-free transient unexpectedly joined an identity");
-    }
-    return;
-  }
-  if (row.identity === null || !identityMatches(row.identity, role.subject)) {
-    throw new RecoveryLocusContextError("Selected transient identity does not match its role generation");
-  }
-}
-
-function identityMatches(
-  identity: LocusIdentityV1,
-  subject: NonNullable<LocusRowV1["role"]>["subject"],
-): boolean {
-  const expectedKind = subject.kind === "groom" ? "groom" : "errand";
-  return identity.kind === expectedKind
-    && identity.key === subject.key
-    && identity.claimId === subject.claimId;
-}
-
-function transientWorkflow(row: LocusRowV1): { name: string; path: string } {
-  switch (row.role?.kind) {
+function transientWorkflow(
+  subject: Exclude<DerivedCheckoutSubject, { kind: "work-unit" }>,
+): { name: string; path: string } {
+  switch (subject.kind) {
     case "errand":
-      return {
-        name: "run-errand",
-        path: RUN_ERRAND_WORKFLOW_PATH,
-      };
+    case "partial-errand":
+      return { name: "run-errand", path: RUN_ERRAND_WORKFLOW_PATH };
     case "groom":
-      return {
-        name: "draft-design",
-        path: DRAFT_DESIGN_WORKFLOW_PATH,
-      };
+      return { name: "draft-design", path: DRAFT_DESIGN_WORKFLOW_PATH };
     case "housekeep":
-      return {
-        name: "drain-inbox",
-        path: DRAIN_INBOX_WORKFLOW_PATH,
-      };
-    default:
-      throw new RecoveryLocusContextError(`Unsupported recovery role: ${row.role?.kind ?? "missing"}`);
+      return { name: "drain-inbox", path: DRAIN_INBOX_WORKFLOW_PATH };
   }
 }
 
 function baseLoadSet(options: {
   identity: string | null;
   workingMemoryPath: string | null;
+  activeExtensions: readonly string[];
 }): LoadSetManifest {
   return resolveLoadSetManifest({
     identity: options.identity,
@@ -329,7 +224,7 @@ function baseLoadSet(options: {
     sessionType: null,
     planningStage: null,
     taskListPath: null,
-    activeExtensions: [],
+    activeExtensions: options.activeExtensions,
     cohortDocPath: null,
   });
 }

@@ -91,14 +91,14 @@ import {
   revalidateHuskRetirementEvidence,
   type TeardownBlobReader,
 } from "../teardown-retirement-driver.js";
-import type { WorkUnitLocusDriver } from "../work-unit-locus.js";
 import { resolveParkProofTarget, type ParkProofTarget } from "../park-retirement-proof.js";
 import type {
-  TeardownOccupancyDecision,
-  TeardownOccupancyReader,
-} from "../teardown-occupancy.js";
-import { deriveTeardownMarkerGeneration } from "../teardown-occupancy.js";
-import type { TeardownLocusDriver } from "../teardown-locus.js";
+  TeardownSelection,
+  TeardownSelectionDecision,
+  TeardownSelectionReader,
+} from "../teardown-selection.js";
+import { teardownSelectionsEqual } from "../teardown-selection.js";
+import type { TeardownWorktreeTransactionDriver } from "../teardown-worktree-transaction.js";
 
 /** The seams `runTeardown` drives — the git executor (pinned to cwd), the index scan, and the locus-hop. */
 export interface TeardownContext {
@@ -126,12 +126,12 @@ export interface TeardownContext {
   authority?: Pick<RetirementAuthorityPort, "authorize" | "revalidate">;
   /** Exact committed-blob reader for authorization and replay artifact revalidation. */
   readBlob: TeardownBlobReader;
-  /** Machine-local WU role lifetime driver. */
-  workUnitLocus?: WorkUnitLocusDriver;
-  /** Network-free exact-path locus occupancy authorization. */
-  readLocusOccupancy?: TeardownOccupancyReader;
-  /** Target-lock transaction for the final local retirement mutation. */
-  teardownLocus?: TeardownLocusDriver;
+  /** Network-free exact checkout and marker selection. */
+  readTeardownSelection?: TeardownSelectionReader;
+  /** Shared-mutex transaction for the final local retirement mutation. */
+  teardownWorktree?: TeardownWorktreeTransactionDriver;
+  /** Test/embedding seam for repository-wide physical-operation serialization. */
+  serializeWorktreeOperation?: <T>(checkoutPath: string, operation: () => Promise<T>) => Promise<T>;
 }
 
 /**
@@ -375,43 +375,28 @@ async function teardownBranchProjection(
     return { status: "rejected", reason: `Could not read registered worktrees (${scan.message}).` };
   }
   const primaryPath = scan.worktrees.find((worktree) => worktree.primary)?.path;
-  const occupancyGenerations = new Map<string, Extract<TeardownOccupancyDecision, { kind: "clear" }>>();
-  const revalidateOccupancy = async (
-    checkoutPath: string,
-    options: { allowOwnLease?: boolean; allowRecordlessMarkerless?: boolean } = {},
-  ): Promise<TeardownResult | null> => {
-    if (ctx.readLocusOccupancy === undefined) return null;
-    let decision: TeardownOccupancyDecision;
+  const teardownSelections = new Map<string, TeardownSelection>();
+  const revalidateSelection = async (checkoutPath: string): Promise<TeardownResult | null> => {
+    if (ctx.readTeardownSelection === undefined) return null;
+    let decision: TeardownSelectionDecision;
     try {
-      decision = await ctx.readLocusOccupancy({ checkoutPath, subject, ...options });
+      decision = await ctx.readTeardownSelection({ checkoutPath, subject });
     } catch (error) {
       return {
         status: "rejected",
-        reason: `Could not read teardown locus occupancy (${error instanceof Error ? error.message : String(error)}).`,
+        reason: `Could not read teardown selection (${error instanceof Error ? error.message : String(error)}).`,
       };
     }
     if (decision.kind !== "clear") return { status: "rejected", reason: decision.message };
-    const expected = occupancyGenerations.get(checkoutPath);
-    if (expected !== undefined && (
-      expected.recordId !== decision.recordId
-      || expected.leaseId !== decision.leaseId
-      || expected.leaseState !== decision.leaseState
-      || expected.recordGeneration !== decision.recordGeneration
-      || expected.lockGeneration !== decision.lockGeneration
-      || expected.markerGeneration !== decision.markerGeneration
-    )) {
-      return { status: "rejected", reason: "The teardown target locus generation changed during revalidation." };
+    const expected = teardownSelections.get(checkoutPath);
+    if (expected !== undefined && !teardownSelectionsEqual(expected, decision)) {
+      return { status: "rejected", reason: "The teardown target selection changed during revalidation." };
     }
-    occupancyGenerations.set(checkoutPath, decision);
+    teardownSelections.set(checkoutPath, decision);
     return null;
   };
   const revalidateLocalPredicates = async (checkoutPath: string): Promise<void> => {
-    const expected = occupancyGenerations.get(checkoutPath);
-    if (expected === undefined) throw new Error("teardown occupancy generation is unavailable");
-    const marker = await (ctx.readMarker ?? readWorktreeMarker)(checkoutPath);
-    if (deriveTeardownMarkerGeneration(marker) !== expected.markerGeneration) {
-      throw new Error("teardown ownership marker generation changed under lock");
-    }
+    if (teardownSelections.get(checkoutPath) === undefined) throw new Error("teardown selection is unavailable");
     if (subject.kind === "work-unit" && mode === "shipped") {
       const shippedSubjects = await readShippedWorkUnitsFromRef(exec, evidenceBaseRef);
       if (!shippedSubjects.has(subject.name)) {
@@ -462,10 +447,19 @@ async function teardownBranchProjection(
     try {
       marker = await (ctx.readMarker ?? readWorktreeMarker)(worktree.path);
     } catch (err) {
-      return {
-        status: "rejected",
-        reason: `Could not read detached worktree marker (${err instanceof Error ? err.message : String(err)}).`,
-      };
+      const detail = err instanceof Error ? err.message : String(err);
+      if (huskPath !== undefined && await localPathsEqual(worktree.path, huskPath)) {
+        return { status: "rejected", reason: `Could not read requested detached worktree marker (${detail}).` };
+      }
+      notices.push(`Skipped unreadable detached worktree marker at \`${worktree.path}\` (${detail}).`);
+      continue;
+    }
+    if (marker.kind === "malformed") {
+      if (huskPath !== undefined && await localPathsEqual(worktree.path, huskPath)) {
+        return { status: "rejected", reason: `Requested detached worktree marker is malformed (${marker.message}).` };
+      }
+      notices.push(`Skipped malformed detached worktree marker at \`${worktree.path}\` (${marker.message}).`);
+      continue;
     }
     if (marker.kind !== "present" || marker.marker.husk === undefined) continue;
     if (!worktreeSubjectsEqual(marker.marker.husk.subject, subject)) continue;
@@ -542,8 +536,8 @@ async function teardownBranchProjection(
         return { status: "rejected", reason: "legacy husk remote state is unavailable" };
       }
     }
-    const occupancyRefusal = await revalidateOccupancy(detachedCandidate.path);
-    if (occupancyRefusal !== null) return occupancyRefusal;
+    const selectionRefusal = await revalidateSelection(detachedCandidate.path);
+    if (selectionRefusal !== null) return selectionRefusal;
     pendingHuskRemoval = detachedCandidate;
     husk = {
       worktreePath: detachedCandidate.path,
@@ -618,6 +612,9 @@ async function teardownBranchProjection(
       if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
         return { status: "rejected", reason: "retirement authority is unavailable" };
       }
+      const lockedAuthority = authority;
+      const lockedAuthorizationRequest = authorizationRequest;
+      const lockedDirectionalAuthorization = directionalAuthorization;
       const revalidation = await authority.revalidate(authorizationRequest, directionalAuthorization);
       if (revalidation.status === "refused") {
         return {
@@ -626,11 +623,8 @@ async function teardownBranchProjection(
           huskRefusal: "authorization-refused",
         };
       }
-      const occupancyRefusal = await revalidateOccupancy(registered.path, {
-        allowOwnLease: selfTeardown,
-        allowRecordlessMarkerless: selfTeardown && mode === "shipped",
-      });
-      if (occupancyRefusal !== null) return occupancyRefusal;
+      const selectionRefusal = await revalidateSelection(registered.path);
+      if (selectionRefusal !== null) return selectionRefusal;
       const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
         worktreePath: registered.path,
         primaryWorktreePath: primary,
@@ -640,38 +634,84 @@ async function teardownBranchProjection(
       if (reconciliation.status === "blocked") {
         return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
       }
+      const terminalStamp = {
+        sha: registered.head,
+        at: new Date((ctx.now ?? Date.now)()).toISOString(),
+        subject,
+        branch,
+        authorization: lockedDirectionalAuthorization.authorization,
+        remoteRef: lockedDirectionalAuthorization.refs.remote,
+        evidence: lockedDirectionalAuthorization.evidence,
+      };
       let stamped = false;
-      try {
-        const stampResult = await (ctx.stampHusk ?? stampWorktreeHusk)(registered.path, {
-          sha: registered.head,
-          at: new Date((ctx.now ?? Date.now)()).toISOString(),
-          subject,
-          branch,
-          authorization: directionalAuthorization.authorization,
-          remoteRef: directionalAuthorization.refs.remote,
-          evidence: directionalAuthorization.evidence,
-        });
-        stamped = stampResult.kind === "stamped";
-        if (!stamped && mode !== "shipped") {
+      const expectedSelection = teardownSelections.get(registered.path);
+      if (ctx.teardownWorktree?.husk !== undefined && expectedSelection !== undefined) {
+        try {
+          await ctx.teardownWorktree.husk({
+            expectedSelection,
+            revalidateLocal: async () => {
+              if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
+                throw new Error(`cannot husk a dirty worktree: ${registered.path}`);
+              }
+              const authorization = await lockedAuthority.revalidate(
+                lockedAuthorizationRequest,
+                lockedDirectionalAuthorization,
+              );
+              if (authorization.status === "refused") {
+                throw new Error(describeTeardownAuthorizationRefusal(authorization.reason));
+              }
+              await revalidateLocalPredicates(registered.path);
+            },
+            stamp: terminalStamp,
+            detachProjection: () => exec(
+              "git",
+              ["switch", "--detach", lockedDirectionalAuthorization.refs.localOid],
+              { cwd: registered.path },
+            ).then(() => undefined),
+          });
+          stamped = true;
+        } catch (err) {
           return {
             status: "rejected",
-            reason: `cannot prepare terminal stamp: ${stampResult.kind} ownership marker`,
+            reason: `cannot prepare terminal husk: ${err instanceof Error ? err.message : String(err)}`,
             huskRefusal: "authorization-refused",
           };
         }
-      } catch (err) {
-        if (mode !== "shipped") {
+      } else {
+        try {
+          const stampResult = await (ctx.stampHusk ?? stampWorktreeHusk)(registered.path, terminalStamp);
+          stamped = stampResult.kind === "stamped";
+          if (!stamped && mode !== "shipped") {
+            return {
+              status: "rejected",
+              reason: `cannot prepare terminal stamp: ${stampResult.kind} ownership marker`,
+              huskRefusal: "authorization-refused",
+            };
+          }
+        } catch (err) {
+          if (mode !== "shipped") {
+            return {
+              status: "rejected",
+              reason: `cannot prepare terminal stamp: ${err instanceof Error ? err.message : String(err)}`,
+              huskRefusal: "authorization-refused",
+            };
+          }
+          notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
+        }
+        try {
+          await exec("git", ["switch", "--detach", lockedDirectionalAuthorization.refs.localOid], {
+            cwd: registered.path,
+          });
+        } catch (err) {
           return {
             status: "rejected",
-            reason: `cannot prepare terminal stamp: ${err instanceof Error ? err.message : String(err)}`,
+            reason: `cannot detach terminal husk: ${err instanceof Error ? err.message : String(err)}`,
             huskRefusal: "authorization-refused",
           };
         }
-        notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
       }
-      await exec("git", ["switch", "--detach", directionalAuthorization.refs.localOid], { cwd: registered.path });
       husk = { worktreePath: registered.path, subject, branch, stamped, outcome: "created" };
-      occupancyGenerations.delete(registered.path);
+      teardownSelections.delete(registered.path);
       if (!selfTeardown) pendingCreatedHuskRemoval = registered.path;
     } else if (registered !== undefined && registered.path !== primary) {
       if (authorizationRequired) {
@@ -691,30 +731,29 @@ async function teardownBranchProjection(
         return { status: "rejected", reason: `refusing to tear down a dirty worktree: ${registered.path}` };
       }
       try {
-        const occupancyRefusal = await revalidateOccupancy(registered.path);
-        if (occupancyRefusal !== null) return occupancyRefusal;
-        const expectedOccupancy = occupancyGenerations.get(registered.path);
+        const selectionRefusal = await revalidateSelection(registered.path);
+        if (selectionRefusal !== null) return selectionRefusal;
+        const expectedSelection = teardownSelections.get(registered.path);
         await reconcileWorkUnitWorktree(
           {
             exec,
             chdir,
             fs,
-            ...(ctx.workUnitLocus === undefined ? {} : { locus: ctx.workUnitLocus }),
-            ...(ctx.teardownLocus === undefined ? {} : { teardownLocus: ctx.teardownLocus }),
+            ...(ctx.teardownWorktree === undefined ? {} : { teardownWorktree: ctx.teardownWorktree }),
+            ...(ctx.serializeWorktreeOperation === undefined
+              ? {}
+              : { serializeWorktreeOperation: ctx.serializeWorktreeOperation }),
             ...(ctx.readCurrentLocus === undefined ? {} : { readCurrentLocus: ctx.readCurrentLocus }),
           },
           {
             mutation: "teardown",
             worktreePath: registered.path,
             currentLocus: cwd,
-            ...(subject.kind === "work-unit" ? { wuName: subject.name } : {}),
-            ...(expectedOccupancy === undefined
+            ...(expectedSelection === undefined
               ? {}
               : {
                   authorization: {
-                    subject,
-                    expectedHead: registered.head,
-                    expectedOccupancy,
+                    expectedSelection,
                     revalidateLocal: () => revalidateLocalPredicates(registered.path),
                   },
                 }),
@@ -744,8 +783,8 @@ async function teardownBranchProjection(
         }
       }
       if (directionalAuthorization !== null) {
-        const occupancyRefusal = await revalidateOccupancy(primary);
-        if (occupancyRefusal !== null) return occupancyRefusal;
+        const selectionRefusal = await revalidateSelection(primary);
+        if (selectionRefusal !== null) return selectionRefusal;
         pendingAuthorizedPrimaryRelocation = primary;
       } else {
         const relocate = async (): Promise<void> => {
@@ -753,15 +792,12 @@ async function teardownBranchProjection(
           if (relocationFailure !== null) throw new Error(relocationFailure);
         };
         try {
-          const occupancyRefusal = await revalidateOccupancy(primary);
-          if (occupancyRefusal !== null) return occupancyRefusal;
-          const expectedOccupancy = occupancyGenerations.get(primary);
-          if (ctx.teardownLocus !== undefined && expectedOccupancy !== undefined) {
-            await ctx.teardownLocus.retire({
-              checkoutPath: primary,
-              expectedHead: registered.head,
-              subject,
-              expectedOccupancy,
+          const selectionRefusal = await revalidateSelection(primary);
+          if (selectionRefusal !== null) return selectionRefusal;
+          const expectedSelection = teardownSelections.get(primary);
+          if (ctx.teardownWorktree !== undefined && expectedSelection !== undefined) {
+            await ctx.teardownWorktree.retire({
+              expectedSelection,
               revalidateLocal: async () => {
                 if (!(await isWorktreeClean({ exec, cwd: primary }))) {
                   throw new Error(`refusing to relocate a dirty worktree: ${primary}`);
@@ -770,8 +806,6 @@ async function teardownBranchProjection(
               },
               retireProjection: relocate,
             });
-          } else if (subject.kind === "work-unit" && ctx.workUnitLocus?.retire !== undefined) {
-            await ctx.workUnitLocus.retire({ checkoutPath: primary, wuName: subject.name, removeCheckout: relocate });
           } else {
             await relocate();
           }
@@ -858,14 +892,11 @@ async function teardownBranchProjection(
               );
               if (relocationFailure !== null) throw new Error(relocationFailure);
             };
-            const expectedOccupancy = occupancyGenerations.get(relocationPath);
+            const expectedSelection = teardownSelections.get(relocationPath);
             try {
-              if (ctx.teardownLocus !== undefined && expectedOccupancy !== undefined && branchedRegistration !== undefined) {
-                await ctx.teardownLocus.retire({
-                  checkoutPath: relocationPath,
-                  expectedHead: branchedRegistration.head,
-                  subject,
-                  expectedOccupancy,
+              if (ctx.teardownWorktree !== undefined && expectedSelection !== undefined && branchedRegistration !== undefined) {
+                await ctx.teardownWorktree.retire({
+                  expectedSelection,
                   revalidateLocal: async () => {
                     if (!(await isWorktreeClean({ exec, cwd: relocationPath }))) {
                       throw new Error(`refusing to relocate a dirty worktree: ${relocationPath}`);
@@ -1032,9 +1063,9 @@ async function teardownBranchProjection(
           return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
         }
       }
-      const occupancyRefusal = await revalidateOccupancy(physicalRemovalPath);
-      if (occupancyRefusal !== null) return occupancyRefusal;
-      const expectedPhysicalOccupancy = occupancyGenerations.get(physicalRemovalPath);
+      const selectionRefusal = await revalidateSelection(physicalRemovalPath);
+      if (selectionRefusal !== null) return selectionRefusal;
+      const expectedPhysicalSelection = teardownSelections.get(physicalRemovalPath);
       const expectedPhysicalHead = pendingHuskRemoval?.head ?? directionalAuthorization?.refs.localOid;
       try {
         await reconcileWorkUnitWorktree(
@@ -1042,8 +1073,10 @@ async function teardownBranchProjection(
             exec,
             chdir,
             fs,
-            ...(ctx.workUnitLocus === undefined ? {} : { locus: ctx.workUnitLocus }),
-            ...(ctx.teardownLocus === undefined ? {} : { teardownLocus: ctx.teardownLocus }),
+            ...(ctx.teardownWorktree === undefined ? {} : { teardownWorktree: ctx.teardownWorktree }),
+            ...(ctx.serializeWorktreeOperation === undefined
+              ? {}
+              : { serializeWorktreeOperation: ctx.serializeWorktreeOperation }),
             ...(ctx.readCurrentLocus === undefined ? {} : { readCurrentLocus: ctx.readCurrentLocus }),
           },
           {
@@ -1051,14 +1084,11 @@ async function teardownBranchProjection(
             worktreePath: physicalRemovalPath,
             currentLocus: cwd,
             huskApproved: true,
-            ...(subject.kind === "work-unit" ? { wuName: subject.name } : {}),
-            ...(expectedPhysicalOccupancy === undefined || expectedPhysicalHead === undefined
+            ...(expectedPhysicalSelection === undefined || expectedPhysicalHead === undefined
               ? {}
               : {
                   authorization: {
-                    subject,
-                    expectedHead: expectedPhysicalHead,
-                    expectedOccupancy: expectedPhysicalOccupancy,
+                    expectedSelection: expectedPhysicalSelection,
                     revalidateLocal: () => revalidateLocalPredicates(physicalRemovalPath),
                   },
                 }),

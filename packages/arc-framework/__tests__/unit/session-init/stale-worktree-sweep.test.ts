@@ -9,22 +9,22 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
-import { locusStateFixture, managedWorkUnitRow } from "../../fixtures/locus-state.js";
+import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const shipped = new Set(["work-organization-reform"]);
 const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
 
 function runStaleWorktreeSweep(
-  options: Omit<RunStaleWorktreeSweepOptions, "readBlob" | "locusState"> & {
+  options: Omit<RunStaleWorktreeSweepOptions, "readBlob" | "derivedRoster"> & {
     readBlob?: RunStaleWorktreeSweepOptions["readBlob"];
-    locusState?: RunStaleWorktreeSweepOptions["locusState"];
+    derivedRoster?: RunStaleWorktreeSweepOptions["derivedRoster"];
   },
 ) {
   return runStaleWorktreeSweepCore({
     ...options,
     readBlob: options.readBlob ?? emptyBlobReader,
-    locusState: options.locusState ?? locusStateFixture({ rows: [] }),
+    derivedRoster: options.derivedRoster ?? [],
   });
 }
 
@@ -269,9 +269,7 @@ describe("runStaleWorktreeSweep", () => {
       exec: buildExec({ clean: true, merged: true }),
       readMarker: async () => presentMarker,
       userSurfaceFs: emptyUserSurfaceFs,
-      locusState: locusStateFixture({
-        rows: [managedWorkUnitRow("work-organization-reform", retainedPath)],
-      }),
+      derivedRoster: [derivedWorkUnitRow("work-organization-reform", retainedPath)],
       scanWorktrees: async () => ({
         ok: true,
         worktrees: [{
@@ -638,3 +636,24 @@ describe("runStaleWorktreeSweep", () => {
     });
   });
 });
+
+function derivedWorkUnitRow(name: string, path: string): DerivedCheckoutRow {
+  return {
+    kind: "work-unit",
+    checkout: {
+      path,
+      head: "a".repeat(40),
+      branch: `feat/${name}`,
+      detached: false,
+      primary: false,
+    },
+    markerGeneration: `sha256:${"b".repeat(64)}`,
+    parentCheckoutPath: null,
+    origin: null,
+    identity: null,
+    context: null,
+    lifecycleLocation: "active",
+    diagnostics: [],
+    subject: { kind: "work-unit", key: name },
+  };
+}

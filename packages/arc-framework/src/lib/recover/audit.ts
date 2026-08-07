@@ -9,7 +9,6 @@
  */
 import { z } from "zod";
 
-import type { ActiveSessionInitResult } from "../../commands/active/types.js";
 import type { Probe } from "../../commands/status/types.js";
 import {
   COMPACTION_SEED_LOCUS_HINT_FIELDS,
@@ -20,18 +19,13 @@ import {
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import {
   LoadSetAuditVerdictSchema,
+  LoadSetPathDriftSchema,
   auditLoadSetManifest,
   type LoadSetAuditVerdict,
 } from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
-import type { LocusStateV1 } from "../locus/schema/index.js";
-import { isIdleWorkUnitRow } from "../locus/state.js";
-import {
-  DRAIN_INBOX_WORKFLOW_PATH,
-  DRAFT_DESIGN_WORKFLOW_PATH,
-  RUN_ERRAND_WORKFLOW_PATH,
-  type RecoveryLocusFrame,
-} from "./locus-context.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+import type { RecoveryLocusFrame } from "./locus-context.js";
 import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
@@ -48,7 +42,6 @@ import {
 
 /** Stop reason categories emitted by the recovery audit. */
 export const RecoveryAuditStopKindSchema = z.enum([
-  "active-unresolved",
   "branch-mismatch",
   "branch-unresolved",
   "dirty-unresolved",
@@ -60,7 +53,6 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "load-set-drift",
   "locus-unresolved",
   "locus-hint-mismatch",
-  "seed-locus-unavailable",
   "repo-root-mismatch",
   "seed-invalid",
   "seed-missing",
@@ -117,6 +109,14 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
     message: z.string(),
     detail: z.strictObject({ expected: z.string(), actual: z.string() }),
   }),
+  z.strictObject({
+    kind: z.literal("load-set-archival-relocation"),
+    message: z.string(),
+    detail: z.strictObject({
+      slug: z.string(),
+      pathDrifts: z.array(LoadSetPathDriftSchema),
+    }),
+  }),
 ]);
 export type RecoveryAuditExplainedDrift = z.infer<typeof RecoveryAuditExplainedDriftSchema>;
 
@@ -131,7 +131,7 @@ export const RecoveryAuditLocusSchema = z.strictObject({
 });
 export type RecoveryAuditLocus = z.infer<typeof RecoveryAuditLocusSchema>;
 
-/** Optional seed-locus hint compared with fresh reader authority. */
+/** Required checkout-local seed hint compared with fresh reader authority. */
 export const RecoveryAuditLocusHintSchema = z.strictObject({
   expected: CompactionSeedLocusHintSchema.nullable(),
   actual: CompactionSeedLocusHintSchema.nullable(),
@@ -175,9 +175,8 @@ export type RecoveryAuditVerdict = z.infer<typeof RecoveryAuditVerdictSchema>;
 
 /** Fresh recovery probe state consumed by the audit. */
 export interface RecoveryAuditProbeState {
-  locusState: Probe<LocusStateV1>;
+  derivedLocusState: Probe<DerivedLocusFrame>;
   recoveryFrame: Probe<RecoveryLocusFrame>;
-  active: Probe<ActiveSessionInitResult>;
   dirty: Probe<DirtyStateResult>;
   loadSet: Probe<LoadSetManifest>;
   taskCursor?: Probe<TaskListCursorFileResult>;
@@ -223,7 +222,7 @@ export async function auditRecoveryState(
   auditRepoRoot(options, stopReasons);
   const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
   const locusHint = auditLocusHint(options, stopReasons);
-  const loadSetAudit = auditLoadSet(options, stopReasons);
+  const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons);
 
@@ -256,12 +255,12 @@ function auditLocusHint(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
 ): RecoveryAuditLocusHint {
-  const expected = options.seed.locus ?? null;
-  if (!options.recover.locusState.ok) {
+  const expected = options.seed.locus;
+  if (!options.recover.derivedLocusState.ok) {
     stopReasons.push({
       kind: "locus-unresolved",
-      message: options.recover.locusState.error.message,
-      detail: options.recover.locusState.error,
+      message: options.recover.derivedLocusState.error.message,
+      detail: options.recover.derivedLocusState.error,
     });
     return { expected, actual: null, match: false };
   }
@@ -274,86 +273,24 @@ function auditLocusHint(
     return { expected, actual: null, match: false };
   }
 
-  // An `unavailable` disposition binds in neither direction: the producer could
-  // not establish its own generation, so no fresh state proves correspondence.
-  if (expected === null && options.seed.locusAbsence === "unavailable") {
-    stopReasons.push({
-      kind: "seed-locus-unavailable",
-      message: "compaction seed recorded that its session locus generation could not be established",
-    });
-    return { expected: null, actual: null, match: false };
-  }
-
-  const state = options.recover.locusState.value;
   const frame = options.recover.recoveryFrame.value;
-  if (frame.kind === "none") {
-    if (state.current.kind !== "none" || expected !== null) {
-      stopReasons.push({
-        kind: "locus-unresolved",
-        message: expected === null
-          ? "fresh recovery frame does not match the current session locus verdict"
-          : "seed session locus hint has no fresh current session locus",
-        detail: { expected, current: state.current, frame },
-      });
-      return { expected, actual: null, match: false };
-    }
-    return { expected: null, actual: null, match: true };
-  }
-
-  if (state.current.kind === "none") {
-    const rows = state.roster.rows.filter((row) => row.recordId === frame.activeRecordId);
-    if (
-      expected === null
-      && frame.parentRecordId === null
-      && rows.length === 1
-      && rows[0] !== undefined
-      && isIdleWorkUnitRow(rows[0])
-    ) {
-      return { expected: null, actual: null, match: true };
-    }
-    stopReasons.push({
-      kind: "locus-unresolved",
-      message: "fresh recovery frame does not match the current checkout role",
-      detail: { expected, current: state.current, frame },
-    });
-    return { expected, actual: null, match: false };
-  }
-
-  if (
-    state.current.kind !== "resolved"
-    || frame.activeRecordId !== state.current.activeRecordId
-    || frame.parentRecordId !== state.current.parentRecordId
-  ) {
-    stopReasons.push({
-      kind: "locus-unresolved",
-      message: "fresh recovery frame does not match the current session locus verdict",
-      detail: { current: state.current, frame },
-    });
-    return { expected, actual: null, match: false };
-  }
-
-  const actual = deriveCompactionSeedLocusHint({ ok: true, value: state });
+  const actual = deriveCompactionSeedLocusHint({ ok: true, value: options.recover.derivedLocusState.value });
   if (actual === null) {
     stopReasons.push({
       kind: "locus-unresolved",
-      message: "fresh current session locus does not resolve one live record and lease generation",
-      detail: { current: state.current },
+      message: "fresh entering checkout does not resolve recovery facts",
     });
     return { expected, actual: null, match: false };
   }
-  if (expected === null) {
-    // A producer that recorded `none` positively attested there was no generation,
-    // so one that is live now is a state change the seed cannot vouch for. Only a
-    // pre-model seed, which recorded no disposition at all, keeps the permissive read.
-    if (options.seed.locusAbsence === "none") {
-      stopReasons.push({
-        kind: "locus-hint-mismatch",
-        message: "compaction seed recorded no current session locus generation, but one is live now",
-        detail: { expected: null, actual },
-      });
-      return { expected: null, actual, match: false };
-    }
-    return { expected: null, actual, match: true };
+
+  if (frame.checkoutPath !== actual.checkoutPath
+    || frame.parentCheckoutPath !== actual.parentCheckoutPath) {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: "fresh recovery frame does not match the entering checkout facts",
+      detail: { actual, frame },
+    });
+    return { expected, actual, match: false };
   }
 
   const mismatchedFields = COMPACTION_SEED_LOCUS_HINT_FIELDS
@@ -361,7 +298,7 @@ function auditLocusHint(
   if (mismatchedFields.length > 0) {
     stopReasons.push({
       kind: "locus-hint-mismatch",
-      message: "fresh session locus generation differs from the compaction seed hint",
+      message: "fresh checkout-local recovery facts differ from the compaction seed hint",
       detail: { expected, actual, mismatchedFields },
     });
     return { expected, actual, match: false };
@@ -429,6 +366,7 @@ function auditLocus(
 function auditLoadSet(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
+  explainedDrift: RecoveryAuditExplainedDrift[],
 ): LoadSetAuditVerdict | null {
   if (!options.recover.loadSet.ok) {
     stopReasons.push({
@@ -439,68 +377,70 @@ function auditLoadSet(
     return null;
   }
 
-  let verdict = auditLoadSetManifest({
+  const verdict = auditLoadSetManifest({
     baseline: options.seed.loadSet,
     fresh: options.recover.loadSet.value,
   });
-  if (verdict.diverged) {
-    const compatibilityWorkflowPath = recoveryCompatibilityWorkflowPath(options);
-    const compatibilityLoadSet = compatibilityWorkflowPath === null
-      ? null
-      : withoutTrailingFullWorkflow(options.recover.loadSet.value, compatibilityWorkflowPath);
-    if (compatibilityLoadSet !== null) {
-      verdict = auditLoadSetManifest({ baseline: options.seed.loadSet, fresh: compatibilityLoadSet });
-    }
-  }
-  if (verdict.diverged) {
+  const archivalRelocation = archivedIntegrationRelocation(options, verdict);
+  if (verdict.diverged && archivalRelocation === null) {
     stopReasons.push({
       kind: "load-set-drift",
       message: "fresh recovery load-set diverges from the compaction seed baseline",
       detail: verdict.diff,
     });
+  } else if (archivalRelocation !== null) {
+    explainedDrift.push({
+      kind: "load-set-archival-relocation",
+      message: "the integrating work unit's exact meta moved from active to its completed archive",
+      detail: archivalRelocation,
+    });
   }
   return verdict;
 }
 
-function recoveryCompatibilityWorkflowPath(options: AuditRecoveryStateOptions): string | null {
+function archivedIntegrationRelocation(
+  options: AuditRecoveryStateOptions,
+  verdict: LoadSetAuditVerdict,
+): { slug: string; pathDrifts: LoadSetAuditVerdict["diff"]["pathDrifts"] } | null {
+  const slug = options.seed.activeWorkUnit;
+  if (slug === null || options.seed.sessionType !== "integration" || !verdict.diverged) return null;
   if (!options.recover.recoveryFrame.ok) return null;
-  const frame = options.recover.recoveryFrame.value;
-  if (frame.kind !== "resolved"
-    || options.seed.locus !== undefined
-    || options.seed.locusAbsence !== undefined
-    || !options.recover.locusState.ok) return null;
+  const recoveryFrame = options.recover.recoveryFrame.value;
+  if (recoveryFrame.kind !== "resolved"
+    || recoveryFrame.subject.kind !== "work-unit"
+    || recoveryFrame.subject.key !== slug
+    || recoveryFrame.sessionType !== "integration"
+    || recoveryFrame.workflow !== "integrate-work-unit") return null;
+  if (!options.recover.derivedLocusState.ok) return null;
+  const entering = options.recover.derivedLocusState.value.entering;
+  if (entering.kind !== "selected"
+    || entering.row.kind !== "work-unit"
+    || entering.row.subject.kind !== "work-unit"
+    || entering.row.subject.key !== slug
+    || entering.row.lifecycleLocation !== "completed"
+    || entering.row.context === null) return null;
 
-  const state = options.recover.locusState.value;
-  if (state.current.kind !== "resolved"
-    || state.current.activeRecordId !== frame.activeRecordId
-    || state.current.parentRecordId !== frame.parentRecordId) return null;
-  const rows = state.roster.rows.filter((row) => row.recordId === frame.activeRecordId);
-  const row = rows.length === 1 ? rows[0] : undefined;
-  if (row === undefined
-    || row.kind !== "managed-role"
-    || row.frame !== "active"
-    || row.lease?.state !== "live"
-    || row.role === null
-    || row.diagnostics.length > 0) return null;
-
-  const workflow = row.role.kind === "errand"
-    ? { name: "run-errand", path: RUN_ERRAND_WORKFLOW_PATH }
-    : row.role.kind === "groom"
-      ? { name: "draft-design", path: DRAFT_DESIGN_WORKFLOW_PATH }
-      : row.role.kind === "housekeep"
-        ? { name: "drain-inbox", path: DRAIN_INBOX_WORKFLOW_PATH }
-        : null;
-  return workflow !== null && frame.workflow === workflow.name ? workflow.path : null;
-}
-
-function withoutTrailingFullWorkflow(
-  loadSet: LoadSetManifest,
-  workflowPath: string,
-): LoadSetManifest | null {
-  const last = loadSet.entries.at(-1);
-  if (last?.path !== workflowPath
-    || last.readMode.kind !== "full") return null;
-  return { manifestVersion: loadSet.manifestVersion, entries: loadSet.entries.slice(0, -1) };
+  const diff = verdict.diff;
+  if (diff.manifestVersion !== null
+    || diff.membership.added.length > 0
+    || diff.membership.removed.length > 0
+    || diff.readModeChanges.length > 0
+    || diff.pathDrifts.length !== 1) return null;
+  const drift = diff.pathDrifts[0];
+  if (drift === undefined) return null;
+  const expected = `.arc/active/meta-${slug}.md`;
+  const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const actualPattern = new RegExp(
+    `^\\.arc/completed/[^/]+/\\d+_${escapedSlug}/meta-${escapedSlug}\\.md$`,
+    "u",
+  );
+  if (options.seed.metaPath !== expected
+    || drift.expected.path !== expected
+    || !actualPattern.test(drift.actual.path)
+    || entering.row.context.metaPath !== drift.actual.path
+    || drift.expected.readMode.kind !== "full"
+    || drift.actual.readMode.kind !== "full") return null;
+  return { slug, pathDrifts: diff.pathDrifts };
 }
 
 function auditDirtyFiles(

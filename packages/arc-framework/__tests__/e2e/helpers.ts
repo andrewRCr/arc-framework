@@ -167,7 +167,9 @@ export async function runArcAnchoredSequence(
         process.execPath,
         "-e",
         "const fs=require('node:fs');const value=JSON.parse(fs.readFileSync(0,'utf8'));"
-          + "process.stdout.write(String(value[process.argv[1]]));",
+          + "const field=process.argv[1].split('.').reduce((current,key)=>current?.[key],value);"
+          + "if(typeof field!=='string')throw new Error(`Expected string JSON field ${process.argv[1]}`);"
+          + "process.stdout.write(field);",
         entry.cwdFromPreviousJson,
       ].map(shellEscape).join(" ");
       prefix = `arc_sequence_cwd=$(printf '%s' "$arc_sequence_result" | ${readField}); `;

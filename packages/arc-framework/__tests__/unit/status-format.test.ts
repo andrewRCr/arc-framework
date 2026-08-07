@@ -25,7 +25,6 @@ import type { ActiveStatusResult } from "../../src/commands/active/types.js";
 import type { ConfigStatusResult } from "../../src/commands/config/types.js";
 import type { ExtensionsStatusResult } from "../../src/commands/extensions/types.js";
 import type { UserStatusResult } from "../../src/commands/user/types.js";
-import { locusStateFixture } from "../fixtures/locus-state.js";
 
 function okUser(): Probe<UserStatusResult> {
   return {
@@ -137,7 +136,7 @@ function makeSessionInitResult(
   return {
     mode: "session-init",
     identity: { identity: "andrew", role: "maintainer" },
-    locusState: { ok: true, value: locusStateFixture({ rows: [] }) },
+    derivedLocusState: { ok: false, error: { kind: "runtime", message: "fixture unavailable" } },
     locusGuidance: {
       kind: "ready",
       identities: [],

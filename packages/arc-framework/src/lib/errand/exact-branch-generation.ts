@@ -49,7 +49,7 @@ export interface ExactBranchTeardownOptions extends ExactBranchGenerationOptions
   /** Prove local branch deletion is safe after caller authority and immediately before mutation. */
   readonly authorizeLocalDelete?: () => Promise<ExactBranchTeardownAuthorization>;
   /** Acquire authority that remains held through the exact local-ref deletion. */
-  readonly acquireLocalDelete?: () => Promise<ExactBranchTeardownLeaseResult>;
+  readonly acquireLocalDelete?: () => Promise<ExactBranchTeardownLockResult>;
 }
 
 /** Caller-owned authority checked inside the ref teardown boundary. */
@@ -59,7 +59,7 @@ export type ExactBranchTeardownAuthorization =
   | { kind: "error"; message: string };
 
 /** Caller-owned authority held across the exact local-ref mutation. */
-export type ExactBranchTeardownLeaseResult =
+export type ExactBranchTeardownLockResult =
   | { kind: "acquired"; release(): Promise<void> }
   | { kind: "refused"; message: string }
   | { kind: "error"; message: string };

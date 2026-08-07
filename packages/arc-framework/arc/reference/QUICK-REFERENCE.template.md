@@ -251,10 +251,11 @@ arc plan check
 arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
 arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
 arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]
-arc errand leave <slug> --state <paused|awaiting-merge> [--json]
-arc errand close <slug> [--force] [--json]
-arc errand abandon <slug> [--json]
-arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> [--json]
+arc errand leave <slug> --state <paused|awaiting-merge> [--confirm-foreign-generation <generation>] [--json]
+arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand abandon <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> \
+  [--confirm-foreign-generation <generation>] [--json]
 ```
 
 ### Session State Portability

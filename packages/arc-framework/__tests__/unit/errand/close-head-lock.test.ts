@@ -1,4 +1,4 @@
-/** Durable checkout lock recovery for terminal Errand close retries. */
+/** Durable retry cleanup for Errand close checkout locks. */
 
 import { describe, expect, it } from "vitest";
 
@@ -8,7 +8,6 @@ import {
   type CloseHeadLockFileIO,
 } from "../../../src/lib/errand/close-head-lock.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import type { ProcessInspection, ProcessInspector } from "../../../src/lib/locus/process-inspector.js";
 
 const CHECKOUT = "/repo";
 const LOCK_PATH = "/repo/.git/HEAD.lock";
@@ -20,10 +19,7 @@ function errno(message: string, code: string): Error & { code: string } {
 function fakeGit(): GitExec {
   return async (_command, args) => {
     if (args.join(" ") === "worktree list --porcelain -z") {
-      return {
-        stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`,
-        stderr: "",
-      };
+      return { stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`, stderr: "" };
     }
     if (args.join(" ") === "rev-parse --git-path HEAD") {
       return { stdout: "/repo/.git/HEAD\n", stderr: "" };
@@ -35,32 +31,19 @@ function fakeGit(): GitExec {
 function fakeFileIO(): {
   fileIO: CloseHeadLockFileIO;
   files: Map<string, string>;
-  failNextWrite(): void;
-  failNextUnlink(): void;
   replaceAfterNextRead(bytes: string): void;
 } {
   const files = new Map<string, string>();
-  let writeFailure: Error | null = null;
-  let unlinkFailure: Error | null = null;
   let replacementAfterRead: string | null = null;
   return {
     files,
-    failNextWrite: () => { writeFailure = new Error("simulated write failure"); },
-    failNextUnlink: () => { unlinkFailure = new Error("simulated unlink failure"); },
     replaceAfterNextRead: (bytes) => { replacementAfterRead = bytes; },
     fileIO: {
       openExclusive: async (path) => {
         if (files.has(path)) throw errno("already exists", "EEXIST");
         files.set(path, "");
         return {
-          writeFile: async (data) => {
-            if (writeFailure !== null) {
-              const failure = writeFailure;
-              writeFailure = null;
-              throw failure;
-            }
-            files.set(path, data);
-          },
+          writeFile: async (data) => { files.set(path, data); },
           sync: async () => undefined,
           close: async () => undefined,
         };
@@ -81,192 +64,87 @@ function fakeFileIO(): {
         return value;
       },
       unlink: async (path) => {
-        if (unlinkFailure !== null) {
-          const failure = unlinkFailure;
-          unlinkFailure = null;
-          throw failure;
-        }
         if (!files.delete(path)) throw errno("not found", "ENOENT");
       },
     },
   };
 }
 
-function fakeProcessInspector(): {
-  inspector: ProcessInspector;
-  setInspection(value: ProcessInspection): void;
-} {
-  let inspection: ProcessInspection = {
-    kind: "present",
-    pid: process.pid,
-    parentPid: process.ppid,
-    startToken: "holder-generation",
-    commandIdentity: "node",
-  };
-  return {
-    inspector: { kind: "fake", inspect: async () => inspection },
-    setInspection: (value) => { inspection = value; },
-  };
+async function acquire(runtime: ReturnType<typeof fakeFileIO>, slug = "done") {
+  return acquireErrandCloseHeadLock({
+    exec: fakeGit(),
+    checkoutPath: CHECKOUT,
+    identity: { slug, claimId: "c".repeat(32) },
+    revalidate: async () => ({ kind: "valid" }),
+    fileIO: runtime.fileIO,
+  });
 }
 
 describe("Errand close HEAD lock", () => {
-  it("keeps failed receipt initialization from blocking retry", async () => {
+  it("persists a random lock generation without process-liveness fields", async () => {
     const runtime = fakeFileIO();
-    const processRuntime = fakeProcessInspector();
-    runtime.failNextWrite();
-    runtime.failNextUnlink();
+    const acquired = await acquire(runtime);
 
-    await expect(acquireErrandCloseHeadLock({
-      exec: fakeGit(),
-      checkoutPath: CHECKOUT,
-      identity: { slug: "done", claimId: "c".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    })).resolves.toMatchObject({ kind: "error" });
-
-    await expect(acquireErrandCloseHeadLock({
-      exec: fakeGit(),
-      checkoutPath: CHECKOUT,
-      identity: { slug: "done", claimId: "c".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    })).resolves.toMatchObject({ kind: "acquired" });
+    expect(acquired.kind).toBe("acquired");
+    const receipt = JSON.parse(runtime.files.get(LOCK_PATH) ?? "null") as Record<string, unknown>;
+    expect(receipt).toMatchObject({ kind: "arc-errand-close-head-lock", slug: "done", checkoutPath: CHECKOUT });
+    expect(receipt.generation).toEqual(expect.any(String));
+    expect(receipt).not.toHaveProperty("pid");
+    expect(receipt).not.toHaveProperty("startToken");
+    expect(receipt).not.toHaveProperty("inspector");
   });
 
-  it("recovers its exact durable receipt when terminal release failed", async () => {
+  it("recovers an exact ARC-owned receipt after terminal identity absence", async () => {
     const runtime = fakeFileIO();
-    const processRuntime = fakeProcessInspector();
-    const acquired = await acquireErrandCloseHeadLock({
-      exec: fakeGit(),
-      checkoutPath: CHECKOUT,
-      identity: { slug: "done", claimId: "c".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    });
+    const acquired = await acquire(runtime);
     if (acquired.kind !== "acquired") throw new Error("expected acquired lock");
-    runtime.failNextUnlink();
-
-    await expect(acquired.release()).rejects.toThrow("simulated unlink failure");
-    expect(runtime.files.has(LOCK_PATH)).toBe(true);
-    processRuntime.setInspection({ kind: "absent" });
 
     await expect(recoverFinalizedErrandCloseHeadLock({
-      exec: fakeGit(),
-      slug: "done",
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
+      exec: fakeGit(), slug: "done", fileIO: runtime.fileIO,
     })).resolves.toEqual({ kind: "recovered" });
     expect(runtime.files.has(LOCK_PATH)).toBe(false);
   });
 
-  it("does not remove a receipt owned by another Errand", async () => {
+  it("preserves a live holder's receipt against a concurrent close", async () => {
     const runtime = fakeFileIO();
-    const processRuntime = fakeProcessInspector();
-    const acquired = await acquireErrandCloseHeadLock({
-      exec: fakeGit(),
-      checkoutPath: CHECKOUT,
-      identity: { slug: "other", claimId: "d".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
+    const first = await acquire(runtime);
+    if (first.kind !== "acquired") throw new Error("expected acquired lock");
+
+    await expect(acquire(runtime)).resolves.toMatchObject({
+      kind: "refused",
+      reason: "role-conflict",
     });
-    if (acquired.kind !== "acquired") throw new Error("expected acquired lock");
+    expect(runtime.files.has(LOCK_PATH)).toBe(true);
+
+    await first.release();
+    expect(runtime.files.has(LOCK_PATH)).toBe(false);
+  });
+
+  it("preserves a receipt owned by another Errand", async () => {
+    const runtime = fakeFileIO();
+    await acquire(runtime, "other");
 
     await expect(recoverFinalizedErrandCloseHeadLock({
-      exec: fakeGit(),
-      slug: "done",
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
+      exec: fakeGit(), slug: "done", fileIO: runtime.fileIO,
     })).resolves.toEqual({ kind: "absent" });
     expect(runtime.files.has(LOCK_PATH)).toBe(true);
   });
 
-  it("does not recover another claim generation of the same Errand", async () => {
+  it("preserves a replacement generation published after the receipt read", async () => {
     const runtime = fakeFileIO();
-    const processRuntime = fakeProcessInspector();
-    const acquired = await acquireErrandCloseHeadLock({
-      exec: fakeGit(),
-      checkoutPath: CHECKOUT,
-      identity: { slug: "done", claimId: "c".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    });
-    if (acquired.kind !== "acquired") throw new Error("expected acquired lock");
-    processRuntime.setInspection({ kind: "absent" });
-    await expect(recoverFinalizedErrandCloseHeadLock({
-      exec: fakeGit(),
+    await acquire(runtime);
+    runtime.replaceAfterNextRead(`${JSON.stringify({
+      version: 1,
+      kind: "arc-errand-close-head-lock",
       slug: "done",
-      claimId: "d".repeat(32),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    })).resolves.toEqual({ kind: "absent" });
-    expect(runtime.files.has(LOCK_PATH)).toBe(true);
-  });
-
-  it("treats a concurrent missing lock as successful release", async () => {
-    const runtime = fakeFileIO();
-    const processRuntime = fakeProcessInspector();
-    const acquired = await acquireErrandCloseHeadLock({
-      exec: fakeGit(),
+      claimId: "c".repeat(32),
       checkoutPath: CHECKOUT,
-      identity: { slug: "done", claimId: "c".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    });
-    if (acquired.kind !== "acquired") throw new Error("expected acquired lock");
-    runtime.files.delete(LOCK_PATH);
-
-    await expect(acquired.release()).resolves.toBeUndefined();
-  });
-
-  it("defers recovery while the exact receipt holder is live", async () => {
-    const runtime = fakeFileIO();
-    const processRuntime = fakeProcessInspector();
-    const acquired = await acquireErrandCloseHeadLock({
-      exec: fakeGit(),
-      checkoutPath: CHECKOUT,
-      identity: { slug: "done", claimId: "c".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    });
-    if (acquired.kind !== "acquired") throw new Error("expected acquired lock");
+      generation: "replacement",
+    })}\n`);
 
     await expect(recoverFinalizedErrandCloseHeadLock({
-      exec: fakeGit(),
-      slug: "done",
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
+      exec: fakeGit(), slug: "done", fileIO: runtime.fileIO,
     })).resolves.toMatchObject({ kind: "blocked" });
     expect(runtime.files.has(LOCK_PATH)).toBe(true);
-  });
-
-  it("preserves a replacement lock when the original holder exits after the receipt read", async () => {
-    const runtime = fakeFileIO();
-    const processRuntime = fakeProcessInspector();
-    const acquired = await acquireErrandCloseHeadLock({
-      exec: fakeGit(),
-      checkoutPath: CHECKOUT,
-      identity: { slug: "done", claimId: "c".repeat(32) },
-      revalidate: async () => ({ kind: "valid" }),
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    });
-    if (acquired.kind !== "acquired") throw new Error("expected acquired lock");
-    runtime.replaceAfterNextRead("replacement Git lock");
-    processRuntime.setInspection({ kind: "absent" });
-
-    await expect(recoverFinalizedErrandCloseHeadLock({
-      exec: fakeGit(),
-      slug: "done",
-      fileIO: runtime.fileIO,
-      inspector: processRuntime.inspector,
-    })).resolves.toMatchObject({ kind: "blocked" });
-    expect(runtime.files.get(LOCK_PATH)).toBe("replacement Git lock");
   });
 });

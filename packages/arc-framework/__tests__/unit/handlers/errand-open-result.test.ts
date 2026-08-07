@@ -9,19 +9,24 @@ import {
   formatErrandOpenResult,
   formatErrandPromoteResult,
 } from "../../../src/handlers/errand.js";
-import { createLocusMutationResult } from "../../../src/lib/locus/mutation.js";
+import { createErrandOperationResult } from "../../../src/lib/errand/operation-result.js";
+import { createErrandPromotionResult } from "../../../src/lib/errand/promotion-result.js";
+import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 
-const refusal = createLocusMutationResult({
+const refusal = createErrandOperationResult({
   outcome: "refused",
   operation: "errand-open",
-  reason: "lease-unknown",
-  recommendedPromptText: "The existing lease cannot be verified.",
+  reason: "topology-unknown",
+  recommendedPromptText: "The checkout topology cannot be verified.",
 });
 
 describe("errand leave result rendering", () => {
-  const leaveRefusal = createLocusMutationResult({
+  const leaveRefusal = createErrandTerminalResult({
     outcome: "refused",
     operation: "errand-leave",
+    subject: null,
+    checkoutPath: null,
+    generation: null,
     reason: "preservation-unproven",
     recommendedPromptText: "Push the exact Errand head before leaving.",
   });
@@ -32,7 +37,7 @@ describe("errand leave result rendering", () => {
     expect(json).toMatchObject({ stream: "stdout", exitCode: 1 });
     expect(formatErrandLeaveResult(leaveRefusal, false)).toEqual({
       stream: "stderr",
-      text: "Refused [preservation-unproven]: Push the exact Errand head before leaving.",
+      text: "Push the exact Errand head before leaving.",
       exitCode: 1,
     });
   });
@@ -40,7 +45,7 @@ describe("errand leave result rendering", () => {
 
 describe("errand materialize result rendering", () => {
   it("preserves the validated materialize operation across JSON and human rendering", () => {
-    const result = createLocusMutationResult({
+    const result = createErrandOperationResult({
       outcome: "refused",
       operation: "errand-materialize",
       reason: "preservation-unproven",
@@ -65,13 +70,13 @@ describe("errand open result rendering", () => {
   it("renders the same refusal reason and narration for humans", () => {
     expect(formatErrandOpenResult(refusal, false)).toEqual({
       stream: "stderr",
-      text: "Refused [lease-unknown]: The existing lease cannot be verified.",
+      text: "Refused [topology-unknown]: The checkout topology cannot be verified.",
       exitCode: 1,
     });
   });
 
   it("renders typed errors on stderr for humans", () => {
-    const error = createLocusMutationResult({
+    const error = createErrandOperationResult({
       outcome: "error",
       operation: "errand-open",
       error: { code: "locus.errand-open.config", message: "Configuration is unavailable." },
@@ -87,14 +92,11 @@ describe("errand open result rendering", () => {
 });
 
 describe("errand link result rendering", () => {
-  const linked = createLocusMutationResult({
+  const linked = createErrandOperationResult({
     outcome: "applied",
     operation: "errand-link",
     allocation: null,
-    recordId: null,
-    leaseId: null,
-    activeLocusPath: null,
-    sessionHomePath: null,
+    subject: { kind: "errand", key: "fix-output", claimId: "0123456789abcdef0123456789abcdef" },
     identity: {
       kind: "errand",
       key: "fix-output",
@@ -110,7 +112,7 @@ describe("errand link result rendering", () => {
       changeRequest: null,
     },
     originEntry: "Fix output capture",
-    restoredParent: null,
+    originEntrySourceDigest: `sha256:${"a".repeat(64)}`,
     nextOffer: null,
     recommendedPromptText: "Linked Errand 'fix-output' to inbox capture 'Fix output capture'.",
   });
@@ -132,17 +134,14 @@ describe("errand link result rendering", () => {
 
 describe("errand abandon result rendering", () => {
   it("uses the shared result renderer in JSON and human modes", () => {
-    const result = createLocusMutationResult({
+    const result = createErrandTerminalResult({
       outcome: "idempotent",
       operation: "errand-abandon",
-      allocation: null,
-      recordId: null,
-      leaseId: null,
-      activeLocusPath: null,
-      sessionHomePath: null,
-      identity: null,
-      originEntry: null,
-      restoredParent: null,
+      subject: null,
+      generation: null,
+      checkoutPath: null,
+      parentCheckoutPath: null,
+      settlement: { kind: "capture", disposition: "absent", originEntry: null },
       nextOffer: null,
       recommendedPromptText: "Already abandoned.",
     });
@@ -162,9 +161,12 @@ describe("errand abandon result rendering", () => {
 
 describe("errand promote result rendering", () => {
   it("renders the same validated result for JSON and human callers", () => {
-    const result = createLocusMutationResult({
+    const result = createErrandPromotionResult({
       outcome: "refused",
       operation: "errand-promote",
+      subject: null,
+      checkoutPath: null,
+      generation: null,
       reason: "promotion-source-invalid",
       recommendedPromptText: "Promotion source changed.",
     });

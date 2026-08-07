@@ -115,15 +115,7 @@ import {
   type ActiveInFlightCliOptions,
 } from "./handlers/active.js";
 import { handleStatus, type StatusCliOptions } from "./handlers/status.js";
-import {
-  handleLocus,
-  handleLocusAttach,
-  handleLocusRelease,
-  handleLocusResolve,
-  type LocusAttachOptions,
-  type LocusReleaseOptions,
-  type LocusResolveOptions,
-} from "./handlers/locus.js";
+import { handleLocus } from "./handlers/locus.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
@@ -262,7 +254,6 @@ wu
   .command("reconcile [slug]")
   .description("Plan or apply version-checked repairs owned by the current work unit")
   .option("--apply", "Apply and stage the exact reported path set")
-  .option("--attach-session", "Attach this session after entering the work-unit checkout")
   .option("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -544,6 +535,7 @@ errand
   .addOption(new Option("--state <state>", "Tail state")
     .choices(["paused", "awaiting-merge"])
     .makeOptionMandatory())
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -564,7 +556,7 @@ errand
 errand
   .command("close <slug>")
   .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
-  .option("--force", "Legacy-only override for an intentionally discarded close-only generation")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -574,6 +566,7 @@ errand
 errand
   .command("abandon <slug>")
   .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -582,12 +575,13 @@ errand
 
 errand
   .command("promote <slug>")
-  .description("Promote an errand to a work unit: rename the branch, mint the meta, retire the record")
+  .description("Promote an Errand to a receipt-backed work unit and settle its exact identity")
   .option("--name <name>", "The new work-unit name (meta filename + branch leaf); defaults to the slug")
   .option("--type <type>", "WU branch nature-type prefixing the name (default: feat)")
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -995,45 +989,11 @@ program
 
 // --- Locus ---
 
-const locusCmd = program
+program
   .command("locus")
   .description("Inspect the local checkout and session locus roster")
   .option("--json", "Emit one typed session locus envelope as JSON")
   .action(handleLocus);
-
-locusCmd
-  .command("attach")
-  .description("Attach the entering process to one trusted managed session locus")
-  .option("--checkout <path>", "Select one roster-backed checkout")
-  .option("--json", "Emit one typed session locus mutation result")
-  .action((opts: LocusAttachOptions, command: Command) => handleLocusAttach({
-    ...opts,
-    json: command.optsWithGlobals().json === true,
-  }));
-
-locusCmd
-  .command("release <record-id>")
-  .description("Release one exact caller-named lease generation")
-  .requiredOption("--lease <id>", "Exact lease generation to release")
-  .option("--json", "Emit one typed session locus mutation result")
-  .action((recordId: string, opts: LocusReleaseOptions, command: Command) => handleLocusRelease(recordId, {
-    ...opts,
-    json: command.optsWithGlobals().json === true,
-  }));
-
-locusCmd
-  .command("resolve <record-id>")
-  .description("Resume or abandon one exact transient generation no live session holds")
-  .requiredOption("--action <action>", "Resolution action: resume | abandon")
-  .option(
-    "--confirm-no-live-session",
-    "Attest that no live session holds the lease; refused when one is verifiably live elsewhere",
-  )
-  .option("--json", "Emit one typed session locus mutation result")
-  .action((recordId: string, opts: LocusResolveOptions, command: Command) => handleLocusResolve(recordId, {
-    ...opts,
-    json: command.optsWithGlobals().json === true,
-  }));
 
 // --- Recover ---
 

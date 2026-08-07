@@ -312,6 +312,7 @@ export function normalizeSessionEnvelope(
       [path.replaceAll("\\", "/"), token] as const,
     ]);
   const oids = new Map<string, string>();
+  const digests = new Map<string, string>();
   const timestamps = new Map<string, string>();
   const dates = new Map<string, string>();
 
@@ -321,6 +322,14 @@ export function normalizeSessionEnvelope(
     const token = `<${label}_${map.size + 1}>`;
     map.set(value, token);
     return token;
+  };
+
+  const digestFor = (value: string): string => {
+    const current = digests.get(value);
+    if (current !== undefined) return current;
+    const digest = `sha256:${(digests.size + 1).toString(16).padStart(64, "0")}`;
+    digests.set(value, digest);
+    return digest;
   };
 
   const degradedCommandWarningPrefixes = [
@@ -336,6 +345,7 @@ export function normalizeSessionEnvelope(
     if (typeof value === "string") {
       let next = value;
       for (const [root, token] of roots) next = next.replaceAll(root, token);
+      next = next.replace(/sha256:[0-9a-f]{64}/gu, digestFor);
       next = next.replace(/\b[0-9a-f]{40}\b/gu, (oid) => tokenFor(oids, oid, "OID"));
       next = next.replace(
         /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z\b/gu,

@@ -9,7 +9,74 @@ import { join } from "node:path";
 import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
-import { atomicWriteJson, toForwardSlash } from "../../src/lib/fs.js";
+import {
+  atomicWriteJson,
+  createAtomicFileCreator,
+  toForwardSlash,
+  type AtomicCreateFileContext,
+} from "../../src/lib/fs.js";
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve = (): void => undefined;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function fakeAtomicCreateContext(files: Map<string, string>, writeGate: ReturnType<typeof deferred>): {
+  context: AtomicCreateFileContext;
+  writeStarted: Promise<void>;
+} {
+  const writeStarted = deferred();
+  return {
+    writeStarted: writeStarted.promise,
+    context: {
+      mkdir: async () => undefined,
+      writeFile: async (path, content) => {
+        if (files.has(path)) throw Object.assign(new Error("exists"), { code: "EEXIST" });
+        files.set(path, content.slice(0, 1));
+        writeStarted.resolve();
+        await writeGate.promise;
+        files.set(path, content);
+      },
+      link: async (source, target) => {
+        if (files.has(target)) throw Object.assign(new Error("exists"), { code: "EEXIST" });
+        const content = files.get(source);
+        if (content === undefined) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+        files.set(target, content);
+      },
+      unlink: async (path) => { files.delete(path); },
+      randomId: () => "generation",
+    },
+  };
+}
+
+describe("atomicCreateFile", () => {
+  it("keeps the target absent until the complete payload is publishable", async () => {
+    const files = new Map<string, string>();
+    const writeGate = deferred();
+    const fixture = fakeAtomicCreateContext(files, writeGate);
+    const create = createAtomicFileCreator(fixture.context);
+    const publication = create("/repo/meta.md", "complete");
+
+    await fixture.writeStarted;
+    expect(files.get("/repo/meta.md")).toBeUndefined();
+    writeGate.resolve();
+    await publication;
+
+    expect(files).toEqual(new Map([["/repo/meta.md", "complete"]]));
+  });
+
+  it("does not replace an existing target when publication loses the create race", async () => {
+    const files = new Map([["/repo/meta.md", "winner"]]);
+    const writeGate = deferred();
+    writeGate.resolve();
+    const fixture = fakeAtomicCreateContext(files, writeGate);
+    const create = createAtomicFileCreator(fixture.context);
+
+    await expect(create("/repo/meta.md", "loser")).rejects.toMatchObject({ code: "EEXIST" });
+    expect(files).toEqual(new Map([["/repo/meta.md", "winner"]]));
+  });
+});
 
 describe("atomicWriteJson", () => {
   let tempDir: string;

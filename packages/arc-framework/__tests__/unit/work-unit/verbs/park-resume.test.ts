@@ -52,6 +52,7 @@ interface MetaSpec {
   branch?: string;
   cls?: string;
   cohort?: string;
+  promotionReceipt?: string;
 }
 
 /** The on-disk meta body for a spec — shared by the index fs and {@link recordFor}. */
@@ -62,6 +63,9 @@ function metaContent(meta: MetaSpec): string {
     `|-----------|-----------|------------|-----------|--------------|\n` +
     `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |\n\n` +
     `- **Cohort:** ${meta.cohort ?? "[none]"}\n- **Depends On:** [none]\n\n` +
+    (meta.promotionReceipt === undefined
+      ? ""
+      : `- **Promotion Receipt:** \`${meta.promotionReceipt}\`\n\n`) +
     `- **Last Completed:** [none]\n- **Next Task:** Task 4.3 — park.\n- **Blockers:** [none]\n\n` +
     `- **Next Action:** continue.\n\n---\n`
   );
@@ -454,6 +458,17 @@ describe("runPark — park@Active", () => {
     expect(record.cohort).toBe("demo-cohort");
   });
 
+  it("preserves a promotion receipt in the regenerated pointer record", async () => {
+    const promotionReceipt = `errand-v1/repair/${"a".repeat(32)}`;
+    const promoted = { ...ACTIVE, promotionReceipt };
+    const { ctx, writes } = buildCtx([promoted]);
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(promoted) });
+
+    expect(result.status).toBe("parked");
+    expect(parseMetaRecord(writes[0]!.content).promotionReceipt).toBe(promotionReceipt);
+  });
+
   it("rejects when the preserved-branch worktree is dirty (teardown gate, nothing written)", async () => {
     const { ctx, writes } = buildCtx([ACTIVE]);
     // Override the teardown to refuse a dirty worktree (the mutator's clean-guard).
@@ -631,7 +646,6 @@ describe("runResume — the inverse", () => {
       inPlace: true,
       branch: "feat/foo",
       wuName: "foo",
-      attachSession: true,
       deferCheckout: true,
     });
   });
