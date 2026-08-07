@@ -12,7 +12,7 @@ import {
   scanRegisteredWorktrees,
   type RegisteredWorktreeScanResult,
 } from "../git/worktree-roster.js";
-import { decomposeCandidateBranch } from "./decompose-transient-claim.js";
+import { decomposeCandidateBranch } from "./decompose-candidate.js";
 
 export interface GitOwnedDecomposeCandidateCleanupDependencies {
   cwd: string;

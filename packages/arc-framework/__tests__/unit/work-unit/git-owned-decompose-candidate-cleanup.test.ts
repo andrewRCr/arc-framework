@@ -12,7 +12,7 @@ import {
   nodeWorktreeMarkerIgnoreFs,
   writeWorktreeOwnershipMarker,
 } from "../../../src/lib/git/worktree-marker.js";
-import { decomposeCandidateBranch } from "../../../src/lib/work-unit/decompose-transient-claim.js";
+import { decomposeCandidateBranch } from "../../../src/lib/work-unit/decompose-candidate.js";
 import { cleanupGitOwnedDecomposeCandidate } from "../../../src/lib/work-unit/git-owned-decompose-candidate-cleanup.js";
 
 const execFileAsync = promisify(execFile);

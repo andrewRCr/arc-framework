@@ -21,7 +21,6 @@ export const NO_INPUT_MATRIX = Object.freeze([
   { commandPath: "errand close", args: ["errand", "close", "matrix", "--json"], fixture: "arc-project", configuration: "full-protection", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: '"outcome":"idempotent","operation":"errand-close"' } },
   { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
-  { commandPath: "hook-validate-decompose-record", args: ["hook-validate-decompose-record"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "init", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
   { commandPath: "join", args: ["join", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
   { commandPath: "locus", args: ["locus", "--json"], fixture: "arc-project", preservesWorktree: true, expected: { exitCode: 0, outputIncludes: "\"mode\":\"locus\"" } },

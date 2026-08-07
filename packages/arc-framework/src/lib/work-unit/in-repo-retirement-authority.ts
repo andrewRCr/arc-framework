@@ -2,7 +2,7 @@
  * In-repository implementation of the retirement-authority port.
  *
  * The adapter composes the Git/filesystem snapshot, committed-evidence
- * authorization and decomposition finalization while keeping their I/O seams
+ * authorization while keeping their I/O seams
  * injectable.
  */
 
@@ -15,11 +15,6 @@ import {
   readRetirementAuthoritySnapshot,
   type RetirementSnapshotContext,
 } from "./retirement-authority-snapshot.js";
-import {
-  finalizeV3DecomposeRetirement,
-  type V3DecomposeFinalizationContext,
-} from "./decompose-finalization.js";
-import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
 import type {
   RetirementAuthorityPort,
   RetirementAuthorityScope,
@@ -31,7 +26,6 @@ import type {
 export interface InRepoRetirementAuthorityContext {
   snapshot: RetirementSnapshotContext;
   authorization: RetirementAuthorizationContext;
-  v3DecomposeFinalization: V3DecomposeFinalizationContext;
 }
 
 /** Current Git/filesystem-backed retirement authority. */
@@ -44,17 +38,6 @@ export class InRepoRetirementAuthority implements RetirementAuthorityPort {
 
   async readSnapshot(scope: RetirementAuthorityScope) {
     return await readRetirementAuthoritySnapshot(this.#ctx.snapshot, scope);
-  }
-
-  async finalizeV3Decompose(
-    receipt: V3DecomposeReceipt,
-    expectedAuthorityVersion: string,
-  ) {
-    return await finalizeV3DecomposeRetirement(
-      this.#ctx.v3DecomposeFinalization,
-      receipt,
-      expectedAuthorityVersion,
-    );
   }
 
   async authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision> {

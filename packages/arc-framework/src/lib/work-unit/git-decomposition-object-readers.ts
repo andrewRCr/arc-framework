@@ -3,7 +3,7 @@
 import { digestBytes } from "../canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
-import type { V3ManagedPathResult } from "./decompose-v3-receipt.js";
+import type { V3PlanCanonicalPathState } from "./decompose-v3-plan.js";
 
 export interface GitCommit {
   head: string;
@@ -89,7 +89,7 @@ export async function stateMatches(
   deps: GitDecompositionObjectReaderDependencies,
   ref: string,
   path: string,
-  expected: V3ManagedPathResult["before"],
+  expected: V3PlanCanonicalPathState,
 ): Promise<boolean | null> {
   const entry = await readTreeEntry(deps.exec, ref, path);
   if (entry === false) return null;

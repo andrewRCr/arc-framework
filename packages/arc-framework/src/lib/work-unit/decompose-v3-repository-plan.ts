@@ -32,7 +32,6 @@ import {
 } from "./decompose-v3-plan-composer.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import type { V3DecomposePreflight } from "./decompose-v3-preflight.js";
-import { projectV3CandidateAuthority } from "./decompose-v3-preparation.js";
 import {
   decodeV3DecomposeCutMap,
   v3CutMapDigest,
@@ -720,11 +719,6 @@ export async function composeV3RepositoryPlan(
   if (topology.status === "refused") {
     return refuse("topology", topology.refusal.code, topology.refusal.path);
   }
-  const authority = projectV3CandidateAuthority(map, topology.plan);
-  if (authority.status === "refused") {
-    return refuse("topology", authority.refusal.code, authority.refusal.path);
-  }
-
   const scaffolds = newMemberScaffolds(map, input.sourceTree, sourceMeta.record);
   if (scaffolds === null) return refuse("content", "profile-scaffold-failed");
   const projectedContent = contentContributions(
@@ -760,8 +754,6 @@ export async function composeV3RepositoryPlan(
     cutMapDigest: v3CutMapDigest(map),
     sourceHead: map.machine.source.head,
     expectedBaseHead: map.machine.resultBase.head,
-    candidatePublication: authority.authority.candidatePublication,
-    topologyDigest: authority.authority.topology.digest,
     origin: map.machine.source.origin,
     sourceBranch: map.machine.source.logicalBranch,
     planningProfile: map.machine.planningProfile,

@@ -1,23 +1,21 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
-import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
+import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import {
   ROADMAP_RERENDER_COMMAND,
   assertRoadmapRegenerated,
   createIndexProjectViewFs,
   renderRoadmapFromIndex,
   renderRoadmapFromIndexViewResult,
-  resolveStagedRetirementTransitionOverlay,
+  resolveStagedTransitionOverlay,
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
-import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
-  resolveRetirementRecordRelativePath,
-} from "../../../src/lib/work-unit/retirement-record-store.js";
+  resolveTransitionRecordRelativePath,
+} from "../../../src/lib/work-unit/transition-record-store.js";
+import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
-import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
   return [
@@ -51,7 +49,7 @@ function transitionMeta(slug: string, state: string, branch: string): string {
   ].join("\n");
 }
 
-function isStagedReceiptList(args: readonly string[]): boolean {
+function isStagedTransitionList(args: readonly string[]): boolean {
   return args.join("\0") === [
     "diff",
     "--cached",
@@ -59,68 +57,45 @@ function isStagedReceiptList(args: readonly string[]): boolean {
     "--diff-filter=AM",
     "-z",
     "--",
-    ".arc/system/.internal/retirement-receipts",
+    ".arc/system/.internal/transitions",
   ].join("\0");
 }
 
-function retainedReceipt(
-  subject: RetirementReceipt["subject"] = { kind: "work-unit", name: "retired" },
-): RetirementReceipt {
-  const source = {
-    branch: "plan/retired",
-    head: "a".repeat(40),
-    artifactDigest: canonicalDigest("retired source"),
-  };
-  return {
-    schemaVersion: 1,
-    receiptId: receiptId({
-      schemaVersion: 1,
-      subject,
-      transition: "abandon",
-      sourceBranch: source.branch,
-      sourceHead: source.head,
-    }),
-    subject,
-    transition: "abandon",
-    source,
-    transitionPatchDigest: canonicalDigest("retirement patch"),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "discard-confirmed",
-    result: { kind: "discard", artifactDigest: "absent" },
-  };
+function transition(origin = "retired"): TransitionRecord {
+  return { schemaVersion: 1, origin, kind: "decompose", successors: ["member"], edges: [] };
 }
 
-interface StagedReceipt {
-  receipt: RetirementReceipt;
+interface StagedTransition {
+  record: TransitionRecord;
   path: string;
 }
 
-function makeStagedReceiptsExec(receipts: readonly StagedReceipt[]): GitExec {
+function makeStagedTransitionsExec(records: readonly StagedTransition[]): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (isStagedReceiptList(args)) {
-      return { stdout: receipts.map(({ path }) => path).join("\0") + "\0", stderr: "" };
+    if (isStagedTransitionList(args)) {
+      return { stdout: records.map(({ path }) => path).join("\0") + "\0", stderr: "" };
     }
     if (args[0] === "ls-tree" && args[2] === "HEAD") {
       return { stdout: "", stderr: "" };
     }
     if (args[0] === "show") {
-      const record = receipts.find(({ path }) => args[1] === `:${path}`);
-      if (record !== undefined) return { stdout: canonicalize(record.receipt), stderr: "" };
+      const record = records.find(({ path }) => args[1] === `:${path}`);
+      if (record !== undefined) return { stdout: canonicalize(record.record), stderr: "" };
     }
     throw new Error(`unexpected git args: ${args.join(" ")}`);
   });
 }
 
-function makeStagedReceiptExec(
-  receipt: RetirementReceipt,
-  path = resolveRetirementRecordRelativePath(receipt.receiptId),
+function makeStagedTransitionExec(
+  record: TransitionRecord,
+  path = resolveTransitionRecordRelativePath(record.origin),
 ): GitExec {
-  return makeStagedReceiptsExec([{ receipt, path }]);
+  return makeStagedTransitionsExec([{ record, path }]);
 }
 
 function makeIndexExec(files: Record<string, string>): GitExec {
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+    if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
     if (args[0] === "ls-files") {
       const dir = args.at(-1) ?? "";
       const lines = Object.keys(files)
@@ -150,7 +125,7 @@ function makeTransitionExec(
 ): GitExec {
   const metaPath = `.arc/active/meta-${input.slug}.md`;
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+    if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
     if (args[0] === "ls-files") {
       const dir = args.at(-1) ?? "";
       return {
@@ -257,124 +232,77 @@ describe("createIndexProjectViewFs", () => {
   });
 });
 
-describe("resolveStagedRetirementTransitionOverlay", () => {
-  it("derives suppression authority from a path-bound generic work-unit retirement", async () => {
-    const receipt = retainedReceipt();
+describe("resolveStagedTransitionOverlay", () => {
+  it("derives suppression authority from a path-bound decomposition transition", async () => {
+    const record = transition();
 
-    await expect(resolveStagedRetirementTransitionOverlay({
+    await expect(resolveStagedTransitionOverlay({
       cwd: "/repo",
-      exec: makeStagedReceiptExec(receipt),
+      exec: makeStagedTransitionExec(record),
     })).resolves.toMatchObject({
       kind: "validated",
-      origin: "retired",
+      origin: record.origin,
       sourceBranch: "plan/retired",
     });
   });
 
-  it("rejects suppression authority when the staged path does not match the receipt identity", async () => {
-    const receipt = retainedReceipt();
-    const mismatchedPath = resolveRetirementRecordRelativePath(
-      retainedReceipt({ kind: "work-unit", name: "other" }).receiptId,
-    );
+  it("derives direct-transition suppression from the origin meta branch at HEAD", async () => {
+    const record: TransitionRecord = {
+      schemaVersion: 1,
+      origin: "retired",
+      kind: "rename",
+      successors: ["renamed"],
+      edges: [],
+    };
+    const path = resolveTransitionRecordRelativePath(record.origin);
+    const metaPath = ".arc/backlog/planned/retired/meta-retired.md";
+    const exec: GitExec = async (_command, args) => {
+      if (isStagedTransitionList(args)) return { stdout: `${path}\0`, stderr: "" };
+      if (args[0] === "show" && args[1] === `:${path}`) {
+        return { stdout: canonicalize(record), stderr: "" };
+      }
+      if (args[0] === "ls-tree" && args[1] === "-z") return { stdout: "", stderr: "" };
+      if (args[0] === "ls-tree" && args[1] === "-r") {
+        return { stdout: `${metaPath}\0`, stderr: "" };
+      }
+      if (args[0] === "show" && args[1] === `HEAD:${metaPath}`) {
+        return { stdout: transitionMeta(record.origin, "Planning", "feat/retired"), stderr: "" };
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
 
-    await expect(resolveStagedRetirementTransitionOverlay({
+    await expect(resolveStagedTransitionOverlay({ cwd: "/repo", exec })).resolves.toMatchObject({
+      kind: "validated",
+      origin: record.origin,
+      sourceBranch: "feat/retired",
+    });
+  });
+
+  it("rejects suppression authority when the staged path does not match the content origin", async () => {
+    const record = transition();
+    const mismatchedPath = resolveTransitionRecordRelativePath("other");
+
+    await expect(resolveStagedTransitionOverlay({
       cwd: "/repo",
-      exec: makeStagedReceiptExec(receipt, mismatchedPath),
+      exec: makeStagedTransitionExec(record, mismatchedPath),
     })).resolves.toBeUndefined();
   });
 
-  it("skips retained retirement receipts outside the work-unit subject domain", async () => {
-    const receipt = retainedReceipt({ kind: "branch", ref: "refs/heads/retired" });
-
-    await expect(resolveStagedRetirementTransitionOverlay({
-      cwd: "/repo",
-      exec: makeStagedReceiptExec(receipt),
-    })).resolves.toBeUndefined();
-  });
-
-  it("rejects multiple finalized work-unit retirements in one staged render", async () => {
-    const receipts = [
-      retainedReceipt(),
-      retainedReceipt({ kind: "work-unit", name: "other" }),
+  it("rejects multiple terminal transitions in one staged render", async () => {
+    const records = [
+      transition(),
+      transition("other"),
     ];
 
-    await expect(resolveStagedRetirementTransitionOverlay({
+    await expect(resolveStagedTransitionOverlay({
       cwd: "/repo",
-      exec: makeStagedReceiptsExec(receipts.map((receipt) => ({
-        receipt,
-        path: resolveRetirementRecordRelativePath(receipt.receiptId),
+      exec: makeStagedTransitionsExec(records.map((record) => ({
+        record,
+        path: resolveTransitionRecordRelativePath(record.origin),
       }))),
-    })).rejects.toThrow("staged ROADMAP render found multiple finalized retirement receipts");
+    })).rejects.toThrow("staged ROADMAP render found multiple terminal transitions");
   });
 
-  it("derives suppression authority from a modified receipt only when its authored cut is unchanged", async () => {
-    const previous = v3DecompositionEvidenceFixture({ resultBaseHead: "b".repeat(40) });
-    const advanced = v3DecompositionEvidenceFixture({ resultBaseHead: "c".repeat(40) });
-    const path = resolveRetirementRecordRelativePath(advanced.receipt.receiptId);
-    const exec: GitExec = async (_command, args) => {
-      if (isStagedReceiptList(args)) return { stdout: `${path}\0`, stderr: "" };
-      if (args[0] === "show" && args[1] === `:${path}`) {
-        return { stdout: canonicalize(advanced.receipt), stderr: "" };
-      }
-      if (args[0] === "ls-tree" && args[2] === "HEAD") {
-        return { stdout: `100644 blob ${"1".repeat(40)}\t${path}\0`, stderr: "" };
-      }
-      if (args[0] === "show" && args[1] === `HEAD:${path}`) {
-        return { stdout: canonicalize(previous.receipt), stderr: "" };
-      }
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    };
-    await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec }))
-      .resolves.toMatchObject({ kind: "validated", origin: "origin", sourceBranch: "plan/origin" });
-
-    const amended = structuredClone(advanced.receipt);
-    amended.prepared.completedMap.authoring.shape = "heterogeneous";
-    const amendmentExec: GitExec = async (command, args, options) => {
-      if (args[0] === "show" && args[1] === `:${path}`) {
-        return { stdout: canonicalize(amended), stderr: "" };
-      }
-      return await exec(command, args, options);
-    };
-    await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec: amendmentExec }))
-      .resolves.toBeUndefined();
-
-    const publicationAmendment = structuredClone(advanced.receipt);
-    publicationAmendment.finalized.publication.initialContinuation = {
-      kind: "selected",
-      slugs: ["member-b"],
-    };
-    const publicationAmendmentExec: GitExec = async (command, args, options) => {
-      if (args[0] === "show" && args[1] === `:${path}`) {
-        return { stdout: canonicalize(publicationAmendment), stderr: "" };
-      }
-      return await exec(command, args, options);
-    };
-    await expect(resolveStagedRetirementTransitionOverlay({
-      cwd: "/repo",
-      exec: publicationAmendmentExec,
-    })).resolves.toBeUndefined();
-  });
-
-  it("does not treat a failed HEAD record read as an original receipt addition", async () => {
-    const advanced = v3DecompositionEvidenceFixture({ resultBaseHead: "c".repeat(40) });
-    const path = resolveRetirementRecordRelativePath(advanced.receipt.receiptId);
-    const exec: GitExec = async (_command, args) => {
-      if (isStagedReceiptList(args)) return { stdout: `${path}\0`, stderr: "" };
-      if (args[0] === "show" && args[1] === `:${path}`) {
-        return { stdout: canonicalize(advanced.receipt), stderr: "" };
-      }
-      if (args[0] === "ls-tree" && args[2] === "HEAD") {
-        return { stdout: `100644 blob ${"1".repeat(40)}\t${path}\0`, stderr: "" };
-      }
-      if (args[0] === "show" && args[1] === `HEAD:${path}`) {
-        throw new Error("HEAD object read failed");
-      }
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    };
-
-    await expect(resolveStagedRetirementTransitionOverlay({ cwd: "/repo", exec }))
-      .rejects.toThrow("HEAD object read failed");
-  });
 });
 
 describe("renderRoadmapFromIndex", () => {

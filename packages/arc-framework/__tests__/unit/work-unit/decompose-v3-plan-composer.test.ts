@@ -12,7 +12,6 @@ import {
   type V3PlannedContentContribution,
 } from "../../../src/lib/work-unit/decompose-v3-plan-composer.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
-import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 describe("v3 decomposition plan composition", () => {
   const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -30,11 +29,6 @@ describe("v3 decomposition plan composition", () => {
   const roadmapPath = ".arc/backlog/ROADMAP.md";
   const predecessorPath = ".arc/backlog/planned/origin/meta-origin.md";
   const originDraftPath = ".arc/backlog/planned/origin/draft-origin.md";
-  const publication = {
-    logicalAnchor: { kind: "direct-member" as const, slug: "member-a" },
-    entries: [{ kind: "new-leaf" as const, slug: "member-a" }],
-  };
-
   function content(
     overrides: Partial<V3PlannedContentContribution> = {},
   ): V3PlannedContentContribution {
@@ -68,8 +62,6 @@ describe("v3 decomposition plan composition", () => {
       cutMapDigest: canonicalDigest("cut-map"),
       sourceHead: "source-head",
       expectedBaseHead: "base-head",
-      candidatePublication: publication,
-      topologyDigest: v3TopologyDigest([{ kind: "none" }]),
       origin: "origin",
       sourceBranch: "feat/origin",
       planningProfile: { kind: "draft", sourceDesign: ["draft-origin.md"] },
@@ -339,19 +331,8 @@ describe("v3 decomposition plan composition", () => {
     const coordinationSourceId = canonicalDigest("coordination-source");
     const scaffold = file("# Cohort: `origin`\n\n**Purpose:** —\n");
     const allocated = file("# Cohort: `origin`\n\n**Purpose:** Shared concern.\n");
-    const topologyDigest = v3TopologyDigest([{
-      kind: "create",
-      path: coordinationPath,
-      before: absent,
-      after: {
-        kind: "file",
-        mode: "100644",
-        contentDigest: digestBytes(scaffold.bytes),
-      },
-    }]);
     const result = composeV3DecomposePlan({
       ...input,
-      topologyDigest,
       destinations: [
         ...input.destinations,
         { kind: "cohort-coordination", destinationId: "coord", cohort: "origin" },

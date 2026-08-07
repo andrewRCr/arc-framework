@@ -11,7 +11,7 @@ import {
   type RegisteredWorktreeScanResult,
 } from "../git/worktree-roster.js";
 import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
-import { decomposeCandidateBranch } from "./decompose-transient-claim.js";
+import { decomposeCandidateBranch } from "./decompose-candidate.js";
 import type { V3PlanCanonicalPathState, ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import {
   decodeV3DecomposeCutMap,

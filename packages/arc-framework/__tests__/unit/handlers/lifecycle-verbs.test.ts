@@ -128,12 +128,6 @@ const mockRevalidateV3DecomposeExecutionPreflight = vi.fn();
 vi.mock("../../../src/lib/work-unit/decompose-v3-execution-preflight.js", () => ({
   revalidateV3DecomposeExecutionPreflight: (...a: unknown[]) => mockRevalidateV3DecomposeExecutionPreflight(...a),
 }));
-const mockFinalizeV3Decompose = vi.fn();
-vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
-  createInRepoDecomposeRetirementDriver: () => ({
-    finalizeV3: (...a: unknown[]) => mockFinalizeV3Decompose(...a),
-  }),
-}));
 const mockResolveProjectReadinessComposition = vi.fn();
 vi.mock("../../../src/lib/status/project-view.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../src/lib/status/project-view.js")>(),
@@ -144,25 +138,22 @@ const mockCreateGitV3DecomposePreflight = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
   createGitV3DecomposePreflight: (...args: unknown[]) => mockCreateGitV3DecomposePreflight(...args),
 }));
-const mockResolveGitLandedDecompositionHandoff = vi.fn();
-vi.mock("../../../src/lib/work-unit/git-landed-decomposition-handoff.js", () => ({
-  resolveGitLandedDecompositionHandoff: (...args: unknown[]) =>
-    mockResolveGitLandedDecompositionHandoff(...args),
-}));
 const mockExecuteGitV3DecomposeCommand = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
   executeGitV3DecomposeCommand: (...args: unknown[]) =>
     mockExecuteGitV3DecomposeCommand(...args),
 }));
-const mockFinalizeGitV3DecomposeOperation = vi.fn();
-vi.mock("../../../src/lib/work-unit/git-decompose-v3-finalization.js", () => ({
-  finalizeGitV3DecomposeOperation: (...args: unknown[]) =>
-    mockFinalizeGitV3DecomposeOperation(...args),
+const mockAdvanceGitDecomposeTransitionBase = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-transition-base-advancement.js", () => ({
+  advanceGitDecomposeTransitionBase: (...args: unknown[]) =>
+    mockAdvanceGitDecomposeTransitionBase(...args),
 }));
-const mockAdvanceGitV3DecomposeBase = vi.fn();
-vi.mock("../../../src/lib/work-unit/git-decompose-v3-base-advancement.js", () => ({
-  advanceGitV3DecomposeBase: (...args: unknown[]) =>
-    mockAdvanceGitV3DecomposeBase(...args),
+vi.mock("../../../src/lib/work-unit/decompose-v3-schema.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/work-unit/decompose-v3-schema.js")>(),
+  decodeV3DecomposeCutMap: () => ({
+    status: "accepted",
+    value: { machine: { source: { origin: "mono" } } },
+  }),
 }));
 
 const mockRunPromote = vi.fn();
@@ -266,7 +257,6 @@ const okOutcome = { status: "ok", advisories: [] as string[] };
 const pendingRetirementLifecycle = {
   subject: { slug: "foo", branch: "feat/foo" },
   transition: "abandon",
-  authority: { kind: "receipt-backed", receiptId: `sha256:${"a".repeat(64)}`, authorityVersion: "version" },
   cleanup: {
     branch: { status: "pending" },
     worktree: { status: "pending" },
@@ -371,32 +361,17 @@ beforeEach(() => {
     indeterminate: false,
     view: { title: "Project", records: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false },
   });
-  mockFinalizeV3Decompose.mockResolvedValue({
-    status: "recorded",
-    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
-    authorityVersion: "finalized-version",
-    transitionOverlay: {},
-    lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
-  });
   mockCreateGitV3DecomposePreflight.mockResolvedValue({
     status: "ready",
     preflight: { starterMap: { schemaVersion: 3, origin: "mono" } },
-  });
-  mockResolveGitLandedDecompositionHandoff.mockResolvedValue({
-    status: "resolved",
-    handoff: { kind: "landed-decomposition-handoff", schemaVersion: 1 },
   });
   mockExecuteGitV3DecomposeCommand.mockResolvedValue({
     status: "staged",
     operation: { report: { destinations: ["member"] } },
   });
-  mockFinalizeGitV3DecomposeOperation.mockResolvedValue({
-    status: "recorded",
-    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
-  });
-  mockAdvanceGitV3DecomposeBase.mockResolvedValue({
+  mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
     status: "advanced",
-    receiptId: `sha256:${"a".repeat(64)}`,
+    candidateBranch: "chore/decompose-mono",
     previousBaseHead: "b".repeat(40),
     currentBaseHead: "c".repeat(40),
     candidateHead: "d".repeat(40),
@@ -489,58 +464,7 @@ describe("handleDecompose", () => {
 
     expect(stdoutWrite).toHaveBeenCalledWith('{"origin":"mono","schemaVersion":3}\n');
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
-  });
-
-  it("emits one closed landed-handoff result through the public handler", async () => {
-    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-
-    await handleDecompose("mono", { handoff: true });
-
-    expect(mockResolveGitLandedDecompositionHandoff).toHaveBeenCalledWith(
-      "main",
-      "mono",
-      expect.objectContaining({ cwd: "/repo" }),
-    );
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"handoff":{"kind":"landed-decomposition-handoff","schemaVersion":1},"status":"resolved"}\n',
-    );
-    expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(process.exitCode).toBeUndefined();
-  });
-
-  it("routes an explicit undefined preflight option to the selected handoff mode", async () => {
-    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-
-    await handleDecompose("mono", { preflight: undefined, handoff: true });
-
-    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).toHaveBeenCalledWith(
-      "main",
-      "mono",
-      expect.objectContaining({ cwd: "/repo" }),
-    );
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"handoff":{"kind":"landed-decomposition-handoff","schemaVersion":1},"status":"resolved"}\n',
-    );
-  });
-
-  it("emits a closed refusal on stdout and a diagnostic on stderr", async () => {
-    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockResolveGitLandedDecompositionHandoff.mockResolvedValue({
-      status: "not-landed",
-    });
-
-    await handleDecompose("mono", { handoff: true });
-
-    expect(stdoutWrite).toHaveBeenCalledWith('{"status":"not-landed"}\n');
-    expect(stderrWrite).toHaveBeenCalledWith("not-landed\n");
-    expect(process.exitCode).toBe(1);
   });
 
   it("routes execute only through the repository operation adapter", async () => {
@@ -560,8 +484,6 @@ describe("handleDecompose", () => {
     expect(stdoutWrite).toHaveBeenCalledWith(
       `{"operation":{"report":{"destinations":["member"]}},"status":"staged"}\n`,
     );
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
 
@@ -579,15 +501,6 @@ describe("handleDecompose", () => {
         cutMapPath: "cut-map.json",
       },
     );
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
-  });
-
-  it("does not select handoff when a programmatic caller supplies it as undefined", async () => {
-    await handleDecompose("mono", { handoff: undefined, execute: "cut-map.json" });
-
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
-    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledOnce();
   });
 
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
@@ -609,121 +522,42 @@ describe("handleDecompose", () => {
       + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
     );
     expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("routes a complete finalize invocation only through the pinned finalization adapter", async () => {
-    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const receiptId = `sha256:${"a".repeat(64)}`;
-
-    await handleDecompose("mono", {
-      finalize: receiptId,
-      continuation: "continuation.json",
-    });
-
-    expect(mockFinalizeGitV3DecomposeOperation).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: "/repo" }),
-      {
-        baseBranch: "main",
-        origin: "mono",
-        receiptId,
-        continuationPath: "continuation.json",
-      },
-    );
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"receipt":{"receiptId":"${receiptId}"},"status":"recorded"}\n`,
-    );
-    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
-    expect(process.exitCode).toBeUndefined();
-  });
-
-  it("surfaces the finalization adapter's precomposed recovery without rebuilding it", async () => {
-    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    const receiptId = `sha256:${"a".repeat(64)}`;
-    const remedy = "ADAPTER-ONLY: return to the exact authored candidate";
-    mockFinalizeGitV3DecomposeOperation.mockResolvedValue({
-      status: "refused",
-      reason: "continuation-invalid",
-      recovery: {
-        action: "reauthor",
-        establishedFacts: {
-          provenance: "finalize-command",
-          origin: "mono",
-          receiptId,
-          continuationPath: "continuation.json",
-        },
-      },
-      remedy,
-    });
-
-    await handleDecompose("mono", {
-      finalize: receiptId,
-      continuation: "continuation.json",
-    });
-
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"reason":"continuation-invalid","recovery":{"action":"reauthor",`
-      + `"establishedFacts":{"continuationPath":"continuation.json",`
-      + `"origin":"mono","provenance":"finalize-command","receiptId":"${receiptId}"}},`
-      + `"remedy":"${remedy}","status":"refused"}\n`,
-    );
-    expect(stderrWrite).toHaveBeenCalledWith(`continuation-invalid\n${remedy}\n`);
-    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("routes advance-base through the full-protection repository driver", async () => {
     mockReadConfigSettings.mockResolvedValue(configResult("full"));
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const receiptId = `sha256:${"a".repeat(64)}`;
 
-    await handleDecompose("mono", { advanceBase: receiptId });
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
 
-    expect(mockAdvanceGitV3DecomposeBase).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: "/repo" }),
-      {
-        protection: "full",
-        baseBranch: "main",
-        origin: "mono",
-        receiptId,
-      },
-    );
     expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"candidateHead":"${"d".repeat(40)}","currentBaseHead":"${"c".repeat(40)}",`
-      + `"previousBaseHead":"${"b".repeat(40)}","receiptId":"${receiptId}","status":"advanced"}\n`,
+      `{"candidateBranch":"chore/decompose-mono","candidateHead":"${"d".repeat(40)}",`
+      + `"currentBaseHead":"${"c".repeat(40)}","previousBaseHead":"${"b".repeat(40)}",`
+      + `"status":"advanced"}\n`,
     );
   });
 
-  it("surfaces advance-base refusals as canonical output plus reason and remedy", async () => {
+  it("surfaces advance-base refusals without prescribing a successor", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockAdvanceGitV3DecomposeBase.mockResolvedValue({
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
       status: "refused",
       reason: "full-protection-required",
-      remedy: "Enable full protection before advancing a committed candidate.",
     });
 
-    await handleDecompose("mono", { advanceBase: `sha256:${"a".repeat(64)}` });
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
 
     expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"reason":"full-protection-required","remedy":"Enable full protection before advancing a committed candidate.","status":"refused"}\n',
+      '{"reason":"full-protection-required","status":"refused"}\n',
     );
-    expect(stderrWrite).toHaveBeenCalledWith(
-      "full-protection-required\nEnable full protection before advancing a committed candidate.\n",
-    );
+    expect(stderrWrite).toHaveBeenCalledWith("full-protection-required\n");
     expect(process.exitCode).toBe(1);
   });
 
   it.each([
     ["conflicting modes", { preflight: true, execute: "cut-map.json" }],
-    ["finalize without continuation", { finalize: `sha256:${"a".repeat(64)}` }],
-    ["continuation without finalize", { continuation: "continuation.json" }],
-    ["advance-base with another mode", { preflight: true, advanceBase: `sha256:${"a".repeat(64)}` }],
+    ["advance-base with another mode", { preflight: true, advanceBase: "cut-map.json" }],
   ])("refuses %s before any production adapter", async (_case, options) => {
     await handleDecompose(
       "mono",
@@ -732,9 +566,7 @@ describe("handleDecompose", () => {
 
     expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(mockAdvanceGitV3DecomposeBase).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
+    expect(mockAdvanceGitDecomposeTransitionBase).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 

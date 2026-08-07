@@ -5,16 +5,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  enumerateReferenceTransitions,
   enumerateTransitionReferenceTransitions,
   planReferenceReconcile,
   type ReachableReferenceTransition,
 } from "../../../src/lib/work-unit/reference-reconcile.js";
 import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
-import type {
-  RetirementRecordEnumerationResult,
-} from "../../../src/lib/work-unit/retirement-record-enumeration.js";
-import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 function rename(subject: string, targetSlug: string): ReachableReferenceTransition {
   return { subject, outcome: { kind: "rename", targetSlug } };
@@ -158,32 +153,6 @@ describe("planReferenceReconcile", () => {
       });
     },
   );
-});
-
-describe("enumerateReferenceTransitions", () => {
-  it("ignores v3 preparation and projects the finalized original slug", () => {
-    const { preparation, receipt } = v3DecompositionEvidenceFixture();
-    const evidence: RetirementRecordEnumerationResult = {
-      status: "valid",
-      records: [
-        {
-          id: preparation.receiptId,
-          content: "",
-          record: { kind: "v3-decomposition-preparation", value: preparation },
-        },
-        {
-          id: receipt.receiptId,
-          content: "",
-          record: { kind: "v3-decomposition-receipt", value: receipt },
-        },
-      ],
-    };
-
-    expect(enumerateReferenceTransitions(evidence)).toEqual({
-      status: "valid",
-      transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
-    });
-  });
 });
 
 describe("enumerateTransitionReferenceTransitions", () => {

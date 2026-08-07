@@ -117,7 +117,7 @@ function composeUserView(
 export async function runStatusUserView(
   options: RunStatusUserViewOptions,
 ): Promise<StatusUserViewResult> {
-  const { exec, cwd, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
+  const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
 
   if (identity === null) {
     return {
@@ -144,7 +144,6 @@ export async function runStatusUserView(
     errandSlugByBranch,
     parkedSlugs,
     prSource,
-    ...(cwd === undefined ? {} : { decompositionClaimCwd: cwd }),
   });
   const warnings = remoteResult.warnings.map(renderInFlightWarning);
   // Online but unreachable: the in-flight half can't be refreshed, so degrade to

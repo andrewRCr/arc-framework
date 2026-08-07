@@ -1320,55 +1320,6 @@ describe("Review Rubric field — optional safe identity", () => {
   });
 });
 
-describe("Decomposition Receipt field — omit-when-absent identity", () => {
-  const receiptId = `sha256:${"a".repeat(64)}`;
-
-  it("omits semantic absence from ordinary rendering and parsing returns absence", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-    });
-
-    expect(content).not.toContain("Decomposition Receipt");
-    expect(parseMetaRecord(content).decompositionReceipt).toBeNull();
-  });
-
-  it("renders a supplied receipt immediately after Review Rubric and round-trips it", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-      reviewRubric: "implementation-audit",
-      decompositionReceipt: receiptId,
-    });
-
-    expect(content.indexOf("Review Rubric")).toBeLessThan(content.indexOf("Decomposition Receipt"));
-    expect(content.indexOf("Decomposition Receipt")).toBeLessThan(content.indexOf("Current Workflow"));
-    expect(parseMetaRecord(content).decompositionReceipt).toBe(receiptId);
-  });
-
-  it("does not backfill the optional marker during managed reconciliation", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-    });
-
-    const reconciled = reconcileMetaFields(content);
-    expect(reconciled.content).toBe(content);
-    expect(reconciled.backfilled).not.toContain("Decomposition Receipt");
-  });
-
-  it("preserves one explicitly supplied marker during managed reconciliation", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-      decompositionReceipt: receiptId,
-    });
-    const reconciled = reconcileMetaFields(content);
-    expect(reconciled.content).toBe(content);
-    expect(parseMetaRecord(reconciled.content).decompositionReceipt).toBe(receiptId);
-  });
-});
-
 describe("Current Workflow field — planning-stage pointer", () => {
   it("round-trips each planning-stage value verbatim through render and parse", () => {
     for (const value of ["draft-design", "create-spec", "generate-tasks"] as const) {

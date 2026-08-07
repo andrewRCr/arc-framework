@@ -464,7 +464,6 @@ describe("session-init envelope schema", () => {
       lifecycle: {
         subject: { slug: "retired", branch: "feat/retired" },
         transition: "abandon",
-        authority: { kind: "receipt-backed", receiptId: "receipt", authorityVersion: "version" },
         cleanup: {
           branch: { status: "pending" },
           worktree: { status: "pending" },

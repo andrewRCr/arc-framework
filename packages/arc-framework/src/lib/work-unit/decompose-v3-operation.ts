@@ -119,12 +119,12 @@ export type V3DecomposeOperationResult =
 
 function fullRecovery(
   plan: ValidatedDecomposePlan,
-  occupation: Pick<FullOccupiedResult, "path" | "candidateOwnership">,
+  occupation: Pick<FullOccupiedResult, "path" | "candidateBranch">,
 ): V3DecomposeOperationRecovery {
   return {
     kind: "full-candidate",
     path: occupation.path,
-    candidateBranch: occupation.candidateOwnership.candidateBranch,
+    candidateBranch: occupation.candidateBranch,
     expectedHead: plan.expectedBaseHead,
   };
 }

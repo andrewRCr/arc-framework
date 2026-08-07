@@ -8,18 +8,18 @@
  * @module
  */
 
-import { isAbsolute, relative, sep } from "node:path";
+import { isAbsolute, posix, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
+import { parseTransitionRecord } from "../work-unit/transition-record.js";
 import {
-  resolveRetirementRecordRelativePath,
-  RETIREMENT_RECORD_NAMESPACE,
-} from "../work-unit/retirement-record-store.js";
-import { parseRetirementReceiptRecord } from "../work-unit/retirement-receipt-codec.js";
-import { isV3DecomposeReceiptRestatement } from "../work-unit/decompose-v3-receipt.js";
+  resolveTransitionRecordRelativePath,
+  TRANSITION_RECORD_NAMESPACE,
+} from "../work-unit/transition-record-store.js";
 import { readTreeEntry } from "../work-unit/git-decomposition-object-readers.js";
 import {
   createValidatedTransitionOverlay,
@@ -103,8 +103,8 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-const RETIREMENT_RECORD_PATH_RE = new RegExp(
-  `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/sha256-[0-9a-f]{64}\\.json$`,
+const TRANSITION_RECORD_PATH_RE = new RegExp(
+  `^${escapeRegExp(TRANSITION_RECORD_NAMESPACE)}/[^/]+\\.json$`,
   "u",
 );
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
@@ -184,7 +184,7 @@ export function createIndexProjectViewFs(options: IndexProjectViewFsOptions): Pr
   };
 }
 
-async function readHeadRetirementRecord(
+async function readHeadTransitionRecord(
   options: IndexProjectViewFsOptions,
   path: string,
 ): Promise<string | null> {
@@ -194,24 +194,23 @@ async function readHeadRetirementRecord(
   const entry = await readTreeEntry(cwdExec, "HEAD", path);
   if (entry === null) return null;
   if (entry === false || entry.type !== "blob") {
-    throw new Error(`unable to read retirement record at HEAD:${path}`);
+    throw new Error(`unable to read transition record at HEAD:${path}`);
   }
   const { stdout } = await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
   return stdout;
 }
 
 /**
- * Resolve one finalized retirement staged with the prospective ROADMAP tree.
+ * Resolve one terminal transition staged with the prospective ROADMAP tree.
  *
- * This adapter authenticates the added record's canonical envelope and
- * path-bound identity before granting transition-overlay authority. The
- * commit-time retirement-record gate separately proves that the record covers
- * the complete staged write set.
+ * This adapter authenticates an added record's canonical origin path before granting
+ * transition-overlay authority. Decomposition branches are deterministic; direct
+ * transitions recover their retiring branch from the origin meta at HEAD.
  *
  * @param options - Repository root and Git executor for the staged index.
- * @returns Validated suppression authority, or `undefined` without a staged retirement.
+ * @returns Validated suppression authority, or `undefined` without one staged terminal transition.
  */
-export async function resolveStagedRetirementTransitionOverlay(
+export async function resolveStagedTransitionOverlay(
   options: IndexProjectViewFsOptions,
 ): Promise<ValidatedTransitionOverlay | undefined> {
   const { stdout } = await options.exec("git", [
@@ -221,33 +220,37 @@ export async function resolveStagedRetirementTransitionOverlay(
     "--diff-filter=AM",
     "-z",
     "--",
-    RETIREMENT_RECORD_NAMESPACE,
+    TRANSITION_RECORD_NAMESPACE,
   ], { cwd: options.cwd });
-  const recordPaths = stdout.split("\0").filter((path) => RETIREMENT_RECORD_PATH_RE.test(path));
+  const recordPaths = stdout.split("\0").filter((path) => TRANSITION_RECORD_PATH_RE.test(path));
   const overlays = (await Promise.all(recordPaths.map(async (path) => {
     const { stdout: content } = await options.exec("git", ["show", `:${path}`], { cwd: options.cwd });
-    const record = parseRetirementReceiptRecord(content);
-    if (record === null || path !== resolveRetirementRecordRelativePath(record.receipt.receiptId)) {
+    const record = parseTransitionRecord(content);
+    if (record === null || path !== resolveTransitionRecordRelativePath(record.origin)) {
       return null;
     }
-    if (record.kind === "retained") {
-      if (await readHeadRetirementRecord(options, path) !== null) return null;
-      return record.receipt.subject.kind === "work-unit"
-        ? createValidatedTransitionOverlay({
-            origin: record.receipt.subject.name,
-            sourceBranch: record.receipt.source.branch,
-          })
-        : null;
+    if (await readHeadTransitionRecord(options, path) !== null) return null;
+    if (record.kind === "decompose") {
+      return createValidatedTransitionOverlay({ origin: record.origin, sourceBranch: `plan/${record.origin}` });
     }
-    const previous = await readHeadRetirementRecord(options, path);
-    const grantsOverlay = previous === null
-      || isV3DecomposeReceiptRestatement(previous, record.receipt);
-    if (!grantsOverlay) return null;
-    const { origin, sourceBranch } = record.receipt.prepared.prospectiveProjection.overlay;
-    return createValidatedTransitionOverlay({ origin, sourceBranch });
+    const { stdout: paths } = await options.exec("git", [
+      "ls-tree", "-r", "--name-only", "-z", "HEAD", "--", ".arc/active", ".arc/backlog",
+    ], { cwd: options.cwd });
+    const metaPaths = paths.split("\0").filter((candidate) =>
+      posix.basename(candidate) === `meta-${record.origin}.md`);
+    if (metaPaths.length !== 1 || metaPaths[0] === undefined) return null;
+    const { stdout: metaContent } = await options.exec(
+      "git",
+      ["show", `HEAD:${metaPaths[0]}`],
+      { cwd: options.cwd },
+    );
+    const sourceBranch = parseMetaRecord(metaContent).branch;
+    return sourceBranch === null
+      ? null
+      : createValidatedTransitionOverlay({ origin: record.origin, sourceBranch });
   }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);
   if (overlays.length > 1) {
-    throw new Error("staged ROADMAP render found multiple finalized retirement receipts");
+    throw new Error("staged ROADMAP render found multiple terminal transitions");
   }
   return overlays[0];
 }

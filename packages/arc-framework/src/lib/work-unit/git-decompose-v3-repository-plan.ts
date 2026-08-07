@@ -279,7 +279,6 @@ export async function composeGitV3RepositoryPlan(
           localRefs: {
             exec: bindGitCwd(dependencies.exec, dependencies.cwd),
             baseBranch,
-            decompositionClaimCwd: dependencies.cwd,
           },
           transitionOverlay: transitionOverlayCompositionInput(overlay),
         });

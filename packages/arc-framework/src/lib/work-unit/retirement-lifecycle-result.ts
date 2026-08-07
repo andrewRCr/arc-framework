@@ -12,13 +12,6 @@ export type RetirementCleanupProjection =
   | { status: "completed" }
   | { status: "blocked"; reason: string };
 
-/** Evidence identity for a retirement. */
-export type RetirementLifecycleAuthority = {
-  kind: "receipt-backed";
-  receiptId: string;
-  authorityVersion: string;
-};
-
 /** Exact default-spawn command offered for one authoritative ready successor. */
 export interface SuccessorStartRemedy {
   /** Tokenized command, safe for a caller to execute without reparsing prose. */
@@ -53,60 +46,13 @@ interface RetirementLifecycleResultBase {
   successorReadiness: SuccessorReadinessProjection;
 }
 
-/** Complete cross-transform account of retirement evidence and deferred cleanup. */
-export type RetirementLifecycleResult =
-  | (RetirementLifecycleResultBase & {
-      transition: "decompose";
-      authority: RetirementLifecycleAuthority;
-    })
-  | (RetirementLifecycleResultBase & {
-      transition: "abandon";
-    });
-
-/** Inputs for one newly recorded receipt-backed retirement result. */
-export interface PendingRetirementLifecycleParams {
-  slug: string;
-  branch: string | null;
-  transition: "decompose";
-  receiptId: string;
-  authorityVersion: string;
-  successorCandidates?: readonly string[];
-}
+/** Receipt-free abandon cleanup result. */
+export type RetirementLifecycleResult = RetirementLifecycleResultBase & { transition: "abandon" };
 
 /** Inputs for receipt-free pending abandon cleanup. */
 export interface PendingAbandonLifecycleParams {
   slug: string;
   branch: string | null;
-}
-
-/**
- * Build the non-destructive result returned immediately after receipt recording.
- *
- * @param params - Recorded retirement identity and optional ready successors.
- * @returns Pending cleanup for a started subject, or non-applicability for a branchless stub.
- */
-export function projectPendingRetirementLifecycle(
-  params: PendingRetirementLifecycleParams,
-): RetirementLifecycleResult {
-  const branch = params.branch === null || params.branch === "[none]" ? null : params.branch;
-  const cleanup: RetirementCleanupProjection = branch === null
-    ? { status: "not-applicable" }
-    : { status: "pending" };
-  return {
-    subject: { slug: params.slug, branch },
-    transition: params.transition,
-    authority: {
-      kind: "receipt-backed",
-      receiptId: params.receiptId,
-      authorityVersion: params.authorityVersion,
-    },
-    cleanup: {
-      branch: cleanup,
-      worktree: cleanup,
-      userWorkspace: cleanup,
-    },
-    successorReadiness: projectSuccessorReadiness(params.successorCandidates ?? [], false),
-  };
 }
 
 /** Build a receipt-free pending abandon cleanup projection. */

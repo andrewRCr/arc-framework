@@ -300,17 +300,6 @@ export function v3PreflightId(machine: Omit<V3DecomposeMachine, "preflightId">):
   return canonicalDigest({ schemaVersion: 3, ...preimage });
 }
 
-/** Stable retirement identity for one exact v3 source transition. */
-export function v3ReceiptId(machine: V3DecomposeMachine): CanonicalDigest {
-  return canonicalDigest({
-    schemaVersion: 3,
-    subject: { kind: "work-unit", name: machine.source.origin },
-    transition: "decompose",
-    sourceBranch: machine.source.logicalBranch,
-    sourceHead: machine.source.head,
-  });
-}
-
 /** Digest one exact completed cut map. */
 export function v3CutMapDigest(map: V3DecomposeCutMap): CanonicalDigest {
   return canonicalDigest(V3DecomposeCutMapSchema.parse(map));

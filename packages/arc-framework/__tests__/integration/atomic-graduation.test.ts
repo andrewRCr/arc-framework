@@ -113,7 +113,6 @@ async function createInPlaceFixture(): Promise<{
     targetDirectory,
     artifacts,
     destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
-    anchor: null,
     classResolution: { kind: "preserved", value: "Heavy" },
     occupation: {
       mode: "in-place",
@@ -192,7 +191,6 @@ describe("atomicGraduate", () => {
       targetDirectory,
       artifacts,
       destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
-      anchor: null,
       classResolution: { kind: "preserved", value: "Heavy" },
       occupation: {
         mode: "in-place",
@@ -279,7 +277,6 @@ describe("atomicGraduate", () => {
       targetDirectory,
       artifacts,
       destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
-      anchor: null,
       classResolution: { kind: "preserved", value: "Heavy" },
       occupation: {
         mode: "spawned",
@@ -523,55 +520,4 @@ describe("atomicGraduate", () => {
       .rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("removes decomposition provenance while preserving Design and unset task authority on disk", async () => {
-    const fixture = await createInPlaceFixture();
-    cleanup.push(fixture.repo);
-    const receiptId = `sha256:${"c".repeat(64)}`;
-    const metaPath = join(fixture.repo, fixture.sourceDirectory, "meta-widget.md");
-    const markedMeta = (await readFile(metaPath, "utf8")).replace(
-      "- **Review Rubric:** [none]\n",
-      `- **Review Rubric:** [none]\n- **Decomposition Receipt:** ${receiptId}\n`,
-    );
-    await writeFile(metaPath, markedMeta);
-    await fixture.exec("git", ["add", "--", `${fixture.sourceDirectory}/meta-widget.md`]);
-    await fixture.exec(
-      "git",
-      ["-c", "core.hooksPath=/dev/null", "commit", "-m", "mark decomposition source"],
-    );
-    const [{ stdout: head }, { stdout: tree }, { stdout: entry }] = await Promise.all([
-      fixture.exec("git", ["rev-parse", "HEAD"]),
-      fixture.exec("git", ["write-tree"]),
-      fixture.exec("git", ["ls-files", "--stage", "--", `${fixture.sourceDirectory}/meta-widget.md`]),
-    ]);
-    const match = /^(100644|100755) ([0-9a-f]{40,64}) 0\t/u.exec(entry);
-    if (match?.[1] === undefined || match[2] === undefined) throw new Error("marked meta index entry missing");
-    const sourceMeta = fixture.transaction.source.artifacts.find(({ basename }) => basename === "meta-widget.md");
-    if (sourceMeta === undefined) throw new Error("source meta transaction entry missing");
-    sourceMeta.bytes = new TextEncoder().encode(markedMeta);
-    sourceMeta.contentDigest = digestBytes(sourceMeta.bytes);
-    sourceMeta.mode = match[1] === "100755" ? "100755" : "100644";
-    sourceMeta.oid = match[2];
-    fixture.transaction.policy.provenance = "decomposition";
-    fixture.transaction.policy.decompositionReceiptRemoved = true;
-    fixture.transaction.occupation.baseHead = head.trim();
-    fixture.transaction.occupation.indexTree = tree.trim();
-    if (fixture.transaction.occupation.worktree.kind !== "current") throw new Error("fixture mode");
-    fixture.transaction.occupation.worktree.head = head.trim();
-
-    const result = await atomicGraduate(fixture.transaction, {
-      cwd: fixture.repo,
-      exec: fixture.exec,
-      fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
-    });
-
-    if (result.status !== "applied") throw new Error(JSON.stringify(result));
-    const metaContent = await readFile(
-      join(fixture.repo, fixture.targetDirectory, "meta-widget.md"),
-      "utf8",
-    );
-    const meta = parseMetaRecord(metaContent);
-    expect(metaContent).not.toContain("Decomposition Receipt");
-    expect(meta.design).toEqual(["draft-widget.md"]);
-    expect(meta.taskList).toBeNull();
-  });
 });

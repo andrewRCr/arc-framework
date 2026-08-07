@@ -8,10 +8,9 @@
 
 import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
-import type { RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
-import type { V3DecomposeFinalizationResult } from "./decompose-finalization.js";
-import type { V3DecomposeReceipt } from "./decompose-v3-receipt.js";
+
+type DirectRetirementTransition = "abandon" | "park-planning" | "rename";
 
 /** Preservation fact that can authorize a terminal worktree transition. */
 export type HuskAuthorization = "merged-preserved" | "discard-confirmed" | "planning-relocated";
@@ -86,37 +85,10 @@ export type DecodedRetirementEvidence =
       value: { kind: string } & Readonly<Record<string, unknown>>;
     };
 
-/** Closed quality fact for the lifecycle inventory bound into retirement evidence. */
-export type InventoryRead = "not-applicable" | "tree-only" | "reachable" | "degraded";
-
-/** Canonical non-shipped retirement receipt. */
-interface RetirementReceiptBase {
-  receiptId: CanonicalDigest;
-  subject: WorktreeSubject;
-  transition: Exclude<RetirementTransition, "decompose">;
-  source: {
-    branch: string;
-    head: string;
-    artifactDigest: CanonicalDigest;
-  };
-  transitionPatchDigest: CanonicalDigest;
-  retiringProjection: { kind: "direct-transition" } | { kind: "unchanged" };
-  authorization: Exclude<HuskAuthorization, "merged-preserved"> | "identity-renamed";
-  result:
-    | { kind: "discard"; artifactDigest: "absent" }
-    | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest }
-    | { kind: "rename"; targetSlug: string; artifactDigest: CanonicalDigest };
-}
-
-/** Exact historical and current retirement receipt envelopes. */
-export type RetirementReceipt =
-  | (RetirementReceiptBase & { schemaVersion: 1 })
-  | (RetirementReceiptBase & { schemaVersion: 2; inventoryRead: InventoryRead });
-
 /** Exact source and result projections bound by an authority snapshot. */
 export interface RetirementAuthorityScope {
   subject: WorktreeSubject;
-  transition: Exclude<RetirementTransition, "decompose">;
+  transition: DirectRetirementTransition;
   source: {
     branch: string;
     head: string;
@@ -179,11 +151,6 @@ export interface RetirementAuthorityPort {
     | { status: "refused"; reason: TeardownAuthorizationRefusal }
   >;
 
-  finalizeV3Decompose(
-    receipt: V3DecomposeReceipt,
-    expectedAuthorityVersion: string,
-  ): Promise<V3DecomposeFinalizationResult>;
-
   authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision>;
 
   revalidate(
@@ -222,33 +189,6 @@ export function worktreeSubjectsEqual(left: WorktreeSubject, right: WorktreeSubj
  */
 export function retirementSubjectRefusal(subject: WorktreeSubject): TeardownAuthorizationRefusal | null {
   return subject.kind === "errand" ? "unsupported-transition" : null;
-}
-
-/**
- * Validate the fixed transition/authorization/lifecycle/result matrix.
- *
- * @param receipt - Receipt whose cross-fields must agree
- * @param expectedLifecycle - Lifecycle location claimed by its evidence reference
- * @returns `null` for the fixed valid combinations, otherwise `evidence-mismatch`
- */
-export function validateReceiptMatrix(
-  receipt: RetirementReceipt,
-  expectedLifecycle: "planned" | "nonexistent",
-): TeardownAuthorizationRefusal | null {
-  const valid =
-    (receipt.transition === "abandon"
-      && receipt.authorization === "discard-confirmed"
-      && expectedLifecycle === "nonexistent"
-      && receipt.result.kind === "discard")
-    || (receipt.transition === "park-planning"
-      && receipt.authorization === "planning-relocated"
-      && expectedLifecycle === "planned"
-      && receipt.result.kind === "relocate")
-    || (receipt.transition === "rename"
-      && receipt.authorization === "identity-renamed"
-      && expectedLifecycle === "nonexistent"
-      && receipt.result.kind === "rename");
-  return valid ? null : "evidence-mismatch";
 }
 
 /**

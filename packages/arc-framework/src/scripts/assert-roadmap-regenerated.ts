@@ -19,7 +19,7 @@ import {
   ROADMAP_RERENDER_INSTRUCTION,
   assertRoadmapRegenerated,
   renderRoadmapFromIndexResult,
-  resolveStagedRetirementTransitionOverlay,
+  resolveStagedTransitionOverlay,
   type RenderRoadmapFromIndexOptions,
 } from "../lib/status/roadmap-regeneration-assert.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
@@ -64,7 +64,7 @@ export async function runRoadmapRegenerationAssert(
 
   const [stagedContent, transitionOverlay] = await Promise.all([
     readStagedRoadmap(options.exec, options.cwd),
-    resolveStagedRetirementTransitionOverlay({ cwd: options.cwd, exec: options.exec }),
+    resolveStagedTransitionOverlay({ cwd: options.cwd, exec: options.exec }),
   ]);
   const rendered = await renderRoadmapFromIndexResult({
     cwd: options.cwd,

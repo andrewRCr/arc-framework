@@ -401,13 +401,11 @@ describe("arc decompose command modes", () => {
       operation: {
         occupation: {
           protection: "full",
-          candidateOwnership: {
-            generation: 1,
-            candidateBranch: "chore/decompose-origin",
-          },
+          candidateBranch: "chore/decompose-origin",
         },
       },
     });
+    expect(await claimFiles(repo)).toEqual([]);
     expect(executed.stdout).not.toContain("receiptId");
     expect(executed.stdout).not.toContain("continuation");
     expect(executed.stdout).not.toContain("discard");
@@ -483,7 +481,6 @@ describe("arc decompose command modes", () => {
       operation: {
         occupation: {
           protection: "partial";
-          candidateOwnership: { kind: "not-applicable"; protection: "partial" };
         };
         report: {
           topology: Array<{ kind: string; action: string; disposition: string; path?: string }>;
@@ -496,7 +493,6 @@ describe("arc decompose command modes", () => {
       operation: {
         occupation: {
           protection: "partial",
-          candidateOwnership: { kind: "not-applicable", protection: "partial" },
         },
       },
     });

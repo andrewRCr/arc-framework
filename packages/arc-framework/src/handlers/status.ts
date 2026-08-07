@@ -134,7 +134,7 @@ import {
 } from "../lib/status/project-view.js";
 import {
   renderRoadmapFromIndexViewResult,
-  resolveStagedRetirementTransitionOverlay,
+  resolveStagedTransitionOverlay,
 } from "../lib/status/roadmap-regeneration-assert.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import {
@@ -373,7 +373,6 @@ export async function handleStatus(
       },
       oracle: {
         exec,
-        decompositionClaimCwd: cwd,
         localOnly: opts.fetch !== true,
         baseBranch: settings["branch.base"],
         errandSlugByBranch: transient.indexes.slugByBranch,
@@ -612,7 +611,6 @@ export async function handleStatus(
         const transientIndexes = transient.indexes;
         const result = await deriveInFlight({
           exec,
-          decompositionClaimCwd: cwd,
           localOnly: false,
           baseBranch: resolved.settings["branch.base"],
           identity,
@@ -1028,7 +1026,7 @@ export async function handleStatus(
       // pre-commit ROADMAP regen check validates against, so
       // `arc status --project --staged > ROADMAP` produces exactly what the
       // hook expects (staged sweep or clean tree).
-      const transitionOverlay = await resolveStagedRetirementTransitionOverlay({ cwd, exec });
+      const transitionOverlay = await resolveStagedTransitionOverlay({ cwd, exec });
       const { result } = await renderRoadmapFromIndexViewResult({
         cwd,
         exec,
@@ -1056,7 +1054,6 @@ export async function handleStatus(
       fs: lifecycleFs,
       oracle: {
         exec,
-        decompositionClaimCwd: cwd,
         localOnly,
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,

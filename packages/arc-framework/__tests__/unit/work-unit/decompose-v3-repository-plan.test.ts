@@ -220,17 +220,7 @@ describe("v3 repository plan projection", () => {
       ".arc/reference/shared.txt",
     ].sort((left, right) => Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")));
     expect(result.plan.allowedPaths).toEqual(concreteAllowedPaths);
-    expect(result.plan.candidateAuthority.candidatePublication).toEqual({
-      logicalAnchor: { kind: "direct-member", slug: "member" },
-      entries: [
-        {
-          kind: "existing-destination",
-          destinationId: "existing",
-          target: { kind: "document", path: ".arc/reference/shared.txt" },
-        },
-        { kind: "new-leaf", slug: "member" },
-      ],
-    });
+    expect(result.plan.topology.facts).toEqual([{ kind: "none" }]);
     expect(result.sourceArtifactInventory).toEqual(input.preflight.sourceArtifactInventory);
     expect(result.blobs.map(({ contentDigest }) => contentDigest))
       .toEqual([...result.blobs.map(({ contentDigest }) => contentDigest)].sort());

@@ -43,7 +43,6 @@ import { getInternalTemplatePath } from "../lib/paths.js";
 import {
   createUserIOContext,
   readGitBlobBytes,
-  readGitObjectBytes,
 } from "../lib/io-context.js";
 import { SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
@@ -63,9 +62,6 @@ import {
   resolveComposedLifecycleIndex,
 } from "../lib/work-unit/composed-lifecycle-index.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
-import {
-  resolveConfiguredBaseDecompositionAnchorByReceiptId,
-} from "../lib/work-unit/configured-base-decomposition-anchor.js";
 import {
   prepareGitGraduationTransaction,
   type GitGraduationTransactionResult,
@@ -273,7 +269,6 @@ export async function handleStart(
     fs: baseSnapshot.fs,
     oracle: {
       exec: io.exec,
-      decompositionClaimCwd: cwd,
       baseBranch: settings["branch.base"],
       localOnly: false,
       expandLiveOnly: true,
@@ -637,19 +632,6 @@ async function graduate(
           if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
           throw error;
         }
-      },
-      resolveAnchor: async (receiptId) => {
-        const result = await resolveConfiguredBaseDecompositionAnchorByReceiptId(
-          ctx.refreshedBase,
-          receiptId,
-          {
-            exec: ctx.io.exec,
-            readBlob: (oid) => readGitObjectBytes(ctx.cwd, oid),
-          },
-        );
-        return result.status === "resolved"
-          ? result
-          : { status: "refused", reason: result.status };
       },
     }, {
       cwd: ctx.cwd,

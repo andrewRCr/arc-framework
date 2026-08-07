@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, resolve } from "node:path";
 
-import { digestBytes, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { digestBytes } from "../canonical/canonical-json.js";
 import { validateManagedPath } from "../canonical/managed-path.js";
 import { atomicWriteFile } from "../fs.js";
 import type { GitExec } from "../git/exec.js";
@@ -27,10 +27,9 @@ import type {
   DecomposeCandidateCreationRequest,
   DecomposeCandidateCreationResult,
   DecomposeCandidateObservation,
-  DecomposeCandidateRegistration,
   DecomposeResultOccupationAdapter,
 } from "./decompose-result-occupation.js";
-import { createNodeDecomposeTransientClaimStore } from "./decompose-transient-claim-store.js";
+import { decomposeCandidateWorktreeToken } from "./decompose-candidate.js";
 import type {
   V3PartialPathImage,
   V3PartialPathPreimage,
@@ -112,20 +111,19 @@ function bindGitCwd(exec: GitExec, cwd: string): GitExec {
 
 function markerProjection(
   result: Awaited<ReturnType<typeof readWorktreeMarker>>,
-): DecomposeCandidateRegistration["marker"] {
-  if (result.kind !== "present" || result.marker.decompositionCandidate === undefined) return null;
-  const marker = result.marker.decompositionCandidate;
-  return {
-    claimId: marker.claimId as CanonicalDigest,
-    generation: marker.generation,
-    candidateWorktree: marker.candidateWorktree as CanonicalDigest,
-  };
+  candidateBranch: string,
+): boolean {
+  return result.kind === "present"
+    && result.marker.spawnedByArc
+    && result.marker.createdFor?.kind === "branch"
+    && result.marker.createdFor.ref === candidateBranch;
 }
 
 async function observeCandidate(
   exec: GitExec,
   cwd: string,
   candidateBranch: string,
+  candidatePath: string,
 ): Promise<DecomposeCandidateObservation> {
   const bound = bindGitCwd(exec, cwd);
   const [branchHead, scan] = await Promise.all([
@@ -133,13 +131,14 @@ async function observeCandidate(
     scanRegisteredWorktrees(bound),
   ]);
   if (!scan.ok) throw new Error(scan.message);
-  const registered = scan.worktrees.filter(({ branch }) => branch === candidateBranch);
+  const registered = scan.worktrees.filter(({ branch, path }) =>
+    branch === candidateBranch || normalize(path) === candidatePath);
   const registrations = await Promise.all(registered.map(async (worktree) => ({
     path: normalize(worktree.path),
     candidateBranch,
     head: worktree.head,
     occupied: false,
-    marker: markerProjection(await readWorktreeMarker(worktree.path)),
+    markerOwned: markerProjection(await readWorktreeMarker(worktree.path), candidateBranch),
   })));
   return { branchHead, registrations };
 }
@@ -153,7 +152,7 @@ async function candidateFacts(
   if (!scan.ok) throw new Error(scan.message);
   const worktreePaths = new Set(scan.worktrees.map(({ path }) => normalize(path)));
   const [observation, exists] = await Promise.all([
-    observeCandidate(exec, cwd, request.branch),
+    observeCandidate(exec, cwd, request.branch, request.path),
     pathExists(request.path),
   ]);
   return {
@@ -169,9 +168,9 @@ function exactMarker(
   request: DecomposeCandidateCreationRequest,
 ): boolean {
   return facts.marker.kind === "present"
-    && facts.marker.marker.decompositionCandidate?.claimId === request.marker.claimId
-    && facts.marker.marker.decompositionCandidate.generation === request.marker.generation
-    && facts.marker.marker.decompositionCandidate.candidateWorktree === request.marker.candidateWorktree;
+    && facts.marker.marker.spawnedByArc
+    && facts.marker.marker.createdFor?.kind === "branch"
+    && facts.marker.marker.createdFor.ref === request.branch;
 }
 
 function exactRegistration(
@@ -188,7 +187,12 @@ function exactRegistration(
 function absenceEvidence(
   facts: CandidateFacts,
   request: DecomposeCandidateCreationRequest,
-): NonNullable<Extract<DecomposeCandidateCreationResult, { status: "collision" }>["absence"]> {
+): {
+  registrationAbsent: boolean;
+  markerAbsent: boolean;
+  branchAbsent: boolean;
+  pathAbsent: boolean;
+} {
   return {
     registrationAbsent: facts.observation.registrations.length === 0
       && !facts.worktreePaths.has(request.path),
@@ -224,7 +228,6 @@ async function ensureCandidate(
         createdByArc: true,
         createdFor: { kind: "branch", ref: request.branch },
         spawningIdentity: input.spawningIdentity,
-        decompositionCandidate: request.marker,
       });
       facts = await candidateFacts(input.exec, input.cwd, request);
     }
@@ -247,7 +250,6 @@ async function ensureCandidate(
       createdByArc: true,
       createdFor: { kind: "branch", ref: request.branch },
       spawningIdentity: input.spawningIdentity,
-      decompositionCandidate: request.marker,
     });
   } catch {
     facts = await candidateFacts(input.exec, input.cwd, request);
@@ -496,18 +498,16 @@ export async function createGitV3DecomposeOperationIO(
   input: GitV3DecomposeOperationIOInput,
 ): Promise<GitV3DecomposeOperationIO> {
   const common = await resolveGitCommonDirectory(input.exec, input.cwd);
-  const claims = await createNodeDecomposeTransientClaimStore(input.exec, input.cwd);
   const blobs = new Map(input.blobs.map(({ contentDigest, bytes }) => [
     contentDigest,
     new Uint8Array(bytes),
   ]));
   return {
     occupation: {
-      claims,
       resolveBaseHead: async (baseBranch) =>
         await resolveCommit(input.exec, input.cwd, `refs/heads/${baseBranch}`),
-      observeCandidate: async (candidateBranch) =>
-        await observeCandidate(input.exec, input.cwd, candidateBranch),
+      observeCandidate: async (candidateBranch, candidatePath) =>
+        await observeCandidate(input.exec, input.cwd, candidateBranch, candidatePath),
       inspectPartial: async (baseBranch, relevantPaths) => {
         const [baseHead, head, branch, indexDirty, worktreeDirty, untracked] = await Promise.all([
           resolveCommit(input.exec, input.cwd, `refs/heads/${baseBranch}`),
@@ -537,12 +537,12 @@ export async function createGitV3DecomposeOperationIO(
           worktreeClean: !worktreeDirty && !untracked,
         };
       },
-      candidatePath: (candidateWorktree) =>
+      candidatePath: (origin) =>
         Promise.resolve(normalize(join(
           common,
           "arc",
           "decompose-worktrees",
-          candidateWorktree.replace("sha256:", "sha256-"),
+          decomposeCandidateWorktreeToken(origin),
         ))),
       ensureCandidate: async (request) => await ensureCandidate(input, request),
     },

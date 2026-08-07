@@ -307,13 +307,10 @@ coverage before any receipt-consuming predecessor is removed.
 _Purpose:_ Establish ordinary candidate cleanup and receipt-free terminal/base-mobility paths before cutting their
 respective predecessors, then retire the old namespace only after every surviving consumer is authoritative.
 
-### `[ ]` **4.1 Trace the claim store against Git collision coverage**
+### `[x]` **4.1 Trace the claim store against Git collision coverage**
 
 - _Goal:_ Every retained transient-claim behavior has a surviving independent consumer, while Git ref creation and
   worktree registration own collision exclusion wherever they already provide the guarantee.
-
-- _Approach:_ Preserve any independently necessary claim behavior unchanged; this trace authorizes subtraction,
-  not a redesigned claim successor.
 
     - `[x]` **4.1.a Trace claim readers, writers, and collision authority**
         - Follow `decompose-transient-claim-store.ts`, `decompose-transient-claim.ts`, operation I/O, result
@@ -336,16 +333,18 @@ respective predecessors, then retire the old namespace only after every survivin
           Tasks 4.2, 4.4, and 4.7 must preserve these Git/marker replacements; none may retain claim state merely
           as copied provenance.
 
-    - `[ ]` **4.1.b Prove material creation and residue interleavings**
-        - Build `test-first` (one behavior at a time):
-            - Simultaneous same-origin creation is serialized by the named branch/ref and worktree registration.
-            - Pre-existing unregistered branches and registered worktrees with moved branches refuse safely.
-            - Crash residue between branch and worktree creation remains discoverable and cleanable.
-            - In-flight derivation suppresses an owned live candidate without hiding unrelated branch residue.
-            - Landed cleanup retains equivalent authorization and release behavior from either existing Git/marker
-              facts or the unchanged claim contract selected by the trace.
-        - Retain claim projection only if a traced consumer needs provenance unavailable from Git refs or worktree
-          markers; otherwise delete the dead store and transitions.
+    - `[x]` **4.1.b Prove material creation and residue interleavings**
+        - Replaced claim-backed occupation with one deterministic branch/path and atomic `git worktree add`, refusing
+          foreign branches, path collisions, duplicate or moved registrations, moved heads, and foreign markers.
+        - Derived in-flight suppression only from the exact registered candidate branch plus its ARC ownership marker;
+          unrelated branch residue remains visible. Landed cleanup now authenticates and compare-deletes the observed
+          Git candidate without claim retirement or release state.
+        - Real-Git and focused unit coverage prove full/partial occupation, simultaneous creation, interrupted
+          post-occupation recovery, candidate residue preservation, and idempotent authorized cleanup.
+
+- _Outcome:_ The transient claim store had no surviving independent fact. Git ref/worktree creation owns exclusion,
+  the registered path plus branch marker owns live identity, and authenticated landing owns cleanup; the store,
+  projection warnings, lifecycle transitions, and claim-specific recovery vocabulary are removed.
 
 ### `[x]` **4.2 Remove candidate exactness and discard machinery**
 
@@ -376,16 +375,15 @@ respective predecessors, then retire the old namespace only after every survivin
           only the ordinary cleanup facts from 4.2.a; source-worktree, marker, registration, user-content, and ref-race
           protections remain in that shared boundary.
 
-### `[ ]` **4.3 Remove the decomposition-specific planning-lane trio**
+### `[x]` **4.3 Remove the decomposition-specific planning-lane trio**
 
 - _Goal:_ Generic `isPlanningArtifactPath()` classification is the sole local and hosted authority for
   decomposition planning changes.
 
-    - `[ ]` **4.3.a Remove the exception modules and receipt fact assembly**
-        - Delete `decomposition-planning-lane.ts`, `git-decomposition-planning-lane.ts`, and
-          `git-decomposition-fact-assembler.ts`; remove object readers whose consumer trace becomes empty.
-        - Replace the review handler's exception-specific dependency/result type with the exact-ref adapter
-          `resolveChangeSet()` → `classifyPlanningLane()`; retain the existing closed stdout and failure behavior.
+    - `[x]` **4.3.a Remove the exception modules and receipt fact assembly**
+        - Removed the remaining receipt fact assembler after detaching ROADMAP conflict recovery from its sole
+          merge-overlay consumer. Conflict recovery now regenerates solely from its pinned staged index; the review
+          handler continues to classify exact refs through `resolveChangeSet()` and `classifyPlanningLane()`.
 
     - `[x]` **4.3.b Close local and hosted exception coverage**
         - Delete exception-specific tests and fixtures while retaining the exact transitions-namespace and
@@ -430,134 +428,79 @@ respective predecessors, then retire the old namespace only after every survivin
           ref races; successful advancement stages an exact append-only merge and all mutation failures restore the
           pinned candidate. The Task 4.1 trace retained no claim contract to restate.
 
-### `[ ]` **4.5 Cut over commands and remove live publication consumers**
+### `[x]` **4.5 Cut over commands and remove live publication consumers**
 
 - _Goal:_ Production reaches only the receipt-free execution and advancement paths, while lifecycle/status replaces
   handoff and readiness projection before their now-dead schema modules are removed.
 
-    - `[ ]` **4.5.a Contract the public decomposition modes**
-        - Route `--execute <cut-map>` to Task 4.4's one-step result and `--advance-base <cut-map>` to its receipt-free
-          proof; retain `--preflight`, keep `--discard` absent, and remove `--finalize`, `--continuation`, and
-          `--handoff`.
-        - Rewrite the authoritative packaged `decompose-work-unit.md` workflow around one-step execution,
-          receipt-free base advancement, ordinary owned-candidate cleanup, and lifecycle/status readiness; sync the
-          self-host installed copy through the package-project sync path rather than editing the mirrors
-          independently.
-        - Remove the retired options from `cli.ts`, input registration/schema/exclusivity, machine-readable routing,
-          help and command renderers, handler branches, no-input fixtures, and command-mode tests.
-        - Replace the workflow-contract assertions with coverage for `--preflight`, `--execute <cut-map>`, and
-          `--advance-base <cut-map>`, plus explicit absence of `--discard`, `--finalize`, `--continuation`, and
-          `--handoff` from both shipped and self-host workflow surfaces.
-        - Assert no production result renders a receipt ID, continuation file, discard remedy, handoff payload, or
-          prescribed next successor.
+    - `[x]` **4.5.a Contract the public decomposition modes**
+        - Contracted the CLI, handler, renderer, registration, fixtures, and both workflow copies to `--preflight`,
+          `--execute <cut-map>`, and `--advance-base <cut-map>`. Successful execution is one staged result with no
+          prescribed successor; retired decomposition modes and response vocabulary are absent.
 
-    - `[ ]` **4.5.b Retire landed handoff and readiness consumers**
-        - Characterize the destination ready/blocked frontier through lifecycle composition and ordinary status,
-          then delete `landed-decomposition-publication.ts`, `landed-decomposition-handoff.ts`,
-          `git-landed-decomposition-handoff.ts`, their E2E path, and response shaping.
-        - Disconnect `decompose-launch-readiness.ts` and `decompose-continuation.ts` from every production caller;
-          keep their dead receipt/finalization schema dependencies isolated until Task 4.7 removes that cluster.
-        - Prove lifecycle and status report the same reconstructed frontier without an adapter, launch advice,
-          publication object, or another wrapper around ready/blocked state.
+    - `[x]` **4.5.b Retire landed handoff and readiness consumers**
+        - Deleted landed publication/handoff and launch-readiness adapters. Lifecycle and status now derive the
+          ready/blocked frontier through their ordinary composed project view, without launch advice or publication
+          response shaping.
 
-### `[ ]` **4.6 Remove preparation and candidate-publication sealing state**
+### `[x]` **4.6 Remove preparation and candidate-publication sealing state**
 
 - _Goal:_ The authoritative execution path carries validated authored plan facts directly, while the unreachable
   two-stage persistence path is dismantled without deleting any fact the new path still consumes.
 
-    - `[ ]` **4.6.a Extract the surviving authored-fact contract**
-        - Move any still-required path-state, completed-map, topology, conservation, destination, incoming-disposition,
-          occupation, and materialization types/helpers out of preparation-shaped modules into their existing plan or
-          direct-execution owners before deleting a producer.
-        - Build `test-first` (one behavior at a time):
-            - Produce the same staged transform and lean projection from validated authored inputs.
-            - Preserve topology, conservation, disposition, occupation, and materialization failures before success.
-            - Keep every new production import free of preparation, publication, receipt, and finalization types.
+    - `[x]` **4.6.a Extract the surviving authored-fact contract**
+        - Moved canonical path state and planning-artifact validation to plan-owned contracts; execution continues to
+          consume completed-map topology, conservation, occupation, and materialization facts directly, with the
+          same refusal and rollback coverage and no transaction-shaped imports.
 
-    - `[ ]` **4.6.b Delete the two-stage preparation path**
-        - Remove `decompose-preparation.ts`, `prepareV3`, operation persistence of prepared records,
-          prepared-record staging/replacement, `preparationId`, `V3CandidatePublication`, prospective publication
-          fields, and preparation-only authority sealing from production paths and results.
-        - Update operation, repository-plan, materializer, handler, fixture, and test seams; retain only isolated dead
-          schema definitions still imported by the receipt/finalization cluster Task 4.7 deletes next.
+    - `[x]` **4.6.b Delete the two-stage preparation path**
+        - Deleted preparation persistence, IDs, candidate publication/sealing fields, prepared-record replacement,
+          and their operation, fixture, handler, and test seams. Execution now has no intermediate durable state.
 
-### `[ ]` **4.7 Remove finalization, receipt projection, and recovery state**
+### `[x]` **4.7 Remove finalization, receipt projection, and recovery state**
 
 - _Goal:_ The cut-over production tree retains the one-step transform, lean write, and structural Git safeguards,
   with every unreachable receipt/finalization schema and special publication consumer physically gone.
 
-    - `[ ]` **4.7.a Delete the sealed finalization cluster**
-        - Remove `decompose-v3-receipt.ts`, the remaining preparation schema, finalization drivers,
-          `decompose-finalization-recovery.ts`, `decompose-launch-readiness.ts`, `decompose-continuation.ts`, and their
-          unreachable adapters, result unions, schemas, codes, fixtures, and tests.
-        - Remove `receiptId`, `preparationId`, managed-path and destination digests, sealed transition patches,
-          refresh/restatement, prepared-to-finalized replacement, the legacy decompose co-staging leg, and the six
-          provider-only plus continuation-only refusal codes.
-        - Retain the Phase 1 staged lean write as the sole invocation in Task 4.4's operation; do not rewrite it,
-          invoke it again, or move it outside the established transform rollback boundary.
-        - Build `test-first` (one behavior at a time):
-            - Complete a valid transform with exactly one origin record and refuse an occupied origin.
-            - Leave no successful half-transition after transform, record-write, or rollback failure.
-            - Find no provider, continuation, preparation, finalization, refresh, or receipt-shaped result vocabulary.
+    - `[x]` **4.7.a Delete the sealed finalization cluster**
+        - Deleted the preparation/receipt codecs, finalization and recovery drivers, continuation/readiness adapters,
+          sealed-result unions, legacy refusal codes, fixtures, and tests. The execution operation retains exactly
+          one lean write inside its existing transform rollback boundary.
 
-    - `[ ]` **4.7.b Resolve structural and graduation consumers before deleting their carriers**
-        - Produce a caller-and-check matrix for configured-base anchors, descendant landing, integration anchors,
-          merge overlays, roadmap regeneration, local cleanup, and base advancement. Mark each check
-          publication/receipt-only or independently required for Git topology, ancestry, dependency, ref-race,
-          occupation, rollback, or lifecycle correctness.
-        - Route every retained check and test through Task 4.4's receipt-free plan/Git contracts before removing old
-          anchor, overlay, validation, base-advancement, and retirement-driver projections; delete rather than rename
-          every check whose sole authority was receipt content.
-        - Remove the `Decomposition Receipt` meta field and parser/renderer, `decomposition-receipt-marker.ts`, marker
-          injection in the plan composer, the decomposition-only planning-tuple arm, and graduation/start anchor
-          lookup; ordinary planning validation and start behavior remain authoritative.
-        - Preserve generic ancestry/object-ID/ref-reread, topology, conservation, dependency snapshot, merge,
-          worktree-ownership, CAS, rollback, and lifecycle tests under their surviving callers.
+    - `[x]` **4.7.b Resolve structural and graduation consumers before deleting their carriers**
+        - Deleted receipt-only configured-base, descendant-landing, integration-anchor, overlay, cleanup-gate, and
+          graduation/start carriers. Retained topology, ancestry, dependency, worktree ownership, CAS, merge,
+          rollback, and ref-reread safeguards now run through receipt-free plan and Git contracts.
 
-### `[ ]` **4.8 Close surviving consumers and deleted-state vocabulary**
+### `[x]` **4.8 Close surviving consumers and deleted-state vocabulary**
 
 - _Goal:_ No production path imports, reads, renders, or authorizes from deleted decomposition transaction state,
   while unrelated receipt systems and surviving structural checks remain intact.
 
-    - `[ ]` **4.8.a Resolve every surviving transaction consumer**
-        - Trace roadmap regeneration, in-repo retirement authority, merge overlays, descendant-base landing,
-          configured-base and integration anchors, local cleanup, in-flight derivation, active-meta schema/readers,
-          decomposition planning tuples, graduation transactions, start and lifecycle handlers, CLI modes, and
-          command renderers/registrations.
-        - Remove obsolete result unions, CLI rendering, fixtures, mocks, and workflow-contract assertions only after
-          each locus is deleted or rewritten around a surviving structural fact.
+    - `[x]` **4.8.a Resolve every surviving transaction consumer**
+        - Rewrote roadmap overlay resolution around origin-keyed transition additions, reduced in-flight/meta/start/
+          graduation/lifecycle consumers to ordinary structural facts, and removed obsolete result, fixture, mock,
+          renderer, registration, and workflow-contract branches.
 
-    - `[ ]` **4.8.b Add an absence boundary for the retired vocabulary**
-        - Extend the decomposition authority-boundary contract to prohibit production uses of `receiptId`,
-          `preparationId`, `V3DecomposeReceipt`, `V3CandidatePublication`, `initialContinuation`, sealed result fields,
-          exception types, readiness-provider codes, and candidate-discard codes.
-        - Prohibit transitional dual-write/co-staging adapters, coexistence branches, old-to-new aliases, receipt
-          fallbacks, and the retired `--discard`, `--finalize`, `--continuation`, and `--handoff` modes after the old
-          paths retire; require the surviving advancement path to import no old codec or authority.
-        - Exclude review-gate receipts, errand identity transactions, notes-publication proofs, and any generic
-          retirement authority that Phase 3 did not supersede.
+    - `[x]` **4.8.b Add an absence boundary for the retired vocabulary**
+        - The source-graph boundary now rejects receipt/preparation/publication identifiers and removed module paths;
+          the receipt-free advancement module is independently checked against retired codec and authority imports.
+          Unrelated review, identity, notes, and generic Git-retirement evidence remain intact.
 
-### `[ ]` **4.9 Retire the receipt namespace and validator last**
+### `[x]` **4.9 Retire the receipt namespace and validator last**
 
 - _Goal:_ The digest-keyed retirement-receipts substrate disappears only after lean records and Git-derived proofs
   are the sole production authorities, leaving no compatibility or dual-read route.
 
-    - `[ ]` **4.9.a Remove the validator and old codec/store branches**
-        - Delete `validate-decompose-record.ts`, its CLI and input-policy registrations, old-format codec branches,
-          digest-key path helpers, and old enumeration variants.
-        - Remove `hook-validate-decompose-record` from the package hook source and self-host installed hook, command
-          help/input/no-input matrices, generated E2E invocations, shell-contract fixtures, and every shipped
-          workflow/template registration; shape validation remains owned by the transition writer and lean parser.
+    - `[x]` **4.9.a Remove the validator and old codec/store branches**
+        - Deleted the validator command and hook leg, input/no-input registrations, digest-key helpers, canonical
+          receipt/preparation ID utilities, old codec, enumeration, disposition, relation, and store modules, plus
+          their tests and generated-hook fixtures. Lean writer/parser validation is the only record-shape boundary.
 
-    - `[ ]` **4.9.b Delete old namespace data and prove one-way closure**
-        - Remove `.arc/system/.internal/retirement-receipts/**`, including the traced park record, after the eight
-          terminal migrations and all four authorization arms are green.
-        - Delete the temporary verbatim migration inputs and old-reader test adapters while retaining the lean-only
-          semantic oracle and expected-origin manifest.
-        - Build `test-first` (one behavior at a time):
-            - Preserve lean fail-closed parsing, duplicate-origin ambiguity, and existing-origin write refusal.
-            - Find no old namespace, digest filename handling, compatibility reader, alias, or dual-read fallback in
-              production, shipped configuration, fixtures, or repository data.
+    - `[x]` **4.9.b Delete old namespace data and prove one-way closure**
+        - Deleted all repository retirement-receipt records and verbatim migration fixtures. The retained migration
+          oracle validates exactly eight origin-keyed records, while lean parsing, duplicate-origin ambiguity, and
+          occupied-origin refusal remain covered without a compatibility or dual-read path.
 
 ## **Phase 5:** Verification
 

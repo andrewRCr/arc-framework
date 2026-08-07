@@ -18,9 +18,9 @@ import {
   type ValidatedDecomposePlan,
   type V3PlanObservedPathState,
   type V3PlanPathClaim,
+  v3TopologyDigest,
+  type V3TopologyFact,
 } from "./decompose-v3-plan.js";
-import type { V3CandidatePublication } from "./decompose-v3-preparation.js";
-import { v3TopologyDigest, type V3TopologyFact } from "./decompose-v3-preparation.js";
 import type { V3TopologyAction, V3TopologyTreeState } from "./decompose-v3-topology.js";
 
 export type V3PlannedByteState =
@@ -91,8 +91,6 @@ export interface V3PlanCompositionInput {
   cutMapDigest: CanonicalDigest;
   sourceHead: string;
   expectedBaseHead: string;
-  candidatePublication: V3CandidatePublication;
-  topologyDigest: CanonicalDigest;
   origin: string;
   sourceBranch: string;
   planningProfile: V3DecomposeMachine["planningProfile"];
@@ -522,19 +520,14 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
   } catch {
     return { status: "refused", refusal: { code: "invalid-plan-operand" } };
   }
-  if (observedTopologyDigest !== input.topologyDigest) {
-    return { status: "refused", refusal: { code: "invalid-plan-operand" } };
-  }
-
   const result = buildValidatedDecomposePlan({
     preflightId: input.preflightId,
     cutMapDigest: input.cutMapDigest,
     sourceHead: input.sourceHead,
     expectedBaseHead: input.expectedBaseHead,
-    candidatePublication: input.candidatePublication,
     topology: {
       facts: topologyFacts,
-      digest: input.topologyDigest,
+      digest: observedTopologyDigest,
     },
     origin: input.origin,
     sourceBranch: input.sourceBranch,

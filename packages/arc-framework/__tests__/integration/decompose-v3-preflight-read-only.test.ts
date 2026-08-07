@@ -32,7 +32,7 @@ async function repositoryState(repo: string, sourceWorktree: string) {
     sourceStatus: await git(sourceWorktree, "status", "--porcelain=v2", "--untracked-files=all"),
     baseIndex: await git(repo, "write-tree"),
     sourceIndex: await git(sourceWorktree, "write-tree"),
-    record: await readFile(join(repo, ".arc/system/.internal/retirement-receipts/existing.json"), "utf8"),
+    internalState: await readFile(join(repo, ".arc/system/.internal/preflight-fixture/existing.json"), "utf8"),
     baseDirty: await readFile(join(repo, ".arc/local-dirty.txt"), "utf8"),
     sourceDirty: await readFile(join(sourceWorktree, ".arc/active/draft-origin.md"), "utf8"),
   };
@@ -55,7 +55,7 @@ describe("v3 decomposition preflight read-only boundary", () => {
   it("preserves refs, worktrees, indices, records, and dirty filesystem bytes", async () => {
     repo = await createTempRepo("arc-decompose-preflight-");
     await mkdir(join(repo, ".arc/backlog/planned/origin"), { recursive: true });
-    await mkdir(join(repo, ".arc/system/.internal/retirement-receipts"), { recursive: true });
+    await mkdir(join(repo, ".arc/system/.internal/preflight-fixture"), { recursive: true });
     await writeFile(
       join(repo, ".arc/backlog/planned/origin/meta-origin.md"),
       renderMetaFile("origin", {
@@ -67,7 +67,7 @@ describe("v3 decomposition preflight read-only boundary", () => {
     );
     await writeFile(join(repo, ".arc/backlog/planned/origin/draft-origin.md"), "# Draft\n\n## Base\n");
     await writeFile(
-      join(repo, ".arc/system/.internal/retirement-receipts/existing.json"),
+      join(repo, ".arc/system/.internal/preflight-fixture/existing.json"),
       "{\"existing\":true}\n",
     );
     await commitAll(repo, "base source");

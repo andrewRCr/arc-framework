@@ -169,7 +169,6 @@ import {
   type ReleaseSetupUninstallOptions,
   type ReleaseSetupVerifyOptions,
 } from "./commands/release.js";
-import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
 import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
 
 const program = new Command();
@@ -185,10 +184,6 @@ program
 const checkCmd = program
   .command("check")
   .description("Run standalone repository checks");
-
-program
-  .command("hook-validate-decompose-record", { hidden: true })
-  .action(runDecomposeRecordValidation);
 
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
@@ -322,13 +317,10 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Preflight, execute, finalize, advance, or inspect one v3 decomposition")
+  .description("Preflight, execute, or advance one decomposition")
   .option("--preflight", "Emit one canonical read-only v3 starter map")
-  .option("--execute <cut-map>", "Prepare one exact result from a canonical completed cut map")
-  .option("--finalize <receipt-id>", "Finalize one exact prepared receipt")
-  .option("--continuation <path>", "Canonical continuation input paired with --finalize")
-  .option("--handoff", "Emit one canonical facts-only landed handoff")
-  .option("--advance-base <receipt-id>", "Advance one committed candidate to the configured base")
+  .option("--execute <cut-map>", "Stage one exact result from a canonical completed cut map")
+  .option("--advance-base <cut-map>", "Advance one committed candidate from its completed cut map")
   .action(withInteractionContext(
     {
       machineReadable: isDecomposeMachineReadableInvocation,

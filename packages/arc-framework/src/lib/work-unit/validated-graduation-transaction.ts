@@ -17,12 +17,8 @@ import { WorkClassSchema, type WorkClass } from "../kernel/index.js";
 import type { V3PlanCanonicalPathState, V3PlanObservedPathState } from "./decompose-v3-plan.js";
 import type { V3DecomposeMachine } from "./decompose-v3-schema.js";
 import {
-  validateDecompositionPlanningTuple,
-} from "./decomposition-planning-tuple.js";
-import {
-  removeDecompositionReceiptMarker,
-} from "./decomposition-receipt-marker.js";
-import type { DecompositionIntegrationAnchor } from "./decomposition-integration-anchor.js";
+  validatePlanningArtifactTuple,
+} from "./planning-artifact-tuple.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import { BEGIN_CURRENT_WORKFLOW_SENTINEL } from "../active/current-workflow-consistency.js";
 
@@ -90,7 +86,6 @@ export interface PrepareGraduationTransactionInput {
   targetDirectory: string;
   artifacts: GraduationStoredArtifact[];
   destinations: Array<{ path: string; state: V3PlanObservedPathState }>;
-  anchor: DecompositionIntegrationAnchor | null;
   classResolution: GraduationClassResolution;
   occupation: GraduationOccupationPreimage;
 }
@@ -119,12 +114,10 @@ export interface ValidatedGraduationTransaction {
     }>;
   };
   policy: {
-    provenance: "ordinary" | "decomposition";
     profile: V3DecomposeMachine["planningProfile"];
     taskAuthority: "none" | "provisional-seed" | "task-list";
     workflow: { kind: "preserved" | "derived"; value: "draft-design" | "create-spec" | "generate-tasks" };
     class: GraduationClassResolution;
-    decompositionReceiptRemoved: boolean;
   };
   reconciliation: {
     backfilled: MetaFieldName[];
@@ -249,9 +242,19 @@ export function prepareValidatedGraduationTransaction(
       detail: metaDiagnostics[0],
     };
   }
-  const parsedMeta = parseMetaRecord(metaContent);
+  let parsedMeta: ReturnType<typeof parseMetaRecord>;
+  try {
+    parsedMeta = parseMetaRecord(metaContent);
+  } catch (error) {
+    return {
+      status: "refused",
+      reason: "source-shape",
+      locus: metaArtifact.sourcePath,
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
 
-  const planning = validateDecompositionPlanningTuple({
+  const planning = validatePlanningArtifactTuple({
     expectedSlug: input.slug,
     metaPath: metaArtifact.sourcePath,
     metaContent,
@@ -260,7 +263,6 @@ export function prepareValidatedGraduationTransaction(
       path: artifact.sourcePath,
       state: fileState(artifact),
     })),
-    anchor: input.anchor,
   });
   if (planning.status === "refused") {
     return {
@@ -299,14 +301,6 @@ export function prepareValidatedGraduationTransaction(
   targetMeta = setMetaBulletFields(targetMeta, {
     "Next Action": BEGIN_CURRENT_WORKFLOW_SENTINEL,
   });
-  if (planning.provenance === "decomposition") {
-    const receiptId = input.anchor?.receiptId;
-    if (receiptId === undefined) {
-      return { status: "refused", reason: "planning-tuple", locus: `${metaBasename}#Decomposition Receipt` };
-    }
-    targetMeta = removeDecompositionReceiptMarker(targetMeta, receiptId);
-  }
-
   const encoder = new TextEncoder();
   const metaBytes = encoder.encode(targetMeta);
   const targetArtifacts = sortedArtifacts.map((artifact): GraduationTargetArtifact => {
@@ -364,12 +358,10 @@ export function prepareValidatedGraduationTransaction(
         pathStates,
       },
       policy: {
-        provenance: planning.provenance,
         profile: planning.profile,
         taskAuthority: planning.taskAuthority,
         workflow,
         class: input.classResolution,
-        decompositionReceiptRemoved: planning.provenance === "decomposition",
       },
       reconciliation: { backfilled, notice },
       occupation: structuredClone(input.occupation),

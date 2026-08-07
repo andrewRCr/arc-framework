@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest, digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
   executeV3DecomposeOperation,
   type V3DecomposeOperationDependencies,
@@ -14,9 +14,6 @@ import type {
   V3ValidatedPathMutation,
   ValidatedDecomposePlan,
 } from "../../../src/lib/work-unit/decompose-v3-plan.js";
-import {
-  v3CandidateWorktreeId,
-} from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 import { createDecomposeTransitionRecord } from "../../../src/lib/work-unit/decompose-transition-record.js";
 import { resolveTransitionRecordRelativePath } from "../../../src/lib/work-unit/transition-record-store.js";
 import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
@@ -74,10 +71,7 @@ function operationFixture() {
     cutMapDigest: facts.cutMapDigest,
     sourceHead: facts.completedMap.machine.source.head,
     expectedBaseHead: facts.completedMap.machine.resultBase.head,
-    candidateAuthority: {
-      candidatePublication: structuredClone(facts.candidatePublication),
-      topology: structuredClone(facts.topology),
-    },
+    topology: structuredClone(facts.topology),
     allowedPaths: [...facts.allowedPaths],
     allowedPathsDigest: facts.allowedPathsDigest,
     prospectiveOverlay: createProspectiveTransitionOverlay({
@@ -111,24 +105,15 @@ function partialOccupation(): DecomposeResultOccupationResult {
   return {
     status: "occupied",
     protection: "partial",
-    candidateOwnership: { kind: "not-applicable", protection: "partial" },
   };
 }
 
 function fullOccupation(): DecomposeResultOccupationResult {
-  const claimId = canonicalDigest("claim");
   return {
     status: "occupied",
     protection: "full",
     path: "/repo/.git/arc/worktrees/candidate",
-    candidateOwnership: {
-      kind: "claimed",
-      protection: "full",
-      claimId,
-      generation: 2,
-      candidateBranch: "chore/decompose-origin",
-      candidateWorktree: v3CandidateWorktreeId(claimId, 2),
-    },
+    candidateBranch: "chore/decompose-origin",
   };
 }
 
@@ -457,7 +442,7 @@ describe("executeV3DecomposeOperation", () => {
       reason: "recovery-required",
       recovery: {
         path: occupied.path,
-        candidateOwnership: occupied.candidateOwnership,
+        candidateBranch: occupied.candidateBranch,
       },
     };
     const result = await executeV3DecomposeOperation({
@@ -474,7 +459,7 @@ describe("executeV3DecomposeOperation", () => {
       recovery: {
         kind: "full-candidate",
         path: occupied.path,
-        candidateBranch: occupied.candidateOwnership.candidateBranch,
+        candidateBranch: occupied.candidateBranch,
         expectedHead: fixture.plan.expectedBaseHead,
       },
     });

@@ -595,7 +595,11 @@ describe("trusted review-gate workflows", () => {
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
     );
     const partial = sectionBetween(decompose, "### Partial protection", "### Full protection");
-    const full = sectionBetween(decompose, "### Full protection", "## 8. Resolve the landed handoff");
+    const full = sectionBetween(
+      decompose,
+      "### Full protection",
+      "## 7. Confirm lifecycle readiness and clean up",
+    );
     const status = full.indexOf("Surface PR status");
     const interlock = full.indexOf("`integration-interlock`");
     const merge = full.indexOf("merge according to project policy");

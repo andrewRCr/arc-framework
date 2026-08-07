@@ -15,7 +15,7 @@ import {
 } from "../canonical/content-digest.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { isSlugSafe } from "../kernel/schema/slug.js";
-import { artifactGroupDigest } from "../canonical/receipt-id.js";
+import { artifactGroupDigest } from "../canonical/content-digest.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-index.js";
 import { resolveSlugState } from "./lifecycle-resolver.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
@@ -31,7 +31,6 @@ import {
   type TeardownAuthorizationRefusal,
   type TeardownAuthorizationRequest,
 } from "./retirement-authority.js";
-import { RETIREMENT_RECORD_NAMESPACE } from "./retirement-record-store.js";
 import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 /** Exact committed-blob reader used for canonical content digests. */
@@ -217,11 +216,6 @@ function isAllowedAbandonSidecar(change: NameStatusEntry, name: string): boolean
   if (change.path === ".arc/backlog/ROADMAP.md") {
     return change.status === "A" || change.status === "M" || change.status === "D";
   }
-  if (
-    change.status === "A"
-    && change.path.startsWith(`${RETIREMENT_RECORD_NAMESPACE}/`)
-    && /^sha256-[0-9a-f]{64}\.json$/u.test(posix.basename(change.path))
-  ) return true;
   return change.path === resolveTransitionRecordRelativePath(name) && change.status === "A";
 }
 

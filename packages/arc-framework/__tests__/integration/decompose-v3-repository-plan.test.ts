@@ -462,11 +462,9 @@ describe("Git v3 repository plan", () => {
     expect(full.status, JSON.stringify(full)).toBe("staged");
     if (full.status !== "staged") return;
     expect(full.operation.occupation).toMatchObject({
+      status: "occupied",
       protection: "full",
-      candidateOwnership: {
-        kind: "claimed",
-        candidateBranch: "chore/decompose-origin",
-      },
+      candidateBranch: "chore/decompose-origin",
     });
     expect(full.operation.transitionRecord).toMatchObject({ kind: "decompose", origin: "origin" });
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe("");
@@ -484,7 +482,6 @@ describe("Git v3 repository plan", () => {
     expect(partial.operation.occupation).toEqual({
       status: "occupied",
       protection: "partial",
-      candidateOwnership: { kind: "not-applicable", protection: "partial" },
     });
     expect(partial.plan).toEqual(full.plan);
     expect(partial.operation.report).toEqual(full.operation.report);
@@ -972,7 +969,7 @@ describe("Git v3 repository plan", () => {
       remedy: expect.stringContaining(`then retry: arc decompose origin --execute ${cutMapPath}`),
     });
     expect(result.status === "refused" ? result.remedy : "").not.toContain("discard");
-    expect(await claimFiles(repo)).toHaveLength(1);
+    expect(await claimFiles(repo)).toEqual([]);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"]))
       .toContain("chore/decompose-origin");
   });
@@ -1095,12 +1092,12 @@ describe("Git v3 repository plan", () => {
         occupation: {
           status: "occupied",
           protection: "partial",
-          candidateOwnership: { kind: "not-applicable", protection: "partial" },
         },
         transitionRecord: { kind: "decompose", origin: "origin" },
       },
     });
     if (staged.status !== "staged") return;
+    expect(staged.operation.occupation).toEqual({ status: "occupied", protection: "partial" });
     expect(await git(repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads"]))
       .toBe(refsBefore);
     expect(await git(repo, ["worktree", "list", "--porcelain"])).toBe(worktreesBefore);

@@ -16,7 +16,7 @@ import {
 } from "../../../../src/lib/work-unit/verbs/teardown.js";
 import { contentDigest } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
-import { artifactGroupDigest } from "../../../../src/lib/canonical/receipt-id.js";
+import { artifactGroupDigest } from "../../../../src/lib/canonical/content-digest.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";

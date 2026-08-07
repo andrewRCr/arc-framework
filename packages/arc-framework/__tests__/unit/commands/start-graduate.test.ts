@@ -43,12 +43,10 @@ function transaction(mode: "spawned" | "in-place" = "spawned"): ValidatedGraduat
       pathStates: [],
     },
     policy: {
-      provenance: "ordinary",
       profile: { kind: "draft", sourceDesign: ["draft-widget.md"] },
       taskAuthority: "none",
       workflow: { kind: "preserved", value: "draft-design" },
       class: { kind: "preserved", value: "Light" },
-      decompositionReceiptRemoved: false,
     },
     reconciliation: { backfilled: [], notice: null },
     occupation: {

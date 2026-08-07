@@ -11,7 +11,6 @@
 import { dirname, join } from "node:path";
 
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import type { RetirementRecordEnumerationResult } from "./retirement-record-enumeration.js";
 import type { TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
 
 /** One storage-independent retirement transition relevant to tracked references. */
@@ -102,46 +101,6 @@ export async function listCurrentWuArtifactPaths(
     .filter((basename) => basename !== `cohort-${slug}.md` && artifactMatcher(slug).test(basename))
     .sort(byteSort)
     .map((basename) => join(directory, basename));
-}
-
-/**
- * Project authenticated reachable receipts into reference transitions.
- *
- * @param enumeration - Complete authenticated namespace reachable from the current WU history
- * @returns Valid work-unit transitions or a namespace-level refusal
- */
-export function enumerateReferenceTransitions(
-  enumeration: RetirementRecordEnumerationResult,
-): { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
-  | { status: "conflict"; reason: "version-conflict" | "namespace-corrupt" } {
-  if (enumeration.status !== "valid") return { status: "conflict", reason: enumeration.status };
-  const transitions: ReachableReferenceTransition[] = [];
-  for (const entry of enumeration.records) {
-    if (entry.record.kind === "v3-decomposition-receipt") {
-      transitions.push({
-        subject: entry.record.value.prepared.completedMap.machine.source.origin,
-        outcome: { kind: "decompose" },
-      });
-      continue;
-    }
-    if (entry.record.kind !== "receipt") continue;
-    const receipt = entry.record.value;
-    if (receipt.subject.kind !== "work-unit") continue;
-    switch (receipt.result.kind) {
-      case "rename":
-        transitions.push({
-          subject: receipt.subject.name,
-          outcome: { kind: "rename", targetSlug: receipt.result.targetSlug },
-        });
-        break;
-      case "discard":
-        transitions.push({ subject: receipt.subject.name, outcome: { kind: "removed" } });
-        break;
-      case "relocate":
-        break;
-    }
-  }
-  return { status: "valid", transitions };
 }
 
 /** Project authenticated lean transition groups into reference transitions. */

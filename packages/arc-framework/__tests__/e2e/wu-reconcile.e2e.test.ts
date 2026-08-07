@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,8 +8,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { assertCliBuilt, CLI_PATH } from "../helpers/cli-spawn.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcAnchored } from "./helpers.js";
 
-const DIGEST = `sha256:${"0".repeat(64)}`;
-
 function canonicalize(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
@@ -18,10 +15,6 @@ function canonicalize(value: unknown): string {
     .sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right)))
     .map(([key, member]) => `${JSON.stringify(key)}:${canonicalize(member)}`)
     .join(",")}}`;
-}
-
-function canonicalDigest(value: unknown): string {
-  return `sha256:${createHash("sha256").update(canonicalize(value)).digest("hex")}`;
 }
 
 async function waitForFile(path: string, timeoutMs = 5_000): Promise<string> {
@@ -54,11 +47,9 @@ describe("arc wu reconcile", () => {
     repo = await createTempRepo("arc-wu-reconcile-");
     const active = join(repo, ".arc", "active");
     const planned = join(repo, ".arc", "backlog", "planned");
-    const records = join(repo, ".arc", "system", ".internal", "retirement-receipts");
     const transitions = join(repo, ".arc", "system", ".internal", "transitions");
     await mkdir(active, { recursive: true });
     await mkdir(planned, { recursive: true });
-    await mkdir(records, { recursive: true });
     await mkdir(transitions, { recursive: true });
     await writeFile(
       join(active, "meta-dependent.md"),
@@ -70,36 +61,6 @@ describe("arc wu reconcile", () => {
       meta("successor", "[none]", "[none]").replace("- **State:** Active", "- **State:** Planning"),
       "utf8",
     );
-    const subject = { kind: "work-unit", name: "origin" };
-    const source = { branch: "feat/origin", head: "a".repeat(40), artifactDigest: DIGEST };
-    const receiptId = canonicalDigest({
-      schemaVersion: 1,
-      subject,
-      transition: "rename",
-      sourceBranch: source.branch,
-      sourceHead: source.head,
-    });
-    const receipt = {
-      schemaVersion: 1,
-      receiptId,
-      subject,
-      transition: "rename",
-      source,
-      transitionPatchDigest: DIGEST,
-      retiringProjection: { kind: "direct-transition" },
-      authorization: "identity-renamed",
-      result: { kind: "rename", targetSlug: "successor", artifactDigest: DIGEST },
-    };
-    const receiptRelativePath = join(
-      ".arc",
-      "system",
-      ".internal",
-      "retirement-receipts",
-      `${receiptId.replace(":", "-")}.json`,
-    );
-    const receiptPath = join(repo, receiptRelativePath);
-    const receiptContent = canonicalize(receipt);
-    await writeFile(receiptPath, receiptContent, "utf8");
     transitionRelativePath = join(".arc", "system", ".internal", "transitions", "origin.json");
     transitionPath = join(repo, transitionRelativePath);
     transitionContent = canonicalize({
