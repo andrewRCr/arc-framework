@@ -91,7 +91,7 @@ export async function handleReleasePush(
   });
 
   const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
-  const worktreeSync = await runMaterializingWorktreeInspection({ exec });
+  const worktreeSync = await runMaterializingWorktreeInspection({ exec, cwd });
 
   const result = await runReleasePush({
     cwd,

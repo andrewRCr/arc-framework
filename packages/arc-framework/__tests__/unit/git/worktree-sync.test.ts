@@ -26,10 +26,10 @@ type ResponseFn = (
  */
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[] }> } {
-  const calls: Array<{ cmd: string; args: string[] }> = [];
+): { exec: GitExec; calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> } {
+  const calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> = [];
   const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args });
+    calls.push({ cmd, args, ...(options === undefined ? {} : { options }) });
     const key = matchKey(args, responses);
     if (key === null) {
       throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
@@ -630,6 +630,23 @@ describe("runMaterializingWorktreeInspection", () => {
     });
   });
 
+  it("pins every materializing Git command to the supplied repository root", async () => {
+    const oid = "a".repeat(40);
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      "for-each-ref *": { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      "rev-parse origin/main": { stdout: oid, stderr: "" },
+      "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
+      "rev-parse HEAD": { stdout: oid, stderr: "" },
+    });
+
+    await runMaterializingWorktreeInspection({ exec, cwd: "/repo" });
+
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((call) => call.options?.cwd === "/repo")).toBe(true);
+  });
+
   it("analyzes distance against the materialized remote OID", async () => {
     const remoteOid = "a".repeat(40);
     const localOid = "b".repeat(40);
@@ -688,9 +705,13 @@ describe("runMaterializingWorktreeInspection", () => {
       [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
       "for-each-ref *": { stdout: "origin/feat/x", stderr: "" },
       [FETCH_BRANCH]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args: ["fetch", "origin", "feat/x"],
+          exitCode: 128,
           stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
+          expectedOutcome: "absent-remote-ref",
         });
       },
     });

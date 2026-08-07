@@ -118,7 +118,10 @@ describe("handleReleasePush", () => {
     expect(mocks.createGitExec).toHaveBeenCalledWith(context.subprocess);
     expect(mocks.ambientExec).not.toHaveBeenCalled();
     expect(mocks.boundExec).toHaveBeenCalledWith("git", ["fetch", "origin", "feat/test"]);
-    expect(mocks.runMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mocks.boundExec });
+    expect(mocks.runMaterializingWorktreeInspection).toHaveBeenCalledWith({
+      exec: mocks.boundExec,
+      cwd: "/repo",
+    });
     expect(mocks.runWorktreeSyncStatus).not.toHaveBeenCalled();
     expect(mocks.pushWorktreeBranch).toHaveBeenCalledWith({
       exec: mocks.boundExec,
