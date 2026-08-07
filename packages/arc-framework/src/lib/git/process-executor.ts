@@ -44,6 +44,20 @@ export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv
   );
 }
 
+function applyInteractionEnvironment(
+  base: NodeJS.ProcessEnv | undefined,
+  interaction: InteractionContext["subprocess"] | undefined,
+): NodeJS.ProcessEnv | undefined {
+  if (interaction?.terminalPrompts !== "forbidden") return base;
+  return {
+    ...(base ?? process.env),
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_EDITOR: "true",
+    GIT_PAGER: "cat",
+    PAGER: "cat",
+  };
+}
+
 /**
  * Construct the captured-output execa adapter without changing the live binding.
  *
@@ -62,16 +76,7 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
     const objectEnvironment = options?.objectAccess === "local-only"
       ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : diagnosticEnvironment;
-    const forbidden = options?.interaction?.terminalPrompts === "forbidden";
-    const env = forbidden
-      ? {
-          ...(objectEnvironment ?? process.env),
-          GIT_TERMINAL_PROMPT: "0",
-          GIT_EDITOR: "true",
-          GIT_PAGER: "cat",
-          PAGER: "cat",
-        }
-      : objectEnvironment;
+    const env = applyInteractionEnvironment(objectEnvironment, options?.interaction);
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
@@ -108,15 +113,7 @@ export function createExecaGitExecInput(
     const objectEnvironment = options?.objectAccess === "local-only"
       ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : environment;
-    const env = interaction?.terminalPrompts === "forbidden"
-      ? {
-          ...(objectEnvironment ?? process.env),
-          GIT_TERMINAL_PROMPT: "0",
-          GIT_EDITOR: "true",
-          GIT_PAGER: "cat",
-          PAGER: "cat",
-        }
-      : objectEnvironment;
+    const env = applyInteractionEnvironment(objectEnvironment, interaction);
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;

@@ -113,4 +113,23 @@ describe("local-only object access", () => {
     await expect(execInput(["hash-object", "--stdin"], "payload"))
       .resolves.toBe("object\n");
   });
+
+  it("leaves prompt policy untouched for allowed stdin-fed Git execution", async () => {
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env?.GIT_TERMINAL_PROMPT).toBeUndefined();
+      expect(options.env?.GIT_EDITOR).toBeUndefined();
+      expect(options.env?.GIT_PAGER).toBeUndefined();
+      expect(options.env?.PAGER).toBeUndefined();
+      return { stdout: "object\n", stderr: "" };
+    });
+
+    const execInput = createExecaGitExecInput(1024, {
+      terminalPrompts: "allowed",
+      presenters: "allowed",
+      ambientStdin: "inherit",
+    });
+
+    await expect(execInput(["hash-object", "--stdin"], "payload"))
+      .resolves.toBe("object\n");
+  });
 });
