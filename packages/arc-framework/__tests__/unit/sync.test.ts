@@ -662,6 +662,13 @@ describe("handleUserSync push policy", () => {
   it("threads worktreeBranch into pushNotesWithReconcile; surfaces matrix-blocked notes push", async () => {
     setSyncState("local-ahead", "same");
     setPolicy("on-sync");
+    mockRunMaterializingWorktreeInspection.mockResolvedValue({
+      state: "local-ahead",
+      ahead: 2,
+      behind: 0,
+      branch: "feature/x",
+      remoteEvidence: "exact",
+    });
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     // Worktree-not-aligned-with-origin would surface from the matrix; the
     // user-sync handler renders the blocked-condition guidance and preserves
@@ -824,7 +831,10 @@ describe("handleUserSync worktree qualifier", () => {
     await handleUserSync();
 
     expect(mockReadConfigSettings).not.toHaveBeenCalled();
-    expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: expect.any(Function) });
+    expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({
+      exec: expect.any(Function),
+      cwd: process.cwd(),
+    });
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
     const qualifierCalls = mockLog.info.mock.calls
       .map((call) => String(call[0] ?? ""))

@@ -106,6 +106,8 @@ export interface RunMaterializingWorktreeInspectionOptions {
   exec: GitExec;
   /** Bounded fetch timeout in milliseconds. */
   fetchTimeoutMs?: number;
+  /** Repository root whose tracking refs may be materialized. */
+  cwd?: string;
 }
 
 /** Supplied remote and local prerequisites for one tracked worktree relation. */
@@ -352,7 +354,8 @@ export async function runPassiveWorktreeInspection(
 export async function runMaterializingWorktreeInspection(
   options: RunMaterializingWorktreeInspectionOptions,
 ): Promise<WorktreeMaterializingInspectionResult> {
-  const branch = await readCurrentBranch(options.exec);
+  const exec = bindGitExecToCwd(options.exec, options.cwd);
+  const branch = await readCurrentBranch(exec);
   if (branch === null) {
     return {
       state: "detached-head",
@@ -363,9 +366,9 @@ export async function runMaterializingWorktreeInspection(
     };
   }
 
-  const upstreamBranch = await readConfiguredUpstreamBranch(options.exec, branch);
+  const upstreamBranch = await readConfiguredUpstreamBranch(exec, branch);
   if (upstreamBranch === null) {
-    const hasOrigin = await checkOriginExists(options.exec);
+    const hasOrigin = await checkOriginExists(exec);
     return {
       state: hasOrigin ? "no-upstream" : "no-remote",
       ahead: 0,
@@ -376,7 +379,7 @@ export async function runMaterializingWorktreeInspection(
   }
 
   const fetch = await boundedFetch(
-    options.exec,
+    exec,
     upstreamBranch,
     options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
   );
@@ -384,7 +387,7 @@ export async function runMaterializingWorktreeInspection(
     && isGitProcessError(fetch.error)
     && fetch.error.expectedOutcome === "absent-remote-ref") {
     return analyzeExactMaterializedWorktree({
-      exec: options.exec,
+      exec,
       branch,
       upstreamBranch,
       snapshot: { kind: "available", scope: "exact", tips: {} },
@@ -400,7 +403,7 @@ export async function runMaterializingWorktreeInspection(
     throw new Error("Materializing the worktree remote tip failed.", { cause: fetch.error });
   }
 
-  const advertisedOid = (await options.exec(
+  const advertisedOid = (await exec(
     "git",
     ["rev-parse", `origin/${upstreamBranch}`],
     { objectAccess: "local-only" },
@@ -408,15 +411,33 @@ export async function runMaterializingWorktreeInspection(
   if (!isGitObjectId(advertisedOid)) {
     throw new Error("Cannot resolve the materialized worktree commit.");
   }
-  const history = await readHistoryCompleteness({ exec: options.exec });
+  let verifiedCommitOid: string;
+  try {
+    verifiedCommitOid = (await exec(
+      "git",
+      ["rev-parse", "--verify", `${advertisedOid}^{commit}`],
+      { objectAccess: "local-only" },
+    )).stdout.trim();
+  } catch (error) {
+    throw new Error("The materialized worktree commit is not available locally.", { cause: error });
+  }
+  if (verifiedCommitOid !== advertisedOid) {
+    throw new Error("The materialized worktree commit is not available locally.");
+  }
+  const history = await readHistoryCompleteness({ exec });
   return analyzeExactMaterializedWorktree({
-    exec: options.exec,
+    exec,
     branch,
     upstreamBranch,
     snapshot: { kind: "available", scope: "exact", tips: { [upstreamBranch]: advertisedOid } },
     objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
     history,
   });
+}
+
+function bindGitExecToCwd(exec: GitExec, cwd: string | undefined): GitExec {
+  if (cwd === undefined) return exec;
+  return (command, args, options) => exec(command, args, { ...options, cwd });
 }
 
 async function analyzeExactMaterializedWorktree(options: {
@@ -478,9 +499,8 @@ export async function readConfiguredUpstreamBranch(exec: GitExec, branch: string
   if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");
   if (records.length === 0) return null;
   const upstream = records[0] ?? "";
-  if (!upstream.startsWith("origin/") || upstream.length === "origin/".length) {
-    throw new Error("The configured upstream must be a branch on origin.");
-  }
+  if (!upstream.startsWith("origin/")) return null;
+  if (upstream.length === "origin/".length) throw new Error("Cannot resolve the origin branch name.");
   return upstream.slice("origin/".length);
 }
 

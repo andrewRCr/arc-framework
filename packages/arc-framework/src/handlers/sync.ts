@@ -476,7 +476,7 @@ export async function handleSync(
   const syncInterlock = resolvedSettings.resolved.syncInterlock;
   const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  const worktree = await runMaterializingWorktreeInspection({ exec: io.exec });
+  const worktree = await runMaterializingWorktreeInspection({ exec: io.exec, cwd });
   const branch = worktree.branch;
 
   let notesPush = notesPushResolved.value;

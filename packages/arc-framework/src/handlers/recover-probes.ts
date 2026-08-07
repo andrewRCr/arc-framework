@@ -9,10 +9,9 @@ import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionRecoverProbes } from "../commands/status.js";
 import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import type { GitExec } from "../lib/git/index.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import { runPassiveWorktreeInspection } from "../lib/git/worktree-sync.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
@@ -20,16 +19,17 @@ import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 export interface RecoverStatusProbeOptions {
   cwd: string;
   dirty: () => Promise<DirtyStateResult>;
-  exec?: GitExec;
+  exec: GitExec;
+  execInput: GitExecInput;
+  readFile: (path: string) => Promise<string>;
 }
 
 /** Build the recover-mode probe bundle, sharing settings resolution across probes. */
 export function createRecoverStatusProbes(
   options: RecoverStatusProbeOptions,
 ): SessionRecoverProbes {
-  const { cwd, dirty, exec = gitExec } = options;
-  const io = createUserIOContext();
-  const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
+  const { cwd, dirty, exec, execInput, readFile } = options;
+  const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile });
   const extensionsP = runExtensionsSessionInitStatus({ cwd });
   // The kickoff is eager but the consumer awaits it later, so pre-attach a no-op rejection
   // handler: a repository without `.arc/system/extensions` must degrade to a failed slot,
@@ -49,12 +49,9 @@ export function createRecoverStatusProbes(
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-      if (io.execInput === undefined) {
-        throw new Error("Recovery worktree inspection requires stdin-capable Git I/O.");
-      }
       return runPassiveWorktreeInspection({
         exec,
-        execInput: io.execInput,
+        execInput,
         remoteSyncEnabled,
         cwd,
       });

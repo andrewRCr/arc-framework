@@ -6,6 +6,7 @@
 
 import { execa } from "execa";
 
+import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { GitExec, GitExecInput } from "./exec.js";
 import { normalizeGitRejection } from "./process-error.js";
 
@@ -43,6 +44,20 @@ export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv
   );
 }
 
+function applyInteractionEnvironment(
+  base: NodeJS.ProcessEnv | undefined,
+  interaction: InteractionContext["subprocess"] | undefined,
+): NodeJS.ProcessEnv | undefined {
+  if (interaction?.terminalPrompts !== "forbidden") return base;
+  return {
+    ...(base ?? process.env),
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_EDITOR: "true",
+    GIT_PAGER: "cat",
+    PAGER: "cat",
+  };
+}
+
 /**
  * Construct the captured-output execa adapter without changing the live binding.
  *
@@ -61,16 +76,7 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
     const objectEnvironment = options?.objectAccess === "local-only"
       ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : diagnosticEnvironment;
-    const forbidden = options?.interaction?.terminalPrompts === "forbidden";
-    const env = forbidden
-      ? {
-          ...(objectEnvironment ?? process.env),
-          GIT_TERMINAL_PROMPT: "0",
-          GIT_EDITOR: "true",
-          GIT_PAGER: "cat",
-          PAGER: "cat",
-        }
-      : objectEnvironment;
+    const env = applyInteractionEnvironment(objectEnvironment, options?.interaction);
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
@@ -95,14 +101,19 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
  * Construct the stdin-fed execa adapter without changing the live binding.
  *
  * @param maxBuffer - Captured-output ceiling; injectable only for focused process-boundary tests.
+ * @param interaction - Invocation-bound terminal and prompt policy.
  * @returns A raw-stdout {@link GitExecInput} implementation.
  */
-export function createExecaGitExecInput(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExecInput {
+export function createExecaGitExecInput(
+  maxBuffer = MAX_GIT_OUTPUT_BYTES,
+  interaction?: InteractionContext["subprocess"],
+): GitExecInput {
   return async (args, input, options) => {
     const environment = environmentForGitCwd(options?.cwd);
-    const env = options?.objectAccess === "local-only"
+    const objectEnvironment = options?.objectAccess === "local-only"
       ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : environment;
+    const env = applyInteractionEnvironment(objectEnvironment, interaction);
     const effectiveArgs = options?.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
