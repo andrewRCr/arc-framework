@@ -150,7 +150,7 @@ stdin, composed by the consuming callsite.
   if lifecycle reads ran and found nothing. Root faults are asserted against the Errand arm's own result in the
   same case, so "the same root fact" is a comparison rather than a restated constant.
 
-### `[ ]` **2.4 Bind the port at every readiness composition root and state the widened contract**
+### `[x]` **2.4 Bind the port at every readiness composition root and state the widened contract**
 
 - _Goal:_ Every production path that evaluates readiness reads delivery state from the repository its own
   composition root resolved, and the module's documented contract stops claiming it reads only lifecycle
@@ -160,40 +160,36 @@ stdin, composed by the consuming callsite.
   untrusted by construction. The binding must therefore come from the composition root's own resolved root,
   never from the request's tree root.
 
-    - `[ ]` **2.4.a Construct the port from the composition root's resolved root at each construction site**
+    - `[x]` **2.4.a Construct the port from the composition root's resolved root at each construction site**
 
+        - `readinessBoundTo(root)` in `handlers/review.ts` is the one binding, consumed by both construction
+          sites: the readiness handler's `check`, and `defaultMergeLockPort`, which now takes the root and is
+          reached from resolve, hold, and release. Both already received the resolved root and discarded it.
         - the value each handler holds is the resolved **ARC root** — the ancestor directory holding `.arc` —
           not the Git repository root. The Git-common publisher resolves the common directory from any path
           inside the repository, so that value is correct to build from; the distinction matters only so the
           wiring is checked against what is actually in hand.
-        - there are two construction sites: the readiness handler, and the shared merge-lock port constructor
-          reached from resolve, hold, and release. Both already receive the resolved root and discard it, so the
-          change is to consume it rather than to route it, and the merge-lock constructor takes the root.
         - only two callers reach the evaluation itself — the readiness handler and merge-lock **release**.
           Resolve never gates on readiness and hold is declared not to, so their constructed port is inert with
-          respect to it. Bind uniformly anyway; assert against the paths where binding is observable.
+          respect to it. Binding is uniform anyway; the assertions cover the two paths where it is observable.
+        - `defaultMergeLockPort` gained a runner parameter defaulting to the `gh` runner, and is exported. That
+          is what makes release's binding assertable at all: the port otherwise reaches a live `gh` before it
+          ever reaches readiness. `merge-lock.ts` itself is untouched.
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **2.4.b State the delivery read in the module contract**
 
-        - the readiness handler binds the port to the root it resolves, not to the request's supplied tree root
-        - merge-lock release authenticates a member against the repository its handler resolved
-        - a request whose supplied tree root differs from the resolved root still authenticates against the
-          repository
-        - neither reaching path leaves the port unbound, so a member never refuses as unavailable for want of
-          wiring
+        - the module doc records the second authority source, its repository binding, and why the binding cannot
+          come from the request; it also records that the read is not side-effect-free — the snapshot creates its
+          namespace directory and takes an advisory lock, so a member evaluation writes inside the Git common
+          directory, and a sandbox denying that degrades the arm to unavailable rather than failing a new way.
+        - `evaluateReviewReadiness`'s `overrides` parameter was documented as test-only, which 2.4.a made false.
+          It now names the filesystem boundary as test-only and the delivery lookup as the production injection
+          path.
 
-    - `[ ]` **2.4.b State the delivery read in the module contract**
-
-        - the module documentation records the second, narrow authority source outside the supplied root and
-          names its repository binding
-        - it also records that this read is not side-effect-free: the underlying snapshot creates its namespace
-          directory and takes an advisory lock, so a member evaluation writes inside the Git common directory. A
-          sandbox that denies those writes degrades member evaluation to unavailable, which is the fail-closed
-          outcome rather than a new failure mode — but a module whose stated posture is pure inspection must not
-          leave it unsaid.
-        - the evaluation's own dependency parameter is documented as test-only today, and 2.4.a makes it the
-          production injection path. Correct it in the same pass, or the module posture becomes accurate while
-          the function it describes actively misstates how production calls it.
+- _Outcome:_ Coverage is one integration suite over real repositories
+  (`review-readiness-delivery-binding.test.ts`) exercising both composition roots against a bound and an unbound
+  repository, with the supplied tree root deliberately crossed against the resolved root in each direction — so
+  binding to the wrong one is a failing assertion rather than an indistinguishable pass.
 
 ### `[ ]` **2.5 Gate merge-lock release on a member's readiness result**
 

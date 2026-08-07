@@ -54,6 +54,7 @@ import {
   evaluateReviewReadiness,
   ReviewReadinessEnvelopeSchema,
   ReviewReadinessRequestSchema,
+  type ReviewReadinessEnvelope,
   type ReviewReadinessRequest,
 } from "../scripts/review-gate/readiness.js";
 import {
@@ -74,6 +75,7 @@ import {
   type MergeLockTransitionRequest,
 } from "../scripts/review-gate/merge-lock.js";
 import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.js";
+import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
@@ -96,7 +98,11 @@ import {
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
-import { GhHostedReviewPort, hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
+import {
+  GhHostedReviewPort,
+  hostedGhRunner,
+  type HostedProcessRunner,
+} from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
@@ -399,10 +405,29 @@ export interface ReviewReadinessHandlerDependencies {
   setExitCode(code: number): void;
 }
 
+/**
+ * Bind readiness to one repository's delivery state.
+ *
+ * The root is the composition root's own resolved root — never the request's
+ * supplied tree root, which is untrusted, and never a module-internal read of
+ * the process working directory. It is the resolved ARC root rather than the
+ * Git repository root; the Git-common publisher resolves the common directory
+ * from any path inside the repository, so binding from it is correct.
+ *
+ * @param root - Resolved root of the repository whose delivery state answers.
+ * @returns A readiness evaluation whose member arm reads that repository.
+ */
+function readinessBoundTo(
+  root: string,
+): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
+  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
+  return (request) => evaluateReviewReadiness(request, { deliveryMemberLookup });
+}
+
 function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    check: (request) => evaluateReviewReadiness(request),
+    check: (request, root) => readinessBoundTo(root)(request),
   };
 }
 
@@ -450,8 +475,18 @@ export interface MergeLockTransitionHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultMergeLockPort(): MergeLockPort {
-  return new GhMergeLockPort(hostedGhRunner, evaluateReviewReadiness, readMergeLockSetting);
+/**
+ * Construct the merge-lock port shared by resolve, hold, and release.
+ *
+ * @param root - Resolved root the port's readiness gate authenticates against.
+ * @param runner - Hosted process boundary; defaults to the `gh` runner.
+ * @returns A merge-lock port bound to that repository.
+ */
+export function defaultMergeLockPort(
+  root: string,
+  runner: HostedProcessRunner = hostedGhRunner,
+): MergeLockPort {
+  return new GhMergeLockPort(runner, readinessBoundTo(root), readMergeLockSetting);
 }
 
 /**
@@ -467,7 +502,7 @@ export async function handleMergeLockResolve(
 ): Promise<void> {
   const dependencies: MergeLockResolveHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request) => resolveMergeLock(request, defaultMergeLockPort()),
+    resolve: (request, root) => resolveMergeLock(request, defaultMergeLockPort(root)),
     ...overrides,
   };
   await executeReviewHandler({
@@ -493,7 +528,7 @@ async function handleMergeLockTransition(
 ): Promise<void> {
   const dependencies: MergeLockTransitionHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    transition: (request) => verb(request, defaultMergeLockPort()),
+    transition: (request, root) => verb(request, defaultMergeLockPort(root)),
     ...overrides,
   };
   await executeReviewHandler({

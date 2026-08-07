@@ -1,8 +1,22 @@
 /**
  * Exact-head, vehicle-aware lifecycle readiness over a caller-supplied tree.
  *
- * The checker reads only lifecycle products beneath the supplied root. It does
- * not infer state from the caller's checkout, Git refs, or fail-soft indexes.
+ * The checker reads lifecycle products beneath the supplied root. It does not
+ * infer state from the caller's checkout, Git refs, or fail-soft indexes.
+ *
+ * A `delivery-member` vehicle adds one further authority source, outside that
+ * root: the delivery lookup its caller supplies, which reads the Git-common
+ * delivery state of the repository the caller's composition root resolved.
+ * Delivery state is repository-common rather than a tree product, and the
+ * supplied tree is untrusted by construction, so the binding cannot come from
+ * the request. Nothing else here reads outside the supplied root.
+ *
+ * That read is not side-effect-free. The underlying snapshot creates its
+ * namespace directory and takes an advisory lock, so evaluating a member writes
+ * inside the Git common directory. A sandbox denying those writes degrades the
+ * member arm to `delivery-state-unavailable`, which is the fail-closed outcome
+ * rather than a new failure mode — but the module's inspection-only posture
+ * would misdescribe it if left unsaid.
  *
  * @module
  */
@@ -924,7 +938,9 @@ async function evaluateArchivedWorkUnit(
  * Evaluate lifecycle readiness for one exact guarded head.
  *
  * @param input - Strict request naming the supplied tree, live PR, and vehicle.
- * @param overrides - Test-only filesystem boundary override.
+ * @param overrides - Injected boundaries. The filesystem boundary is test-only;
+ *   the delivery lookup is the production injection path for member
+ *   authentication and is supplied by each composition root.
  * @returns A ready or structured-invalid review envelope.
  */
 export async function evaluateReviewReadiness(
