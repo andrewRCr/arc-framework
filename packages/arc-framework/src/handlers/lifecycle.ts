@@ -95,9 +95,6 @@ import {
   executeGitV3DecomposeCommand,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
 import {
-  discardGitV3DecomposeCandidate,
-} from "../lib/work-unit/git-decompose-v3-candidate-discard.js";
-import {
   finalizeGitV3DecomposeOperation,
 } from "../lib/work-unit/git-decompose-v3-finalization.js";
 import {
@@ -371,7 +368,6 @@ export const DECOMPOSE_MODE_KEYS = [
   "preflight",
   "handoff",
   "execute",
-  "discard",
   "finalize",
   "advanceBase",
 ] as const;
@@ -402,7 +398,6 @@ export const DecomposeCommandInputSchema = z.object({
   preflight: z.literal(true).optional(),
   handoff: z.literal(true).optional(),
   execute: z.string().trim().min(1).optional(),
-  discard: z.string().trim().min(1).optional(),
   finalize: z.string().trim().min(1).optional(),
   continuation: z.string().trim().min(1).optional(),
   advanceBase: z.string().trim().min(1).optional(),
@@ -411,7 +406,7 @@ export const DecomposeCommandInputSchema = z.object({
   if (modes !== 1) {
     refinement.addIssue({
       code: "custom",
-      message: "Exactly one of --preflight, --execute, --discard, --finalize, --handoff, or --advance-base is required.",
+      message: "Exactly one of --preflight, --execute, --finalize, --handoff, or --advance-base is required.",
     });
   }
   if ((value.finalize === undefined) !== (value.continuation === undefined)) {
@@ -526,7 +521,6 @@ export const lifecycleCommandInputRegistrations = [
       "option.preflight": "preflight",
       "option.handoff": "handoff",
       "option.execute": "execute",
-      "option.discard": "discard",
       "option.finalize": "finalize",
       "option.continuation": "continuation",
       "option.advance-base": "advanceBase",
@@ -760,8 +754,6 @@ export interface DecomposeOptions {
   handoff?: true;
   /** Prepare one exact repository result from a canonical completed cut map. */
   execute?: string;
-  /** Discard the exact uncommitted candidate bound to a canonical cut map. */
-  discard?: string;
   /** Finalize one exact prepared receipt. */
   finalize?: string;
   /** Canonical continuation input paired with `finalize`. */
@@ -878,21 +870,7 @@ export async function handleDecompose(
         cutMapPath: parsed.data.execute,
       });
       process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status !== "prepared") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
-      }
-      return;
-    }
-    if (parsed.data.discard !== undefined) {
-      const result = await discardGitV3DecomposeCandidate(
-        repository,
-        settings["branch.base"],
-        parsed.data.origin,
-        parsed.data.discard,
-      );
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status !== "discarded" && result.status !== "already-discarded") {
+      if (result.status !== "staged") {
         process.stderr.write(`${result.reason}\n${result.remedy}\n`);
         process.exitCode = 1;
       }

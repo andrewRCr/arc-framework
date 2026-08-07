@@ -1,13 +1,8 @@
 /** One plan-bound v3 decomposition occupation, materialization, and preparation operation. */
 
 import type { ProtectionMode } from "../git/write-context.js";
-import type { V3SourceArtifactEntry, V3DecomposeCutMap } from "./decompose-v3-schema.js";
-import {
-  createV3DecomposePreparation,
-  type CreateV3DecomposePreparationInput,
-  type CreateV3DecomposePreparationResult,
-  type V3DecomposePreparation,
-} from "./decompose-v3-preparation.js";
+import type { V3DecomposeCutMap } from "./decompose-v3-schema.js";
+import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
 import {
   materializeV3DecomposePlan,
   type V3MaterializationResult,
@@ -22,6 +17,8 @@ import type {
   DecomposeResultOccupationInput,
   DecomposeResultOccupationResult,
 } from "./decompose-result-occupation.js";
+import type { TerminalTransitionRecordWriter } from "./terminal-transition-record-writer.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
 
 export type V3PartialPathImage =
   | { kind: "absent" }
@@ -51,7 +48,6 @@ export interface V3DecomposeOperationInput {
   configuredBase: string;
   plan: ValidatedDecomposePlan;
   completedMap: V3DecomposeCutMap;
-  sourceArtifactInventory: V3SourceArtifactEntry[];
 }
 
 export interface V3PartialRecoveryIO {
@@ -69,13 +65,12 @@ export interface V3DecomposeOperationDependencies {
     occupation: OccupiedResult,
   ): Promise<V3PostOccupationRevalidation>;
   materializer: V3MaterializerIO;
+  transitionRecords: TerminalTransitionRecordWriter;
   partialRecovery?: V3PartialRecoveryIO;
-  prepare?: (
-    input: CreateV3DecomposePreparationInput,
-  ) => CreateV3DecomposePreparationResult;
-  persist?: (
-    preparation: V3DecomposePreparation,
-  ) => Promise<{ status: "persisted" } | { status: "refused"; reason: string }>;
+  revalidateStaged?: (
+    plan: ValidatedDecomposePlan,
+    occupation: OccupiedResult,
+  ) => Promise<V3PostOccupationRevalidation>;
 }
 
 export type V3DecomposeOperationRecovery =
@@ -94,18 +89,18 @@ export type V3DecomposeOperationRecovery =
   | {
       kind: "full-candidate";
       path: string;
-      candidateOwnership: FullOccupiedResult["candidateOwnership"];
-      retry: { kind: "retry"; planId: string };
-      discard: { kind: "discard"; origin: string; cutMapDigest: string };
+      candidateBranch: string;
+      expectedHead: string;
     };
 
 export type V3DecomposeOperationResult =
   | {
-      status: "prepared";
+      status: "staged";
       occupation: OccupiedResult;
       materialization: Extract<V3MaterializationResult, { status: "materialized" }>;
       report: V3DecomposeResultReport;
-      preparation: V3DecomposePreparation;
+      transitionRecord: NonNullable<ReturnType<typeof createDecomposeTransitionRecord>>;
+      stagedPaths: string[];
     }
   | {
       status: "refused";
@@ -114,8 +109,8 @@ export type V3DecomposeOperationResult =
         | "post-occupation-revalidation"
         | "partial-capture"
         | "materialization"
-        | "preparation"
-        | "persistence"
+        | "transition-record"
+        | "post-stage-revalidation"
         | "restoration";
       reason: string;
       report?: V3DecomposeResultReport;
@@ -129,13 +124,8 @@ function fullRecovery(
   return {
     kind: "full-candidate",
     path: occupation.path,
-    candidateOwnership: occupation.candidateOwnership,
-    retry: { kind: "retry", planId: plan.planId },
-    discard: {
-      kind: "discard",
-      origin: plan.prospectiveOverlay.origin,
-      cutMapDigest: plan.cutMapDigest,
-    },
+    candidateBranch: occupation.candidateOwnership.candidateBranch,
+    expectedHead: plan.expectedBaseHead,
   };
 }
 
@@ -303,66 +293,68 @@ export async function executeV3DecomposeOperation(
     };
   }
 
-  const prepare = dependencies.prepare ?? createV3DecomposePreparation;
-  let prepared: CreateV3DecomposePreparationResult;
-  try {
-    prepared = prepare({
-      completedMap: input.completedMap,
-      sourceArtifactInventory: input.sourceArtifactInventory,
-      candidateOwnership: occupation.candidateOwnership,
-      plan: input.plan,
-    });
-  } catch {
-    prepared = { status: "rejected", reason: "preparation-failed" };
-  }
-  if (prepared.status === "rejected") {
-    const mutatedPaths = materialization.paths
-      .filter(({ disposition }) => disposition === "applied")
-      .map(({ path }) => path);
-    let recovery;
-    if (occupation.protection === "partial") {
-      if (partialRecovery === undefined) throw new Error("partial recovery dependency lost after capture");
-      recovery = await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
-    } else {
-      recovery = fullRecovery(input.plan, occupation);
+  const mutatedPaths = materialization.paths
+    .filter(({ disposition }) => disposition === "applied")
+    .map(({ path }) => path);
+  const recoverMutation = async (): Promise<V3DecomposeOperationRecovery> => {
+    if (occupation.protection === "full") return fullRecovery(input.plan, occupation);
+    if (partialRecovery === undefined) {
+      throw new Error("partial recovery dependency lost after capture");
     }
+    return await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
+  };
+  const transitionRecord = createDecomposeTransitionRecord(input.completedMap);
+  if (transitionRecord === null) {
+    const recovery = await recoverMutation();
     return {
       status: "refused",
       stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
         ? "restoration"
-        : "preparation",
-      reason: prepared.reason,
+        : "transition-record",
+      reason: "transition-record-projection-invalid",
+      report,
+      recovery,
+    };
+  }
+  let recorded: Awaited<ReturnType<TerminalTransitionRecordWriter["record"]>>;
+  try {
+    recorded = await dependencies.transitionRecords.record(transitionRecord);
+  } catch {
+    recorded = { status: "unavailable", diagnostic: "transition record write failed" };
+  }
+  if (recorded.status !== "recorded") {
+    const recovery = await recoverMutation();
+    return {
+      status: "refused",
+      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
+        ? "restoration"
+        : "transition-record",
+      reason: recorded.status === "origin-occupied"
+        ? "transition-record-origin-occupied"
+        : recorded.diagnostic,
       report,
       recovery,
     };
   }
 
-  if (dependencies.persist !== undefined) {
-    let persisted: { status: "persisted" } | { status: "refused"; reason: string };
+  if (dependencies.revalidateStaged !== undefined) {
+    let stagedValidation: V3PostOccupationRevalidation;
     try {
-      persisted = await dependencies.persist(prepared.preparation);
+      stagedValidation = await dependencies.revalidateStaged(input.plan, occupation);
     } catch {
-      persisted = { status: "refused", reason: "preparation-persistence-failed" };
+      stagedValidation = { status: "refused", reason: "post-stage-revalidation-failed" };
     }
-    if (persisted.status === "refused") {
-      const mutatedPaths = materialization.paths
-        .filter(({ disposition }) => disposition === "applied")
-        .map(({ path }) => path);
-      let recovery;
-      if (occupation.protection === "partial") {
-        if (partialRecovery === undefined) {
-          throw new Error("partial recovery dependency lost after capture");
-        }
-        recovery = await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
-      } else {
-        recovery = fullRecovery(input.plan, occupation);
-      }
+    if (stagedValidation.status === "refused") {
+      const recordRollback = await dependencies.transitionRecords.rollback(transitionRecord);
+      const recovery = await recoverMutation();
       return {
         status: "refused",
-        stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
+        stage: recordRollback.status === "unavailable"
+          || (recovery.kind === "partial-restoration" && recovery.status === "failed")
           ? "restoration"
-          : "persistence",
-        reason: persisted.reason,
+          : "post-stage-revalidation",
+        reason: stagedValidation.reason
+          + (recordRollback.status === "unavailable" ? `; ${recordRollback.diagnostic}` : ""),
         report,
         recovery,
       };
@@ -370,10 +362,14 @@ export async function executeV3DecomposeOperation(
   }
 
   return {
-    status: "prepared",
+    status: "staged",
     occupation,
     materialization,
     report,
-    preparation: prepared.preparation,
+    transitionRecord,
+    stagedPaths: [
+      ...mutatedPaths,
+      resolveTransitionRecordRelativePath(transitionRecord.origin),
+    ],
   };
 }

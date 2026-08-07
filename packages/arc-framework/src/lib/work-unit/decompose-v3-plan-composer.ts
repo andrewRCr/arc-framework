@@ -95,7 +95,6 @@ export interface V3PlanCompositionInput {
   topologyDigest: CanonicalDigest;
   origin: string;
   sourceBranch: string;
-  receiptId: CanonicalDigest;
   planningProfile: V3DecomposeMachine["planningProfile"];
   destinations: Destination[];
   validatedAllocations: Allocation[];
@@ -103,7 +102,6 @@ export interface V3PlanCompositionInput {
   content: V3PlannedContentContribution[];
   topology: V3TopologyAction[];
   dependencies: V3PlannedDependencyContribution[];
-  receiptEvidence: V3PlannedExclusivePath;
   predecessorRetirement: V3PlannedExclusivePath;
   sourceRetirements: V3PlannedExclusivePath[];
   roadmap: V3PlannedExclusivePath;
@@ -115,14 +113,11 @@ export interface V3PlanBlob {
 }
 
 export type V3PlanCompositionRefusalCode =
-  | "invalid-receipt-id"
   | "unknown-destination"
   | "incompatible-content-role"
   | "incomplete-profile-artifacts"
   | "allocation-projection-mismatch"
   | "dependency-projection-mismatch"
-  | "receipt-marker-missing"
-  | "receipt-marker-forbidden"
   | "profile-meta-mismatch"
   | "managed-path-set-mismatch"
   | "unsupported-path-state"
@@ -180,16 +175,6 @@ function expectedArtifactRoles(
   if (profile.kind === "draft") return ["meta", "draft"];
   if (profile.kind === "single-spec") return ["meta", "spec"];
   return ["meta", "spec", "rfc"];
-}
-
-function markerCount(value: V3PlannedByteState, receiptId: string): number {
-  if (value.kind !== "object" || value.objectKind !== "blob") return 0;
-  try {
-    const marker = `- **Decomposition Receipt:** \`${receiptId}\``;
-    return decoder.decode(value.bytes).split(/\r?\n/u).filter((line) => line === marker).length;
-  } catch {
-    return 0;
-  }
 }
 
 function contentIdentity(contribution: V3PlannedContentContribution): string {
@@ -264,23 +249,17 @@ function projectionKey(sourceId: string, destinationId: string, targetLocator: T
 }
 
 /**
- * Render a canonical decomposition-created leaf meta with its prepared receipt identity.
+ * Render a canonical decomposition-created leaf meta.
  *
  * @param slug - New leaf work-unit slug.
- * @param receiptId - Stable prepared decomposition receipt identity.
  * @param overrides - Ordinary semantic meta overrides.
- * @returns UTF-8 bytes containing the canonical optional receipt field.
+ * @returns UTF-8 bytes containing the ordinary planning metadata.
  */
 export function renderV3NewLeafMeta(
   slug: string,
-  receiptId: CanonicalDigest,
   overrides: MetaRenderOverrides,
 ): Uint8Array {
-  if (!isCanonicalDigest(receiptId)) throw new Error("invalid v3 decomposition receipt identity");
-  return new TextEncoder().encode(renderMetaFile(slug, {
-    ...overrides,
-    decompositionReceipt: receiptId,
-  }));
+  return new TextEncoder().encode(renderMetaFile(slug, overrides));
 }
 
 /**
@@ -290,9 +269,6 @@ export function renderV3NewLeafMeta(
  * @returns The closed plan plus its content-addressed final blobs, or the first refusal.
  */
 export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCompositionResult {
-  if (!isCanonicalDigest(input.receiptId)) {
-    return { status: "refused", refusal: { code: "invalid-receipt-id" } };
-  }
   const destinations = new Map(input.destinations.map((entry) => [entry.destinationId, entry]));
   const allocationProjections = new Map<string, number>();
   for (const allocation of input.validatedAllocations) {
@@ -379,28 +355,6 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
         status: "refused",
         refusal: {
           code: "allocation-projection-mismatch",
-          path: contribution.path,
-          destinationId: contribution.destinationId,
-        },
-      };
-    }
-    const receiptMarkers = markerCount(contribution.after, input.receiptId);
-    if (contribution.destinationKind === "new-member" && contribution.artifactRole === "meta") {
-      if (receiptMarkers !== 1) {
-        return {
-          status: "refused",
-          refusal: {
-            code: "receipt-marker-missing",
-            path: contribution.path,
-            destinationId: contribution.destinationId,
-          },
-        };
-      }
-    } else if (receiptMarkers > 0) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "receipt-marker-forbidden",
           path: contribution.path,
           destinationId: contribution.destinationId,
         },
@@ -527,7 +481,7 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
   }
   const exclusive = (
     entry: V3PlannedExclusivePath,
-    role: "receipt-evidence" | "predecessor-retirement" | "retiring-source" | "roadmap",
+    role: "predecessor-retirement" | "retiring-source" | "roadmap",
   ): void => {
     claims.push({
       kind: "exclusive",
@@ -537,7 +491,6 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
       after: state(entry.after, blobs),
     });
   };
-  exclusive(input.receiptEvidence, "receipt-evidence");
   exclusive(input.predecessorRetirement, "predecessor-retirement");
   for (const retirement of input.sourceRetirements) exclusive(retirement, "retiring-source");
   exclusive(input.roadmap, "roadmap");

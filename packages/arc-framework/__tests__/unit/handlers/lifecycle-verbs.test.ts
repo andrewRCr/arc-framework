@@ -392,14 +392,7 @@ beforeEach(() => {
     handoff: { kind: "landed-decomposition-handoff", schemaVersion: 1 },
   });
   mockExecuteGitV3DecomposeCommand.mockResolvedValue({
-    status: "prepared",
-    discard: { kind: "not-applicable", protection: "partial" },
-    next: {
-      kind: "finalize-with-continuation",
-      continuationPath: "/repo/cut-map.json.continuation.json",
-      command: `arc decompose mono --finalize sha256:${"a".repeat(64)} `
-        + "--continuation /repo/cut-map.json.continuation.json",
-    },
+    status: "staged",
     operation: { report: { destinations: ["member"] } },
   });
   mockDiscardGitV3DecomposeCandidate.mockResolvedValue({
@@ -578,12 +571,7 @@ describe("handleDecompose", () => {
       },
     );
     expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"discard":{"kind":"not-applicable","protection":"partial"},`
-      + `"next":{"command":"arc decompose mono --finalize sha256:${"a".repeat(64)} `
-      + `--continuation /repo/cut-map.json.continuation.json",`
-      + `"continuationPath":"/repo/cut-map.json.continuation.json",`
-      + `"kind":"finalize-with-continuation"},`
-      + `"operation":{"report":{"destinations":["member"]}},"status":"prepared"}\n`,
+      `{"operation":{"report":{"destinations":["member"]}},"status":"staged"}\n`,
     );
     expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
@@ -637,59 +625,6 @@ describe("handleDecompose", () => {
     );
     expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
     expect(mockDiscardGitV3DecomposeCandidate).not.toHaveBeenCalled();
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("routes discard only through the exact candidate adapter", async () => {
-    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-
-    await handleDecompose("mono", { discard: "cut-map.json" });
-
-    expect(mockDiscardGitV3DecomposeCandidate).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: "/repo" }),
-      "main",
-      "mono",
-      "cut-map.json",
-    );
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"candidateBranch":"chore/decompose-mono","claimId":"sha256:${
-        "b".repeat(64)
-      }","generation":1,"status":"discarded"}\n`,
-    );
-    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
-    expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
-    expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
-    expect(process.exitCode).toBeUndefined();
-  });
-
-  it("surfaces the discard adapter's precomposed recovery without rebuilding it", async () => {
-    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    const remedy = "ADAPTER-ONLY: resume terminal candidate cleanup";
-    mockDiscardGitV3DecomposeCandidate.mockResolvedValue({
-      status: "refused",
-      reason: "candidate-cleanup-failed",
-      recovery: {
-        kind: "discard-terminal",
-        claimId: `sha256:${"b".repeat(64)}`,
-        generation: 1,
-        candidateBranch: "chore/decompose-mono",
-        path: "/tmp/candidate",
-      },
-      remedy,
-    });
-
-    await handleDecompose("mono", { discard: "cut-map.json" });
-
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"reason":"candidate-cleanup-failed","recovery":{"candidateBranch":"chore/decompose-mono",`
-      + `"claimId":"sha256:${"b".repeat(64)}","generation":1,"kind":"discard-terminal",`
-      + `"path":"/tmp/candidate"},"remedy":"${remedy}","status":"refused"}\n`,
-    );
-    expect(stderrWrite).toHaveBeenCalledWith(`candidate-cleanup-failed\n${remedy}\n`);
-    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
     expect(mockFinalizeGitV3DecomposeOperation).not.toHaveBeenCalled();
     expect(mockResolveGitLandedDecompositionHandoff).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);

@@ -400,7 +400,7 @@ respective predecessors, then retire the old namespace only after every survivin
 - _Goal:_ Receipt-free paths are authoritative before any preparation, finalization, or advancement predecessor is
   disconnected, so every subsequent subtraction leaves a compiling, operable tree.
 
-    - `[ ]` **4.4.a Stage the complete transition in one execution operation**
+    - `[x]` **4.4.a Stage the complete transition in one execution operation**
         - Add a direct execution boundary that consumes the validated completed map and existing plan, topology,
           conservation, materializer, and occupation facts without creating or parsing a preparation or receipt.
         - Return a closed `staged` result: partial protection carries the exact staged paths; full protection also
@@ -415,6 +415,12 @@ respective predecessors, then retire the old namespace only after every survivin
             - Refuse incomplete dispositions or occupied origins before success and never invoke the writer twice.
             - Restore the partial preimage or leave an explicitly owned, ordinarily cleanable full candidate after
               a record-write, staging, or post-write revalidation failure.
+
+        - _Outcome:_ Execution now occupies and revalidates the existing plan, materializes its exact byte transform,
+          writes and stages one lean decomposition record, and returns only a closed `staged` result. Partial failures
+          restore exact transform preimages; full failures expose ordinary candidate cleanup facts; post-stage drift
+          rolls back both lean history and owned mutations. No plan mutation, result, remedy, or created member meta
+          carries a preparation, receipt placeholder, discard successor, continuation, or finalize instruction.
 
     - `[ ]` **4.4.b Re-derive append-only base advancement from the candidate transition**
         - Add the receipt-free advancement boundary behind the future `--advance-base <cut-map>` mode: revalidate the

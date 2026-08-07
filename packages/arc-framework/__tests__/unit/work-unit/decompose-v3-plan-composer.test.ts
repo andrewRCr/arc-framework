@@ -11,7 +11,7 @@ import {
   type V3PlanCompositionInput,
   type V3PlannedContentContribution,
 } from "../../../src/lib/work-unit/decompose-v3-plan-composer.js";
-import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 describe("v3 decomposition plan composition", () => {
@@ -24,12 +24,10 @@ describe("v3 decomposition plan composition", () => {
     bytes: bytes(value),
   });
   const sourceId = canonicalDigest("source");
-  const receiptId = canonicalDigest("receipt");
   const targetLocator = { artifact: "draft-member-a.md", kind: "whole-file" as const };
   const metaPath = ".arc/backlog/planned/member-a/meta-member-a.md";
   const draftPath = ".arc/backlog/planned/member-a/draft-member-a.md";
   const roadmapPath = ".arc/backlog/ROADMAP.md";
-  const receiptPath = `.arc/system/.internal/retirement-receipts/${receiptId}.json`;
   const predecessorPath = ".arc/backlog/planned/origin/meta-origin.md";
   const originDraftPath = ".arc/backlog/planned/origin/draft-origin.md";
   const publication = {
@@ -56,7 +54,7 @@ describe("v3 decomposition plan composition", () => {
   }
 
   function baseInput(): V3PlanCompositionInput {
-    const metaBytes = renderV3NewLeafMeta("member-a", receiptId, {
+    const metaBytes = renderV3NewLeafMeta("member-a", {
       state: "Planning",
       owner: "andrew",
       workClass: "Heavy",
@@ -74,7 +72,6 @@ describe("v3 decomposition plan composition", () => {
       topologyDigest: v3TopologyDigest([{ kind: "none" }]),
       origin: "origin",
       sourceBranch: "feat/origin",
-      receiptId,
       planningProfile: { kind: "draft", sourceDesign: ["draft-origin.md"] },
       destinations: [{
         kind: "new-member",
@@ -91,7 +88,6 @@ describe("v3 decomposition plan composition", () => {
         draftPath,
         metaPath,
         roadmapPath,
-        receiptPath,
         predecessorPath,
         originDraftPath,
       ],
@@ -118,11 +114,6 @@ describe("v3 decomposition plan composition", () => {
       ],
       topology: [{ kind: "none" }],
       dependencies: [],
-      receiptEvidence: {
-        path: receiptPath,
-        before: absent,
-        after: file('{"kind":"decompose-receipt"}\n'),
-      },
       predecessorRetirement: {
         path: predecessorPath,
         before: file("origin meta"),
@@ -255,7 +246,7 @@ describe("v3 decomposition plan composition", () => {
             kind: "object",
             objectKind: "blob",
             mode: "100644",
-            bytes: renderV3NewLeafMeta("member-a", receiptId, {
+            bytes: renderV3NewLeafMeta("member-a", {
               state: "Planning",
               owner: "andrew",
               workClass: "Heavy",
@@ -301,7 +292,7 @@ describe("v3 decomposition plan composition", () => {
               kind: "object",
               objectKind: "blob",
               mode: "100644",
-              bytes: renderV3NewLeafMeta("member-a", receiptId, {
+              bytes: renderV3NewLeafMeta("member-a", {
                 state: "Planning",
                 owner: "andrew",
                 design: ["draft-member-a.md"],
@@ -505,82 +496,6 @@ describe("v3 decomposition plan composition", () => {
       originDraftPath,
       secondPath,
     ]);
-  });
-
-  it("renders the receipt marker only for decomposition-created leaf metas", () => {
-    const rendered = new TextDecoder().decode(renderV3NewLeafMeta("member-a", receiptId, {
-      state: "Planning",
-      owner: "andrew",
-    }));
-    expect(rendered).toContain(`- **Decomposition Receipt:** \`${receiptId}\``);
-    expect(renderMetaFile("ordinary", { state: "Planning", owner: "andrew" }))
-      .not.toContain("Decomposition Receipt");
-
-    const crlfInput = baseInput();
-    crlfInput.content = crlfInput.content.map((entry) => entry.artifactRole === "meta"
-      ? {
-        ...entry,
-        after: file(
-          new TextDecoder().decode(
-            (entry.after.kind === "object" ? entry.after.bytes : new Uint8Array()),
-          ).replaceAll("\n", "\r\n"),
-        ),
-      }
-      : entry);
-    expect(composeV3DecomposePlan(crlfInput).status).toBe("composed");
-
-    const misplacedInput = baseInput();
-    misplacedInput.content = misplacedInput.content.map((entry) =>
-      entry.artifactRole === "draft" && entry.contributorKind === "scaffold"
-        ? {
-          ...entry,
-          after: file(`# Draft\n\n- **Decomposition Receipt:** \`${receiptId}\`\n`),
-        }
-        : entry);
-    expect(composeV3DecomposePlan(misplacedInput)).toEqual({
-      status: "refused",
-      refusal: {
-        code: "receipt-marker-forbidden",
-        path: draftPath,
-        destinationId: "a",
-      },
-    });
-
-    const input = baseInput();
-    const existingPath = ".arc/active/meta-existing.md";
-    const result = composeV3DecomposePlan({
-      ...input,
-      destinations: [
-        ...input.destinations,
-        {
-          kind: "existing-home",
-          destinationId: "existing",
-          target: { kind: "work-unit", slug: "existing" },
-        },
-      ],
-      expectedPaths: [...input.expectedPaths, existingPath],
-      content: [
-        ...input.content,
-        content({
-          path: existingPath,
-          destinationId: "existing",
-          destinationKind: "existing-home",
-          artifactRole: "existing-home",
-          contributorKind: "existing-home-edit",
-          disposition: "patch",
-          before: file("before"),
-          after: file(`- **Decomposition Receipt:** \`${receiptId}\`\n`),
-        }),
-      ],
-    });
-    expect(result).toEqual({
-      status: "refused",
-      refusal: {
-        code: "receipt-marker-forbidden",
-        path: existingPath,
-        destinationId: "existing",
-      },
-    });
   });
 
   it.each([

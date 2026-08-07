@@ -2,7 +2,7 @@
 
 import { posix } from "node:path";
 
-import { digestBytes, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { digestBytes } from "../canonical/canonical-json.js";
 import {
   formatValue,
   parseMetaRecord,
@@ -32,14 +32,10 @@ import {
 } from "./decompose-v3-plan-composer.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import type { V3DecomposePreflight } from "./decompose-v3-preflight.js";
-import {
-  projectV3CandidateAuthority,
-  v3DecomposeReceiptPath,
-} from "./decompose-v3-preparation.js";
+import { projectV3CandidateAuthority } from "./decompose-v3-preparation.js";
 import {
   decodeV3DecomposeCutMap,
   v3CutMapDigest,
-  v3ReceiptId,
   type V3DecomposeCutMap,
   type V3SourceArtifactEntry,
 } from "./decompose-v3-schema.js";
@@ -319,7 +315,6 @@ function newMemberScaffolds(
   map: V3DecomposeCutMap,
   sourceTree: V3RepositoryPlanTree,
   sourceRecord: ParsedMetaRecord,
-  receiptId: CanonicalDigest,
 ): { content: V3PlannedContentContribution[]; states: V3RepositoryPlanTree } | null {
   const priority = MetaPrioritySchema.safeParse(sourceRecord.priority);
   if (sourceRecord.owner === null || !priority.success || sourceRecord.origin === null) return null;
@@ -334,7 +329,7 @@ function newMemberScaffolds(
     const artifacts = memberProfileArtifacts(map, destination);
     const workflow = map.machine.planningProfile.kind === "draft" ? "draft-design" : "generate-tasks";
     const metaPath = memberArtifactPath(placement, destination.slug, "meta");
-    const metaBytes = renderV3NewLeafMeta(destination.slug, receiptId, {
+    const metaBytes = renderV3NewLeafMeta(destination.slug, {
       state: "Planning",
       owner: sourceRecord.owner,
       workClass: destination.workClass,
@@ -730,8 +725,7 @@ export async function composeV3RepositoryPlan(
     return refuse("topology", authority.refusal.code, authority.refusal.path);
   }
 
-  const receiptId = v3ReceiptId(map.machine);
-  const scaffolds = newMemberScaffolds(map, input.sourceTree, sourceMeta.record, receiptId);
+  const scaffolds = newMemberScaffolds(map, input.sourceTree, sourceMeta.record);
   if (scaffolds === null) return refuse("content", "profile-scaffold-failed");
   const projectedContent = contentContributions(
     map,
@@ -750,26 +744,12 @@ export async function composeV3RepositoryPlan(
   if (dependencyContributions === null) return refuse("dependency", "dependency-projection-failed");
 
   const retirements = exclusiveRetirements(retirement, input.resultBaseTree);
-  const receiptPath = v3DecomposeReceiptPath(receiptId);
-  const receiptBefore = stateAt(input.resultBaseTree, receiptPath);
-  if (receiptBefore.kind !== "absent") return refuse("composition", "receipt-path-occupied", receiptPath);
-  const receiptEvidence: V3PlannedExclusivePath = {
-    path: receiptPath,
-    before: receiptBefore,
-    after: {
-      kind: "object",
-      objectKind: "blob",
-      mode: "100644",
-      bytes: encoder.encode("{}\n"),
-    },
-  };
   const roadmapBefore = stateAt(input.resultBaseTree, ROADMAP_PATH);
   if (!regularFile(roadmapBefore)) return refuse("roadmap", "roadmap-missing", ROADMAP_PATH);
   const expectedPaths = [...new Set([
     ...topology.plan.actions.flatMap((action) => action.kind === "none" ? [] : [action.path]),
     ...projectedContent.content.map(({ path }) => path),
     ...dependencyContributions.map(({ path }) => path),
-    receiptPath,
     retirements.predecessor.path,
     ...retirements.source.map(({ path }) => path),
     ROADMAP_PATH,
@@ -784,7 +764,6 @@ export async function composeV3RepositoryPlan(
     topologyDigest: authority.authority.topology.digest,
     origin: map.machine.source.origin,
     sourceBranch: map.machine.source.logicalBranch,
-    receiptId,
     planningProfile: map.machine.planningProfile,
     destinations: map.authoring.destinations,
     validatedAllocations: conservation.allocations,
@@ -792,7 +771,6 @@ export async function composeV3RepositoryPlan(
     content: projectedContent.content,
     topology: topology.plan.actions,
     dependencies: dependencyContributions,
-    receiptEvidence,
     predecessorRetirement: retirements.predecessor,
     sourceRetirements: retirements.source,
     roadmap: { path: ROADMAP_PATH, before: roadmapBefore, after: roadmapAfter },

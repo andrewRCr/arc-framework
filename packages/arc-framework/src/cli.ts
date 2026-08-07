@@ -322,10 +322,9 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Preflight, prepare, discard, finalize, or inspect one v3 decomposition")
+  .description("Preflight, execute, finalize, advance, or inspect one v3 decomposition")
   .option("--preflight", "Emit one canonical read-only v3 starter map")
   .option("--execute <cut-map>", "Prepare one exact result from a canonical completed cut map")
-  .option("--discard <cut-map>", "Discard the exact uncommitted candidate for a canonical cut map")
   .option("--finalize <receipt-id>", "Finalize one exact prepared receipt")
   .option("--continuation <path>", "Canonical continuation input paired with --finalize")
   .option("--handoff", "Emit one canonical facts-only landed handoff")
