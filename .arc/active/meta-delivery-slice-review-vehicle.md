@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.4 — Prepare a member operation end to end (Phase 4 complete)
-- **Next Task:** Task 5.1 — Re-resolve the member vehicle at attest and re-entrant admission (line ~448)
+- **Last Completed:** Task 5.3 — Confirm member targets at resume and reduce (Phase 5 complete)
+- **Next Task:** Task 6.1 — Complete verification (line ~508)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — carry member selection to attest's authority resolution
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
