@@ -108,6 +108,41 @@ describe("decomposition planning lane", () => {
     }
   });
 
+  it("reviews multiple authenticated records that are not decomposition receipts", async () => {
+    const { changeSet, receipt } = exactChangeSet();
+    const receiptPath = changeSet.changes.at(-1)!.path;
+    const secondPath = `${receiptPath.slice(0, -5)}f.json`;
+    const readReceipt = vi.fn(async () => ({ status: "not-decomposition" as const }));
+
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: [
+        ...changeSet.changes,
+        change(secondPath),
+        change("packages/arc-framework/src/cli.ts", "modified"),
+      ],
+    }, BASE, HEAD, dependencies(receipt, { readReceipt }))).resolves.toEqual({ outcome: "reviewed" });
+  });
+
+  it("does not let an unreadable record mask a later invalid record", async () => {
+    const { changeSet, receipt } = exactChangeSet();
+    const receiptPath = changeSet.changes.at(-1)!.path;
+    const secondPath = `${receiptPath.slice(0, -5)}f.json`;
+    const readReceipt = vi.fn(async (_head: string, path: string) => (
+      path === receiptPath
+        ? { status: "unreadable" as const }
+        : { status: "malformed" as const }
+    ));
+
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: [...changeSet.changes, change(secondPath)],
+    }, BASE, HEAD, dependencies(receipt, { readReceipt }))).resolves.toEqual({
+      outcome: "invalid-retirement",
+      locus: secondPath,
+    });
+  });
+
   it("settles rider shape as reviewed before invoking either validator", async () => {
     const { changeSet, receipt } = exactChangeSet();
     const deps = dependencies(receipt);
