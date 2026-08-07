@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "review-lane-multi-receipt-compatibility",
+  "claimId": "583cfcccf640b3d7511f815ac065ce4a",
+  "createdAt": "2026-08-07T02:18:21.384Z",
+  "updatedAt": "2026-08-07T02:18:21.384Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Allow reviewed changes to carry multiple authenticated non-decomposition retirement receipts",
+  "branch": "chore/review-lane-multi-receipt-compatibility",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
