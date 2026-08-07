@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.4 — Branch target confirmation on the carried kind (Phase 3 complete)
-- **Next Task:** Task 4.1 — Admit the `delivery-member` variant into the local authority (line ~344)
+- **Last Completed:** Task 4.4 — Prepare a member operation end to end (Phase 4 complete)
+- **Next Task:** Task 5.1 — Re-resolve the member vehicle at attest and re-entrant admission (line ~448)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — admit the variant into the local authority and operation-state
-  vehicle unions
+- **Next Action:** Begin Task 5.1 — carry member selection to attest's authority resolution
 
 - **PR URL:** [none]
 - **Completed:** [none]
