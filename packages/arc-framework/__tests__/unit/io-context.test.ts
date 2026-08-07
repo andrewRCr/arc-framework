@@ -113,4 +113,25 @@ describe("readGitBlobBytes", () => {
     await expect(readGitBlobBytes("/repo", null, "binary.dat", { objectAccess: "local-only" }))
       .resolves.toEqual(bytes);
   });
+
+  it("reads index metadata without decoding non-UTF-8 path bytes", async () => {
+    const oid = "c".repeat(40);
+    const bytes = Buffer.from([1, 2, 3]);
+    mocks.execa.mockImplementation(async (_command: string, args: string[]) => {
+      if (args[0] === "ls-files") {
+        return {
+          stdout: Buffer.concat([
+            Buffer.from(`100644 ${oid} 0\t`),
+            Buffer.from([0x80, 0]),
+          ]),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      if (args[0] === "cat-file") return { stdout: bytes, stderr: Buffer.alloc(0) };
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    });
+
+    await expect(readGitBlobBytes("/repo", null, "invalid-byte"))
+      .resolves.toEqual(bytes);
+  });
 });
