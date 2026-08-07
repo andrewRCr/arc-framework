@@ -105,30 +105,19 @@ describe("Errand close HEAD lock", () => {
     expect(runtime.files.has(LOCK_PATH)).toBe(false);
   });
 
-  it("recovers an abandoned receipt for the exact retained claim", async () => {
+  it("preserves a live holder's receipt against a concurrent close", async () => {
     const runtime = fakeFileIO();
-    await acquire(runtime);
+    const first = await acquire(runtime);
+    if (first.kind !== "acquired") throw new Error("expected acquired lock");
 
-    await expect(recoverFinalizedErrandCloseHeadLock({
-      exec: fakeGit(),
-      slug: "done",
-      claimId: "c".repeat(32),
-      fileIO: runtime.fileIO,
-    })).resolves.toEqual({ kind: "recovered" });
-    expect(runtime.files.has(LOCK_PATH)).toBe(false);
-  });
-
-  it("preserves an abandoned receipt for a different retained claim generation", async () => {
-    const runtime = fakeFileIO();
-    await acquire(runtime);
-
-    await expect(recoverFinalizedErrandCloseHeadLock({
-      exec: fakeGit(),
-      slug: "done",
-      claimId: "d".repeat(32),
-      fileIO: runtime.fileIO,
-    })).resolves.toEqual({ kind: "absent" });
+    await expect(acquire(runtime)).resolves.toMatchObject({
+      kind: "refused",
+      reason: "role-conflict",
+    });
     expect(runtime.files.has(LOCK_PATH)).toBe(true);
+
+    await first.release();
+    expect(runtime.files.has(LOCK_PATH)).toBe(false);
   });
 
   it("preserves a receipt owned by another Errand", async () => {

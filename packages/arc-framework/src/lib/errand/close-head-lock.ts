@@ -52,7 +52,7 @@ const NODE_FILE_IO: CloseHeadLockFileIO = {
   unlink,
 };
 
-/** Result of inspecting an abandoned close receipt for a terminal or exact-generation retry. */
+/** Result of inspecting an abandoned close receipt after terminal identity absence. */
 export type FinalizedCloseHeadLockRecovery =
   | { kind: "absent" | "recovered" }
   | { kind: "blocked"; message: string }
@@ -127,7 +127,7 @@ export async function acquireErrandCloseHeadLock(options: {
 }
 
 /**
- * Remove an exact ARC-owned close lock after terminal absence or for the matching retained claim.
+ * Remove an exact ARC-owned close lock after terminal identity absence.
  *
  * @param options - Repository, finalized Errand slug, and optional file boundary.
  * @returns Whether no matching receipt existed, it was recovered, or cleanup failed.
@@ -135,8 +135,6 @@ export async function acquireErrandCloseHeadLock(options: {
 export async function recoverFinalizedErrandCloseHeadLock(options: {
   exec: GitExec;
   slug: string;
-  /** When present, recover only a receipt for this exact still-retained claim. */
-  claimId?: string;
   fileIO?: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const fileIO = options.fileIO ?? NODE_FILE_IO;
@@ -279,7 +277,6 @@ async function recoverCheckoutHeadLock(options: {
   exec: GitExec;
   checkoutPath: string;
   slug: string;
-  claimId?: string;
   fileIO: CloseHeadLockFileIO;
 }): Promise<FinalizedCloseHeadLockRecovery> {
   const lockPath = await resolveHeadLockPath(options.exec, options.checkoutPath);
@@ -295,7 +292,6 @@ async function recoverCheckoutHeadLock(options: {
   const receipt = parseReceipt(bytes);
   if (receipt === null
     || receipt.slug !== options.slug
-    || (options.claimId !== undefined && receipt.claimId !== options.claimId)
     || receipt.checkoutPath !== options.checkoutPath) {
     return { kind: "absent" };
   }

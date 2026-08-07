@@ -121,16 +121,10 @@ async function readReconciledCloseIdentity(
     transform: (records) => ({ kind: "idempotent", value: records.get(slug) ?? null }),
   });
   if (result.kind === "applied" || result.kind === "idempotent") {
-    const recoveryIdentity = result.value === null
-      ? { slug }
-      : result.value.kind === "errand" && result.value.purpose === "errand"
-        ? { slug, claimId: result.value.claimId }
-        : null;
-    if (recoveryIdentity !== null) {
+    if (result.value === null) {
       const recovery = await recoverFinalizedErrandCloseHeadLock({
         exec: io.exec,
-        slug: recoveryIdentity.slug,
-        ...(recoveryIdentity.claimId === undefined ? {} : { claimId: recoveryIdentity.claimId }),
+        slug,
       });
       if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
       if (recovery.kind === "error") return recovery;
