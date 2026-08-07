@@ -41,7 +41,9 @@ export function createLocalAttestDependencies(input: {
         (await receipts()).appendReceipt(receipt, expectedLedgerVersion)
       ),
     },
-    resolveAuthority: (evaluatorIdentity) => prepare.resolveAuthority(evaluatorIdentity),
+    resolveAuthority: async (evaluatorIdentity) => (
+      (await prepare.resolveAuthority(evaluatorIdentity)).authority
+    ),
     resolveGuidanceDigest: async (authority, state) => {
       const policy = prepare.resolvePolicy();
       if (policy.status === "unavailable") {

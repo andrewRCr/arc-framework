@@ -11,3 +11,21 @@ export interface LocalReviewAuthority {
   runtimeIdentity: string;
   attestationMechanism: "local-attestation";
 }
+
+/**
+ * The recorded coordinates of the delivery member under review.
+ *
+ * Carried alongside the authority rather than inside its vehicle: the vehicle is
+ * written verbatim into a strict persisted union, so an extra field there would
+ * fail the operation's own parse.
+ */
+export interface LocalReviewMemberCoordinates {
+  readonly base: string;
+  readonly head: string;
+}
+
+/** One resolved authority, plus member coordinates when a member was named. */
+export interface LocalReviewAuthorityResolution {
+  readonly authority: LocalReviewAuthority;
+  readonly member: LocalReviewMemberCoordinates | null;
+}

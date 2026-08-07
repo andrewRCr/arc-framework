@@ -47,6 +47,62 @@ describe("local review preparation request", () => {
     }).routingFacts).toEqual(routingFactsInput);
   });
 
+  it("carries an optional member selector without any other verb surface", () => {
+    const memberHeadObjectId = objectId("e");
+    expect(LocalPrepareRequestSchema.parse({
+      schemaVersion: 1,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+      memberHeadObjectId,
+    }).memberHeadObjectId).toBe(memberHeadObjectId);
+    expect(LocalPrepareRequestSchema.parse({
+      schemaVersion: 1,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+    }).memberHeadObjectId).toBeUndefined();
+    expect(() => LocalPrepareRequestSchema.parse({
+      schemaVersion: 1,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+      memberHeadObjectId: "not-an-object-id",
+    })).toThrow();
+  });
+
+  it("hands the request's member selector to authority resolution, and nothing when absent", async () => {
+    const target = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: objectId("a"),
+      diffBaseTree: objectId("b"),
+      headSha: objectId("c"),
+      headTree: objectId("d"),
+    });
+    // Refusing at resolution isolates the hand-off: nothing downstream has to be stubbed.
+    const resolveAuthority = vi.fn(async () => {
+      throw new Error("delivery-member-unbound");
+    });
+    const dependencies = {
+      sweep: async () => undefined,
+      resolveRepositoryId: async () => target.repositoryId,
+      deriveTarget: async () => target,
+      resolveAuthority,
+    } as unknown as Parameters<typeof prepareLocalReview>[1];
+    const request = { schemaVersion: 1 as const, evaluatorIdentity: "evaluator-1", routingFacts };
+
+    await expect(prepareLocalReview(
+      { ...request, memberHeadObjectId: objectId("e") },
+      dependencies,
+    )).rejects.toThrow(/delivery-member-unbound/u);
+    expect(resolveAuthority).toHaveBeenCalledWith("evaluator-1", objectId("e"));
+
+    resolveAuthority.mockClear();
+    await expect(prepareLocalReview(request, dependencies)).rejects.toThrow(/delivery-member-unbound/u);
+    expect(resolveAuthority).toHaveBeenCalledWith("evaluator-1", undefined);
+  });
+
   it.each([
     ["schemaVersion", 1],
     ["changeSetState", "known"],
@@ -88,12 +144,15 @@ describe("local review preparation request", () => {
       deriveTarget: async () => target,
       confirmTarget: async () => ({ state: "current" as const, target }),
       resolveAuthority: async () => ({
-        vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
-        authorIdentity: "author-1",
-        evaluatorIdentity: "evaluator-1",
-        attestationRuntimeKind: "arc-cli",
-        runtimeIdentity: "arc-cli/0.1.0",
-        attestationMechanism: "local-attestation" as const,
+        authority: {
+          vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+          authorIdentity: "author-1",
+          evaluatorIdentity: "evaluator-1",
+          attestationRuntimeKind: "arc-cli",
+          runtimeIdentity: "arc-cli/0.1.0",
+          attestationMechanism: "local-attestation" as const,
+        },
+        member: null,
       }),
       composeAssurance: async () => ({
         status: "resolved" as const,
@@ -206,12 +265,15 @@ describe("local review preparation request", () => {
         deriveTarget: async () => target,
         confirmTarget: async () => ({ state: "current" as const, target }),
         resolveAuthority: async () => ({
-          vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
-          authorIdentity: "author-1",
-          evaluatorIdentity: "evaluator-1",
-          attestationRuntimeKind: "arc-cli",
-          runtimeIdentity,
-          attestationMechanism: "local-attestation" as const,
+          authority: {
+            vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+            authorIdentity: "author-1",
+            evaluatorIdentity: "evaluator-1",
+            attestationRuntimeKind: "arc-cli",
+            runtimeIdentity,
+            attestationMechanism: "local-attestation" as const,
+          },
+          member: null,
         }),
         composeAssurance: async () => ({
           status: "resolved" as const,
@@ -330,7 +392,7 @@ describe("local review preparation request", () => {
             };
           },
         },
-        resolveAuthority: dependencies.resolveAuthority,
+        resolveAuthority: async () => (await dependencies.resolveAuthority()).authority,
         resolveGuidanceDigest: async () => state.guidanceDigest,
         confirmTarget: dependencies.confirmTarget,
         inspectMaterialization: async () => "materialized",

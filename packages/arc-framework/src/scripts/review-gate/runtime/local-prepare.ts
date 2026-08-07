@@ -11,6 +11,7 @@ import { LocalReviewRoutingInputSchema } from "../policy/routing-schema.js";
 import { projectStandardReviewObligation } from "../policy/standard-review-projection.js";
 import { createReviewRequirement } from "../core/gate-contract-v2.js";
 import {
+  GitObjectIdSchema,
   ReviewIdentifierSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
@@ -31,7 +32,10 @@ import {
   LocalReviewSourceSchema,
   type LocalReviewSource,
 } from "../core/local-review-source.js";
-import type { LocalReviewAuthority } from "../core/local-review-authority.js";
+import type {
+  LocalReviewAuthority,
+  LocalReviewAuthorityResolution,
+} from "../core/local-review-authority.js";
 import {
   LocalReviewStateSchema,
   type LocalReviewState,
@@ -54,6 +58,8 @@ export const LocalPrepareRequestSchema = z.strictObject({
   evaluatorIdentity: ReviewIdentifierSchema,
   routingFacts: LocalReviewRoutingInputSchema,
   freshnessMs: z.number().int().positive().optional(),
+  /** Exact head of the delivery member to review; absent reviews the control branch. */
+  memberHeadObjectId: GitObjectIdSchema.optional(),
 });
 export type LocalPrepareRequest = z.infer<typeof LocalPrepareRequestSchema>;
 
@@ -73,7 +79,10 @@ export interface LocalPrepareDependencies {
   resolveRepositoryId(): Promise<string>;
   deriveTarget(repositoryId: string): Promise<ReviewTarget>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
-  resolveAuthority(evaluatorIdentity: string): Promise<LocalReviewAuthority>;
+  resolveAuthority(
+    evaluatorIdentity: string,
+    memberHeadObjectId?: string,
+  ): Promise<LocalReviewAuthorityResolution>;
   composeAssurance(authority: LocalReviewAuthority): Promise<AssuranceComposition>;
   resolvePolicy(): LocalReviewPolicyBindingResolution;
   validatePolicySelection(
@@ -120,7 +129,10 @@ export async function prepareLocalReview(
   await dependencies.sweep();
   const repositoryId = await dependencies.resolveRepositoryId();
   const target = await dependencies.deriveTarget(repositoryId);
-  const authority = await dependencies.resolveAuthority(request.evaluatorIdentity);
+  const { authority } = await dependencies.resolveAuthority(
+    request.evaluatorIdentity,
+    request.memberHeadObjectId,
+  );
   const assurance = await dependencies.composeAssurance(authority);
   if (assurance.status === "refused") {
     return LocalPrepareEnvelopeSchema.parse({

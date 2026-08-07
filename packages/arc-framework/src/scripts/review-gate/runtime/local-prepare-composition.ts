@@ -21,6 +21,9 @@ import {
   confirmLocalReviewTarget,
 } from "../hosts/local/repository-target.js";
 import {
+  RepositoryDeliveryMemberLookup,
+} from "../hosts/local/delivery-member-lookup.js";
+import {
   resolveLocalReviewAuthority,
 } from "../hosts/local/review-authority.js";
 import type { LocalReviewAuthority } from "../core/local-review-authority.js";
@@ -110,14 +113,18 @@ export function createLocalPrepareDependencies(input: {
       cwd: input.cwd,
       attemptedTarget: target,
     }),
-    resolveAuthority: (evaluatorIdentity) => resolveLocalReviewAuthority(
-      { evaluatorIdentity },
+    resolveAuthority: (evaluatorIdentity, memberHeadObjectId) => resolveLocalReviewAuthority(
+      {
+        evaluatorIdentity,
+        ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
+      },
       {
         readLiveContext: async () => (await readLive()).context,
         resolveRuntimeBinding: () => Promise.resolve({
           kind: "arc-cli",
           identity: `arc-cli/${getFrameworkVersion()}`,
         }),
+        memberLookup: new RepositoryDeliveryMemberLookup(input),
       },
     ),
     composeAssurance: async (authority: LocalReviewAuthority) => {

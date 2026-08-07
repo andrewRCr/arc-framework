@@ -360,75 +360,46 @@ class.
   assurance dispatch treats every non-work-unit vehicle as an Errand today, so a member composes the wrong
   assurance until Task 4.3 routes it. The variant is inert until a member authority can be produced (Task 4.2).
 
-### `[ ]` **4.2 Resolve a named member through the delivery port at the control locus**
+### `[x]` **4.2 Resolve a named member through the delivery port at the control locus**
 
 - _Goal:_ Naming a member's exact head at the owning work unit's control locus yields a member authority, while a
   member belonging to another work unit's plan or standing last in its own is refused rather than adopted.
 
-- _Context:_ The control branch resolves to the work unit, so the member under review cannot be inferred from the
-  checkout — the operator names it. The selector is the member's exact head object id, which the calling site
-  already holds: it is the ref it just pushed or opened. Keeping the coordinate head-keyed adds no verb surface.
+    - `[x]` **4.2.a Accept an optional member selector**
 
-- _Shape:_ The selector reaches resolution as an added optional parameter on the authority-resolution dependency,
-  and each callsite supplies its own source — prepare from its request, attest from the head its persisted target
-  pins. Nothing new is persisted to carry it: the target is the operation's exact-head record, and a second
-  stored copy of that head would be a field capable of disagreeing with it. The parameter is what makes the
-  attest source reachable at all, since that verb's composition wrapper holds no operation state while its
-  command does.
+        - `memberHeadObjectId` joins `LocalPrepareRequestSchema` as an optional `GitObjectIdSchema` field. The
+          handler parses the raw request through that schema directly, so the verb, its flags, and the host
+          surface are untouched
+        - `resolveLocalReviewAuthority` takes the selector as an optional input field, and `memberLookup` joins
+          its dependencies as an optional port bound at the local lane's composition root from the injected cwd.
+          Absent, a supplied selector refuses `delivery-state-unavailable` — the readiness boundary's fail-closed
+          shape
 
-- _Shape:_ Attest supplies that head **only when the persisted vehicle is a member**. The condition is
-  load-bearing rather than tidy: an ordinary work unit's target pins its control-branch head, and that head can
-  itself be bound in delivery state — it is exactly what the terminal member's pull request is opened from. An
-  unconditional supply would therefore authenticate an ordinary operation as a member and fail its vehicle
-  comparison, breaking the path that is supposed to behave as it does today.
+    - `[x]` **4.2.b Authenticate the named member against the control locus's work unit**
 
-- _Shape:_ Resolution returns the member's recorded coordinates alongside the authority, because target
-  composition needs them and the authority vehicle cannot carry them — that vehicle is written verbatim into a
-  strict persisted union, so an extra field fails the operation's own parse. Prepare consequently resolves
-  authority **before** deriving its target, inverting today's order (see Task 4.4.a); attest, which derives no
-  target, is unaffected by the inversion.
+        - the member's recorded `workUnitId` must equal the work unit the control locus resolves; otherwise
+          `delivery-member-work-unit-mismatch`. Lookup failures keep the port's own distinction —
+          `delivery-state-unavailable` for an answer that could not be established, `delivery-member-unbound` for
+          a head no member holds
+        - a selector in an Errand context refuses `delivery-member-requires-work-unit`, distinct from
+          `vehicle-unresolved`, which keeps its meaning as the both-or-neither case
 
-    - `[ ]` **4.2.a Accept an optional member selector**
+    - `[x]` **4.2.c Refuse the plan's final member**
 
-        - the selector enters as one optional field on the prepare request, which the verb already reads as
-          versioned JSON — no new verb, flag, or host surface
-        - the lookup port joins the authority-resolution dependencies, built at the local lane's existing
-          composition root from the cwd already injected there. It is optional and fails closed exactly as the
-          readiness boundary's is, so no existing construction of these dependencies has to change
+        - `delivery-member-terminal`, read off the binding's `isFinalMember` — the same signal and boundary the
+          readiness lane applies
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **4.2.d Keep actor separation unchanged**
 
-        - with no selector, resolution yields exactly today's work-unit or Errand vehicle
-        - the existing unresolved-vehicle refusal keeps its current meaning on the no-selector path
-        - a selector with no port bound refuses rather than throwing or admitting
+        - the member path runs through the identical owner, author/evaluator, and runtime checks. The
+          owner-against-active-identity check is deliberately ordered ahead of member authentication, so an
+          operator working outside their own work unit learns that before anything about the member
 
-    - `[ ]` **4.2.b Authenticate the named member against the control locus's work unit**
-
-        - a selector supplied where no work unit resolves — an Errand context — has nothing to authenticate
-          against and refuses. Refuse it distinctly from the unresolved-vehicle case: the operator did name a
-          member, and the naming is what failed.
-
-        Build `test-first` (one behavior at a time):
-
-        - a member whose resolved work unit matches the one resolved at the control locus yields a member vehicle
-        - a member belonging to another work unit's plan refuses
-        - an unavailable or unbound lookup refuses
-        - a selector supplied in an Errand context refuses, and not as an unresolved vehicle
-
-    - `[ ]` **4.2.c Refuse the plan's final member**
-
-        - applies the same boundary as the readiness lane, so the rule holds uniformly across both
-
-        Build `test-first` (one behavior at a time):
-
-        - a selector naming the plan's final member refuses
-
-    - `[ ]` **4.2.d Keep actor separation unchanged**
-
-        Build `test-first` (one behavior at a time):
-
-        - the author identity stays the owning work unit's owner, validated against the active identity
-        - the author, evaluator, and runtime separation refusals fire for a member exactly as they do today
+- _Outcome:_ Resolution now returns `{ authority, member }` rather than a bare authority — the coordinates target
+  composition needs (Task 4.4.a) cannot ride the vehicle, which is written verbatim into a strict persisted union.
+  Three callsites adapt: prepare destructures and forwards its request's selector, while attest and respond take
+  `.authority` and supply no selector, holding both to today's behavior. Attest's conditional selector supply is
+  Task 5.1.a's, so a member operation can be prepared but not yet attested until that lands.
 
 ### `[ ]` **4.3 Route `delivery-member` assurance to the work-unit arm**
 
