@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.3 — Confirm member targets at resume and reduce (Phase 5 complete)
-- **Next Task:** Task 6.1 — Complete verification (line ~508)
+- **Last Completed:** Task 6.1 — Complete verification (all tasks complete)
+- **Next Task:** [none]
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
