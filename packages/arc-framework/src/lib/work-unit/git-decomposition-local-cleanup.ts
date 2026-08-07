@@ -28,7 +28,6 @@ import {
 import {
   authorizeDecompositionCleanup,
   releaseDecompositionCleanupRegistration,
-  type DecompositionCleanupAuthorization,
   type DecompositionCleanupReleaseResult,
 } from "./decomposition-cleanup-gate.js";
 import {
@@ -36,6 +35,7 @@ import {
   type DecomposeTransientClaimStore,
 } from "./decompose-transient-claim-store.js";
 import { decomposeCandidateBranch } from "./decompose-transient-claim.js";
+import { cleanupGitOwnedDecomposeCandidate } from "./git-owned-decompose-candidate-cleanup.js";
 import type { WorkUnitLocusDriver } from "./work-unit-locus.js";
 import type { TeardownLocusDriver } from "./teardown-locus.js";
 import type {
@@ -147,17 +147,6 @@ async function readCleanupMarker(
   return deps.readMarker === undefined
     ? await readWorktreeMarker(path)
     : await deps.readMarker(path);
-}
-
-function candidateMarkerMatches(
-  marker: WorktreeMarkerReadResult,
-  authorization: DecompositionCleanupAuthorization,
-): boolean {
-  if (authorization.retirement.kind !== "required" || marker.kind !== "present") return false;
-  const candidate = marker.marker.decompositionCandidate;
-  return candidate?.claimId === authorization.retirement.claim.claimId
-    && candidate.generation === authorization.retirement.claim.generation
-    && candidate.candidateWorktree === authorization.retirement.claim.candidateWorktree;
 }
 
 function uniqueProjection(
@@ -459,7 +448,6 @@ export async function cleanupGitLandedDecompositionLocally(
   if (!scan.ok) {
     return { status: "refused", reason: `could not read registered worktrees (${scan.message})` };
   }
-  let candidate: Awaited<ReturnType<typeof validateProjection>>;
   let source: Awaited<ReturnType<typeof validateProjection>>;
   try {
     if (authorization.authorization.retirement.kind === "not-applicable") {
@@ -471,17 +459,7 @@ export async function cleanupGitLandedDecompositionLocally(
           reason: `partial-protection cleanup found unexpected candidate projection \`${candidateBranch}\``,
         };
       }
-      candidate = { status: "valid", worktree: null };
-    } else {
-      candidate = await validateProjection(deps, scan, {
-        branch: candidateBranch,
-        head: selection.anchor.candidateCommitHead,
-        ...(candidatePath === null ? {} : { path: candidatePath }),
-        markerMatches: (marker) =>
-          candidateMarkerMatches(marker, authorization.authorization),
-      });
     }
-    if (candidate.status === "refused") return candidate;
     source = await validateProjection(deps, scan, {
       branch: sourceBranch,
       head: selection.anchor.sourceHead,
@@ -511,13 +489,42 @@ export async function cleanupGitLandedDecompositionLocally(
     userWorkspace: "pending",
   };
   try {
-    const candidateWorktreeOutcome = await removeProjectionWorktree(deps, candidate.worktree);
+    let candidateWorktreeOutcome: DecompositionLocalProjectionCleanup["worktreeOutcome"];
+    let candidateBranchOutcome: DecompositionLocalProjectionCleanup["branchOutcome"];
+    if (authorization.authorization.retirement.kind === "not-applicable") {
+      candidateWorktreeOutcome = "already-absent";
+      candidateBranchOutcome = "already-absent";
+    } else {
+      const candidateCleanup = await cleanupGitOwnedDecomposeCandidate({
+        origin,
+        expectedHead: selection.anchor.candidateCommitHead,
+        ...(candidatePath === null ? {} : { expectedPath: candidatePath }),
+      }, {
+        cwd: deps.cwd,
+        exec: deps.exec,
+        ...(deps.readMarker === undefined ? {} : { readMarker: deps.readMarker }),
+        removeWorktree: async (path) => {
+          const registration = scan.worktrees.find(
+            ({ branch, path: registeredPath }) =>
+              branch === candidateBranch && registeredPath === path,
+          );
+          if (registration === undefined) {
+            throw new Error(`candidate worktree registration moved before cleanup: ${path}`);
+          }
+          await removeProjectionWorktree(deps, registration);
+        },
+      });
+      if (candidateCleanup.status === "refused") {
+        return {
+          status: "refused",
+          reason: `candidate cleanup refused (${candidateCleanup.reason})`,
+          progress,
+        };
+      }
+      candidateWorktreeOutcome = candidateCleanup.worktreeOutcome;
+      candidateBranchOutcome = candidateCleanup.branchOutcome;
+    }
     progress.candidate.worktreeOutcome = candidateWorktreeOutcome;
-    const candidateBranchOutcome = await deleteExactLocalBranch(
-      deps,
-      candidateBranch,
-      selection.anchor.candidateCommitHead,
-    );
     progress.candidate.branchOutcome = candidateBranchOutcome;
     const sourceWorktreeOutcome = await removeProjectionWorktree(deps, source.worktree, {
       wuName: origin,

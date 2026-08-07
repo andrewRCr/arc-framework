@@ -310,13 +310,26 @@ respective predecessors, then retire the old namespace only after every survivin
 - _Approach:_ Preserve any independently necessary claim behavior unchanged; this trace authorizes subtraction,
   not a redesigned claim successor.
 
-    - `[ ]` **4.1.a Trace claim readers, writers, and collision authority**
+    - `[x]` **4.1.a Trace claim readers, writers, and collision authority**
         - Follow `decompose-transient-claim-store.ts`, `decompose-transient-claim.ts`, operation I/O, result
           occupation, base advancement, local cleanup, cleanup gate, and in-flight derivation.
         - Produce a retain/delete matrix distinguishing concurrency exclusion from in-flight residue suppression,
           owned-candidate identity, landed cleanup authorization, and terminal release.
         - Make the matrix the binding input to Tasks 4.2, 4.4, and 4.7: any retained claim port and state transition
           remains unchanged, and no later deletion may silently assume the whole store retired.
+
+        - _Outcome:_ The binding trace selected no independently necessary transient-claim behavior:
+
+          | Concern                    | Surviving authority                                                    | Claim decision |
+          | -------------------------- | ---------------------------------------------------------------------- | -------------- |
+          | creation concurrency       | atomic candidate ref creation plus Git worktree registration           | delete         |
+          | live in-flight suppression | exact candidate registration plus its ARC branch marker                | delete         |
+          | owned-candidate identity   | deterministic branch, one registered path, and matching marker         | delete         |
+          | landed cleanup             | authenticated landing, pinned candidate head, registration, and marker | delete         |
+          | terminal retry/release     | idempotent absence checks and compare-delete of the observed ref       | delete         |
+
+          Tasks 4.2, 4.4, and 4.7 must preserve these Git/marker replacements; none may retain claim state merely
+          as copied provenance.
 
     - `[ ]` **4.1.b Prove material creation and residue interleavings**
         - Build `test-first` (one behavior at a time):
@@ -334,7 +347,7 @@ respective predecessors, then retire the old namespace only after every survivin
 - _Goal:_ Every stranded decomposition candidate is destroyable through ordinary branch/worktree cleanup, without
   the four exactness-created refusal states or a dedicated discard path.
 
-    - `[ ]` **4.2.a Define the owned-candidate cleanup boundary**
+    - `[x]` **4.2.a Define the owned-candidate cleanup boundary**
         - Require agreement among the deterministic candidate branch, its registered worktree/path, the existing
           decomposition-candidate marker, and any retained claim identity; refuse missing, malformed, ambiguous, or
           cross-worktree identity rather than guessing ownership.
@@ -346,6 +359,11 @@ respective predecessors, then retire the old namespace only after every survivin
               `candidate-index-changed`, and `candidate-path-set-changed` through the surviving cleanup route.
             - Retry partial worktree/branch cleanup idempotently and compare-delete the exact observed ref head.
             - Preserve unrelated-worktree, user-content, marker, registration, and ref-race refusals.
+
+        - _Outcome:_ One ordinary Git-owned candidate cleanup boundary now authenticates the deterministic branch,
+          unique registration/path, and branch marker; resets staged/index-only drift; preserves unstaged and
+          untracked content; retries worktree/branch absence; and refuses marker, topology, head, and deletion races.
+          Landed cleanup uses that boundary while its receipt-era authorization remains temporarily upstream.
 
     - `[ ]` **4.2.b Delete candidate-only exactness and discard surfaces**
         - Remove `decompose-candidate-discard.ts`, `git-decompose-v3-candidate-discard.ts`, `--discard`, its handler
