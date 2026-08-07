@@ -104,7 +104,10 @@ const UnprovenCascadeResolutionSchema = z.strictObject({
   kind: z.literal("unproven"),
   remoteEvidence: z.enum(["pending-fetch", "unreachable", "not-applicable"]),
   failureReason: RemoteFailureReasonSchema.optional(),
-  candidates: z.array(CascadeCandidateSchema).min(1),
+  // May be empty: an incomplete projection cannot distinguish "no candidates"
+  // from "candidates the failed read never revealed", so an empty tier is
+  // reported as unproven rather than as a proven absence.
+  candidates: z.array(CascadeCandidateSchema),
 });
 
 export const CascadeResolutionSchema = z.discriminatedUnion("kind", [
@@ -240,8 +243,13 @@ export function resolveCascade(input: ResolveCascadeInput): CascadeResolution {
       refreshRemedy: composeRecoveryRefreshRemedy(),
     };
   }
-  return resolveTier(input.recentBranchCandidates)
-    ?? { kind: "main-fallback", remoteEvidence: "exact", baseBranch: input.baseBranch };
+  const recentResolution = resolveTier(input.recentBranchCandidates);
+  if (recentResolution !== null) return recentResolution;
+  // Both tiers are empty. Under incomplete evidence that emptiness is not a
+  // proven absence — a failed read reveals no candidates either — so the
+  // fallback is withheld rather than published as an exact conclusion.
+  if (unproven !== null) return { kind: "unproven", ...unproven, candidates: [] };
+  return { kind: "main-fallback", remoteEvidence: "exact", baseBranch: input.baseBranch };
 }
 
 /**

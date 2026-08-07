@@ -154,9 +154,15 @@ describe("resolveCascade", () => {
   it.each([
     ["not-applicable", { remoteEvidence: "not-applicable" } as const],
     ["unreachable", { remoteEvidence: "unreachable", failureReason: "network" } as const],
-  ])("still falls back to the base under %s evidence with no candidates", (_label, evidence) => {
-    // The fallback claims no candidate disposition, so it needs no proof.
+  ])("withholds the base fallback under %s evidence with no candidates", (_label, evidence) => {
+    // An empty tier under a failed read is not a proven absence: the read
+    // reveals no candidates either way, so the fallback is not concluded.
     expect(cascade({ worktreeCandidates: [], recentBranchCandidates: [], evidence }))
+      .toEqual({ kind: "unproven", ...evidence, candidates: [] });
+  });
+
+  it("falls back to the base only under exact evidence", () => {
+    expect(cascade({ worktreeCandidates: [], recentBranchCandidates: [] }))
       .toEqual({ kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" });
   });
 });
