@@ -1,6 +1,7 @@
 /** Production adapter for the worktree-derived entering-checkout frame. */
 
 import { access, lstat, readFile, realpath } from "node:fs/promises";
+import { join } from "node:path";
 
 import type { GitExec } from "../lib/git/exec.js";
 import {
@@ -12,7 +13,7 @@ import {
   type DerivedLocusFrame,
 } from "../lib/locus/derived-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
-import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { createUserSurfaceResolver } from "../lib/user-surfaces.js";
 
 export interface DerivedLocusStateProbeOptions {
   readonly cwd: string;
@@ -27,11 +28,6 @@ export async function runDerivedLocusStateProbe(
   options: DerivedLocusStateProbeOptions,
 ): Promise<DerivedLocusFrame> {
   const identity = SlugSchema.parse(options.identity);
-  const identityGlobalUserDir = (await resolveUserSurfaceResolver({
-    cwd: options.cwd,
-    identity,
-    exec: options.exec,
-  })).identityGlobalRoot;
   const io = createDerivedLocusEvidenceIO({
     exec: options.exec,
     identity,
@@ -39,6 +35,14 @@ export async function runDerivedLocusStateProbe(
   });
   const evidence = await acquireDerivedLocusEvidence({ identity, io });
   if (evidence.kind === "error") throw new Error(`${evidence.code}: ${evidence.message}`);
+  const primary = evidence.topology.worktrees.find((worktree) => worktree.primary);
+  const identityGlobalUserDir = createUserSurfaceResolver({
+    cwd: options.cwd,
+    identity,
+    ...(primary === undefined
+      ? {}
+      : { identityGlobalRoot: join(primary.path, ".arc", "user", identity) }),
+  }).identityGlobalRoot;
   return readDerivedLocusFrame({
     identity,
     identityGlobalUserDir,

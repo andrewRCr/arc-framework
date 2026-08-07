@@ -273,8 +273,8 @@ export interface SessionInitProbeResult {
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
    * Derived orientation for a linked branchless checkout that is an exact,
-   * locally completed stamped WU husk. This interim advisory is separate from
-   * worktree sync state and may be superseded by a durable locus record.
+   * locally completed stamped WU husk. This advisory is derived independently
+   * of worktree sync state from the current checkout marker and Git topology.
    * Omitted on ordinary branched/primary paths and when the probe degrades.
    */
   currentHusk?: Probe<CurrentHuskAdvisory | null>;
@@ -427,7 +427,6 @@ export interface SessionRecoverProbeResult {
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
-  active: Probe<ActiveSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
   /** Present only when a single active WU resolves to a coordinating cohort doc. */
   cohortDocPath?: string;
@@ -733,10 +732,6 @@ export interface SessionRecoverProbes {
   dirty: () => Promise<DirtyStateResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
-  active: (
-    identity: string | null,
-    role: string | null,
-  ) => Promise<ActiveSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
 }
 

@@ -160,6 +160,7 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
       },
     },
     loadSet: { ok: true, value: LOAD_SET },
+    extensions: { ok: true, value: { active: [] } },
     taskCursor: {
       ok: true,
       value: {

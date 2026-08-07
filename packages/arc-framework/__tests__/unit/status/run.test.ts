@@ -512,7 +512,10 @@ const cleanUserReferenceReconcile: NonNullable<SessionInitProbes["userReferenceR
 });
 
 type SessionInitProbeOverrides = Partial<SessionInitProbes> & {
-  active?: SessionRecoverProbes["active"];
+  active?: (
+    identity: string,
+    role: "maintainer" | "contributor",
+  ) => Promise<ActiveSessionInitResult>;
   cohortDoc?: (activeMetaPath: string) => Promise<string | null>;
   taskCursor?: (taskListPath: string) => Promise<TaskListCursorResult>;
 };
@@ -608,7 +611,6 @@ function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): Se
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
-    active: vi.fn(async () => activeSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     ...overrides,
   };
@@ -1184,7 +1186,6 @@ describe("runRecoverStatus — lean recover envelope", () => {
 
     expect(result.mode).toBe("recover");
     expect(Object.keys(result).sort()).toEqual([
-      "active",
       "config",
       "derivedLocusState",
       "dirty",
@@ -1204,7 +1205,6 @@ describe("runRecoverStatus — lean recover envelope", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
-    expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
   });
 
@@ -1240,29 +1240,8 @@ describe("runRecoverStatus — lean recover envelope", () => {
     }
   });
 
-  it("keeps checkout-derived recovery context authoritative when active probing fails", async () => {
-    const probes = sessionRecoverProbes({
-      active: async () => { throw new Error("boom"); },
-    });
-    const result = await runRecoverStatus({
-      identity: "andrew",
-      role: "maintainer",
-      probes,
-    });
-
-    expect(result.active.ok).toBe(false);
-    expect(result.recoveryFrame).toEqual({
-      ok: true,
-      value: expect.objectContaining({ kind: "resolved", workflow: "process-task-loop" }),
-    });
-    expect(result.loadSet.ok).toBe(true);
-    expect(result.taskCursor?.ok).toBe(true);
-  });
-
   it("projects workflow, load set, and cursor from the selected locus row", async () => {
-    const probes = sessionRecoverProbes({
-      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
-    });
+    const probes = sessionRecoverProbes();
     const result = await runRecoverStatus({
       identity: "andrew",
       role: "maintainer",

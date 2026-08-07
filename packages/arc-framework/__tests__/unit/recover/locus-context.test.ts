@@ -112,11 +112,12 @@ function frame(
   };
 }
 
-function derive(state: DerivedLocusFrame) {
+function derive(state: DerivedLocusFrame, activeExtensions: readonly string[] = []) {
   return deriveRecoveryLocusContext({
     state,
     identity: "andrew",
     workingMemoryPath: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
+    activeExtensions,
   });
 }
 

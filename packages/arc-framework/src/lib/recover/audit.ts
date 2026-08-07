@@ -9,7 +9,6 @@
  */
 import { z } from "zod";
 
-import type { ActiveSessionInitResult } from "../../commands/active/types.js";
 import type { Probe } from "../../commands/status/types.js";
 import {
   COMPACTION_SEED_LOCUS_HINT_FIELDS,
@@ -42,7 +41,6 @@ import {
 
 /** Stop reason categories emitted by the recovery audit. */
 export const RecoveryAuditStopKindSchema = z.enum([
-  "active-unresolved",
   "branch-mismatch",
   "branch-unresolved",
   "dirty-unresolved",
@@ -170,7 +168,6 @@ export type RecoveryAuditVerdict = z.infer<typeof RecoveryAuditVerdictSchema>;
 export interface RecoveryAuditProbeState {
   derivedLocusState: Probe<DerivedLocusFrame>;
   recoveryFrame: Probe<RecoveryLocusFrame>;
-  active: Probe<ActiveSessionInitResult>;
   dirty: Probe<DirtyStateResult>;
   loadSet: Probe<LoadSetManifest>;
   taskCursor?: Probe<TaskListCursorFileResult>;

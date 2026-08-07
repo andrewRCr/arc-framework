@@ -677,7 +677,6 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   dirty: probe(DirtyStateValueViewSchema),
   extensions: probe(ExtensionsSessionInitValueViewSchema),
   config: probe(ConfigSessionInitValueViewSchema),
-  active: probe(ActiveSessionInitValueViewSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
   loadSet: probe(LoadSetManifestSchema),
   taskCursor: probe(TaskListCursorFileResultSchema).optional(),

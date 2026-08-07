@@ -40,6 +40,7 @@ export interface CompactionSeedEnvelope {
     currentWorkflow: string | null;
   }>;
   loadSet: SeedProbe<LoadSetManifest>;
+  extensions: SeedProbe<{ active: readonly string[] }>;
   taskCursor?: SeedProbe<TaskListCursorFileResult>;
 }
 
@@ -176,6 +177,7 @@ export async function emitCompactionSeed(
         identity,
         workingMemoryPath: loadSet.entries.find((entry) =>
           entry.path.endsWith("/WORKING-MEMORY.md"))?.path ?? null,
+        activeExtensions: options.envelope.extensions.ok ? options.envelope.extensions.value.active : [],
       });
       loadSet = recovery.loadSet;
       taskCursor = recovery.taskCursor?.status === "found" ? recovery.taskCursor.cursor : null;

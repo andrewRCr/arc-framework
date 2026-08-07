@@ -49,8 +49,9 @@ exact selected row. Never select a second frame from branch shape, metas, anothe
   stop.
 - `entering.kind === "unresolved"` or `entering.row.kind === "unresolved-checkout"` → render the matching
   `locusGuidance` message and stop only this entry operation.
-- `entering.row.kind === "work-unit"` → require `derivedLocusState.value.active.context`; select its workflow,
-  session type, task cursor, cohort, and load set without another meta or load-set read.
+- `entering.row.kind === "work-unit"` with `derivedLocusState.value.active.context` → select its workflow, session
+  type, task cursor, cohort, and load set without another meta or load-set read. A contextless current husk continues
+  to the cleanup orientation below; any other contextless WU renders `locusGuidance` and stops.
 - `entering.row.kind === "transient"` → dispatch from its exact subject and marker/identity facts to the owning
   transient workflow. Partial Errands remain marker-derived and identity-independent.
 - `entering.row.kind === "free-primary" | "unmanaged-checkout" | "retired"` → select no active WU or transient;
@@ -172,8 +173,8 @@ passes over that result:
 
 ### Entry dispatch
 
-Select the entry mode from the selected row's `role` and `derived` projection. `active`, `worktree`, and task
-artifacts remain sync/context inputs; they never select the frame.
+Select the entry mode from the selected row's `kind`, exact `subject`, and optional WU `context`. `active`,
+`worktree`, and task artifacts remain sync/context inputs; they never select the frame.
 
 An **entry seed** may accompany the invocation — an optional spec pointer or description provided at session
 entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
@@ -188,14 +189,17 @@ An **explicit-intent signal** present at invocation is handled by
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) above, which takes precedence over the arm resolution
 here; the arms below are the **signal-absent** path.
 
-- **Transient-resume** — the selected row is an Errand or `partial-errand` role. Dispatch to
-  [run-errand][run-errand] in resume mode using its exact subject and generation. Never route a transient through
-  branch-prefix inference, `sessionType`, or `process-task-loop`.
-- **Unsupported transient** — a selected groom, housekeep, or `partial-housekeep` role has no registered owning
-  verb. Surface the exact retained generation and stop; never reinterpret it as an unclaimed grooming workflow.
-- **Resume** — the selected row is a `work-unit`; continue to the sync channels, then load its reader-derived
-  workflow and load set in Step 3.
-- **Orient** — no entry row is selected. Discovery is the signal-absent intent (the positional seed stays
+- **Errand-resume** — a selected `transient` row whose subject is `errand` or `partial-errand` dispatches to
+  [run-errand][run-errand] in resume mode using its exact subject and generation.
+- **Planning-groom resume** — a selected `transient` row whose subject is `groom` dispatches to
+  [draft-design][draft-design] using its exact subject and generation.
+- **Housekeep resume** — a selected `transient` row whose subject is `housekeep` dispatches to
+  [drain-inbox][drain-inbox] using its exact subject and generation.
+- **Resume** — the selected row is a `work-unit` with a resolved context; continue to the sync channels, then load
+  its reader-derived workflow and load set in Step 3. A contextless current husk selects cleanup orientation; any
+  other contextless WU stops on the CLI-composed guidance.
+- **Orient** — the selected row is `free-primary`, `unmanaged-checkout`, or `retired`. Discovery is the
+  signal-absent intent (the positional seed stays
   orthogonal —
   never "any arg"), with a housekeep soft-offer overlaid when the inbox holds routable captures. An explicit
   `--errand` / `--housekeep` / `--plan` is dispatched by the signal leaf above, before this arm — including the
@@ -394,11 +398,9 @@ second load set from branch or meta discovery.
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
 
-**Transient-resume mode**: a transient row carries no WU context, and top-level `loadSet` is projected
-from the entering checkout's active-meta resolution rather than the transient role — consume neither as this arm's
-load set. Read items 1–6 and WORKING-MEMORY (item 8.2), skip every WU artifact, then load
-[run-errand][run-errand] in resume mode. A selected transient row carrying a `derived` projection stops as a probe
-contract failure.
+**Transient-resume mode**: a transient row carries no WU context. Read items 1–6 and WORKING-MEMORY (item 8.2),
+skip every WU artifact, then load the exact subject's owning workflow selected above. Do not consume the top-level
+WU `loadSet` or select a workflow from branch shape, `sessionType`, or `process-task-loop`.
 
 **Project identity and agent context:**
 
