@@ -423,8 +423,8 @@ describe("local review preparation request", () => {
           { ...request, memberHeadObjectId: context.memberTarget.headSha },
           context.dependencies,
         );
-        // A forgotten selector silently reviews the control branch rather than the
-        // member; on the dirty locus that is normal there, derivation refuses first.
+        // A forgotten selector reviews the control branch rather than the member,
+        // which admits as its own operation instead of colliding with the member's.
         await expect(prepareLocalReview(request, context.dependencies))
           .resolves.toMatchObject({ state: "ready" });
 
