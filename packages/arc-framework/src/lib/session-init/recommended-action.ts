@@ -21,6 +21,10 @@ import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
 import type { RetiredSubdirDetectionResult } from "./retired-subdir-detection.js";
 import type { BehindBaseRelation } from "./in-flight-work-unit-sweep.js";
+import type {
+  CascadeResolution,
+  SessionInitRecoveryValue,
+} from "./branch-gone-cascade.js";
 
 /**
  * Action verb the session-init workflow performs on a sync-pull channel.
@@ -49,6 +53,62 @@ export interface ChannelRecommendation {
   recommendedAction: RecommendedAction;
   /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
   recommendedPromptText: string;
+}
+
+/**
+ * Compose the workflow-facing action and narration for branch-gone recovery.
+ *
+ * @param recovery - Evidence-qualified recovery cascade result.
+ * @param dirty - Current working-tree state used to guard automatic switching.
+ * @returns Recovery result enriched with one workflow-ready action and narration.
+ */
+export function inferBranchGoneRecovery(
+  recovery: CascadeResolution,
+  dirty: DirtyStateResult,
+): SessionInitRecoveryValue {
+  switch (recovery.kind) {
+    case "pending":
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText:
+          "Branch recovery evidence is incomplete. Refresh live in-flight branch evidence, or recover manually.",
+      };
+    case "resolved":
+      if (recovery.candidate.proposedAction === "switch" && dirty.state === "clean") {
+        return { ...recovery, recommendedAction: "switch", recommendedPromptText: "" };
+      }
+      if (recovery.candidate.proposedAction === "external") {
+        return {
+          ...recovery,
+          recommendedAction: "surface",
+          recommendedPromptText: `Recover manually onto \`${recovery.candidate.branch}\`.`,
+        };
+      }
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText: recovery.candidate.proposedAction === "removable"
+          ? `Remove shipped worktree \`${recovery.candidate.worktreePath}\` before recovering?`
+          : `Recover onto \`${recovery.candidate.branch}\`?`,
+      };
+    case "surface":
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText: [
+          "Choose a recovery branch:",
+          ...recovery.candidates.map((candidate) =>
+            `- \`${candidate.branch}\` (${candidate.proposedAction})`),
+        ].join("\n"),
+      };
+    case "main-fallback":
+      return {
+        ...recovery,
+        recommendedAction: "prompt",
+        recommendedPromptText: "Recover onto `main`?",
+      };
+  }
 }
 
 /** Inputs to {@link inferSessionInitRecommendations}. */

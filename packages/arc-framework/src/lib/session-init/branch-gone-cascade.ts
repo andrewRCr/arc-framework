@@ -58,15 +58,103 @@ export const CascadeCandidateSchema = z.discriminatedUnion("proposedAction", [
 /** A recovery destination the cascade can resolve to. */
 export type CascadeCandidate = z.infer<typeof CascadeCandidateSchema>;
 
+/** Structured explicit refresh for an incomplete advertised recovery tier. */
+export const RecoveryRefreshRemedySchema = z.strictObject({
+  argv: z.tuple([z.literal("arc"), z.literal("active"), z.literal("in-flight"), z.literal("--json")]),
+  text: NON_EMPTY_TEXT,
+});
+
+/** Explicit refresh for an incomplete advertised recovery tier. */
+export type RecoveryRefreshRemedy = z.infer<typeof RecoveryRefreshRemedySchema>;
+
 /** Runtime authority for the three branch-gone recovery outcomes. */
+const ResolvedCascadeResolutionSchema = z.strictObject({
+  kind: z.literal("resolved"),
+  remoteEvidence: z.literal("exact"),
+  candidate: CascadeCandidateSchema,
+});
+const SurfaceCascadeResolutionSchema = z.strictObject({
+  kind: z.literal("surface"),
+  remoteEvidence: z.literal("exact"),
+  candidates: z.array(CascadeCandidateSchema).min(2),
+});
+const MainFallbackCascadeResolutionSchema = z.strictObject({
+  kind: z.literal("main-fallback"),
+  remoteEvidence: z.literal("exact"),
+});
+const PendingCascadeResolutionSchema = z.strictObject({
+  kind: z.literal("pending"),
+  remoteEvidence: z.literal("pending-fetch"),
+  candidates: z.array(CascadeCandidateSchema),
+  pendingBranchCount: z.number().int().positive(),
+  refreshRemedy: RecoveryRefreshRemedySchema,
+});
+
 export const CascadeResolutionSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("resolved"), candidate: CascadeCandidateSchema }),
-  z.strictObject({ kind: z.literal("surface"), candidates: z.array(CascadeCandidateSchema).min(2) }),
-  z.strictObject({ kind: z.literal("main-fallback") }),
+  ResolvedCascadeResolutionSchema,
+  SurfaceCascadeResolutionSchema,
+  MainFallbackCascadeResolutionSchema,
+  PendingCascadeResolutionSchema,
 ]);
 
 /** Outcome of the recovery cascade. */
 export type CascadeResolution = z.infer<typeof CascadeResolutionSchema>;
+
+const RecoveryRecommendationFields = {
+  recommendedAction: z.enum(["switch", "prompt", "surface"]),
+  recommendedPromptText: z.string(),
+};
+
+/** Workflow-facing recovery result with CLI-composed dispatch and narration. */
+export const SessionInitRecoveryValueSchema = z.discriminatedUnion("kind", [
+  ResolvedCascadeResolutionSchema.extend(RecoveryRecommendationFields),
+  SurfaceCascadeResolutionSchema.extend(RecoveryRecommendationFields),
+  MainFallbackCascadeResolutionSchema.extend(RecoveryRecommendationFields),
+  PendingCascadeResolutionSchema.extend(RecoveryRecommendationFields),
+]).superRefine((value, context) => {
+  const action = value.recommendedAction;
+  const textIsEmpty = value.recommendedPromptText.trim().length === 0;
+  const expectedAction = value.kind === "resolved"
+    ? value.candidate.proposedAction === "external"
+      ? "surface"
+      : value.candidate.proposedAction === "removable"
+        ? "prompt"
+        : null
+    : "prompt";
+
+  if (expectedAction !== null && action !== expectedAction) {
+    context.addIssue({
+      code: "custom",
+      path: ["recommendedAction"],
+      message: `must be ${expectedAction} for this recovery outcome`,
+    });
+  }
+  if (value.kind === "resolved" && value.candidate.proposedAction === "switch") {
+    if (action === "surface") {
+      context.addIssue({
+        code: "custom",
+        path: ["recommendedAction"],
+        message: "must be switch or prompt for an exact switch candidate",
+      });
+    }
+    if ((action === "switch") !== textIsEmpty) {
+      context.addIssue({
+        code: "custom",
+        path: ["recommendedPromptText"],
+        message: "must be empty only for an automatic switch",
+      });
+    }
+  } else if (textIsEmpty) {
+    context.addIssue({
+      code: "custom",
+      path: ["recommendedPromptText"],
+      message: "must carry explicit recovery guidance",
+    });
+  }
+});
+
+/** Workflow-facing recovery result with CLI-composed dispatch and narration. */
+export type SessionInitRecoveryValue = z.infer<typeof SessionInitRecoveryValueSchema>;
 
 /** Candidate tiers, supplied in confidence order. */
 export interface ResolveCascadeInput {
@@ -81,6 +169,8 @@ export interface ResolveCascadeInput {
    * `worktreeCandidates` excluded).
    */
   recentBranchCandidates: CascadeCandidate[];
+  /** Eligible advertised heads whose objects are not locally available. */
+  pendingBranchCount?: number;
 }
 
 /**
@@ -93,11 +183,26 @@ export interface ResolveCascadeInput {
  * @returns The resolved outcome
  */
 export function resolveCascade(input: ResolveCascadeInput): CascadeResolution {
-  for (const tier of [input.worktreeCandidates, input.recentBranchCandidates]) {
-    const resolution = resolveTier(tier);
-    if (resolution !== null) return resolution;
+  const worktreeResolution = resolveTier(input.worktreeCandidates);
+  if (worktreeResolution !== null) return worktreeResolution;
+  if ((input.pendingBranchCount ?? 0) > 0) {
+    return {
+      kind: "pending",
+      remoteEvidence: "pending-fetch",
+      candidates: input.recentBranchCandidates,
+      pendingBranchCount: input.pendingBranchCount ?? 0,
+      refreshRemedy: composeRecoveryRefreshRemedy(),
+    };
   }
-  return { kind: "main-fallback" };
+  return resolveTier(input.recentBranchCandidates) ?? { kind: "main-fallback", remoteEvidence: "exact" };
+}
+
+/** Compose the exact live expansion action used by pending recovery. */
+export function composeRecoveryRefreshRemedy(): RecoveryRefreshRemedy {
+  return {
+    argv: ["arc", "active", "in-flight", "--json"],
+    text: "Refresh live in-flight branch evidence.",
+  };
 }
 
 /**
@@ -109,9 +214,9 @@ function resolveTier(candidates: CascadeCandidate[]): CascadeResolution | null {
   if (candidates.length === 0) return null;
   const [first] = candidates;
   if (candidates.length === 1 && first !== undefined) {
-    return { kind: "resolved", candidate: first };
+    return { kind: "resolved", remoteEvidence: "exact", candidate: first };
   }
-  return { kind: "surface", candidates };
+  return { kind: "surface", remoteEvidence: "exact", candidates };
 }
 
 /** Signals for determining a recovery candidate's proposed action. */

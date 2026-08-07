@@ -58,6 +58,7 @@ import type { UserSessionInitStatusResult } from "../user/types.js";
 import {
   inferBaseBranchSync,
   inferBaseDistance,
+  inferBranchGoneRecovery,
   inferRetiredSubdirs,
   inferSessionInitRecommendations,
   type BaseBranchSyncPullPolicy,
@@ -372,10 +373,14 @@ export async function runSessionInitStatus(
   // roster gate (branch-gone only). It consumes the roster resolved just above,
   // so one roster computation feeds every consumer and recovery fires only when
   // the worktree is branch-gone and the roster resolved.
-  const recovery =
+  const rawRecovery =
     worktree.isOk() && worktree.value.state === "branch-gone" && roster?.isOk()
       ? await safeProbe("recovery", () => probes.recovery(roster.value, worktree.value.branch))
       : undefined;
+  const recovery = rawRecovery?.map((value) => inferBranchGoneRecovery(
+    value,
+    dirty.isOk() ? dirty.value : { state: "dirty", fileCount: 0 },
+  ));
 
   // Residue sweep — consumes the public roster in the primary worktree and the
   // private cleanup-only roster in a linked worktree. The private value never

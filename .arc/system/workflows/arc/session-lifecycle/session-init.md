@@ -71,23 +71,18 @@ row, and run the conditional sync pulls for arms that continue into context-load
 When `worktree.value.state == "branch-gone"`, align git state _before_ anything reads against the working
 branch. The upstream was deleted (the branch shipped elsewhere), so the notes pull here and Step 3's
 context-load would otherwise surface metas and companion files that don't exist on the recovered branch.
-The `recovery` slot carries pre-computed candidates (no scanning across turns). One arm recovers without
-asking; every other renders a single recovery prompt, branched on `recovery.value.kind`:
+The `recovery` slot carries pre-computed candidates, evidence, action, and narration (no scanning or comparison
+across turns). Dispatch on `recovery.value.recommendedAction` and render `recommendedPromptText` verbatim:
 
-- `resolved` + `proposedAction: switch` + `dirty.value.state == "clean"` — switch and report it in
-  orientation rather than prompting. Step 7 designates a cleanly-resolved roster mismatch
-  auto-recover-with-notice and names this mechanism as its own example; the switch is reversible in one turn
-  and no uncommitted work is at risk.
-- `resolved` on any other `proposedAction`, or against a dirty tree — offer the one candidate directly; when
-  its `proposedAction` is `removable`, offer to remove the shipped worktree and archive its meta instead of
-  switching (`external` candidates are surfaced, not acted on).
-- `surface` — list each candidate's `branch` + `proposedAction` for the operator to choose, never guessing.
-- `main-fallback` — offer `main`.
+- `switch` — switch to the resolved candidate and report it in orientation. The CLI emits this only for an exact,
+  clean, reversible switch with no uncommitted work at risk.
+- `prompt` — ask once with the pre-composed text. On acceptance, a `pending` result invokes its exact
+  `refreshRemedy.argv` and re-runs Step 1; `resolved`, `surface`, and `main-fallback` retain their candidate,
+  operator-choice, and `main` recovery actions respectively.
+- `surface` — render the pre-composed manual-recovery guidance and do not act.
 
-```text
-**Branch gone:** `{branch}`'s upstream was deleted on `origin`. Recover onto `{candidate.branch}`?
-(surface → list candidates, ask which; main-fallback → switch to `main`?)
-```
+Do not compare `remoteEvidence`, pending counts, candidate counts, or dirt in workflow prose. The CLI owns those
+combinations; pending evidence offers only its explicit refresh or manual recovery.
 
 On a switch, fetch the target first when it is a remote branch not yet checked out locally, then **re-run the
 Step 1 probe** so the entry dispatch below and Step 3 read against the recovered branch — the re-probed

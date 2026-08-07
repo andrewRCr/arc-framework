@@ -16,7 +16,7 @@
  */
 
 import type { GitExec } from "../git/exec.js";
-import { isLandedInBase } from "../git/branch-containment.js";
+import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import {
   decideHuskCleanup,
   decideWorktreeCleanup,
@@ -46,9 +46,13 @@ import {
   nodeUserSurfaceMigrationFs,
   type UserSurfaceMigrationFs,
 } from "../user-surface-migration.js";
-import { isShippedWorkUnit, readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
 import {
-  revalidateDecodedHuskRetirementEvidence,
+  isShippedWorkUnit,
+  readShippedWorkUnitsFromExactRef,
+  readShippedWorkUnitsFromRef,
+} from "../work-unit/completed-index.js";
+import {
+  revalidateDecodedHuskRetirementEvidenceStrict,
   type TeardownBlobReader,
 } from "../work-unit/teardown-retirement-driver.js";
 import {
@@ -58,6 +62,11 @@ import {
   type RenameMoveResidue,
 } from "./lifecycle-residue-sweep.js";
 import { locusWorkUnitAtPath } from "./locus-classification.js";
+import {
+  projectCleanupRemoteEvidence,
+  type CleanupBaseEvidence,
+  type CleanupRemoteEvidence,
+} from "./cleanup-remote-evidence.js";
 
 export interface StaleWorktreeSweepInput {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
@@ -98,13 +107,15 @@ export function findStaleWorktreeCandidates(
   };
 }
 
+/** Incomplete evidence blocks cleanup without claiming a negative merge proof. */
+export type EvidenceUnavailableDecision = { action: "blocked"; reason: "evidence-unavailable" };
 /** One swept worktree paired with its marker-gated cleanup disposition. */
 export type StaleWorktreeReport =
   | {
       kind: "branched";
       worktreePath: string;
       branch: string;
-      decision: WorktreeCleanupDecision;
+      decision: WorktreeCleanupDecision | EvidenceUnavailableDecision;
     }
   | {
       kind: "husk";
@@ -114,10 +125,10 @@ export type StaleWorktreeReport =
       stampedBranch: string;
       stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
-      decision: HuskCleanupDecision;
+      decision: HuskCleanupDecision | EvidenceUnavailableDecision;
     };
 
-export interface StaleWorktreeSweepResult {
+export type StaleWorktreeSweepResult = CleanupRemoteEvidence & {
   /** Lingering shipped-WU worktrees, each with its cleanup disposition. */
   worktrees: StaleWorktreeReport[];
   /** Validated deferred rename moves that can run only from outside their source worktrees. */
@@ -126,7 +137,7 @@ export interface StaleWorktreeSweepResult {
   retirements: LandedRetirementResidue[];
   /** Roster warnings, passed through untouched. */
   warnings: string[];
-}
+};
 
 export interface RunStaleWorktreeSweepOptions {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
@@ -135,6 +146,8 @@ export interface RunStaleWorktreeSweepOptions {
   worktreeIdentity: WorktreeIdentity;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
   baseBranch: string;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers pending composition cutover. */
+  baseEvidence?: CleanupBaseEvidence;
   exec: GitExec;
   /** Reads a worktree's ownership marker; injected for testability. */
   readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
@@ -156,6 +169,7 @@ export interface RunStaleWorktreeSweepOptions {
   revalidateEvidence?: (
     stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>,
     decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>,
+    baseOid: string,
   ) => Promise<boolean>;
   /** Complete derived checkout roster; null suppresses cleanup offers. */
   derivedRoster: readonly DerivedCheckoutRow[] | null;
@@ -178,11 +192,11 @@ export async function runStaleWorktreeSweep(
   const readMarker = options.readMarker ?? readWorktreeMarker;
   const userSurfaceFs = options.userSurfaceFs ?? nodeUserSurfaceMigrationFs;
   const integrationTarget = `origin/${baseBranch}`;
-  const evidenceBaseRef = options.protection === "full" ? integrationTarget : baseBranch;
+  const projectedEvidence = projectCleanupRemoteEvidence(baseBranch, options.baseEvidence);
 
   const derivedRoster = options.derivedRoster;
   if (derivedRoster === null) {
-    return { worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
+    return { ...projectedEvidence, worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
   if (
@@ -190,12 +204,54 @@ export async function runStaleWorktreeSweep(
     && options.teamMode === true
     && (options.identity === null || options.identity === undefined)
   ) {
-    return { worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
+    return { ...projectedEvidence, worktrees: [], renameMoves: [], retirements: [], warnings: roster.warnings };
   }
 
-  const shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
+  let shipped: ReadonlySet<string>;
+  let mergeBase = integrationTarget;
+  let exactBaseOid: string | null = null;
+  let analysisExec = exec;
+  const baseEvidence = options.baseEvidence;
+  if (baseEvidence === undefined) {
+    shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
+  } else if (!baseEvidence.remoteSyncEnabled || baseEvidence.snapshot.kind === "unreachable") {
+    shipped = new Set();
+  } else {
+    const baseOid = baseEvidence.snapshot.tips[baseBranch];
+    if (baseOid === undefined) {
+      shipped = new Set();
+    } else {
+      if (baseEvidence.objectAvailability.kind !== "complete") {
+        throw new Error("Advertised stale-worktree object availability could not be inspected.");
+      }
+      const baseCommitIsLocal = baseEvidence.objectAvailability.commits[baseOid];
+      if (baseCommitIsLocal === false) {
+        shipped = new Set();
+      } else {
+        if (baseCommitIsLocal === undefined) {
+          throw new Error("The advertised base commit has no local availability fact.");
+        }
+        if (baseEvidence.history.kind === "shallow") {
+          shipped = new Set();
+        } else {
+          if (baseEvidence.history.kind !== "complete") {
+            throw new Error("Local stale-worktree history completeness could not be inspected.");
+          }
+          analysisExec = (command, args, execOptions) => exec(command, args, {
+            ...execOptions,
+            objectAccess: "local-only",
+          });
+          mergeBase = baseOid;
+          exactBaseOid = baseOid;
+          shipped = await readShippedWorkUnitsFromExactRef(analysisExec, baseOid);
+        }
+      }
+    }
+  }
   const selected = worktreeIdentity.kind === "primary"
-    ? findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
+    ? baseEvidence !== undefined && exactBaseOid === null
+      ? { candidates: [...roster.entries], warnings: roster.warnings }
+      : findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
     : { candidates: [], warnings: roster.warnings };
   const warnings = [...selected.warnings];
   const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
@@ -218,25 +274,33 @@ export async function runStaleWorktreeSweep(
       const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
         readMarker(entry.worktreePath),
         isWorktreeClean({ exec, cwd: entry.worktreePath }),
-        isLandedInBase(exec, entry.branch, integrationTarget),
+        exactBaseOid === null
+          ? Promise.resolve(false)
+          : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
         linkedIdentityGlobalUserSurfacesAreSafe({
           primaryWorktreePath,
           worktreePath: entry.worktreePath,
           fs: userSurfaceFs,
         }),
       ]);
+      const localDecision = decideWorktreeCleanup({ marker, clean, userSurfacesSafe, merged, context: "shipped" });
+      const decision = exactBaseOid === null
+        && localDecision.action === "blocked"
+        && localDecision.reason === "unmerged"
+        ? { action: "blocked" as const, reason: "evidence-unavailable" as const }
+        : localDecision;
       return {
         kind: "branched" as const,
         worktreePath: entry.worktreePath,
         branch: entry.branch,
-        decision: decideWorktreeCleanup({ marker, clean, userSurfacesSafe, merged, context: "shipped" }),
+        decision,
       };
     }),
   );
 
   if (!scan.ok) {
     warnings.push(`Could not scan registered worktrees: ${scan.message}`);
-    return { worktrees, renameMoves: [], retirements: [], warnings };
+    return { ...projectedEvidence, worktrees, renameMoves: [], retirements: [], warnings };
   }
 
   const renameMoves: RenameMoveResidue[] = [];
@@ -272,6 +336,7 @@ export async function runStaleWorktreeSweep(
     protection: options.protection ?? "partial",
     exec,
     readBlob: options.readBlob,
+    ...(options.baseEvidence === undefined ? {} : { baseEvidence: options.baseEvidence }),
   });
   warnings.push(...retirementSweep.warnings);
 
@@ -297,23 +362,30 @@ export async function runStaleWorktreeSweep(
     const stamp = marker.marker.husk;
     const clean = await isWorktreeClean({ exec, cwd: entry.path });
     let decoded = decodeWorktreeHuskStamp(stamp);
-    let decision = decideHuskCleanup({ marker, clean, head: entry.head });
-    const evidenceValid = decoded.kind !== "current"
-      || await (options.revalidateEvidence === undefined
-        ? revalidateDecodedHuskRetirementEvidence(
-          exec,
-          stamp,
-          decoded,
-          evidenceBaseRef,
-          options.readBlob,
-        )
-        : options.revalidateEvidence(stamp, decoded));
-    if (
+    let decision: HuskCleanupDecision | EvidenceUnavailableDecision = decideHuskCleanup({ marker, clean, head: entry.head });
+    let evidenceValid = decoded.kind !== "current";
+    let evidenceUnavailable = false;
+    if (decoded.kind === "current") {
+      if (exactBaseOid === null) {
+        evidenceUnavailable = true;
+        warnings.push(`Retirement evidence at ${entry.path} could not be revalidated without exact base evidence.`);
+      } else {
+        evidenceValid = await (options.revalidateEvidence === undefined
+          ? revalidateDecodedHuskRetirementEvidenceStrict(exec, stamp, decoded, exactBaseOid, options.readBlob)
+          : options.revalidateEvidence(stamp, decoded, exactBaseOid));
+      }
+    }
+    if (decoded.kind === "current" && evidenceUnavailable) {
+      decision = { action: "blocked", reason: "evidence-unavailable" };
+    } else if (
       decoded.kind === "current"
       && !evidenceValid
     ) {
       decoded = { kind: "manual-only", reason: "evidence-mismatch" };
       decision = { action: "blocked", reason: "evidence-mismatch" };
+    }
+    if (exactBaseOid === null && decision.action === "removable") {
+      decision = { action: "blocked", reason: "evidence-unavailable" };
     }
     worktrees.push({
       kind: "husk",
@@ -331,6 +403,7 @@ export async function runStaleWorktreeSweep(
   }
 
   return {
+    ...projectedEvidence,
     worktrees,
     renameMoves,
     retirements: retirementSweep.retirements,

@@ -121,36 +121,50 @@ export async function validateGitRetirementReceiptEvidence(
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<boolean> {
   try {
-    // Generic retirement receipts deliberately carry no decomposition authority.
-    // A finalized v3 receipt is validated by its dedicated exact-base consumer.
-    if (input.evidence.transition === "decompose") return false;
-    const recordRef = input.retiringHead;
-    const receipt = await readEnumeratedReceipt(exec, recordRef, input.evidence.receiptId);
-    if (
-      receipt === null
-      || receipt.transition !== input.evidence.transition
-      || !worktreeSubjectsEqual(receipt.subject, input.subject)
-      || receipt.source.branch !== input.branch
-      || receipt.authorization !== input.authorization
-      || canonicalDigest(receipt.result) !== input.evidence.resultDigest
-      || validateReceiptMatrix(receipt, input.evidence.expectedLifecycle) !== null
-    ) return false;
-    const projection = {
-      retiringHead: input.retiringHead,
-      resultHead: input.evidence.transition === "abandon"
-        ? input.retiringHead
-        : baseRef,
-    };
-    const relation = await validateRetirementReceiptRelation(
-      createRelationContext(exec, readBlob),
-      receipt,
-      projection,
-    );
-    if (relation !== null) return false;
-    return await validateReceiptResult(exec, receipt, projection, readBlob) === null;
+    return await validateGitRetirementReceiptEvidenceStrict(exec, baseRef, input, readBlob);
   } catch {
     return false;
   }
+}
+
+/** Validate receipt-backed husk evidence while preserving unexpected local failures. */
+export async function validateGitRetirementReceiptEvidenceStrict(
+  exec: GitExec,
+  baseRef: string,
+  input: {
+    subject: WorktreeSubject;
+    branch: string;
+    retiringHead: string;
+    authorization: HuskAuthorization;
+    evidence: Extract<RetirementEvidenceRef, { kind: "receipt" }>;
+  },
+  readBlob: RetirementAuthorizationBlobReader,
+): Promise<boolean> {
+  // Generic retirement receipts deliberately carry no decomposition authority.
+  // A finalized v3 receipt is validated by its dedicated exact-base consumer.
+  if (input.evidence.transition === "decompose") return false;
+  const recordRef = input.retiringHead;
+  const receipt = await readEnumeratedReceipt(exec, recordRef, input.evidence.receiptId);
+  if (
+    receipt === null
+    || receipt.transition !== input.evidence.transition
+    || !worktreeSubjectsEqual(receipt.subject, input.subject)
+    || receipt.source.branch !== input.branch
+    || receipt.authorization !== input.authorization
+    || canonicalDigest(receipt.result) !== input.evidence.resultDigest
+    || validateReceiptMatrix(receipt, input.evidence.expectedLifecycle) !== null
+  ) return false;
+  const projection = {
+    retiringHead: input.retiringHead,
+    resultHead: input.evidence.transition === "abandon" ? input.retiringHead : baseRef,
+  };
+  const relation = await validateRetirementReceiptRelation(
+    createRelationContext(exec, readBlob),
+    receipt,
+    projection,
+  );
+  if (relation !== null) return false;
+  return await validateReceiptResult(exec, receipt, projection, readBlob) === null;
 }
 
 function createRelationContext(

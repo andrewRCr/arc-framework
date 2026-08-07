@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   CascadeCandidateSchema,
   CascadeResolutionSchema,
+  SessionInitRecoveryValueSchema,
   determineCandidateAction,
   resolveCascade,
   type CandidateAction,
@@ -25,7 +26,7 @@ describe("resolveCascade", () => {
       recentBranchCandidates: [],
     });
 
-    expect(result).toEqual({ kind: "resolved", candidate: only });
+    expect(result).toEqual({ kind: "resolved", remoteEvidence: "exact", candidate: only });
   });
 
   it("surfaces every candidate (no guess) when the worktree tier is ambiguous", () => {
@@ -37,7 +38,7 @@ describe("resolveCascade", () => {
       recentBranchCandidates: [],
     });
 
-    expect(result).toEqual({ kind: "surface", candidates: [a, b] });
+    expect(result).toEqual({ kind: "surface", remoteEvidence: "exact", candidates: [a, b] });
   });
 
   it("trivially resolves the single-worktree case (one entry, one identity match)", () => {
@@ -50,7 +51,7 @@ describe("resolveCascade", () => {
       recentBranchCandidates: [],
     });
 
-    expect(result).toEqual({ kind: "resolved", candidate: lone });
+    expect(result).toEqual({ kind: "resolved", remoteEvidence: "exact", candidate: lone });
   });
 
   it("falls back to main when no tier has a candidate", () => {
@@ -59,7 +60,26 @@ describe("resolveCascade", () => {
       recentBranchCandidates: [],
     });
 
-    expect(result).toEqual({ kind: "main-fallback" });
+    expect(result).toEqual({ kind: "main-fallback", remoteEvidence: "exact" });
+  });
+
+  it("returns pending instead of falling back when eligible advertised objects are missing", () => {
+    const result = resolveCascade({
+      worktreeCandidates: [],
+      recentBranchCandidates: [],
+      pendingBranchCount: 2,
+    });
+
+    expect(result).toEqual({
+      kind: "pending",
+      remoteEvidence: "pending-fetch",
+      candidates: [],
+      pendingBranchCount: 2,
+      refreshRemedy: {
+        argv: ["arc", "active", "in-flight", "--json"],
+        text: "Refresh live in-flight branch evidence.",
+      },
+    });
   });
 
   it("falls through to recent branches when the worktree tier is empty (single → resolved)", () => {
@@ -70,7 +90,7 @@ describe("resolveCascade", () => {
       recentBranchCandidates: [recent],
     });
 
-    expect(result).toEqual({ kind: "resolved", candidate: recent });
+    expect(result).toEqual({ kind: "resolved", remoteEvidence: "exact", candidate: recent });
   });
 
   it("surfaces recent branches when the worktree tier is empty and several recent branches exist", () => {
@@ -82,7 +102,7 @@ describe("resolveCascade", () => {
       recentBranchCandidates: [r1, r2],
     });
 
-    expect(result).toEqual({ kind: "surface", candidates: [r1, r2] });
+    expect(result).toEqual({ kind: "surface", remoteEvidence: "exact", candidates: [r1, r2] });
   });
 
   it("prefers the worktree tier over recent branches — the first non-empty tier wins", () => {
@@ -95,7 +115,7 @@ describe("resolveCascade", () => {
       recentBranchCandidates: [recent1, recent2],
     });
 
-    expect(result).toEqual({ kind: "resolved", candidate: wt });
+    expect(result).toEqual({ kind: "resolved", remoteEvidence: "exact", candidate: wt });
   });
 });
 
@@ -196,11 +216,22 @@ describe("CascadeResolutionSchema", () => {
     worktreePath: "/wt/shipped",
     proposedAction: "removable",
   });
+  const pendingResolution = {
+    kind: "pending",
+    remoteEvidence: "pending-fetch",
+    candidates: [switchCandidate],
+    pendingBranchCount: 1,
+    refreshRemedy: {
+      argv: ["arc", "active", "in-flight", "--json"],
+      text: "Refresh live in-flight branch evidence.",
+    },
+  } as const;
 
   it.each([
-    { kind: "resolved", candidate: switchCandidate },
-    { kind: "surface", candidates: [switchCandidate, removableCandidate] },
-    { kind: "main-fallback" },
+    { kind: "resolved", remoteEvidence: "exact", candidate: switchCandidate },
+    { kind: "surface", remoteEvidence: "exact", candidates: [switchCandidate, removableCandidate] },
+    { kind: "main-fallback", remoteEvidence: "exact" },
+    pendingResolution,
   ])("accepts each resolution kind", (resolution) => {
     expect(CascadeResolutionSchema.safeParse(resolution).success).toBe(true);
   });
@@ -215,14 +246,70 @@ describe("CascadeResolutionSchema", () => {
   });
 
   it("requires at least two candidates for a surfaced choice", () => {
-    expect(CascadeResolutionSchema.safeParse({ kind: "surface", candidates: [switchCandidate] }).success).toBe(false);
+    expect(CascadeResolutionSchema.safeParse({
+      kind: "surface",
+      remoteEvidence: "exact",
+      candidates: [switchCandidate],
+    }).success).toBe(false);
+  });
+
+  it("requires a positive pending count and the exact live-refresh remedy", () => {
+    expect(CascadeResolutionSchema.safeParse({ ...pendingResolution, pendingBranchCount: 0 }).success).toBe(false);
+    expect(CascadeResolutionSchema.safeParse({
+      ...pendingResolution,
+      refreshRemedy: { ...pendingResolution.refreshRemedy, argv: ["git", "fetch"] },
+    }).success).toBe(false);
   });
 
   it.each([
-    { kind: "resolved", candidate: switchCandidate, candidates: [switchCandidate] },
-    { kind: "surface", candidates: [switchCandidate, removableCandidate], candidate: switchCandidate },
-    { kind: "main-fallback", candidate: switchCandidate },
+    { kind: "resolved", remoteEvidence: "exact", candidate: switchCandidate, candidates: [switchCandidate] },
+    {
+      kind: "surface",
+      remoteEvidence: "exact",
+      candidates: [switchCandidate, removableCandidate],
+      candidate: switchCandidate,
+    },
+    { kind: "main-fallback", remoteEvidence: "exact", candidate: switchCandidate },
   ])("rejects fields from another resolution kind", (resolution) => {
     expect(CascadeResolutionSchema.safeParse(resolution).success).toBe(false);
+  });
+});
+
+describe("SessionInitRecoveryValueSchema", () => {
+  it("accepts only a prompt with explicit guidance for pending evidence", () => {
+    const pending = {
+      kind: "pending",
+      remoteEvidence: "pending-fetch",
+      candidates: [],
+      pendingBranchCount: 1,
+      refreshRemedy: {
+        argv: ["arc", "active", "in-flight", "--json"],
+        text: "Refresh live in-flight branch evidence.",
+      },
+      recommendedAction: "prompt",
+      recommendedPromptText: "Refresh live evidence, or recover manually.",
+    } as const;
+
+    expect(SessionInitRecoveryValueSchema.safeParse(pending).success).toBe(true);
+    expect(SessionInitRecoveryValueSchema.safeParse({
+      ...pending,
+      recommendedAction: "switch",
+    }).success).toBe(false);
+    expect(SessionInitRecoveryValueSchema.safeParse({
+      ...pending,
+      recommendedPromptText: "",
+    }).success).toBe(false);
+  });
+
+  it("limits an exact switch candidate to automatic switch or a composed prompt", () => {
+    const resolved = {
+      kind: "resolved",
+      remoteEvidence: "exact",
+      candidate: { branch: "feat/live", proposedAction: "switch" },
+      recommendedAction: "surface",
+      recommendedPromptText: "Recover manually.",
+    } as const;
+
+    expect(SessionInitRecoveryValueSchema.safeParse(resolved).success).toBe(false);
   });
 });

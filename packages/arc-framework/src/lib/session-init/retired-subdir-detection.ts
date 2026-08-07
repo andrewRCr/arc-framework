@@ -26,6 +26,9 @@ import { serialize, type ReadDirFn, type ReadFileFn, type SyncManifest } from ".
 import { SlugSchema } from "../kernel/index.js";
 import { planRetiredSubdirReconcile, subdirsFromPaths } from "../user-sync/index.js";
 import { readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
+import { readShippedWorkUnitsFromExactRef } from "../work-unit/completed-index.js";
+import type { ObjectAvailabilityResult } from "../git/object-availability.js";
+import type { RemoteHeadSnapshotResult } from "../git/remote-ref-reader.js";
 
 export interface RunRetiredSubdirDetectionOptions {
   /** Repository root containing `.arc/`. */
@@ -52,6 +55,43 @@ export const RetiredSubdirDetectionResultSchema = z.strictObject({
 
 /** Retired work-unit user subdirectories lingering locally. */
 export type RetiredSubdirDetectionResult = z.infer<typeof RetiredSubdirDetectionResultSchema>;
+
+/** Supplied prerequisites for retired-subdirectory analysis against advertised base evidence. */
+export interface AnalyzeRetiredSubdirSnapshotOptions {
+  exec: GitExec;
+  localSubdirs: readonly string[];
+  baseBranch: string;
+  remoteSyncEnabled: boolean;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+}
+
+/** Analyze retired subdirectories from one immutable advertised base snapshot. */
+export async function analyzeRetiredSubdirSnapshot(
+  options: AnalyzeRetiredSubdirSnapshotOptions,
+): Promise<RetiredSubdirDetectionResult> {
+  if (!options.remoteSyncEnabled || options.snapshot.kind === "unreachable") return { candidates: [] };
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) return { candidates: [] };
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return { candidates: [] };
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const shipped = await readShippedWorkUnitsFromExactRef(localOnlyExec, baseOid);
+  const { reconcile } = planRetiredSubdirReconcile({
+    localSubdirs: [...options.localSubdirs],
+    shipped,
+  });
+  return { candidates: reconcile.map((candidate) => SlugSchema.parse(candidate)) };
+}
 
 /**
  * Detect retired-WU user subdirs lingering under `user/{identity}/`.

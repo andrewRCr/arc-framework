@@ -12,7 +12,7 @@
  * @module
  */
 
-import { isLandedInBase } from "../git/branch-containment.js";
+import { isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
 import { isWorktreeClean } from "../git/worktree-cleanup.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
@@ -33,6 +33,7 @@ import {
   type CascadeCandidate,
   type CascadeResolution,
 } from "./branch-gone-cascade.js";
+import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
 
 /**
  * Recency window for the fallback remote-branch tier, in days. A fixed
@@ -50,6 +51,10 @@ export interface RunBranchGoneRecoveryOptions {
   baseBranch: string;
   /** Recently-active remote branch short-names, newest first, from the recency probe. */
   recentBranches: string[];
+  /** Eligible advertised branch tips whose objects are not locally available. */
+  recentPendingBranchCount?: number;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers pending composition cutover. */
+  baseEvidence?: CleanupBaseEvidence;
   exec: GitExec;
   /** Reads a worktree's ownership marker; injected for testability. */
   readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
@@ -75,7 +80,15 @@ export async function runBranchGoneRecovery(
 
   const worktreeCandidates = await Promise.all(
     worktreeEntries.map((entry) =>
-      buildWorktreeCandidate(entry, { exec, readMarker, userSurfaceFs, integrationTarget, primaryWorktreePath }),
+      buildWorktreeCandidate(entry, {
+        exec,
+        readMarker,
+        userSurfaceFs,
+        integrationTarget,
+        primaryWorktreePath,
+        baseBranch,
+        baseEvidence: options.baseEvidence,
+      }),
     ),
   );
 
@@ -90,7 +103,11 @@ export async function runBranchGoneRecovery(
     )
     .map((branch) => ({ branch, proposedAction: "switch" }));
 
-  return resolveCascade({ worktreeCandidates, recentBranchCandidates });
+  return resolveCascade({
+    worktreeCandidates,
+    recentBranchCandidates,
+    pendingBranchCount: options.recentPendingBranchCount,
+  });
 }
 
 interface CandidateContext {
@@ -99,6 +116,8 @@ interface CandidateContext {
   userSurfaceFs: UserSurfaceMigrationFs;
   integrationTarget: string;
   primaryWorktreePath: string | null;
+  baseBranch: string;
+  baseEvidence?: CleanupBaseEvidence;
 }
 
 async function buildWorktreeCandidate(
@@ -114,7 +133,7 @@ async function buildWorktreeCandidate(
   const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
     ctx.readMarker(entry.worktreePath),
     isWorktreeClean({ exec: ctx.exec, cwd: entry.worktreePath }),
-    isLandedInBase(ctx.exec, entry.branch, ctx.integrationTarget),
+    resolveCandidateMerged(ctx, entry.branch),
     linkedIdentityGlobalUserSurfacesAreSafe({
       primaryWorktreePath: ctx.primaryWorktreePath,
       worktreePath: entry.worktreePath,
@@ -125,6 +144,37 @@ async function buildWorktreeCandidate(
   return {
     branch: entry.branch,
     worktreePath: entry.worktreePath,
-    proposedAction: determineCandidateAction({ isMainOrAdmin: false, marker, clean, userSurfacesSafe, merged }),
+    proposedAction: determineCandidateAction({
+      isMainOrAdmin: false,
+      marker,
+      clean,
+      userSurfacesSafe,
+      merged: merged ?? false,
+    }),
   };
+}
+
+async function resolveCandidateMerged(ctx: CandidateContext, branch: string): Promise<boolean | null> {
+  const evidence = ctx.baseEvidence;
+  if (evidence === undefined) return isLandedInBase(ctx.exec, branch, ctx.integrationTarget);
+  if (!evidence.remoteSyncEnabled || evidence.snapshot.kind === "unreachable") return null;
+  const baseOid = evidence.snapshot.tips[ctx.baseBranch];
+  if (baseOid === undefined) return null;
+  if (evidence.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised recovery object availability could not be inspected.");
+  }
+  const baseCommitIsLocal = evidence.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return null;
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised recovery base commit has no local availability fact.");
+  }
+  if (evidence.history.kind === "shallow") return null;
+  if (evidence.history.kind !== "complete") {
+    throw new Error("Local recovery history completeness could not be inspected.");
+  }
+  const localOnlyExec: GitExec = (command, args, options) => ctx.exec(command, args, {
+    ...options,
+    objectAccess: "local-only",
+  });
+  return isLandedInBaseStrict(localOnlyExec, branch, baseOid);
 }
