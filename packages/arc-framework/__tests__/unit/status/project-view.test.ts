@@ -319,7 +319,7 @@ describe("composeProjectReadinessView", () => {
     const input = await resolveProjectReadinessViewInput({
       cwd: root,
       title: "Roadmap",
-      localRefs: { exec, baseBranch: "main" },
+      localRefs: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
     const view = composeProjectReadinessView({
       ...input,
@@ -756,7 +756,7 @@ describe("composeProjectReadinessView", () => {
       cwd: "/repo",
       title: "Roadmap",
       fs: { readdir: async () => [], readFile: async () => "" },
-      oracle: { exec, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "passive-live", baseBranch: "main" },
     });
     const result = composeProjectReadinessViewResult({ ...input, renderedRef: "abc1234" });
 

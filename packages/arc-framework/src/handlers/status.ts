@@ -368,7 +368,7 @@ export async function handleStatus(
       oracle: {
         exec,
         decompositionClaimCwd: cwd,
-        localOnly: opts.fetch !== true,
+        acquisitionPolicy: opts.fetch === true ? "passive-live" : "local",
         baseBranch: settings["branch.base"],
         errandSlugByBranch: transient.indexes.slugByBranch,
         errandRecordsComplete: transient.complete,
@@ -625,6 +625,7 @@ export async function handleStatus(
           exec,
           decompositionClaimCwd: cwd,
           localOnly: false,
+          expandLiveOnly: false,
           baseBranch: resolved.settings["branch.base"],
           identity,
           teamMode,
@@ -1046,7 +1047,7 @@ export async function handleStatus(
       oracle: {
         exec,
         decompositionClaimCwd: cwd,
-        localOnly,
+        acquisitionPolicy: localOnly ? "local" : "passive-live",
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,
         errandSlugByBranch: transient.indexes.slugByBranch,

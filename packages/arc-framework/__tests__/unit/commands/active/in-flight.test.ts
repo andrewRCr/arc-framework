@@ -9,8 +9,13 @@
 
 import { describe, it, expect, vi } from "vitest";
 
-import { runActiveInFlight } from "../../../../src/commands/active/in-flight.js";
-import type { ExecResult, GitExec } from "../../../../src/lib/git/exec.js";
+import {
+  ActiveInFlightCandidateExpansionSchema,
+  ActiveInFlightEvidenceSchema,
+  runActiveInFlightExpansion,
+  runActiveInFlight,
+} from "../../../../src/commands/active/in-flight.js";
+import type { ExecResult, GitExec, GitExecInput } from "../../../../src/lib/git/exec.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
@@ -112,7 +117,298 @@ function makeExec(opts: {
   });
 }
 
+function makeExpansionIO(opts: {
+  advertised: Record<string, string>;
+  advertisedAfterFetch?: Record<string, string>;
+  remoteFailure?: Error;
+  localOids?: readonly string[];
+  fetchedOids?: Record<string, string>;
+  metas?: Record<string, string>;
+}): { exec: GitExec; execInput: GitExecInput } {
+  const available = new Set(opts.localOids ?? []);
+  const metas = opts.metas ?? {};
+  let fetched = false;
+  const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (args[0] === "ls-remote") {
+      if (opts.remoteFailure !== undefined) throw opts.remoteFailure;
+      const advertised = fetched && opts.advertisedAfterFetch !== undefined
+        ? opts.advertisedAfterFetch
+        : opts.advertised;
+      return {
+        stdout: Object.entries(advertised)
+          .map(([branch, oid]) => `${oid}\trefs/heads/${branch}`)
+          .join("\n"),
+        stderr: "",
+      };
+    }
+    if (args[0] === "fetch") {
+      const branch = args[2] ?? "";
+      const fetchedOid = opts.fetchedOids?.[branch];
+      if (fetchedOid === undefined) throw new Error(`fetch failed for ${branch}`);
+      available.add(fetchedOid);
+      fetched = true;
+      return { stdout: "", stderr: "" };
+    }
+    if (args[0] === "rev-parse" && args[1] === "--is-shallow-repository") {
+      return { stdout: "false", stderr: "" };
+    }
+    if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
+    if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
+    if (args[0] === "ls-tree" && args.includes("--name-only")) {
+      const ref = args[args.indexOf("--name-only") + 1] ?? "";
+      const paths = Object.keys(metas)
+        .filter((target) => target.startsWith(`${ref}:`))
+        .map((target) => target.slice(target.indexOf(":") + 1));
+      return { stdout: paths.join("\n"), stderr: "" };
+    }
+    if (args[0] === "show") {
+      const target = args[1] ?? "";
+      const content = metas[target];
+      if (content === undefined) throw new Error(`missing ${target}`);
+      return { stdout: content, stderr: "" };
+    }
+    throw new Error(`unexpected git ${args.join(" ")}`);
+  });
+  const execInput: GitExecInput = vi.fn(async (_args, input): Promise<string> =>
+    input.trim().split("\n")
+      .map((oid: string) => available.has(oid) ? `${oid} commit 1` : `${oid} missing`)
+      .join("\n") + "\n");
+  return { exec, execInput };
+}
+
 describe("runActiveInFlight", () => {
+  it("completes explicit expansion after every captured candidate materializes", async () => {
+    const advertisedOid = "1".repeat(40);
+    const branch = "topic/remote-only";
+    const io = makeExpansionIO({
+      advertised: { [branch]: advertisedOid },
+      fetchedOids: { [branch]: advertisedOid },
+      metas: {
+        [`${advertisedOid}:.arc/active/meta-remote-only.md`]: meta().replace("__BRANCH__", branch),
+      },
+    });
+
+    const result = await runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+    });
+
+    expect(result).toMatchObject({
+      remoteEvidence: "exact",
+      candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+      entries: [expect.objectContaining({ kind: "work-unit", name: "remote-only", branch })],
+    });
+    expect(io.exec).toHaveBeenCalledWith("git", ["fetch", "origin", branch], expect.any(Object));
+  });
+
+  it("reports a positive partial count when candidate fetches fail after the snapshot", async () => {
+    const materializedOid = "2".repeat(40);
+    const pendingOid = "3".repeat(40);
+    const io = makeExpansionIO({
+      advertised: {
+        "topic/materialized": materializedOid,
+        "topic/pending": pendingOid,
+      },
+      fetchedOids: { "topic/materialized": materializedOid },
+      metas: {
+        [`${materializedOid}:.arc/active/meta-materialized.md`]: meta().replace(
+          "__BRANCH__",
+          "topic/materialized",
+        ),
+      },
+    });
+
+    const result = await runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+    });
+
+    expect(result).toMatchObject({
+      remoteEvidence: "pending-fetch",
+      candidateExpansion: { status: "partial", pendingBranchCount: 1 },
+      entries: [expect.objectContaining({ name: "materialized" })],
+    });
+  });
+
+  it("reports partial when no candidate fetch succeeds after a successful snapshot", async () => {
+    const io = makeExpansionIO({
+      advertised: {
+        "topic/first": "7".repeat(40),
+        "topic/second": "8".repeat(40),
+      },
+    });
+
+    const result = await runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+    });
+
+    expect(result).toMatchObject({
+      entries: [],
+      remoteEvidence: "pending-fetch",
+      candidateExpansion: { status: "partial", pendingBranchCount: 2 },
+    });
+  });
+
+  it("keeps a moved captured generation pending instead of classifying the newer tip", async () => {
+    const capturedOid = "4".repeat(40);
+    const newerOid = "5".repeat(40);
+    const branch = "topic/moved";
+    const io = makeExpansionIO({
+      advertised: { [branch]: capturedOid },
+      advertisedAfterFetch: { [branch]: newerOid },
+      fetchedOids: { [branch]: newerOid },
+      metas: {
+        [`${newerOid}:.arc/active/meta-newer.md`]: meta().replace("__BRANCH__", branch),
+      },
+    });
+
+    const result = await runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+    });
+
+    expect(result).toMatchObject({
+      entries: [],
+      remoteEvidence: "pending-fetch",
+      candidateExpansion: { status: "partial", pendingBranchCount: 1 },
+    });
+    expect(vi.mocked(io.exec).mock.calls.filter(([, args]) => args[0] === "ls-remote")).toHaveLength(1);
+  });
+
+  it("fails with the classified reason when the initial live-head snapshot is unreachable", async () => {
+    const io = makeExpansionIO({
+      advertised: {},
+      remoteFailure: new Error("fatal: Could not resolve host: example.invalid"),
+    });
+
+    const result = await runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+    });
+
+    expect(result).toMatchObject({
+      entries: [],
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+      candidateExpansion: { status: "failed", pendingBranchCount: 0 },
+    });
+    expect(io.execInput).not.toHaveBeenCalled();
+  });
+
+  it("returns not-requested without fetching in local mode", async () => {
+    const io = makeExpansionIO({ advertised: {} });
+
+    const result = await runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: true,
+    });
+
+    expect(result).toMatchObject({
+      remoteEvidence: "not-applicable",
+      candidateExpansion: { status: "not-requested", pendingBranchCount: 0 },
+    });
+    expect(vi.mocked(io.exec).mock.calls.map(([, args]) => args[0])).not.toEqual(
+      expect.arrayContaining(["ls-remote", "fetch"]),
+    );
+    expect(io.execInput).not.toHaveBeenCalled();
+  });
+
+  it("propagates unexpected local classification failure as a runtime failure", async () => {
+    const advertisedOid = "6".repeat(40);
+    const branch = "topic/malformed";
+    const io = makeExpansionIO({
+      advertised: { [branch]: advertisedOid },
+      localOids: [advertisedOid],
+      metas: { [`${advertisedOid}:.arc/active/meta-malformed.md`]: "not a meta record" },
+    });
+
+    await expect(runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+    })).rejects.toThrow("Advertised in-flight metadata could not be classified");
+  });
+
+  it("rejects incomplete transient identity facts before selecting fetch candidates", async () => {
+    const io = makeExpansionIO({ advertised: { "topic/unknown": "9".repeat(40) } });
+
+    await expect(runActiveInFlightExpansion({
+      ...io,
+      identity: "andrew",
+      teamMode: false,
+      localOnly: false,
+    })).rejects.toThrow("Transient identity records could not be inspected completely");
+    expect(vi.mocked(io.exec).mock.calls.map(([, args]) => args[0])).not.toEqual(
+      expect.arrayContaining(["ls-remote", "fetch"]),
+    );
+  });
+
+  it("does not fetch an unavailable configured base head", async () => {
+    const io = makeExpansionIO({ advertised: { trunk: "a".repeat(40) } });
+
+    const result = await runActiveInFlightExpansion({
+      ...io,
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+      baseBranch: "trunk",
+    });
+
+    expect(result).toMatchObject({
+      entries: [],
+      remoteEvidence: "exact",
+      candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+    });
+    expect(vi.mocked(io.exec).mock.calls.map(([, args]) => args[0])).not.toContain("fetch");
+  });
+
+  it("pairs expansion status with exact, pending, unreachable, and disabled evidence", () => {
+    expect(ActiveInFlightCandidateExpansionSchema.safeParse({
+      status: "partial", pendingBranchCount: 0,
+    }).success).toBe(false);
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "exact", candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+    }).success).toBe(true);
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "pending-fetch", candidateExpansion: { status: "partial", pendingBranchCount: 2 },
+    }).success).toBe(true);
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "unreachable", failureReason: "auth",
+      candidateExpansion: { status: "failed", pendingBranchCount: 0 },
+    }).success).toBe(true);
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "not-applicable", candidateExpansion: { status: "not-requested", pendingBranchCount: 0 },
+    }).success).toBe(true);
+
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "exact", candidateExpansion: { status: "partial", pendingBranchCount: 1 },
+    }).success).toBe(false);
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "pending-fetch", candidateExpansion: { status: "partial", pendingBranchCount: 0 },
+    }).success).toBe(false);
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "unreachable", candidateExpansion: { status: "failed", pendingBranchCount: 0 },
+    }).success).toBe(false);
+    expect(ActiveInFlightEvidenceSchema.safeParse({
+      remoteEvidence: "not-applicable", failureReason: "network",
+      candidateExpansion: { status: "not-requested", pendingBranchCount: 0 },
+    }).success).toBe(false);
+  });
+
   it("returns oracle entries (work units and errands) with reachable=true when online", async () => {
     const exec = makeExec({
       localRefs: ["feat/x", "chore/fix-typo"],
@@ -124,6 +420,10 @@ describe("runActiveInFlight", () => {
     const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: false });
 
     expect(result.reachable).toBe(true);
+    expect(result).toMatchObject({
+      remoteEvidence: "exact",
+      candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+    });
     expect(result.entries).toHaveLength(2);
     expect(result.entries[0]).toMatchObject({
       kind: "work-unit",
@@ -186,7 +486,27 @@ describe("runActiveInFlight", () => {
     const result = await runActiveInFlight({ exec, identity: null, teamMode: false, localOnly: true });
 
     expect(result.reachable).toBe(false);
+    expect(result).toMatchObject({
+      remoteEvidence: "not-applicable",
+      candidateExpansion: { status: "not-requested", pendingBranchCount: 0 },
+    });
     expect(result.entries.map((e) => e.branch)).toEqual(["feat/x"]);
     expect(exec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["ls-remote"]));
+  });
+
+  it("reports a failed expansion when live membership is unreachable", async () => {
+    const result = await runActiveInFlight({
+      exec: makeExec({ localRefs: [], liveBranches: "unreachable" }),
+      identity: null,
+      teamMode: false,
+      localOnly: false,
+    });
+
+    expect(result).toMatchObject({
+      reachable: false,
+      remoteEvidence: "unreachable",
+      failureReason: "error",
+      candidateExpansion: { status: "failed", pendingBranchCount: 0 },
+    });
   });
 });

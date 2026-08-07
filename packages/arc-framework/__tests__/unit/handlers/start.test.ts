@@ -39,6 +39,7 @@ const mockRunCreateNew = vi.fn();
 const mockRunColdStart = vi.fn();
 const mockRunGraduate = vi.fn();
 const mockExec = vi.fn();
+const mockExecInput = vi.fn();
 const mockReadFile = vi.fn(async () => "");
 const mockWriteFile = vi.fn();
 const mockMkdir = vi.fn();
@@ -51,6 +52,11 @@ const mockBaseFs = {
 };
 const mockCreateProjectViewRefSnapshot = vi.fn();
 const mockRefreshBase = vi.fn(async () => "origin/main");
+const mockExpandActiveInFlight = vi.fn();
+
+vi.mock("../../../src/commands/active.js", () => ({
+  expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
+}));
 
 vi.mock("../../../src/commands/start.js", () => ({
   buildCreateNewCeremonyCommitMessage: (name: string) =>
@@ -145,6 +151,7 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 vi.mock("../../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({
     exec: mockExec,
+    execInput: mockExecInput,
     readFile: mockReadFile,
     writeFile: mockWriteFile,
     mkdir: mockMkdir,
@@ -170,6 +177,17 @@ describe("handleStart — dispatch orchestration", () => {
     mockParseMetaRecord.mockReturnValue({ workClass: "Light" });
     mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: true, fs: mockBaseFs });
     mockRefreshBase.mockResolvedValue("origin/main");
+    mockExpandActiveInFlight.mockResolvedValue({
+      entries: [],
+      residue: [],
+      warnings: [],
+      snapshot: { refs: {}, worktrees: {} },
+      liveRefs: {},
+      reachable: true,
+      pendingBranchCount: 0,
+      remoteEvidence: "exact",
+      candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+    });
     mockMkdir.mockResolvedValue(undefined);
     mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
     mockIsCancel.mockReturnValue(false);
@@ -217,6 +235,19 @@ describe("handleStart — dispatch orchestration", () => {
 
     await handleStart("widget", { new: true });
 
+    expect(mockExpandActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
+      exec: mockExec,
+      execInput: mockExecInput,
+      identity: "andrew",
+      teamMode: false,
+      baseBranch: "main",
+    }));
+    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({
+      oracle: expect.objectContaining({
+        acquisitionPolicy: "materialized-live",
+        suppliedResult: expect.objectContaining({ remoteEvidence: "exact" }),
+      }),
+    }));
     expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
     expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
     expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });

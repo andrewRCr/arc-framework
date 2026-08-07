@@ -175,7 +175,10 @@ export {
 } from "./history-completeness.js";
 
 export {
+  analyzeInFlightSnapshot,
   deriveInFlight,
+  type AnalyzeInFlightSnapshotOptions,
+  type AnalyzeInFlightSnapshotResult,
   type DeriveInFlightOptions,
   type InFlightEntry,
   type InFlightWorkUnit,

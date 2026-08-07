@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  analyzeInFlightSnapshot,
   deriveInFlight,
   renderInFlightWarning,
   type InFlightWarning,
@@ -170,6 +171,221 @@ function expectWorkUnit(entries: Awaited<ReturnType<typeof deriveInFlight>>["ent
 }
 
 describe("deriveInFlight", () => {
+  it("derives advertised remote membership without a tracking ref", async () => {
+    const advertisedOid = "1".repeat(40);
+    const exec = makeExec({
+      metas: {
+        [`${advertisedOid}:.arc/active/meta-remote-only.md`]: metaContent({ branch: "review/remote-only" }),
+      },
+    });
+
+    const result = await analyzeInFlightSnapshot({
+      exec,
+      snapshot: { kind: "available", scope: "all-heads", tips: { "review/remote-only": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({ kind: "work-unit", name: "remote-only", branch: "review/remote-only" }),
+    ]);
+    expect(result.pendingBranchCount).toBe(0);
+  });
+
+  it("retains a changed advertised tip when the branch also exists locally", async () => {
+    const advertisedOid = "2".repeat(40);
+    const localOid = "3".repeat(40);
+    const exec = makeExec({
+      metas: {
+        [`${advertisedOid}:.arc/active/meta-advertised-generation.md`]: metaContent({ branch: "topic/shared" }),
+        "topic/shared:.arc/active/meta-local-generation.md": metaContent({ branch: "topic/shared" }),
+      },
+    });
+
+    const result = await analyzeInFlightSnapshot({
+      exec,
+      snapshot: { kind: "available", scope: "all-heads", tips: { "topic/shared": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: { "topic/shared": localOid } } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "work-unit", name: "advertised-generation", branch: "topic/shared" }),
+      expect.objectContaining({ kind: "work-unit", name: "local-generation", branch: "topic/shared" }),
+    ]));
+  });
+
+  it("performs only local, non-mutating Git inspection over supplied evidence", async () => {
+    const advertisedOid = "4".repeat(40);
+    const exec = makeExec({
+      metas: {
+        [`${advertisedOid}:.arc/active/meta-read-only.md`]: metaContent({ branch: "topic/read-only" }),
+      },
+    });
+
+    await analyzeInFlightSnapshot({
+      exec,
+      snapshot: { kind: "available", scope: "all-heads", tips: { "topic/read-only": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
+
+    const calls = vi.mocked(exec).mock.calls;
+    expect(calls.map(([, args]) => args[0])).not.toEqual(
+      expect.arrayContaining(["fetch", "update-ref", "branch", "pack-objects", "index-pack"]),
+    );
+    expect(calls.every(([, , execOptions]) => execOptions?.objectAccess === "local-only")).toBe(true);
+  });
+
+  it("excludes only the configured base and exact transient-record branches", async () => {
+    const baseOid = "5".repeat(40);
+    const transientOid = "6".repeat(40);
+    const candidateOid = "7".repeat(40);
+    const exec = makeExec({
+      metas: {
+        [`${baseOid}:.arc/active/meta-base-residue.md`]: metaContent({ branch: "trunk" }),
+        [`${transientOid}:.arc/active/meta-recorded.md`]: metaContent({ branch: "fix/recorded" }),
+        [`${candidateOid}:.arc/active/meta-unconventional.md`]: metaContent({ branch: "topic/unconventional" }),
+      },
+    });
+
+    const result = await analyzeInFlightSnapshot({
+      exec,
+      snapshot: {
+        kind: "available",
+        scope: "all-heads",
+        tips: { trunk: baseOid, "fix/recorded": transientOid, "topic/unconventional": candidateOid },
+      },
+      objectAvailability: {
+        kind: "complete",
+        commits: { [baseOid]: true, [transientOid]: true, [candidateOid]: true },
+      },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      baseBranch: "trunk",
+      errandSlugByBranch: new Map([["fix/recorded", "recorded"]]),
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({ kind: "work-unit", name: "unconventional", branch: "topic/unconventional" }),
+    ]);
+    expect(result.liveRefs).toEqual({ "origin/topic/unconventional": candidateOid });
+  });
+
+  it("counts an unseen advertised commit as pending without inferring a candidate", async () => {
+    const advertisedOid = "8".repeat(40);
+    const result = await analyzeInFlightSnapshot({
+      exec: makeExec({}),
+      snapshot: { kind: "available", scope: "all-heads", tips: { "feat/name-is-not-authority": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: false } },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.residue).toEqual([]);
+    expect(result.pendingBranchCount).toBe(1);
+  });
+
+  it("does not require complete history when every eligible advertised commit is pending", async () => {
+    const advertisedOid = "8".repeat(40);
+    const result = await analyzeInFlightSnapshot({
+      exec: makeExec({}),
+      snapshot: { kind: "available", scope: "all-heads", tips: { "feat/pending-in-shallow": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: false } },
+      history: { kind: "shallow" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.pendingBranchCount).toBe(1);
+  });
+
+  it("preserves an exact empty entry set after every eligible head is classified", async () => {
+    const advertisedOid = "9".repeat(40);
+    const result = await analyzeInFlightSnapshot({
+      exec: makeExec({}),
+      snapshot: { kind: "available", scope: "all-heads", tips: { "topic/no-meta": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.pendingBranchCount).toBe(0);
+    expect(result.residue).toEqual([
+      expect.objectContaining({ branch: "topic/no-meta", reason: "no-record-or-meta" }),
+    ]);
+  });
+
+  it("rejects incomplete caller-supplied local inspection instead of degrading evidence", async () => {
+    const advertisedOid = "a".repeat(40);
+    await expect(analyzeInFlightSnapshot({
+      exec: makeExec({}),
+      snapshot: { kind: "available", scope: "all-heads", tips: { "topic/unreadable-local": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+      localRefs: { ok: false, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    })).rejects.toThrow("Local in-flight refs could not be inspected");
+  });
+
+  it("rejects malformed advertised metadata instead of returning an evidence result", async () => {
+    const advertisedOid = "b".repeat(40);
+    await expect(analyzeInFlightSnapshot({
+      exec: makeExec({
+        metas: { [`${advertisedOid}:.arc/active/meta-malformed.md`]: "not a meta record" },
+      }),
+      snapshot: { kind: "available", scope: "all-heads", tips: { "topic/malformed": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    })).rejects.toThrow("Advertised in-flight metadata could not be classified");
+  });
+
+  it("requires complete history before graph-derived classification", async () => {
+    const advertisedOid = "c".repeat(40);
+    await expect(analyzeInFlightSnapshot({
+      exec: makeExec({}),
+      snapshot: { kind: "available", scope: "all-heads", tips: { "feat/available-in-shallow": advertisedOid } },
+      objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
+      history: { kind: "shallow" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    })).rejects.toThrow("requires complete local history");
+  });
+
   it("returns entries with no warnings and reachable true for a healthy derivation", async () => {
     const exec = makeExec({
       metas: {
