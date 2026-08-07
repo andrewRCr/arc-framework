@@ -1,8 +1,8 @@
 # Metadata: session-locus-operability-hardening
 
-| **State**     | **Owner** | **Branch**                                | **Class** | **Priority** |
-| ------------- | --------- | ----------------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/session-locus-operability-hardening` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/470>
+- **Completed:** 2026-08-06
 
 ## Release Notes Entry
 
