@@ -151,7 +151,7 @@ export type UserReferenceAuthorityResult =
 /** Read-only session projection with CLI-owned dispatch. */
 export interface UserReferenceReconcileSessionResult {
   status: "clean" | "pending" | "advisory" | "unavailable" | "conflict";
-  authority: UserReferenceAuthorityResult;
+  authority: UserReferenceEvidenceAuthorityResult;
   plan: UserReferenceReconcilePlan | null;
   recommendedAction: "skip" | "apply" | "surface";
   recommendedCommand: readonly string[] | null;
@@ -386,7 +386,7 @@ export async function resolveUserReferenceAuthority(
  * @returns Typed findings plus a precomposed dedicated-command argv
  */
 export function projectUserReferenceSessionResult(
-  authority: UserReferenceAuthorityResult,
+  authority: UserReferenceEvidenceAuthorityResult,
   surfaces: Omit<PlanUserReferenceReconcileInput, "transitions">,
 ): UserReferenceReconcileSessionResult {
   if (authority.status !== "ready") {

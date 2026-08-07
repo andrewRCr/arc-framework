@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeBaseDistanceSnapshot,
   runBaseDrift,
-  runBaseDistanceStatus,
 } from "../../../src/lib/git/base-distance.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -14,7 +13,6 @@ const PARENT_B = "e".repeat(40);
 
 interface MockOptions {
   distance?: string;
-  cleanupFails?: boolean;
   fetchFails?: boolean;
 }
 
@@ -36,10 +34,6 @@ function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] 
     if (args[0] === "diff") return { stdout: "shared.ts\0" };
     if (args[0] === "log") {
       return { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` };
-    }
-    if (args[0] === "update-ref") {
-      if (options.cleanupFails) throw new Error("cleanup failed");
-      return { stdout: "" };
     }
     throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
   };
@@ -210,26 +204,12 @@ describe("snapshot-driven base distance", () => {
 });
 
 describe("base drift raw-distance boundary", () => {
-  it("skips advisory analysis before any Git invocation", async () => {
-    const { exec, calls } = gitMock();
-    const result = await runBaseDistanceStatus({
-      exec,
-      baseBranch: "main",
-      remoteSyncEnabled: false,
-    });
-    expect(result.verdict).toBe("skipped");
-    expect(result.register).toBeNull();
-    expect(calls).toEqual([]);
-  });
-
-  it("authoritative mode ignores the advisory remote-sync setting", async () => {
+  it("authoritative mode materializes regardless of automatic session policy", async () => {
     const { exec, calls } = gitMock();
     const result = await runBaseDrift({
       exec,
       baseBranch: "main",
       mode: "authoritative",
-      remoteSyncEnabled: false,
-      token: () => "test-token",
     });
     expect(result.verdict).toBe("clean");
     expect(result.baseOid).toBe(BASE_OID);
@@ -260,7 +240,6 @@ describe("base drift raw-distance boundary", () => {
       exec,
       baseBranch: "main",
       mode: "authoritative",
-      token: () => "test-token",
     });
     expect(result.verdict).toBe("reconcile");
     expect(result.behind).toBe(1);
@@ -277,7 +256,6 @@ describe("base drift raw-distance boundary", () => {
       resolverFactory: () => {
         throw new Error("resolver unavailable");
       },
-      token: () => "test-token",
     });
     expect(result).toMatchObject({ verdict: "reconcile", ahead: 0, behind: 1, baseOid: BASE_OID });
   });
@@ -291,7 +269,6 @@ describe("base drift raw-distance boundary", () => {
       classifyReconciliation: () => {
         throw new Error("classifier unavailable");
       },
-      token: () => "test-token",
     });
     expect(result).toMatchObject({
       verdict: "reconcile",
@@ -303,19 +280,14 @@ describe("base drift raw-distance boundary", () => {
     });
   });
 
-  it("retains temporary-ref cleanup enforcement in the advisory compatibility shell", async () => {
-    const { exec } = gitMock({ cleanupFails: true });
-    const result = await runBaseDistanceStatus({
+  it("refuses advisory acquisition before any Git invocation", async () => {
+    const { exec, calls } = gitMock();
+    await expect(runBaseDrift({
       exec,
       baseBranch: "main",
-      remoteSyncEnabled: true,
-      token: () => "test-token",
-    });
-    expect(result).toMatchObject({
-      verdict: "unavailable",
-      unavailableReason: "temporary-ref-cleanup-failed",
-      baseOid: null,
-    });
+      mode: "advisory",
+    })).rejects.toThrow(/supplied snapshot evidence/u);
+    expect(calls).toEqual([]);
   });
 
   it("rejects option-shaped base configuration before fetch", async () => {

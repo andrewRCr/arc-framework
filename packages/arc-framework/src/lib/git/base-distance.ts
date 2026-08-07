@@ -7,11 +7,8 @@
  * @module
  */
 
-import { randomBytes } from "node:crypto";
-
 import {
   boundedFetch,
-  boundedGitInvocation,
   checkOriginExists,
   getCurrentBranch,
   type GitExec,
@@ -40,22 +37,15 @@ import {
 
 export type BaseDistanceStatusResult = BaseDriftResult;
 
-export interface RunBaseDistanceStatusOptions {
+export interface RunBaseDriftOptions {
   exec: GitExec;
   baseBranch: string;
-  remoteSyncEnabled: boolean;
   fetchTimeoutMs?: number;
-  mode?: BaseDriftMode;
+  mode: BaseDriftMode;
   resolver?: IntegrationEvidenceResolver;
   resolverFactory?: IntegrationEvidenceResolverFactory;
   classifyReconciliation?: ReconciliationClassifier;
-  token?: () => string;
 }
-
-export type RunBaseDriftOptions = Omit<RunBaseDistanceStatusOptions, "remoteSyncEnabled"> & {
-  mode: BaseDriftMode;
-  remoteSyncEnabled?: boolean;
-};
 
 /** Supplied remote and local prerequisites for read-only base-distance analysis. */
 export interface AnalyzeBaseDistanceSnapshotOptions {
@@ -160,19 +150,12 @@ export async function analyzeBaseDistanceSnapshot(
   return { ...analysis, remoteEvidence: "exact" };
 }
 
-/** Compatibility entry point used by the session-init status composition. */
-export async function runBaseDistanceStatus(
-  options: RunBaseDistanceStatusOptions,
-): Promise<BaseDistanceStatusResult> {
-  return runBaseDrift({ ...options, mode: options.mode ?? "advisory" });
-}
-
 /** Analyze current HEAD against a freshly fetched immutable base commit. */
 export async function runBaseDrift(options: RunBaseDriftOptions): Promise<BaseDriftResult> {
-  if (options.mode === "authoritative") {
-    return runAuthoritativeBaseDrift(options);
+  if (options.mode !== "authoritative") {
+    throw new Error("Advisory base distance requires supplied snapshot evidence.");
   }
-  return runCompatibilityBaseDrift(options);
+  return runAuthoritativeBaseDrift(options);
 }
 
 async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<BaseDriftResult> {
@@ -254,118 +237,6 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
   }
 }
 
-async function runCompatibilityBaseDrift(options: RunBaseDriftOptions): Promise<BaseDriftResult> {
-  const {
-    exec,
-    baseBranch,
-    mode,
-    remoteSyncEnabled = true,
-    fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
-    resolver,
-    resolverFactory,
-    classifyReconciliation = () => "substantive",
-    token = defaultToken,
-  } = options;
-
-  if (mode === "advisory" && !remoteSyncEnabled) {
-    return {
-      mode,
-      verdict: "skipped",
-      state: "skipped",
-      ahead: 0,
-      behind: 0,
-      base: baseBranch,
-      baseOid: null,
-      integrationEvidence: null,
-      overlap: null,
-      register: null,
-    };
-  }
-
-  const sourceRef = `refs/heads/${baseBranch}`;
-  try {
-    if (baseBranch === "" || baseBranch.startsWith("-") || sourceRef.includes(":")) {
-      throw new Error("Unsafe base ref.");
-    }
-    await exec("git", ["check-ref-format", sourceRef]);
-  } catch {
-    return unavailable(mode, "invalid-base", "remote-unavailable", baseBranch);
-  }
-
-  if ((await getCurrentBranch(exec)) === null) {
-    return unavailable(mode, "detached-head", "detached-head", null);
-  }
-  if (!(await checkOriginExists(exec))) {
-    return unavailable(mode, "no-remote", "no-remote", baseBranch);
-  }
-
-  const invocationRef = `refs/arc/base-drift/${token()}`;
-  // An empty refmap prevents this explicit fetch from opportunistically updating
-  // origin/<base> while another session-init probe owns that tracking ref.
-  const fetch = await boundedGitInvocation(
-    exec,
-    ["fetch", "--no-write-fetch-head", "--refmap=", "origin", `${sourceRef}:${invocationRef}`],
-    fetchTimeoutMs,
-  );
-  if (fetch.outcome !== "ok") {
-    try {
-      await exec("git", ["update-ref", "-d", invocationRef]);
-    } catch {
-      return unavailable(
-        mode,
-        "temporary-ref-cleanup-failed",
-        "remote-unavailable",
-        baseBranch,
-      );
-    }
-    return unavailable(
-      mode,
-      fetch.outcome === "timeout" ? "fetch-timeout" : "fetch-failed",
-      "remote-unavailable",
-      baseBranch,
-      fetch.outcome,
-    );
-  }
-
-  let analysis: BaseDriftResult;
-  try {
-    analysis = await analyzeFetchedBase({
-      exec,
-      mode,
-      baseBranch,
-      invocationRef,
-      resolver,
-      resolverFactory,
-      classifyReconciliation,
-    });
-  } catch {
-    analysis = unavailable(mode, "distance-read-failed", "remote-unavailable", baseBranch);
-  }
-  // The exact process-owned ref is the only mutable resource. Cleanup is part
-  // of the safety result, so a failure overrides any analysis outcome.
-  try {
-    await exec("git", ["update-ref", "-d", invocationRef]);
-  } catch {
-    return unavailable(
-      mode,
-      "temporary-ref-cleanup-failed",
-      "remote-unavailable",
-      baseBranch,
-    );
-  }
-  return analysis;
-}
-
-interface AnalyzeFetchedBaseOptions {
-  exec: GitExec;
-  mode: BaseDriftMode;
-  baseBranch: string;
-  invocationRef: string;
-  resolver?: IntegrationEvidenceResolver;
-  resolverFactory?: IntegrationEvidenceResolverFactory;
-  classifyReconciliation: ReconciliationClassifier;
-}
-
 interface AnalyzeAvailableBaseOptions {
   exec: GitExec;
   mode: BaseDriftMode;
@@ -374,35 +245,6 @@ interface AnalyzeAvailableBaseOptions {
   resolver?: IntegrationEvidenceResolver;
   resolverFactory?: IntegrationEvidenceResolverFactory;
   classifyReconciliation: ReconciliationClassifier;
-}
-
-async function analyzeFetchedBase(options: AnalyzeFetchedBaseOptions): Promise<BaseDriftResult> {
-  const {
-    exec,
-    mode,
-    baseBranch,
-    invocationRef,
-    resolver,
-    resolverFactory,
-    classifyReconciliation,
-  } = options;
-  let baseOid: string;
-  try {
-    baseOid = (await exec("git", ["rev-parse", "--verify", `${invocationRef}^{commit}`])).stdout.trim();
-    if (!/^[0-9a-f]{40,64}$/u.test(baseOid)) throw new Error("Invalid fetched base OID.");
-  } catch {
-    return unavailable(mode, "fetched-base-unresolved", "remote-unavailable", baseBranch);
-  }
-
-  return analyzeAvailableBase({
-    exec,
-    mode,
-    baseBranch,
-    baseOid,
-    resolver,
-    resolverFactory,
-    classifyReconciliation,
-  });
 }
 
 async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promise<BaseDriftResult> {
@@ -497,10 +339,6 @@ function unavailable(
     register: mode === "authoritative" ? composeUnavailableRegister(base, reason) : null,
     ...(state === "remote-unavailable" ? { failureReason } : {}),
   };
-}
-
-function defaultToken(): string {
-  return `${process.pid}-${Date.now().toString(36)}-${randomBytes(12).toString("hex")}`;
 }
 
 export type {

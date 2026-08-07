@@ -42,7 +42,6 @@ import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type {
   WorktreeSnapshotAnalysisResult,
-  WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import type {
   BaseDistanceSnapshotAnalysisResult,
@@ -95,7 +94,7 @@ export type { RecommendedAction, WorktreeIdentity };
  * with a precomputed action + prompt text the workflow renders directly.
  */
 export type SessionInitWorktreeValue = (
-  WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult
+  WorktreeSnapshotAnalysisResult
 ) & {
   recommendedAction: RecommendedAction;
   /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
@@ -124,7 +123,9 @@ export type SessionInitWorktreeValue = (
  * reconcile offer without re-deriving it from state.
  */
 export type SessionInitBaseDistanceValue = (
-  BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult
+  BaseDistanceSnapshotAnalysisResult | (BaseDistanceStatusResult & {
+    remoteEvidence: "not-applicable";
+  })
 ) & {
   recommendedAction: RecommendedAction;
   /** Composed orientation text when `recommendedAction === "surface"`; empty string otherwise. */
@@ -603,7 +604,7 @@ export interface SessionInitProbes {
   /** Analyze worktree sync from the supplied request context. */
   worktree: (
     context: SessionRemoteContext,
-  ) => Promise<WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult>;
+  ) => Promise<WorktreeSnapshotAnalysisResult>;
   /** Inspect one resolved active WU through the shared read-only reconcile planner. */
   currentWuReconcile: (
     input: { slug: string; metaPath: string },
@@ -634,7 +635,9 @@ export interface SessionInitProbes {
    */
   baseDistance: (
     context: SessionRemoteContext,
-  ) => Promise<BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult>;
+  ) => Promise<
+    BaseDistanceSnapshotAnalysisResult | (BaseDistanceStatusResult & { remoteEvidence: "not-applicable" })
+  >;
   /**
    * Base-branch-sync probe — local `<base>` vs `origin/<base>`. Session-init-only
    * (a between-WU resume is where a silently-stale local base matters). The

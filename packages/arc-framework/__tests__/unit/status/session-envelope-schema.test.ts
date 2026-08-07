@@ -31,6 +31,16 @@ function fixture(name: string): Record<string, unknown> {
     },
   };
   const active = value.active as { ok?: boolean; value?: { resolution?: string; path?: string | null } };
+  const baseDistance = value.baseDistance as {
+    ok?: boolean;
+    value?: { state?: string; remoteEvidence?: string };
+  };
+  const baseDistanceValue = baseDistance.value;
+  if (baseDistance.ok === true && baseDistanceValue !== undefined && baseDistanceValue.remoteEvidence === undefined) {
+    baseDistanceValue.remoteEvidence = ["skipped", "no-remote"].includes(baseDistanceValue.state ?? "")
+      ? "not-applicable"
+      : "exact";
+  }
   if (active.ok === true && active.value?.resolution === "single") {
     const slug = active.value.path?.match(/meta-(.+)\.md$/u)?.[1] ?? "active-work-unit";
     value.currentWuReconcile = {
@@ -59,7 +69,12 @@ function fixture(name: string): Record<string, unknown> {
         ok: true,
         value: {
           status: "clean",
-          authority: { status: "ready", ref: "main", transitions: [] },
+          authority: {
+            status: "ready",
+            ref: "main",
+            transitions: [],
+            remoteEvidence: "not-applicable",
+          },
           plan: { status: "clean", edits: [], advisories: [] },
           recommendedAction: "skip",
           recommendedCommand: null,
@@ -104,6 +119,118 @@ describe("session-init envelope schema", () => {
     const value = fixture("orient");
     setPath(value, ["derivedLocusState", "value", "current"], { kind: "none" });
     expectContractFailure(value, "derivedLocusState.value");
+  });
+
+  it("rejects crossed worktree and base-distance evidence fields", () => {
+    const worktree = fixture("orient");
+    setPath(worktree, ["worktree", "value", "remoteEvidence"], "unreachable");
+    expectInvalid(worktree);
+
+    const baseDistance = fixture("orient");
+    setPath(baseDistance, ["baseDistance", "value", "remoteEvidence"], "unreachable");
+    expectInvalid(baseDistance);
+
+    const inapplicableWorktree = fixture("orient");
+    setPath(inapplicableWorktree, ["worktree", "value", "state"], "clean");
+    expectInvalid(inapplicableWorktree);
+
+    const inapplicableBaseDistance = fixture("orient");
+    setPath(inapplicableBaseDistance, ["baseDistance", "value", "verdict"], "clean");
+    expectInvalid(inapplicableBaseDistance);
+
+    const missingExactBase = fixture("branch-gone");
+    setPath(missingExactBase, ["baseDistance", "value", "baseOid"], null);
+    expectInvalid(missingExactBase);
+
+    const crossedBaseRecommendation = fixture("branch-gone");
+    setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedAction"], "surface");
+    setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedPromptText"], "wrong");
+    expectInvalid(crossedBaseRecommendation);
+
+    const missingWorktreeBranch = fixture("branch-gone");
+    setPath(missingWorktreeBranch, ["worktree", "value", "branch"], null);
+    expectInvalid(missingWorktreeBranch);
+
+    const crossedSupersession = fixture("branch-gone");
+    setPath(crossedSupersession, ["worktree", "value", "supersession"], { superseded: true });
+    expectInvalid(crossedSupersession);
+  });
+
+  it("accepts typed pending user-reference authority and rejects incomplete unreachable authority", () => {
+    const pending = fixture("active-resume");
+    setPath(pending, ["userReferenceReconcile", "value"], {
+      status: "pending",
+      authority: {
+        status: "pending",
+        ref: "a".repeat(40),
+        reason: "base-object-pending-fetch",
+        remoteEvidence: "pending-fetch",
+      },
+      plan: null,
+      recommendedAction: "surface",
+      recommendedCommand: null,
+      recommendedPromptText: "Base evidence is pending.",
+    });
+    expect(SessionInitProbeResultSchema.safeParse(pending).success).toBe(true);
+
+    const unreachable = clone(pending);
+    setPath(unreachable, ["userReferenceReconcile", "value", "status"], "unavailable");
+    setPath(unreachable, ["userReferenceReconcile", "value", "authority"], {
+      status: "unavailable",
+      ref: "origin/main",
+      remoteEvidence: "unreachable",
+    });
+    expectInvalid(unreachable);
+
+    const crossedReady = fixture("active-resume");
+    setPath(crossedReady, ["userReferenceReconcile", "value", "authority", "failureReason"], "network");
+    expectInvalid(crossedReady);
+
+    const crossedRecommendation = clone(pending);
+    setPath(crossedRecommendation, ["userReferenceReconcile", "value", "recommendedAction"], "apply");
+    expectInvalid(crossedRecommendation);
+
+    const emptyPendingPlan = fixture("active-resume");
+    setPath(emptyPendingPlan, ["userReferenceReconcile", "value"], {
+      status: "pending",
+      authority: {
+        status: "ready",
+        ref: "a".repeat(40),
+        transitions: [],
+        remoteEvidence: "exact",
+      },
+      plan: { status: "pending", edits: [], advisories: [] },
+      recommendedAction: "apply",
+      recommendedCommand: ["arc", "user", "reconcile-references", "--apply", "--json"],
+      recommendedPromptText: "Apply references.",
+    });
+    expectInvalid(emptyPendingPlan);
+
+    const fakeApplyCommand = clone(emptyPendingPlan);
+    setPath(fakeApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{}]);
+    setPath(fakeApplyCommand, ["userReferenceReconcile", "value", "recommendedCommand"], ["fake", "--apply"]);
+    expectInvalid(fakeApplyCommand);
+  });
+
+  it("rejects mergeable work units without known base evidence", () => {
+    const value = fixture("orient");
+    value.workUnitState = {
+      ok: true,
+      value: {
+        inFlight: {
+          workUnits: [{
+            state: "mergeable",
+            behindBase: {
+              status: "unavailable",
+              remoteEvidence: "pending-fetch",
+              reason: "base-object-pending-fetch",
+            },
+          }],
+        },
+        nudge: { shouldNudge: false },
+      },
+    };
+    expectInvalid(value);
   });
 
   it("does not publish the request-only remote context", () => {

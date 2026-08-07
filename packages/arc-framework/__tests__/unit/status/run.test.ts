@@ -211,8 +211,34 @@ function extensionsSessionInit(
 
 function worktreeSync(
   overrides: Partial<WorktreeSyncStatusResult> = {},
-): WorktreeSyncStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
+): WorktreeSnapshotAnalysisResult {
+  return passiveWorktreeSync(overrides);
+}
+
+function passiveWorktreeSync(
+  overrides: Partial<Omit<WorktreeSyncStatusResult, "failureReason">> & {
+    failureReason?: Extract<
+      WorktreeSnapshotAnalysisResult,
+      { remoteEvidence: "unreachable" }
+    >["failureReason"];
+  } = {},
+): WorktreeSnapshotAnalysisResult {
+  const value: Omit<WorktreeSyncStatusResult, "failureReason"> & {
+    failureReason?: Extract<
+      WorktreeSnapshotAnalysisResult,
+      { remoteEvidence: "unreachable" }
+    >["failureReason"];
+  } = { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
+  const { failureReason, ...base } = value;
+  if (value.state === "remote-unavailable") {
+    return failureReason === undefined
+      ? { ...base, remoteEvidence: "pending-fetch" }
+      : { ...base, remoteEvidence: "unreachable", failureReason };
+  }
+  const remoteEvidence = ["skipped", "no-upstream", "detached-head", "no-remote"].includes(value.state)
+    ? "not-applicable" as const
+    : "exact" as const;
+  return { ...base, remoteEvidence };
 }
 
 function worktreeSnapshot(
@@ -227,8 +253,8 @@ function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): Worktr
 
 function baseDistance(
   overrides: Partial<BaseDistanceStatusResult> = {},
-): BaseDistanceStatusResult {
-  return {
+): Awaited<ReturnType<SessionInitProbes["baseDistance"]>> {
+  const value: BaseDistanceStatusResult = {
     mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
     base: "main", baseOid: "a".repeat(40),
     integrationEvidence: {
@@ -239,6 +265,12 @@ function baseDistance(
     register: null,
     ...overrides,
   };
+  if (["skipped", "no-remote", "detached-head"].includes(value.state)) {
+    return { ...value, remoteEvidence: "not-applicable" };
+  }
+  const { failureReason, ...result } = value;
+  void failureReason;
+  return { ...result, remoteEvidence: "exact" };
 }
 
 function baseBranchSync(
@@ -525,7 +557,7 @@ const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async (
 
 const cleanUserReferenceReconcile: NonNullable<SessionInitProbes["userReferenceReconcile"]> = async () => ({
   status: "clean",
-  authority: { status: "ready", ref: "main", transitions: [] },
+  authority: { status: "ready", ref: "main", transitions: [], remoteEvidence: "not-applicable" },
   plan: { status: "clean", edits: [], advisories: [] },
   recommendedAction: "skip",
   recommendedCommand: null,

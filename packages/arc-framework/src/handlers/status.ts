@@ -98,12 +98,14 @@ import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import {
   analyzeWorktreeSnapshot,
+  readConfiguredUpstreamBranch,
   runPassiveWorktreeInspection,
 } from "../lib/git/worktree-sync.js";
 import { analyzeBaseDistanceSnapshot } from "../lib/git/base-distance.js";
 import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
 import {
   analyzeBaseBranchSnapshot,
+  readLocalBaseOid,
   resolveBaseCheckoutLocus,
 } from "../lib/git/base-branch-sync.js";
 import { analyzeSupersessionSnapshot } from "../lib/git/supersession.js";
@@ -151,8 +153,6 @@ import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/use
 import {
   analyzeUserReferenceAuthority,
   projectUserReferenceSessionResult,
-  type UserReferenceAuthorityResult,
-  type UserReferenceEvidenceAuthorityResult,
 } from "../lib/user-reference-reconcile.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -290,41 +290,6 @@ const NOTES_COMPACTION_NUDGE_MARKER_RELATIVE = ".internal/notes-compaction-last-
 async function readSessionBranch(exec: GitExec): Promise<string | null> {
   const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
   return branch === "" || branch === "HEAD" ? null : branch;
-}
-
-async function readSessionUpstreamBranch(exec: GitExec, branch: string): Promise<string | null> {
-  const stdout = (await exec(
-    "git",
-    ["for-each-ref", "--format=%(upstream:short)", `refs/heads/${branch}`],
-  )).stdout;
-  const records = stdout.split(/\r?\n/u).filter((record) => record !== "");
-  if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");
-  return records.length === 0 ? null : branch;
-}
-
-async function readLocalBaseOid(exec: GitExec, baseBranch: string): Promise<string | null> {
-  try {
-    const oid = (await exec(
-      "git",
-      ["rev-parse", "--verify", `refs/heads/${baseBranch}^{commit}`],
-      { objectAccess: "local-only" },
-    )).stdout.trim();
-    return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid) ? oid : null;
-  } catch {
-    return null;
-  }
-}
-
-function legacyUserReferenceAuthority(
-  authority: UserReferenceEvidenceAuthorityResult,
-): UserReferenceAuthorityResult {
-  if (authority.status === "ready") {
-    return { status: "ready", ref: authority.ref, transitions: authority.transitions };
-  }
-  if (authority.status === "conflict") {
-    return { status: "conflict", ref: authority.ref, reason: authority.reason };
-  }
-  return { status: "unavailable", ref: authority.ref };
 }
 
 function sessionCleanupBaseEvidence(context: SessionRemoteContext): CleanupBaseEvidence {
@@ -794,7 +759,7 @@ export async function handleStatus(
         const prerequisites = sessionRemotePrerequisites(context);
         const upstreamBranch = branch === null || !remoteSyncEnabled || context.kind === "not-needed"
           ? null
-          : await readSessionUpstreamBranch(exec, branch);
+          : await readConfiguredUpstreamBranch(exec, branch);
         const supplied = prerequisites.kind === "supplied"
           ? prerequisites
           : {
@@ -852,6 +817,7 @@ export async function handleStatus(
                 integrationEvidence: null,
                 overlap: null,
                 register: null,
+                remoteEvidence: "not-applicable" as const,
               }
             : {
                 mode: "advisory" as const,
@@ -865,6 +831,7 @@ export async function handleStatus(
                 integrationEvidence: null,
                 overlap: null,
                 register: null,
+                remoteEvidence: "not-applicable" as const,
               };
         }
         const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
@@ -950,7 +917,7 @@ export async function handleStatus(
           objectAccess: "local-only",
         });
         const authority = prerequisites.kind === "supplied" || protection === "partial"
-          ? legacyUserReferenceAuthority(await analyzeUserReferenceAuthority({
+          ? await analyzeUserReferenceAuthority({
             protection,
             baseBranch,
             snapshot: prerequisites.kind === "supplied"
@@ -960,8 +927,13 @@ export async function handleStatus(
               ? prerequisites.objectAvailability
               : { kind: "unavailable", reason: "execution" },
             enumerateAt: (ref) => enumerateGitRetirementRecords(localOnlyExec, ref),
-          }))
-          : { status: "unavailable" as const, ref: `origin/${baseBranch}` };
+          })
+          : {
+              status: "unavailable" as const,
+              ref: `origin/${baseBranch}`,
+              remoteEvidence: "unreachable" as const,
+              failureReason: "error" as const,
+            };
         const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
         return projectUserReferenceSessionResult(authority, {
           userInbox: {
