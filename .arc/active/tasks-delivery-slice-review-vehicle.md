@@ -476,20 +476,17 @@ drift is consequently caught at admission and at merge-lock release, never by st
   structurally, because the key is derived from a target the two vehicles resolve differently. Only the first
   was a defect; the second was a property to confirm.
 
-### `[ ]` **5.2 Confirm respond serves member operations unchanged**
+### `[x]` **5.2 Confirm respond serves member operations unchanged**
 
 - _Goal:_ Responding to findings on a member operation resolves the right actor identities without carrying
   member selection at all, so the verb needs no change.
 
-- _Rationale:_ Respond consumes only the author and runtime identities out of the resolution, and both are
-  selector-invariant at the control locus — the author is the owning work unit's owner whether or not a member is
-  named. This is the one re-derivation site the selector does not have to reach, which is worth proving rather
-  than assuming, since it is the exception to the rule the rest of this phase enforces.
-
-    Build `test-first` (one behavior at a time):
-
-    - respond over a member operation resolves the owning work unit's owner as approver, with no selector supplied
-    - respond over a work-unit or Errand operation is unchanged
+- _Outcome:_ Confirmed without a production change, and the exception holds for a stronger reason than
+  selector-invariance alone: the operation's vehicle never reaches actor resolution, so respond has nowhere to
+  put a selector rather than choosing not to pass one. Member, work-unit, and Errand operations all resolve from
+  the evaluator identity alone, and the composed approver is the owning work unit's owner with no delivery read
+  performed at all. Proven by mutation — approving as the evaluator, and supplying the persisted head the way
+  attest now does, each break exactly these tests.
 
 ### `[ ]` **5.3 Confirm member targets at resume and reduce without re-resolving authority**
 

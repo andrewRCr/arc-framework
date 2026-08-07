@@ -40,7 +40,15 @@ const meta = (overrides: Partial<MetaRecord> = {}): MetaRecord => MetaRecordSche
   ...overrides,
 });
 
-const live: { meta: MetaRecord | null; context: never } = { meta: meta(), context: {} as never };
+const context = () => ({
+  activeIdentity: "andrew",
+  workUnit: { identity: "review-surface-binding", owner: "andrew" },
+  errand: null,
+});
+const live: { meta: MetaRecord | null; context: ReturnType<typeof context> } = {
+  meta: meta(),
+  context: context(),
+};
 // Methods resolve to package defaults; only the rubric arm varies per case.
 const methodFilePort = { readMethodFile: () => undefined };
 const PROJECT_AUGMENTATION = {
@@ -79,6 +87,10 @@ const { createLocalPrepareDependencies } = await import(
 const { createLocalAttestDependencies } = await import(
   "../../../../../src/scripts/review-gate/runtime/local-attest-composition.js"
 );
+const { createRespondDependencies } = await import(
+  "../../../../../src/scripts/review-gate/runtime/respond-composition.js"
+);
+const { getFrameworkVersion } = await import("../../../../../src/lib/version.js");
 
 const authority = (vehicle: LocalReviewAuthority["vehicle"]): LocalReviewAuthority => ({
   vehicle,
@@ -173,5 +185,16 @@ describe("local review assurance dispatch", () => {
       authority({ kind: "errand", identity: "repair-review-state" }),
       state,
     )).resolves.not.toBe(published.guidance.guidanceDigest);
+  });
+
+  it("resolves respond's actors from the control locus without naming a member", async () => {
+    // Respond consumes only the author and runtime identities, and the delivery
+    // read is what a selector would reach — an exec fake proves neither ran.
+    const respond = createRespondDependencies({ exec: vi.fn() as never, cwd: "/repo" });
+
+    await expect(respond.resolveLocalActors("fresh-reviewer")).resolves.toEqual({
+      approverIdentity: "andrew",
+      proposerIdentity: `arc-cli/${getFrameworkVersion()}`,
+    });
   });
 });
