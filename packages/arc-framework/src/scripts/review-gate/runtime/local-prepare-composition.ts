@@ -77,6 +77,7 @@ export function createLocalPrepareDependencies(input: {
     liveContext ??= readLocalReviewLiveContext(input);
     return liveContext;
   };
+  const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const methodFiles = createLocalReviewMethodFilePort({ cwd: input.cwd });
   const rubricPort = createLocalReviewRubricBindingPort({ cwd: input.cwd });
 
@@ -124,12 +125,15 @@ export function createLocalPrepareDependencies(input: {
           kind: "arc-cli",
           identity: `arc-cli/${getFrameworkVersion()}`,
         }),
-        memberLookup: new RepositoryDeliveryMemberLookup(input),
+        memberLookup,
       },
     ),
     composeAssurance: async (authority: LocalReviewAuthority) => {
       const live = await readLive();
-      if (authority.vehicle.kind === "work-unit") {
+      // A member's assurance is its owning work unit's: same meta, same work
+      // class, same rubric. Left unrouted it would fall to the Errand arm below
+      // and compose an assurance with no work class at all.
+      if (authority.vehicle.kind === "work-unit" || authority.vehicle.kind === "delivery-member") {
         if (live.meta === null) return { status: "refused", diagnostics: ["work-unit meta unavailable"] };
         const composed = composeWorkUnitReviewAssurance(live.meta, methodFiles, rubricPort);
         if (composed.status === "refused") {

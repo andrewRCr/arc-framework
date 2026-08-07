@@ -401,21 +401,15 @@ class.
   `.authority` and supply no selector, holding both to today's behavior. Attest's conditional selector supply is
   Task 5.1.a's, so a member operation can be prepared but not yet attested until that lands.
 
-### `[ ]` **4.3 Route `delivery-member` assurance to the work-unit arm**
+### `[x]` **4.3 Route `delivery-member` assurance to the work-unit arm**
 
 - _Goal:_ A member's review assurance is the owning work unit's work class and review rubric, composed by the
   existing function rather than falling through to the Errand arm.
 
-- _Note:_ Dispatch today branches on the work-unit kind and treats everything else as an Errand, so an unrouted
-  member would compose an Errand assurance with no work class — the opposite of the intent. Routing it to the
-  work-unit arm also keeps the guidance digest stable between prepare and attest, which reach the same
-  composition.
-
-    Build `test-first` (one behavior at a time):
-
-    - a member authority composes work-unit assurance from the control locus's meta
-    - the composed assurance carries the owning work unit's work class, not the Errand arm's absent class
-    - an absent or unresolvable rubric refuses for a member exactly as it does for a work unit
+- _Outcome:_ One predicate in the local lane's `composeAssurance` — the member kind now enters the same arm as a
+  work unit, so both compose from the control locus's meta through the unchanged composition function and produce
+  byte-identical assurance. Refusals follow for free: an absent meta and an unresolvable rubric each refuse for a
+  member exactly as for a work unit, which is what keeps the guidance digest stable across prepare and attest.
 
 ### `[ ]` **4.4 Prepare a member operation end to end**
 
