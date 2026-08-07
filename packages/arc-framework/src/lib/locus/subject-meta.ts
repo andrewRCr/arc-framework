@@ -50,14 +50,18 @@ export async function projectCheckoutSubjectMeta(options: {
   subjectKey: string;
   identity: string;
   identityGlobalUserDir?: string | null;
-  metaRoot: { kind: "maintainer" } | { kind: "contributor"; identity: string };
+  metaRoot: { kind: "maintainer" }
+    | { kind: "contributor"; identity: string }
+    | { kind: "completed"; path: string };
   candidates: readonly DormantMetaEvidence[];
   activeExtensions?: readonly string[];
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
   const expectedPath = options.metaRoot.kind === "maintainer"
     ? `.arc/active/meta-${options.subjectKey}.md`
-    : `.arc/user/${options.metaRoot.identity}/active/meta-${options.subjectKey}.md`;
+    : options.metaRoot.kind === "contributor"
+      ? `.arc/user/${options.metaRoot.identity}/active/meta-${options.subjectKey}.md`
+      : normalizedRelative(options.cwd, options.metaRoot.path);
   const matches = options.candidates.filter((candidate) =>
     normalizedRelative(options.cwd, candidate.path) === expectedPath);
   if (matches.length !== 1) {
@@ -89,7 +93,9 @@ export async function projectCheckoutSubjectMeta(options: {
       metaPath: expectedPath,
     };
   }
-  const sessionType = inferSessionType(record.state, record.taskList, record.nextAction, record.branch);
+  const sessionType = options.metaRoot.kind === "completed"
+    ? "integration"
+    : inferSessionType(record.state, record.taskList, record.nextAction, record.branch);
   const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null

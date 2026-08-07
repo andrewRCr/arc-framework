@@ -11,7 +11,9 @@ import type {
 import type { CompletedEvidenceRead } from "../work-unit/completed-index.js";
 import {
   projectActiveMetaEvidence,
+  projectArchivedMetaEvidence,
   type ActiveMetaEvidence,
+  type ArchivedMetaEvidence,
   type DormantMetaEvidence,
   type DormantMarkerGenerationEvidence,
   type MetaRootEvidence,
@@ -33,6 +35,8 @@ export interface DormantCheckoutReadEvidence {
   readonly marker: DormantMarkerGenerationEvidence;
   readonly metaRoots: readonly MetaRootEvidence[];
   readonly metas: readonly DormantMetaEvidence[];
+  readonly archivedMetaRoots?: readonly MetaRootEvidence[];
+  readonly archivedMetas?: readonly DormantMetaEvidence[];
 }
 
 /** Identity entries that do not fabricate checkout rows. */
@@ -204,26 +208,42 @@ export async function readDerivedLocusRoster(options: {
           metaRoots: evidence.metaRoots,
           ...(expectedSubjectKey === undefined ? {} : { expectedSubjectKey }),
         });
+    const archivedMeta: ArchivedMetaEvidence = activeMeta.kind === "absent"
+      && expectedSubjectKey !== undefined
+      ? projectArchivedMetaEvidence({
+          cwd: item.original.path,
+          identity: options.identity,
+          subjectKey: expectedSubjectKey,
+          candidates: evidence.archivedMetas ?? [],
+          metaRoots: evidence.archivedMetaRoots ?? [],
+        })
+      : { kind: "absent" };
     let row = projectDerivedCheckoutRow({
       checkout: item.checkout,
       marker: evidence.marker,
       activeMeta,
+      archivedMeta,
       completed: options.completed,
       identities: options.identities,
       primarySafety: item.checkout.primary
         ? options.primarySafety
         : { kind: "error", message: "Primary safety does not apply to linked checkouts" },
     });
-    if (row.kind === "work-unit" && activeMeta.kind === "present") {
+    const subjectMeta = activeMeta.kind === "present"
+      ? activeMeta
+      : archivedMeta.kind === "present"
+        ? archivedMeta
+        : null;
+    if (row.kind === "work-unit" && subjectMeta !== null) {
       let context: Awaited<ReturnType<typeof projectCheckoutSubjectMeta>>;
       try {
         context = await projectCheckoutSubjectMeta({
           cwd: item.original.path,
-          subjectKey: activeMeta.subject.key,
+          subjectKey: subjectMeta.subject.key,
           identity: options.identity,
           identityGlobalUserDir: options.identityGlobalUserDir,
-          metaRoot: activeMeta.metaRoot,
-          candidates: activeMeta.candidates,
+          metaRoot: subjectMeta.metaRoot,
+          candidates: subjectMeta.candidates,
           activeExtensions: options.activeExtensions ?? [],
           io: options.subjectMetaIO,
         });

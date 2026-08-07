@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/index.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
+import { deriveRecoveryLocusContext } from "../../../src/lib/recover/locus-context.js";
 import {
   readDerivedLocusFrame,
   readDerivedLocusRoster,
@@ -31,6 +32,16 @@ function meta(root: string, key = "demo") {
     name: `meta-${key}.md`,
     path: `${root}/.arc/active/meta-${key}.md`,
     text: `# Metadata: ${key}\n\n- **State:** \`Active\`\n- **Owner:** \`andrew\`\n- **Branch:** \`feat/${key}\`\n- **Cohort:** [none]\n- **Task List:** \`tasks-${key}.md\`\n- **Current Workflow:** [none]\n- **Next Action:** Continue\n`,
+  };
+}
+
+function archivedMeta(root: string, key = "demo") {
+  const archiveRoot = `${root}/.arc/completed/2026-q3/49_${key}`;
+  return {
+    kind: "read" as const,
+    name: `meta-${key}.md`,
+    path: `${archiveRoot}/meta-${key}.md`,
+    text: `# Metadata: ${key}\n\n- **State:** \`Shipped\`\n- **Owner:** \`andrew\`\n- **Branch:** [none]\n- **Cohort:** [none]\n- **Task List:** \`tasks-${key}.md\`\n- **Current Workflow:** [none]\n- **Next Action:** Complete post-merge cleanup\n`,
   };
 }
 
@@ -135,6 +146,106 @@ describe("dormant derived roster reader", () => {
       subject: { kind: "work-unit", key: "demo" },
       context: { sessionType: "execution" },
     });
+  });
+
+  it("recovers integration context from the entering WU's exact archived meta", async () => {
+    const path = "/repo/demo";
+    const archived = archivedMeta(path);
+    const files = new Map([
+      [archived.path, archived.text],
+      [`${path}/.arc/completed/2026-q3/49_demo/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Do it**\n"],
+    ]);
+    const evidence = {
+      checkoutPath: path,
+      marker: {
+        kind: "present" as const,
+        marker: { spawnedByArc: true as const, createdFor: { kind: "work-unit" as const, name: "demo" } },
+        generation: `sha256:${"a".repeat(64)}`,
+      },
+      metaRoots: [{ kind: "listed" as const, path: `${path}/.arc/active` }],
+      metas: [],
+      archivedMetaRoots: [{ kind: "listed" as const, path: `${path}/.arc/completed` }],
+      archivedMetas: [archived],
+    };
+
+    const result = await readDerivedLocusFrame({
+      ...baseOptions({
+        checkouts: [evidence],
+        subjectMetaIO: subjectIO(files),
+      }),
+      enteringCheckoutPath: path,
+    });
+
+    expect(result.entering).toMatchObject({
+      kind: "selected",
+      row: {
+        kind: "work-unit",
+        lifecycleLocation: "completed",
+        context: {
+          metaPath: ".arc/completed/2026-q3/49_demo/meta-demo.md",
+          sessionType: "integration",
+          workflow: "integrate-work-unit",
+          taskCursor: { status: "no-open-task" },
+        },
+      },
+    });
+    expect(result.active?.context.loadSet.entries).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(deriveRecoveryLocusContext({
+      state: result,
+      identity: "andrew",
+      workingMemoryPath: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
+      activeExtensions: [],
+    })).toMatchObject({
+      frame: {
+        kind: "resolved",
+        subject: { kind: "work-unit", key: "demo" },
+        workflow: "integrate-work-unit",
+        sessionType: "integration",
+      },
+      taskCursor: { status: "no-open-task" },
+    });
+  });
+
+  it("refuses duplicate archived candidates instead of selecting an integration subject", async () => {
+    const path = "/repo/demo";
+    const first = archivedMeta(path);
+    const second = {
+      ...first,
+      path: `${path}/.arc/completed/2026-q4/01_demo/meta-demo.md`,
+    };
+    const evidence = {
+      checkoutPath: path,
+      marker: {
+        kind: "present" as const,
+        marker: { spawnedByArc: true as const, createdFor: { kind: "work-unit" as const, name: "demo" } },
+        generation: `sha256:${"a".repeat(64)}`,
+      },
+      metaRoots: [{ kind: "listed" as const, path: `${path}/.arc/active` }],
+      metas: [],
+      archivedMetaRoots: [{ kind: "listed" as const, path: `${path}/.arc/completed` }],
+      archivedMetas: [first, second],
+    };
+
+    const result = await readDerivedLocusFrame({
+      ...baseOptions({ checkouts: [evidence] }),
+      enteringCheckoutPath: path,
+    });
+
+    expect(result.entering).toMatchObject({
+      kind: "selected",
+      row: {
+        kind: "unresolved-checkout",
+        context: null,
+        diagnostics: [{
+          code: "authority-evidence-unreadable",
+          message: "Duplicate archived meta for demo",
+        }],
+      },
+    });
+    expect(result.active).toBeNull();
   });
 
   it("contains malformed siblings while preserving the exact entering-row result", async () => {

@@ -1,7 +1,7 @@
 /** Bounded worktree-first evidence acquisition without record, lock, or process inputs. */
 
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import {
   readTransientIdentitySnapshot,
@@ -21,7 +21,9 @@ import {
 import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import { canonicalLocalPath } from "../local-path-identity.js";
 import {
+  readArchivedWorkUnitMetaFromRef,
   readCompletedEvidenceFromRef,
+  type ArchivedWorkUnitMetaRead,
   type CompletedEvidenceRead,
 } from "../work-unit/completed-index.js";
 import type { DormantMarkerGenerationEvidence } from "./derived-lifecycle-evidence.js";
@@ -34,6 +36,7 @@ import type { PrimarySafetyProjection } from "./role-derivation.js";
 export interface DerivedLocusEvidenceIO {
   scanWorktrees(): Promise<RegisteredWorktreeScanResult>;
   listDirectory(path: string): Promise<string[]>;
+  readArchivedMeta(ref: string, slug: string): Promise<ArchivedWorkUnitMetaRead>;
   readText(path: string): Promise<string>;
   readMarker(path: string): Promise<WorktreeMarkerGenerationReadResult>;
   readIdentities(): Promise<TransientIdentitySnapshot>;
@@ -51,6 +54,7 @@ export function createDerivedLocusEvidenceIO(options: {
   return {
     scanWorktrees: () => scanRegisteredWorktrees(options.exec),
     listDirectory: (path) => readdir(path),
+    readArchivedMeta: (ref, slug) => readArchivedWorkUnitMetaFromRef(options.exec, ref, slug),
     readText: (path) => readFile(path, "utf8"),
     readMarker: readWorktreeMarkerGeneration,
     readIdentities: () => readTransientIdentitySnapshot({ exec: options.exec, identity: options.identity }),
@@ -158,6 +162,29 @@ async function readCheckout(
         return { kind: "error" as const, name, path, message: errorMessage(error) };
       }
     }));
+  const archivedSubject = marker.kind === "present" && marker.marker.createdFor.kind === "work-unit"
+    ? marker.marker.createdFor.name
+    : null;
+  const archivedRoot = join(worktree.path, ".arc", "completed");
+  const archivedRead = archivedSubject === null
+    ? null
+    : await io.readArchivedMeta(worktree.head, archivedSubject).catch((error: unknown): ArchivedWorkUnitMetaRead => ({
+        kind: "unreadable",
+        reason: errorMessage(error),
+      }));
+  const archivedMetas = archivedRead?.kind === "read"
+    ? [{
+        kind: "read" as const,
+        name: basename(archivedRead.path),
+        path: join(worktree.path, archivedRead.path),
+        text: archivedRead.text,
+      }]
+    : [];
+  const archivedRootError = archivedRead?.kind === "duplicate"
+    ? `Duplicate archived metadata paths: ${archivedRead.paths.join(", ")}`
+    : archivedRead?.kind === "unreadable"
+      ? archivedRead.reason
+      : null;
   return {
     checkoutPath: worktree.path,
     marker,
@@ -165,6 +192,12 @@ async function readCheckout(
       ? { kind: "listed" as const, path: listing.path }
       : { kind: "error" as const, path: listing.path, message: listing.message }),
     metas,
+    archivedMetaRoots: archivedSubject === null
+      ? []
+      : [archivedRootError === null
+          ? { kind: "listed" as const, path: archivedRoot }
+          : { kind: "error" as const, path: archivedRoot, message: archivedRootError }],
+    archivedMetas,
   };
 }
 

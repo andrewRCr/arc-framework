@@ -163,6 +163,83 @@ async function run(options: Partial<AuditRecoveryStateOptions> = {}) {
   });
 }
 
+function archivedIntegrationOptions(options: {
+  slug?: string;
+  archivedMetaPath?: string;
+  contextMetaPath?: string;
+  archivedWorkflowPath?: string;
+  metaReadMode?: LoadSetManifest["entries"][number]["readMode"];
+} = {}): Partial<AuditRecoveryStateOptions> {
+  const slug = options.slug ?? "demo";
+  const activeMetaPath = `.arc/active/meta-${slug}.md`;
+  const archivedMetaPath = options.archivedMetaPath
+    ?? `.arc/completed/2026-q3/49_${slug}/meta-${slug}.md`;
+  const baseline = {
+    manifestVersion: 1 as const,
+    entries: [
+      { path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md", readMode: { kind: "full" as const } },
+      { path: activeMetaPath, readMode: { kind: "full" as const } },
+      {
+        path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+        readMode: { kind: "full" as const },
+      },
+    ],
+  } satisfies LoadSetManifest;
+  const archived = {
+    manifestVersion: 1 as const,
+    entries: [
+      baseline.entries[0]!,
+      { path: archivedMetaPath, readMode: options.metaReadMode ?? { kind: "full" as const } },
+      {
+        ...baseline.entries[2]!,
+        path: options.archivedWorkflowPath ?? baseline.entries[2]!.path,
+      },
+    ],
+  } satisfies LoadSetManifest;
+  const contextMetaPath = options.contextMetaPath ?? archivedMetaPath;
+  const row = workUnitRow({
+    lifecycleLocation: "completed",
+    subject: { kind: "work-unit", key: slug },
+    context: {
+      ...workUnitRow().context!,
+      metaPath: contextMetaPath,
+      sessionType: "integration",
+      workflow: "integrate-work-unit",
+      taskListPath: contextMetaPath.replace(/meta-[^/]+\.md$/u, `tasks-${slug}.md`),
+      taskCursor: { status: "no-open-task" },
+      loadSet: archived,
+    },
+  });
+  const state = derivedFrame({
+    roster: [row],
+    entering: { kind: "selected", row },
+    active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: slug }, context: row.context! },
+  });
+
+  return {
+    seed: seed({
+      activeWorkUnit: slug,
+      metaPath: activeMetaPath,
+      sessionType: "integration",
+      currentWorkflow: "integrate-work-unit",
+      taskCursor: null,
+      loadSet: baseline,
+    }),
+    recover: recover({
+      derivedLocusState: ok(state),
+      recoveryFrame: ok(recoveryFrame({
+        subject: { kind: "work-unit", key: slug },
+        workflow: "integrate-work-unit",
+        sessionType: "integration",
+      })),
+      loadSet: ok(archived),
+      taskCursor: ok({ status: "no-open-task" }),
+    }),
+    freshHead: "b".repeat(40),
+    resolveCommittedProgress: async () => ({ advanced: true, files: new Set() }),
+  };
+}
+
 describe("auditRecoveryState", () => {
   it("accepts identical checkout, load-set, dirty-path, and task-cursor facts", async () => {
     const result = await run();
@@ -272,6 +349,50 @@ describe("auditRecoveryState", () => {
     const result = await run({
       recover: recover({ loadSet: ok({ manifestVersion: 1, entries: [] }) }),
     });
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "load-set-drift" }));
+  });
+
+  it("accepts the exact active-to-completed meta relocation for an archived integration WU", async () => {
+    const result = await run(archivedIntegrationOptions());
+
+    expect(result.status).toBe("ready");
+    expect(result.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "load-set-archival-relocation",
+    }));
+  });
+
+  it.each([
+    {
+      name: "additional path drift",
+      options: {
+        archivedWorkflowPath: ".arc/system/workflows/arc/work-unit-lifecycle/other.md",
+      },
+    },
+    {
+      name: "non-full metadata read mode",
+      options: {
+        metaReadMode: { kind: "partial-section" as const, heading: "Metadata" },
+      },
+    },
+    {
+      name: "completed metadata path mismatch",
+      options: {
+        contextMetaPath: ".arc/completed/2026-q3/50_demo/meta-demo.md",
+      },
+    },
+  ])("refuses archival relocation with $name", async ({ options }) => {
+    const result = await run(archivedIntegrationOptions(options));
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "load-set-drift" }));
+  });
+
+  it("does not let recovery slugs act as archive-path regex syntax", async () => {
+    const result = await run(archivedIntegrationOptions({
+      slug: "de.mo",
+      archivedMetaPath: ".arc/completed/2026-q3/49_deXmo/meta-deXmo.md",
+    }));
+
+    expect(result.status).toBe("stop");
     expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "load-set-drift" }));
   });
 
