@@ -41,8 +41,8 @@ export function createLocalAttestDependencies(input: {
         (await receipts()).appendReceipt(receipt, expectedLedgerVersion)
       ),
     },
-    resolveAuthority: async (evaluatorIdentity) => (
-      (await prepare.resolveAuthority(evaluatorIdentity)).authority
+    resolveAuthority: async (evaluatorIdentity, memberHeadObjectId) => (
+      (await prepare.resolveAuthority(evaluatorIdentity, memberHeadObjectId)).authority
     ),
     resolveGuidanceDigest: async (authority, state) => {
       const policy = prepare.resolvePolicy();

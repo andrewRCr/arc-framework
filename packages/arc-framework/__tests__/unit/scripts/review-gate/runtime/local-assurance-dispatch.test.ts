@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MetaRecordSchema } from "../../../../../src/lib/active/meta-schema.js";
 import type { MetaRecord } from "../../../../../src/lib/active/meta-reader.js";
@@ -6,7 +6,14 @@ import type {
   LocalReviewAuthority,
 } from "../../../../../src/scripts/review-gate/core/local-review-authority.js";
 import type {
+  LocalReviewState,
+} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import {
+  DEFAULT_LOCAL_REVIEW_POLICY_BINDING,
+} from "../../../../../src/scripts/review-gate/policy/local-review-policy.js";
+import type {
   ReviewRubricBindingPort,
+  ReviewRubricBindingResolution,
 } from "../../../../../src/scripts/review-gate/policy/rubric-binding.js";
 
 const meta = (overrides: Partial<MetaRecord> = {}): MetaRecord => MetaRecordSchema.parse({
@@ -36,11 +43,27 @@ const meta = (overrides: Partial<MetaRecord> = {}): MetaRecord => MetaRecordSche
 const live: { meta: MetaRecord | null; context: never } = { meta: meta(), context: {} as never };
 // Methods resolve to package defaults; only the rubric arm varies per case.
 const methodFilePort = { readMethodFile: () => undefined };
+const PROJECT_AUGMENTATION = {
+  rubricId: "project-review",
+  dimensions: [{
+    id: "domain-fit",
+    title: "Domain fit",
+    instruction: "Check the change against the project's own domain boundaries.",
+  }],
+} as const;
+// Null resolves nothing, which is the unavailable-rubric arm the refusal cases need.
+let rubricBinding: ReviewRubricBindingResolution | null = null;
 const rubricPort: ReviewRubricBindingPort = {
   resolveReviewRubricBinding: vi.fn(() => {
-    throw new Error("rubric lookup failed");
+    if (rubricBinding === null) throw new Error("rubric lookup failed");
+    return rubricBinding;
   }),
 };
+
+afterEach(() => {
+  live.meta = meta();
+  rubricBinding = null;
+});
 
 vi.mock("../../../../../src/scripts/review-gate/hosts/local/live-context.js", () => ({
   readLocalReviewLiveContext: async () => live,
@@ -52,6 +75,9 @@ vi.mock("../../../../../src/scripts/review-gate/hosts/local/method-files.js", ()
 
 const { createLocalPrepareDependencies } = await import(
   "../../../../../src/scripts/review-gate/runtime/local-prepare-composition.js"
+);
+const { createLocalAttestDependencies } = await import(
+  "../../../../../src/scripts/review-gate/runtime/local-attest-composition.js"
 );
 
 const authority = (vehicle: LocalReviewAuthority["vehicle"]): LocalReviewAuthority => ({
@@ -110,7 +136,6 @@ describe("local review assurance dispatch", () => {
         status: "refused",
       });
     }
-    live.meta = meta();
   });
 
   it("refuses an unresolvable rubric for a member exactly as for a work unit", async () => {
@@ -122,6 +147,31 @@ describe("local review assurance dispatch", () => {
         status: "refused",
       });
     }
-    live.meta = meta();
+  });
+
+  it("recomputes a member's attested guidance digest from the digest prepare published", async () => {
+    live.meta = meta({ reviewRubric: "project-review" });
+    rubricBinding = {
+      status: "resolved",
+      binding: { identity: "project-review", augmentation: PROJECT_AUGMENTATION },
+      diagnostics: [],
+    };
+    const attest = createLocalAttestDependencies({ exec: vi.fn() as never, cwd: "/repo" });
+    // Recomposition reads exactly one field out of the persisted operation record.
+    const state = {
+      policyBindingDigest: DEFAULT_LOCAL_REVIEW_POLICY_BINDING.bindingDigest,
+    } as unknown as LocalReviewState;
+
+    const published = await compose().composeAssurance(authority(memberVehicle));
+    if (published.status !== "resolved") throw new Error("expected resolved assurance");
+
+    await expect(attest.resolveGuidanceDigest(authority(memberVehicle), state))
+      .resolves.toBe(published.guidance.guidanceDigest);
+    // Not a tautology: the Errand arm an unrouted member falls to digests differently,
+    // which attest reports as changed guidance rather than as a misrouted vehicle.
+    await expect(attest.resolveGuidanceDigest(
+      authority({ kind: "errand", identity: "repair-review-state" }),
+      state,
+    )).resolves.not.toBe(published.guidance.guidanceDigest);
   });
 });

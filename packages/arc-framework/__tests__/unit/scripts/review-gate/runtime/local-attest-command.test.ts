@@ -6,6 +6,9 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
+import type {
+  LocalReviewAuthority,
+} from "../../../../../src/scripts/review-gate/core/local-review-authority.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
@@ -33,11 +36,15 @@ const targetInput = (target: LocalReviewState["target"]) => ({
 const releaseMaterialization = async (): Promise<void> => undefined;
 const withSourceLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
-function fixture() {
+const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
+const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
+
+function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    kind: "change-set",
+    kind: vehicle.kind === "delivery-member" ? "delivery-member" : "change-set",
     repositoryId: "repo-1",
     baseRef: "main",
     diffBaseSha: objectId("a"),
@@ -63,7 +70,7 @@ function fixture() {
     target,
     requirement,
     authority: {
-      vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+      vehicle,
       authorIdentity: "author-1",
       evaluatorIdentity: "evaluator-1",
       attestationRuntimeKind: "arc-cli",
@@ -703,5 +710,97 @@ describe("local attest command", () => {
       message: "local review operation has multiple terminal receipts",
     });
     expect(appendReceipt).not.toHaveBeenCalled();
+  });
+
+  describe("member attestation", () => {
+    const attest = (
+      records: ReturnType<typeof fixture>,
+      resolveAuthority: (
+        evaluatorIdentity: string,
+        memberHeadObjectId?: string,
+      ) => Promise<LocalReviewAuthority>,
+    ) => attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result: { ...records.result, status: "complete" },
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        appendReceipt: async () => ({ ledgerVersion: 1, durableEvidenceRef: "receipt.json#1" }),
+      },
+      resolveAuthority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
+    });
+
+    it("re-resolves the persisted member vehicle from the head its target pins", async () => {
+      const records = fixture(memberVehicle);
+      // The control locus resolves its own work unit unless a member head is named,
+      // so a resolution that never receives the selector derives the wrong vehicle.
+      const resolveAuthority = vi.fn(async (
+        _evaluatorIdentity: string,
+        memberHeadObjectId?: string,
+      ): Promise<LocalReviewAuthority> => ({
+        ...records.admission.authority,
+        vehicle: memberHeadObjectId === records.operation.target.headSha
+          ? memberVehicle
+          : workUnitVehicle,
+      }));
+
+      await expect(attest(records, resolveAuthority)).resolves.toMatchObject({
+        state: "attested-current",
+        nextAction: "reduce",
+      });
+      expect(resolveAuthority).toHaveBeenCalledWith(
+        records.operation.request.evaluatorIdentity,
+        records.operation.target.headSha,
+      );
+    });
+
+    it("names no member for a work-unit operation whose head is itself delivery-bound", async () => {
+      const records = fixture();
+      // A terminal member's pull request is opened from the control branch, so that
+      // head resolves to a member — an unconditional supply would adopt it here.
+      const resolveAuthority = vi.fn(async (
+        _evaluatorIdentity: string,
+        memberHeadObjectId?: string,
+      ): Promise<LocalReviewAuthority> => ({
+        ...records.admission.authority,
+        vehicle: memberHeadObjectId === undefined ? workUnitVehicle : memberVehicle,
+      }));
+
+      await expect(attest(records, resolveAuthority)).resolves.toMatchObject({
+        state: "attested-current",
+        nextAction: "reduce",
+      });
+      expect(resolveAuthority).toHaveBeenCalledWith(
+        records.operation.request.evaluatorIdentity,
+        undefined,
+      );
+    });
+
+    it("refuses a member operation whose re-resolved vehicle names another member", async () => {
+      const records = fixture(memberVehicle);
+      const resolveAuthority = vi.fn(async (): Promise<LocalReviewAuthority> => ({
+        ...records.admission.authority,
+        vehicle: { kind: "delivery-member", identity: `sha256:${"b".repeat(64)}` },
+      }));
+
+      await expect(attest(records, resolveAuthority)).rejects.toMatchObject({
+        code: "invalid-input",
+        message: "local review attestation authority mismatch",
+      });
+    });
   });
 });

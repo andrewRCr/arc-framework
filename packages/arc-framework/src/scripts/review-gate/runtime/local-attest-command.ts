@@ -39,7 +39,10 @@ export interface LocalAttestDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
-  resolveAuthority(evaluatorIdentity: string): Promise<LocalReviewAuthority>;
+  resolveAuthority(
+    evaluatorIdentity: string,
+    memberHeadObjectId?: string,
+  ): Promise<LocalReviewAuthority>;
   resolveGuidanceDigest(authority: LocalReviewAuthority, state: LocalReviewState): Promise<string>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
   inspectMaterialization(source: NonNullable<Awaited<ReturnType<LocalReviewSourceStore["readSource"]>>>): Promise<
@@ -235,7 +238,14 @@ async function attestLocalReviewWithinSourceLock(
       },
     });
   }
-  const authority = await dependencies.resolveAuthority(state.request.evaluatorIdentity);
+  // The persisted target is the operation's exact-head record, so a member's selector
+  // is read back from it rather than stored twice. Supplying it unconditionally would
+  // authenticate an ordinary work unit's control head — itself delivery-bound once the
+  // terminal member's pull request is open — as a member, and fail its own comparison.
+  const authority = await dependencies.resolveAuthority(
+    state.request.evaluatorIdentity,
+    state.vehicle.kind === "delivery-member" ? state.target.headSha : undefined,
+  );
   if (canonicalize(authority.vehicle) !== canonicalize(state.vehicle)
     || authority.authorIdentity !== state.request.authorIdentity
     || authority.evaluatorIdentity !== state.request.evaluatorIdentity

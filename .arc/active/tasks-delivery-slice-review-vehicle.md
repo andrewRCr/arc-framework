@@ -453,21 +453,15 @@ drift is consequently caught at admission and at merge-lock release, never by st
 - _Context:_ Authority re-resolution is the lane's integrity mechanism, so member selection has to satisfy it
   rather than bypass it.
 
-    - `[ ]` **5.1.a Carry member selection to attest's authority resolution**
+    - `[x]` **5.1.a Carry member selection to attest's authority resolution**
 
-        - attest makes two member-sensitive checks, not one: it compares the re-resolved vehicle against the
-          persisted vehicle, and it recomputes the delivered guidance digest through the same assurance
-          composition. Misrouted assurance passes the first and fails the second as a changed-guidance
-          corruption, which names nothing about the real cause — so both are pinned here.
-
-        Build `test-first` (one behavior at a time):
-
-        - attesting a member operation re-derives a vehicle identical to the persisted one
-        - the attestation's vehicle comparison passes on the supported path
-        - the recomputed guidance digest equals the one prepare published
-        - attesting an ordinary work-unit operation supplies no selector and is unaffected, including when its
-          target head is itself bound in delivery state
-        - a vehicle that genuinely differs still refuses
+        - `local-attest-command.ts` reads the selector back out of the persisted target — the operation's own
+          exact-head record — and supplies it to authority re-resolution only when the persisted vehicle is a
+          member; `local-attest-composition.ts` forwards it to the shared resolver. Both member-sensitive checks
+          then pass together: the vehicle comparison, and the guidance digest, which recomputes through the
+          work-unit assurance arm prepare published from rather than the Errand arm's changed-guidance refusal.
+          The condition is what keeps an ordinary operation unaffected, since its control head is itself
+          delivery-bound once the terminal member's pull request is open.
 
     - `[ ]` **5.1.b Keep re-entrant admission consistent**
 
