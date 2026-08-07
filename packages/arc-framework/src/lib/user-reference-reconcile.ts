@@ -21,8 +21,10 @@ import {
   type RemoteHeadSnapshotResult,
 } from "./git/remote-ref-reader.js";
 import type { RemoteFailureReason } from "./kernel/index.js";
-import { boundedFetch, type GitExec } from "./git/exec.js";
+import { boundedGitInvocation, type GitExec } from "./git/exec.js";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "./git/worktree-sync.js";
+import { isGitObjectId } from "./git/object-id.js";
+import { isGitProcessError } from "./git/process-error.js";
 
 /** One exact user-surface snapshot. */
 export interface UserReferenceSurface {
@@ -314,12 +316,25 @@ export async function materializeUserReferenceAuthority(
       enumerateAt: options.enumerateAt,
     });
   }
-  const fetch = await boundedFetch(
+  const sourceRef = `refs/heads/${options.baseBranch}`;
+  if (options.baseBranch === "" || options.baseBranch.startsWith("-") || sourceRef.includes(":")) {
+    throw new Error("Unsafe base ref.");
+  }
+  await options.exec("git", ["check-ref-format", sourceRef]);
+  const fetch = await boundedGitInvocation(
     options.exec,
-    options.baseBranch,
+    ["fetch", "origin", `+${sourceRef}:refs/remotes/origin/${options.baseBranch}`],
     options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
   );
   if (fetch.outcome !== "ok") {
+    if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
+      return {
+        status: "unavailable",
+        ref: `origin/${options.baseBranch}`,
+        reason: "remote-base-absent",
+        remoteEvidence: "exact",
+      };
+    }
     return {
       status: "unavailable",
       ref: `origin/${options.baseBranch}`,
@@ -335,7 +350,7 @@ export async function materializeUserReferenceAuthority(
       "git",
       ["rev-parse", "--verify", `refs/remotes/origin/${options.baseBranch}^{commit}`],
     )).stdout.trim();
-    if (!/^[0-9a-f]{40,64}$/u.test(baseOid)) throw new Error("Invalid materialized base OID.");
+    if (!isGitObjectId(baseOid)) throw new Error("Invalid materialized base OID.");
   } catch (error) {
     return {
       status: "unavailable",

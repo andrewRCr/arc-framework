@@ -58,6 +58,15 @@ describe("readRemoteHeadSnapshot", () => {
     })).resolves.toEqual({ kind: "available", scope: "exact", tips: {} });
   });
 
+  it("rejects an exact query that over-responds with a different branch", async () => {
+    const exec = execReturning(`${oid("a2")}\trefs/heads/other\n`);
+
+    await expect(readRemoteHeadSnapshot({
+      exec,
+      scope: { kind: "exact", branch: "main" },
+    })).resolves.toEqual({ kind: "unreachable", failureReason: "error" });
+  });
+
   it("preserves every advertised branch from one complete all-heads response", async () => {
     const main = oid("a1");
     const feature = oid256("b2");

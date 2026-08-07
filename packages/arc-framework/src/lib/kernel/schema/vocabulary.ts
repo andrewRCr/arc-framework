@@ -31,7 +31,7 @@ export function withRemoteEvidence<T extends z.ZodRawShape>(shape: T) {
   const withoutFailureReason = (remoteEvidence: "exact" | "pending-fetch" | "not-applicable") => z.strictObject({
     ...shape,
     remoteEvidence: z.literal(remoteEvidence),
-    failureReason: z.never().optional(),
+    failureReason: z.never().exactOptional(),
   });
 
   return z.discriminatedUnion("remoteEvidence", [

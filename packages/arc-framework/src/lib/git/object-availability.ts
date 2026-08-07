@@ -5,8 +5,7 @@
  */
 
 import type { GitExecInput } from "./exec.js";
-
-const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+import { isGitObjectId } from "./object-id.js";
 
 /** Complete per-OID commit availability, or an unavailable local probe. */
 export type ObjectAvailabilityResult =
@@ -28,7 +27,7 @@ export async function readObjectAvailability(
   options: ReadObjectAvailabilityOptions,
 ): Promise<ObjectAvailabilityResult> {
   const uniqueOids = [...new Set(options.oids)];
-  if (uniqueOids.some((oid) => !GIT_OBJECT_ID_PATTERN.test(oid))) {
+  if (uniqueOids.some((oid) => !isGitObjectId(oid))) {
     return { kind: "unavailable", reason: "malformed" };
   }
   if (uniqueOids.length === 0) return { kind: "complete", commits: {} };

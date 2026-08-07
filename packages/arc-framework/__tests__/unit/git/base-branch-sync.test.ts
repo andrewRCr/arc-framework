@@ -167,6 +167,24 @@ describe("snapshot-driven base-branch sync", () => {
     expect(calls).toEqual([]);
   });
 
+  it.each([
+    ["execution", /inspection failed/u],
+    ["malformed", /malformed output/u],
+  ] as const)("propagates %s object-availability prerequisite failure", async (reason, message) => {
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: "a".repeat(40),
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "unavailable", reason },
+      history: { kind: "complete" },
+    })).rejects.toThrow(message);
+    expect(calls).toEqual([]);
+  });
+
   it("reports exact local-base absence with an explicit base-sync remedy", async () => {
     const { exec, calls } = buildExec({});
 

@@ -19,10 +19,10 @@
 import type { GitExec } from "./exec.js";
 import type { RemoteFailureReason } from "../kernel/index.js";
 import { gitFailureText } from "./process-error.js";
+import { isGitObjectId } from "./object-id.js";
 
 /** Default remote whose tracking refs back the no-checkout in-flight reads. */
 const DEFAULT_REMOTE = "origin";
-const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const PASSIVE_REMOTE_INTERACTION = {
   terminalPrompts: "forbidden",
   presenters: "forbidden",
@@ -111,7 +111,7 @@ function parseLiveMembership(stdout: string): Pick<LiveRemoteHeadsResult, "compl
     const sha = line.slice(0, tab).trim();
     const ref = line.slice(tab + 1).trim();
     const branch = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : "";
-    if (!GIT_OBJECT_ID_PATTERN.test(sha) || branch === "" || tips[branch] !== undefined) {
+    if (!isGitObjectId(sha) || branch === "" || tips[branch] !== undefined) {
       complete = false;
       continue;
     }
@@ -247,7 +247,7 @@ export async function readLiveRemoteBranchTip(
   const returnedRef = record?.slice(tab + 1).trim() ?? "";
   return {
     reachable: true,
-    tip: GIT_OBJECT_ID_PATTERN.test(oid) && returnedRef === ref ? oid : null,
+    tip: isGitObjectId(oid) && returnedRef === ref ? oid : null,
   };
 }
 
