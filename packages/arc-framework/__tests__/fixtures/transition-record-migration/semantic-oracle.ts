@@ -57,6 +57,28 @@ export const TERMINAL_TRANSITION_ORACLE = [
     reference: { subject: "review-gate-github-adapter", outcome: { kind: "removed" } },
   },
   {
+    receiptFilename: "sha256-e0d2c506b3289515c936d23e44ba8b217040f772c6844bb8eb22615e2d197a18.json",
+    origin: "claimed-sweep-verbs",
+    kind: "abandon",
+    successors: [],
+    queries: ["dependent-alpha", "dependent-beta"].map((dependent) => ({
+      dependent,
+      answer: { status: "unique", disposition: { kind: "abandoned" } },
+    })),
+    reference: { subject: "claimed-sweep-verbs", outcome: { kind: "removed" } },
+  },
+  {
+    receiptFilename: "sha256-3bbfee893989ff3814fc3e60b4aa1a399e3c1de8c0a3923fc27ca6814dacc6a5.json",
+    origin: "locus-generation-binding",
+    kind: "abandon",
+    successors: [],
+    queries: ["dependent-alpha", "dependent-beta"].map((dependent) => ({
+      dependent,
+      answer: { status: "unique", disposition: { kind: "abandoned" } },
+    })),
+    reference: { subject: "locus-generation-binding", outcome: { kind: "removed" } },
+  },
+  {
     receiptFilename: "sha256-af07c19700e967e16eccd6138dff057832e5276babf850e26e6509576893a1a7.json",
     origin: "cohortless-decomposition",
     kind: "rename",
