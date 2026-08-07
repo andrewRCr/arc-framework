@@ -102,11 +102,24 @@ export function inferBranchGoneRecovery(
             `- \`${candidate.branch}\` (${candidate.proposedAction})`),
         ].join("\n"),
       };
+    case "unproven":
+      return {
+        ...recovery,
+        recommendedAction: "surface",
+        recommendedPromptText: recovery.candidates.length === 0
+          ? `Recovery evidence is incomplete (${recovery.remoteEvidence}), so no candidate could be`
+            + " established. Recover manually."
+          : [
+              "Recovery candidates could not be proven against the advertised base"
+                + ` (${recovery.remoteEvidence}). Choose one manually:`,
+              ...recovery.candidates.map((candidate) => `- \`${candidate.branch}\``),
+            ].join("\n"),
+      };
     case "main-fallback":
       return {
         ...recovery,
         recommendedAction: "prompt",
-        recommendedPromptText: "Recover onto `main`?",
+        recommendedPromptText: `Recover onto \`${recovery.baseBranch}\`?`,
       };
   }
 }

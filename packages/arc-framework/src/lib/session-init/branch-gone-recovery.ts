@@ -33,7 +33,7 @@ import {
   type CascadeCandidate,
   type CascadeResolution,
 } from "./branch-gone-cascade.js";
-import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
+import { projectCleanupRemoteEvidence, type CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
 
 /**
  * Recency window for the fallback remote-branch tier, in days. A fixed
@@ -107,6 +107,14 @@ export async function runBranchGoneRecovery(
     worktreeCandidates,
     recentBranchCandidates,
     pendingBranchCount: options.recentPendingBranchCount,
+    baseBranch,
+    // The compatibility path (no supplied prerequisites) resolves containment
+    // through a direct remote-tracking read, so it does establish the merged
+    // fact and reports `exact`. Supplied prerequisites project through the
+    // shared vocabulary, which reports whatever they actually establish.
+    evidence: options.baseEvidence === undefined
+      ? { remoteEvidence: "exact" }
+      : projectCleanupRemoteEvidence(baseBranch, options.baseEvidence),
   });
 }
 

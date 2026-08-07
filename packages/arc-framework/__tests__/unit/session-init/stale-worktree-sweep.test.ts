@@ -395,13 +395,29 @@ describe("runStaleWorktreeSweep", () => {
       },
     });
 
-    expect(result.worktrees).toEqual([{
-      kind: "branched",
-      worktreePath: "/wt/wor",
-      branch: "feat/work-organization-reform",
-      decision: { action: "blocked", reason: "evidence-unavailable" },
-    }]);
+    // Incomplete evidence establishes no shipped set, so the sweep claims
+    // nothing rather than reporting every roster entry as blocked residue.
+    // The slot-level evidence is what carries the degradation.
+    expect(result.worktrees).toEqual([]);
     expect(result.remoteEvidence).toBe(remoteEvidence);
+  });
+
+  it("keeps active, never-shipped worktrees out of the sweep when evidence is incomplete", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: roster(), worktreeIdentity: { kind: "primary" }, baseBranch: "main",
+      exec: buildExec({ clean: false, merged: false }), readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "unreachable", failureReason: "network" },
+        objectAvailability: { kind: "unavailable", reason: "execution" },
+        history: { kind: "complete" },
+      },
+    });
+
+    expect(result.worktrees).toEqual([]);
+    expect(result.retirements).toEqual([]);
+    expect(result.remoteEvidence).toBe("unreachable");
   });
 
   it.each(["index", "graph"] as const)("propagates an exact-base %s local failure", async (failure) => {
