@@ -1,6 +1,7 @@
 /** Canonical local Git target derivation for review preparation. */
 
 import type { GitExec } from "../../../../lib/git/exec.js";
+import type { DeliveryMemberBinding } from "../../core/delivery-member-lookup.js";
 import { createReviewTarget } from "../../core/gate-contract-v2.js";
 import {
   ReviewTargetSchema,
@@ -153,6 +154,34 @@ export async function deriveLocalReviewTarget(
     repositoryId: input.repositoryId,
     baseRef,
     ...derived,
+  });
+}
+
+/**
+ * Composes the review target for one resolved delivery member.
+ *
+ * The member's recorded base is its predecessor's head, which is the diff base for this review —
+ * not the merge base of the head and `baseRef`. `baseRef` carries the base the stack lands to;
+ * exactness rides the two commits. No member ref reaches derivation, so the plan's ref naming and
+ * namespace stay outside this lane entirely.
+ *
+ * @param input - Repository-local Git boundary, the configured base ref, the composition root's
+ *   repository identity, and the resolved member whose coordinates the target pins.
+ * @returns The canonical member target and its domain-separated identity.
+ */
+export async function composeDeliveryMemberTarget(input: {
+  exec: GitExec;
+  cwd: string;
+  baseRef: string;
+  repositoryId: string;
+  member: DeliveryMemberBinding;
+}): Promise<ReviewTarget> {
+  return deriveLocalReviewTarget({
+    exec: input.exec,
+    cwd: input.cwd,
+    baseRef: input.baseRef,
+    repositoryId: input.repositoryId,
+    memberCoordinates: { headSha: input.member.head, diffBaseSha: input.member.base },
   });
 }
 

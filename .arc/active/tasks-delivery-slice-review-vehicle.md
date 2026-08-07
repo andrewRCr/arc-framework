@@ -278,40 +278,31 @@ worktree-cleanliness guard is scoped to the inputs that actually read the worktr
   their trees. `baseRef` is written into the target unchanged on both paths, so the identity-bearing field keeps
   one meaning while `diffBaseSha` carries the kind-conditional one.
 
-### `[ ]` **3.3 Compose a member target from recorded coordinates**
+### `[x]` **3.3 Compose a member target from recorded coordinates**
 
 - _Goal:_ A member's target pins the exact commits delivery recorded for it, with trees resolved locally and the
   configured base as its base ref.
 
-- _Note:_ For a member target the diff base is the member's recorded base — its predecessor's head — not the
-  merge base of the head and the base ref. The base ref carries the base the stack lands to; exactness rides the
-  shas. The two readings are consistent by construction on the ordinary path and deliberately decoupled here.
+    - `[x]` **3.3.a Build the target from a member resolution**
 
-    - `[ ]` **3.3.a Build the target from a member resolution**
+        - `composeDeliveryMemberTarget` maps the resolution's `head` / `base` onto the derivation's member
+          coordinates and does nothing else. The mapping is the whole point of naming it: the two vocabularies
+          differ on the same values, which is the hazard the readiness lane already hit comparing a slug against
+          an id.
+        - the composer takes a `DeliveryMemberBinding`, which carries no ref at all, so "no member ref is
+          consumed" holds by the input's shape rather than by inspection; coverage pins it against a real
+          member ref that exists in the repository and is never named.
 
-        - composition is the resolution's recorded shas passed to the parameterized derivation as its member
-          coordinates; there is no second target-building path, so the object checks, tree resolution, and
-          identity computation all stay in one place
+    - `[x]` **3.3.b Refuse a member whose recorded objects are unavailable**
 
-        Build `test-first` (one behavior at a time):
+        - no new failure reason: an unresolvable recorded head is a non-commit head and an unresolvable recorded
+          base is an unresolved base, and the handler's existing exhaustive switch already maps both onto
+          `commit-head` and `base-resolved` in the error envelope.
 
-        - the recorded head and base fill the head sha and the diff-base sha
-        - both trees resolve from those two commits
-        - the base ref is the configured base and the repository id is the composition root's
-        - the target carries the member kind
-        - no member ref is consumed anywhere in the composition
-
-    - `[ ]` **3.3.b Refuse a member whose recorded objects are unavailable**
-
-        - reuse the derivation's existing failure reasons rather than adding one — an unresolvable recorded head
-          is a non-commit head and an unresolvable recorded base is an unresolved base, both accurate here. Each
-          reason maps through an exhaustive switch onto a closed precondition value in the error envelope, so a
-          new reason would widen a typed public surface for no gain in accuracy.
-
-        Build `test-first` (one behavior at a time):
-
-        - a missing recorded head refuses, reporting the head precondition
-        - a missing recorded base refuses, reporting the base precondition
+- _Outcome:_ Composition adds no target-building path — the object checks, tree resolution, and identity
+  computation stay in the derivation Task 3.2 parameterized. Task 3.3.b changes no production line; its
+  behaviors were reconstructed against a mutated precondition switch, and the composer's own refusals fail
+  first through the derivation they delegate to.
 
 ### `[ ]` **3.4 Branch target confirmation on the carried kind**
 

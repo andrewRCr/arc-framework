@@ -6,7 +6,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
+import type {
+  DeliveryMemberBinding,
+} from "../../src/scripts/review-gate/core/delivery-member-lookup.js";
 import {
+  composeDeliveryMemberTarget,
   confirmLocalReviewTarget,
   deriveLocalReviewTarget,
   LocalTargetDerivationError,
@@ -261,5 +265,65 @@ describe("member-coordinate target derivation", () => {
       repositoryId,
       memberCoordinates: { headSha: memberSha, diffBaseSha: predecessorSha },
     })).resolves.toMatchObject({ kind: "delivery-member", headSha: memberSha });
+  });
+
+  describe("composition from a member resolution", () => {
+    function binding(
+      overrides: Partial<DeliveryMemberBinding> & Pick<DeliveryMemberBinding, "base" | "head">,
+    ): DeliveryMemberBinding {
+      return {
+        planId: "3f1b7c2e-4a5d-4e6f-8a9b-0c1d2e3f4a5b",
+        deliverableId: `sha256:${"1".repeat(64)}`,
+        workUnitId: "owning-work-unit",
+        isFinalMember: false,
+        ...overrides,
+      };
+    }
+
+    it("pins the recorded commits, their trees, the configured base, and the member kind", async () => {
+      const { root, predecessorSha, memberSha } = await createStack();
+      const recording = recordingExec();
+      const memberRef = "refs/delivery/plan/member-1";
+      await git(root, "update-ref", memberRef, memberSha);
+
+      const target = await composeDeliveryMemberTarget({
+        exec: recording.exec,
+        cwd: root,
+        baseRef: "main",
+        repositoryId,
+        member: binding({ base: predecessorSha, head: memberSha }),
+      });
+
+      expect(target).toMatchObject({
+        kind: "delivery-member",
+        repositoryId,
+        baseRef: "main",
+        diffBaseSha: predecessorSha,
+        diffBaseTree: await git(root, "rev-parse", `${predecessorSha}^{tree}`),
+        headSha: memberSha,
+        headTree: await git(root, "rev-parse", `${memberSha}^{tree}`),
+      });
+      expect(recording.invocations.flat().join(" ")).not.toContain("refs/delivery");
+    });
+
+    it("refuses recorded objects the repository does not hold", async () => {
+      const { root, predecessorSha, memberSha } = await createStack();
+      const absent = "0".repeat(40);
+
+      await expect(composeDeliveryMemberTarget({
+        exec,
+        cwd: root,
+        baseRef: "main",
+        repositoryId,
+        member: binding({ base: predecessorSha, head: absent }),
+      })).rejects.toMatchObject({ code: "invalid-input", reason: "non-commit-head" });
+      await expect(composeDeliveryMemberTarget({
+        exec,
+        cwd: root,
+        baseRef: "main",
+        repositoryId,
+        member: binding({ base: absent, head: memberSha }),
+      })).rejects.toMatchObject({ code: "invalid-input", reason: "unresolved-base" });
+    });
   });
 });
