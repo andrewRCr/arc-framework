@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
+import { readWorktreeMarker, resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 import { createNodeRenameWorktreeTransactionDriver } from "../../../src/lib/work-unit/rename-worktree-transaction.js";
 import { createNodeTeardownSelectionReader } from "../../../src/lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../../../src/lib/work-unit/teardown-worktree-transaction.js";
@@ -27,6 +27,7 @@ async function harness() {
   removals.push(primary, target);
   await mkdir(commonDir, { recursive: true });
   let head = "a".repeat(40);
+  let detached = false;
   const markerPath = resolveWorktreeMarkerPath(target);
   await mkdir(join(target, ".arc/system/.internal"), { recursive: true });
   await writeFile(markerPath, `${JSON.stringify({
@@ -40,7 +41,7 @@ async function harness() {
     if (args.join(" ") === "worktree list --porcelain -z") {
       return {
         stdout: `worktree ${primary}\0HEAD ${"b".repeat(40)}\0branch refs/heads/main\0\0`
-          + `worktree ${target}\0HEAD ${head}\0branch refs/heads/feat/demo\0\0`,
+          + `worktree ${target}\0HEAD ${head}\0${detached ? "detached" : "branch refs/heads/feat/demo"}\0\0`,
       };
     }
     throw new Error(`unexpected git call: ${args.join(" ")}`);
@@ -55,6 +56,7 @@ async function harness() {
     markerPath,
     selection,
     setHead: (value: string) => { head = value; },
+    setDetached: (value: boolean) => { detached = value; },
     exec,
     readSelection,
     driver: createNodeTeardownWorktreeTransactionDriver({ exec, identity: "andrew" }),
@@ -62,6 +64,51 @@ async function harness() {
 }
 
 describe("teardown worktree transaction", () => {
+  const stamp = {
+    sha: "a".repeat(40),
+    at: "2026-08-06T00:00:00.000Z",
+    subject: { kind: "work-unit" as const, name: "demo" },
+    branch: "feat/demo",
+  };
+
+  it("stamps and detaches one exact selection under the shared mutex", async () => {
+    const h = await harness();
+    await h.driver.husk!({
+      expectedSelection: h.selection,
+      revalidateLocal: async () => {},
+      stamp,
+      detachProjection: async () => { h.setDetached(true); },
+    });
+    expect(await readWorktreeMarker(h.target)).toMatchObject({ kind: "present", marker: { husk: stamp } });
+  });
+
+  it("restores the exact marker generation when terminal detach fails", async () => {
+    const h = await harness();
+    const original = await readFile(h.markerPath);
+    await expect(h.driver.husk!({
+      expectedSelection: h.selection,
+      revalidateLocal: async () => {},
+      stamp,
+      detachProjection: async () => { throw new Error("detach failed"); },
+    })).rejects.toThrow("detach failed");
+    expect(await readFile(h.markerPath)).toEqual(original);
+  });
+
+  it("refuses a topology race under the mutex before terminal stamping", async () => {
+    const h = await harness();
+    let detached = false;
+    await expect(h.driver.husk!({
+      expectedSelection: h.selection,
+      revalidateLocal: async () => { h.setHead("c".repeat(40)); },
+      stamp,
+      detachProjection: async () => { detached = true; },
+    })).rejects.toThrow(/selection changed/iu);
+    expect(detached).toBe(false);
+    const marker = await readWorktreeMarker(h.target);
+    expect(marker.kind).toBe("present");
+    if (marker.kind === "present") expect("husk" in marker.marker).toBe(false);
+  });
+
   it("refuses a marker race under the mutex before physical retirement", async () => {
     const h = await harness();
     let retired = false;
