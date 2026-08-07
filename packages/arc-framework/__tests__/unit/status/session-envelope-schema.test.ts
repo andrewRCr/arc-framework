@@ -491,6 +491,7 @@ describe("session-init envelope schema", () => {
 
   it("accepts typed retirement and rename remedies while rejecting reconstructed argv", () => {
     const value = fixture("orient");
+    setPath(value, ["sweep", "value", "remoteEvidence"], "exact");
     setPath(value, ["sweep", "value", "retirements"], [{
       status: "actionable",
       worktreePath: "/wt/retired",

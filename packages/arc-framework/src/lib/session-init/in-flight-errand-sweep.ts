@@ -36,7 +36,7 @@ export interface InFlightErrandFacts {
 }
 
 /** One classified in-flight errand. */
-export interface InFlightErrandReport {
+export interface ClassifiedInFlightErrandReport {
   /** The errand's record slug. */
   slug: string;
   /** The errand's branch name. */
@@ -46,6 +46,18 @@ export interface InFlightErrandReport {
   /** Whole-day age of the branch's latest commit. */
   ageDays: number;
 }
+
+/** An Errand retained without a cleanup classification because merge evidence is incomplete. */
+export interface EvidenceUnavailableErrandReport {
+  slug: string;
+  branch: string;
+  state: "blocked";
+  blockingReason: "evidence-unavailable";
+  ageDays: number;
+}
+
+/** One classified or evidence-blocked in-flight Errand. */
+export type InFlightErrandReport = ClassifiedInFlightErrandReport | EvidenceUnavailableErrandReport;
 
 export interface ClassifyInFlightErrandsOptions {
   /** Caller-enumerated candidate branches with their resolved facts. */

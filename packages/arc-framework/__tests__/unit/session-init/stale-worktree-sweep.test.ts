@@ -7,6 +7,8 @@ import {
 } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
+import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
@@ -200,12 +202,12 @@ function runSweep(opts: {
 }
 
 describe("runStaleWorktreeSweep", () => {
-  it("is removable for a shipped worktree that is clean, merged, and ARC-marked", async () => {
+  it("does not authorize shipped-worktree cleanup without exact base evidence", async () => {
     const result = await runSweep({ clean: true, merged: true, marker: presentMarker });
 
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.branch).toBe("feat/work-organization-reform");
-    expect(result.worktrees[0]?.decision).toEqual({ action: "removable" });
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "evidence-unavailable" });
   });
 
   it("is external when the worktree carries no ARC marker", async () => {
@@ -220,10 +222,10 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "uncommitted" });
   });
 
-  it("blocks (never offers) a shipped worktree whose branch is not merged", async () => {
+  it("does not claim a branch is unmerged without exact base evidence", async () => {
     const result = await runSweep({ clean: true, merged: false, marker: presentMarker });
 
-    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "unmerged" });
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "evidence-unavailable" });
   });
 
   it("blocks a clean shipped worktree with unreconciled ignored identity-global files", async () => {
@@ -298,6 +300,161 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees).toHaveLength(1);
   });
 
+  it("classifies a removable worktree from the exact advertised base OID", async () => {
+    const baseOid = "b".repeat(40);
+    const exec: GitExec = async (_command, args, execOptions) => {
+      if (args[0] === "ls-tree") {
+        if (args[4] !== baseOid) return { stdout: "", stderr: "" };
+        if (execOptions?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+        return {
+          stdout: ".arc/completed/2026-q2/10_work-organization-reform/meta-work-organization-reform.md\n",
+          stderr: "",
+        };
+      }
+      if (args[0] === "status") return { stdout: "", stderr: "" };
+      if (args[0] === "cherry") {
+        if (args[1] !== baseOid) return { stdout: `+ ${"a".repeat(40)}\n`, stderr: "" };
+        if (execOptions?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "worktree" && args[1] === "list") {
+        return {
+          stdout: worktreePorcelainZ(
+            "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+          ),
+          stderr: "",
+        };
+      }
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    const result = await runStaleWorktreeSweep({
+      roster: shippedRoster(),
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec,
+      readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "removable" });
+  });
+
+  it.each([
+    {
+      name: "pending-fetch",
+      remoteSyncEnabled: true,
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: "b".repeat(40) } } as RemoteHeadSnapshotResult,
+      objectAvailability: { kind: "complete", commits: { ["b".repeat(40)]: false } } as ObjectAvailabilityResult,
+      remoteEvidence: "pending-fetch" as const,
+    },
+    {
+      name: "unreachable",
+      remoteSyncEnabled: true,
+      snapshot: { kind: "unreachable", failureReason: "network" } as RemoteHeadSnapshotResult,
+      objectAvailability: { kind: "unavailable", reason: "execution" } as ObjectAvailabilityResult,
+      remoteEvidence: "unreachable" as const,
+    },
+    {
+      name: "remote-base-absent",
+      remoteSyncEnabled: true,
+      snapshot: { kind: "available", scope: "all-heads", tips: {} } as RemoteHeadSnapshotResult,
+      objectAvailability: { kind: "complete", commits: {} } as ObjectAvailabilityResult,
+      remoteEvidence: "exact" as const,
+    },
+    {
+      name: "not-applicable",
+      remoteSyncEnabled: false,
+      snapshot: { kind: "unreachable", failureReason: "network" } as RemoteHeadSnapshotResult,
+      objectAvailability: { kind: "unavailable", reason: "execution" } as ObjectAvailabilityResult,
+      remoteEvidence: "not-applicable" as const,
+    },
+  ])("does not authorize stale-worktree cleanup for $name evidence", async ({
+    remoteSyncEnabled,
+    snapshot,
+    objectAvailability,
+    remoteEvidence,
+  }: {
+    remoteSyncEnabled: boolean;
+    snapshot: RemoteHeadSnapshotResult;
+    objectAvailability: ObjectAvailabilityResult;
+    remoteEvidence: "pending-fetch" | "unreachable" | "exact" | "not-applicable";
+  }) => {
+    const result = await runStaleWorktreeSweep({
+      roster: shippedRoster(), worktreeIdentity: { kind: "primary" }, baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }), readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      baseEvidence: {
+        remoteSyncEnabled, snapshot, objectAvailability, history: { kind: "complete" },
+      },
+    });
+
+    // Incomplete evidence establishes no shipped set, so the sweep claims
+    // nothing rather than reporting every roster entry as blocked residue.
+    // The slot-level evidence is what carries the degradation.
+    expect(result.worktrees).toEqual([]);
+    expect(result.remoteEvidence).toBe(remoteEvidence);
+  });
+
+  it("keeps active, never-shipped worktrees out of the sweep when evidence is incomplete", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: roster(), worktreeIdentity: { kind: "primary" }, baseBranch: "main",
+      exec: buildExec({ clean: false, merged: false }), readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "unreachable", failureReason: "network" },
+        objectAvailability: { kind: "unavailable", reason: "execution" },
+        history: { kind: "complete" },
+      },
+    });
+
+    expect(result.worktrees).toEqual([]);
+    expect(result.retirements).toEqual([]);
+    expect(result.remoteEvidence).toBe("unreachable");
+  });
+
+  it.each(["index", "graph"] as const)("propagates an exact-base %s local failure", async (failure) => {
+    const baseOid = "b".repeat(40);
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "ls-tree") {
+        if (failure === "index") throw new Error("completed index failed");
+        return {
+          stdout: ".arc/completed/2026-q2/10_work-organization-reform/meta-work-organization-reform.md\n",
+          stderr: "",
+        };
+      }
+      if (args[0] === "status") return { stdout: "", stderr: "" };
+      if (args[0] === "cherry") throw new Error("graph failed");
+      if (args[0] === "worktree" && args[1] === "list") {
+        return {
+          stdout: worktreePorcelainZ(
+            "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+          ),
+          stderr: "",
+        };
+      }
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(runStaleWorktreeSweep({
+      roster: shippedRoster(), worktreeIdentity: { kind: "primary" }, baseBranch: "main", exec,
+      readMarker: async () => presentMarker, userSurfaceFs: emptyUserSurfaceFs,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+    })).rejects.toThrow(failure === "index" ? "completed index failed" : "graph failed");
+  });
+
   it("reports detached stamped husks through exact-HEAD cleanup decisions", async () => {
     const huskMarker = stampedMarker({ kind: "work-unit", name: "work-organization-reform" });
     const result = await runStaleWorktreeSweep({
@@ -324,7 +481,7 @@ describe("runStaleWorktreeSweep", () => {
         stampedBranch: "feat/work-organization-reform",
         stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: "work-organization-reform",
-        decision: { action: "removable" },
+        decision: { action: "blocked", reason: "evidence-unavailable" },
       },
       {
         kind: "husk",
@@ -436,7 +593,7 @@ describe("runStaleWorktreeSweep", () => {
         stampedBranch: "review/orphan",
         stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: null,
-        decision: { action: "removable" },
+        decision: { action: "blocked", reason: "evidence-unavailable" },
       },
       {
         kind: "husk",
@@ -446,12 +603,12 @@ describe("runStaleWorktreeSweep", () => {
         stampedBranch: "chore/tidy-hooks",
         stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: null,
-        decision: { action: "removable" },
+        decision: { action: "blocked", reason: "evidence-unavailable" },
       },
     ]);
   });
 
-  it("marks a structurally current husk manual-only when committed evidence does not revalidate", async () => {
+  it("preserves current retirement evidence without revalidating against an inferred base", async () => {
     const marker = stampedMarker({ kind: "work-unit", name: "retired" });
     if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("expected stamped marker");
     marker.marker.husk.authorization = "discard-confirmed";
@@ -478,12 +635,118 @@ describe("runStaleWorktreeSweep", () => {
       }),
     });
 
-    expect(revalidateEvidence).toHaveBeenCalledOnce();
+    expect(revalidateEvidence).not.toHaveBeenCalled();
     expect(result.worktrees[0]).toMatchObject({
       kind: "husk",
-      stamp: { kind: "manual-only", reason: "evidence-mismatch" },
-      decision: { action: "blocked", reason: "evidence-mismatch" },
+      stamp: { kind: "current", authorization: "discard-confirmed" },
+      decision: { action: "blocked", reason: "evidence-unavailable" },
     });
+  });
+
+  it("revalidates a current husk against the exact advertised base OID", async () => {
+    const baseOid = "b".repeat(40);
+    const marker = stampedMarker({ kind: "work-unit", name: "retired" });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("expected stamped marker");
+    marker.marker.husk.authorization = "discard-confirmed";
+    marker.marker.husk.remoteRef = null;
+    marker.marker.husk.evidence = {
+      kind: "receipt",
+      receiptId: `sha256:${"1".repeat(64)}`,
+      transition: "abandon",
+      expectedLifecycle: "nonexistent",
+      resultDigest: `sha256:${"2".repeat(64)}`,
+    };
+
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => marker,
+      revalidateEvidence: async (_stamp, _decoded, suppliedBaseOid) => {
+        if (suppliedBaseOid !== baseOid) throw new Error("stale base operand");
+        return true;
+      },
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "removable" });
+  });
+
+  it("blocks a current husk with guidance when the advertised base object is incomplete", async () => {
+    const baseOid = "b".repeat(40);
+    const marker = stampedMarker({ kind: "work-unit", name: "retired" });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("expected stamped marker");
+    marker.marker.husk.authorization = "discard-confirmed";
+    marker.marker.husk.remoteRef = null;
+    marker.marker.husk.evidence = {
+      kind: "receipt",
+      receiptId: `sha256:${"1".repeat(64)}`,
+      transition: "abandon",
+      expectedLifecycle: "nonexistent",
+      resultDigest: `sha256:${"2".repeat(64)}`,
+    };
+
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), readMarker: async () => marker,
+      revalidateEvidence: async () => true,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: false } },
+        history: { kind: "complete" },
+      },
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "evidence-unavailable" });
+    expect(result.warnings).toEqual([
+      "Retirement evidence at /wt/sibling could not be revalidated without exact base evidence.",
+    ]);
+  });
+
+  it("blocks current-husk retirement when shallow history prevents the exact proof", async () => {
+    const baseOid = "b".repeat(40);
+    const marker = stampedMarker({ kind: "work-unit", name: "retired" });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("expected stamped marker");
+    marker.marker.husk.authorization = "discard-confirmed";
+    marker.marker.husk.remoteRef = null;
+    marker.marker.husk.evidence = {
+      kind: "receipt", receiptId: `sha256:${"1".repeat(64)}`, transition: "abandon",
+      expectedLifecycle: "nonexistent", resultDigest: `sha256:${"2".repeat(64)}`,
+    };
+
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), readMarker: async () => marker,
+      revalidateEvidence: async () => true,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "shallow" },
+      },
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "evidence-unavailable" });
+    expect(result.warnings).toHaveLength(1);
   });
 
   it("filters another identity's husk only in team mode", async () => {

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { runRecentRemoteBranches } from "../../../src/lib/git/recent-remote-branches.js";
+import {
+  analyzeRecentRemoteBranchesSnapshot,
+  runRecentRemoteBranches,
+} from "../../../src/lib/git/recent-remote-branches.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
 const NOW = Date.UTC(2026, 4, 25); // 2026-05-25
@@ -63,5 +66,92 @@ describe("runRecentRemoteBranches", () => {
     const result = await runRecentRemoteBranches({ exec, withinDays: 30, now: NOW });
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("analyzeRecentRemoteBranchesSnapshot", () => {
+  it("sorts locally available advertised tips by their commit dates", async () => {
+    const newerOid = "a".repeat(40);
+    const olderOid = "b".repeat(40);
+    const exec: GitExec = vi.fn(async (_command, args, options): Promise<ExecResult> => {
+      if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+      if (args[0] !== "show") throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+      if (args.at(-1) === newerOid) return { stdout: String(NOW_S - DAY), stderr: "" };
+      if (args.at(-1) === olderOid) return { stdout: String(NOW_S - 2 * DAY), stderr: "" };
+      throw new Error(`unexpected oid: ${String(args.at(-1))}`);
+    });
+
+    const result = await analyzeRecentRemoteBranchesSnapshot({
+      exec,
+      tips: { "feat/older": olderOid, "feat/newer": newerOid },
+      objectAvailability: { kind: "complete", commits: { [olderOid]: true, [newerOid]: true } },
+      history: { kind: "complete" },
+      excludeBranches: new Set(),
+      withinDays: 30,
+      now: NOW,
+    });
+
+    expect(result).toEqual({ branches: ["feat/newer", "feat/older"], pendingBranchCount: 0 });
+  });
+
+  it("applies exclusions before availability inspection and counts only eligible missing objects", async () => {
+    const localOid = "a".repeat(40);
+    const pendingOid = "b".repeat(40);
+    const excludedOid = "c".repeat(40);
+    const exec: GitExec = vi.fn(async (_command, args): Promise<ExecResult> => {
+      if (args[0] !== "show" || args.at(-1) !== localOid) {
+        throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+      }
+      return { stdout: String(NOW_S - DAY), stderr: "" };
+    });
+
+    const result = await analyzeRecentRemoteBranchesSnapshot({
+      exec,
+      tips: { "feat/local": localOid, "feat/pending": pendingOid, main: excludedOid },
+      objectAvailability: { kind: "complete", commits: { [localOid]: true, [pendingOid]: false } },
+      history: { kind: "complete" },
+      excludeBranches: new Set(["main"]),
+      withinDays: 30,
+      now: NOW,
+    });
+
+    expect(result).toEqual({ branches: ["feat/local"], pendingBranchCount: 1 });
+  });
+
+  it("refuses an exact recent tier when local classification has shallow history", async () => {
+    const oid = "a".repeat(40);
+    await expect(analyzeRecentRemoteBranchesSnapshot({
+      exec: execReturning(String(NOW_S)),
+      tips: { "feat/local": oid },
+      objectAvailability: { kind: "complete", commits: { [oid]: true } },
+      history: { kind: "shallow" },
+      excludeBranches: new Set(),
+      withinDays: 30,
+      now: NOW,
+    })).rejects.toThrow("Complete local history is required");
+  });
+
+  it.each([
+    {
+      name: "malformed date output",
+      exec: execReturning("not-a-date"),
+      message: "Malformed commit date",
+    },
+    {
+      name: "local execution failure",
+      exec: vi.fn(async (): Promise<ExecResult> => { throw new Error("date read failed"); }) as GitExec,
+      message: "date read failed",
+    },
+  ])("propagates $name", async ({ exec, message }) => {
+    const oid = "a".repeat(40);
+    await expect(analyzeRecentRemoteBranchesSnapshot({
+      exec,
+      tips: { "feat/local": oid },
+      objectAvailability: { kind: "complete", commits: { [oid]: true } },
+      history: { kind: "complete" },
+      excludeBranches: new Set(),
+      withinDays: 30,
+      now: NOW,
+    })).rejects.toThrow(message);
   });
 });

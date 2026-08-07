@@ -17,6 +17,7 @@ import type { GitExec } from "../git/exec.js";
 import type { HistoryCompletenessResult } from "../git/history-completeness.js";
 import type { ObjectAvailabilityResult } from "../git/object-availability.js";
 import type { RemoteHeadSnapshotResult } from "../git/remote-ref-reader.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { countAheadBehindRef } from "../git/worktree-sync.js";
 import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
 
@@ -190,7 +191,7 @@ export async function runWorkUnitState(
   const warnings = [...committerDates.warnings];
 
   const sharpened = await sharpenFromPrState(facts, options.prSource, warnings);
-  const withBase = await overlayBehindBase(sharpened, options.exec, options.baseBranch);
+  const withBase = await overlayBehindBase(sharpened, options.exec, options.baseBranch, warnings);
   const inFlight = classifyInFlightWorkUnits({
     workUnits: withBase,
     staleThresholdDays: options.staleThresholdDays,
@@ -211,10 +212,18 @@ async function overlayBehindBase(
   facts: readonly InFlightWorkUnitFacts[],
   exec: GitExec,
   baseBranch: string,
+  warnings: string[],
 ): Promise<InFlightWorkUnitFacts[]> {
   if (facts.length === 0) return [...facts];
 
   const baseRef = `origin/${baseBranch}`;
+  if (!await refExists(exec, baseRef)) {
+    warnings.push("Behind-base read degraded (local base ref unavailable).");
+    return facts.map((fact) => ({
+      ...fact,
+      behindBase: { status: "not-applicable", remoteEvidence: "not-applicable" },
+    }));
+  }
   return Promise.all(
     facts.map(async (f) => {
       const { behind } = await countAheadBehindRef(exec, f.branch, baseRef);
@@ -224,6 +233,18 @@ async function overlayBehindBase(
       };
     }),
   );
+}
+
+async function refExists(exec: GitExec, ref: string): Promise<boolean> {
+  const args = ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`];
+  try {
+    await exec("git", args);
+    return true;
+  } catch (error) {
+    const normalized = normalizeGitRejection(error, { command: "git", args });
+    if (normalized.kind === "nonzero-exit" && normalized.exitCode === 1) return false;
+    throw error;
+  }
 }
 
 /**

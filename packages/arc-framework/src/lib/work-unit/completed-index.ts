@@ -166,6 +166,36 @@ export async function readShippedWorkUnitsFromRef(
 }
 
 /**
+ * Read the shipped work-unit index from an exact locally available commit.
+ *
+ * Unlike the compatibility reader, this strict boundary propagates an
+ * unreadable tree and relies on the caller to supply local-only object access.
+ *
+ * @param exec - Git executor bound to the caller's object-access policy.
+ * @param ref - Exact commit object ID whose completed tree is authoritative.
+ * @returns Shipped work-unit slugs found in the completed tree.
+ */
+export async function readShippedWorkUnitsFromExactRef(
+  exec: GitExec,
+  ref: string,
+): Promise<Set<string>> {
+  const { stdout } = await exec(
+    "git",
+    ["ls-tree", "--full-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX],
+  );
+  const slugs = new Set<string>();
+  for (const line of stdout.split("\n")) {
+    const path = line.trim();
+    if (!path.startsWith(COMPLETED_PATH_PREFIX)) continue;
+    const entry = path.slice(COMPLETED_PATH_PREFIX.length).split("/")[1];
+    if (entry === undefined) continue;
+    const slug = slugFromArchiveDir(entry);
+    if (slug !== null) slugs.add(slug);
+  }
+  return slugs;
+}
+
+/**
  * Read one exact archived work-unit metadata blob without collapsing ambiguity to absence.
  *
  * @param exec - Git executor pre-bound to the checkout whose object database owns the ref

@@ -1,6 +1,6 @@
 /** Git-backed retirement authority and replay evidence validation for teardown. */
 
-import { isContainedIn, isLandedInBase } from "../git/branch-containment.js";
+import { isContainedIn, isLandedInBase, isLandedInBaseStrict } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import type {
   DecodedWorktreeHuskStamp,
@@ -11,6 +11,7 @@ import {
   createGitRetirementAuthorizationContext,
   readCompletedProjectionDigest,
   validateGitRetirementReceiptEvidence,
+  validateGitRetirementReceiptEvidenceStrict,
 } from "./git-retirement-authorization-context.js";
 import {
   authorizeRetirement,
@@ -86,6 +87,54 @@ export async function revalidateHuskRetirementEvidence(
   }, readBlob);
 }
 
+/** Revalidate exact-base husk evidence without collapsing unexpected local failures. */
+export async function revalidateHuskRetirementEvidenceStrict(
+  exec: GitExec,
+  stamp: WorktreeHuskStamp,
+  proof: Extract<TeardownAuthorizationDecision, { status: "authorized" }>,
+  baseOid: string,
+  readBlob: TeardownBlobReader,
+): Promise<boolean> {
+  const { evidence } = proof;
+  const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+    ...options,
+    objectAccess: "local-only",
+  });
+  if (evidence.kind === "shipped") {
+    const pinnedBase = await resolveCommit(localOnlyExec, baseOid);
+    if (proof.refs.localOid !== stamp.sha) return false;
+    const landed = await isLandedInBaseStrict(localOnlyExec, stamp.sha, pinnedBase);
+    if (!landed) {
+      const remote = proof.refs.remote;
+      if (
+        remote === null
+        || remote.oid !== stamp.sha
+        || !await isContainedIn(localOnlyExec, stamp.sha, `${remote.remote}/${stamp.branch}`)
+      ) return false;
+    }
+    try {
+      await localOnlyExec("git", ["merge-base", "--is-ancestor", evidence.baseProofOid, pinnedBase]);
+    } catch {
+      const evidenceDigest = await readCompletedProjectionDigest(
+        localOnlyExec,
+        evidence.baseProofOid,
+        stamp.subject,
+        readBlob,
+      );
+      if (evidenceDigest !== evidence.resultDigest) return false;
+    }
+    const currentDigest = await readCompletedProjectionDigest(localOnlyExec, pinnedBase, stamp.subject, readBlob);
+    return currentDigest !== null && currentDigest === evidence.resultDigest;
+  }
+  return validateGitRetirementReceiptEvidenceStrict(localOnlyExec, baseOid, {
+    subject: stamp.subject,
+    branch: stamp.branch,
+    retiringHead: stamp.sha,
+    authorization: proof.authorization,
+    evidence,
+  }, readBlob);
+}
+
 async function retiringProjectionPreserved(
   exec: GitExec,
   stamp: WorktreeHuskStamp,
@@ -126,6 +175,29 @@ export async function revalidateDecodedHuskRetirementEvidence(
       refs: { localOid: stamp.sha, remote: decoded.remoteRef },
     },
     baseRef,
+    readBlob,
+  );
+}
+
+/** Revalidate a decoded current stamp against one exact advertised base OID. */
+export async function revalidateDecodedHuskRetirementEvidenceStrict(
+  exec: GitExec,
+  stamp: WorktreeHuskStamp,
+  decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>,
+  baseOid: string,
+  readBlob: TeardownBlobReader,
+): Promise<boolean> {
+  return revalidateHuskRetirementEvidenceStrict(
+    exec,
+    stamp,
+    {
+      status: "authorized",
+      authorization: decoded.authorization,
+      authorityVersion: "decoded-husk",
+      evidence: decoded.evidence,
+      refs: { localOid: stamp.sha, remote: decoded.remoteRef },
+    },
+    baseOid,
     readBlob,
   );
 }

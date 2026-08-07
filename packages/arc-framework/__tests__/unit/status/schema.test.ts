@@ -320,6 +320,7 @@ describe("deep advisory routing views", () => {
 
   it("pins stale-worktree report and cleanup decision discriminants", () => {
     const value = {
+      remoteEvidence: "exact",
       worktrees: [
         {
           kind: "branched",
@@ -404,6 +405,7 @@ describe("deep advisory routing views", () => {
 
   it("pins errand resume, classification, materialization, and nudge fields", () => {
     const value = {
+      remoteEvidence: "exact",
       resume: { resumable: true, slug: "kept" },
       inFlight: { errands: [{ state: "in-progress", detail: "kept" }] },
       materializable: {
@@ -435,6 +437,42 @@ describe("deep advisory routing views", () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it("rejects cleanup authority when remote evidence is incomplete", () => {
+    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+      remoteEvidence: "pending-fetch",
+      worktrees: [{ kind: "branched", decision: { action: "removable" } }],
+      renameMoves: [],
+      retirements: [],
+    }).success).toBe(false);
+    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+      worktrees: [],
+      renameMoves: [],
+      retirements: [{
+        status: "actionable",
+        lifecycle: {
+          subject: { slug: "retired", branch: "feat/retired" },
+          transition: "abandon",
+          cleanup: {
+            branch: { status: "pending" },
+            worktree: { status: "pending" },
+            userWorkspace: { status: "pending" },
+          },
+          successorReadiness: { candidates: [], actionable: false, remedy: null },
+        },
+        teardown: { argv: ["arc", "teardown", "retired"], text: "arc teardown retired" },
+      }],
+    }).success).toBe(false);
+    expect(ErrandStateValueViewSchema.safeParse({
+      remoteEvidence: "not-applicable",
+      resume: { resumable: false },
+      inFlight: { errands: [{ state: "merged-cleanup" }] },
+      materializable: { candidates: [] },
+      nudge: { shouldNudge: false },
+    }).success).toBe(false);
   });
 
   it("accepts mapped-only payloads because the views are not full mirrors", () => {
@@ -472,6 +510,7 @@ describe("deep advisory routing views", () => {
     [
       StaleWorktreeSweepValueViewSchema,
       {
+        remoteEvidence: "exact",
         worktrees: [
           {
             kind: "branched",
@@ -508,6 +547,7 @@ describe("deep advisory routing views", () => {
     [
       ErrandStateValueViewSchema,
       {
+        remoteEvidence: "exact",
         resume: { resumable: false, evidence: { retained: true } },
         inFlight: { errands: [], evidence: { retained: true } },
         materializable: {

@@ -49,7 +49,10 @@ import type { BaseBranchSyncStatusResult } from "../../lib/git/base-branch-sync.
 import type { SupersessionResult } from "../../lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
-import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
+import type {
+  CascadeResolution,
+  SessionInitRecoveryValue,
+} from "../../lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
 import type { CurrentHuskAdvisory } from "../../lib/session-init/current-husk-advisory.js";
 import type { OrphanBranchSweepResult } from "../../lib/session-init/orphan-branch-sweep.js";
@@ -264,10 +267,10 @@ export interface SessionInitProbeResult {
    * branch-gone arm (narrower than the roster's branch-gone / no-WU gate) and
    * only when the roster resolved — it consumes that roster to assemble
    * candidate destinations. Carries the cascade outcome (`resolved` /
-   * `surface` / `main-fallback`) the workflow renders into the single-prompt
-   * recovery arm. Absent on every other path.
+   * `surface` / `main-fallback` / `pending`) plus CLI-composed action and
+   * narration for the workflow recovery arm. Absent on every other path.
    */
-  recovery?: Probe<CascadeResolution>;
+  recovery?: Probe<SessionInitRecoveryValue>;
   /**
    * Pre-computed residue sweep. Primary sessions consume the public roster;
    * linked sessions consume a private cleanup-only roster and exclude their

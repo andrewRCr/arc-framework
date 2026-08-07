@@ -677,8 +677,8 @@ describe("session-init E2E — current detached husk advisory", () => {
 
     const canonicalResult = await runArc(["status", "--session-init", "--json"], canonical);
     const ordinaryResult = await runArc(["status", "--session-init", "--json"], ordinary);
-    expect(canonicalResult.exitCode).toBe(0);
-    expect(ordinaryResult.exitCode).toBe(0);
+    expect(canonicalResult.exitCode, canonicalResult.stdout + canonicalResult.stderr).toBe(0);
+    expect(ordinaryResult.exitCode, ordinaryResult.stdout + ordinaryResult.stderr).toBe(0);
 
     const canonicalEnvelope = parseJsonEnvelope(canonicalResult.stdout);
     const ordinaryEnvelope = parseJsonEnvelope(ordinaryResult.stdout);

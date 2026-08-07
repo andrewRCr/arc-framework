@@ -12,7 +12,7 @@ import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.
 import { probe } from "./types.js";
 import { BaseBranchSyncStatusResultSchema } from "../../lib/git/base-branch-sync.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
-import { CascadeResolutionSchema } from "../../lib/session-init/branch-gone-cascade.js";
+import { SessionInitRecoveryValueSchema } from "../../lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../lib/session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../../lib/session-init/inbox-state.js";
 import { MaterializableWorkUnitsResultSchema } from "../../lib/session-init/materializable-work-units.js";
@@ -27,6 +27,22 @@ import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
+const CleanupRemoteEvidenceViewFields = {
+  remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable", "not-applicable"]),
+  failureReason: z.enum(["timeout", "network", "auth", "error"]).optional(),
+};
+
+function requireRemoteFailureReason(
+  value: { remoteEvidence: "exact" | "pending-fetch" | "unreachable" | "not-applicable"; failureReason?: string },
+  context: z.RefinementCtx,
+): void {
+  if (value.remoteEvidence === "unreachable" && value.failureReason === undefined) {
+    context.addIssue({ code: "custom", path: ["failureReason"], message: "unreachable evidence requires a reason" });
+  }
+  if (value.remoteEvidence !== "unreachable" && value.failureReason !== undefined) {
+    context.addIssue({ code: "custom", path: ["failureReason"], message: "only unreachable evidence carries a reason" });
+  }
+}
 
 /** Thin routing view of a working-tree dirty-state result. */
 export const DirtyStateValueViewSchema = z.object({ state: z.enum(["clean", "dirty"]) }).loose();
@@ -147,7 +163,7 @@ const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("blocked"),
-      reason: z.enum(["uncommitted", "user-surfaces", "unmerged"]),
+      reason: z.enum(["uncommitted", "user-surfaces", "unmerged", "evidence-unavailable"]),
     })
     .loose(),
   z.object({ action: z.literal("external") }).loose(),
@@ -157,7 +173,9 @@ const HuskCleanupDecisionViewSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("blocked"),
-      reason: z.enum(["uncommitted", "head-moved", "evidence-mismatch"]),
+      reason: z.enum([
+        "uncommitted", "head-moved", "evidence-mismatch", "evidence-unavailable",
+      ]),
     })
     .loose(),
   z
@@ -251,11 +269,22 @@ const RenameMoveResidueViewSchema = z
 /** Thin routing view of the stale-worktree cleanup advisory. */
 export const StaleWorktreeSweepValueViewSchema = z
   .object({
+    ...CleanupRemoteEvidenceViewFields,
     worktrees: z.array(StaleWorktreeReportViewSchema),
     renameMoves: z.array(RenameMoveResidueViewSchema),
     retirements: z.array(LandedRetirementResidueViewSchema),
   })
-  .loose();
+  .loose()
+  .superRefine((value, context) => {
+    requireRemoteFailureReason(value, context);
+    if (value.remoteEvidence === "exact") return;
+    if (value.worktrees.some((report) => report.decision.action === "removable")) {
+      context.addIssue({ code: "custom", path: ["worktrees"], message: "incomplete evidence cannot remove worktrees" });
+    }
+    if (value.retirements.some((retirement) => retirement.status === "actionable")) {
+      context.addIssue({ code: "custom", path: ["retirements"], message: "incomplete evidence cannot authorize teardown" });
+    }
+  });
 
 const BehindBaseRelationViewSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("known"), value: z.boolean(), remoteEvidence: z.literal("exact") }),
@@ -300,8 +329,19 @@ export const WorkUnitStateValueViewSchema = z
   .loose();
 
 const ErrandReportViewSchema = z
-  .object({ state: z.enum(["in-progress", "awaiting-merge", "stale", "merged-cleanup"]) })
-  .loose();
+  .object({
+    state: z.enum(["in-progress", "awaiting-merge", "stale", "merged-cleanup", "blocked"]),
+    blockingReason: z.literal("evidence-unavailable").optional(),
+  })
+  .loose()
+  .superRefine((value, context) => {
+    if (value.state === "blocked" && value.blockingReason !== "evidence-unavailable") {
+      context.addIssue({ code: "custom", path: ["blockingReason"], message: "blocked Errands require a reason" });
+    }
+    if (value.state !== "blocked" && value.blockingReason !== undefined) {
+      context.addIssue({ code: "custom", path: ["blockingReason"], message: "classified Errands cannot be blocked" });
+    }
+  });
 const MaterializableErrandViewSchema = z
   .object({
     slug: NON_EMPTY_TEXT,
@@ -316,12 +356,22 @@ const MaterializableErrandViewSchema = z
 /** Thin routing view of the errand state advisory. */
 export const ErrandStateValueViewSchema = z
   .object({
+    ...CleanupRemoteEvidenceViewFields,
     resume: z.object({ resumable: z.boolean() }).loose(),
     inFlight: z.object({ errands: z.array(ErrandReportViewSchema) }).loose(),
     materializable: z.object({ candidates: z.array(MaterializableErrandViewSchema) }).loose(),
     nudge: z.object({ shouldNudge: z.boolean() }).loose(),
   })
-  .loose();
+  .loose()
+  .superRefine((value, context) => {
+    requireRemoteFailureReason(value, context);
+    if (
+      value.remoteEvidence !== "exact"
+      && value.inFlight.errands.some((report) => report.state === "merged-cleanup")
+    ) {
+      context.addIssue({ code: "custom", path: ["inFlight", "errands"], message: "incomplete evidence cannot authorize cleanup" });
+    }
+  });
 
 /** Thin routing view of the extension session-init result. */
 export const ExtensionsSessionInitValueViewSchema = z
@@ -548,7 +598,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
   userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
   roster: probe(WorktreeRosterValueViewSchema).optional(),
-  recovery: probe(CascadeResolutionSchema).optional(),
+  recovery: probe(SessionInitRecoveryValueSchema).optional(),
   sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
   currentHusk: probe(CurrentHuskAdvisoryViewSchema.nullable()).optional(),
   orphanBranchSweep: probe(OrphanBranchSweepResultSchema).optional(),

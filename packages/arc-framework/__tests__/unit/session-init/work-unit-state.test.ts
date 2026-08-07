@@ -62,7 +62,13 @@ const rosterEntry = (over: Partial<WorktreeRosterEntry> = {}): WorktreeRosterEnt
  * simulate a read failure on the respective call.
  */
 function buildExec(
-  options: { refs?: string; failRefs?: boolean; behind?: number; failBase?: boolean } = {},
+  options: {
+    refs?: string;
+    failRefs?: boolean;
+    behind?: number;
+    failBase?: boolean;
+    basePresent?: boolean;
+  } = {},
 ): GitExec {
   return vi.fn(async (cmd: string, args: string[]) => {
     if (cmd !== "git") throw new Error(`unexpected command: ${cmd}`);
@@ -73,6 +79,12 @@ function buildExec(
     if (args[0] === "rev-list") {
       if (options.failBase === true) throw new Error("rev-list boom");
       return { stdout: `0\t${options.behind ?? 0}`, stderr: "" };
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === "--quiet") {
+      if (options.basePresent === false) {
+        throw Object.assign(new Error("missing ref"), { exitCode: 1, stderr: "" });
+      }
+      return { stdout: "b".repeat(40), stderr: "" };
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
   });
@@ -208,6 +220,19 @@ describe("runWorkUnitState (behind-base overlay)", () => {
       remoteEvidence: "exact",
     });
     expect(result.warnings).toEqual([]);
+  });
+
+  it("keeps a missing compatibility base ref non-authoritative", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(1)}`, basePresent: false }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.behindBase).toEqual({
+      status: "not-applicable",
+      remoteEvidence: "not-applicable",
+    });
+    expect(result.warnings).toContain("Behind-base read degraded (local base ref unavailable).");
   });
 
   it("propagates a failed local behind-base graph read", async () => {

@@ -258,8 +258,11 @@ function rosterResult(overrides: Partial<WorktreeRosterResult> = {}): WorktreeRo
   return { entries: [], warnings: [], ...overrides };
 }
 
-function errandStateResult(overrides: Partial<ErrandStateResult> = {}): ErrandStateResult {
+function errandStateResult(
+  overrides: Partial<Omit<ErrandStateResult, "remoteEvidence" | "failureReason">> = {},
+): ErrandStateResult {
   return {
+    remoteEvidence: "not-applicable",
     resume: { resumable: false, slug: null },
     inFlight: { errands: [] },
     materializable: { candidates: [] },
@@ -567,14 +570,22 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     userReferenceReconcile: vi.fn(cleanUserReferenceReconcile),
     roster: vi.fn(async () => rosterResult()),
     cleanupRoster: vi.fn(async () => rosterResult()),
-    recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
+    recovery: vi.fn(async (): Promise<CascadeResolution> => ({
+      kind: "main-fallback",
+      remoteEvidence: "exact",
+      baseBranch: "main",
+    })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({
+      remoteEvidence: "not-applicable",
       worktrees: [],
       renameMoves: [],
       retirements: [],
       warnings: [],
     })),
-    orphanBranchSweep: vi.fn(async (): Promise<OrphanBranchSweepResult> => ({ orphans: [] })),
+    orphanBranchSweep: vi.fn(async (): Promise<OrphanBranchSweepResult> => ({
+      remoteEvidence: "not-applicable",
+      orphans: [],
+    })),
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
     errandState: vi.fn(async (): Promise<ErrandStateResult> => errandStateResult()),
@@ -2270,6 +2281,7 @@ describe("runSessionInitStatus — branch-gone recovery gating", () => {
       roster: vi.fn(async () => rosterValue),
       recovery: vi.fn(async (): Promise<CascadeResolution> => ({
         kind: "resolved",
+        remoteEvidence: "exact",
         candidate: { branch: "feat/a", worktreePath: "/wt", proposedAction: "switch" },
       })),
     });
@@ -2281,7 +2293,50 @@ describe("runSessionInitStatus — branch-gone recovery gating", () => {
     expect(probes.recovery).toHaveBeenCalledTimes(1);
     expect(probes.recovery).toHaveBeenCalledWith(rosterValue, "feat/gone");
     expect(result.recovery?.ok).toBe(true);
-    if (result.recovery?.ok) expect(result.recovery.value.kind).toBe("resolved");
+    if (result.recovery?.ok) {
+      expect(result.recovery.value).toMatchObject({
+        kind: "resolved",
+        remoteEvidence: "exact",
+        recommendedAction: "switch",
+        recommendedPromptText: "",
+      });
+    }
+  });
+
+  it("composes pending evidence into one refresh-or-manual recovery offer", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/gone" })),
+      roster: vi.fn(async () => rosterResult()),
+      recovery: vi.fn(async (): Promise<CascadeResolution> => ({
+        kind: "pending",
+        remoteEvidence: "pending-fetch",
+        candidates: [{ branch: "feat/recent", proposedAction: "switch" }],
+        pendingBranchCount: 2,
+        refreshRemedy: {
+          argv: ["arc", "active", "in-flight", "--json"],
+          text: "Refresh live in-flight branch evidence.",
+        },
+      })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.recovery).toEqual({
+      ok: true,
+      value: {
+        kind: "pending",
+        remoteEvidence: "pending-fetch",
+        candidates: [{ branch: "feat/recent", proposedAction: "switch" }],
+        pendingBranchCount: 2,
+        refreshRemedy: {
+          argv: ["arc", "active", "in-flight", "--json"],
+          text: "Refresh live in-flight branch evidence.",
+        },
+        recommendedAction: "prompt",
+        recommendedPromptText:
+          "Branch recovery evidence is incomplete. Refresh live in-flight branch evidence, or recover manually.",
+      },
+    });
   });
 
   it("does not fire recovery on the no-WU path — recovery is branch-gone only", async () => {
@@ -2341,6 +2396,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
   it("fires the sweep in the primary worktree, passing the resolved roster and identity", async () => {
     const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/shipped" }] });
     const sweepValue: StaleWorktreeSweepResult = {
+      remoteEvidence: "exact",
       worktrees: [{
         kind: "branched",
         worktreePath: "/wt",
