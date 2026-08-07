@@ -219,12 +219,7 @@ describe("v3 repository plan projection", () => {
       ".arc/backlog/planned/origin/meta-origin.md",
       ".arc/reference/shared.txt",
     ].sort((left, right) => Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")));
-    expect(result.plan.allowedPaths).toEqual([
-      ...concreteAllowedPaths,
-      expect.stringMatching(
-        /^\.arc\/system\/\.internal\/retirement-receipts\/sha256-[a-f0-9]{64}\.json$/u,
-      ),
-    ]);
+    expect(result.plan.allowedPaths).toEqual(concreteAllowedPaths);
     expect(result.plan.candidateAuthority.candidatePublication).toEqual({
       logicalAnchor: { kind: "direct-member", slug: "member" },
       entries: [

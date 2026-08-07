@@ -15,6 +15,8 @@ import {
   executeGitV3DecomposeCommand,
   executeGitV3DecomposeOperation,
 } from "../../src/lib/work-unit/git-decompose-v3-operation.js";
+import { advanceGitDecomposeTransitionBase } from
+  "../../src/lib/work-unit/git-decompose-transition-base-advancement.js";
 import { resolveTransitionRecordRelativePath } from "../../src/lib/work-unit/transition-record-store.js";
 import { composeGitV3RepositoryPlan } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
 import { runCli } from "../helpers/run-cli.js";
@@ -229,6 +231,25 @@ Medium.
     },
   };
   return { repo, remote, baseHead, sourceHead, completedMap, dependencies };
+}
+
+async function committedTransitionCandidate() {
+  const started = await startedRepository();
+  const staged = await executeGitV3DecomposeOperation({
+    ...started.dependencies,
+    spawningIdentity: "andrew",
+  }, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap: started.completedMap,
+  });
+  if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+    throw new Error(JSON.stringify(staged));
+  }
+  const candidatePath = staged.operation.occupation.path;
+  await git(candidatePath, ["commit", "-m", "commit decomposition transition"]);
+  const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+  return { ...started, candidatePath, candidateHead };
 }
 
 async function backlogStubRepository(options: { preserveParent?: boolean } = {}) {
@@ -474,6 +495,275 @@ describe("Git v3 repository plan", () => {
       .concat(resolveTransitionRecordRelativePath("origin"));
     expect(await git(repo, ["diff", "--cached", "--name-only", "--no-renames"]))
       .toBe(`${appliedPaths.join("\n")}\n`);
+  });
+
+  it("advances a committed transition candidate over a descendant base without rewriting it", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const staged = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit decomposition transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    const currentBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+
+    const result = await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "advanced",
+      candidateBranch: "chore/decompose-origin",
+      candidateHead,
+      previousBaseHead: completedMap.machine.resultBase.head,
+      currentBaseHead,
+    });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
+  });
+
+  it("re-advances through a validated first-parent base-merge chain", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const staged = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit decomposition transition"]);
+
+    await write(repo, ".arc/reference/base-growth.txt", "first descendant\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "first base advance"]);
+    const firstBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({ status: "advanced", currentBaseHead: firstBaseHead });
+    await git(candidatePath, ["commit", "-m", "absorb first base advance"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+
+    await write(repo, ".arc/reference/base-growth-2.txt", "second descendant\n");
+    await git(repo, ["add", ".arc/reference/base-growth-2.txt"]);
+    await git(repo, ["commit", "-m", "second base advance"]);
+    const currentBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "advanced",
+      candidateBranch: "chore/decompose-origin",
+      candidateHead,
+      previousBaseHead: firstBaseHead,
+      currentBaseHead,
+    });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
+  });
+
+  it("refuses a committed candidate whose lean transition result was altered", async () => {
+    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
+    const recordPath = resolveTransitionRecordRelativePath("origin");
+    await writeFile(join(candidatePath, recordPath), "{}\n");
+    await git(candidatePath, ["add", recordPath]);
+    await git(candidatePath, ["commit", "--amend", "--no-edit"]);
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({
+      status: "refused",
+      reason: `candidate-transform-mismatch:transition-record:${recordPath}`,
+    });
+  });
+
+  it("refuses a non-merge commit appended after the initial transition", async () => {
+    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
+    await write(candidatePath, ".arc/reference/unrelated-candidate-change.txt", "unrelated\n");
+    await git(candidatePath, ["add", ".arc/reference/unrelated-candidate-change.txt"]);
+    await git(candidatePath, ["commit", "-m", "append unrelated candidate change"]);
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({ status: "refused", reason: "candidate-advancement-chain-invalid" });
+  });
+
+  it("refuses a configured base that regressed behind the authored base", async () => {
+    const { repo, completedMap, dependencies } = await committedTransitionCandidate();
+    await git(repo, ["reset", "--hard", `${completedMap.machine.resultBase.head}^`]);
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({ status: "refused", reason: "base-not-descendant" });
+  });
+
+  it("refuses a descendant base that acquired a new incoming dependency", async () => {
+    const { repo, completedMap, dependencies } = await committedTransitionCandidate();
+    await write(repo, ".arc/backlog/planned/dependent/meta-dependent.md", renderMetaFile("dependent", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: ["origin"],
+      origin: "internal",
+      design: ["draft-dependent.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(repo, ["add", ".arc/backlog/planned/dependent/meta-dependent.md"]);
+    await git(repo, ["commit", "-m", "add incoming dependency"]);
+
+    const result = await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(result).toMatchObject({ status: "refused", reason: "base-acquired-incoming-dependency" });
+  });
+
+  it("restores the pinned candidate after a conflicting base merge", async () => {
+    const { repo, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    await write(repo, ".arc/backlog/ROADMAP.md", "# Conflicting base roadmap\n");
+    await git(repo, ["add", ".arc/backlog/ROADMAP.md"]);
+    await git(repo, ["commit", "-m", "change base roadmap"]);
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({ status: "refused", reason: "merge-refused" });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("restores the pinned candidate when the configured base races post-merge validation", async () => {
+    const { repo, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    let raced = false;
+    const racingDependencies = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        if (!raced && args[1][0] === "ls-files" && args[2]?.cwd === candidatePath) {
+          raced = true;
+          await git(repo, ["commit", "--allow-empty", "-m", "race base after merge"]);
+        }
+        return await dependencies.exec(...args);
+      },
+    };
+
+    expect(await advanceGitDecomposeTransitionBase(racingDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({ status: "refused", reason: "post-merge-validation-refused:binding-raced" });
+    expect(raced).toBe(true);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("refuses when the candidate ref races before merge mutation", async () => {
+    const { candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    let candidateReads = 0;
+    let racedHead: string | null = null;
+    const racingDependencies = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        if (args[1][0] === "rev-parse" && args[1][2] === "chore/decompose-origin^{commit}") {
+          candidateReads += 1;
+          if (candidateReads === 2) {
+            const tree = (await git(candidatePath, ["rev-parse", `${candidateHead}^{tree}`])).trim();
+            racedHead = (await git(candidatePath, [
+              "commit-tree",
+              tree,
+              "-p",
+              candidateHead,
+              "-m",
+              "race candidate",
+            ])).trim();
+            await git(candidatePath, [
+              "update-ref",
+              "refs/heads/chore/decompose-origin",
+              racedHead,
+              candidateHead,
+            ]);
+          }
+        }
+        return await dependencies.exec(...args);
+      },
+    };
+
+    expect(await advanceGitDecomposeTransitionBase(racingDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({ status: "refused", reason: "binding-raced" });
+    expect(racedHead).not.toBeNull();
+  });
+
+  it("refuses a root commit masquerading as the initial transition", async () => {
+    const { candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    const tree = (await git(candidatePath, ["rev-parse", `${candidateHead}^{tree}`])).trim();
+    const root = (await git(candidatePath, ["commit-tree", tree, "-m", "root candidate"])).trim();
+    await git(candidatePath, ["reset", "--hard", root]);
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toMatchObject({ status: "refused", reason: "candidate-initial-transition-invalid" });
+  });
+
+  it("refuses a valid cut map that does not describe the committed transform", async () => {
+    const { completedMap, dependencies } = await committedTransitionCandidate();
+    const mismatchedMap = structuredClone(completedMap) as unknown as {
+      authoring: { destinations: Array<{ kind: string; workClass?: string }> };
+    };
+    const member = mismatchedMap.authoring.destinations.find((entry) => entry.kind === "new-member");
+    if (member === undefined) throw new Error("expected new member destination");
+    member.workClass = "Light";
+
+    const result = await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: mismatchedMap,
+    });
+    expect(result.status).toBe("refused");
+    expect(result.status === "refused" ? result.reason : "")
+      .toMatch(/^candidate-transform-mismatch:/u);
   });
 
   it("returns staged execution without a prescribed successor command", async () => {

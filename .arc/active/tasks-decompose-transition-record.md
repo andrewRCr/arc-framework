@@ -391,7 +391,7 @@ respective predecessors, then retire the old namespace only after every survivin
           receipt-exception tests are gone, while local and hosted classification remain aligned for the lean
           transition namespace and adjacent reviewed content.
 
-### `[ ]` **4.4 Establish receipt-free terminal execution and base mobility**
+### `[x]` **4.4 Establish receipt-free terminal execution and base mobility**
 
 - _Goal:_ Receipt-free paths are authoritative before any preparation, finalization, or advancement predecessor is
   disconnected, so every subsequent subtraction leaves a compiling, operable tree.
@@ -418,23 +418,12 @@ respective predecessors, then retire the old namespace only after every survivin
           rolls back both lean history and owned mutations. No plan mutation, result, remedy, or created member meta
           carries a preparation, receipt placeholder, discard successor, continuation, or finalize instruction.
 
-    - `[ ]` **4.4.b Re-derive append-only base advancement from the candidate transition**
-        - Add the receipt-free advancement boundary behind the future `--advance-base <cut-map>` mode: revalidate the
-          canonical completed map, pin the deterministic candidate branch/worktree and current base, and authenticate
-          a unique initial single-parent transition from its exact transform delta. Accept an already-advanced tip
-          only through a first-parent chain of prior append-only base merges that independently revalidate.
-        - Treat the cut map as authored intent and the candidate Git transition as mutation authority; validate the
-          lean record as a result of that intent but never use its content or presence to grant advancement.
-        - Admit only a descendant base with no newly acquired incoming dependency, merge it append-only into the
-          candidate, revalidate the result tree, race-close both refs, and restate only a claim contract retained by
-          Task 4.1.
-        - Build `test-first` (one behavior at a time):
-            - Advance an exact committed candidate over a descendant base without rewriting history or a record.
-            - Re-advance a candidate whose first-parent chain contains one prior validated base merge.
-            - Refuse a root or ambiguous initial transition, malformed advancement merge chain, transform or map
-              mismatch, new incoming dependencies, divergent or regressed base, unrelated changes, candidate/base
-              races, and a mismatched retained claim.
-            - Restore the pinned candidate after a failed merge or post-merge validation.
+    - `[x]` **4.4.b Re-derive append-only base advancement from the candidate transition**
+        - Added a receipt-free cut-map boundary that authenticates the deterministic candidate registration and
+          marker, its unique single-parent transform, and every prior first-parent base merge. It rejects altered
+          map/result trees, malformed history, regressions, new incoming dependencies, unrelated commits, and both
+          ref races; successful advancement stages an exact append-only merge and all mutation failures restore the
+          pinned candidate. The Task 4.1 trace retained no claim contract to restate.
 
 ### `[ ]` **4.5 Cut over commands and remove live publication consumers**
 

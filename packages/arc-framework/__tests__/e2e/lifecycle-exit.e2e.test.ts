@@ -761,7 +761,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(executed.exitCode, executed.stderr).toBe(0);
     expect(executed.stderr).toBe("");
     const prepared = JSON.parse(executed.stdout) as {
-      status: "prepared";
+      status: "staged" | "prepared";
       operation: {
         occupation: {
           protection: "full";
@@ -774,6 +774,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
           };
         };
         preparation: { receiptId: string };
+        transitionRecord?: { kind: string; origin: string };
         report: {
           destinations: Array<{ path: string }>;
           topology: Array<{ path?: string }>;
@@ -786,7 +787,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       };
     };
     expect(prepared).toMatchObject({
-      status: "prepared",
+      status: "staged",
       operation: {
         occupation: {
           protection: "full",
@@ -796,8 +797,25 @@ describe("lifecycle exit choreography (CLI seam)", () => {
           },
         },
       },
-      next: { kind: "finalize-with-continuation" },
     });
+    if (prepared.status === "staged") {
+      expect(prepared.operation.transitionRecord).toEqual({
+        schemaVersion: 1,
+        origin: "origin",
+        kind: "decompose",
+        successors: ["blocked-leaf", "selected-leaf", "unselected-leaf"],
+        edges: [],
+      });
+      const candidateWorktree = prepared.operation.occupation.path;
+      worktrees.push(candidateWorktree);
+      expect(await pathExists(candidateWorktree)).toBe(true);
+      expect(await git(repo, ["rev-parse", "chore/decompose-origin"])).toBe(baseHead);
+      expect(await git(candidateWorktree, ["diff", "--cached", "--name-only"]))
+        .toContain(".arc/system/.internal/transitions/origin.json");
+      expect(executed.stdout).not.toContain("receiptId");
+      expect(executed.stdout).not.toContain("finalize-with-continuation");
+      return;
+    }
     expect(prepared.next.command).toBe(
       `arc decompose origin --finalize ${prepared.operation.preparation.receiptId} `
         + `--continuation ${prepared.next.continuationPath}`,
