@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  analyzeBaseBranchSnapshot,
   BaseBranchSyncStatusResultSchema,
   BaseCheckoutLocusSchema,
   runBaseBranchSyncStatus,
@@ -58,6 +59,7 @@ const FETCH_BASE = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
 const WORKTREE_LIST = "worktree list --porcelain -z";
 const REV_PARSE_TOP = "rev-parse --show-toplevel";
+const BASE_OID = "b".repeat(40);
 
 /** Default topology: current worktree on feat; base (main) not checked out. */
 const NOT_CHECKED_OUT = {
@@ -88,6 +90,179 @@ const BASE_CURRENT_PRIMARY = {
   },
   [REV_PARSE_TOP]: { stdout: "/primary\n", stderr: "" },
 };
+
+describe("snapshot-driven base-branch sync", () => {
+  it("reports equal local and advertised OIDs as exact without graph traversal", async () => {
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: BASE_OID,
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "shallow" },
+    })).resolves.toMatchObject({
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      remoteEvidence: "exact",
+      refreshRemedy: null,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("reports a differing advertised OID that is not local as pending", async () => {
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: "a".repeat(40),
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: false } },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      unavailableReason: "base-object-pending-fetch",
+      remoteEvidence: "pending-fetch",
+      refreshRemedy: { argv: ["arc", "base", "sync", "--json"] },
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("reports exact local-base absence with an explicit base-sync remedy", async () => {
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: null,
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      unavailableReason: "local-base-absent",
+      remoteEvidence: "exact",
+      refreshRemedy: {
+        text: expect.stringContaining("local main"),
+        argv: ["arc", "base", "sync", "--json"],
+      },
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("reports exact remote-base absence with configuration guidance and no remedy", async () => {
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: BASE_OID,
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "all-heads", tips: {} },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toMatchObject({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      unavailableReason: "remote-base-absent",
+      remoteEvidence: "exact",
+      refreshRemedy: null,
+      guidance: expect.stringMatching(/configured base.*main.*origin/iu),
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("reports exact graph distance against a locally available advertised OID", async () => {
+    const localOid = "a".repeat(40);
+    const { exec } = buildExec({
+      [REV_LIST_COUNT]: (_args, options) => {
+        if (options?.objectAccess !== "local-only") throw new Error("lazy object access allowed");
+        return { stdout: "0\t3", stderr: "" };
+      },
+    });
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: localOid,
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({
+      state: "remote-ahead",
+      ahead: 0,
+      behind: 3,
+      remoteEvidence: "exact",
+      refreshRemedy: null,
+    });
+  });
+
+  it("rejects graph distance when local history is shallow", async () => {
+    const { exec } = buildExec({});
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: "a".repeat(40),
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "shallow" },
+    })).rejects.toThrow(/Complete local history/u);
+  });
+
+  it.each([
+    ["execution failure", () => { throw new Error("distance failed"); }, /distance failed/u],
+    ["malformed output", { stdout: "not counts", stderr: "" }, /Malformed git rev-list/u],
+  ] as const)("propagates local distance %s", async (_label, response, expected) => {
+    const { exec } = buildExec({ [REV_LIST_COUNT]: response });
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: "a".repeat(40),
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      history: { kind: "complete" },
+    })).rejects.toThrow(expected);
+  });
+
+  it("preserves typed unreachable evidence without running local Git", async () => {
+    const { exec, calls } = buildExec({});
+
+    await expect(analyzeBaseBranchSnapshot({
+      exec,
+      baseBranch: "main",
+      localBaseOid: BASE_OID,
+      checkout: { kind: "not-checked-out" },
+      snapshot: { kind: "unreachable", failureReason: "auth" },
+      objectAvailability: { kind: "complete", commits: {} },
+      history: { kind: "complete" },
+    })).resolves.toMatchObject({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      remoteEvidence: "unreachable",
+      failureReason: "auth",
+      refreshRemedy: null,
+    });
+    expect(calls).toEqual([]);
+  });
+});
 
 describe("runBaseBranchSyncStatus", () => {
   it("short-circuits to skipped without any git call when remote sync is disabled", async () => {

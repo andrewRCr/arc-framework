@@ -54,6 +54,8 @@ describe("production schema artifact", () => {
       "priority",
       "project-routing-promotion",
       "proposed-disposition-set",
+      "remote-evidence",
+      "remote-failure-reason",
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",

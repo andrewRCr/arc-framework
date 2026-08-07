@@ -1,14 +1,20 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { z } from "zod";
 
 import {
   PrioritySchema,
+  RemoteEvidenceSchema,
+  RemoteFailureReasonSchema,
   WORK_UNIT_STATE_ORDER,
   WorkClassSchema,
   WorkUnitStateSchema,
   validateClass,
   validatePriority,
   validateState,
+  withRemoteEvidence,
   type Priority,
+  type RemoteEvidence,
+  type RemoteFailureReason,
   type WorkClass,
   type WorkUnitState,
 } from "../../../src/lib/kernel/index.js";
@@ -26,6 +32,49 @@ import {
 } from "../../../src/commands/active/types.js";
 
 describe("kernel work-unit vocabulary", () => {
+  it("parses only the codified remote evidence and failure values", () => {
+    for (const value of ["exact", "pending-fetch", "unreachable", "not-applicable"] as const) {
+      expect(RemoteEvidenceSchema.parse(value)).toBe(value);
+      expectTypeOf(RemoteEvidenceSchema.parse(value)).toEqualTypeOf<RemoteEvidence>();
+    }
+    for (const invalid of ["pending", "offline", "unknown", "", null]) {
+      expect(RemoteEvidenceSchema.safeParse(invalid).success).toBe(false);
+    }
+
+    for (const value of ["timeout", "network", "auth", "error"] as const) {
+      expect(RemoteFailureReasonSchema.parse(value)).toBe(value);
+      expectTypeOf(RemoteFailureReasonSchema.parse(value)).toEqualTypeOf<RemoteFailureReason>();
+    }
+    for (const invalid of ["permission", "malformed", "offline", "", null]) {
+      expect(RemoteFailureReasonSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
+  it("composes strict domain schemas with evidence-dependent failure reasons", () => {
+    const schema = withRemoteEvidence({ state: z.enum(["ready", "blocked"]) });
+
+    expect(schema.parse({ state: "ready", remoteEvidence: "exact" })).toEqual({
+      state: "ready",
+      remoteEvidence: "exact",
+    });
+    expect(schema.parse({
+      state: "blocked",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    })).toEqual({
+      state: "blocked",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    });
+
+    expect(schema.safeParse({ state: "blocked", remoteEvidence: "unreachable" }).success).toBe(false);
+    for (const remoteEvidence of ["exact", "pending-fetch", "not-applicable"] as const) {
+      expect(schema.safeParse({ state: "blocked", remoteEvidence, failureReason: "timeout" }).success).toBe(false);
+    }
+    expect(schema.safeParse({ state: "ready", remoteEvidence: "exact", extra: true }).success).toBe(false);
+    expect(schema.safeParse({ remoteEvidence: "exact" }).success).toBe(false);
+  });
+
   it("parses only the codified lifecycle states and preserves their order", () => {
     const states = ["Planning", "Active", "Integrating", "Shipped"] as const;
     for (const state of states) {

@@ -17,7 +17,11 @@ import {
   getCurrentBranch,
   type GitExec,
 } from "./exec.js";
+import type { HistoryCompletenessResult } from "./history-completeness.js";
+import type { RemoteFailureReason } from "../kernel/index.js";
+import type { ObjectAvailabilityResult } from "./object-availability.js";
 import { isGitProcessError } from "./process-error.js";
+import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
 
 /**
  * Worktree sync state.
@@ -77,8 +81,131 @@ export interface RunWorktreeSyncStatusOptions {
   fetchTimeoutMs?: number;
 }
 
+/** Supplied remote and local prerequisites for one tracked worktree relation. */
+export interface AnalyzeWorktreeSnapshotOptions {
+  exec: GitExec;
+  /** Whether automatic remote inspection is enabled for this caller. */
+  remoteSyncEnabled: boolean;
+  /** Whether the configured remote exists locally. */
+  originConfigured: boolean;
+  /** Current local branch name carried into the result. */
+  branch: string | null;
+  /** Remote branch selected by the local upstream configuration. */
+  upstreamBranch: string | null;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+  history: HistoryCompletenessResult;
+}
+
+/** Worktree relation classified against one immutable advertised snapshot. */
+export type WorktreeSnapshotAnalysisResult = Omit<WorktreeSyncStatusResult, "failureReason"> & (
+  | { remoteEvidence: "exact" | "pending-fetch" | "not-applicable" }
+  | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
+);
+
+/** Analyze a tracked worktree against supplied remote evidence without acquiring it. */
+export async function analyzeWorktreeSnapshot(
+  options: AnalyzeWorktreeSnapshotOptions,
+): Promise<WorktreeSnapshotAnalysisResult> {
+  if (!options.remoteSyncEnabled) {
+    return {
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
+      remoteEvidence: "not-applicable",
+    };
+  }
+  if (options.branch === null) {
+    return {
+      state: "detached-head",
+      ahead: 0,
+      behind: 0,
+      branch: null,
+      remoteEvidence: "not-applicable",
+    };
+  }
+  if (!options.originConfigured) {
+    return {
+      state: "no-remote",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
+      remoteEvidence: "not-applicable",
+    };
+  }
+  if (options.upstreamBranch === null) {
+    return {
+      state: "no-upstream",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
+      remoteEvidence: "not-applicable",
+    };
+  }
+  if (options.snapshot.kind === "unreachable") {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
+      remoteEvidence: "unreachable",
+      failureReason: options.snapshot.failureReason,
+    };
+  }
+  const advertisedOid = options.snapshot.tips[options.upstreamBranch];
+  if (advertisedOid === undefined) {
+    return {
+      state: "branch-gone",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
+      remoteEvidence: "exact",
+    };
+  }
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("The advertised worktree commit is unavailable locally.");
+  }
+  const advertisedCommitIsLocal = options.objectAvailability.commits[advertisedOid];
+  if (advertisedCommitIsLocal === false) {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
+      remoteEvidence: "pending-fetch",
+    };
+  }
+  if (advertisedCommitIsLocal === undefined) {
+    throw new Error("The advertised worktree commit has no local availability fact.");
+  }
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const localOid = (await localOnlyExec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  if (!GIT_OBJECT_ID_PATTERN.test(localOid)) {
+    throw new Error("Cannot resolve the local worktree commit.");
+  }
+  if (localOid === advertisedOid) {
+    return {
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
+      remoteEvidence: "exact",
+    };
+  }
+  if (options.history.kind !== "complete") {
+    throw new Error("Complete local history is required for worktree distance analysis.");
+  }
+  const relation = await countAheadBehindRef(localOnlyExec, "HEAD", advertisedOid);
+  return { ...relation, branch: options.branch, remoteEvidence: "exact" };
+}
+
 /** Default bounded timeout for the worktree-sync fetch. */
 export const DEFAULT_FETCH_TIMEOUT_MS = 3000;
+const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
 /**
  * Probe the worktree sync state relative to `origin/<current-branch>`.

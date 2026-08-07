@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import {
   PrioritySchema,
+  RemoteEvidenceSchema,
+  RemoteFailureReasonSchema,
   SchemaError,
   SlugSchema,
   WorkClassSchema,
@@ -125,10 +127,19 @@ describe("kernel schema registry", () => {
   it("creates fresh registries containing exactly the kernel vocabulary", () => {
     const first = createKernelRegistry();
     const second = createKernelRegistry();
-    expect(first.ids()).toEqual(["priority", "slug", "work-class", "work-unit-state"]);
+    expect(first.ids()).toEqual([
+      "priority",
+      "remote-evidence",
+      "remote-failure-reason",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
     expect(first.get("work-unit-state")).toBe(WorkUnitStateSchema);
     expect(first.get("work-class")).toBe(WorkClassSchema);
     expect(first.get("priority")).toBe(PrioritySchema);
+    expect(first.get("remote-evidence")).toBe(RemoteEvidenceSchema);
+    expect(first.get("remote-failure-reason")).toBe(RemoteFailureReasonSchema);
     expect(first.get("slug")).toBe(SlugSchema);
     for (const id of first.ids()) expect(first.meta(id)).toEqual(strict(id));
     first.register(z.boolean(), strict("extension"));
@@ -140,7 +151,16 @@ describe("kernel schema registry", () => {
     const defaults = registry.toJSONSchema();
     const custom = registry.toJSONSchema({ uri: (id) => `urn:arc:${id}` });
 
-    expect(Object.keys(defaults.schemas)).toEqual(["priority", "slug", "work-class", "work-unit-state"]);
+    expect(Object.keys(defaults.schemas)).toEqual([
+      "priority",
+      "remote-evidence",
+      "remote-failure-reason",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
+    expect(defaults.schemas["remote-evidence"]?.$id).toBe("remote-evidence.schema.json");
+    expect(defaults.schemas["remote-failure-reason"]?.$id).toBe("remote-failure-reason.schema.json");
     expect(defaults.schemas.slug?.$id).toBe("slug.schema.json");
     expect(custom.schemas.slug?.$id).toBe("urn:arc:slug");
     expect(JSON.stringify(defaults)).not.toMatch(/migrationPosture|version/u);

@@ -16,6 +16,8 @@ export type BaseDriftUnavailableReason =
   | "no-remote"
   | "fetch-timeout"
   | "fetch-failed"
+  | "base-object-pending-fetch"
+  | "remote-base-absent"
   | "fetched-base-unresolved"
   | "distance-read-failed"
   | "temporary-ref-cleanup-failed";

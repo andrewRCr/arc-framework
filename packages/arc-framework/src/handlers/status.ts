@@ -680,7 +680,7 @@ export async function handleStatus(
             stamp,
             decoded,
             resolved.settings["branch.protection"] === "full" ? `origin/${baseBranch}` : baseBranch,
-            (ref, path) => readGitBlobBytes(cwd, ref, path),
+            (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
           );
         });
       },
@@ -817,7 +817,7 @@ export async function handleStatus(
           teamMode: resolved.settings["team.mode"] === "true",
           protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
-          readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+          readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
           derivedRoster,
         });
       },

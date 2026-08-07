@@ -37,7 +37,7 @@ export interface RawGitResult {
 /** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
 export type RawGitExec = (
   args: string[],
-  options?: { cwd?: string; input?: Uint8Array },
+  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only" },
 ) => Promise<RawGitResult>;
 
 const UNKNOWN: ChangeSet = { changeSet: "unknown", changes: [] };
@@ -236,8 +236,14 @@ export async function resolveChangeSet(
 export function createRawGitExec(cwd = process.cwd()): RawGitExec {
   return (args, options) =>
     new Promise((resolveResult, reject) => {
-      const child = spawn("git", args, {
+      const effectiveArgs = options?.objectAccess === "local-only"
+        ? ["--no-lazy-fetch", ...args]
+        : args;
+      const child = spawn("git", effectiveArgs, {
         cwd: options?.cwd ?? cwd,
+        ...(options?.objectAccess === "local-only"
+          ? { env: { ...process.env, GIT_NO_LAZY_FETCH: "1" } }
+          : {}),
         stdio: ["pipe", "pipe", "pipe"],
       });
       const stdout: Buffer[] = [];

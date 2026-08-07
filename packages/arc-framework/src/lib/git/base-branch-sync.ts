@@ -34,6 +34,10 @@ import {
   type GitExec,
 } from "./exec.js";
 import { localPathsEqual } from "../local-path-identity.js";
+import type { HistoryCompletenessResult } from "./history-completeness.js";
+import type { ObjectAvailabilityResult } from "./object-availability.js";
+import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
+import type { RemoteFailureReason } from "../kernel/index.js";
 import {
   countAheadBehindRef,
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -107,6 +111,159 @@ export const BaseBranchSyncStatusResultSchema = z.discriminatedUnion("state", [
 
 /** Base-branch synchronization status and checkout locus. */
 export type BaseBranchSyncStatusResult = z.infer<typeof BaseBranchSyncStatusResultSchema>;
+
+/** Structured explicit action offered when base evidence can be materialized safely. */
+export interface BaseBranchSyncRemedy {
+  text: string;
+  argv: string[];
+}
+
+/** Supplied prerequisites for read-only local-base comparison. */
+export interface AnalyzeBaseBranchSnapshotOptions {
+  exec: GitExec;
+  baseBranch: string;
+  /** Validated local base commit, or null when the local branch does not exist. */
+  localBaseOid: string | null;
+  checkout: BaseCheckoutLocus;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+  history: HistoryCompletenessResult;
+}
+
+type BaseBranchRelationState = "clean" | "remote-ahead" | "local-ahead" | "diverged";
+
+/** Local-base relation classified against one immutable advertised snapshot. */
+export type BaseBranchSnapshotAnalysisResult = {
+  state: BaseBranchRelationState | "remote-unavailable";
+  ahead: number;
+  behind: number;
+  base: string;
+  checkout: BaseCheckoutLocus;
+  unavailableReason?: "base-object-pending-fetch" | "local-base-absent" | "remote-base-absent";
+  refreshRemedy: BaseBranchSyncRemedy | null;
+  guidance: string | null;
+} & (
+  | { remoteEvidence: "exact" | "pending-fetch" }
+  | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
+);
+
+/**
+ * Analyze the local base against supplied advertised evidence without acquiring it.
+ *
+ * @param options - Validated local and remote base evidence plus the local-only Git boundary.
+ * @returns The exact, pending, or unreachable local-base relation and any safe explicit remedy.
+ */
+export async function analyzeBaseBranchSnapshot(
+  options: AnalyzeBaseBranchSnapshotOptions,
+): Promise<BaseBranchSnapshotAnalysisResult> {
+  if (options.snapshot.kind === "unreachable") {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: options.baseBranch,
+      checkout: options.checkout,
+      refreshRemedy: null,
+      guidance: `Remote base evidence is unavailable (${options.snapshot.failureReason}).`,
+      remoteEvidence: "unreachable",
+      failureReason: options.snapshot.failureReason,
+    };
+  }
+  const advertisedOid = options.snapshot.tips[options.baseBranch];
+  if (advertisedOid === undefined) {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: options.baseBranch,
+      checkout: options.checkout,
+      unavailableReason: "remote-base-absent",
+      refreshRemedy: null,
+      guidance: `The configured base branch ${options.baseBranch} does not exist on origin.`,
+      remoteEvidence: "exact",
+    };
+  }
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("The advertised base commit is unavailable locally.");
+  }
+  const advertisedCommitIsLocal = options.objectAvailability.commits[advertisedOid];
+  if (advertisedCommitIsLocal === false) {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: options.baseBranch,
+      checkout: options.checkout,
+      unavailableReason: "base-object-pending-fetch",
+      refreshRemedy: composeBaseSyncRemedy(options.baseBranch),
+      guidance: null,
+      remoteEvidence: "pending-fetch",
+    };
+  }
+  if (advertisedCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  const localOid = options.localBaseOid;
+  if (localOid === null) {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: options.baseBranch,
+      checkout: options.checkout,
+      unavailableReason: "local-base-absent",
+      refreshRemedy: composeBaseSyncRemedy(options.baseBranch),
+      guidance: `The local ${options.baseBranch} branch does not exist.`,
+      remoteEvidence: "exact",
+    };
+  }
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(localOid)) {
+    throw new Error("Cannot resolve the local base commit.");
+  }
+  if (localOid === advertisedOid) {
+    return {
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      base: options.baseBranch,
+      checkout: options.checkout,
+      refreshRemedy: null,
+      guidance: null,
+      remoteEvidence: "exact",
+    };
+  }
+  if (options.history.kind !== "complete") {
+    throw new Error("Complete local history is required for base-branch distance analysis.");
+  }
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const relation = await countAheadBehindRef(localOnlyExec, localOid, advertisedOid);
+  return {
+    ...relation,
+    state: requireBaseBranchRelationState(relation.state),
+    base: options.baseBranch,
+    checkout: options.checkout,
+    refreshRemedy: null,
+    guidance: null,
+    remoteEvidence: "exact",
+  };
+}
+
+function requireBaseBranchRelationState(state: string): BaseBranchRelationState {
+  if (state === "clean" || state === "remote-ahead" || state === "local-ahead" || state === "diverged") {
+    return state;
+  }
+  throw new Error(`Unexpected base-branch relation state: ${state}`);
+}
+
+function composeBaseSyncRemedy(baseBranch: string): BaseBranchSyncRemedy {
+  return {
+    text: `Materialize and synchronize the local ${baseBranch} branch.`,
+    argv: ["arc", "base", "sync", "--json"],
+  };
+}
 
 export interface RunBaseBranchSyncStatusOptions {
   exec: GitExec;

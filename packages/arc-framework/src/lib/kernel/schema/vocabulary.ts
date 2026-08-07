@@ -4,6 +4,48 @@
 
 import { z } from "zod";
 
+/** Runtime authority for code-repository remote evidence quality. */
+export const RemoteEvidenceSchema = z.enum([
+  "exact",
+  "pending-fetch",
+  "unreachable",
+  "not-applicable",
+]);
+
+/** Quality of code-repository remote evidence. */
+export type RemoteEvidence = z.infer<typeof RemoteEvidenceSchema>;
+
+/** Runtime authority for bounded remote-read failure classes. */
+export const RemoteFailureReasonSchema = z.enum(["timeout", "network", "auth", "error"]);
+
+/** Public failure class for a bounded remote read. */
+export type RemoteFailureReason = z.infer<typeof RemoteFailureReasonSchema>;
+
+/**
+ * Compose a strict domain object with the shared remote-evidence pairing.
+ *
+ * @param shape - Domain-owned fields to retain on every evidence arm.
+ * @returns A schema that enforces evidence-dependent failure-reason presence.
+ */
+export function withRemoteEvidence<T extends z.ZodRawShape>(shape: T) {
+  const withoutFailureReason = (remoteEvidence: "exact" | "pending-fetch" | "not-applicable") => z.strictObject({
+    ...shape,
+    remoteEvidence: z.literal(remoteEvidence),
+    failureReason: z.never().optional(),
+  });
+
+  return z.discriminatedUnion("remoteEvidence", [
+    withoutFailureReason("exact"),
+    withoutFailureReason("pending-fetch"),
+    z.strictObject({
+      ...shape,
+      remoteEvidence: z.literal("unreachable"),
+      failureReason: RemoteFailureReasonSchema,
+    }),
+    withoutFailureReason("not-applicable"),
+  ]);
+}
+
 /** Runtime authority for codified work-unit lifecycle states. */
 export const WorkUnitStateSchema = z.enum(["Planning", "Active", "Integrating", "Shipped"]);
 

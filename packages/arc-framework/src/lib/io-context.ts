@@ -32,10 +32,17 @@ export { environmentForGitCwd } from "../lib/git/process-executor.js";
 export function createRawGitExec(cwd = process.cwd()): RawGitExec {
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
+    const environment = environmentForGitCwd(effectiveCwd);
+    const env = options.objectAccess === "local-only"
+      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : environment;
+    const effectiveArgs = options.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
     try {
-      const result = await execa("git", args, {
+      const result = await execa("git", effectiveArgs, {
         cwd: effectiveCwd,
-        env: environmentForGitCwd(effectiveCwd),
+        env,
         encoding: "buffer",
         stripFinalNewline: false,
         extendEnv: false,
@@ -44,7 +51,7 @@ export function createRawGitExec(cwd = process.cwd()): RawGitExec {
       });
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
-      throw normalizeGitRejection(error, { command: "git", args });
+      throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
     }
   };
 }
@@ -63,15 +70,20 @@ export async function readGitBlobBytes(
   cwd: string,
   ref: string | null,
   path: string,
+  options: { objectAccess?: "local-only" } = {},
 ): Promise<Uint8Array | null> {
-  const options = {
-    cwd,
-    env: environmentForGitCwd(cwd),
-    maxBuffer: MAX_GIT_OUTPUT_BYTES,
-  };
+  const exec = createRawGitExec(cwd);
+  const execOptions = options.objectAccess === undefined
+    ? undefined
+    : { objectAccess: options.objectAccess };
+  const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   let oid: string;
   if (ref === null) {
-    const { stdout } = await execaGit(["ls-files", "--stage", "-z", "--", `:(literal)${path}`], options);
+    const { stdout: stdoutBytes } = await exec(
+      ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
+      execOptions,
+    );
+    const stdout = decode(stdoutBytes);
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
     const match = entries.length === 1
@@ -80,27 +92,18 @@ export async function readGitBlobBytes(
     if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact index blob for ${path}.`);
     oid = match[1];
   } else {
-    const { stdout } = await execaGit(
+    const { stdout: stdoutBytes } = await exec(
       ["ls-tree", "-z", "--format=%(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
-      options,
+      execOptions,
     );
+    const stdout = decode(stdoutBytes);
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
     const match = entries.length === 1 ? /^blob ([0-9a-f]{40,64})$/u.exec(entries[0] ?? "") : null;
     if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
     oid = match[1];
   }
-  try {
-    const { stdout } = await execa("git", ["cat-file", "blob", oid], {
-      ...options,
-      encoding: "buffer",
-      stripFinalNewline: false,
-      extendEnv: false,
-    });
-    return stdout;
-  } catch (error) {
-    throw normalizeGitRejection(error, { command: "git", args: ["cat-file", "blob", oid] });
-  }
+  return (await exec(["cat-file", "blob", oid], execOptions)).stdout;
 }
 
 /**
@@ -126,22 +129,6 @@ export async function readGitObjectBytes(
       : null;
   if (gitObjectKind === null) throw new Error(`Cannot read unsupported Git object kind: ${objectKind}.`);
   return (await createRawGitExec(cwd)(["cat-file", gitObjectKind, oid])).stdout;
-}
-
-async function execaGit(
-  args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv | undefined; maxBuffer: number },
-): Promise<{ stdout: string; stderr: string }> {
-  try {
-    const result = await execa("git", args, {
-      ...options,
-      stripFinalNewline: false,
-      extendEnv: false,
-    });
-    return { stdout: result.stdout, stderr: result.stderr };
-  } catch (error) {
-    throw normalizeGitRejection(error, { command: "git", args });
-  }
 }
 
 /** Prepared verification-only ref transaction held until the caller releases it. */

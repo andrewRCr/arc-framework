@@ -134,17 +134,34 @@ export {
 
 export {
   listLiveRemoteBranches,
+  readRemoteHeadSnapshot,
   readLiveRemoteHeads,
   listPrunedRemoteTrackingBranches,
   fetchRefBounded,
   readMetaAtRef,
   type ListLiveRemoteBranchesOptions,
   type LiveRemoteHeadsResult,
+  type ReadRemoteHeadSnapshotOptions,
+  type RemoteHeadSnapshotResult,
+  type RemoteHeadSnapshotScope,
   type ReadLiveRemoteHeadsOptions,
   type ListPrunedRemoteTrackingBranchesOptions,
   type FetchRefBoundedOptions,
   type ReadMetaAtRefOptions,
 } from "./remote-ref-reader.js";
+
+export {
+  readObjectAvailability,
+  type ObjectAvailabilityResult,
+  type ReadObjectAvailabilityOptions,
+} from "./object-availability.js";
+
+export {
+  historyAllowsProof,
+  readHistoryCompleteness,
+  type HistoryCompletenessResult,
+  type ReadHistoryCompletenessOptions,
+} from "./history-completeness.js";
 
 export {
   deriveInFlight,

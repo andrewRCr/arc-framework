@@ -36,6 +36,10 @@ export interface GitExecOptions {
   indexFile?: string;
   /** Per-invocation terminal, presenter, and ambient-stdin policy. */
   interaction?: InteractionContext["subprocess"];
+  /** Pin process diagnostics to the stable C locale for bounded classification. */
+  diagnosticLocale?: "stable";
+  /** Forbid Git from lazily fetching missing objects during passive inspection. */
+  objectAccess?: "local-only";
 }
 
 /** Plain-Promise, argument-array Git execution seam. */
@@ -56,7 +60,7 @@ export type GitExec = (
 export type GitExecInput = (
   args: string[],
   input: string,
-  options?: Pick<GitExecOptions, "cwd">,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess">,
 ) => Promise<string>;
 
 /** One Git index transaction staged through the repository's index lock. */

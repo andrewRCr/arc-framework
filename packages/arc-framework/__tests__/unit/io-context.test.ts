@@ -12,6 +12,7 @@ vi.mock("execa", () => ({ execa: mocks.execa }));
 
 import {
   createUserIOContext,
+  readGitBlobBytes,
   readGitObjectBytes,
 } from "../../src/lib/io-context.js";
 
@@ -61,5 +62,55 @@ describe("readGitObjectBytes", () => {
 
     await expect(readGitObjectBytes("/repo", "a".repeat(40), "gitlink"))
       .resolves.toEqual(Buffer.from("commit"));
+  });
+});
+
+describe("readGitBlobBytes", () => {
+  it("reads an exact tree blob without allowing lazy object acquisition", async () => {
+    const oid = "a".repeat(40);
+    const bytes = Buffer.from([0, 1, 10, 128, 255]);
+    mocks.execa.mockImplementation(async (
+      _command: string,
+      args: string[],
+      options: { env?: NodeJS.ProcessEnv },
+    ) => {
+      if (args[0] !== "--no-lazy-fetch" || options.env?.GIT_NO_LAZY_FETCH !== "1") {
+        throw new Error("object inspection allowed lazy acquisition");
+      }
+      if (args[1] === "ls-tree") {
+        return { stdout: Buffer.from(`blob ${oid}\0`), stderr: Buffer.alloc(0) };
+      }
+      if (args[1] === "cat-file") {
+        return { stdout: bytes, stderr: Buffer.alloc(0) };
+      }
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    });
+
+    await expect(readGitBlobBytes("/repo", "HEAD", "binary.dat", { objectAccess: "local-only" }))
+      .resolves.toEqual(bytes);
+  });
+
+  it("reads an exact index blob without allowing lazy object acquisition", async () => {
+    const oid = "b".repeat(40);
+    const bytes = Buffer.from([255, 128, 13, 10, 0]);
+    mocks.execa.mockImplementation(async (
+      _command: string,
+      args: string[],
+      options: { env?: NodeJS.ProcessEnv },
+    ) => {
+      if (args[0] !== "--no-lazy-fetch" || options.env?.GIT_NO_LAZY_FETCH !== "1") {
+        throw new Error("object inspection allowed lazy acquisition");
+      }
+      if (args[1] === "ls-files") {
+        return { stdout: Buffer.from(`100644 ${oid} 0\tbinary.dat\0`), stderr: Buffer.alloc(0) };
+      }
+      if (args[1] === "cat-file") {
+        return { stdout: bytes, stderr: Buffer.alloc(0) };
+      }
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    });
+
+    await expect(readGitBlobBytes("/repo", null, "binary.dat", { objectAccess: "local-only" }))
+      .resolves.toEqual(bytes);
   });
 });
