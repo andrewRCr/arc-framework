@@ -39,6 +39,7 @@ import type { ObjectAvailabilityResult } from "./object-availability.js";
 import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
 import type { RemoteFailureReason } from "../kernel/index.js";
 import { isGitProcessError } from "./process-error.js";
+import { isGitObjectId } from "./object-id.js";
 import {
   countAheadBehindRef,
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -162,7 +163,7 @@ export async function readLocalBaseOid(exec: GitExec, baseBranch: string): Promi
       ["rev-parse", "--verify", "--quiet", `refs/heads/${baseBranch}^{commit}`],
       { objectAccess: "local-only" },
     )).stdout.trim();
-    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid)) {
+    if (!isGitObjectId(oid)) {
       throw new Error("Git did not return a valid local base commit.");
     }
     return oid;
@@ -209,7 +210,9 @@ export async function analyzeBaseBranchSnapshot(
     };
   }
   if (options.objectAvailability.kind !== "complete") {
-    throw new Error("The advertised base commit is unavailable locally.");
+    throw new Error(options.objectAvailability.reason === "execution"
+      ? "Local base object-availability inspection failed."
+      : "Local base object-availability inspection returned malformed output.");
   }
   const advertisedCommitIsLocal = options.objectAvailability.commits[advertisedOid];
   if (advertisedCommitIsLocal === false) {
@@ -258,7 +261,11 @@ export async function analyzeBaseBranchSnapshot(
     };
   }
   if (options.history.kind !== "complete") {
-    throw new Error("Complete local history is required for base-branch distance analysis.");
+    throw new Error(options.history.kind === "shallow"
+      ? "Complete local history is required for base-branch distance analysis."
+      : options.history.reason === "execution"
+        ? "Local base history inspection failed."
+        : "Local base history inspection returned malformed output.");
   }
   const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
     ...execOptions,

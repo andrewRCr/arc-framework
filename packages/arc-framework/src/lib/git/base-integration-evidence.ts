@@ -13,12 +13,12 @@ import type {
   IntegrationEvent,
   ResolverEvent,
 } from "./base-drift-types.js";
+import { isGitObjectId } from "./object-id.js";
 
 export const DEFAULT_BASE_DRIFT_SCAN_LIMIT = 256;
 
 const MERGE_PR_RE = /^Merge pull request #([1-9]\d*) from (.+)$/u;
 const SQUASH_PR_RE = / \(#([1-9]\d*)\)$/u;
-const OID_RE = /^[0-9a-f]{40,64}$/u;
 
 export interface AnalyzeIntegrationEvidenceOptions {
   exec: GitExec;
@@ -132,11 +132,11 @@ function parseScan(stdout: string): BaseDriftCommitInput[] {
     const oid = fields[index];
     const parentsField = fields[index + 1];
     const subject = fields[index + 2];
-    if (oid === undefined || parentsField === undefined || subject === undefined || !OID_RE.test(oid)) {
+    if (oid === undefined || parentsField === undefined || subject === undefined || !isGitObjectId(oid)) {
       throw new Error("Malformed base-drift history record.");
     }
     const parents = parentsField === "" ? [] : parentsField.split(" ");
-    if (parents.some((parent) => !OID_RE.test(parent))) {
+    if (parents.some((parent) => !isGitObjectId(parent))) {
       throw new Error("Malformed base-drift parent OID.");
     }
     const mergePr = MERGE_PR_RE.exec(subject);
