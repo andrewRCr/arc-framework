@@ -52,33 +52,18 @@ on-demand destination, so no reachability trigger is owed for the content that m
   proves nothing, so a per-copy edit is indistinguishable from an introduced divergence once the pre-edit state
   is gone.
 
-### `[ ]` **1.3 Phrasing-consolidation sweep of `DEV-RULES.ARC`**
+### `[x]` **1.3 Phrasing-consolidation sweep of `DEV-RULES.ARC`**
 
 - _Goal:_ Wording that the floor now states once stops being restated around it, recovering some of the words the
   new section spends.
 
-- _Approach:_ Phrasing only. The surface is § Discovered Work Routing's own preamble plus its `### Anti-rider`
-  child — not the whole subtree, whose other children include invariant-marked rules and the routing table. No
-  rule changes force or shape; no rule is removed. A yield of zero is a legitimate outcome and fails no criterion
-  — stop rather than manufacture savings.
-
-- **Additional Context:** this file is under test in `pr-open-extensions.test.ts`, over both copies. A negative
-  assertion forbids `GitHub`, `CodeRabbit`, and `review-gate` case-insensitively, and three positive assertions
-  require the § Review finding mutation guard phrases `verify every review finding against source`, `complete
-  proposed disposition set`, and `approval before applying any finding-driven fix` to survive verbatim. Reword
-  clear of the first set and leave the second untouched.
-
-    - Same file and same two-copy rule as Task 1.1: edit
-      `packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md`, then mirror byte-identically into
-      `.arc/system/rules/DEV-RULES.ARC.md`. A one-copy sweep leaves the `Framework` pair divergent.
-    - Done means both named sections were read against the floor text and the outcome was named, zero included.
-      Silence cannot distinguish a sweep that found nothing from a sweep that never ran.
-    - Measure the file-level word delta so the net-growth record reflects what landed. This is a different
-      measurement from Task 1.1's: that one gates the section against the 150-170 band, this one accounts for the
-      whole file's budget.
-    - Close the phase on the Markdown gate, the ARC contract checks, **and** the code checks. This phase's edits
-      are Markdown but reach a file under test, so the Markdown-only carve-out does not apply — and the code
-      checks are what catch a one-copy edit to a `Framework` pair.
+- _Outcome:_ Yield zero — both named surfaces were read against the floor text and neither restates it. The
+  preamble governs not losing a discovered observation and the authority of capture surfaces; Anti-rider governs
+  whether a **second concern** may ride the current change, keyed on concern-identity. The floor's nearest clause
+  governs the **size of the response to one concern**. Adjacent subjects, no shared sentence to recover, so no
+  edit was made rather than a manufactured saving. Recorded net growth: `DEV-RULES.ARC` +161 words (the 160-word
+  section plus its heading), `DEV-RULES.PROJECT` −28 in each copy, so both always-loaded sets net +133 — the
+  design's projected ~+130.
 
 ## **Phase 2:** Scope-boundary carrier chain, draft through spec
 
