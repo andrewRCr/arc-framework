@@ -536,6 +536,16 @@ describe("session-init envelope schema", () => {
     "rejects the mapped deep routing field: %s",
     (_label, fixtureName, path, replacement, expectedPath) => {
       const value = fixture(fixtureName);
+      if (path[0] === "workUnitState") {
+        value.workUnitState = structuredClone(fixture("branch-gone").workUnitState);
+        setPath(value, ["workUnitState", "value", "inFlight", "workUnits"], [{
+          name: "heavy-widget",
+          branch: "feat/heavy-widget",
+          behindBase: { status: "not-applicable", remoteEvidence: "not-applicable" },
+          ageDays: 0,
+          state: "awaiting-review",
+        }]);
+      }
       setPath(value, path, replacement);
       expectContractFailure(value, expectedPath);
     },
@@ -761,10 +771,12 @@ describe("session-init envelope schema", () => {
     expectInvalid(missingSweep);
   });
 
-  it("allows current-husk omission and runtime failure only at a linked branchless locus", () => {
+  it("requires current-husk at a linked branchless locus and forbids it elsewhere", () => {
+    // An eligible locus always emits the slot, so omission there would report a failed
+    // probe as an inapplicable locus rather than as the degraded slot it is.
     const omitted = fixture("current-husk");
     delete omitted.currentHusk;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
+    expectInvalid(omitted);
 
     expectInvalid({
       ...fixture("orient"),

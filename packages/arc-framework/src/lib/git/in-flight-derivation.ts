@@ -282,6 +282,28 @@ export interface DeriveInFlightOptions {
   decompositionClaimCwd?: string;
 }
 
+/** Default base branch excluded from the in-flight discovery universe. */
+const DEFAULT_BASE_BRANCH = "main";
+
+/**
+ * Decide whether an advertised head belongs to the in-flight discovery universe.
+ *
+ * The explicit coordinator uses this to choose fetch targets and the supplied-evidence
+ * analyzer uses it to choose which heads count toward the pending population. They must
+ * agree: a branch fetched but not counted, or counted but never fetched, misreports the
+ * expansion status callers gate on.
+ *
+ * @param branch - Advertised remote branch name.
+ * @param options - Configured base branch and the branches transient records claim.
+ * @returns Whether the branch is an eligible discovery candidate.
+ */
+export function isEligibleInFlightBranch(
+  branch: string,
+  options: { baseBranch?: string | undefined; errandBranches: ReadonlySet<string> },
+): boolean {
+  return branch !== (options.baseBranch ?? DEFAULT_BASE_BRANCH) && !options.errandBranches.has(branch);
+}
+
 /** Caller-supplied immutable remote and local facts for in-flight analysis. */
 export interface AnalyzeInFlightSnapshotOptions extends Omit<
   DeriveInFlightOptions,
@@ -306,6 +328,17 @@ export interface AnalyzeInFlightSnapshotResult extends DeriveInFlightResult {
   pendingBranchCount: number;
 }
 
+// Constrained to the warning-code union so a newly added classification failure must be
+// classified here rather than silently passing through as an evidence result.
+const CLASSIFICATION_FAILURE_CODES = [
+  "meta-enumeration-failed",
+  "meta-read-failed",
+  "meta-malformed",
+  "state-unrecognized",
+  "branch-field-missing",
+  "decomposition-claim-invalid",
+] as const satisfies readonly InFlightWarning["code"][];
+
 /** Analyze in-flight work from caller-supplied immutable evidence. */
 export async function analyzeInFlightSnapshot(
   options: AnalyzeInFlightSnapshotOptions,
@@ -317,14 +350,8 @@ export async function analyzeInFlightSnapshot(
     objectAccess: "local-only",
   });
   const result = await deriveFromResolvedInputs({ ...options, exec: localOnlyExec }, supplied.input, false, true);
-  const classificationFailure = result.warnings.find((warning) => [
-    "meta-enumeration-failed",
-    "meta-read-failed",
-    "meta-malformed",
-    "state-unrecognized",
-    "branch-field-missing",
-    "decomposition-claim-invalid",
-  ].includes(warning.code));
+  const classificationFailure = result.warnings.find((warning) =>
+    (CLASSIFICATION_FAILURE_CODES as readonly string[]).includes(warning.code));
   if (classificationFailure !== undefined) {
     throw new Error(`Advertised in-flight metadata could not be classified: ${classificationFailure.rendered}`);
   }
@@ -516,7 +543,12 @@ function resolveSuppliedSnapshotInputs(
   options: AnalyzeInFlightSnapshotOptions,
   remote: string,
 ): { input: InputResolution; liveRefs: RefTipMap; pendingBranchCount: number } {
-  if (options.snapshot.kind === "available" && options.snapshot.scope !== "all-heads") {
+  // An unreachable snapshot is the coordinator's `failed` arm, never this entry's input:
+  // analyzing it would yield an empty candidate set that reads as a proven absence.
+  if (options.snapshot.kind !== "available") {
+    throw new Error("In-flight snapshot analysis requires a reachable remote snapshot.");
+  }
+  if (options.snapshot.scope !== "all-heads") {
     throw new Error("In-flight snapshot analysis requires all-heads evidence.");
   }
   if (!options.localRefs.ok) throw new Error("Local in-flight refs could not be inspected.");
@@ -526,12 +558,10 @@ function resolveSuppliedSnapshotInputs(
   }
 
   const errandBranches = new Set(options.errandSlugByBranch?.keys() ?? []);
-  const eligibleTips = options.snapshot.kind === "available"
-    ? Object.fromEntries(Object.entries(options.snapshot.tips).filter(([branch]) => {
-        if (branch === (options.baseBranch ?? "main") || errandBranches.has(branch)) return false;
-        return true;
-      }))
-    : {};
+  const eligibleTips = Object.fromEntries(
+    Object.entries(options.snapshot.tips).filter(([branch]) =>
+      isEligibleInFlightBranch(branch, { baseBranch: options.baseBranch, errandBranches })),
+  );
   const eligibleTipEntries = Object.entries(eligibleTips);
   let availableTips: RefTipMap = {};
   if (eligibleTipEntries.length > 0) {
@@ -572,7 +602,7 @@ function resolveSuppliedSnapshotInputs(
     branches: [...eligibleBranches],
     refs: classificationRefs,
     liveRefs,
-    reachable: options.snapshot.kind === "available",
+    reachable: true,
   };
   return {
     input: {
@@ -1355,7 +1385,7 @@ async function isAncestor(
   } catch (error) {
     const normalized = normalizeGitRejection(error, { command: "git", args });
     if (normalized.kind === "nonzero-exit" && normalized.exitCode === 1) return false;
-    if (strictLocalFailures) throw error;
+    if (strictLocalFailures) throw normalized;
     return false;
   }
 }

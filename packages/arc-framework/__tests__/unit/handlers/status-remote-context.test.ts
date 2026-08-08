@@ -38,6 +38,13 @@ describe("sessionRemotePrerequisites", () => {
     });
   });
 
+  it("raises for an unavailable prerequisite rather than substituting evidence", () => {
+    expect(() => sessionRemotePrerequisites({
+      kind: "unavailable",
+      prerequisite: "remote-configuration",
+    })).toThrow("Session remote prerequisite failed: remote-configuration.");
+  });
+
   it("preserves disabled-sync and no-origin short-circuits", () => {
     const disabled = { kind: "not-needed" as const, reason: "remote-sync-disabled" as const };
     const noRemote = { kind: "not-needed" as const, reason: "no-remote" as const };
@@ -86,8 +93,37 @@ describe("createSessionRemoteContextReader", () => {
     if (first.kind !== "available") return;
     expect(Object.isFrozen(first.snapshot.tips)).toBe(true);
     expect(Object.isFrozen(first.objectAvailability)).toBe(true);
+    // The commits map is the shared evidence dependents read; freezing only its
+    // wrapper would still let one slot mutate what every other slot sees.
+    expect(first.objectAvailability.kind).toBe("complete");
+    if (first.objectAvailability.kind === "complete") {
+      expect(Object.isFrozen(first.objectAvailability.commits)).toBe(true);
+    }
     expect(calls.filter((call) => call.startsWith("ls-remote"))).toHaveLength(1);
     expect(calls.filter((call) => call.startsWith("batch:"))).toEqual([`batch:${oid}\n`]);
+  });
+
+  it("resolves the snapshot and degrades only availability without a stdin-capable executor", async () => {
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "remote") return { stdout: "origin\r\n", stderr: "" };
+      if (args[0] === "ls-remote") return { stdout: `${oid}\trefs/heads/main\n`, stderr: "" };
+      if (args[0] === "rev-parse") return { stdout: "false", stderr: "" };
+      throw new Error(`Unexpected Git command: ${args.join(" ")}`);
+    };
+    const read = createSessionRemoteContextReader({
+      cwd: "/repo",
+      exec,
+      remoteSyncEnabled: async () => true,
+    });
+
+    // The CRLF remote listing must still resolve `origin`; a silent no-remote here
+    // would strip remote evidence from every dependent slot.
+    await expect(read()).resolves.toEqual({
+      kind: "available",
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: oid } },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "complete" },
+    });
   });
 
   it("returns not-needed without Git reads when remote sync is disabled", async () => {

@@ -646,7 +646,9 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
     ? value.remoteEvidence === "exact" && ["clean", "reconcile"].includes(value.verdict)
     : value.state === "skipped"
       ? value.remoteEvidence === "not-applicable" && value.verdict === "skipped"
-      : value.state === "no-remote"
+      // Detachment and an absent remote both resolve before any snapshot evidence is
+      // consulted, so each reports the not-applicable qualifier rather than omitting it.
+      : value.state === "no-remote" || value.state === "detached-head"
         ? value.remoteEvidence === "not-applicable" && value.verdict === "unavailable"
         : value.state === "remote-unavailable"
           && value.verdict === "unavailable"
@@ -666,6 +668,8 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
   }
   const unavailableShapeMatches = value.state === "no-remote"
     ? value.unavailableReason === "no-remote" && value.baseOid === null
+    : value.state === "detached-head"
+    ? value.unavailableReason === "detached-head" && value.baseOid === null
     : healthy
       ? value.unavailableReason === undefined && value.baseOid !== null
       : value.state === "skipped"
@@ -874,12 +878,15 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
       requireExactPresence(value, context, "sweep", rosterSuccessful);
     }
 
-    if (hasOwn(value, "currentHusk")) {
-      const validLocus = worktreeIdentity.kind === "linked" && worktree.branch === null;
-      if (!validLocus) {
-        addPresenceIssue(context, "currentHusk", "requires a linked branchless worktree advisory");
-      }
-    }
+    // Presence is exact rather than merely permitted: omission means the locus is
+    // inapplicable, so an eligible locus that omitted the slot would hide a failed
+    // probe as inapplicability instead of publishing it as `{ ok: false }`.
+    requireExactPresence(
+      value,
+      context,
+      "currentHusk",
+      worktreeIdentity.kind === "linked" && worktree.branch === null,
+    );
 
     if (!identityKnown) {
       requireExactPresence(value, context, "orphanBranchSweep", worktreeIdentity.kind === "primary");

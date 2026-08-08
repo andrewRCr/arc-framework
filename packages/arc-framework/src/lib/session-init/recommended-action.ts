@@ -113,11 +113,24 @@ export function inferBranchGoneRecovery(
             `- \`${candidate.branch}\` (${candidate.proposedAction})`),
         ].join("\n"),
       };
+    case "unproven":
+      return {
+        ...recovery,
+        recommendedAction: "surface",
+        recommendedPromptText: recovery.candidates.length === 0
+          ? `Recovery evidence is incomplete (${recovery.remoteEvidence}), so no candidate could be`
+            + " established. Recover manually."
+          : [
+              "Recovery candidates could not be proven against the advertised base"
+                + ` (${recovery.remoteEvidence}). Choose one manually:`,
+              ...recovery.candidates.map((candidate) => `- \`${candidate.branch}\``),
+            ].join("\n"),
+      };
     case "main-fallback":
       return {
         ...recovery,
         recommendedAction: "prompt",
-        recommendedPromptText: "Recover onto `main`?",
+        recommendedPromptText: `Recover onto \`${recovery.baseBranch}\`?`,
       };
   }
 }
@@ -317,7 +330,7 @@ export function inferBaseBranchSync(
     }
     if (baseBranchSync.state === "remote-unavailable") {
       if (baseBranchSync.refreshRemedy !== null) {
-        return mapBaseBranchRefreshRemedy(baseBranchSync.refreshRemedy.text, checkout, policy);
+        return mapBaseBranchRefreshRemedy(baseBranchSync.refreshRemedy.text, checkout);
       }
       return { recommendedAction: "surface", recommendedPromptText: baseBranchSync.guidance };
     }
@@ -349,19 +362,19 @@ export function inferBaseBranchSync(
 function mapBaseBranchRefreshRemedy(
   remedyText: string,
   checkout: BaseCheckoutLocus,
-  policy: BaseBranchSyncPullPolicy,
 ): ChannelRecommendation {
   if (checkout.kind === "current") {
     return { recommendedAction: "skip", recommendedPromptText: "" };
   }
-  if (checkout.kind !== "not-checked-out" || policy === "manual") {
-    return { recommendedAction: "surface", recommendedPromptText: remedyText };
-  }
-  if (policy === "always") {
-    return { recommendedAction: "pull", recommendedPromptText: "" };
-  }
-  const promptText = remedyText.endsWith(".") ? remedyText.slice(0, -1) : remedyText;
-  return { recommendedAction: "prompt", recommendedPromptText: `${promptText}?` };
+  // A published remedy means the local base is absent or its advertised object is not yet
+  // present. The pull and prompt arms fast-forward with a plain fetch-into-ref, which skips
+  // the fast-forward proof, cross-worktree checkout exclusion, and concurrent-move
+  // revalidation the explicit verb performs — so these states surface that verb rather than
+  // dispatching the weaker operation in its place.
+  return {
+    recommendedAction: "surface",
+    recommendedPromptText: `${remedyText} Run \`arc base sync\`.`,
+  };
 }
 
 /** Map the inbound-pull decision when fetch-into-ref is viable. */

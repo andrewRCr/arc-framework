@@ -132,6 +132,33 @@ describe("session remote-context staging", () => {
       prerequisite: "remote-configuration",
     }));
     const independent = safeProbe("dirty", async () => "local-clean");
+    const dependent = vi.fn(async () => "must-not-resolve");
+
+    const [worktree, baseDistance, dirty] = await Promise.all([
+      slot.run("worktree", dependent),
+      slot.run("baseDistance", dependent),
+      independent,
+    ]);
+
+    // The prerequisite short-circuits: a dependent probe that still ran would have
+    // spent its remote work before the typed failure reached the caller.
+    expect(dependent).not.toHaveBeenCalled();
+    expect(worktree.isErr() && worktree.error).toMatchObject({
+      slot: "worktree",
+      message: "Session remote prerequisite failed: remote-configuration.",
+    });
+    expect(baseDistance.isErr() && baseDistance.error).toMatchObject({
+      slot: "baseDistance",
+      message: "Session remote prerequisite failed: remote-configuration.",
+    });
+    expect(dirty.isOk() && dirty.value).toBe("local-clean");
+  });
+
+  it("isolates a throwing context read as a runtime error on each dependent slot", async () => {
+    const slot = buildSessionRemoteContextSlot(async () => {
+      throw new Error("ls-remote exploded");
+    });
+    const independent = safeProbe("dirty", async () => "local-clean");
 
     const [worktree, baseDistance, dirty] = await Promise.all([
       slot.run("worktree", async () => "must-not-resolve"),
@@ -141,11 +168,11 @@ describe("session remote-context staging", () => {
 
     expect(worktree.isErr() && worktree.error).toMatchObject({
       slot: "worktree",
-      message: "Session remote prerequisite failed: remote-configuration.",
+      message: "ls-remote exploded",
     });
     expect(baseDistance.isErr() && baseDistance.error).toMatchObject({
       slot: "baseDistance",
-      message: "Session remote prerequisite failed: remote-configuration.",
+      message: "ls-remote exploded",
     });
     expect(dirty.isOk() && dirty.value).toBe("local-clean");
   });

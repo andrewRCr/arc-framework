@@ -137,8 +137,11 @@ export type SessionInitBaseDistanceValue = (
  * result (local `<base>` vs `origin/<base>`, plus `checkout` locus) with the
  * config-gated action + prompt pair: `pull` / `prompt` drive the fast-forward
  * freshen only when the base is not checked out; `surface` covers a stale base
- * under `manual`, a base checked out elsewhere (primary-aware), or a diverged
- * base; `skip` a current base or when this worktree holds the base.
+ * under `manual`, a base checked out elsewhere (primary-aware), a diverged
+ * base, and the arms carrying an explicit `refreshRemedy`, which offer the
+ * guarded verb rather than the weaker fetch-into-ref; `skip` a current base or
+ * when this worktree holds the base. The comparison itself runs against the
+ * request's shared passive remote evidence and performs no fetch of its own.
  */
 export type SessionInitBaseBranchSyncValue = BaseBranchSnapshotAnalysisResult & {
   recommendedAction: RecommendedAction;
@@ -297,7 +300,9 @@ export interface SessionInitProbeResult {
    * Derived orientation for a linked branchless checkout that is an exact,
    * locally completed stamped WU husk. This advisory is derived independently
    * of worktree sync state from the current checkout marker and Git topology.
-   * Omitted on ordinary branched/primary paths and when the probe degrades.
+   * Omission means the locus is inapplicable — an ordinary branched or primary path.
+   * An eligible linked branchless locus always publishes the slot, so a degraded probe
+   * appears as `{ ok: false }` there rather than as an absent slot.
    */
   currentHusk?: Probe<CurrentHuskAdvisory | null>;
   /**

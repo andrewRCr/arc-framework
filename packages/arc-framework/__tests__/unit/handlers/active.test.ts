@@ -180,7 +180,7 @@ describe("handleActiveInFlight", () => {
       snapshot: { refs: {}, worktrees: {} },
       reachable: false,
       remoteEvidence: "unreachable",
-      failureReason: "authentication",
+      failureReason: "auth",
       candidateExpansion: { status: "failed", pendingBranchCount: 0 },
     });
 
@@ -188,7 +188,7 @@ describe("handleActiveInFlight", () => {
       await handleActiveInFlight({});
 
       expect(mocks.note).toHaveBeenCalledWith(
-        expect.stringContaining("expansion failed — remote authentication"),
+        expect.stringContaining("expansion failed — remote auth"),
         "In-flight",
       );
       expect(process.exitCode).toBe(1);
@@ -221,6 +221,29 @@ describe("handleActiveInFlight", () => {
     try {
       await handleActiveInFlight({ json: true });
 
+      expect(process.exitCode).toBeUndefined();
+    } finally {
+      stdout.mockRestore();
+      process.exitCode = undefined;
+    }
+  });
+
+  it.each([
+    { label: "--local", opts: { json: true, local: true } },
+    { label: "--no-fetch", opts: { json: true, fetch: false } },
+  ])("forwards $label to the coordinator as a local-only request", async ({ opts }) => {
+    process.exitCode = undefined;
+    const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mocks.runExpansion.mockResolvedValue({
+      entries: [], warnings: [], snapshot: { refs: {}, worktrees: {} }, reachable: false,
+      remoteEvidence: "not-applicable",
+      candidateExpansion: { status: "not-requested", pendingBranchCount: 0 },
+    });
+
+    try {
+      await handleActiveInFlight(opts);
+
+      expect(mocks.runExpansion).toHaveBeenCalledWith(expect.objectContaining({ localOnly: true }));
       expect(process.exitCode).toBeUndefined();
     } finally {
       stdout.mockRestore();

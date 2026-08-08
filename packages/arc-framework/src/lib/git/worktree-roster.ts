@@ -197,14 +197,21 @@ export interface WorktreePathsByBranchResult {
  * the `git worktree list` read succeeded.
  *
  * @param exec - Injectable command executor (local only — no remote).
+ * @param cwd - Repository root the read runs against. Omitted, the executor's own
+ * directory applies, which for the production executor is the process directory.
  * @returns The branch map plus an `ok` bit for warning/marking consumers.
  */
 export async function resolveWorktreePathsByBranchResult(
   exec: GitExec,
+  cwd?: string,
 ): Promise<WorktreePathsByBranchResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
+    worktrees = parseWorktreeList(await exec(
+      "git",
+      ["worktree", "list", "--porcelain", "-z"],
+      cwd === undefined ? {} : { cwd },
+    ));
   } catch {
     return { ok: false, paths: new Map() };
   }

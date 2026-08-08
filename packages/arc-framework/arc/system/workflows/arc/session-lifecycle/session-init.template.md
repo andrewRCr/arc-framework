@@ -64,7 +64,7 @@ exact selected row. Never select a second frame from branch shape, metas, anothe
 commands may explain the failure, but they never establish a session frame, select a subject, authorize context
 loading, or permit mutation.
 
-**Per-slot probe failure:** Only a failed `locusState` invokes the stop above. Preserve every other failed slot as
+**Per-slot probe failure:** Only a failed `derivedLocusState` invokes the stop above. Preserve every other failed slot as
 an independent runtime error, omit only the action or authority that slot would have supplied, and surface the
 error in Step 6. Never replace a failed remote-aware result with a tracking-ref reading or use it to downgrade a
 healthy local slot.
@@ -329,15 +329,17 @@ matters, re-probe to confirm.
 **Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
 — SESSION-NOTES reads below would be stale otherwise.
 
-**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against a freshly
-fetched base OID. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
+**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against the
+advertised base OID from the session's shared passive remote evidence; the slot performs no fetch of
+its own. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
 analyzer-owned register text, or `skip` for every other verdict; it never resolves to `pull` / `prompt`.
 Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
 base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
-pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
+pull channel — distinct from the advisory-only base-distance channel above. The comparison runs against the
+request's shared passive remote evidence; the slot itself fetches nothing. Dispatch on `recommendedAction`
 (resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. Do not compare its
 evidence, failure, relation, checkout, or remedy fields — the action and text already encode those combinations:
 
@@ -613,7 +615,7 @@ Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, 
 `user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
 claims copied from SESSION-NOTES prose.
 
-Render each present non-`locusState` slot with `ok == false` as a concise degraded-slot line using its error kind
+Render each present non-`derivedLocusState` slot with `ok == false` as a concise degraded-slot line using its error kind
 and message. Continue with every healthy slot; the failed slot supplies no action, relation, or cleanup authority.
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via

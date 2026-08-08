@@ -243,9 +243,9 @@ describe("deriveInFlight", () => {
     });
 
     const calls = vi.mocked(exec).mock.calls;
-    expect(calls.map(([, args]) => args[0])).not.toEqual(
-      expect.arrayContaining(["fetch", "update-ref", "branch", "pack-objects", "index-pack"]),
-    );
+    const forbidden = ["fetch", "update-ref", "branch", "pack-objects", "index-pack"];
+    expect(calls.map(([, args]) => args[0]).filter((command) => forbidden.includes(command ?? "")))
+      .toEqual([]);
     expect(calls.every(([, , execOptions]) => execOptions?.objectAccess === "local-only")).toBe(true);
   });
 

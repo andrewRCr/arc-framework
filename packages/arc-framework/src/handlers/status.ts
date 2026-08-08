@@ -119,7 +119,7 @@ import {
 } from "../lib/config/resolved-settings.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
-import type { GitExec } from "../lib/git/index.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import {
   projectTransientInFlightRead,
@@ -172,6 +172,13 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import type { CleanupBaseEvidence } from "../lib/session-init/cleanup-remote-evidence.js";
 import { readLocalInFlightRefSnapshot } from "../lib/git/remote-ref-reader.js";
 import { resolveWorktreePathsByBranchResult } from "../lib/git/worktree-roster.js";
+
+function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
+  if (execInput === undefined) {
+    throw new Error("Status recovery requires stdin-capable Git I/O.");
+  }
+  return execInput;
+}
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
@@ -287,8 +294,10 @@ const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
 const WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE = ".internal/work-unit-stale-last-nudge.txt";
 const NOTES_COMPACTION_NUDGE_MARKER_RELATIVE = ".internal/notes-compaction-last-nudge.txt";
 
-async function readSessionBranch(exec: GitExec): Promise<string | null> {
-  const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
+// The executor carries no root, so every reader composing one request's evidence names
+// its own; otherwise a read resolves against the process directory instead.
+async function readSessionBranch(exec: GitExec, cwd: string): Promise<string | null> {
+  const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd })).stdout.trim();
   return branch === "" || branch === "HEAD" ? null : branch;
 }
 
@@ -310,11 +319,40 @@ function sessionCleanupBaseEvidence(context: SessionRemoteContext): CleanupBaseE
   };
 }
 
-function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: string): string | null {
+/**
+ * Resolve the advertised base OID when — and only when — exact evidence establishes
+ * it is present locally.
+ *
+ * `null` means the evidence is genuinely absent: remote sync is off, the remote is
+ * unreachable, the base is not advertised, its object is still pending fetch, or the
+ * local history is shallow. Each is a fact a caller may act on.
+ *
+ * An uninspectable prerequisite is not such a fact. A local availability batch or
+ * history read that failed says nothing about the base, so it raises rather than
+ * resolving to `null`, and the caller's `safeProbe` boundary reports the typed probe
+ * error. This matches the sibling comparators — `analyzeBehindBaseSnapshot` and
+ * `runStaleWorktreeSweep` — which raise on the same gaps.
+ *
+ * @param evidence - Advertised-base prerequisites for this request.
+ * @param baseBranch - Integration base branch short-name.
+ * @returns The base OID under exact local presence, or `null` on evidence absence.
+ */
+export function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: string): string | null {
   if (!evidence.remoteSyncEnabled || evidence.snapshot.kind === "unreachable") return null;
   const baseOid = evidence.snapshot.tips[baseBranch];
-  if (baseOid === undefined || evidence.objectAvailability.kind !== "complete") return null;
-  if (evidence.objectAvailability.commits[baseOid] !== true || evidence.history.kind !== "complete") return null;
+  if (baseOid === undefined) return null;
+  if (evidence.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = evidence.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return null;
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  if (evidence.history.kind === "shallow") return null;
+  if (evidence.history.kind !== "complete") {
+    throw new Error("Local history completeness could not be inspected.");
+  }
   return baseOid;
 }
 
@@ -576,6 +614,9 @@ export async function handleStatus(
       probes: createRecoverStatusProbes({
         cwd,
         dirty: () => runDirtyStateStatus({ exec }),
+        exec,
+        execInput: requireGitExecInput(io.execInput),
+        readFile: io.readFile,
       }),
       workingMemoryPath: identity === null ? null : (await userSurfacesFor(identity)).workingMemoryPath,
     });
@@ -585,9 +626,9 @@ export async function handleStatus(
   }
 
   if (opts.sessionInit) {
-    if (io.execInput === undefined) {
-      throw new Error("Session-init remote evidence requires stdin-capable Git execution.");
-    }
+    // A missing stdin-capable executor degrades object availability inside the remote
+    // context rather than aborting here: throwing before any probe runs would deny the
+    // caller the whole composite envelope over one unrelated capability.
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
@@ -705,8 +746,10 @@ export async function handleStatus(
           getDiscoveryTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
           getOptionalDerivedRoster(),
-          readLocalInFlightRefSnapshot(exec),
-          resolveWorktreePathsByBranchResult(exec),
+          // Default remote, request root: these local reads join the snapshot and
+          // availability facts this request context already carries.
+          readLocalInFlightRefSnapshot(exec, undefined, cwd),
+          resolveWorktreePathsByBranchResult(exec, cwd),
         ]);
         const transient = projectTransientInFlightRead(transientRead);
         const transientIndexes = transient.indexes;
@@ -755,11 +798,11 @@ export async function handleStatus(
       worktree: async (context) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        const branch = await readSessionBranch(exec);
+        const branch = await readSessionBranch(exec, cwd);
         const prerequisites = sessionRemotePrerequisites(context);
         const upstreamBranch = branch === null || !remoteSyncEnabled || context.kind === "not-needed"
           ? null
-          : await readConfiguredUpstreamBranch(exec, branch);
+          : await readConfiguredUpstreamBranch(exec, branch, cwd);
         const supplied = prerequisites.kind === "supplied"
           ? prerequisites
           : {
@@ -770,7 +813,7 @@ export async function handleStatus(
         return analyzeWorktreeSnapshot({
           exec,
           remoteSyncEnabled,
-          originConfigured: context.kind !== "not-needed" || context.reason !== "no-remote",
+          originConfigured: !(context.kind === "not-needed" && context.reason === "no-remote"),
           branch,
           upstreamBranch,
           ...supplied,
@@ -804,6 +847,27 @@ export async function handleStatus(
         const resolved = await resolvedSettingsP;
         const baseBranch = resolved.settings["branch.base"];
         const prerequisites = sessionRemotePrerequisites(context);
+        // Detachment outranks the remote shortcuts, as it does inside the analyzer:
+        // returning early on a disabled or absent remote would drop the detached-HEAD
+        // reason whenever both conditions hold.
+        if (await readSessionBranch(exec, cwd) === null) {
+          return {
+            mode: "advisory" as const,
+            verdict: "unavailable" as const,
+            state: "detached-head" as const,
+            ahead: 0,
+            behind: 0,
+            base: null,
+            baseOid: null,
+            unavailableReason: "detached-head" as const,
+            integrationEvidence: null,
+            overlap: null,
+            register: null,
+            // Detachment resolves before any snapshot evidence is consulted, so this
+            // arm carries the explicit not-applicable qualifier rather than omitting it.
+            remoteEvidence: "not-applicable" as const,
+          };
+        }
         if (prerequisites.kind === "not-needed") {
           return prerequisites.reason === "remote-sync-disabled"
             ? {
@@ -853,7 +917,7 @@ export async function handleStatus(
         const baseBranch = resolved.settings["branch.base"];
         const [checkout, localBaseOid] = await Promise.all([
           resolveBaseCheckoutLocus(exec, baseBranch),
-          readLocalBaseOid(exec, baseBranch),
+          readLocalBaseOid(exec, baseBranch, cwd),
         ]);
         const prerequisites = sessionRemotePrerequisites(context);
         if (prerequisites.kind === "not-needed") {

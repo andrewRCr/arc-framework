@@ -253,14 +253,13 @@ export async function runSessionInitStatus(
 
   // Current-locus husk/transient provenance is a linked + branchless
   // refinement, not a new sync state. Ordinary branched resumes skip the read.
-  const currentHuskSlot =
+  const currentHusk =
     worktreeIdentity.kind === "linked" && worktree.isOk() && worktree.value.branch === null
       ? await remote.run(
         "currentHusk",
         (context) => probes.currentHusk(context, worktreeIdentity.path),
       )
       : undefined;
-  const currentHusk = currentHuskSlot;
 
   // Base-distance enrichment mirrors the worktree slot's shape. Its
   // recommendation is an independent advisory (behind-base reconcile offer),
@@ -350,10 +349,12 @@ export async function runSessionInitStatus(
       } satisfies SessionInitUserValue));
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
-  // stage. The expensive slots below are the second: the in-flight roster and
-  // the materializable-WU oracle both express through the `gatedSlot` affordance
-  // — fire the probe only when the gate holds, omit the slot otherwise, with
-  // `safeProbe`'s "envelope never rejects" contract preserved either way. Their
+  // stage. The expensive slots below are the second: the in-flight roster fires
+  // through the `gatedSlot` affordance, and the materializable-WU oracle fires
+  // through an inline conditional over the shared remote context (`remote.run`).
+  // Both express the same fire-or-omit shape — run the probe only when the gate
+  // holds, omit the slot otherwise, with `safeProbe`'s "envelope never rejects"
+  // contract preserved either way. Their
   // gating signals (worktree state, active resolution, worktree identity) are
   // produced by sibling slots in the fan-out above, so they can only resolve in
   // a second stage. On the linked-worktree resume path both gates are false, so
@@ -442,9 +443,9 @@ export async function runSessionInitStatus(
       : undefined;
 
   // Materializable-WU oracle slot — the discovery surface for cross-machine
-  // pickup. Expressed through the same `gatedSlot` affordance as the roster:
-  // fires the oracle's bounded network slice ONLY on the no-active-WU arm, so
-  // the resume path pays zero oracle cost.
+  // pickup. Declared against the shared remote context and gated inline: the
+  // oracle's bounded network slice runs ONLY on the no-active-WU arm, so the
+  // resume path pays zero oracle cost.
   const materializableWorkUnitsTask = active.isOk() && active.value.resolution === "none"
     ? remote.run(
       "materializableWorkUnits",

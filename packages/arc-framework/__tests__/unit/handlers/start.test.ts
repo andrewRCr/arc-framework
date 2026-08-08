@@ -40,6 +40,7 @@ const mockRunColdStart = vi.fn();
 const mockRunGraduate = vi.fn();
 const mockExec = vi.fn();
 const mockExecInput = vi.fn();
+let execInputAvailable = true;
 const mockReadFile = vi.fn(async () => "");
 const mockWriteFile = vi.fn();
 const mockMkdir = vi.fn();
@@ -151,7 +152,7 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 vi.mock("../../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({
     exec: mockExec,
-    execInput: mockExecInput,
+    execInput: execInputAvailable ? mockExecInput : undefined,
     readFile: mockReadFile,
     writeFile: mockWriteFile,
     mkdir: mockMkdir,
@@ -167,6 +168,7 @@ describe("handleStart — dispatch orchestration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    execInputAvailable = true;
     mockExec.mockImplementation(async (_cmd, args) =>
       args[0] === "rev-parse" && String(args[1]).endsWith("^{commit}")
         ? { stdout: "base123\n", stderr: "" }
@@ -257,6 +259,43 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockSpinnerStart).toHaveBeenCalledWith("Refreshing ROADMAP...");
     expect(mockSpinnerStart).toHaveBeenCalledWith("Committing and pushing start ceremony...");
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("refuses to dispatch without stdin-capable Git I/O", async () => {
+    execInputAvailable = false;
+
+    await handleStart("widget", { new: true });
+
+    expect(mockLog.error).toHaveBeenCalledWith("remote start expansion requires stdin-capable Git I/O");
+    expect(process.exitCode).toBe(1);
+    expect(mockExpandActiveInFlight).not.toHaveBeenCalled();
+    expect(mockResolveComposedLifecycleIndex).not.toHaveBeenCalled();
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["partial", { status: "partial", pendingBranchCount: 2 }, "pending-fetch"],
+    ["failed", { status: "failed", pendingBranchCount: 0 }, "unreachable"],
+  ])("refuses to dispatch on %s candidate expansion", async (_label, candidateExpansion, remoteEvidence) => {
+    mockExpandActiveInFlight.mockResolvedValue({
+      entries: [],
+      residue: [],
+      warnings: [],
+      snapshot: { refs: {}, worktrees: {} },
+      liveRefs: {},
+      reachable: remoteEvidence !== "unreachable",
+      pendingBranchCount: candidateExpansion.pendingBranchCount,
+      remoteEvidence,
+      candidateExpansion,
+    });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockLog.error)
+      .toHaveBeenCalledWith("could not completely expand remote work-unit candidates; retry `arc start`.");
+    expect(process.exitCode).toBe(1);
+    expect(mockResolveComposedLifecycleIndex).not.toHaveBeenCalled();
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
   });
 
   it("stops the spawn spinner with a failure label when create-new is refused", async () => {

@@ -45,7 +45,7 @@ import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   isHandledError, requireArcProjectRoot, resolveUserIdentity,
-  resolveCurrentBranchName, isUserFetchOutcome, reportUserFetchOutcome,
+  isUserFetchOutcome, reportUserFetchOutcome,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy shared with the user handlers. */
@@ -133,12 +133,11 @@ export async function handleUserSync(
   const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const [state, worktree, branch] = await Promise.all([
+  const [state, worktree] = await Promise.all([
     inspectUserSyncState({ cwd, io, identity }),
-    runMaterializingWorktreeInspection({ exec: io.exec }),
-    resolveCurrentBranchName(io.exec),
+    runMaterializingWorktreeInspection({ exec: io.exec, cwd }),
   ]);
-  const worktreeBranch = branch ?? undefined;
+  const worktreeBranch = worktree.branch ?? undefined;
   const worktreeQualifier = formatWorktreeQualifierLine({
     worktree,
     offline: false,

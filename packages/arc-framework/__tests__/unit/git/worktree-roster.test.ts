@@ -612,6 +612,36 @@ describe("resolveWorktreePathsByBranchResult", () => {
     expect(result.ok).toBe(false);
     expect([...result.paths]).toEqual([]);
   });
+
+  it("reads from the named repository root when one is supplied", async () => {
+    // The production executor is not bound to a root: without this the roster would
+    // describe whatever repository the process directory happens to name.
+    let observed: unknown;
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: (_args, options) => {
+        observed = options;
+        return { stdout: "", stderr: "" };
+      },
+    });
+
+    await resolveWorktreePathsByBranchResult(exec, "/repo/root");
+
+    expect(observed).toEqual({ cwd: "/repo/root" });
+  });
+
+  it("passes no directory option when no root is supplied", async () => {
+    let observed: unknown;
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: (_args, options) => {
+        observed = options;
+        return { stdout: "", stderr: "" };
+      },
+    });
+
+    await resolveWorktreePathsByBranchResult(exec);
+
+    expect(observed).toEqual({});
+  });
 });
 
 describe("scanRegisteredWorktrees", () => {

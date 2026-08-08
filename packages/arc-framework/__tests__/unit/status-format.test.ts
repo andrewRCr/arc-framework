@@ -428,6 +428,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       }),
     );
     expect(summary).toContain("remote unavailable (timeout)");
+    expect(summary).not.toContain("remote object pending explicit refresh");
   });
 
   it("distinguishes pending worktree evidence from remote reachability failures", () => {
@@ -450,6 +451,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       }),
     );
     expect(summary).toContain("remote object pending explicit refresh");
+    expect(summary).not.toContain("remote unavailable");
   });
 
   it("renders worktree branch-gone with a deleted-upstream summary", () => {
