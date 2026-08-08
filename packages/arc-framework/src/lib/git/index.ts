@@ -50,7 +50,6 @@ export {
 
 export {
   runBaseDrift,
-  runBaseDistanceStatus,
   type BaseDriftMode,
   type BaseDriftResult,
   type BaseDriftUnavailableReason,
@@ -58,7 +57,6 @@ export {
   type IntegrationEvidenceResolver,
   type IntegrationEvidenceResolverFactory,
   type ReconciliationClassifier,
-  type RunBaseDistanceStatusOptions,
   type RunBaseDriftOptions,
 } from "./base-distance.js";
 

@@ -37,7 +37,9 @@ import { localPathsEqual } from "../local-path-identity.js";
 import type { HistoryCompletenessResult } from "./history-completeness.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
 import type { RemoteHeadSnapshotResult } from "./remote-ref-reader.js";
-import type { RemoteFailureReason } from "../kernel/index.js";
+import {
+  RemoteFailureReasonSchema,
+} from "../kernel/index.js";
 import { isGitProcessError } from "./process-error.js";
 import { isGitObjectId } from "./object-id.js";
 import {
@@ -114,11 +116,19 @@ export const BaseBranchSyncStatusResultSchema = z.discriminatedUnion("state", [
 /** Base-branch synchronization status and checkout locus. */
 export type BaseBranchSyncStatusResult = z.infer<typeof BaseBranchSyncStatusResultSchema>;
 
+/** Runtime authority for the explicit base synchronization remedy. */
+export const BaseBranchSyncRemedySchema = z.strictObject({
+  text: z.string().min(1),
+  argv: z.tuple([
+    z.literal("arc"),
+    z.literal("base"),
+    z.literal("sync"),
+    z.literal("--json"),
+  ]),
+});
+
 /** Structured explicit action offered when base evidence can be materialized safely. */
-export interface BaseBranchSyncRemedy {
-  text: string;
-  argv: string[];
-}
+export type BaseBranchSyncRemedy = z.infer<typeof BaseBranchSyncRemedySchema>;
 
 /** Supplied prerequisites for read-only local-base comparison. */
 export interface AnalyzeBaseBranchSnapshotOptions {
@@ -134,34 +144,118 @@ export interface AnalyzeBaseBranchSnapshotOptions {
 
 type BaseBranchRelationState = "clean" | "remote-ahead" | "local-ahead" | "diverged";
 
+const SNAPSHOT_COMMON_SHAPE = {
+  base: BASE_SYNC_COMMON_SHAPE.base,
+  checkout: BaseCheckoutLocusSchema,
+};
+const EXACT_SNAPSHOT_COMMON_SHAPE = {
+  ...SNAPSHOT_COMMON_SHAPE,
+  remoteEvidence: z.literal("exact"),
+  refreshRemedy: z.null(),
+  guidance: z.null(),
+};
+
 /** Local-base relation classified against one immutable advertised snapshot. */
-export type BaseBranchSnapshotAnalysisResult = {
-  state: BaseBranchRelationState | "remote-unavailable";
-  ahead: number;
-  behind: number;
-  base: string;
-  checkout: BaseCheckoutLocus;
-  unavailableReason?: "base-object-pending-fetch" | "local-base-absent" | "remote-base-absent";
-  refreshRemedy: BaseBranchSyncRemedy | null;
-  guidance: string | null;
-} & (
-  | { remoteEvidence: "exact" | "pending-fetch" }
-  | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
-);
+export const BaseBranchSnapshotAnalysisResultSchema = z.union([
+  z.strictObject({
+    ...EXACT_SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("clean"),
+    ahead: ZERO,
+    behind: ZERO,
+  }),
+  z.strictObject({
+    ...EXACT_SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("remote-ahead"),
+    ahead: ZERO,
+    behind: POSITIVE_DISTANCE,
+  }),
+  z.strictObject({
+    ...EXACT_SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("local-ahead"),
+    ahead: POSITIVE_DISTANCE,
+    behind: ZERO,
+  }),
+  z.strictObject({
+    ...EXACT_SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("diverged"),
+    ahead: POSITIVE_DISTANCE,
+    behind: POSITIVE_DISTANCE,
+  }),
+  z.strictObject({
+    ...SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("remote-unavailable"),
+    ahead: ZERO,
+    behind: ZERO,
+    unavailableReason: z.literal("remote-base-absent"),
+    refreshRemedy: z.null(),
+    guidance: z.string().min(1),
+    remoteEvidence: z.literal("exact"),
+  }),
+  z.strictObject({
+    ...SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("remote-unavailable"),
+    ahead: ZERO,
+    behind: ZERO,
+    unavailableReason: z.literal("local-base-absent"),
+    refreshRemedy: BaseBranchSyncRemedySchema,
+    guidance: z.string().min(1),
+    remoteEvidence: z.literal("exact"),
+  }),
+  z.strictObject({
+    ...SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("remote-unavailable"),
+    ahead: ZERO,
+    behind: ZERO,
+    unavailableReason: z.literal("base-object-pending-fetch"),
+    refreshRemedy: BaseBranchSyncRemedySchema,
+    guidance: z.null(),
+    remoteEvidence: z.literal("pending-fetch"),
+  }),
+  z.strictObject({
+    ...SNAPSHOT_COMMON_SHAPE,
+    state: z.literal("remote-unavailable"),
+    ahead: ZERO,
+    behind: ZERO,
+    refreshRemedy: z.null(),
+    guidance: z.string().min(1),
+    remoteEvidence: z.literal("unreachable"),
+    failureReason: RemoteFailureReasonSchema,
+  }),
+  z.strictObject({
+    ...SNAPSHOT_COMMON_SHAPE,
+    state: z.enum(["skipped", "no-remote"]),
+    ahead: ZERO,
+    behind: ZERO,
+    refreshRemedy: z.null(),
+    guidance: z.null(),
+    remoteEvidence: z.literal("not-applicable"),
+  }),
+]);
+
+/** Local-base relation classified against one immutable advertised snapshot. */
+export type BaseBranchSnapshotAnalysisResult = z.infer<
+  typeof BaseBranchSnapshotAnalysisResultSchema
+>;
 
 /**
  * Read the local base commit while distinguishing an absent ref from inspection failure.
  *
  * @param exec - Local-only Git execution boundary.
  * @param baseBranch - Configured local base branch.
+ * @param cwd - Repository root the read runs against; see
+ * {@link readConfiguredUpstreamBranch} for why a request-scoped caller must name it.
  * @returns The validated base commit, or null only when the local ref is absent.
  */
-export async function readLocalBaseOid(exec: GitExec, baseBranch: string): Promise<string | null> {
+export async function readLocalBaseOid(
+  exec: GitExec,
+  baseBranch: string,
+  cwd?: string,
+): Promise<string | null> {
   try {
     const oid = (await exec(
       "git",
       ["rev-parse", "--verify", "--quiet", `refs/heads/${baseBranch}^{commit}`],
-      { objectAccess: "local-only" },
+      { objectAccess: "local-only", ...(cwd === undefined ? {} : { cwd }) },
     )).stdout.trim();
     if (!isGitObjectId(oid)) {
       throw new Error("Git did not return a valid local base commit.");
@@ -272,7 +366,7 @@ export async function analyzeBaseBranchSnapshot(
     objectAccess: "local-only",
   });
   const relation = await countAheadBehindRef(localOnlyExec, localOid, advertisedOid);
-  return {
+  return BaseBranchSnapshotAnalysisResultSchema.parse({
     ...relation,
     state: requireBaseBranchRelationState(relation.state),
     base: options.baseBranch,
@@ -280,7 +374,7 @@ export async function analyzeBaseBranchSnapshot(
     refreshRemedy: null,
     guidance: null,
     remoteEvidence: "exact",
-  };
+  });
 }
 
 function requireBaseBranchRelationState(state: string): BaseBranchRelationState {

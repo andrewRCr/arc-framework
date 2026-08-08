@@ -24,7 +24,10 @@ import {
   buildUserStatusSummary,
 } from "../user/format.js";
 
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 
@@ -68,7 +71,9 @@ export function buildStatusSummary(result: StatusResult): string {
   return sections.join(`\n${SECTION_SEPARATOR}\n`);
 }
 
-function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): string {
+function buildWorktreeSessionInitSummary(
+  value: WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult,
+): string {
   switch (value.state) {
     case "clean":
       return "clean (in sync with origin)";
@@ -89,7 +94,11 @@ function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): strin
     case "branch-gone":
       return "branch gone (upstream deleted on origin)";
     case "remote-unavailable": {
-      const reason = value.failureReason ? ` (${value.failureReason})` : "";
+      if ("remoteEvidence" in value && value.remoteEvidence === "pending-fetch") {
+        return "remote object pending explicit refresh";
+      }
+      const failureReason = "failureReason" in value ? value.failureReason : undefined;
+      const reason = failureReason ? ` (${failureReason})` : "";
       return `remote unavailable${reason}`;
     }
   }

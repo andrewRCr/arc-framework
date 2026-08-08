@@ -1,7 +1,7 @@
 /**
  * Integration tests for validate-cohort-consistency.ts — pre-commit CHECK 18.
  *
- * Exercises the validator the way the hook invokes it: via `npx tsx` against
+ * Exercises the validator the way the hook invokes it: via Node's TypeScript loader against
  * on-disk fixture metas and cohort docs under real `.arc/backlog/planned/`
  * paths in a temp directory. Covers a consistent cohort (pass) plus the three
  * failure modes — field↔dir drift, a missing cohort doc, and an orphan member
@@ -22,6 +22,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
+const tsxLoader = import.meta.resolve("tsx");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");
@@ -30,7 +31,7 @@ const SCRIPT_PATH = resolve(
   "packages/arc-framework/src/scripts/validate-cohort-consistency.ts",
 );
 
-/** `npx tsx` startup is the dominant cost; give each subprocess case headroom. */
+/** TypeScript loader startup is the dominant cost; give each subprocess case headroom. */
 const CASE_TIMEOUT_MS = 30_000;
 
 async function runValidator(
@@ -38,8 +39,8 @@ async function runValidator(
 ): Promise<{ code: number; stderr: string; stdout: string }> {
   try {
     const { stdout, stderr } = await execFileAsync(
-      "npx",
-      ["tsx", SCRIPT_PATH, ...absPaths],
+      process.execPath,
+      ["--import", tsxLoader, SCRIPT_PATH, ...absPaths],
       { cwd: REPO_ROOT },
     );
     return { code: 0, stdout, stderr };

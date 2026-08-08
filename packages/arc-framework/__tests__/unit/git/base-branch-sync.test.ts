@@ -90,6 +90,32 @@ describe("readLocalBaseOid", () => {
 
     await expect(readLocalBaseOid(exec, "main")).resolves.toBeNull();
   });
+
+  it("reads from the named repository root when one is supplied", async () => {
+    // The executor carries no root, so an unbound read resolves against the process
+    // directory and can report a different repository's base than the one requested.
+    let observed: GitExecOptions | undefined;
+    const exec: GitExec = async (_command, _args, options) => {
+      observed = options;
+      return { stdout: `${"a".repeat(40)}\n`, stderr: "" };
+    };
+
+    await readLocalBaseOid(exec, "main", "/repo/root");
+
+    expect(observed).toMatchObject({ cwd: "/repo/root", objectAccess: "local-only" });
+  });
+
+  it("passes no directory option when no root is supplied", async () => {
+    let observed: GitExecOptions | undefined;
+    const exec: GitExec = async (_command, _args, options) => {
+      observed = options;
+      return { stdout: `${"a".repeat(40)}\n`, stderr: "" };
+    };
+
+    await readLocalBaseOid(exec, "main");
+
+    expect(observed).toEqual({ objectAccess: "local-only" });
+  });
 });
 
 /** Default topology: current worktree on feat; base (main) not checked out. */

@@ -94,6 +94,45 @@ Standalone probe commands (`arc user status`, `arc config status`, `arc extensio
 status`) share the same implementations and are available for debugging and CI. Session-init uses only the
 composite.
 
+#### Remote access boundary
+
+The session-init probe has a passive code-repository contract. One request reads the advertised `refs/heads/*`
+generation, inspects every distinct advertised commit in one local-only object batch, and shares that immutable
+evidence plus one history-completeness reading across remote-aware slots. It does not fetch code objects, create or
+update code refs, prune, run maintenance, or fall back to remote-tracking refs. In a linked worktree, those writes
+would target the common Git directory shared by every worktree; passive orientation needs no permission to make
+them.
+
+The public evidence arms have exact operational meanings:
+
+- `exact` — the advertised OID is locally present and every required local object or graph prerequisite is
+  complete. Only exact facts may authorize a graph relation or cleanup; every surfaced materialization candidate
+  is likewise proven from an exact present object even when the enclosing candidate set remains pending.
+- `pending-fetch` — the remote advertised an OID that is not locally present. The result carries only candidates
+  already proven from present objects plus its structured explicit-refresh remedy; it never substitutes a stale
+  tracking-ref relation.
+- `unreachable` — the advertised-head read failed with a bounded failure class. Local orientation and slots that
+  need no remote evidence continue; dependent actions remain unavailable.
+- `not-applicable` — remote sync is disabled, no remote exists, or that result does not require remote evidence.
+- Shallow history — even when both compared tips exist locally, a graph-dependent slot cannot claim an exact
+  relation until full ancestry is available. Independent snapshot-only facts remain valid.
+- Partial-clone descendants — a locally present advertised commit does not prove its tree or blobs are present.
+  Status-side reads disable lazy object fetching; a missing descendant becomes that slot's local probe error and
+  causes no pack, object, ref, or maintenance write.
+
+Acquisition belongs to an explicit operation. `arc active in-flight --json` may fetch missing advertised candidate
+objects into Git's operational fetch state before recomputing the set; `arc base sync --json`, materialization,
+pull, and sync verbs similarly own the writes their names imply. A denied explicit operation exits non-zero or
+returns typed incomplete evidence; after a successful retry, a fresh passive probe may report exact evidence for
+the objects now present.
+
+The passive code-head guarantee is deliberately narrower than every remote channel in the composite. User-notes
+transport under `refs/notes/arc/user/*` and transient Errand-record transport retain their own documented reads and
+operational temporary-ref behavior. Their calls are recorded separately and never establish code-branch evidence.
+Likewise, a harness permission prompt is one possible symptom of the Git metadata boundary, not part of ARC's
+contract: any filesystem policy that denies common-directory or object-database writes should allow the passive
+probe and gate only explicit acquisition.
+
 The same machinery underlies the session-handoff probe (`arc status --session-handoff --json`); see
 § Handoff-Interior Toggle Pattern for the handoff envelope's role in workflow consumption.
 

@@ -10,6 +10,7 @@ import {
 import type {
   Probe,
 } from "./types.js";
+import type { SessionRemoteContext } from "../../handlers/status-remote-context.js";
 
 function causeMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
@@ -70,6 +71,32 @@ export function safeProbe<Value>(
   probe: () => Promise<Value>,
 ): ResultAsync<Value, SessionProbeError> {
   return fromAsyncThrowable(probe, (cause) => new SessionProbeError(slot, cause))();
+}
+
+/** One memoized internal context with per-dependent probe error isolation. */
+export interface SessionRemoteContextSlot {
+  run<Value>(
+    slot: string,
+    probe: (context: SessionRemoteContext) => Promise<Value>,
+  ): ResultAsync<Value, SessionProbeError>;
+}
+
+/** Build the internal request-context prerequisite shared by session-init dependents. */
+export function buildSessionRemoteContextSlot(
+  contextProbe: () => Promise<SessionRemoteContext>,
+): SessionRemoteContextSlot {
+  const context = safeProbe("remoteContext", contextProbe);
+  return {
+    run: <Value>(slot: string, probe: (value: SessionRemoteContext) => Promise<Value>) =>
+      safeProbe(slot, async (): Promise<Value> => {
+        const resolved = await context;
+        if (resolved.isErr()) throw resolved.error.originalCause;
+        if (resolved.value.kind === "unavailable") {
+          throw new Error(`Session remote prerequisite failed: ${resolved.value.prerequisite}.`);
+        }
+        return probe(resolved.value);
+      }),
+  };
 }
 
 /** Declare an optional probe only when its gate fires. */

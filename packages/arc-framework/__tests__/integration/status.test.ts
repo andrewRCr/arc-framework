@@ -65,6 +65,8 @@ import type { GitExec } from "../../src/lib/git/index.js";
 import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
+import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
+import { createSessionRemoteContextReader } from "../../src/handlers/status-remote-context.js";
 
 interface Fixture {
   root: string;
@@ -319,7 +321,7 @@ const cleanCurrentWuReconcile: SessionInitProbes["currentWuReconcile"] = async (
 
 const cleanUserReferenceReconcile: SessionInitProbes["userReferenceReconcile"] = async () => ({
   status: "clean",
-  authority: { status: "ready", ref: "main", transitions: [] },
+  authority: { status: "ready", ref: "main", transitions: [], remoteEvidence: "not-applicable" },
   plan: { status: "clean", edits: [], advisories: [] },
   recommendedAction: "skip",
   recommendedCommand: null,
@@ -333,13 +335,17 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
       identity,
       activeExtensions,
     ),
+    remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
     user: async (identity) => stubUserSessionInit(identity),
-    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    worktree: async () => ({
+      state: "skipped", ahead: 0, behind: 0, branch: "main", remoteEvidence: "not-applicable",
+    }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
       base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
       state: "skipped",
@@ -347,6 +353,9 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
       behind: 0,
       base: "main",
       checkout: { kind: "not-checked-out" as const },
+      refreshRemedy: null,
+      guidance: null,
+      remoteEvidence: "not-applicable",
     }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
@@ -362,7 +371,9 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
-    materializableWorkUnits: async () => ({ candidates: [] }),
+    materializableWorkUnits: async () => ({
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+    }),
     workUnitState: async () => ({
       inFlight: { workUnits: [] },
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },
@@ -407,13 +418,17 @@ function makeResolvedReleaseModeSessionInitProbes(
       identity,
       activeExtensions,
     ),
+    remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
     user: async (identity) => stubUserSessionInit(identity),
-    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    worktree: async () => ({
+      state: "skipped", ahead: 0, behind: 0, branch: "main", remoteEvidence: "not-applicable",
+    }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
       base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
       state: "skipped",
@@ -421,6 +436,9 @@ function makeResolvedReleaseModeSessionInitProbes(
       behind: 0,
       base: "main",
       checkout: { kind: "not-checked-out" as const },
+      refreshRemedy: null,
+      guidance: null,
+      remoteEvidence: "not-applicable",
     }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
@@ -440,7 +458,9 @@ function makeResolvedReleaseModeSessionInitProbes(
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
-    materializableWorkUnits: async () => ({ candidates: [] }),
+    materializableWorkUnits: async () => ({
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+    }),
     workUnitState: async () => ({
       inFlight: { workUnits: [] },
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },
@@ -675,13 +695,17 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
         identity,
         activeExtensions,
       ),
+      remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
       user: async (id) => stubUserSessionInit(id),
-      worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+      worktree: async () => ({
+        state: "skipped", ahead: 0, behind: 0, branch: "main", remoteEvidence: "not-applicable",
+      }),
       worktreeIdentity: async () => ({ kind: "primary" }),
       currentHusk: async () => null,
       baseDistance: async () => ({
         mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
         base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+        remoteEvidence: "not-applicable",
       }),
       baseBranchSync: async () => ({
       state: "skipped",
@@ -689,6 +713,9 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       behind: 0,
       base: "main",
       checkout: { kind: "not-checked-out" as const },
+      refreshRemedy: null,
+      guidance: null,
+      remoteEvidence: "not-applicable",
     }),
       supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
       dirty: async () => ({ state: "clean", fileCount: 0 }),
@@ -704,7 +731,9 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
       errandState: async () => stubErrandState(),
-      materializableWorkUnits: async () => ({ candidates: [] }),
+      materializableWorkUnits: async () => ({
+        candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+      }),
       workUnitState: async () => ({
       inFlight: { workUnits: [] },
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },
@@ -861,17 +890,34 @@ function makeRealWorktreeProbes(
       identity,
       activeExtensions,
     ),
+    // Derived from the same fixture and the same flag the worktree probe below reads
+    // with. A hardcoded `remote-sync-disabled` context contradicted a probe reading
+    // with sync enabled, so the stub set modelled a world that cannot occur.
+    remoteContext: createSessionRemoteContextReader({
+      cwd: fixture.root,
+      exec: makeGitExec(fixture.root),
+      remoteSyncEnabled: async () => remoteSyncEnabled,
+    }),
     user: async (identity) => stubUserSessionInit(identity, userState),
-    worktree: () =>
-      runWorktreeSyncStatus({
+    worktree: async () => {
+      const result = await runWorktreeSyncStatus({
         exec: makeGitExec(fixture.root),
         remoteSyncEnabled,
-      }),
+      });
+      if (result.state === "remote-unavailable") {
+        return { ...result, remoteEvidence: "unreachable" as const, failureReason: result.failureReason ?? "error" };
+      }
+      const remoteEvidence = worktreeStateEvidence(result.state);
+      const { failureReason, ...value } = result;
+      void failureReason;
+      return { ...value, remoteEvidence };
+    },
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
       base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
       state: "skipped",
@@ -879,6 +925,9 @@ function makeRealWorktreeProbes(
       behind: 0,
       base: "main",
       checkout: { kind: "not-checked-out" as const },
+      refreshRemedy: null,
+      guidance: null,
+      remoteEvidence: "not-applicable",
     }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
@@ -894,7 +943,9 @@ function makeRealWorktreeProbes(
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
-    materializableWorkUnits: async () => ({ candidates: [] }),
+    materializableWorkUnits: async () => ({
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+    }),
     workUnitState: async () => ({
       inFlight: { workUnits: [] },
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },

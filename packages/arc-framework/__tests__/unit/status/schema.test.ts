@@ -27,6 +27,51 @@ import {
 } from "../../../src/commands/status/schema.js";
 
 describe("shared git routing views", () => {
+  it("accepts evidence-qualified base-sync results and rejects crossed evidence fields", () => {
+    const pending = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      unavailableReason: "base-object-pending-fetch",
+      refreshRemedy: {
+        text: "Materialize and synchronize the local main branch.",
+        argv: ["arc", "base", "sync", "--json"],
+      },
+      guidance: null,
+      remoteEvidence: "pending-fetch",
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
+    };
+
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(pending).success).toBe(true);
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
+      ...pending,
+      failureReason: "network",
+    }).success).toBe(false);
+    // A valid unreachable baseline, so the remedy assertion below varies one field
+    // rather than relying on other crossed fields to force the rejection.
+    const unreachable = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      refreshRemedy: null,
+      guidance: "Remote base evidence is unavailable (network).",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+      recommendedAction: "surface",
+      recommendedPromptText: "Remote base evidence is unavailable (network).",
+    };
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(unreachable).success).toBe(true);
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
+      ...unreachable,
+      refreshRemedy: pending.refreshRemedy,
+    }).success).toBe(false);
+  });
+
   it.each([
     [DirtyStateValueViewSchema, { state: "broken" }],
     [WorktreeSyncValueViewSchema, { state: "broken" }],
@@ -609,7 +654,10 @@ describe("deep advisory routing views", () => {
       SessionInitWorktreeValueViewSchema,
       {
         state: "clean",
+        ahead: 0,
+        behind: 0,
         branch: "feat/test",
+        remoteEvidence: "exact",
         identity: {
           kind: "linked",
           path: "/worktree",
@@ -638,6 +686,11 @@ describe("deep advisory routing views", () => {
       SessionInitBaseDistanceValueViewSchema,
       {
         verdict: "clean",
+        state: "clean",
+        ahead: 0,
+        behind: 0,
+        baseOid: "a".repeat(40),
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
         evidence: { deep: { retained: true } },

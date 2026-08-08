@@ -145,21 +145,24 @@ export type WorktreeMaterializingInspectionResult = Omit<
 export async function analyzeWorktreeSnapshot(
   options: AnalyzeWorktreeSnapshotOptions,
 ): Promise<WorktreeSnapshotAnalysisResult> {
-  if (!options.remoteSyncEnabled) {
-    return {
-      state: "skipped",
-      ahead: 0,
-      behind: 0,
-      branch: options.branch,
-      remoteEvidence: "not-applicable",
-    };
-  }
+  // Detachment outranks the disabled-sync shortcut. Returning `skipped` first would
+  // emit a null branch under a state whose envelope invariant requires a named one,
+  // so a detached HEAD with remote sync off made the composite reject its own result.
   if (options.branch === null) {
     return {
       state: "detached-head",
       ahead: 0,
       behind: 0,
       branch: null,
+      remoteEvidence: "not-applicable",
+    };
+  }
+  if (!options.remoteSyncEnabled) {
+    return {
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
       remoteEvidence: "not-applicable",
     };
   }
@@ -488,12 +491,21 @@ async function readOriginConfiguration(exec: GitExec): Promise<boolean> {
  *
  * @param exec - Git execution boundary.
  * @param branch - Local branch whose upstream is inspected.
+ * @param cwd - Repository root the read runs against. The executor carries no root, so a
+ * caller composing one request's evidence must name its own; otherwise this resolves
+ * against the process directory and can describe a different repository than the
+ * snapshot it is compared with.
  * @returns The upstream branch name without the `origin/` prefix, or null when untracked.
  */
-export async function readConfiguredUpstreamBranch(exec: GitExec, branch: string): Promise<string | null> {
+export async function readConfiguredUpstreamBranch(
+  exec: GitExec,
+  branch: string,
+  cwd?: string,
+): Promise<string | null> {
   const stdout = (await exec(
     "git",
     ["for-each-ref", "--format=%(upstream:short)", `refs/heads/${branch}`],
+    cwd === undefined ? {} : { cwd },
   )).stdout;
   const records = stdout.split(/\r?\n/u).filter((record) => record !== "");
   if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");

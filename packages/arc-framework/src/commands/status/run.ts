@@ -44,6 +44,7 @@ import type {
   WorktreeIdentity,
 } from "./types.js";
 import {
+  buildSessionRemoteContextSlot,
   gatedSlot,
   safeProbe,
   SessionCompositionError,
@@ -136,12 +137,16 @@ export async function runSessionInitStatus(
   >;
 
   const userTask = userSlot(identity, (id) => probes.user(id));
-  const worktreeTask = safeProbe("worktree", () => probes.worktree());
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
+  const remote = buildSessionRemoteContextSlot(probes.remoteContext);
+  const worktreeTask = remote.run("worktree", (context) => probes.worktree(context));
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
-  const baseDistanceTask = safeProbe("baseDistance", () => probes.baseDistance());
-  const baseBranchSyncTask = safeProbe("baseBranchSync", () => probes.baseBranchSync());
+  const baseDistanceTask = remote.run("baseDistance", (context) => probes.baseDistance(context));
+  const baseBranchSyncTask = remote.run(
+    "baseBranchSync",
+    (context) => probes.baseBranchSync(context),
+  );
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const domainRulesTask = safeProbe("domainRules", () => probes.domainRules());
@@ -150,7 +155,7 @@ export async function runSessionInitStatus(
   // absent. `null` here means "not computed" — distinct from an empty result.
   const retiredSubdirsTask = identity === null
     ? null
-    : safeProbe("retiredSubdirs", () => probes.retiredSubdirs(identity));
+    : remote.run("retiredSubdirs", (context) => probes.retiredSubdirs(context, identity));
   // Errand-staleness sweep rides the same eager / identity-gated phase: its
   // source is identity-scoped, so it is omitted when identity is absent.
   const errandSweepTask = identity === null
@@ -223,7 +228,10 @@ export async function runSessionInitStatus(
   // so the common path pays nothing. `null` when not diverged or the read failed.
   const supersessionSlot =
     worktree.isOk() && worktree.value.state === "diverged" && worktree.value.branch !== null
-      ? await safeProbe("supersession", () => probes.supersession(worktree.value.branch as string))
+      ? await remote.run(
+        "supersession",
+        (context) => probes.supersession(context, worktree.value.branch as string),
+      )
       : undefined;
   const supersession = supersessionSlot?.isOk() ? supersessionSlot.value : null;
 
@@ -245,11 +253,13 @@ export async function runSessionInitStatus(
 
   // Current-locus husk/transient provenance is a linked + branchless
   // refinement, not a new sync state. Ordinary branched resumes skip the read.
-  const currentHuskSlot =
+  const currentHusk =
     worktreeIdentity.kind === "linked" && worktree.isOk() && worktree.value.branch === null
-      ? await safeProbe("currentHusk", () => probes.currentHusk(worktreeIdentity.path))
+      ? await remote.run(
+        "currentHusk",
+        (context) => probes.currentHusk(context, worktreeIdentity.path),
+      )
       : undefined;
-  const currentHusk = currentHuskSlot?.isOk() ? currentHuskSlot : undefined;
 
   // Base-distance enrichment mirrors the worktree slot's shape. Its
   // recommendation is an independent advisory (behind-base reconcile offer),
@@ -323,8 +333,8 @@ export async function runSessionInitStatus(
     && active.value.resolution === "single"
     && activeWuName !== null
     && identity !== null
-      ? await safeProbe("userReferenceReconcile", () =>
-        probes.userReferenceReconcile({ slug: activeWuName }))
+      ? await remote.run("userReferenceReconcile", (context) =>
+        probes.userReferenceReconcile(context, { slug: activeWuName }))
       : undefined;
   const notesVerdict = qualifiedUser.isOk() && qualifiedUser.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })
@@ -339,10 +349,12 @@ export async function runSessionInitStatus(
       } satisfies SessionInitUserValue));
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
-  // stage. The expensive slots below are the second: the in-flight roster and
-  // the materializable-WU oracle both express through the `gatedSlot` affordance
-  // — fire the probe only when the gate holds, omit the slot otherwise, with
-  // `safeProbe`'s "envelope never rejects" contract preserved either way. Their
+  // stage. The expensive slots below are the second: the in-flight roster fires
+  // through the `gatedSlot` affordance, and the materializable-WU oracle fires
+  // through an inline conditional over the shared remote context (`remote.run`).
+  // Both express the same fire-or-omit shape — run the probe only when the gate
+  // holds, omit the slot otherwise, with `safeProbe`'s "envelope never rejects"
+  // contract preserved either way. Their
   // gating signals (worktree state, active resolution, worktree identity) are
   // produced by sibling slots in the fan-out above, so they can only resolve in
   // a second stage. On the linked-worktree resume path both gates are false, so
@@ -375,7 +387,10 @@ export async function runSessionInitStatus(
   // the worktree is branch-gone and the roster resolved.
   const rawRecovery =
     worktree.isOk() && worktree.value.state === "branch-gone" && roster?.isOk()
-      ? await safeProbe("recovery", () => probes.recovery(roster.value, worktree.value.branch))
+      ? await remote.run(
+        "recovery",
+        (context) => probes.recovery(context, roster.value, worktree.value.branch),
+      )
       : undefined;
   const recovery = rawRecovery?.map((value) => inferBranchGoneRecovery(
     value,
@@ -388,18 +403,24 @@ export async function runSessionInitStatus(
   const sweepRoster = worktreeIdentity.kind === "primary" ? roster : cleanupRoster;
   const sweep =
     sweepRoster?.isOk()
-      ? await safeProbe("sweep", () => probes.sweep(sweepRoster.value, worktreeIdentity))
+      ? await remote.run(
+        "sweep",
+        (context) => probes.sweep(context, sweepRoster.value, worktreeIdentity),
+      )
       : undefined;
 
   // Orphan-branch sweep — local branch hygiene from primary or identity-known
   // linked sessions. It consumes no roster and performs no network operation.
   const orphanBranchSweep =
     (worktreeIdentity.kind === "primary" || identity !== null)
-      ? await safeProbe("orphanBranchSweep", () => probes.orphanBranchSweep(worktreeIdentity))
+      ? await remote.run(
+        "orphanBranchSweep",
+        (context) => probes.orphanBranchSweep(context, worktreeIdentity),
+      )
       : undefined;
   const errandState: RawErrandState | undefined =
     worktree.isOk() && active.isOk()
-      ? await safeProbe("errandState", () => probes.errandState({
+      ? await remote.run("errandState", (context) => probes.errandState(context, {
         currentBranch: worktree.value.branch,
         hasBackingMeta: active.value.resolution === "single",
         includeDiscovery: active.value.resolution === "none",
@@ -414,22 +435,23 @@ export async function runSessionInitStatus(
   // no-active-WU arm — the same bounded network slice the materialize oracle uses.
   const workUnitState =
     roster?.isOk()
-      ? await safeProbe("workUnitState", () =>
-        probes.workUnitState({
+      ? await remote.run("workUnitState", (context) =>
+        probes.workUnitState(context, {
           roster: roster.value,
           includeSharpening: active.isOk() && active.value.resolution === "none",
         }))
       : undefined;
 
   // Materializable-WU oracle slot — the discovery surface for cross-machine
-  // pickup. Expressed through the same `gatedSlot` affordance as the roster:
-  // fires the oracle's bounded network slice ONLY on the no-active-WU arm, so
-  // the resume path pays zero oracle cost.
-  const materializableWorkUnitsTask = gatedSlot(
-    active.isOk() && active.value.resolution === "none",
-    "materializableWorkUnits",
-    () => probes.materializableWorkUnits(),
-  );
+  // pickup. Declared against the shared remote context and gated inline: the
+  // oracle's bounded network slice runs ONLY on the no-active-WU arm, so the
+  // resume path pays zero oracle cost.
+  const materializableWorkUnitsTask = active.isOk() && active.value.resolution === "none"
+    ? remote.run(
+      "materializableWorkUnits",
+      (context) => probes.materializableWorkUnits(context),
+    )
+    : undefined;
   const materializableWorkUnits = materializableWorkUnitsTask === undefined
     ? undefined
     : await materializableWorkUnitsTask;
@@ -665,7 +687,10 @@ function loadSetFromState(options: {
  * neutral rather than guessing.
  */
 function composeSessionInitRecommendations(slots: {
-  worktree: SessionResult<import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult>;
+  worktree: SessionResult<
+    import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult
+    | import("../../lib/git/worktree-sync.js").WorktreeSnapshotAnalysisResult
+  >;
   user: SessionResult<import("../user/types.js").UserSessionInitStatusResult>;
   dirty: SessionResult<DirtyStateResult>;
   config: SessionResult<import("../config/types.js").ConfigSessionInitResult>;

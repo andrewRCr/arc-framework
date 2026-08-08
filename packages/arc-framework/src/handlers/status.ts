@@ -20,6 +20,11 @@ import { resolve } from "node:path";
 import * as p from "@clack/prompts";
 import { z } from "zod";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  createSessionRemoteContextReader,
+  sessionRemotePrerequisites,
+  type SessionRemoteContext,
+} from "./status-remote-context.js";
 
 import {
   buildSessionInitStatusSummary,
@@ -54,23 +59,25 @@ import {
   runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
 } from "../lib/git/index.js";
-import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
+import { analyzeRecentRemoteBranchesSnapshot } from "../lib/git/recent-remote-branches.js";
 import {
-  deriveInFlight,
+  analyzeInFlightSnapshot,
   renderInFlightWarning,
   type InFlightEntry,
   type InFlightResidue,
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
-import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
-import { pruneRemoteTrackingRefs } from "../lib/session-init/dead-ref-prune.js";
+import {
+  composeMaterializableDiscoveryRefreshRemedy,
+  findMaterializableWorkUnits,
+} from "../lib/session-init/materializable-work-units.js";
 import {
   runBranchGoneRecovery,
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
 import { resolveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
-import { revalidateDecodedHuskRetirementEvidence } from "../lib/work-unit/teardown-retirement-driver.js";
+import { revalidateDecodedHuskRetirementEvidenceStrict } from "../lib/work-unit/teardown-retirement-driver.js";
 import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
@@ -90,13 +97,18 @@ import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-sta
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import {
+  analyzeWorktreeSnapshot,
+  readConfiguredUpstreamBranch,
   runPassiveWorktreeInspection,
-  runWorktreeSyncStatus,
 } from "../lib/git/worktree-sync.js";
-import { runBaseDrift } from "../lib/git/base-distance.js";
+import { analyzeBaseDistanceSnapshot } from "../lib/git/base-distance.js";
 import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
-import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
-import { detectSupersession } from "../lib/git/supersession.js";
+import {
+  analyzeBaseBranchSnapshot,
+  readLocalBaseOid,
+  resolveBaseCheckoutLocus,
+} from "../lib/git/base-branch-sync.js";
+import { analyzeSupersessionSnapshot } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
@@ -139,8 +151,8 @@ import {
 } from "../commands/status/schema.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import {
+  analyzeUserReferenceAuthority,
   projectUserReferenceSessionResult,
-  resolveUserReferenceAuthority,
 } from "../lib/user-reference-reconcile.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -157,6 +169,9 @@ import { createRecoverStatusProbes } from "./recover-probes.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import type { CleanupBaseEvidence } from "../lib/session-init/cleanup-remote-evidence.js";
+import { readLocalInFlightRefSnapshot } from "../lib/git/remote-ref-reader.js";
+import { resolveWorktreePathsByBranchResult } from "../lib/git/worktree-roster.js";
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
   if (execInput === undefined) {
@@ -278,6 +293,68 @@ const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
  */
 const WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE = ".internal/work-unit-stale-last-nudge.txt";
 const NOTES_COMPACTION_NUDGE_MARKER_RELATIVE = ".internal/notes-compaction-last-nudge.txt";
+
+// The executor carries no root, so every reader composing one request's evidence names
+// its own; otherwise a read resolves against the process directory instead.
+async function readSessionBranch(exec: GitExec, cwd: string): Promise<string | null> {
+  const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd })).stdout.trim();
+  return branch === "" || branch === "HEAD" ? null : branch;
+}
+
+function sessionCleanupBaseEvidence(context: SessionRemoteContext): CleanupBaseEvidence {
+  const prerequisites = sessionRemotePrerequisites(context);
+  if (prerequisites.kind === "supplied") {
+    return {
+      remoteSyncEnabled: true,
+      snapshot: prerequisites.snapshot,
+      objectAvailability: prerequisites.objectAvailability,
+      history: prerequisites.history,
+    };
+  }
+  return {
+    remoteSyncEnabled: false,
+    snapshot: { kind: "unreachable", failureReason: "error" },
+    objectAvailability: { kind: "unavailable", reason: "execution" },
+    history: { kind: "unavailable", reason: "execution" },
+  };
+}
+
+/**
+ * Resolve the advertised base OID when — and only when — exact evidence establishes
+ * it is present locally.
+ *
+ * `null` means the evidence is genuinely absent: remote sync is off, the remote is
+ * unreachable, the base is not advertised, its object is still pending fetch, or the
+ * local history is shallow. Each is a fact a caller may act on.
+ *
+ * An uninspectable prerequisite is not such a fact. A local availability batch or
+ * history read that failed says nothing about the base, so it raises rather than
+ * resolving to `null`, and the caller's `safeProbe` boundary reports the typed probe
+ * error. This matches the sibling comparators — `analyzeBehindBaseSnapshot` and
+ * `runStaleWorktreeSweep` — which raise on the same gaps.
+ *
+ * @param evidence - Advertised-base prerequisites for this request.
+ * @param baseBranch - Integration base branch short-name.
+ * @returns The base OID under exact local presence, or `null` on evidence absence.
+ */
+export function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: string): string | null {
+  if (!evidence.remoteSyncEnabled || evidence.snapshot.kind === "unreachable") return null;
+  const baseOid = evidence.snapshot.tips[baseBranch];
+  if (baseOid === undefined) return null;
+  if (evidence.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = evidence.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return null;
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  if (evidence.history.kind === "shallow") return null;
+  if (evidence.history.kind !== "complete") {
+    throw new Error("Local history completeness could not be inspected.");
+  }
+  return baseOid;
+}
 
 function parsePositiveInteger(raw: string, fallback: number): number {
   const parsed = Number.parseInt(raw, 10);
@@ -549,9 +626,19 @@ export async function handleStatus(
   }
 
   if (opts.sessionInit) {
+    // A missing stdin-capable executor degrades object availability inside the remote
+    // context rather than aborting here: throwing before any probe runs would deny the
+    // caller the whole composite envelope over one unrelated capability.
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
+    const getRemoteContext = createSessionRemoteContextReader({
+      cwd,
+      exec,
+      execInput: io.execInput,
+      remoteSyncEnabled: async () =>
+        (await resolvedSettingsP).settings["session.remote_sync"] === "enabled",
+    });
     const derivedLocusStatePromises = new Map<string, ReturnType<typeof runDerivedLocusStateProbe>>();
     const getDerivedLocusState = (
       id: string,
@@ -585,18 +672,21 @@ export async function handleStatus(
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
-    // Shared in-flight oracle slice — the bounded network read (live remote
-    // membership → pruned-ref derivation) feeding both the errand-state and
-    // materializable-WU probes. Both gate on the no-active-WU arm, so when one
-    // fires the other does too; memoizing keeps it a single read. Lazy: a resume
-    // session forces neither probe, so the network read never runs there.
+    // Shared in-flight oracle slice over the request's immutable remote context.
+    // Errand state and materializable-WU discovery share one local classification
+    // pass; the separately typed transient-identity read remains outside the code
+    // repository snapshot.
     let oraclePromise: Promise<{
       entries: InFlightEntry[];
       residue: InFlightResidue[];
       warnings: InFlightWarning[];
-      remoteTips: Map<string, string>;
       reachable: boolean;
+      remoteEvidence: "exact" | "pending-fetch" | "unreachable" | "not-applicable";
+      failureReason?: "network" | "auth" | "timeout" | "error";
+      pendingBranchCount: number;
+      locallyPresentBranches: ReadonlySet<string>;
     }> | undefined;
+    let oracleContext: SessionRemoteContext | undefined;
     let transientIndexesPromise: ReturnType<typeof readTransientInFlightIndexes> | undefined;
     let discoveryTransientIndexesPromise: ReturnType<typeof readFetchedTransientInFlightIndexes> | undefined;
     const getTransientIndexes = () => {
@@ -611,31 +701,66 @@ export async function handleStatus(
       });
       return discoveryTransientIndexesPromise;
     };
-    const getOracle = (): Promise<{
+    const getOracle = (context: SessionRemoteContext): Promise<{
       entries: InFlightEntry[];
       residue: InFlightResidue[];
       warnings: InFlightWarning[];
-      remoteTips: Map<string, string>;
       reachable: boolean;
+      remoteEvidence: "exact" | "pending-fetch" | "unreachable" | "not-applicable";
+      failureReason?: "network" | "auth" | "timeout" | "error";
+      pendingBranchCount: number;
+      locallyPresentBranches: ReadonlySet<string>;
     }> => {
+      if (oracleContext !== undefined && oracleContext !== context) {
+        return Promise.reject(new Error("In-flight oracle received a different session remote context."));
+      }
+      oracleContext = context;
       oraclePromise ??= (async () => {
-        // Fire the dead-ref prune before derivation so every oracle caller
-        // observes the same pruned ref set, regardless of call order.
-        await pruneRemoteTrackingRefs(exec);
+        const prerequisites = sessionRemotePrerequisites(context);
+        if (prerequisites.kind === "not-needed") {
+          return {
+            entries: [],
+            residue: [],
+            warnings: [],
+            reachable: false,
+            remoteEvidence: "not-applicable" as const,
+            pendingBranchCount: 0,
+            locallyPresentBranches: new Set<string>(),
+          };
+        }
+        if (prerequisites.snapshot.kind === "unreachable") {
+          return {
+            entries: [],
+            residue: [],
+            warnings: [],
+            reachable: false,
+            remoteEvidence: "unreachable" as const,
+            failureReason: prerequisites.snapshot.failureReason,
+            pendingBranchCount: 0,
+            locallyPresentBranches: new Set<string>(),
+          };
+        }
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [transientRead, parkedSlugs, derivedRoster] = await Promise.all([
+        const [transientRead, parkedSlugs, derivedRoster, localRefs, worktrees] = await Promise.all([
           getDiscoveryTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
           getOptionalDerivedRoster(),
+          // Default remote, request root: these local reads join the snapshot and
+          // availability facts this request context already carries.
+          readLocalInFlightRefSnapshot(exec, undefined, cwd),
+          resolveWorktreePathsByBranchResult(exec, cwd),
         ]);
         const transient = projectTransientInFlightRead(transientRead);
         const transientIndexes = transient.indexes;
-        const result = await deriveInFlight({
+        const result = await analyzeInFlightSnapshot({
           exec,
           decompositionClaimCwd: cwd,
-          localOnly: false,
-          expandLiveOnly: false,
+          snapshot: prerequisites.snapshot,
+          objectAvailability: prerequisites.objectAvailability,
+          history: prerequisites.history,
+          localRefs,
+          worktrees,
           baseBranch: resolved.settings["branch.base"],
           identity,
           teamMode,
@@ -645,26 +770,17 @@ export async function handleStatus(
           parkedSlugs,
           derivedRoster,
         });
-        // Unreachable: derive nothing rather than a half-resolved view over
-        // un-pruned local refs. Consumers surface no candidates / skip discovery.
-        if (!result.reachable) {
-          return {
-            entries: [],
-            residue: result.residue,
-            warnings: result.warnings,
-            remoteTips: new Map(),
-            reachable: false,
-          };
-        }
         return {
           entries: result.entries,
           residue: result.residue,
           warnings: result.warnings,
-          remoteTips: new Map(Object.entries(result.liveRefs).flatMap(([ref, tip]) => {
-            const prefix = "origin/";
-            return ref.startsWith(prefix) ? [[ref.slice(prefix.length), tip]] : [];
-          })),
-          reachable: result.reachable,
+          reachable: true,
+          remoteEvidence: result.pendingBranchCount > 0 ? "pending-fetch" as const : "exact" as const,
+          pendingBranchCount: result.pendingBranchCount,
+          locallyPresentBranches: new Set([
+            ...Object.keys(localRefs.refs.localHeads),
+            ...worktrees.paths.keys(),
+          ]),
         };
       })();
       return oraclePromise;
@@ -673,18 +789,38 @@ export async function handleStatus(
       derivedLocusState: async (id, activeExtensions) => {
         return getDerivedLocusState(id, activeExtensions);
       },
+      remoteContext: getRemoteContext,
       user: async (id) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
       },
-      worktree: async () => {
+      worktree: async (context) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec, remoteSyncEnabled });
+        const branch = await readSessionBranch(exec, cwd);
+        const prerequisites = sessionRemotePrerequisites(context);
+        const upstreamBranch = branch === null || !remoteSyncEnabled || context.kind === "not-needed"
+          ? null
+          : await readConfiguredUpstreamBranch(exec, branch, cwd);
+        const supplied = prerequisites.kind === "supplied"
+          ? prerequisites
+          : {
+              snapshot: { kind: "unreachable" as const, failureReason: "error" as const },
+              objectAvailability: { kind: "unavailable" as const, reason: "execution" as const },
+              history: { kind: "unavailable" as const, reason: "execution" as const },
+            };
+        return analyzeWorktreeSnapshot({
+          exec,
+          remoteSyncEnabled,
+          originConfigured: !(context.kind === "not-needed" && context.reason === "no-remote"),
+          branch,
+          upstreamBranch,
+          ...supplied,
+        });
       },
       worktreeIdentity: () => resolveWorktreeIdentity(exec),
-      currentHusk: async (worktreePath) => {
+      currentHusk: async (context, worktreePath) => {
         const [marker, headResult, resolved] = await Promise.all([
           readWorktreeMarker(worktreePath),
           exec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
@@ -697,36 +833,122 @@ export async function handleStatus(
           marker,
         }, async (stamp, decoded) => {
           const baseBranch = resolved.settings["branch.base"];
-          return await revalidateDecodedHuskRetirementEvidence(
+          const baseOid = exactSessionBaseOid(sessionCleanupBaseEvidence(context), baseBranch);
+          return baseOid !== null && await revalidateDecodedHuskRetirementEvidenceStrict(
             exec,
             stamp,
             decoded,
-            resolved.settings["branch.protection"] === "full" ? `origin/${baseBranch}` : baseBranch,
+            baseOid,
             (ref, path) => readGitBlobBytes(cwd, ref, path, { objectAccess: "local-only" }),
           );
         });
       },
-      baseDistance: async () => {
+      baseDistance: async (context) => {
         const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runBaseDrift({
+        const baseBranch = resolved.settings["branch.base"];
+        const prerequisites = sessionRemotePrerequisites(context);
+        // Detachment outranks the remote shortcuts, as it does inside the analyzer:
+        // returning early on a disabled or absent remote would drop the detached-HEAD
+        // reason whenever both conditions hold.
+        if (await readSessionBranch(exec, cwd) === null) {
+          return {
+            mode: "advisory" as const,
+            verdict: "unavailable" as const,
+            state: "detached-head" as const,
+            ahead: 0,
+            behind: 0,
+            base: null,
+            baseOid: null,
+            unavailableReason: "detached-head" as const,
+            integrationEvidence: null,
+            overlap: null,
+            register: null,
+            // Detachment resolves before any snapshot evidence is consulted, so this
+            // arm carries the explicit not-applicable qualifier rather than omitting it.
+            remoteEvidence: "not-applicable" as const,
+          };
+        }
+        if (prerequisites.kind === "not-needed") {
+          return prerequisites.reason === "remote-sync-disabled"
+            ? {
+                mode: "advisory" as const,
+                verdict: "skipped" as const,
+                state: "skipped" as const,
+                ahead: 0,
+                behind: 0,
+                base: baseBranch,
+                baseOid: null,
+                integrationEvidence: null,
+                overlap: null,
+                register: null,
+                remoteEvidence: "not-applicable" as const,
+              }
+            : {
+                mode: "advisory" as const,
+                verdict: "unavailable" as const,
+                state: "no-remote" as const,
+                ahead: 0,
+                behind: 0,
+                base: baseBranch,
+                baseOid: null,
+                unavailableReason: "no-remote" as const,
+                integrationEvidence: null,
+                overlap: null,
+                register: null,
+                remoteEvidence: "not-applicable" as const,
+              };
+        }
+        const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+          ...options,
+          objectAccess: "local-only",
+        });
+        return analyzeBaseDistanceSnapshot({
           exec,
-          baseBranch: resolved.settings["branch.base"],
+          baseBranch,
           mode: "advisory",
-          remoteSyncEnabled,
-          ...createCurrentBaseDriftAdapters(exec),
+          snapshot: prerequisites.snapshot,
+          objectAvailability: prerequisites.objectAvailability,
+          history: prerequisites.history,
+          ...createCurrentBaseDriftAdapters(localOnlyExec),
         });
       },
-      baseBranchSync: async () => {
+      baseBranchSync: async (context) => {
         const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runBaseBranchSyncStatus({
+        const baseBranch = resolved.settings["branch.base"];
+        const [checkout, localBaseOid] = await Promise.all([
+          resolveBaseCheckoutLocus(exec, baseBranch),
+          readLocalBaseOid(exec, baseBranch, cwd),
+        ]);
+        const prerequisites = sessionRemotePrerequisites(context);
+        if (prerequisites.kind === "not-needed") {
+          return {
+            state: prerequisites.reason === "remote-sync-disabled" ? "skipped" as const : "no-remote" as const,
+            ahead: 0,
+            behind: 0,
+            base: baseBranch,
+            checkout,
+            refreshRemedy: null,
+            guidance: null,
+            remoteEvidence: "not-applicable" as const,
+          };
+        }
+        return analyzeBaseBranchSnapshot({
           exec,
-          baseBranch: resolved.settings["branch.base"],
-          remoteSyncEnabled,
+          baseBranch,
+          localBaseOid,
+          checkout,
+          snapshot: prerequisites.snapshot,
+          objectAvailability: prerequisites.objectAvailability,
+          history: prerequisites.history,
         });
       },
-      supersession: (branch) => detectSupersession({ exec, branch }),
+      supersession: (context, branch) => {
+        const prerequisites = sessionRemotePrerequisites(context);
+        if (prerequisites.kind === "not-needed") {
+          return Promise.resolve({ superseded: false, supersededCommits: [], novelCommits: [] });
+        }
+        return analyzeSupersessionSnapshot({ exec, branch, ...prerequisites });
+      },
       dirty: () => resolveSessionInitDirtyState({
         compactionSeedGitSnapshotP,
         fallback: () => runDirtyStateStatus({ exec }),
@@ -747,29 +969,42 @@ export async function handleStatus(
           },
           { slug, metaPath },
         ),
-      userReferenceReconcile: async ({ slug }) => {
+      userReferenceReconcile: async (context, { slug }) => {
         if (identity === null) throw new Error("User-reference probe requires an identity.");
         const resolved = await resolvedSettingsP;
         const surfaces = await userSurfacesFor(identity);
-        const authority = await resolveUserReferenceAuthority({
-          protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
-          baseBranch: resolved.settings["branch.base"],
-          refreshRemoteBase: async () => {
-            try {
-              await exec("git", ["fetch", "origin", resolved.settings["branch.base"]]);
-              await exec("git", [
-                "rev-parse",
-                "--verify",
-                "--quiet",
-                `origin/${resolved.settings["branch.base"]}`,
-              ]);
-              return true;
-            } catch {
-              return false;
-            }
-          },
-          enumerateAt: (ref) => enumerateGitRetirementRecords(exec, ref),
+        const protection = resolved.settings["branch.protection"] === "full" ? "full" : "partial";
+        const baseBranch = resolved.settings["branch.base"];
+        const prerequisites = sessionRemotePrerequisites(context);
+        const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+          ...options,
+          objectAccess: "local-only",
         });
+        const authority = prerequisites.kind === "supplied" || protection === "partial"
+          ? await analyzeUserReferenceAuthority({
+            protection,
+            baseBranch,
+            // The unsupplied arms are reachable only under `partial` protection, which
+            // returns before either is read. They are placeholders for an unused
+            // parameter rather than evidence, and never reach a result.
+            snapshot: prerequisites.kind === "supplied"
+              ? prerequisites.snapshot
+              : { kind: "unreachable", failureReason: "error" },
+            objectAvailability: prerequisites.kind === "supplied"
+              ? prerequisites.objectAvailability
+              : { kind: "unavailable", reason: "execution" },
+            enumerateAt: (ref) => enumerateGitRetirementRecords(localOnlyExec, ref),
+          })
+          : {
+              // `not-needed` means remote sync is off or no remote is configured. That is
+              // a deliberate configuration, not a failed read, so this reports the
+              // not-applicable qualifier as the sibling probes do rather than fabricating
+              // an unreachable reading the operator would read as a network fault.
+              status: "unavailable" as const,
+              ref: `origin/${baseBranch}`,
+              reason: "remote-not-required" as const,
+              remoteEvidence: "not-applicable" as const,
+            };
         const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
         return projectUserReferenceSessionResult(authority, {
           userInbox: {
@@ -811,21 +1046,31 @@ export async function handleStatus(
           teamMode,
         });
       },
-      recovery: async (roster, currentBranch) => {
+      recovery: async (context, roster, currentBranch) => {
         const resolved = await resolvedSettingsP;
-        const recentBranches = await runRecentRemoteBranches({
-          exec,
-          withinDays: RECOVERY_RECENCY_DAYS,
-        });
+        const baseBranch = resolved.settings["branch.base"];
+        const baseEvidence = sessionCleanupBaseEvidence(context);
+        const recent = baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
+          ? await analyzeRecentRemoteBranchesSnapshot({
+              exec,
+              tips: baseEvidence.snapshot.tips,
+              objectAvailability: baseEvidence.objectAvailability,
+              history: baseEvidence.history,
+              excludeBranches: new Set([baseBranch, ...(currentBranch === null ? [] : [currentBranch])]),
+              withinDays: RECOVERY_RECENCY_DAYS,
+            })
+          : { branches: [], pendingBranchCount: 0 };
         return runBranchGoneRecovery({
           roster,
           currentBranch,
-          baseBranch: resolved.settings["branch.base"],
-          recentBranches,
+          baseBranch,
+          recentBranches: recent.branches,
+          recentPendingBranchCount: recent.pendingBranchCount,
+          baseEvidence,
           exec,
         });
       },
-      sweep: async (roster, worktreeIdentity) => {
+      sweep: async (context, roster, worktreeIdentity) => {
         const [resolved, derivedRoster] = await Promise.all([
           resolvedSettingsP,
           getOptionalDerivedRoster(),
@@ -834,6 +1079,7 @@ export async function handleStatus(
           roster,
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
+          baseEvidence: sessionCleanupBaseEvidence(context),
           exec,
           identity,
           teamMode: resolved.settings["team.mode"] === "true",
@@ -843,7 +1089,7 @@ export async function handleStatus(
           derivedRoster,
         });
       },
-      orphanBranchSweep: async (worktreeIdentity) => {
+      orphanBranchSweep: async (context, worktreeIdentity) => {
         const [resolved, derivedRoster] = await Promise.all([
           resolvedSettingsP,
           getOptionalDerivedRoster(),
@@ -857,6 +1103,7 @@ export async function handleStatus(
         return runOrphanBranchSweep({
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
+          baseEvidence: sessionCleanupBaseEvidence(context),
           errandBranches:
             transient === null || !transient.complete
               ? null
@@ -865,12 +1112,13 @@ export async function handleStatus(
           derivedRoster,
         });
       },
-      retiredSubdirs: async (id) => {
+      retiredSubdirs: async (context, id) => {
         const resolved = await resolvedSettingsP;
         return runRetiredSubdirDetection({
           cwd,
           identity: id,
           baseBranch: resolved.settings["branch.base"],
+          baseEvidence: sessionCleanupBaseEvidence(context),
           exec,
           readDir: io.readDir,
           readFile: io.readFile,
@@ -882,7 +1130,7 @@ export async function handleStatus(
         const { entries } = extractReminderEntries({ content: await readUserInbox(id) });
         return runErrandStalenessSweep({ entries, thresholdDays });
       },
-      errandState: async (input) => {
+      errandState: async (context, input) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
         const transientRead = await (input.includeDiscovery
@@ -892,13 +1140,19 @@ export async function handleStatus(
         const transientIndexes = transientState.indexes;
         let entries: InFlightEntry[] | null = null;
         let residue: InFlightResidue[] = [];
-        let remoteTips = new Map<string, string>();
+        const baseEvidence = sessionCleanupBaseEvidence(context);
+        const remoteTips = new Map(
+          baseEvidence.remoteSyncEnabled && baseEvidence.snapshot.kind === "available"
+            ? Object.entries(baseEvidence.snapshot.tips)
+            : [],
+        );
         let oracleWarnings: string[] = transientState.degraded === null ? [] : [transientState.degraded];
+        let locallyPresentBranches: ReadonlySet<string> = new Set();
         if (input.includeDiscovery) {
-          const oracle = await getOracle();
+          const oracle = await getOracle(context);
           entries = oracle.reachable ? oracle.entries : null;
           residue = oracle.residue;
-          remoteTips = oracle.remoteTips;
+          locallyPresentBranches = oracle.locallyPresentBranches;
           oracleWarnings = [...oracleWarnings, ...oracle.warnings.map(renderInFlightWarning)];
         }
         return runErrandState({
@@ -912,18 +1166,59 @@ export async function handleStatus(
           records: transientIndexes.records,
           recordsComplete: transientState.complete,
           remoteTips,
+          locallyPresentBranches,
+          baseEvidence,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),
         });
       },
-      materializableWorkUnits: async () => {
-        const { entries, warnings, reachable } = await getOracle();
+      materializableWorkUnits: async (context) => {
+        const {
+          entries,
+          warnings,
+          reachable,
+          remoteEvidence,
+          failureReason,
+          pendingBranchCount,
+        } = await getOracle(context);
         const renderedWarnings = warnings.map(renderInFlightWarning);
-        if (!reachable) return { candidates: [], warnings: renderedWarnings };
-        return { ...findMaterializableWorkUnits({ entries, identity }), warnings: renderedWarnings };
+        if (!reachable) {
+          return remoteEvidence === "unreachable"
+            ? {
+                candidates: [],
+                warnings: renderedWarnings,
+                remoteEvidence,
+                failureReason: failureReason ?? "error",
+                pendingBranchCount: 0 as const,
+                refreshRemedy: null,
+              }
+            : {
+                candidates: [],
+                warnings: renderedWarnings,
+                remoteEvidence: "not-applicable" as const,
+                pendingBranchCount: 0 as const,
+                refreshRemedy: null,
+              };
+        }
+        const materializable = findMaterializableWorkUnits({ entries, identity });
+        return pendingBranchCount > 0
+          ? {
+              ...materializable,
+              warnings: renderedWarnings,
+              remoteEvidence: "pending-fetch" as const,
+              pendingBranchCount,
+              refreshRemedy: composeMaterializableDiscoveryRefreshRemedy(),
+            }
+          : {
+              ...materializable,
+              warnings: renderedWarnings,
+              remoteEvidence: "exact" as const,
+              pendingBranchCount: 0 as const,
+              refreshRemedy: null,
+            };
       },
-      workUnitState: async (input) => {
+      workUnitState: async (context, input) => {
         const resolved = await resolvedSettingsP;
         const staleThresholdDays = parsePositiveInteger(
           resolved.settings["integration.stale_after_days"],
@@ -934,6 +1229,7 @@ export async function handleStatus(
           roster: input.roster.entries,
           identity,
           baseBranch: resolved.settings["branch.base"],
+          baseEvidence: sessionCleanupBaseEvidence(context),
           staleThresholdDays,
           nudge: await resolveNudgeState(
             cwd,
@@ -1101,11 +1397,13 @@ export async function handleStatus(
 }
 
 async function readCompactionSeedGitSnapshot(cwd: string, exec: GitExec): Promise<CompactionSeedGitSnapshot> {
-  const [headResult, statusResult] = await Promise.all([
+  const [branchResult, headResult, statusResult] = await Promise.all([
+    exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd }),
     exec("git", ["rev-parse", "HEAD"], { cwd }),
     exec("git", ["status", "--porcelain=v1", "-z"], { cwd }),
   ]);
   return {
+    branch: branchResult.stdout.trim(),
     head: headResult.stdout.trim(),
     uncommittedFiles: parseUncommittedFiles(statusResult.stdout),
   };

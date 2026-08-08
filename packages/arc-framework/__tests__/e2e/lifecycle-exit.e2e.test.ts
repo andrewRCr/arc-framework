@@ -104,7 +104,10 @@ async function createBuiltCliHookPath(): Promise<{ directory: string; env: Recor
   await chmod(executable, 0o755);
   return {
     directory,
-    env: { PATH: `${directory}:${process.env.PATH ?? ""}` },
+    env: {
+      PATH: `${directory}:${process.env.PATH ?? ""}`,
+      ARC_TSX_LOADER: import.meta.resolve("tsx"),
+    },
   };
 }
 

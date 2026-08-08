@@ -84,6 +84,12 @@ export interface RunErrandStateOptions {
   recordsComplete: boolean;
   /** Live remote tips keyed by branch short-name. */
   remoteTips: ReadonlyMap<string, string>;
+  /**
+   * Branches already represented by a local head or worktree. Omitted only by
+   * compatibility callers pending composition cutover; an omitted set defaults to
+   * empty, which disables the local-presence exclusion rather than tightening it.
+   */
+  locallyPresentBranches?: ReadonlySet<string>;
   /** Supplied advertised-base prerequisites; omitted only by compatibility callers pending composition cutover. */
   baseEvidence?: CleanupBaseEvidence;
   /** Integration base branch short-name, e.g. `main`. */
@@ -130,9 +136,9 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   }
 
   const materializable = findMaterializableErrands({
-    entries: options.entries,
     records: options.recordsComplete ? options.records : [],
     remoteTips: options.remoteTips,
+    locallyPresentBranches: options.locallyPresentBranches ?? new Set(),
   });
   const errands = options.entries.filter(
     (entry): entry is InFlightErrand => entry.kind === "errand",

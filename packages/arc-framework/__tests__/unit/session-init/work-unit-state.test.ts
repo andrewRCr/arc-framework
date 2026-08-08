@@ -235,6 +235,36 @@ describe("runWorkUnitState (behind-base overlay)", () => {
     expect(result.warnings).toContain("Behind-base read degraded (local base ref unavailable).");
   });
 
+  it("uses the supplied advertised base OID instead of a tracking ref", async () => {
+    const baseOid = "c".repeat(40);
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "for-each-ref") {
+        return { stdout: `refs/heads/feat/widget\t${daysAgo(1)}`, stderr: "" };
+      }
+      if (args[0] === "rev-list" && args.some((arg) => arg.includes(baseOid))) {
+        return { stdout: "0\t4", stderr: "" };
+      }
+      throw new Error(`tracking-ref fallback: ${args.join(" ")}`);
+    };
+
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      exec,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+    });
+
+    expect(result.inFlight.workUnits[0]?.behindBase).toEqual({
+      status: "known",
+      value: true,
+      remoteEvidence: "exact",
+    });
+  });
+
   it("propagates a failed local behind-base graph read", async () => {
     await expect(runWorkUnitState({
       ...baseOptions,
