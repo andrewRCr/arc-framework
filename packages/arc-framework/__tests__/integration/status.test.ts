@@ -367,7 +367,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
     materializableWorkUnits: async () => ({
-      candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
     }),
     workUnitState: async () => ({
       inFlight: { workUnits: [] },
@@ -451,7 +451,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
     materializableWorkUnits: async () => ({
-      candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
     }),
     workUnitState: async () => ({
       inFlight: { workUnits: [] },
@@ -721,7 +721,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       errandSweep: async () => ({ stale: [] }),
       errandState: async () => stubErrandState(),
       materializableWorkUnits: async () => ({
-        candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+        candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
       }),
       workUnitState: async () => ({
       inFlight: { workUnits: [] },
@@ -917,7 +917,7 @@ function makeRealWorktreeProbes(
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
     materializableWorkUnits: async () => ({
-      candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
     }),
     workUnitState: async () => ({
       inFlight: { workUnits: [] },

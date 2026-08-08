@@ -69,6 +69,10 @@ describe("findMaterializableErrands", () => {
       remoteTips: new Map([
         ["chore/z", HEAD],
         ["chore/a", HEAD],
+        // Advertised with no identity record behind it. The records are the
+        // materialization authority — a candidate derived from the remote tip alone
+        // would carry no slug to materialize under.
+        ["chore/recordless", HEAD],
       ]),
       locallyPresentBranches: new Set(),
     });
