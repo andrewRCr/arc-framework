@@ -630,7 +630,7 @@ describe("in-flight reshuffle fixture", () => {
         candidates: [],
       });
 
-      await runActiveInFlightExpansion({
+      const expansion = await runActiveInFlightExpansion({
         exec,
         execInput,
         cwd: fixture.cloneA,
@@ -638,6 +638,10 @@ describe("in-flight reshuffle fixture", () => {
         teamMode: false,
         localOnly: false,
         baseBranch: "main",
+      });
+      expect(expansion).toMatchObject({
+        remoteEvidence: "exact",
+        candidateExpansion: { status: "complete", pendingBranchCount: 0 },
       });
 
       await expect(probeMaterializableCandidates(exec, execInput, fixture.cloneA)).resolves.toEqual({

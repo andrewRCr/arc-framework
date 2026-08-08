@@ -473,6 +473,47 @@ export async function fetchRefBounded(options: FetchRefBoundedOptions): Promise<
   return (await runBounded(exec, ["fetch", "--no-filter", remote, branch], timeoutMs)).ok;
 }
 
+/** Maximum candidate fetches in flight at once. */
+const CANDIDATE_FETCH_CONCURRENCY = 4;
+
+/** Inputs for {@link fetchRefsBounded}. */
+export interface FetchRefsBoundedOptions {
+  /** Injectable git executor. */
+  exec: GitExec;
+  /** Remote to fetch from. Defaults to `origin`. */
+  remote?: string;
+  /** Remote branches to fetch so their objects become readable via `git show`. */
+  branches: readonly string[];
+  /** Per-fetch network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
+  timeoutMs?: number;
+}
+
+/**
+ * Bounded-fetch several candidate refs, capping how many run at once so a caller
+ * with many unavailable branches cannot spawn one process per branch. Each branch
+ * keeps its own invocation, so one unreachable candidate does not withhold the
+ * others that did materialize. Callers still establish per-branch availability by
+ * re-reading the objects rather than trusting these results.
+ *
+ * @param options - Executor, branches to fetch, and optional per-fetch timeout.
+ * @returns The branches whose fetch invocation succeeded.
+ */
+export async function fetchRefsBounded(options: FetchRefsBoundedOptions): Promise<string[]> {
+  const { exec, remote = DEFAULT_REMOTE, branches, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  const pending = [...branches];
+  const fetched: string[] = [];
+  const workers = Array.from(
+    { length: Math.min(CANDIDATE_FETCH_CONCURRENCY, pending.length) },
+    async () => {
+      for (let branch = pending.shift(); branch !== undefined; branch = pending.shift()) {
+        if (await fetchRefBounded({ exec, remote, branch, timeoutMs })) fetched.push(branch);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return fetched;
+}
+
 /** Inputs for {@link readMetaAtRef}. */
 export interface ReadMetaAtRefOptions {
   /** Injectable git executor. */

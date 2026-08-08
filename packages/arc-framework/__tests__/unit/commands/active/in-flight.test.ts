@@ -324,9 +324,8 @@ describe("runActiveInFlight", () => {
       remoteEvidence: "not-applicable",
       candidateExpansion: { status: "not-requested", pendingBranchCount: 0 },
     });
-    expect(vi.mocked(io.exec).mock.calls.map(([, args]) => args[0])).not.toEqual(
-      expect.arrayContaining(["ls-remote", "fetch"]),
-    );
+    expect(vi.mocked(io.exec).mock.calls.map(([, args]) => args[0])
+      .filter((command) => command === "ls-remote" || command === "fetch")).toEqual([]);
     expect(io.execInput).not.toHaveBeenCalled();
   });
 
@@ -356,9 +355,8 @@ describe("runActiveInFlight", () => {
       teamMode: false,
       localOnly: false,
     })).rejects.toThrow("Transient identity records could not be inspected completely");
-    expect(vi.mocked(io.exec).mock.calls.map(([, args]) => args[0])).not.toEqual(
-      expect.arrayContaining(["ls-remote", "fetch"]),
-    );
+    expect(vi.mocked(io.exec).mock.calls.map(([, args]) => args[0])
+      .filter((command) => command === "ls-remote" || command === "fetch")).toEqual([]);
   });
 
   it("does not fetch an unavailable configured base head", async () => {

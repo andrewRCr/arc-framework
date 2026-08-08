@@ -18,6 +18,7 @@ import type { GitExec, GitExecInput } from "../../lib/git/exec.js";
 import {
   analyzeInFlightSnapshot,
   deriveInFlight,
+  isEligibleInFlightBranch,
   type AnalyzeInFlightSnapshotResult,
   type InFlightEntry,
   type InFlightInputSnapshot,
@@ -28,7 +29,7 @@ import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../.
 import { readHistoryCompleteness } from "../../lib/git/history-completeness.js";
 import { readObjectAvailability } from "../../lib/git/object-availability.js";
 import {
-  fetchRefBounded,
+  fetchRefsBounded,
   readLocalInFlightRefSnapshot,
   readRemoteHeadSnapshot,
 } from "../../lib/git/remote-ref-reader.js";
@@ -209,9 +210,10 @@ export async function expandActiveInFlight(
     };
   }
 
-  const excludedBranches = new Set([baseBranch ?? "main", ...errandSlugByBranch.keys()]);
+  const errandBranches = new Set(errandSlugByBranch.keys());
   const eligibleTips = Object.fromEntries(
-    Object.entries(snapshot.tips).filter(([branch]) => !excludedBranches.has(branch)),
+    Object.entries(snapshot.tips).filter(([branch]) =>
+      isEligibleInFlightBranch(branch, { baseBranch, errandBranches })),
   );
   const eligibleOids = Object.values(eligibleTips);
   const initialAvailability = await readObjectAvailability({ execInput, oids: eligibleOids, cwd });
@@ -222,9 +224,10 @@ export async function expandActiveInFlight(
   const missingBranches = Object.entries(eligibleTips)
     .filter(([, oid]) => initialAvailability.commits[oid] !== true)
     .map(([branch]) => branch);
-  await Promise.all(missingBranches.map(async (branch) => {
-    await fetchRefBounded({ exec, branch, timeoutMs });
-  }));
+  // One bounded invocation rather than a process per branch: a fresh clone leaves every
+  // advertised head missing, and this runs on the lifecycle preflight path. Per-branch
+  // success is not consulted — the availability re-read below establishes what landed.
+  await fetchRefsBounded({ exec, branches: missingBranches, timeoutMs });
 
   const [objectAvailability, history, localRefs, worktrees] = await Promise.all([
     missingBranches.length === 0
