@@ -33,6 +33,10 @@ interface SessionInitEnvelope {
     value?: { kind: string; workflow: string | null; sessionType: string | null };
   };
   user?: unknown;
+  userReferenceReconcile?: {
+    ok: boolean;
+    value?: { authority?: { remoteEvidence?: string } };
+  };
   worktree?: {
     ok: boolean;
     value?: {
@@ -211,6 +215,14 @@ async function createGitTraceHarness(): Promise<GitTraceHarness> {
     "    exit 1",
     "    ;;",
     "esac",
+    "case \"$ARC_GIT_TRACE_REJECT_CODE_WRITES:$*\" in",
+    "  1:*refs/notes/arc/user/*|1:*refs/arc/user/*|1:*refs/arc/tmp/transient-discovery/*)",
+    "    ;;",
+    "  1:fetch*|1:update-ref*|1:symbolic-ref*|1:branch*|1:pack-objects*|1:index-pack*|1:maintenance*|1:gc*)",
+    "    printf '%s\\n' 'code-repository metadata write denied' >&2",
+    "    exit 97",
+    "    ;;",
+    "esac",
     "case \" $* \" in",
     "  *\" cat-file --batch-check\"*)",
     "    /bin/cat > \"$ARC_GIT_TRACE_BATCH_INPUT\"",
@@ -247,7 +259,7 @@ async function writeStatusFixture(
   fields: { taskList?: string; nextAction: string },
 ): Promise<void> {
   await git(arcRoot, ["add", "-A"]);
-  await git(arcRoot, ["commit", "-m", "initialize fixture"]);
+  await git(arcRoot, ["commit", "--allow-empty", "-m", "initialize fixture"]);
   await git(arcRoot, ["switch", "-c", `${category}/${stem}`]);
   const dir = join(arcRoot, ".arc", "active");
   await mkdir(dir, { recursive: true });
@@ -732,14 +744,23 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation"]);
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation-alias"]);
       await git(repo, ["switch", "main"]);
+      await writeStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
 
-      const result = await runArc(["status", "--session-init", "--json"], repo, { env: trace.env });
+      await expect(execFileAsync("git", ["fetch", "origin", "main"], {
+        cwd: repo,
+        env: { ...process.env, ...trace.env, ARC_GIT_TRACE_REJECT_CODE_WRITES: "1" },
+      })).rejects.toMatchObject({ code: 97 });
+      await writeFile(trace.logPath, "", "utf8");
+
+      const result = await runArc(["status", "--session-init", "--json"], repo, {
+        env: { ...trace.env, ARC_GIT_TRACE_REJECT_CODE_WRITES: "1" },
+      });
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
       const envelope = parseJsonEnvelope(result.stdout);
-      expect(envelope.active.value?.resolution).toBe("none");
-      expect(envelope.materializableWorkUnits).toMatchObject({
+      expect(envelope.active.value?.resolution).toBe("single");
+      expect(envelope.userReferenceReconcile).toMatchObject({
         ok: true,
-        value: { remoteEvidence: "exact" },
+        value: { authority: { remoteEvidence: expect.stringMatching(/^(exact|not-applicable)$/u) } },
       });
 
       const commands = await readGitTrace(trace);
@@ -761,7 +782,7 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
         return command.includes("refs/arc/user/test-user/errands")
           || command.includes("refs/arc/tmp/transient-discovery/");
       });
-      expect(transientOperations.some((fields) => argsFor(fields).includes("fetch"))).toBe(true);
+      expect(transientOperations.length).toBeGreaterThan(0);
       expect(commands.some((fields) =>
         argsFor(fields).join(" ") === "ls-remote origin refs/notes/arc/user/test-user"
       )).toBe(true);

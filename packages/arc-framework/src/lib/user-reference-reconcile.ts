@@ -132,6 +132,18 @@ export type UserReferenceEvidenceAuthorityResult =
       remoteEvidence: "exact";
     }
   | {
+      /**
+       * No remote evidence was required. Remote sync is off or no remote is configured,
+       * which is a deliberate configuration rather than a failed read — so this arm
+       * carries `not-applicable` instead of fabricating an `unreachable` reading, and
+       * the projection offers no reconnect remedy for it.
+       */
+      status: "unavailable";
+      ref: string;
+      reason: "remote-not-required";
+      remoteEvidence: "not-applicable";
+    }
+  | {
       status: "unavailable";
       ref: string;
       remoteEvidence: "unreachable";
@@ -153,7 +165,7 @@ export type UserReferenceAuthorityResult =
 /** Read-only session projection with CLI-owned dispatch. */
 export interface UserReferenceReconcileSessionResult {
   status: "clean" | "pending" | "advisory" | "unavailable" | "conflict";
-  authority: UserReferenceAuthorityResult;
+  authority: UserReferenceEvidenceAuthorityResult;
   plan: UserReferenceReconcilePlan | null;
   recommendedAction: "skip" | "apply" | "surface";
   recommendedCommand: readonly string[] | null;
@@ -401,9 +413,21 @@ export async function resolveUserReferenceAuthority(
  * @returns Typed findings plus a precomposed dedicated-command argv
  */
 export function projectUserReferenceSessionResult(
-  authority: UserReferenceAuthorityResult,
+  authority: UserReferenceEvidenceAuthorityResult,
   surfaces: Omit<PlanUserReferenceReconcileInput, "transitions">,
 ): UserReferenceReconcileSessionResult {
+  // No remote evidence was required, so there is nothing to reconcile and nothing to
+  // report. Surfacing here would ask the operator to fix a configuration they chose.
+  if (authority.status === "unavailable" && authority.remoteEvidence === "not-applicable") {
+    return {
+      status: authority.status,
+      authority,
+      plan: null,
+      recommendedAction: "skip",
+      recommendedCommand: null,
+      recommendedPromptText: "",
+    };
+  }
   if (authority.status !== "ready") {
     return {
       status: authority.status,

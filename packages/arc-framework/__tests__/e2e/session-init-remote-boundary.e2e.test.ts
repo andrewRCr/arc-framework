@@ -22,6 +22,7 @@ interface SessionEnvelope {
   worktree?: unknown;
   baseDistance?: unknown;
   baseBranchSync?: unknown;
+  userReferenceReconcile?: unknown;
   materializableWorkUnits?: {
     ok: boolean;
     value?: {
@@ -97,6 +98,7 @@ describe("session-init E2E — real remote-access boundaries", () => {
       let commonDir: string | undefined;
       try {
         await git(publisher, ["worktree", "add", "-b", "feat/linked-boundary", linked, "main"]);
+        await writeWorkUnitMeta(linked, "linked-boundary", "feat/linked-boundary");
         const unrestricted = await runArc(["status", "--session-init", "--json"], linked);
         expect(unrestricted.exitCode, unrestricted.stdout + unrestricted.stderr).toBe(0);
 
@@ -112,14 +114,16 @@ describe("session-init E2E — real remote-access boundaries", () => {
           worktree: after.worktree,
           baseDistance: after.baseDistance,
           baseBranchSync: after.baseBranchSync,
+          userReferenceReconcile: after.userReferenceReconcile,
         }).toEqual({
           worktree: before.worktree,
           baseDistance: before.baseDistance,
           baseBranchSync: before.baseBranchSync,
+          userReferenceReconcile: before.userReferenceReconcile,
         });
-        expect(after.materializableWorkUnits).toMatchObject({
-          ok: false,
-          error: { kind: "runtime", message: expect.stringContaining("Transient identity records") },
+        expect(after.userReferenceReconcile, JSON.stringify(after.userReferenceReconcile)).toMatchObject({
+          ok: true,
+          value: { authority: { remoteEvidence: expect.stringMatching(/^(exact|not-applicable)$/u) } },
         });
       } finally {
         if (commonDir !== undefined) await execFileAsync("chmod", ["-R", "u+rwX", commonDir]);
@@ -158,7 +162,8 @@ describe("session-init E2E — real remote-access boundaries", () => {
         const objectsBefore = await objectInventory(client);
         const passive = await runArc(["status", "--session-init", "--json"], client);
         expect(passive.exitCode, passive.stdout + passive.stderr).toBe(0);
-        expect(parseJson<SessionEnvelope>(passive.stdout).materializableWorkUnits).toMatchObject({
+        const passiveEnvelope = parseJson<SessionEnvelope>(passive.stdout);
+        expect(passiveEnvelope.materializableWorkUnits, JSON.stringify(passiveEnvelope.materializableWorkUnits)).toMatchObject({
           ok: true,
           value: { remoteEvidence: "pending-fetch", pendingBranchCount: 1, candidates: [] },
         });
@@ -226,6 +231,12 @@ describe("session-init E2E — real remote-access boundaries", () => {
         await git(publisher, ["add", "advance.txt"]);
         await git(publisher, ["commit", "-m", "advance remote main"]);
         await git(publisher, ["push", "origin", "main"]);
+        await git(publisher, ["switch", "-c", "feat/shallow-pending"]);
+        await writeWorkUnitMeta(publisher, "shallow-pending", "feat/shallow-pending");
+        await git(publisher, ["add", "-A"]);
+        await git(publisher, ["commit", "-m", "add shallow pending work unit"]);
+        await git(publisher, ["push", "origin", "feat/shallow-pending"]);
+        await git(publisher, ["switch", "main"]);
         const mainRefspec = "refs/heads/main:refs/remotes/origin/main";
         await git(shallow, ["fetch", "--depth=1", "--force", "origin", mainRefspec]);
         await git(full, ["fetch", "--force", "origin", mainRefspec]);
@@ -238,8 +249,12 @@ describe("session-init E2E — real remote-access boundaries", () => {
         const fullEnvelope = parseJson<SessionEnvelope>(fullResult.stdout);
         for (const slot of ["worktree", "baseDistance", "baseBranchSync"] as const) {
           expect(shallowEnvelope[slot]).toMatchObject({ ok: false, error: { kind: "runtime" } });
-          expect(fullEnvelope[slot]).toMatchObject({ ok: true });
+          expect(fullEnvelope[slot], JSON.stringify(fullEnvelope[slot])).toMatchObject({ ok: true });
         }
+        expect(shallowEnvelope.materializableWorkUnits).toMatchObject({
+          ok: true,
+          value: { candidates: [], pendingBranchCount: 1, remoteEvidence: "pending-fetch" },
+        });
       } finally {
         await Promise.all([
           cleanupTempDir(cloneRoot),
@@ -325,11 +340,13 @@ describe("session-init E2E — real remote-access boundaries", () => {
           env: { PATH: `${wrapperDir}:${process.env.PATH ?? ""}` },
         });
         expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-        expect(parseJson<SessionEnvelope>(result.stdout).currentHusk).toMatchObject({
+        const envelope = parseJson<SessionEnvelope>(result.stdout);
+        expect(envelope.currentHusk, JSON.stringify(envelope.currentHusk)).toMatchObject({
           ok: false,
           error: { kind: "runtime" },
         });
         expect(await objectInventory(client), await readFile(trace, "utf8")).toEqual(before);
+
       } finally {
         await Promise.all([
           cleanupTempDir(clientRoot),

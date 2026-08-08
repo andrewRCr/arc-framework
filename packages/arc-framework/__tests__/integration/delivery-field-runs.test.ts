@@ -1,4 +1,8 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createRawGitExec } from "../../src/lib/io-context.js";
 import { inspectDeliveryBranch } from "../../src/lib/delivery/from-branch.js";
@@ -19,10 +23,20 @@ const FIELD_RUN_TIMEOUT_MS = 20_000;
 
 describe("recorded delivery field runs", () => {
   let repository: string;
+  let fixtureRoot: string | undefined;
 
   beforeAll(async () => {
-    repository = await repositoryRoot();
-    await requireCompleteFieldHistory(repository);
+    const source = await repositoryRoot();
+    await requireCompleteFieldHistory(source);
+    fixtureRoot = await mkdtemp(join(tmpdir(), "arc-delivery-field-runs-"));
+    repository = join(fixtureRoot, "repository");
+    await execFileAsync("git", ["clone", "--quiet", "--shared", "--no-checkout", source, repository]);
+  });
+
+  afterAll(async () => {
+    // `afterAll` still runs when `beforeAll` rejects before this is assigned, and
+    // `rm(undefined, ...)` would throw over the real setup failure.
+    if (fixtureRoot !== undefined) await rm(fixtureRoot, { recursive: true, force: true });
   });
 
   it.each(RUNS)("binds every $workUnitId member to its recorded merge parents", async (run) => {

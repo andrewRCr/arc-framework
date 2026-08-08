@@ -42,7 +42,6 @@ import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type {
   WorktreeSnapshotAnalysisResult,
-  WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import type {
   BaseDistanceSnapshotAnalysisResult,
@@ -95,7 +94,7 @@ export type { RecommendedAction, WorktreeIdentity };
  * with a precomputed action + prompt text the workflow renders directly.
  */
 export type SessionInitWorktreeValue = (
-  WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult
+  WorktreeSnapshotAnalysisResult
 ) & {
   recommendedAction: RecommendedAction;
   /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
@@ -123,8 +122,22 @@ export type SessionInitWorktreeValue = (
  * text pair as the worktree slot, so the workflow renders a behind-base
  * reconcile offer without re-deriving it from state.
  */
+/**
+ * A base-distance reading that resolved before any snapshot evidence was consulted.
+ *
+ * Bounded to exactly those arms: unbounded, the intersection also admitted
+ * `remote-unavailable` with `not-applicable`, which the envelope rule refuses — so a
+ * probe could satisfy the type and still fail the contract at runtime. Named once
+ * because the probe signature and the envelope value state the same contract, and
+ * two copies of it drifted from the schema.
+ */
+export type BaseDistanceNotApplicableResult = BaseDistanceStatusResult & {
+  state: "skipped" | "no-remote" | "detached-head";
+  remoteEvidence: "not-applicable";
+};
+
 export type SessionInitBaseDistanceValue = (
-  BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult
+  BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult
 ) & {
   recommendedAction: RecommendedAction;
   /** Composed orientation text when `recommendedAction === "surface"`; empty string otherwise. */
@@ -608,7 +621,7 @@ export interface SessionInitProbes {
   /** Analyze worktree sync from the supplied request context. */
   worktree: (
     context: SessionRemoteContext,
-  ) => Promise<WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult>;
+  ) => Promise<WorktreeSnapshotAnalysisResult>;
   /** Inspect one resolved active WU through the shared read-only reconcile planner. */
   currentWuReconcile: (
     input: { slug: string; metaPath: string },
@@ -639,7 +652,7 @@ export interface SessionInitProbes {
    */
   baseDistance: (
     context: SessionRemoteContext,
-  ) => Promise<BaseDistanceStatusResult | BaseDistanceSnapshotAnalysisResult>;
+  ) => Promise<BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult>;
   /**
    * Base-branch-sync probe — local `<base>` vs `origin/<base>`. Session-init-only
    * (a between-WU resume is where a silently-stale local base matters). The

@@ -98,13 +98,57 @@ export const CurrentWuReconcileSessionValueViewSchema = z
     }
   });
 
+const UserReferenceAuthorityViewSchema = z.union([
+  z.object({
+    status: z.literal("ready"),
+    ref: NON_EMPTY_TEXT,
+    transitions: z.array(z.unknown()),
+    remoteEvidence: z.enum(["exact", "not-applicable"]),
+  }).loose(),
+  z.object({
+    status: z.literal("pending"),
+    ref: NON_EMPTY_TEXT,
+    reason: z.literal("base-object-pending-fetch"),
+    remoteEvidence: z.literal("pending-fetch"),
+  }).loose(),
+  z.object({
+    status: z.literal("unavailable"),
+    ref: NON_EMPTY_TEXT,
+    reason: z.literal("remote-base-absent"),
+    remoteEvidence: z.literal("exact"),
+  }).loose(),
+  z.object({
+    status: z.literal("unavailable"),
+    ref: NON_EMPTY_TEXT,
+    reason: z.literal("remote-not-required"),
+    remoteEvidence: z.literal("not-applicable"),
+  }).loose(),
+  z.object({
+    status: z.literal("unavailable"),
+    ref: NON_EMPTY_TEXT,
+    remoteEvidence: z.literal("unreachable"),
+    failureReason: z.enum(["timeout", "network", "auth", "error"]),
+  }).loose(),
+  z.object({
+    status: z.literal("conflict"),
+    ref: NON_EMPTY_TEXT,
+    reason: z.enum(["version-conflict", "namespace-corrupt"]),
+    remoteEvidence: z.enum(["exact", "not-applicable"]),
+  }).loose(),
+]).superRefine((value, context) => {
+  const carriesFailureReason = Object.hasOwn(value, "failureReason");
+  if (value.remoteEvidence === "unreachable" && !carriesFailureReason) {
+    context.addIssue({ code: "custom", path: ["failureReason"], message: "unreachable evidence requires a reason" });
+  }
+  if (value.remoteEvidence !== "unreachable" && carriesFailureReason) {
+    context.addIssue({ code: "custom", path: ["failureReason"], message: "only unreachable evidence carries a reason" });
+  }
+});
+
 /** Routing view of the read-only identity-global user-reference reconcile fact. */
 export const UserReferenceReconcileSessionValueViewSchema = z.object({
   status: z.enum(["clean", "pending", "advisory", "unavailable", "conflict"]),
-  authority: z.object({
-    status: z.enum(["ready", "unavailable", "conflict"]),
-    ref: NON_EMPTY_TEXT,
-  }).loose(),
+  authority: UserReferenceAuthorityViewSchema,
   plan: z.object({
     status: z.enum(["clean", "pending", "advisory"]),
     edits: z.array(z.unknown()),
@@ -113,7 +157,60 @@ export const UserReferenceReconcileSessionValueViewSchema = z.object({
   recommendedAction: z.enum(["skip", "apply", "surface"]),
   recommendedCommand: z.array(z.string()).nullable(),
   recommendedPromptText: z.string(),
-}).loose();
+}).loose().superRefine((value, context) => {
+  const authorityStatus = value.authority.status;
+  if (authorityStatus !== "ready") {
+    if (
+      value.status !== authorityStatus
+      || value.plan !== null
+      || value.recommendedAction !== "surface"
+      || value.recommendedCommand !== null
+      || value.recommendedPromptText === ""
+    ) {
+      context.addIssue({ code: "custom", path: ["status"], message: "must match unavailable authority" });
+    }
+    return;
+  }
+
+  if (value.plan === null) {
+    context.addIssue({ code: "custom", path: ["plan"], message: "ready authority requires a reconcile plan" });
+    return;
+  }
+  const expected = value.plan.status === "clean"
+    ? { status: "clean", action: "skip", command: null, promptEmpty: true }
+    : value.plan.status === "pending"
+      ? {
+          status: "pending",
+          action: "apply",
+          command: ["arc", "user", "reconcile-references", "--apply", "--json"],
+          promptEmpty: false,
+        }
+      : {
+          status: "advisory",
+          action: "surface",
+          command: ["arc", "user", "reconcile-references", "--json"],
+          promptEmpty: false,
+        };
+  const commandMatches = expected.command === null
+    ? value.recommendedCommand === null
+    : value.recommendedCommand !== null
+      && value.recommendedCommand.length === expected.command.length
+      && expected.command.every((part, index) => value.recommendedCommand?.[index] === part);
+  const planContentMatches = value.plan.status === "clean"
+    ? value.plan.edits.length === 0 && value.plan.advisories.length === 0
+    : value.plan.status === "pending"
+      ? value.plan.edits.length > 0
+      : value.plan.edits.length === 0 && value.plan.advisories.length > 0;
+  if (
+    value.status !== expected.status
+    || value.recommendedAction !== expected.action
+    || !commandMatches
+    || !planContentMatches
+    || (value.recommendedPromptText === "") !== expected.promptEmpty
+  ) {
+    context.addIssue({ code: "custom", path: ["status"], message: "must match the ready-authority reconcile plan" });
+  }
+});
 
 /** Thin routing view of a worktree synchronization result. */
 export const WorktreeSyncValueViewSchema = z
@@ -312,7 +409,11 @@ const WorkUnitReportViewSchema = z.discriminatedUnion("state", [
   z.object({
     state: z.enum(["awaiting-review", "stale", "blocked", "mergeable", "merged-needs-archival"]),
     behindBase: BehindBaseRelationViewSchema,
-  }).loose(),
+  }).loose().superRefine((value, context) => {
+    if (value.state === "mergeable" && value.behindBase.status !== "known") {
+      context.addIssue({ code: "custom", path: ["behindBase"], message: "mergeable requires known base evidence" });
+    }
+  }),
   z.object({
     state: z.literal("mergeability-unavailable"),
     behindBase: BehindBaseRelationViewSchema,
@@ -459,9 +560,56 @@ export const WorktreeIdentityViewSchema = z.discriminatedUnion("kind", [
 
 /** Recommendation-enriched session worktree view. */
 export const SessionInitWorktreeValueViewSchema = WorktreeSyncValueViewSchema.extend({
+  ...CleanupRemoteEvidenceViewFields,
   ...RECOMMENDATION_SHAPE,
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
   identity: WorktreeIdentityViewSchema,
-}).loose();
+}).loose().superRefine((value, context) => {
+  requireRemoteFailureReason(value, context);
+  const exactStates = new Set(["clean", "remote-ahead", "local-ahead", "diverged", "branch-gone"]);
+  const inapplicableStates = new Set(["skipped", "no-upstream", "detached-head", "no-remote"]);
+  const evidenceMatches = exactStates.has(value.state)
+    ? value.remoteEvidence === "exact"
+    : inapplicableStates.has(value.state)
+      ? value.remoteEvidence === "not-applicable"
+      : value.remoteEvidence === "pending-fetch" || value.remoteEvidence === "unreachable";
+  if (!evidenceMatches) {
+    context.addIssue({ code: "custom", path: ["remoteEvidence"], message: "must match worktree state" });
+  }
+  const countsMatch = value.state === "remote-ahead"
+    ? value.ahead === 0 && value.behind > 0
+    : value.state === "local-ahead"
+      ? value.ahead > 0 && value.behind === 0
+      : value.state === "diverged"
+        ? value.ahead > 0 && value.behind > 0
+        : value.ahead === 0 && value.behind === 0;
+  if (!countsMatch) {
+    context.addIssue({ code: "custom", path: ["ahead"], message: "counts must match worktree state" });
+  }
+  const branchMatches = value.state === "detached-head" ? value.branch === null : value.branch !== null;
+  if (!branchMatches) {
+    context.addIssue({ code: "custom", path: ["branch"], message: "must match worktree state" });
+  }
+  const supersessionMatches = value.state === "diverged"
+    || value.supersession === null
+    || value.supersession === undefined;
+  if (!supersessionMatches) {
+    context.addIssue({ code: "custom", path: ["supersession"], message: "requires a diverged worktree" });
+  }
+  const recommendationMatches = value.state === "remote-ahead"
+    ? (value.recommendedAction === "prompt" && value.recommendedPromptText !== "")
+      || (value.recommendedAction === "surface" && value.recommendedPromptText === "")
+    : value.state === "diverged"
+      ? value.recommendedAction === "surface"
+        && ((value.supersession?.superseded === true) === (value.recommendedPromptText !== ""))
+      : ["local-ahead", "branch-gone", "remote-unavailable"].includes(value.state)
+        ? value.recommendedAction === "surface" && value.recommendedPromptText === ""
+        : value.recommendedAction === "skip" && value.recommendedPromptText === "";
+  if (!recommendationMatches) {
+    context.addIssue({ code: "custom", path: ["recommendedAction"], message: "must match worktree state" });
+  }
+});
 
 /** Recommendation-enriched user session view. */
 export const SessionInitUserValueViewSchema = UserSessionInitValueViewSchema.extend({
@@ -477,8 +625,80 @@ export const SessionInitUserValueViewSchema = UserSessionInitValueViewSchema.ext
 
 /** Recommendation-enriched base-distance view. */
 export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchema.extend(
-  RECOMMENDATION_SHAPE,
-).loose();
+  {
+    ...CleanupRemoteEvidenceViewFields,
+    ...RECOMMENDATION_SHAPE,
+    state: z.enum([
+      "skipped",
+      "clean",
+      "remote-ahead",
+      "local-ahead",
+      "diverged",
+      "no-upstream",
+      "detached-head",
+      "no-remote",
+      "branch-gone",
+      "remote-unavailable",
+    ]),
+    ahead: z.number().int().nonnegative(),
+    behind: z.number().int().nonnegative(),
+    baseOid: z.string().nullable(),
+    unavailableReason: z.string().optional(),
+  },
+).loose().superRefine((value, context) => {
+  requireRemoteFailureReason(value, context);
+  const healthy = ["clean", "remote-ahead", "local-ahead", "diverged"].includes(value.state);
+  const evidenceMatches = healthy
+    ? value.remoteEvidence === "exact" && ["clean", "reconcile"].includes(value.verdict)
+    : value.state === "skipped"
+      ? value.remoteEvidence === "not-applicable" && value.verdict === "skipped"
+      // Detachment and an absent remote both resolve before any snapshot evidence is
+      // consulted, so each reports the not-applicable qualifier rather than omitting it.
+      : value.state === "no-remote" || value.state === "detached-head"
+        ? value.remoteEvidence === "not-applicable" && value.verdict === "unavailable"
+        : value.state === "remote-unavailable"
+          && value.verdict === "unavailable"
+          && ["exact", "pending-fetch", "unreachable"].includes(value.remoteEvidence);
+  if (!evidenceMatches) {
+    context.addIssue({ code: "custom", path: ["remoteEvidence"], message: "must match base-distance state" });
+  }
+  const countsMatch = value.state === "remote-ahead"
+    ? value.ahead === 0 && value.behind > 0
+    : value.state === "local-ahead"
+      ? value.ahead > 0 && value.behind === 0
+      : value.state === "diverged"
+        ? value.ahead > 0 && value.behind > 0
+        : value.ahead === 0 && value.behind === 0;
+  if (!countsMatch || (value.verdict === "clean" && value.behind !== 0) || (value.verdict === "reconcile" && value.behind === 0)) {
+    context.addIssue({ code: "custom", path: ["ahead"], message: "counts must match base-distance verdict" });
+  }
+  // Keyed on state, falling through to evidence only for `remote-unavailable`, the one
+  // state that admits several readings. Indentation tracks nesting depth exactly: the
+  // arms previously sat at mixed depths and read as a grouping other than the one that
+  // executed, which is how a state came to be missing from the ladder above.
+  const unavailableShapeMatches = value.state === "no-remote"
+    ? value.unavailableReason === "no-remote" && value.baseOid === null
+    : value.state === "detached-head"
+      ? value.unavailableReason === "detached-head" && value.baseOid === null
+      : healthy
+        ? value.unavailableReason === undefined && value.baseOid !== null
+        : value.state === "skipped"
+          ? value.unavailableReason === undefined && value.baseOid === null
+          : value.remoteEvidence === "exact"
+            ? value.unavailableReason === "remote-base-absent" && value.baseOid === null
+            : value.remoteEvidence === "pending-fetch"
+              ? value.unavailableReason === "base-object-pending-fetch" && value.baseOid !== null
+              : value.unavailableReason === undefined && value.baseOid === null;
+  if (!unavailableShapeMatches) {
+    context.addIssue({ code: "custom", path: ["unavailableReason"], message: "must match base-distance evidence" });
+  }
+  const recommendationMatches = value.verdict === "reconcile"
+    ? value.recommendedAction === "surface" && value.recommendedPromptText !== ""
+    : value.recommendedAction === "skip" && value.recommendedPromptText === "";
+  if (!recommendationMatches) {
+    context.addIssue({ code: "custom", path: ["recommendedAction"], message: "must match base-distance verdict" });
+  }
+});
 
 const RecommendationValueViewSchema = z.object(RECOMMENDATION_SHAPE).loose();
 

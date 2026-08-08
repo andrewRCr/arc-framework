@@ -98,12 +98,14 @@ import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import {
   analyzeWorktreeSnapshot,
+  readConfiguredUpstreamBranch,
   runPassiveWorktreeInspection,
 } from "../lib/git/worktree-sync.js";
 import { analyzeBaseDistanceSnapshot } from "../lib/git/base-distance.js";
 import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
 import {
   analyzeBaseBranchSnapshot,
+  readLocalBaseOid,
   resolveBaseCheckoutLocus,
 } from "../lib/git/base-branch-sync.js";
 import { analyzeSupersessionSnapshot } from "../lib/git/supersession.js";
@@ -151,8 +153,6 @@ import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/use
 import {
   analyzeUserReferenceAuthority,
   projectUserReferenceSessionResult,
-  type UserReferenceAuthorityResult,
-  type UserReferenceEvidenceAuthorityResult,
 } from "../lib/user-reference-reconcile.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -299,58 +299,6 @@ const NOTES_COMPACTION_NUDGE_MARKER_RELATIVE = ".internal/notes-compaction-last-
 async function readSessionBranch(exec: GitExec, cwd: string): Promise<string | null> {
   const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd })).stdout.trim();
   return branch === "" || branch === "HEAD" ? null : branch;
-}
-
-async function readSessionUpstreamBranch(
-  exec: GitExec,
-  branch: string,
-  cwd: string,
-): Promise<string | null> {
-  const stdout = (await exec(
-    "git",
-    ["for-each-ref", "--format=%(upstream:remotename)%09%(upstream:short)", `refs/heads/${branch}`],
-    { cwd },
-  )).stdout;
-  const records = stdout.split(/\r?\n/u).filter((record) => record !== "");
-  if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");
-  const record = records[0];
-  if (record === undefined) return null;
-  const [remoteName = "", upstreamShort = ""] = record.split("\t");
-  if (upstreamShort === "") return null;
-  // The advertised tips are keyed by branch name alone, while `%(upstream:short)`
-  // renders `<remote>/<branch>`. Strip the exact remote rather than the first path
-  // segment, because the tracked branch name may itself contain a slash.
-  const remotePrefix = `${remoteName}/`;
-  return upstreamShort.startsWith(remotePrefix) ? upstreamShort.slice(remotePrefix.length) : upstreamShort;
-}
-
-async function readLocalBaseOid(
-  exec: GitExec,
-  baseBranch: string,
-  cwd: string,
-): Promise<string | null> {
-  try {
-    const oid = (await exec(
-      "git",
-      ["rev-parse", "--verify", `refs/heads/${baseBranch}^{commit}`],
-      { objectAccess: "local-only", cwd },
-    )).stdout.trim();
-    return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid) ? oid : null;
-  } catch {
-    return null;
-  }
-}
-
-function legacyUserReferenceAuthority(
-  authority: UserReferenceEvidenceAuthorityResult,
-): UserReferenceAuthorityResult {
-  if (authority.status === "ready") {
-    return { status: "ready", ref: authority.ref, transitions: authority.transitions };
-  }
-  if (authority.status === "conflict") {
-    return { status: "conflict", ref: authority.ref, reason: authority.reason };
-  }
-  return { status: "unavailable", ref: authority.ref };
 }
 
 function sessionCleanupBaseEvidence(context: SessionRemoteContext): CleanupBaseEvidence {
@@ -854,7 +802,7 @@ export async function handleStatus(
         const prerequisites = sessionRemotePrerequisites(context);
         const upstreamBranch = branch === null || !remoteSyncEnabled || context.kind === "not-needed"
           ? null
-          : await readSessionUpstreamBranch(exec, branch, cwd);
+          : await readConfiguredUpstreamBranch(exec, branch, cwd);
         const supplied = prerequisites.kind === "supplied"
           ? prerequisites
           : {
@@ -915,6 +863,9 @@ export async function handleStatus(
             integrationEvidence: null,
             overlap: null,
             register: null,
+            // Detachment resolves before any snapshot evidence is consulted, so this
+            // arm carries the explicit not-applicable qualifier rather than omitting it.
+            remoteEvidence: "not-applicable" as const,
           };
         }
         if (prerequisites.kind === "not-needed") {
@@ -930,6 +881,7 @@ export async function handleStatus(
                 integrationEvidence: null,
                 overlap: null,
                 register: null,
+                remoteEvidence: "not-applicable" as const,
               }
             : {
                 mode: "advisory" as const,
@@ -943,6 +895,7 @@ export async function handleStatus(
                 integrationEvidence: null,
                 overlap: null,
                 register: null,
+                remoteEvidence: "not-applicable" as const,
               };
         }
         const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
@@ -1028,9 +981,12 @@ export async function handleStatus(
           objectAccess: "local-only",
         });
         const authority = prerequisites.kind === "supplied" || protection === "partial"
-          ? legacyUserReferenceAuthority(await analyzeUserReferenceAuthority({
+          ? await analyzeUserReferenceAuthority({
             protection,
             baseBranch,
+            // The unsupplied arms are reachable only under `partial` protection, which
+            // returns before either is read. They are placeholders for an unused
+            // parameter rather than evidence, and never reach a result.
             snapshot: prerequisites.kind === "supplied"
               ? prerequisites.snapshot
               : { kind: "unreachable", failureReason: "error" },
@@ -1038,8 +994,17 @@ export async function handleStatus(
               ? prerequisites.objectAvailability
               : { kind: "unavailable", reason: "execution" },
             enumerateAt: (ref) => enumerateGitRetirementRecords(localOnlyExec, ref),
-          }))
-          : { status: "unavailable" as const, ref: `origin/${baseBranch}` };
+          })
+          : {
+              // `not-needed` means remote sync is off or no remote is configured. That is
+              // a deliberate configuration, not a failed read, so this reports the
+              // not-applicable qualifier as the sibling probes do rather than fabricating
+              // an unreachable reading the operator would read as a network fault.
+              status: "unavailable" as const,
+              ref: `origin/${baseBranch}`,
+              reason: "remote-not-required" as const,
+              remoteEvidence: "not-applicable" as const,
+            };
         const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
         return projectUserReferenceSessionResult(authority, {
           userInbox: {

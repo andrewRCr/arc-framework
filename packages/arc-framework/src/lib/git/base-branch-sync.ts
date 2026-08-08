@@ -242,14 +242,20 @@ export type BaseBranchSnapshotAnalysisResult = z.infer<
  *
  * @param exec - Local-only Git execution boundary.
  * @param baseBranch - Configured local base branch.
+ * @param cwd - Repository root the read runs against; see
+ * {@link readConfiguredUpstreamBranch} for why a request-scoped caller must name it.
  * @returns The validated base commit, or null only when the local ref is absent.
  */
-export async function readLocalBaseOid(exec: GitExec, baseBranch: string): Promise<string | null> {
+export async function readLocalBaseOid(
+  exec: GitExec,
+  baseBranch: string,
+  cwd?: string,
+): Promise<string | null> {
   try {
     const oid = (await exec(
       "git",
       ["rev-parse", "--verify", "--quiet", `refs/heads/${baseBranch}^{commit}`],
-      { objectAccess: "local-only" },
+      { objectAccess: "local-only", ...(cwd === undefined ? {} : { cwd }) },
     )).stdout.trim();
     if (!isGitObjectId(oid)) {
       throw new Error("Git did not return a valid local base commit.");

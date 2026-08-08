@@ -654,7 +654,10 @@ describe("deep advisory routing views", () => {
       SessionInitWorktreeValueViewSchema,
       {
         state: "clean",
+        ahead: 0,
+        behind: 0,
         branch: "feat/test",
+        remoteEvidence: "exact",
         identity: {
           kind: "linked",
           path: "/worktree",
@@ -683,6 +686,11 @@ describe("deep advisory routing views", () => {
       SessionInitBaseDistanceValueViewSchema,
       {
         verdict: "clean",
+        state: "clean",
+        ahead: 0,
+        behind: 0,
+        baseOid: "a".repeat(40),
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
         evidence: { deep: { retained: true } },
