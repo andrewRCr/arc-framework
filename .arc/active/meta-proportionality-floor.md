@@ -17,7 +17,7 @@
 - **Next Task:** Task 1.1 — Proportionality section in DEV-RULES.ARC (line ~19)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — author the floor in the package source, then mirror to .arc/
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

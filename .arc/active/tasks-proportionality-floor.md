@@ -214,37 +214,62 @@ hosted-review change this work unit does not make.
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 whole — Markdown lint, the three ARC contract checks, `lint:ts`, `lint:sh`, both type
+  checks, full suite (743 files / 9,607 tests, 1 skipped), and build. All passed.
+
+- _Success criteria:_ 9 criteria, all met, none superseded. Verified against file states, the install manifest,
+  and the gates rather than task markings. One advisory adversarial pass ran at the `Light` cap and returned zero
+  findings; its three load-bearing claims were re-verified against source, and its reading of "one carrier line"
+  corrected a deviation note this pass had drafted. Recorded caveat: nothing executable fails if the floor is
+  deleted, which is the design's accepted position rather than a gap.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `DEV-RULES.ARC` carries a `## Proportionality` section of 150-170 words, targeting ~160 —
+- `[x]` `DEV-RULES.ARC` carries a `## Proportionality` section of 150-170 words, targeting ~160 —
   whitespace-separated tokens containing a word character, excluding the heading — adjacent to § Scaled Process,
   Invariant Discipline, with all nine load-bearing clauses present and no `[invariant]` marker
+    - 160 words in both copies. A normalized character-level comparison against the approved text in the design
+      returns an exact match, so the nine clauses and their counterweight ordering are present verbatim rather
+      than by inspection.
 
-- `[ ]` Neither copy of `DEV-RULES.PROJECT` contains the Scope-discipline lines, and the floor carries the
+- `[x]` Neither copy of `DEV-RULES.PROJECT` contains the Scope-discipline lines, and the floor carries the
   authority attribution that replaces them
 
-- `[ ]` `template-draft.md` contains no `## Scope Estimate` and carries a scope-boundary (Won't Do) section that
+- `[x]` `template-draft.md` contains no `## Scope Estimate` and carries a scope-boundary (Won't Do) section that
   retains the dependencies prompt
+    - Surviving matches for the old heading are existing `backlog/` drafts, which the forward-only no-go
+      requires be left alone.
 
-- `[ ]` `draft-design.md` and `create-spec.md` each carry one boundary carry-forward line, and `create-spec`
+- `[x]` `draft-design.md` and `create-spec.md` each carry one boundary carry-forward line, and `create-spec`
   § Write and save instructs the author to retain the boundary carrier when emitting a spec
+    - `create-spec`'s carry-forward landed as a section in the all-forms band rather than a bare line, matching
+      that file's existing pattern. Not a deviation: the design uses "line" for one instruction, calling the
+      `brief` form's three-line carrier "one shipped carrier line".
 
-- `[ ]` All four spec templates carry the amendment-contract line at their existing boundary surface, with the
+- `[x]` All four spec templates carry the amendment-contract line at their existing boundary surface, with the
   `brief` form's carrier governing its scope-boundary clause alone, and no new section added to any of them
+    - Heading counts are unchanged in all four.
 
-- `[ ]` `adversarial-review.md` § Context provisioning lists the governing spec's scope boundary **for** the
+- `[x]` `adversarial-review.md` § Context provisioning lists the governing spec's scope boundary **for** the
   frontline and standard review rows and carries the self-contained finding-shape sentence, both explicitly scoped
   to those two rows and conditioned on the change being spec-governed; its string assertions at all three sites
   still pass, including the negative one; no rubric method is modified
+    - Single diff hunk, inside § Context provisioning; § Severity model and § Exit gate untouched and no rubric
+      file in the change set at all.
 
-- `[ ]` The eight `Framework` files among the touched set are byte-identical across the package source and the
+- `[x]` The eight `Framework` files among the touched set are byte-identical across the package source and the
   project instance with the framework-sync gate green; the two `Configurable` files carry the intended edit in
   both copies, verified per copy rather than by that gate
+    - The 8 / 2 split is confirmed from the install manifest's own classification rather than assumed, and each
+      `Configurable` copy's remaining divergence matches its pre-edit baseline.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
+    - One caveat recorded rather than passed silently: no executable check fails if the floor itself is removed
+      from both copies. That is the design's accepted position — the boundary rules out new machinery, and the
+      amendment model is likewise visibility-based rather than gated.
