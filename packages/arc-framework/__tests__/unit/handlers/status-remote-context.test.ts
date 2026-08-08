@@ -93,6 +93,12 @@ describe("createSessionRemoteContextReader", () => {
     if (first.kind !== "available") return;
     expect(Object.isFrozen(first.snapshot.tips)).toBe(true);
     expect(Object.isFrozen(first.objectAvailability)).toBe(true);
+    // The commits map is the shared evidence dependents read; freezing only its
+    // wrapper would still let one slot mutate what every other slot sees.
+    expect(first.objectAvailability.kind).toBe("complete");
+    if (first.objectAvailability.kind === "complete") {
+      expect(Object.isFrozen(first.objectAvailability.commits)).toBe(true);
+    }
     expect(calls.filter((call) => call.startsWith("ls-remote"))).toHaveLength(1);
     expect(calls.filter((call) => call.startsWith("batch:"))).toEqual([`batch:${oid}\n`]);
   });

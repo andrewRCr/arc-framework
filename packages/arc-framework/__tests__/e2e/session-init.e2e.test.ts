@@ -189,9 +189,11 @@ async function createGitTraceHarness(): Promise<GitTraceHarness> {
   const wrapperPath = join(binDir, "git");
   await writeFile(wrapperPath, [
     "#!/bin/sh",
-    "printf '%s\\t' \"$PWD\" >> \"$ARC_GIT_TRACE_LOG\"",
-    "printf '%s\\t' \"$@\" >> \"$ARC_GIT_TRACE_LOG\"",
-    "printf '\\n' >> \"$ARC_GIT_TRACE_LOG\"",
+    // Compose the record, then append it in one write: the probes run concurrently, so
+    // separate appends can interleave mid-record and corrupt the trace being asserted on.
+    // The tab-per-field shape is preserved because the reader splits records on tabs.
+    "__arc_record=$(printf '%s\\t' \"$PWD\" \"$@\")",
+    "printf '%s\\n' \"$__arc_record\" >> \"$ARC_GIT_TRACE_LOG\"",
     "case \"$ARC_GIT_TRACE_HISTORY:$*\" in",
     "  shallow:*\"rev-parse --is-shallow-repository\"*)",
     "    printf '%s\\n' 'true'",

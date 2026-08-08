@@ -132,13 +132,17 @@ describe("session remote-context staging", () => {
       prerequisite: "remote-configuration",
     }));
     const independent = safeProbe("dirty", async () => "local-clean");
+    const dependent = vi.fn(async () => "must-not-resolve");
 
     const [worktree, baseDistance, dirty] = await Promise.all([
-      slot.run("worktree", async () => "must-not-resolve"),
-      slot.run("baseDistance", async () => "must-not-resolve"),
+      slot.run("worktree", dependent),
+      slot.run("baseDistance", dependent),
       independent,
     ]);
 
+    // The prerequisite short-circuits: a dependent probe that still ran would have
+    // spent its remote work before the typed failure reached the caller.
+    expect(dependent).not.toHaveBeenCalled();
     expect(worktree.isErr() && worktree.error).toMatchObject({
       slot: "worktree",
       message: "Session remote prerequisite failed: remote-configuration.",

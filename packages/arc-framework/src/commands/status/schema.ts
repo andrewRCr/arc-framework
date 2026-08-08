@@ -668,12 +668,15 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
       requireExactPresence(value, context, "sweep", rosterSuccessful);
     }
 
-    if (hasOwn(value, "currentHusk")) {
-      const validLocus = worktreeIdentity.kind === "linked" && worktree.branch === null;
-      if (!validLocus) {
-        addPresenceIssue(context, "currentHusk", "requires a linked branchless worktree advisory");
-      }
-    }
+    // Presence is exact rather than merely permitted: omission means the locus is
+    // inapplicable, so an eligible locus that omitted the slot would hide a failed
+    // probe as inapplicability instead of publishing it as `{ ok: false }`.
+    requireExactPresence(
+      value,
+      context,
+      "currentHusk",
+      worktreeIdentity.kind === "linked" && worktree.branch === null,
+    );
 
     if (!identityKnown) {
       requireExactPresence(value, context, "orphanBranchSweep", worktreeIdentity.kind === "primary");

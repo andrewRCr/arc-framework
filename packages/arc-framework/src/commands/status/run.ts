@@ -253,14 +253,13 @@ export async function runSessionInitStatus(
 
   // Current-locus husk/transient provenance is a linked + branchless
   // refinement, not a new sync state. Ordinary branched resumes skip the read.
-  const currentHuskSlot =
+  const currentHusk =
     worktreeIdentity.kind === "linked" && worktree.isOk() && worktree.value.branch === null
       ? await remote.run(
         "currentHusk",
         (context) => probes.currentHusk(context, worktreeIdentity.path),
       )
       : undefined;
-  const currentHusk = currentHuskSlot;
 
   // Base-distance enrichment mirrors the worktree slot's shape. Its
   // recommendation is an independent advisory (behind-base reconcile offer),

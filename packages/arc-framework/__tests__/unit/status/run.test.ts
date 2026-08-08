@@ -883,8 +883,9 @@ describe("runSessionInitStatus — orchestration", () => {
       snapshot: { kind: "unreachable", failureReason: "network" },
     };
     const received: SessionRemoteContext[] = [];
+    const remoteContext = vi.fn(async () => context);
     const probes = sessionInitProbes({
-      remoteContext: async () => context,
+      remoteContext,
       active: async () => activeSessionInit({ resolution: "none", path: null }),
       worktree: async (value) => {
         received.push(value);
@@ -939,6 +940,9 @@ describe("runSessionInitStatus — orchestration", () => {
 
     expect(received).toHaveLength(10);
     expect(received.every((value) => value === context)).toBe(true);
+    // Identical references alone would also hold for a probe returning a constant;
+    // the composition happens once only if the reader is invoked once.
+    expect(remoteContext).toHaveBeenCalledTimes(1);
     expect(result.worktree.ok && result.worktree.value.state).toBe("branch-gone");
     expect(result.recovery?.ok).toBe(true);
     expect(result.sweep?.ok).toBe(true);
@@ -967,6 +971,16 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(result.baseBranchSync.ok).toBe(false);
     expect(result.dirty).toEqual({ ok: true, value: { state: "dirty", fileCount: 2 } });
     expect(result.config.ok).toBe(true);
+    // The gated second-stage slots resolve on a different path in the compositor, so
+    // eager-slot isolation does not imply theirs.
+    const prerequisiteError = {
+      ok: false,
+      error: { kind: "runtime", message: "Session remote prerequisite failed: remote-configuration." },
+    };
+    expect(result.sweep).toEqual(prerequisiteError);
+    expect(result.orphanBranchSweep).toEqual(prerequisiteError);
+    expect(result.materializableWorkUnits).toEqual(prerequisiteError);
+    expect(result.workUnitState).toEqual(prerequisiteError);
   });
 
   it("exposes the domainRules slot with ok=true on success", async () => {

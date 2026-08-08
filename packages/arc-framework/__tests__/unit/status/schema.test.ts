@@ -41,8 +41,8 @@ describe("shared git routing views", () => {
       },
       guidance: null,
       remoteEvidence: "pending-fetch",
-      recommendedAction: "prompt",
-      recommendedPromptText: "Materialize and synchronize the local main branch?",
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
     };
 
     expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(pending).success).toBe(true);
@@ -50,10 +50,25 @@ describe("shared git routing views", () => {
       ...pending,
       failureReason: "network",
     }).success).toBe(false);
-    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
-      ...pending,
-      remoteEvidence: "unreachable",
+    // A valid unreachable baseline, so the remedy assertion below varies one field
+    // rather than relying on other crossed fields to force the rejection.
+    const unreachable = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
       refreshRemedy: null,
+      guidance: "Remote base evidence is unavailable (network).",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+      recommendedAction: "surface",
+      recommendedPromptText: "Remote base evidence is unavailable (network).",
+    };
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(unreachable).success).toBe(true);
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
+      ...unreachable,
+      refreshRemedy: pending.refreshRemedy,
     }).success).toBe(false);
   });
 

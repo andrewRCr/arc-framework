@@ -644,10 +644,12 @@ describe("session-init envelope schema", () => {
     expectInvalid(missingSweep);
   });
 
-  it("allows current-husk omission and runtime failure only at a linked branchless locus", () => {
+  it("requires current-husk at a linked branchless locus and forbids it elsewhere", () => {
+    // An eligible locus always emits the slot, so omission there would report a failed
+    // probe as an inapplicable locus rather than as the degraded slot it is.
     const omitted = fixture("current-husk");
     delete omitted.currentHusk;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
+    expectInvalid(omitted);
 
     expectInvalid({
       ...fixture("orient"),
