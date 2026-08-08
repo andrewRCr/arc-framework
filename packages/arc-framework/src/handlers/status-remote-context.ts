@@ -101,8 +101,12 @@ export function createSessionRemoteContextReader(
       if (!remotes.split(/\r?\n/u).includes("origin")) {
         return Object.freeze({ kind: "not-needed" as const, reason: "no-remote" as const });
       }
+      // The executor is not bound to a root, so this must name the request's own
+      // directory: reading heads from the process directory would let one request
+      // combine a snapshot and its availability facts from different repositories.
       const snapshot = await readRemoteHeadSnapshot({
         exec: options.exec,
+        cwd: options.cwd,
         scope: { kind: "all-heads" },
       });
       if (snapshot.kind !== "available") {

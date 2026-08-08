@@ -69,6 +69,7 @@ async function runBounded(
   exec: GitExec,
   args: string[],
   timeoutMs: number,
+  cwd?: string,
 ): Promise<BoundedResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => {
@@ -79,6 +80,7 @@ async function runBounded(
       signal: controller.signal,
       interaction: PASSIVE_REMOTE_INTERACTION,
       diagnosticLocale: "stable",
+      ...(cwd === undefined ? {} : { cwd }),
     });
     return { ok: true, stdout };
   } catch {
@@ -128,6 +130,12 @@ export interface ReadLiveRemoteHeadsOptions {
   remote?: string;
   /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
+  /**
+   * Repository root the read runs against. The executor is not bound to a root, so a
+   * caller composing one request's evidence must name it, or the read resolves against
+   * the process directory and can describe a different repository.
+   */
+  cwd?: string;
 }
 
 /** Remote branch scope requested from the bounded snapshot reader. */
@@ -178,6 +186,7 @@ export async function readRemoteHeadSnapshot(
     remote = DEFAULT_REMOTE,
     scope,
     timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+    cwd,
   } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => {
@@ -191,6 +200,7 @@ export async function readRemoteHeadSnapshot(
       signal: controller.signal,
       interaction: PASSIVE_REMOTE_INTERACTION,
       diagnosticLocale: "stable",
+      ...(cwd === undefined ? {} : { cwd }),
     });
     const parsed = parseLiveMembership(stdout);
     if (!parsed.complete) return { kind: "unreachable", failureReason: "error" };
@@ -486,27 +496,50 @@ export interface FetchRefsBoundedOptions {
   branches: readonly string[];
   /** Per-fetch network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
+  /**
+   * Deadline for the whole request in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS},
+   * so the aggregate cost matches one bounded read however many branches are pending.
+   */
+  totalTimeoutMs?: number;
+  /** Injectable monotonic clock, for deterministic deadline coverage. */
+  now?: () => number;
 }
 
 /**
  * Bounded-fetch several candidate refs, capping how many run at once so a caller
  * with many unavailable branches cannot spawn one process per branch. Each branch
  * keeps its own invocation, so one unreachable candidate does not withhold the
- * others that did materialize. Callers still establish per-branch availability by
+ * others that did materialize. A whole-request deadline bounds the total cost:
+ * without it, an unreachable remote would charge each sequential round its own
+ * timeout on a request path. Callers still establish per-branch availability by
  * re-reading the objects rather than trusting these results.
  *
- * @param options - Executor, branches to fetch, and optional per-fetch timeout.
- * @returns The branches whose fetch invocation succeeded.
+ * @param options - Executor, branches to fetch, and optional per-fetch and total deadlines.
+ * @returns The branches whose fetch invocation succeeded. Order reflects completion,
+ * not input order, and is not part of the contract — callers re-read availability.
  */
 export async function fetchRefsBounded(options: FetchRefsBoundedOptions): Promise<string[]> {
-  const { exec, remote = DEFAULT_REMOTE, branches, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  const {
+    exec,
+    remote = DEFAULT_REMOTE,
+    branches,
+    timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+    totalTimeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+    now = () => Date.now(),
+  } = options;
   const pending = [...branches];
   const fetched: string[] = [];
+  const deadline = now() + totalTimeoutMs;
   const workers = Array.from(
     { length: Math.min(CANDIDATE_FETCH_CONCURRENCY, pending.length) },
     async () => {
       for (let branch = pending.shift(); branch !== undefined; branch = pending.shift()) {
-        if (await fetchRefBounded({ exec, remote, branch, timeoutMs })) fetched.push(branch);
+        // Claim no further branch once the request deadline passes; whatever already
+        // materialized still counts, and the rest stay pending for the caller to report.
+        const remaining = deadline - now();
+        if (remaining <= 0) return;
+        const bounded = Math.min(timeoutMs, remaining);
+        if (await fetchRefBounded({ exec, remote, branch, timeoutMs: bounded })) fetched.push(branch);
       }
     },
   );

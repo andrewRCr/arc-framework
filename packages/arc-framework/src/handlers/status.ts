@@ -857,6 +857,24 @@ export async function handleStatus(
         const resolved = await resolvedSettingsP;
         const baseBranch = resolved.settings["branch.base"];
         const prerequisites = sessionRemotePrerequisites(context);
+        // Detachment outranks the remote shortcuts, as it does inside the analyzer:
+        // returning early on a disabled or absent remote would drop the detached-HEAD
+        // reason whenever both conditions hold.
+        if (await readSessionBranch(exec) === null) {
+          return {
+            mode: "advisory" as const,
+            verdict: "unavailable" as const,
+            state: "detached-head" as const,
+            ahead: 0,
+            behind: 0,
+            base: null,
+            baseOid: null,
+            unavailableReason: "detached-head" as const,
+            integrationEvidence: null,
+            overlap: null,
+            register: null,
+          };
+        }
         if (prerequisites.kind === "not-needed") {
           return prerequisites.reason === "remote-sync-disabled"
             ? {

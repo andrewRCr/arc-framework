@@ -296,7 +296,9 @@ export interface SessionInitProbeResult {
    * Derived orientation for a linked branchless checkout that is an exact,
    * locally completed stamped WU husk. This advisory is derived independently
    * of worktree sync state from the current checkout marker and Git topology.
-   * Omitted on ordinary branched/primary paths and when the probe degrades.
+   * Omission means the locus is inapplicable — an ordinary branched or primary path.
+   * An eligible linked branchless locus always publishes the slot, so a degraded probe
+   * appears as `{ ok: false }` there rather than as an absent slot.
    */
   currentHusk?: Probe<CurrentHuskAdvisory | null>;
   /**

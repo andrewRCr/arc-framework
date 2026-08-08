@@ -329,8 +329,9 @@ matters, re-probe to confirm.
 **Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
 — SESSION-NOTES reads below would be stale otherwise.
 
-**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against a freshly
-fetched base OID. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
+**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against the
+advertised base OID from the session's shared passive remote evidence; the slot performs no fetch of
+its own. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
 analyzer-owned register text, or `skip` for every other verdict; it never resolves to `pull` / `prompt`.
 Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's

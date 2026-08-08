@@ -425,6 +425,28 @@ describe("fetchRefsBounded", () => {
     expect(vi.mocked(exec)).toHaveBeenCalledTimes(12);
   });
 
+  it("stops claiming branches once the request deadline passes", async () => {
+    // Every fetch consumes its full per-fetch bound, as an unreachable remote would.
+    let clock = 0;
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
+      clock += 1000;
+      throw new Error("timed out");
+    });
+
+    const fetched = await fetchRefsBounded({
+      exec,
+      branches: Array.from({ length: 40 }, (_value, index) => `feat/${index}`),
+      timeoutMs: 1000,
+      totalTimeoutMs: 3000,
+      now: () => clock,
+    });
+
+    // Without an aggregate deadline this would charge ceil(40 / 4) rounds of the
+    // per-fetch bound; the deadline caps the whole request instead.
+    expect(fetched).toEqual([]);
+    expect(vi.mocked(exec).mock.calls.length).toBeLessThan(40);
+  });
+
   it("runs no fetch for an empty branch list", async () => {
     const exec: GitExec = vi.fn();
 
