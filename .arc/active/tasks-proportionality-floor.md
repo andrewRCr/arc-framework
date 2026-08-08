@@ -175,54 +175,42 @@ requirements; editing the markdown would reach the same two lanes while leaving 
 requirement the contract does not carry. Closing that gap means bumping the typed floor, which is a
 hosted-review change this work unit does not make.
 
-### `[ ]` **3.1 Boundary and finding-shape provisioning on the frontline and standard rows**
+### `[x]` **3.1 Boundary and finding-shape provisioning on the frontline and standard rows**
 
 - _Goal:_ A frontline or standard pass over a spec-governed change arrives already holding that spec's scope
   boundary, and a finding that proposes crossing it names the crossing and grounds it in behavior required for
   correctness, safety, or a stated goal.
 
-- _Approach:_ Both additions land as one short prose block after § Context provisioning's artifact-set table,
-  naming the frontline review and standard review rows explicitly and conditioning both on the change being
-  governed by a spec. The table's cells stay as they are: its rows list unconditional artifact sets, and a
-  conditional entry inside a cell breaks that shape.
+    - `[x]` **3.1.a Capture the two-copy baseline**
+        - Captured the pre-edit cross-copy diff (20 lines) for the post-edit comparison in 3.1.c.
 
-- _Rationale:_ Explicit row scoping is required rather than stylistic. § Context provisioning is one shared
-  section, so an unqualified sentence there reads on every fire-point — including the planning rows, where the
-  boundary is the artifact under audit rather than context for it. The two lanes also run routinely on errands and
-  off-work-unit changes where no boundary exists.
+    - `[x]` **3.1.b Edit the package source**
+        - Added two short paragraphs to § Context provisioning, seated with the existing row-specific
+          provisioning note rather than inside the artifact-set table, so the table's rows stay unconditional.
+          The first supplies the governing spec's scope boundary on the frontline and standard rows and says
+          there is nothing extra to supply where no boundary exists; the second obliges a finding whose remedy
+          crosses it to say so and ground the crossing in required behavior, naming what does not count as a
+          ground.
+        - Stated self-contained — no rail cited by name — and clear of the three phrases the negative assertion
+          forbids, verified over the concatenated `standard-review` + `adversarial-review` text the assertion
+          actually reads.
+        - No rubric touched: the edit stays inside § Context provisioning, and § Severity model and § Exit gate
+          are unchanged.
 
-- _Note:_ State the finding-shape obligation **self-contained**. A reviewer cannot be assumed to load the rules
-  files, so the obligation must not cite a rail by name and leave the reviewer to chase it.
+    - `[x]` **3.1.c Apply the same edit to the project instance**
+        - Targeted edit rather than a copy. Re-diffed against the 3.1.a baseline: the cross-copy divergence is
+          byte-for-byte unchanged, so both copies took exactly this edit and nothing else.
 
-    - `[ ]` **3.1.a Capture the two-copy baseline**
-        - Diff the two copies before editing either, for the same reason Task 1.2.a does it: once both are
-          edited, a pre-existing difference is indistinguishable from an introduced one.
+    - `[x]` **3.1.d Confirm the existing string assertions still hold**
+        - `framework-sync.test.ts` and `pr-open-extensions.test.ts` run green both in the full suite and on
+          their own (34 tests), covering all three assertion sites including the negative one.
+        - Markdown gate, ARC contract checks, and the full code checks green — both type checks run, suite at
+          743 files.
 
-    - `[ ]` **3.1.b Edit the package source**
-        - In `packages/arc-framework/arc/system/methods/adversarial-review.md` § Context provisioning, add the
-          governing spec's scope boundary for the frontline and standard rows, plus the finding-shape sentence
-          bound to those same two rows: a finding whose remedy crosses the boundary must say so and ground the
-          crossing in behavior required for correctness, safety, or a stated goal.
-        - Write clear of three phrases a negative test assertion forbids in this file: `per-chunk receipt`,
-          `durable scope identity`, and `review-gate runtime state`, matched case-insensitively. The middle one is
-          the live risk, since this edit's own subject is scope vocabulary.
-        - Change no rubric: leave `frontline-review`, `standard-review`, and `implementation-audit` untouched, and
-          add, remove, or reweight no dimension. § Severity model and § Exit gate are sections of the file this
-          subtask opens, so they need protecting here rather than there — the edit stays inside § Context
-          provisioning and touches neither.
-
-    - `[ ]` **3.1.c Apply the same edit to the project instance**
-        - The file is `Configurable` and the copies already differ, so make a targeted edit in
-          `.arc/system/methods/adversarial-review.md` rather than copying. Re-diff and compare against the 3.1.a
-          baseline: the only new difference should be this edit.
-
-    - `[ ]` **3.1.d Confirm the existing string assertions still hold**
-        - Three sites assert on this file's content across two test files, and two of them read **both** copies:
-          one case in `framework-sync.test.ts` (package copy only), and two in `pr-open-extensions.test.ts` (both
-          copies). Editing only one copy satisfies neither of the latter two.
-        - Run the code checks — this phase's edits are Markdown but reach a file under test, so the Markdown-only
-          gate carve-out does not apply here. Both type checks are needed before declaring types green.
-        - Run the Markdown gate and the ARC contract checks over the phase's edits as well.
+- _Outcome:_ The floor's scope-boundary clause now has a reviewer-side counterpart on the two lanes that see
+  implementation changes. The obligation is stated so a reviewer holding only this method can follow it, and the
+  row scoping keeps it off the planning fire-points, where the boundary is the artifact under audit rather than
+  context for it.
 
 ## **Phase 4:** Verification
 
