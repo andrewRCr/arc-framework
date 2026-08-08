@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design — formalization-ready draft captured (adversarial pass converged)
+- **Last Completed:** create-spec — spec finalized at `outline` form; two adversarial passes, 13 findings resolved
 - **Next Task:** [none]
 - **Blockers:** [none]
 
