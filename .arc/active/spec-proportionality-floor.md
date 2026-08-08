@@ -46,8 +46,8 @@ the issue-triage path; the floor must simply not appear to.
 **D1 — A `## Proportionality` section lands in `DEV-RULES.ARC`, adjacent to § Scaled Process, Invariant
 Discipline.** The adjacency carries the pairing: that section says discipline never scales down, this one says
 machinery never scales up unearned. The section is written as a compression of `assess-design-proportionality`'s
-own judgment questions, so rule and method are one doctrine at two altitudes rather than two doctrines. Capped
-at ≤160 words. The approved text (160 words):
+own judgment questions, so rule and method are one doctrine at two altitudes rather than two doctrines. Targeted
+at ~160 words within a 150-170 tolerance band. The approved text (160 words):
 
 > ## Proportionality
 >
@@ -110,7 +110,7 @@ change is forward-only.
 in-paragraph clause; `outline`: `## Scope boundary (No-gos)`; PRD and RFC: `## Non-Goals`. Each gains the
 amendment model's carrier: _Frozen at activation; changes after that append:
 `Amended YYYY-MM-DD — <delta> — <prompt>`_. The rule sits exactly where a mid-implementation editor is looking
-when it fires, so no `activate-work-unit` edit is needed — a second carrier would be redundant machinery. Three
+when it fires, so no `activate-work-unit` edit is needed — a second carrier would be redundant machinery. Four
 structural cases are settled rather than left to the implementer:
 
 - **Survival on emit.** A template's section body is author-replaced guidance, and `create-spec`
@@ -124,6 +124,13 @@ structural cases are settled rather than left to the implementer:
   after the paragraph. Intent and the success signal keep revising in place, unfrozen.
 - **Paired PRD + RFC.** The RFC's `## Non-Goals` is flagged `omit-when-paired`, so a paired set drops it and the
   PRD's carrier is the surviving one: exactly one carrier governs each spec either way.
+- **Path coverage, in both workflows.** Each stage splits into per-level paths, and in each the lightest path is
+  the one a naively-placed line misses. `draft-design`'s `low` path produces no `draft-*` at all — it confirms
+  determinacy and carries the confirmation forward — so a line placed in the draft-producing sections reaches
+  `medium` and `high` only. `create-spec` maps `low → brief`, the one form with no boundary _section_, so a line
+  placed in the `outline` block governs `outline` alone. Both lines therefore sit **above** their stage's path
+  split, `create-spec`'s in the same all-forms band as its Proportionality guard. Left to the implementer either
+  fails silently: the chain drops its lightest path while every criterion still passes.
 
 `draft-design` and `create-spec` each also gain one carry-forward line: the spec's boundary section inherits and
 sharpens the draft's boundary, never silently drops it. `generate-tasks` is untouched — `template-tasks.md`
@@ -190,9 +197,13 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   adopter-side and repo-local always-loaded sets alike. Net growth is therefore roughly +130 words on both,
   with the `DEV-RULES.ARC` sweep as best-effort further offset, not a guarantee. Accepted: an always-on guard
   cannot be paid for anywhere but the always-loaded surface.
-- **The cap moved from ≤150 to ≤160 words** to seat the completion rail and the authority attribution together.
-  Recorded as a deliberate adjustment made pre-activation, not a silent slide — the alternative was dropping one
-  of the two counterweights the floor's safe literal reading depends on.
+- **The word budget moved twice, both times pre-activation and both recorded rather than slid.** First from ≤150
+  to ≤160, to seat the completion rail and the authority attribution together — the alternative was dropping one
+  of the two counterweights the floor's safe literal reading depends on. Then from a hard ≤160 to a 150-170 band
+  targeting ~160, prompted by the observation that the approved text sits exactly at the old bar: a criterion with
+  no headroom converts any later wording improvement into a criterion failure, which is brittleness bought for no
+  gain on a surface measured in tokens. The precise counting rule survives the relaxation — it is what makes the
+  band reproducible rather than a matter of opinion.
 - **The finding-shape obligation reaches `adversarial-review`-carried lanes only.** Adapter- and hosted-carrier
   evaluators receive their instructions from the typed `implementation-audit/v1` projection, which this work
   unit does not touch, so they get the four-requirement floor unchanged. Accepted: the primary-side filter is
@@ -211,17 +222,22 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 - **Two of the ten touched files are `Configurable`, not `Framework`,** so the framework-sync gate's
   byte-identity check does not cover them: `system/rules/DEV-RULES.PROJECT.md` (whose copies already differ, by
   heading) and `system/methods/adversarial-review.md` (whose copies already differ). Each takes a targeted edit
-  in both copies — never `cp`, which the pre-commit guard blocks. `adversarial-review.md` additionally carries
-  string-level assertions in `framework-sync.test.ts`; the D9 edit must leave them satisfied. The other eight
-  are `Framework` and must be byte-identical. All ten carry an `init-recipe.json` disposition, so no edit lands
-  in a file that reaches nobody.
+  in both copies — never `cp`, which the pre-commit guard blocks. The other eight are `Framework` and must be
+  byte-identical. All ten sit in `init-recipe.json`'s unconditional `include_files`, so no edit lands in a file
+  that reaches nobody.
+- **`adversarial-review.md` carries string-level assertions at three sites across two test files, and two of
+  those sites read both copies** — one case in `framework-sync.test.ts` (package copy only) plus two in
+  `pr-open-extensions.test.ts` (both copies). The D9 edit must leave all three satisfied. One is a **negative**
+  assertion over `standard-review.md` and `adversarial-review.md` concatenated, forbidding `per-chunk receipt`,
+  `durable scope identity`, and `review-gate runtime state` case-insensitively — a real hazard for an edit whose
+  own subject is scope vocabulary, and the likeliest way this work breaks the suite.
 
 ## Success Criteria
 
-1. `DEV-RULES.ARC` carries a `## Proportionality` section of ≤160 words — counted as whitespace-separated
-   tokens containing a word character, excluding the section heading — placed adjacent to § Scaled Process,
-   Invariant Discipline, containing all nine load-bearing clauses named in D1 and carrying no `[invariant]`
-   marker.
+1. `DEV-RULES.ARC` carries a `## Proportionality` section of 150-170 words, targeting ~160 — counted as
+   whitespace-separated tokens containing a word character, excluding the section heading — placed adjacent to
+   § Scaled Process, Invariant Discipline, containing all nine load-bearing clauses named in D1 and carrying no
+   `[invariant]` marker.
 2. Neither copy of `DEV-RULES.PROJECT` contains the Scope-discipline lines (`.arc/` § Engineering Standards,
    package source § Code Quality Principles), and the floor carries the authority attribution that replaces
    them.
@@ -231,14 +247,16 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
    § Write and save instructs the author to retain the boundary carrier when emitting a spec.
 5. All four spec templates carry the amendment-contract line at their boundary surface, with the `brief` form's
    carrier governing its scope-boundary clause alone; no new section was added to any of them.
-6. `adversarial-review.md` § Context provisioning lists the governing spec's scope boundary on the frontline and
+6. `adversarial-review.md` § Context provisioning lists the governing spec's scope boundary for the frontline and
    standard review artifact rows and carries the self-contained finding-shape sentence, both explicitly scoped
-   to those two rows and conditioned on the change being governed by a spec. Its existing `framework-sync`
-   string assertions still pass. No rubric method is modified.
+   to those two rows and conditioned on the change being governed by a spec. Its existing string assertions at
+   all three sites — one in `framework-sync.test.ts`, two in `pr-open-extensions.test.ts` — still pass, including
+   the negative one. No rubric method is modified.
 7. The eight `Framework` files among the touched set are byte-identical between `packages/arc-framework/arc/**`
    and `.arc/**` with the framework-sync gate green; the two `Configurable` files carry the intended edit in
    both copies, verified per-copy rather than by that gate.
-8. Markdown lint and the ARC contract checks pass.
+8. Markdown lint and the ARC contract checks pass. The code checks pass too — the touched set includes a file
+   under test, so this work unit is not Markdown-only for gate-selection purposes despite editing only Markdown.
 
 ## Open items
 
