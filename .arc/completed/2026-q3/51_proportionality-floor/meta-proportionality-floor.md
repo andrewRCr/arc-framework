@@ -31,14 +31,14 @@ must earn their machinery against an actual goal, constraint, trust boundary, or
 explicit scope boundary now travels from its draft through every specification form and into local review context,
 with visible amendments when that boundary changes after activation.
 
-**Added**
+### Added
 
 - A universal proportionality rule pairs lighter handling for low-consequence paths with explicit safeguards
   against under-delivery, and separates the smallest complete response from any proposed scope expansion.
 - Every shipped specification form states when its scope boundary freezes and how later expansions or contractions
   are recorded.
 
-**Changed**
+### Changed
 
 - New drafts ask what adjacent work will not be done, and why, instead of asking for an estimate no downstream
   workflow consumes.
