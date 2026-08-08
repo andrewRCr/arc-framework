@@ -397,13 +397,18 @@ describe("fetchRefsBounded", () => {
     })).resolves.toEqual(["feat/a", "feat/b"]);
   });
 
-  it("caps how many fetches run at once", async () => {
+  it("runs exactly the configured number of fetches at once", async () => {
     let live = 0;
     let peak = 0;
     const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
       live += 1;
       peak = Math.max(peak, live);
-      await Promise.resolve();
+      // Yield past the microtask queue so every worker the pool starts is in flight
+      // before any of them completes; a microtask yield would let each fetch finish
+      // before the next begins and hide a serial implementation.
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
       live -= 1;
       return { stdout: "", stderr: "" };
     });
@@ -414,7 +419,9 @@ describe("fetchRefsBounded", () => {
       timeoutMs: 2000,
     });
 
-    expect(peak).toBeLessThanOrEqual(4);
+    // Exact, not an upper bound: a pool that degraded to one fetch at a time would
+    // still satisfy `<= 4` while losing the parallelism the cap exists to bound.
+    expect(peak).toBe(4);
     expect(vi.mocked(exec)).toHaveBeenCalledTimes(12);
   });
 
