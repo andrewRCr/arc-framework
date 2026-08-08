@@ -47,6 +47,8 @@ For larger scope, prioritize:
 
 ## Non-Goals
 
+_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+
 What this work explicitly won't include. Critical for scope management — be specific about what's out and why.
 
 ## Technical Considerations · `optional | omit-when-paired`

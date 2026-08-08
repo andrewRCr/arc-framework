@@ -10,6 +10,10 @@ now), the **scope boundary** (what is deliberately _not_ in scope), and **one fa
 where the design is settled coming in. Revise the paragraph in place as understanding sharpens — it is a
 living record, not a one-time pitch.}
 
+_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`. The freeze governs
+the **scope boundary** clause alone — intent and the success signal keep revising in place, and amendment lines
+append below this paragraph._
+
 {If the change needs a recorded decision or a scope you'll defend later, it has outgrown the floor — author
 an `outline` instead.}
 

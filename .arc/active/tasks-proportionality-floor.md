@@ -96,49 +96,38 @@ Tasks 2.3.a and 2.3.b seat their lines above the split; 2.2.d and 2.3.c close th
       name, and no template, workflow, or method references it. Existing drafts keep it until independently
       groomed.
 
-### `[ ]` **2.2 Amendment carrier on all four spec forms**
+### `[x]` **2.2 Amendment carrier on all four spec forms**
 
 - _Goal:_ Whichever form a work unit is specified in, exactly one boundary surface states that it freezes at
   activation and how a later change records itself.
 
-- _Approach:_ Each form already has a boundary surface, so the carrier attaches to what is there. Add no new
-  section to any template.
+    - `[x]` **2.2.a Settle the carrier wording and apply it to the `outline` form**
+        - Settled wording: `_Frozen at activation; changes after that append:
+          `Amended YYYY-MM-DD — <delta> — <prompt>`_`. It is the form this work unit's own spec already carries,
+          so the phrasing is field-tested rather than newly coined.
+        - Seated directly under `template-spec-outline.md` § Scope boundary (No-gos), above the section's prose.
 
-- _Shape:_ One wording, four consumers. Settle the carrier's phrasing once in 2.2.a and apply it verbatim in the
-  other three — only the `brief` form's seating differs. Four independently-authored variants would read as four
-  contracts, and the retain instruction downstream has to quote one exact line to be followable.
+    - `[x]` **2.2.b PRD form**
+        - Same line verbatim under `template-spec-detailed-prd.md` § Non-Goals — the surviving carrier on a
+          paired PRD plus RFC.
 
-- _Context:_ All four templates live in
-  `packages/arc-framework/arc/reference/templates/arc/work-unit/spec/` and are `Framework`, so each subtask edits
-  the package source and mirrors byte-identically into the matching `.arc/` path. Four of the eight files
-  Criterion 7 covers are these, and `.arc/` is the copy an editing session has open by default — so the
-  wrong-direction edit is the easy mistake, and the pre-commit check for it warns rather than blocks.
+    - `[x]` **2.2.c RFC form**
+        - Same line verbatim under `template-spec-detailed-rfc.md` § Non-Goals. The section is
+          `omit-when-paired`, so a paired set drops it along with its carrier; the line serves the standalone
+          case, leaving exactly one carrier governing a spec either way.
 
-    - `[ ]` **2.2.a Settle the carrier wording and apply it to the `outline` form**
-        - Semantics are fixed: the boundary freezes at activation, and a change after that appends
-          `Amended YYYY-MM-DD — <delta> — <prompt>`. Only the phrasing is open here.
-        - `template-spec-outline.md` § Scope boundary (No-gos) gains the line directly under the heading.
-
-    - `[ ]` **2.2.b PRD form**
-        - `template-spec-detailed-prd.md` § Non-Goals gains the same line verbatim. On a paired PRD plus RFC this
-          is the surviving carrier.
-
-    - `[ ]` **2.2.c RFC form**
-        - `template-spec-detailed-rfc.md` § Non-Goals is flagged `omit-when-paired`, so a paired set drops the
-          section along with its carrier. Add the line anyway for the standalone case — exactly one carrier
-          governs a spec either way.
-
-    - `[ ]` **2.2.d `brief` form**
-        - `template-spec-brief.md` has no boundary section and, in the template, no scope-boundary clause either:
-          its whole body is brace-delimited guidance instructing the author to write one paragraph fusing intent,
-          scope boundary, and the success signal.
-        - Seat the carrier as a standalone italic line **after** the braced paragraph, not as text inside the
-          braces. Braced guidance is the content an author replaces wholesale, so a carrier placed there is the
-          single most likely thing to be lost on emit — the same failure the retain instruction exists to prevent,
-          recreated one layer earlier and beyond its reach.
-        - The line states that the freeze governs the **scope-boundary clause the author writes** and that clause
-          alone; intent and the success signal keep revising in place, unfrozen. Amendment lines append after the
+    - `[x]` **2.2.d `brief` form**
+        - Seated as a standalone italic line after the braced paragraph rather than inside it. Braced guidance is
+          replaced wholesale on emit, so a carrier placed there would be the single most likely thing lost —
+          recreating the very failure the retain instruction exists to prevent, one layer earlier and beyond its
+          reach.
+        - Keeps the settled sentence verbatim and adds the form's scoping: the freeze governs the scope-boundary
+          clause alone, intent and the success signal keep revising in place, amendment lines append below the
           paragraph.
+
+- _Outcome:_ One wording reaches all four forms, so the retain instruction in Task 2.3.c has a single exact line
+  to quote. No new section was added to any template — each carrier attached to the boundary surface already
+  present — and all four pairs are byte-identical across the two copies.
 
 ### `[ ]` **2.3 Workflow-side instructions that keep the boundary alive**
 
