@@ -27,6 +27,8 @@ the work isn't `outline`-ready yet.
 
 ## Scope boundary (No-gos)
 
+_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+
 What this work explicitly will _not_ do. Be specific about what's out and why — this section is fixed alongside
 Decisions and keeps the work from drifting wider during execution.
 

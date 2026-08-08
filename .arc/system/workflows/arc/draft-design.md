@@ -89,6 +89,9 @@ not as a proof-of-check marker.
 Each level maps to a path — the drafting procedure at that depth. Run the one the entry read selected; if a path
 surfaces heavier derivation than the read assumed, step up.
 
+Whatever the path produces, the scope boundary it records is what the spec inherits — author it as a handoff
+surface, not a private note.
+
 ### `low` — quick determinacy-confirm (no draft artifact)
 
 The design is determinate; there is nothing to derive. Confirm that directly: state the intent, the scope
