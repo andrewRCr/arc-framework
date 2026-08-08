@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   analyzeWorktreeSnapshot,
   countAheadBehindRef,
+  readConfiguredUpstreamBranch,
   runMaterializingWorktreeInspection,
   runPassiveWorktreeInspection,
   runWorktreeSyncStatus,
@@ -61,6 +62,61 @@ const REV_PARSE_UPSTREAM = "rev-parse --abbrev-ref @{upstream}";
 const FETCH_BRANCH = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
 const TRACKED_WORKTREE = { remoteSyncEnabled: true, originConfigured: true } as const;
+
+describe("readConfiguredUpstreamBranch", () => {
+  function recordingExec(stdout: string): { exec: GitExec; seen: () => GitExecOptions | undefined } {
+    let observed: GitExecOptions | undefined;
+    const exec: GitExec = async (_command, _args, options) => {
+      observed = options;
+      return { stdout, stderr: "" };
+    };
+    return { exec, seen: () => observed };
+  }
+
+  it("reads from the named repository root when one is supplied", async () => {
+    // The executor carries no root: unbound, this resolves against the process
+    // directory and can report an upstream from a different repository.
+    const { exec, seen } = recordingExec("origin/feat/a\n");
+
+    await expect(readConfiguredUpstreamBranch(exec, "feat/a", "/repo/root")).resolves.toBe("feat/a");
+    expect(seen()).toEqual({ cwd: "/repo/root" });
+  });
+
+  it("passes no directory option when no root is supplied", async () => {
+    const { exec, seen } = recordingExec("origin/feat/a\n");
+
+    await readConfiguredUpstreamBranch(exec, "feat/a");
+
+    expect(seen()).toEqual({});
+  });
+
+  it("preserves a tracked branch name containing a slash", async () => {
+    const { exec } = recordingExec("origin/feat/nested/name\n");
+
+    await expect(readConfiguredUpstreamBranch(exec, "local")).resolves.toBe("feat/nested/name");
+  });
+
+  it("reports no upstream for a remote other than origin", async () => {
+    // The advertised tips this is compared against come from origin, so a branch
+    // tracking elsewhere has no comparable upstream — returning its bare name would
+    // silently compare a foreign branch against origin's tip of the same name.
+    const { exec } = recordingExec("upstream/feat/a\n");
+
+    await expect(readConfiguredUpstreamBranch(exec, "feat/a")).resolves.toBeNull();
+  });
+
+  it("reports no upstream when the branch tracks nothing", async () => {
+    const { exec } = recordingExec("\n");
+
+    await expect(readConfiguredUpstreamBranch(exec, "feat/a")).resolves.toBeNull();
+  });
+
+  it("refuses an ambiguous multi-record upstream read", async () => {
+    const { exec } = recordingExec("origin/a\norigin/b\n");
+
+    await expect(readConfiguredUpstreamBranch(exec, "feat/a")).rejects.toThrow(/unique worktree upstream/u);
+  });
+});
 
 describe("analyzeWorktreeSnapshot", () => {
   it("returns not-applicable before remote evidence when automatic inspection is disabled", async () => {

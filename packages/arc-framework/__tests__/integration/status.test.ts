@@ -66,6 +66,7 @@ import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
+import { createSessionRemoteContextReader } from "../../src/handlers/status-remote-context.js";
 
 interface Fixture {
   root: string;
@@ -889,7 +890,14 @@ function makeRealWorktreeProbes(
       identity,
       activeExtensions,
     ),
-    remoteContext: async () => ({ kind: "not-needed", reason: "remote-sync-disabled" }),
+    // Derived from the same fixture and the same flag the worktree probe below reads
+    // with. A hardcoded `remote-sync-disabled` context contradicted a probe reading
+    // with sync enabled, so the stub set modelled a world that cannot occur.
+    remoteContext: createSessionRemoteContextReader({
+      cwd: fixture.root,
+      exec: makeGitExec(fixture.root),
+      remoteSyncEnabled: async () => remoteSyncEnabled,
+    }),
     user: async (identity) => stubUserSessionInit(identity, userState),
     worktree: async () => {
       const result = await runWorktreeSyncStatus({

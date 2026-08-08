@@ -122,10 +122,22 @@ export type SessionInitWorktreeValue = (
  * text pair as the worktree slot, so the workflow renders a behind-base
  * reconcile offer without re-deriving it from state.
  */
+/**
+ * A base-distance reading that resolved before any snapshot evidence was consulted.
+ *
+ * Bounded to exactly those arms: unbounded, the intersection also admitted
+ * `remote-unavailable` with `not-applicable`, which the envelope rule refuses — so a
+ * probe could satisfy the type and still fail the contract at runtime. Named once
+ * because the probe signature and the envelope value state the same contract, and
+ * two copies of it drifted from the schema.
+ */
+export type BaseDistanceNotApplicableResult = BaseDistanceStatusResult & {
+  state: "skipped" | "no-remote" | "detached-head";
+  remoteEvidence: "not-applicable";
+};
+
 export type SessionInitBaseDistanceValue = (
-  BaseDistanceSnapshotAnalysisResult | (BaseDistanceStatusResult & {
-    remoteEvidence: "not-applicable";
-  })
+  BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult
 ) & {
   recommendedAction: RecommendedAction;
   /** Composed orientation text when `recommendedAction === "surface"`; empty string otherwise. */
@@ -640,9 +652,7 @@ export interface SessionInitProbes {
    */
   baseDistance: (
     context: SessionRemoteContext,
-  ) => Promise<
-    BaseDistanceSnapshotAnalysisResult | (BaseDistanceStatusResult & { remoteEvidence: "not-applicable" })
-  >;
+  ) => Promise<BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult>;
   /**
    * Base-branch-sync probe — local `<base>` vs `origin/<base>`. Session-init-only
    * (a between-WU resume is where a silently-stale local base matters). The

@@ -43,7 +43,12 @@ export interface RunBaseDriftOptions {
   exec: GitExec;
   baseBranch: string;
   fetchTimeoutMs?: number;
-  mode: BaseDriftMode;
+  /**
+   * Acquiring base drift is authoritative-only; an advisory reading analyzes supplied
+   * snapshot evidence instead. Advertising the wider `BaseDriftMode` let a typed caller
+   * construct a contract-valid call that always threw.
+   */
+  mode: "authoritative";
   resolver?: IntegrationEvidenceResolver;
   resolverFactory?: IntegrationEvidenceResolverFactory;
   classifyReconciliation?: ReconciliationClassifier;
@@ -160,6 +165,11 @@ export async function analyzeBaseDistanceSnapshot(
 
 /** Analyze current HEAD against a freshly fetched immutable base commit. */
 export async function runBaseDrift(options: RunBaseDriftOptions): Promise<BaseDriftResult> {
+  // Unreachable for a typed caller now that `mode` admits only `authoritative`, and
+  // retained deliberately for one that is not: this refuses before any Git invocation,
+  // so a mislabeled advisory request cannot fetch. Dropping it would silently run the
+  // acquiring path under an advisory label, which is worse than the throw.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (options.mode !== "authoritative") {
     throw new Error("Advisory base distance requires supplied snapshot evidence.");
   }

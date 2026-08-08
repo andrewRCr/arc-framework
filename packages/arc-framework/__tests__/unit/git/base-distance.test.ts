@@ -328,10 +328,12 @@ describe("base drift raw-distance boundary", () => {
 
   it("refuses advisory acquisition before any Git invocation", async () => {
     const { exec, calls } = gitMock();
+    // `mode` now admits only `authoritative`, so this models the untyped caller the
+    // runtime guard is retained for. The refusal must still land before any fetch.
     await expect(runBaseDrift({
       exec,
       baseBranch: "main",
-      mode: "advisory",
+      mode: "advisory" as unknown as "authoritative",
     })).rejects.toThrow(/supplied snapshot evidence/u);
     expect(calls).toEqual([]);
   });

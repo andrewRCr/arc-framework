@@ -264,8 +264,13 @@ function baseDistance(
     register: null,
     ...overrides,
   };
-  if (["skipped", "no-remote", "detached-head"].includes(value.state)) {
-    return { ...value, remoteEvidence: "not-applicable" };
+  // Compared as literals rather than through `includes`, so the narrowed state reaches
+  // the returned value: the not-applicable arm is bounded to exactly these states, and
+  // an unnarrowed `WorktreeSyncState` would let this helper build a pair the envelope
+  // rule refuses.
+  const { state } = value;
+  if (state === "skipped" || state === "no-remote" || state === "detached-head") {
+    return { ...value, state, remoteEvidence: "not-applicable" };
   }
   const { failureReason, ...result } = value;
   void failureReason;
@@ -594,9 +599,19 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
       }
       return derivedFrameFromActive(activeResult, identity, activeExtensions, cohortDocPath, cursor);
     }),
+    // The default slot fixtures below model healthy remote-derived readings carrying
+    // `exact` evidence, so the default context has to be one where that evidence was
+    // available. A `remote-sync-disabled` default contradicted every one of them.
+    // Cases that need an absent or failed remote override this per test.
     remoteContext: vi.fn(async () => ({
-      kind: "not-needed" as const,
-      reason: "remote-sync-disabled" as const,
+      kind: "available" as const,
+      snapshot: {
+        kind: "available" as const,
+        scope: "all-heads" as const,
+        tips: { main: "a".repeat(40) },
+      },
+      objectAvailability: { kind: "complete" as const, commits: { ["a".repeat(40)]: true } },
+      history: { kind: "complete" as const },
     })),
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
@@ -2933,8 +2948,10 @@ describe("runSessionInitStatus — materializable-WU oracle slot", () => {
 describe("runSessionInitStatus — retired-subdir detection slot", () => {
   it("fires the detection when identity resolved, passing the identity", async () => {
     const probes = sessionInitProbes({
+      // Proves both the shared context and the resolved identity reach the probe; the
+      // kind tracks the default context rather than being significant in itself.
       retiredSubdirs: vi.fn(async (context, id) =>
-        retiredSubdirResult(context.kind === "not-needed" && id === "andrew" ? ["old-wu"] : [])),
+        retiredSubdirResult(context.kind === "available" && id === "andrew" ? ["old-wu"] : [])),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.retiredSubdirs?.ok).toBe(true);

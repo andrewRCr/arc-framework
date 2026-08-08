@@ -103,6 +103,11 @@ function expectInvalid(value: Record<string, unknown>): void {
   expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
 }
 
+function expectValid(value: Record<string, unknown>): void {
+  const parsed = SessionInitProbeResultSchema.safeParse(value);
+  expect(parsed.success ? null : parsed.error.message).toBeNull();
+}
+
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value).filter(([candidate]) => candidate !== key));
 }
@@ -215,8 +220,15 @@ describe("session-init envelope schema", () => {
     });
     expectInvalid(emptyPendingPlan);
 
-    const fakeApplyCommand = clone(emptyPendingPlan);
-    setPath(fakeApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{}]);
+    // One edit makes the plan legitimately pending-shaped — the rule reads only
+    // `edits.length`, never element contents — so this payload is valid except for the
+    // command. The positive control proves that, and therefore that the rejection below
+    // is the command contract rather than a second defect in the same fixture.
+    const realApplyCommand = clone(emptyPendingPlan);
+    setPath(realApplyCommand, ["userReferenceReconcile", "value", "plan", "edits"], [{}]);
+    expectValid(realApplyCommand);
+
+    const fakeApplyCommand = clone(realApplyCommand);
     setPath(fakeApplyCommand, ["userReferenceReconcile", "value", "recommendedCommand"], ["fake", "--apply"]);
     expectInvalid(fakeApplyCommand);
   });
