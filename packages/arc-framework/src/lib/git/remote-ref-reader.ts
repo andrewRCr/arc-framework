@@ -309,10 +309,19 @@ function parseLocalRefSnapshot(stdout: string, remote: string): LocalInFlightRef
   return { remoteTracking, localHeads };
 }
 
-/** Read local remote-tracking and branch-head tips. */
+/**
+ * Read local remote-tracking and branch-head tips.
+ *
+ * @param exec - Injectable command executor (local only — no remote).
+ * @param remote - Remote whose tracking refs are read. Defaults to `origin`.
+ * @param cwd - Repository root the read runs against; see
+ * {@link ReadLiveRemoteHeadsOptions.cwd}. Omitted, the executor's own directory
+ * applies, which for the production executor is the process directory.
+ */
 export async function readLocalInFlightRefSnapshot(
   exec: GitExec,
   remote = DEFAULT_REMOTE,
+  cwd?: string,
 ): Promise<LocalInFlightRefSnapshotResult> {
   let stdout: string;
   try {
@@ -321,7 +330,7 @@ export async function readLocalInFlightRefSnapshot(
       "--format=%(refname)\t%(objectname)",
       `refs/remotes/${remote}`,
       "refs/heads",
-    ]));
+    ], cwd === undefined ? {} : { cwd }));
   } catch {
     return { ok: false, refs: emptyLocalRefSnapshot() };
   }
@@ -485,8 +494,35 @@ export async function fetchRefBounded(options: FetchRefBoundedOptions): Promise<
   return (await runBounded(exec, ["fetch", "--no-filter", remote, branch], timeoutMs, cwd)).ok;
 }
 
-/** Maximum candidate fetches in flight at once. */
-const CANDIDATE_FETCH_CONCURRENCY = 4;
+/**
+ * Maximum candidate fetches in flight at once. Exported so an explicit acquisition
+ * caller can size its own aggregate budget in whole rounds.
+ */
+export const CANDIDATE_FETCH_CONCURRENCY = 4;
+
+/**
+ * Size an aggregate fetch budget that covers every pending branch.
+ *
+ * {@link fetchRefsBounded} defaults its whole-request deadline to
+ * {@link DEFAULT_NETWORK_TIMEOUT_MS} — at the default per-fetch bound, one round.
+ * That is right for a passive request path: an unresponsive remote costs one bounded
+ * read however many branches are pending. An explicit acquisition path owns
+ * the cost it was asked to spend, so it budgets one bounded round per concurrency
+ * slot instead — otherwise a slow remote leaves branches pending after every run and
+ * the documented `pending-fetch` remedy never converges.
+ *
+ * @param pendingCount - How many branches still need acquisition.
+ * @param timeoutMs - Per-fetch bound. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}.
+ * @returns A whole-request deadline covering `ceil(pendingCount / concurrency)` rounds,
+ * never less than one bounded round.
+ */
+export function roundScaledFetchBudgetMs(
+  pendingCount: number,
+  timeoutMs: number = DEFAULT_NETWORK_TIMEOUT_MS,
+): number {
+  const rounds = Math.max(1, Math.ceil(pendingCount / CANDIDATE_FETCH_CONCURRENCY));
+  return timeoutMs * rounds;
+}
 
 /** Inputs for {@link fetchRefsBounded}. */
 export interface FetchRefsBoundedOptions {

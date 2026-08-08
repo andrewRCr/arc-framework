@@ -349,10 +349,12 @@ export async function runSessionInitStatus(
       } satisfies SessionInitUserValue));
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
-  // stage. The expensive slots below are the second: the in-flight roster and
-  // the materializable-WU oracle both express through the `gatedSlot` affordance
-  // — fire the probe only when the gate holds, omit the slot otherwise, with
-  // `safeProbe`'s "envelope never rejects" contract preserved either way. Their
+  // stage. The expensive slots below are the second: the in-flight roster fires
+  // through the `gatedSlot` affordance, and the materializable-WU oracle fires
+  // through an inline conditional over the shared remote context (`remote.run`).
+  // Both express the same fire-or-omit shape — run the probe only when the gate
+  // holds, omit the slot otherwise, with `safeProbe`'s "envelope never rejects"
+  // contract preserved either way. Their
   // gating signals (worktree state, active resolution, worktree identity) are
   // produced by sibling slots in the fan-out above, so they can only resolve in
   // a second stage. On the linked-worktree resume path both gates are false, so

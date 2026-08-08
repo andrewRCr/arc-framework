@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
 import {
+  CANDIDATE_FETCH_CONCURRENCY,
+  DEFAULT_NETWORK_TIMEOUT_MS,
   fetchRefBounded,
   fetchRefsBounded,
   listLiveRemoteBranches,
@@ -12,6 +14,7 @@ import {
   readMetaAtRef,
   readRemoteHeadSnapshot,
   resolveInFlightBranchSet,
+  roundScaledFetchBudgetMs,
 } from "../../../src/lib/git/remote-ref-reader.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
@@ -380,7 +383,10 @@ describe("fetchRefsBounded", () => {
       return { stdout: "", stderr: "" };
     });
 
-    await expect(fetchRefsBounded({ exec, branches, timeoutMs: 2000 })).resolves.toEqual(branches);
+    // Compared as sets: the returned order reflects completion, which the contract
+    // explicitly declines to promise.
+    const result = await fetchRefsBounded({ exec, branches, timeoutMs: 2000 });
+    expect([...result].sort()).toEqual([...branches].sort());
     expect([...fetched].sort()).toEqual([...branches].sort());
   });
 
@@ -390,11 +396,12 @@ describe("fetchRefsBounded", () => {
       return { stdout: "", stderr: "" };
     });
 
-    await expect(fetchRefsBounded({
+    const result = await fetchRefsBounded({
       exec,
       branches: ["feat/a", "feat/unreachable", "feat/b"],
       timeoutMs: 2000,
-    })).resolves.toEqual(["feat/a", "feat/b"]);
+    });
+    expect([...result].sort()).toEqual(["feat/a", "feat/b"]);
   });
 
   it("runs exactly the configured number of fetches at once", async () => {
@@ -442,9 +449,12 @@ describe("fetchRefsBounded", () => {
     });
 
     // Without an aggregate deadline this would charge ceil(40 / 4) rounds of the
-    // per-fetch bound; the deadline caps the whole request instead.
+    // per-fetch bound; the deadline caps the whole request instead. A 3000 ms budget
+    // against a 1000 ms per-fetch bound buys less than one full round, so no worker
+    // claims a second branch — bounded by the concurrency cap rather than pinned to
+    // an exact count, which would encode when each worker happens to read the clock.
     expect(fetched).toEqual([]);
-    expect(vi.mocked(exec).mock.calls.length).toBeLessThan(40);
+    expect(vi.mocked(exec).mock.calls.length).toBeLessThanOrEqual(CANDIDATE_FETCH_CONCURRENCY);
   });
 
   it("runs no fetch for an empty branch list", async () => {
@@ -452,6 +462,69 @@ describe("fetchRefsBounded", () => {
 
     await expect(fetchRefsBounded({ exec, branches: [], timeoutMs: 2000 })).resolves.toEqual([]);
     expect(vi.mocked(exec)).not.toHaveBeenCalled();
+  });
+
+  it("attempts every pending branch under a round-scaled budget", async () => {
+    // Same slow remote as the deadline case above — every fetch consumes its full
+    // per-fetch bound — but the clock advances per concurrent round rather than per
+    // fetch, which is what elapsed wall time actually does when the pool overlaps
+    // `CANDIDATE_FETCH_CONCURRENCY` fetches. Sized by `roundScaledFetchBudgetMs`,
+    // the explicit acquisition path must reach every branch; under the passive
+    // default it would stop after the first round and leave the rest pending.
+    let started = 0;
+    const branches = Array.from({ length: 10 }, (_value, index) => `feat/${index}`);
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
+      started += 1;
+      throw new Error("timed out");
+    });
+    const now = (): number => Math.floor(started / CANDIDATE_FETCH_CONCURRENCY) * 1000;
+
+    await fetchRefsBounded({
+      exec,
+      branches,
+      timeoutMs: 1000,
+      totalTimeoutMs: roundScaledFetchBudgetMs(branches.length, 1000),
+      now,
+    });
+
+    expect(started).toBe(branches.length);
+  });
+
+  it("stops after one round under the passive default budget", async () => {
+    // The counterpart to the case above, at the defaults both bounds actually take:
+    // the aggregate deadline and the per-fetch bound are the same constant, so a
+    // slow remote buys exactly one round however many branches are pending. That is
+    // correct for a passive probe, which owes one bounded read — and is precisely
+    // what the explicit acquisition path must not inherit.
+    let started = 0;
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
+      started += 1;
+      throw new Error("timed out");
+    });
+
+    await fetchRefsBounded({
+      exec,
+      branches: Array.from({ length: 10 }, (_value, index) => `feat/${index}`),
+      now: () => Math.floor(started / CANDIDATE_FETCH_CONCURRENCY) * DEFAULT_NETWORK_TIMEOUT_MS,
+    });
+
+    expect(started).toBe(CANDIDATE_FETCH_CONCURRENCY);
+  });
+});
+
+describe("roundScaledFetchBudgetMs", () => {
+  it.each([
+    [0, 1],
+    [1, 1],
+    [CANDIDATE_FETCH_CONCURRENCY, 1],
+    [CANDIDATE_FETCH_CONCURRENCY + 1, 2],
+    [CANDIDATE_FETCH_CONCURRENCY * 3, 3],
+  ])("budgets %i pending branches as %i bounded round(s)", (pending, rounds) => {
+    expect(roundScaledFetchBudgetMs(pending, 1000)).toBe(1000 * rounds);
+  });
+
+  it("defaults the per-fetch bound to the shared network timeout", () => {
+    expect(roundScaledFetchBudgetMs(1)).toBe(DEFAULT_NETWORK_TIMEOUT_MS);
   });
 });
 
@@ -592,6 +665,25 @@ describe("readLocalInFlightRefSnapshot", () => {
       ok: false,
       refs: { remoteTracking: {}, localHeads: {} },
     });
+  });
+
+  it("reads from the named repository root when one is supplied", async () => {
+    // The production executor is not bound to a root: without this the read would
+    // resolve against the process directory and could describe a different
+    // repository than the snapshot it is joined with.
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => ({ stdout: "", stderr: "" }));
+
+    await readLocalInFlightRefSnapshot(exec, undefined, "/repo/root");
+
+    expect(vi.mocked(exec).mock.calls[0]?.[2]).toEqual({ cwd: "/repo/root" });
+  });
+
+  it("passes no directory option when no root is supplied", async () => {
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => ({ stdout: "", stderr: "" }));
+
+    await readLocalInFlightRefSnapshot(exec);
+
+    expect(vi.mocked(exec).mock.calls[0]?.[2]).toEqual({});
   });
 
   it("uses the configured remote namespace", async () => {

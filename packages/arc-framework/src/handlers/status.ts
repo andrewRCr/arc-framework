@@ -371,11 +371,40 @@ function sessionCleanupBaseEvidence(context: SessionRemoteContext): CleanupBaseE
   };
 }
 
-function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: string): string | null {
+/**
+ * Resolve the advertised base OID when — and only when — exact evidence establishes
+ * it is present locally.
+ *
+ * `null` means the evidence is genuinely absent: remote sync is off, the remote is
+ * unreachable, the base is not advertised, its object is still pending fetch, or the
+ * local history is shallow. Each is a fact a caller may act on.
+ *
+ * An uninspectable prerequisite is not such a fact. A local availability batch or
+ * history read that failed says nothing about the base, so it raises rather than
+ * resolving to `null`, and the caller's `safeProbe` boundary reports the typed probe
+ * error. This matches the sibling comparators — `analyzeBehindBaseSnapshot` and
+ * `runStaleWorktreeSweep` — which raise on the same gaps.
+ *
+ * @param evidence - Advertised-base prerequisites for this request.
+ * @param baseBranch - Integration base branch short-name.
+ * @returns The base OID under exact local presence, or `null` on evidence absence.
+ */
+export function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: string): string | null {
   if (!evidence.remoteSyncEnabled || evidence.snapshot.kind === "unreachable") return null;
   const baseOid = evidence.snapshot.tips[baseBranch];
-  if (baseOid === undefined || evidence.objectAvailability.kind !== "complete") return null;
-  if (evidence.objectAvailability.commits[baseOid] !== true || evidence.history.kind !== "complete") return null;
+  if (baseOid === undefined) return null;
+  if (evidence.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = evidence.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return null;
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  if (evidence.history.kind === "shallow") return null;
+  if (evidence.history.kind !== "complete") {
+    throw new Error("Local history completeness could not be inspected.");
+  }
   return baseOid;
 }
 
@@ -769,8 +798,10 @@ export async function handleStatus(
           getDiscoveryTransientIndexes(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
           getOptionalDerivedRoster(),
-          readLocalInFlightRefSnapshot(exec),
-          resolveWorktreePathsByBranchResult(exec),
+          // Default remote, request root: these local reads join the snapshot and
+          // availability facts this request context already carries.
+          readLocalInFlightRefSnapshot(exec, undefined, cwd),
+          resolveWorktreePathsByBranchResult(exec, cwd),
         ]);
         const transient = projectTransientInFlightRead(transientRead);
         const transientIndexes = transient.indexes;

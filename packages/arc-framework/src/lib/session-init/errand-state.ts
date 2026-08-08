@@ -84,7 +84,11 @@ export interface RunErrandStateOptions {
   recordsComplete: boolean;
   /** Live remote tips keyed by branch short-name. */
   remoteTips: ReadonlyMap<string, string>;
-  /** Branches already represented by a local head or worktree. */
+  /**
+   * Branches already represented by a local head or worktree. Omitted only by
+   * compatibility callers pending composition cutover; an omitted set defaults to
+   * empty, which disables the local-presence exclusion rather than tightening it.
+   */
   locallyPresentBranches?: ReadonlySet<string>;
   /** Supplied advertised-base prerequisites; omitted only by compatibility callers pending composition cutover. */
   baseEvidence?: CleanupBaseEvidence;
