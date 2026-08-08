@@ -124,6 +124,65 @@ const localReview = {
   cleanupTtlMs: 86_400_000,
 };
 
+const memberTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "delivery-member",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: objectId("a"),
+  diffBaseTree: objectId("b"),
+  headSha: objectId("c"),
+  headTree: objectId("d"),
+});
+const memberRequirement = createReviewRequirement({
+  target: memberTarget,
+  projection: {
+    obligation: "recommended",
+    reasons: ["routine-code"],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: digest("rubric"),
+    retrigger: "full-final",
+    count: 1,
+  },
+  acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+  initialAdmission: "checkpoint",
+});
+if (memberRequirement === null) throw new Error("expected member requirement");
+const memberCarrier = createLocalChangeSetCarrier({
+  target: memberTarget,
+  requirementId: memberRequirement.requirementId,
+  snapshot: {
+    state: "exact",
+    repositoryId: memberTarget.repositoryId,
+    baseRef: memberTarget.baseRef,
+    diffBaseSha: memberTarget.diffBaseSha,
+    diffBaseTree: memberTarget.diffBaseTree,
+    headSha: memberTarget.headSha,
+    headTree: memberTarget.headTree,
+  },
+  authorIdentity: "author-1",
+  evaluatorIdentity: "evaluator-1",
+  attestation: {
+    evaluatorIdentity: "evaluator-1",
+    runtimeIdentity: "arc-cli/0.1.0",
+    mechanism: "local-attestation",
+  },
+  generation: 0,
+  requestMechanism: "local-attestation",
+});
+const memberReview = {
+  ...localReview,
+  vehicle: { kind: "delivery-member" as const, identity: digest("deliverable") },
+  targetId: memberTarget.targetId,
+  requestId: memberCarrier.request.requestId,
+  policyVersion: memberRequirement.policyVersion,
+  target: memberTarget,
+  requirement: memberRequirement,
+  request: memberCarrier.request,
+  attestation: memberCarrier.attestation,
+};
+
 describe("review operation state schemas", () => {
   it("round-trips the immutable local-review operation and rejects missing or extra fields", () => {
     expect(LocalReviewStateSchema.parse(localReview)).toEqual(localReview);
@@ -151,10 +210,6 @@ describe("review operation state schemas", () => {
   });
 
   it("round-trips a delivery-member vehicle keyed by its deliverable id", () => {
-    const memberReview = {
-      ...localReview,
-      vehicle: { kind: "delivery-member" as const, identity: digest("deliverable") },
-    };
     expect(LocalReviewStateSchema.parse(memberReview)).toEqual(memberReview);
     expect(ReviewOperationStateSchema.parse(memberReview)).toEqual(memberReview);
   });
@@ -162,10 +217,18 @@ describe("review operation state schemas", () => {
   it("accepts a canonical deliverable-id digest as a vehicle identity", () => {
     const deliverableId = digest("deliverable");
     expect(deliverableId).toMatch(/^sha256:[0-9a-f]{64}$/u);
-    expect(LocalReviewStateSchema.parse({
+    expect(LocalReviewStateSchema.parse(memberReview).vehicle.identity).toBe(deliverableId);
+  });
+
+  it("rejects crossed delivery-member vehicle and target kinds", () => {
+    expect(() => LocalReviewStateSchema.parse({
       ...localReview,
-      vehicle: { kind: "delivery-member", identity: deliverableId },
-    }).vehicle.identity).toBe(deliverableId);
+      vehicle: memberReview.vehicle,
+    })).toThrow(/vehicle and target kinds mismatch/iu);
+    expect(() => LocalReviewStateSchema.parse({
+      ...memberReview,
+      vehicle: localReview.vehicle,
+    })).toThrow(/vehicle and target kinds mismatch/iu);
   });
 
   it("leaves the work-unit and errand vehicles unaffected", () => {

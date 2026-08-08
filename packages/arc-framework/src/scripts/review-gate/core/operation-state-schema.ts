@@ -92,6 +92,13 @@ export const LocalReviewStateSchema = z.strictObject({
     const target = validateReviewTarget(state.target);
     const requirement = validateReviewRequirement(target, state.requirement);
     const request = validateReviewRequest(target, state.request);
+    if ((state.vehicle.kind === "delivery-member") !== (target.kind === "delivery-member")) {
+      context.addIssue({
+        code: "custom",
+        message: "operation vehicle and target kinds mismatch",
+        path: ["vehicle"],
+      });
+    }
     if (state.repositoryId !== target.repositoryId || state.targetId !== target.targetId) {
       context.addIssue({ code: "custom", message: "operation target snapshot mismatch", path: ["target"] });
     }
