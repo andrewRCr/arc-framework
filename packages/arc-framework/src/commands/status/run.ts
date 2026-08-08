@@ -442,9 +442,9 @@ export async function runSessionInitStatus(
       : undefined;
 
   // Materializable-WU oracle slot — the discovery surface for cross-machine
-  // pickup. Expressed through the same `gatedSlot` affordance as the roster:
-  // fires the oracle's bounded network slice ONLY on the no-active-WU arm, so
-  // the resume path pays zero oracle cost.
+  // pickup. Declared against the shared remote context and gated inline: the
+  // oracle's bounded network slice runs ONLY on the no-active-WU arm, so the
+  // resume path pays zero oracle cost.
   const materializableWorkUnitsTask = active.isOk() && active.value.resolution === "none"
     ? remote.run(
       "materializableWorkUnits",

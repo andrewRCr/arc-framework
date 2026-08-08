@@ -212,6 +212,11 @@ async function overlayBehindBaseSnapshot(
   baseBranch: string,
   evidence: CleanupBaseEvidence,
 ): Promise<InFlightWorkUnitFacts[]> {
+  // No branch means no conclusion requires an advertised object, so the analyzer's
+  // availability prerequisite does not apply. The compatibility overlay short-circuits
+  // the same way; without this the slot fails over evidence that nothing consulted.
+  if (facts.length === 0) return [...facts];
+
   const relations = await analyzeBehindBaseSnapshot({
     exec,
     branches: facts.map((fact) => fact.branch),

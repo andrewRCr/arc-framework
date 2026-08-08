@@ -302,11 +302,19 @@ async function readSessionBranch(exec: GitExec): Promise<string | null> {
 async function readSessionUpstreamBranch(exec: GitExec, branch: string): Promise<string | null> {
   const stdout = (await exec(
     "git",
-    ["for-each-ref", "--format=%(upstream:short)", `refs/heads/${branch}`],
+    ["for-each-ref", "--format=%(upstream:remotename)%09%(upstream:short)", `refs/heads/${branch}`],
   )).stdout;
   const records = stdout.split(/\r?\n/u).filter((record) => record !== "");
   if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");
-  return records.length === 0 ? null : branch;
+  const record = records[0];
+  if (record === undefined) return null;
+  const [remoteName = "", upstreamShort = ""] = record.split("\t");
+  if (upstreamShort === "") return null;
+  // The advertised tips are keyed by branch name alone, while `%(upstream:short)`
+  // renders `<remote>/<branch>`. Strip the exact remote rather than the first path
+  // segment, because the tracked branch name may itself contain a slash.
+  const remotePrefix = `${remoteName}/`;
+  return upstreamShort.startsWith(remotePrefix) ? upstreamShort.slice(remotePrefix.length) : upstreamShort;
 }
 
 async function readLocalBaseOid(exec: GitExec, baseBranch: string): Promise<string | null> {
@@ -630,9 +638,9 @@ export async function handleStatus(
   }
 
   if (opts.sessionInit) {
-    if (io.execInput === undefined) {
-      throw new Error("Session-init remote evidence requires stdin-capable Git execution.");
-    }
+    // A missing stdin-capable executor degrades object availability inside the remote
+    // context rather than aborting here: throwing before any probe runs would deny the
+    // caller the whole composite envelope over one unrelated capability.
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
@@ -815,7 +823,7 @@ export async function handleStatus(
         return analyzeWorktreeSnapshot({
           exec,
           remoteSyncEnabled,
-          originConfigured: context.kind !== "not-needed" || context.reason !== "no-remote",
+          originConfigured: !(context.kind === "not-needed" && context.reason === "no-remote"),
           branch,
           upstreamBranch,
           ...supplied,

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
   fetchRefBounded,
+  fetchRefsBounded,
   listLiveRemoteBranches,
   listMetaPathsAtRef,
   listPrunedRemoteTrackingBranches,
@@ -365,6 +366,63 @@ describe("fetchRefBounded", () => {
     const result = await fetchRefBounded({ exec, branch: "feat/x", timeoutMs: 2000 });
 
     expect(result).toBe(false);
+  });
+});
+
+describe("fetchRefsBounded", () => {
+  it("fetches every branch in its own invocation and reports the successes", async () => {
+    const branches = ["feat/a", "feat/b", "feat/c"];
+    const fetched: string[] = [];
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      expect(args[0]).toBe("fetch");
+      expect(args).toHaveLength(4);
+      fetched.push(String(args[3]));
+      return { stdout: "", stderr: "" };
+    });
+
+    await expect(fetchRefsBounded({ exec, branches, timeoutMs: 2000 })).resolves.toEqual(branches);
+    expect([...fetched].sort()).toEqual([...branches].sort());
+  });
+
+  it("returns only the branches whose fetch succeeded", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args[3] === "feat/unreachable") throw new Error("timed out");
+      return { stdout: "", stderr: "" };
+    });
+
+    await expect(fetchRefsBounded({
+      exec,
+      branches: ["feat/a", "feat/unreachable", "feat/b"],
+      timeoutMs: 2000,
+    })).resolves.toEqual(["feat/a", "feat/b"]);
+  });
+
+  it("caps how many fetches run at once", async () => {
+    let live = 0;
+    let peak = 0;
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
+      live += 1;
+      peak = Math.max(peak, live);
+      await Promise.resolve();
+      live -= 1;
+      return { stdout: "", stderr: "" };
+    });
+
+    await fetchRefsBounded({
+      exec,
+      branches: Array.from({ length: 12 }, (_value, index) => `feat/${index}`),
+      timeoutMs: 2000,
+    });
+
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(vi.mocked(exec)).toHaveBeenCalledTimes(12);
+  });
+
+  it("runs no fetch for an empty branch list", async () => {
+    const exec: GitExec = vi.fn();
+
+    await expect(fetchRefsBounded({ exec, branches: [], timeoutMs: 2000 })).resolves.toEqual([]);
+    expect(vi.mocked(exec)).not.toHaveBeenCalled();
   });
 });
 

@@ -149,6 +149,29 @@ describe("session remote-context staging", () => {
     });
     expect(dirty.isOk() && dirty.value).toBe("local-clean");
   });
+
+  it("isolates a throwing context read as a runtime error on each dependent slot", async () => {
+    const slot = buildSessionRemoteContextSlot(async () => {
+      throw new Error("ls-remote exploded");
+    });
+    const independent = safeProbe("dirty", async () => "local-clean");
+
+    const [worktree, baseDistance, dirty] = await Promise.all([
+      slot.run("worktree", async () => "must-not-resolve"),
+      slot.run("baseDistance", async () => "must-not-resolve"),
+      independent,
+    ]);
+
+    expect(worktree.isErr() && worktree.error).toMatchObject({
+      slot: "worktree",
+      message: "ls-remote exploded",
+    });
+    expect(baseDistance.isErr() && baseDistance.error).toMatchObject({
+      slot: "baseDistance",
+      message: "ls-remote exploded",
+    });
+    expect(dirty.isOk() && dirty.value).toBe("local-clean");
+  });
 });
 
 describe("identity-scoped Result slots", () => {

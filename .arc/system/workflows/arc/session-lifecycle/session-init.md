@@ -64,7 +64,7 @@ exact selected row. Never select a second frame from branch shape, metas, anothe
 commands may explain the failure, but they never establish a session frame, select a subject, authorize context
 loading, or permit mutation.
 
-**Per-slot probe failure:** Only a failed `locusState` invokes the stop above. Preserve every other failed slot as
+**Per-slot probe failure:** Only a failed `derivedLocusState` invokes the stop above. Preserve every other failed slot as
 an independent runtime error, omit only the action or authority that slot would have supplied, and surface the
 error in Step 6. Never replace a failed remote-aware result with a tracking-ref reading or use it to downgrade a
 healthy local slot.
@@ -604,7 +604,7 @@ Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, 
 `user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
 claims copied from SESSION-NOTES prose.
 
-Render each present non-`locusState` slot with `ok == false` as a concise degraded-slot line using its error kind
+Render each present non-`derivedLocusState` slot with `ok == false` as a concise degraded-slot line using its error kind
 and message. Continue with every healthy slot; the failed slot supplies no action, relation, or cleanup authority.
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via

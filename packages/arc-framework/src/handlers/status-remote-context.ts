@@ -68,7 +68,12 @@ export function sessionRemotePrerequisites(
 export interface SessionRemoteContextReaderOptions {
   cwd: string;
   exec: GitExec;
-  execInput: GitExecInput;
+  /**
+   * Stdin-capable executor for batch object availability. When absent, the snapshot
+   * still resolves and only the availability half degrades, so snapshot-only
+   * conclusions stay usable.
+   */
+  execInput?: GitExecInput | undefined;
   remoteSyncEnabled: () => Promise<boolean>;
 }
 
@@ -93,7 +98,7 @@ export function createSessionRemoteContextReader(
       } catch {
         return Object.freeze({ kind: "unavailable" as const, prerequisite: "remote-configuration" as const });
       }
-      if (!remotes.split("\n").includes("origin")) {
+      if (!remotes.split(/\r?\n/u).includes("origin")) {
         return Object.freeze({ kind: "not-needed" as const, reason: "no-remote" as const });
       }
       const snapshot = await readRemoteHeadSnapshot({
@@ -111,8 +116,11 @@ export function createSessionRemoteContextReader(
         tips: Object.freeze({ ...snapshot.tips }),
       });
       const oids = [...new Set(Object.values(immutableSnapshot.tips))];
+      const execInput = options.execInput;
       const [availability, history] = await Promise.all([
-        readObjectAvailability({ execInput: options.execInput, oids, cwd: options.cwd }),
+        execInput === undefined
+          ? Promise.resolve({ kind: "unavailable" as const, reason: "execution" as const })
+          : readObjectAvailability({ execInput, oids, cwd: options.cwd }),
         readHistoryCompleteness({ exec: options.exec, cwd: options.cwd }),
       ]);
       const immutableAvailability = availability.kind === "complete"

@@ -467,8 +467,13 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
     };
 
     expect(inferBaseBranchSync(pending, policy("prompt"))).toEqual({
-      recommendedAction: "prompt",
-      recommendedPromptText: "Materialize and synchronize the local main branch?",
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
+    });
+    // The always policy does not convert the guarded remedy into a fetch-into-ref either.
+    expect(inferBaseBranchSync(pending, policy("always"))).toEqual({
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
     });
   });
 
