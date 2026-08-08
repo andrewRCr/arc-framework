@@ -64,9 +64,6 @@ meaningful assertions over line counting.
 
 ## Engineering Standards
 
-**Scope discipline:** Don't build what wasn't asked for. Speculative abstraction and unrequested capability are
-scope decisions rather than engineering taste, and they belong to whoever set the scope.
-
 **Pre-public-release compatibility posture:** ARC is currently pre-public-release. Until its first public release,
 unpublished project-owned contracts and development-only persisted state may change in place. Do not add
 backward-compatibility aliases, migration readers, or data migrations for them; clear or regenerate development state

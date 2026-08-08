@@ -26,36 +26,31 @@ on-demand destination, so no reachability trigger is owed for the content that m
   no `[invariant]` marker. The transcribed text measures 160 words under the counting rule — the same figure the
   design states — so the band check doubled as verification that nothing was lost in transcription.
 
-### `[ ]` **1.2 Scope-discipline removal from both `DEV-RULES.PROJECT` copies**
+### `[x]` **1.2 Scope-discipline removal from both `DEV-RULES.PROJECT` copies**
 
 - _Goal:_ The doctrine the floor now carries exists in exactly one always-loaded place, and the adopter-side and
   repo-local budgets both collect the offset.
 
-- _Context:_ The file is `Configurable` and its two copies already diverge, including the heading each puts the
-  lines under. The framework-sync gate's byte-identity check does not cover it, so each copy takes its own
-  targeted edit and is verified per copy. A `cp` between them is blocked by the pre-commit guard and would wipe
-  project-specific overrides.
+    - `[x]` **1.2.a Capture the two-copy baseline**
+        - Captured the pre-edit cross-copy diff (293 lines — the copies diverge well beyond this entry) and kept
+          it for the post-edit comparison in 1.2.c.
 
-- _Note:_ Removal is the whole change. Each copy's heading and every surviving line stay as they are — the entry
-  being removed is a scope-authority rule that was misfiled under an engineering heading, so both sections end up
-  more cohesive than they started, and neither needs reseating.
+    - `[x]` **1.2.b Remove the lines from the project instance**
+        - Removed the leading `**Scope discipline:**` entry from `.arc/system/rules/DEV-RULES.PROJECT.md`
+          § Engineering Standards. The section now opens on the pre-public-release posture, which reads
+          correctly under that heading; no surviving line was reseated.
 
-    - `[ ]` **1.2.a Capture the two-copy baseline**
-        - Diff the two copies before editing either one and keep the result. It is the only way to tell a
-          pre-existing project-versus-template difference from one this task introduced; after both edits land,
-          that distinction is no longer observable.
+    - `[x]` **1.2.c Remove the lines from the package source**
+        - Removed the same doctrine from `packages/arc-framework/arc/system/rules/DEV-RULES.PROJECT.md` § Code
+          Quality Principles. What remains is one seed principle plus the placeholder comments inviting
+          language-specific standards — a well-formed template section.
+        - Re-diffed against the 1.2.a baseline comparing divergence sets rather than hunk positions: the
+          substantive set is unchanged, the only delta being blank-line realignment around the removal.
 
-    - `[ ]` **1.2.b Remove the lines from the project instance**
-        - `.arc/system/rules/DEV-RULES.PROJECT.md` § Engineering Standards carries them as the leading
-          `**Scope discipline:**` entry. Remove that entry; the section then opens on the pre-public-release
-          posture, which reads correctly under that heading.
-
-    - `[ ]` **1.2.c Remove the lines from the package source**
-        - `packages/arc-framework/arc/system/rules/DEV-RULES.PROJECT.md` § Code Quality Principles carries the
-          same doctrine under a different heading. Remove it there too. What remains — one seed principle plus
-          the placeholder comments inviting language-specific standards — is a well-formed template section.
-        - Re-diff the copies and compare against the baseline from 1.2.a: the only new difference should be the
-          removed entry, with no heading, key, or schema difference introduced.
+- _Outcome:_ The doctrine now lives only in the floor. Both copies were edited in place rather than synced, and
+  the baseline comparison is what makes that verifiable — for a `Configurable` pair the framework-sync gate
+  proves nothing, so a per-copy edit is indistinguishable from an introduced divergence once the pre-edit state
+  is gone.
 
 ### `[ ]` **1.3 Phrasing-consolidation sweep of `DEV-RULES.ARC`**
 
