@@ -129,54 +129,38 @@ Tasks 2.3.a and 2.3.b seat their lines above the split; 2.2.d and 2.3.c close th
   to quote. No new section was added to any template — each carrier attached to the boundary surface already
   present — and all four pairs are byte-identical across the two copies.
 
-### `[ ]` **2.3 Workflow-side instructions that keep the boundary alive**
+### `[x]` **2.3 Workflow-side instructions that keep the boundary alive**
 
 - _Goal:_ The boundary survives both stage transitions that could silently lose it — the draft-to-spec handoff,
   and the template-to-finalized-spec emit.
 
-- _Context:_ The emit case is the one that decides whether the amendment model has a delivery path at all. A
-  template's section body is author-replaced guidance and the emit step carries a closed list of what to strip,
-  so an unmarked line inside a replaced body is the most likely thing to be lost — and every template-level
-  check would still pass while no finalized spec carried the carrier.
+    - `[x]` **2.3.a Carry-forward line in `draft-design.md`**
+        - § Draft in the resolved level now states that whatever the path produces, the scope boundary it records
+          is what the spec inherits — authored as a handoff surface, not a private note.
+        - Seated after the path-selection sentence and above the `low` heading, the last point common to all
+          three paths, so the artifact-less `low` path is covered rather than silently skipped.
 
-- **Additional Context:** `strategy-workflow-authoring.md` — required before editing either workflow file;
-  frontmatter, method declarations, interlock markers, and routing class tags are not safely inferred from a
-  neighbouring workflow.
+    - `[x]` **2.3.b Carry-forward line in `create-spec.md`**
+        - New `### Scope-boundary carry-forward (all forms)` states that the spec's boundary inherits the
+          draft's and sharpens it, never silently dropping a recorded commitment, and that where no `draft-*`
+          exists the inheritance arrives as the carried determinacy-confirm instead.
+        - Seated in the same all-forms band as § Proportionality guard, above the three per-form blocks — the
+          file's existing pattern, and what keeps `low → brief` in scope.
 
-    - `[ ]` **2.3.a Carry-forward line in `draft-design.md`**
-        - State that the draft's scope boundary is what the spec inherits, so it is authored as a handoff
-          surface rather than a private note.
-        - Place it in § Draft in the resolved level, after the path-selection sentence and above the `low`
-          heading — the last point common to all three paths. The `low` path produces no draft artifact, so a line
-          seated in the draft-producing sections would govern `medium` and `high` only and drop the lightest path
-          without failing anything.
+    - `[x]` **2.3.c Retain-on-emit instruction in `create-spec.md` § Write and save**
+        - Added directly after the strip contract, its complement: the carrier sits inside a section body the
+          author replaces wholesale, so the instruction says to keep it and quotes the exact settled line in a
+          `text` block for recognition, including the `brief` form's clause-scoping sentence.
 
-    - `[ ]` **2.3.b Carry-forward line in `create-spec.md`**
-        - State that the spec's boundary inherits and sharpens the draft's, and never silently drops it. This is
-          also what picks up the boundary on the `low` path, where the inheritance is a carried confirmation
-          rather than a draft section.
-        - Seat it as an all-forms instruction above the per-form blocks, in the same band as § Proportionality
-          guard (all forms) — the file's existing pattern for exactly this. The three form blocks sit below it and
-          `low` maps to `brief`, so a line seated in the `outline` block would govern `outline` alone and miss the
-          lightest path entirely. The `outline` block's own "the **scope boundary** (no-gos) is explicit" makes
-          that the tempting wrong seat.
+    - `[x]` **2.3.d Close the phase's gates**
+        - Both workflow pairs verified byte-identical, both diffs pure insertions with frontmatter untouched.
+        - Markdown gate, all three ARC contract checks, and the full code checks green — `lint:ts`, `lint:sh`,
+          both type checks, and the whole suite at 743 files.
 
-    - `[ ]` **2.3.c Retain-on-emit instruction in `create-spec.md` § Write and save**
-        - Add an explicit instruction to retain the boundary carrier when emitting a spec, quoting the exact line
-          settled in Task 2.2.a so an author can recognize it. The risk being closed is author replacement of a
-          template section body, not the strip contract — that contract lists removals and never names the
-          carrier, which is precisely why an unmarked line inside a replaced body goes missing.
-        - Depends on 2.2.a: the instruction cannot quote a line that has not been settled.
-
-    - `[ ]` **2.3.d Close the phase's gates**
-        - Both workflow files are `Framework`: edit the package source, then mirror byte-identically to `.arc/`.
-          The four spec templates carry the same obligation under Task 2.2.
-        - Leave both workflows' YAML frontmatter alone. A test parses each one and asserts
-          `assess-design-proportionality` is still declared, so a frontmatter slip fails the suite rather than the
-          Markdown gate.
-        - Run the Markdown gate, the ARC contract checks, **and** the code checks over the phase's edits. Every
-          file this phase touches is Markdown, and all seven are under test in one form or another, so the
-          Markdown-only carve-out does not apply here either.
+- _Outcome:_ The chain is unbroken end to end: draft records the boundary, spec inherits and sharpens it, emit
+  retains the amendment contract. Both lines sit above their stage's path split, so the two lightest paths — the
+  one that produces no draft and the one that maps to the form with no boundary section — are covered by
+  placement rather than by a criterion that would have passed either way.
 
 ## **Phase 3:** Reviewer-side boundary provisioning
 
