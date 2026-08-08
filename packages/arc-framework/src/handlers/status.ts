@@ -294,15 +294,22 @@ const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
 const WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE = ".internal/work-unit-stale-last-nudge.txt";
 const NOTES_COMPACTION_NUDGE_MARKER_RELATIVE = ".internal/notes-compaction-last-nudge.txt";
 
-async function readSessionBranch(exec: GitExec): Promise<string | null> {
-  const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
+// The executor carries no root, so every reader composing one request's evidence names
+// its own; otherwise a read resolves against the process directory instead.
+async function readSessionBranch(exec: GitExec, cwd: string): Promise<string | null> {
+  const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd })).stdout.trim();
   return branch === "" || branch === "HEAD" ? null : branch;
 }
 
-async function readSessionUpstreamBranch(exec: GitExec, branch: string): Promise<string | null> {
+async function readSessionUpstreamBranch(
+  exec: GitExec,
+  branch: string,
+  cwd: string,
+): Promise<string | null> {
   const stdout = (await exec(
     "git",
     ["for-each-ref", "--format=%(upstream:remotename)%09%(upstream:short)", `refs/heads/${branch}`],
+    { cwd },
   )).stdout;
   const records = stdout.split(/\r?\n/u).filter((record) => record !== "");
   if (records.length > 1) throw new Error("Cannot resolve a unique worktree upstream.");
@@ -317,12 +324,16 @@ async function readSessionUpstreamBranch(exec: GitExec, branch: string): Promise
   return upstreamShort.startsWith(remotePrefix) ? upstreamShort.slice(remotePrefix.length) : upstreamShort;
 }
 
-async function readLocalBaseOid(exec: GitExec, baseBranch: string): Promise<string | null> {
+async function readLocalBaseOid(
+  exec: GitExec,
+  baseBranch: string,
+  cwd: string,
+): Promise<string | null> {
   try {
     const oid = (await exec(
       "git",
       ["rev-parse", "--verify", `refs/heads/${baseBranch}^{commit}`],
-      { objectAccess: "local-only" },
+      { objectAccess: "local-only", cwd },
     )).stdout.trim();
     return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid) ? oid : null;
   } catch {
@@ -808,11 +819,11 @@ export async function handleStatus(
       worktree: async (context) => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        const branch = await readSessionBranch(exec);
+        const branch = await readSessionBranch(exec, cwd);
         const prerequisites = sessionRemotePrerequisites(context);
         const upstreamBranch = branch === null || !remoteSyncEnabled || context.kind === "not-needed"
           ? null
-          : await readSessionUpstreamBranch(exec, branch);
+          : await readSessionUpstreamBranch(exec, branch, cwd);
         const supplied = prerequisites.kind === "supplied"
           ? prerequisites
           : {
@@ -860,7 +871,7 @@ export async function handleStatus(
         // Detachment outranks the remote shortcuts, as it does inside the analyzer:
         // returning early on a disabled or absent remote would drop the detached-HEAD
         // reason whenever both conditions hold.
-        if (await readSessionBranch(exec) === null) {
+        if (await readSessionBranch(exec, cwd) === null) {
           return {
             mode: "advisory" as const,
             verdict: "unavailable" as const,
@@ -922,7 +933,7 @@ export async function handleStatus(
         const baseBranch = resolved.settings["branch.base"];
         const [checkout, localBaseOid] = await Promise.all([
           resolveBaseCheckoutLocus(exec, baseBranch),
-          readLocalBaseOid(exec, baseBranch),
+          readLocalBaseOid(exec, baseBranch, cwd),
         ]);
         const prerequisites = sessionRemotePrerequisites(context);
         if (prerequisites.kind === "not-needed") {

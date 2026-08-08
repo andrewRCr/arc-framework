@@ -338,7 +338,8 @@ call, not an init-time action, so there is no pull to fire here — on `surface`
 base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
-pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
+pull channel — distinct from the advisory-only base-distance channel above. The comparison runs against the
+request's shared passive remote evidence; the slot itself fetches nothing. Dispatch on `recommendedAction`
 (resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. Do not compare its
 evidence, failure, relation, checkout, or remedy fields — the action and text already encode those combinations:
 

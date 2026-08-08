@@ -194,6 +194,7 @@ export async function expandActiveInFlight(
     exec,
     scope: { kind: "all-heads" },
     timeoutMs,
+    ...(cwd === undefined ? {} : { cwd }),
   });
   if (snapshot.kind === "unreachable") {
     return {
@@ -227,7 +228,12 @@ export async function expandActiveInFlight(
   // One bounded invocation rather than a process per branch: a fresh clone leaves every
   // advertised head missing, and this runs on the lifecycle preflight path. Per-branch
   // success is not consulted — the availability re-read below establishes what landed.
-  await fetchRefsBounded({ exec, branches: missingBranches, timeoutMs });
+  await fetchRefsBounded({
+    exec,
+    branches: missingBranches,
+    timeoutMs,
+    ...(cwd === undefined ? {} : { cwd }),
+  });
 
   const [objectAvailability, history, localRefs, worktrees] = await Promise.all([
     missingBranches.length === 0

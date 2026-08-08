@@ -464,6 +464,8 @@ export interface FetchRefBoundedOptions {
   branch: string;
   /** Network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
+  /** Repository root the fetch runs against; see {@link ReadLiveRemoteHeadsOptions.cwd}. */
+  cwd?: string;
 }
 
 /**
@@ -479,8 +481,8 @@ export interface FetchRefBoundedOptions {
  * @returns `true` when the fetch succeeded, `false` on timeout/unreachable.
  */
 export async function fetchRefBounded(options: FetchRefBoundedOptions): Promise<boolean> {
-  const { exec, remote = DEFAULT_REMOTE, branch, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  return (await runBounded(exec, ["fetch", "--no-filter", remote, branch], timeoutMs)).ok;
+  const { exec, remote = DEFAULT_REMOTE, branch, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS, cwd } = options;
+  return (await runBounded(exec, ["fetch", "--no-filter", remote, branch], timeoutMs, cwd)).ok;
 }
 
 /** Maximum candidate fetches in flight at once. */
@@ -503,6 +505,8 @@ export interface FetchRefsBoundedOptions {
   totalTimeoutMs?: number;
   /** Injectable monotonic clock, for deterministic deadline coverage. */
   now?: () => number;
+  /** Repository root the fetches run against; see {@link ReadLiveRemoteHeadsOptions.cwd}. */
+  cwd?: string;
 }
 
 /**
@@ -526,6 +530,7 @@ export async function fetchRefsBounded(options: FetchRefsBoundedOptions): Promis
     timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
     totalTimeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
     now = () => Date.now(),
+    cwd,
   } = options;
   const pending = [...branches];
   const fetched: string[] = [];
@@ -539,7 +544,8 @@ export async function fetchRefsBounded(options: FetchRefsBoundedOptions): Promis
         const remaining = deadline - now();
         if (remaining <= 0) return;
         const bounded = Math.min(timeoutMs, remaining);
-        if (await fetchRefBounded({ exec, remote, branch, timeoutMs: bounded })) fetched.push(branch);
+        const fetchOptions = { exec, remote, branch, timeoutMs: bounded, ...(cwd === undefined ? {} : { cwd }) };
+        if (await fetchRefBounded(fetchOptions)) fetched.push(branch);
       }
     },
   );
