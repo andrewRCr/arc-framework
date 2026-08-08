@@ -82,28 +82,19 @@ and `create-spec` maps `low` to the one form with no boundary section, so in eac
 that path is covered at all. The other loss surface is author replacement of a template section body on emit.
 Tasks 2.3.a and 2.3.b seat their lines above the split; 2.2.d and 2.3.c close the emit surface.
 
-### `[ ]` **2.1 Scope-boundary section in `template-draft.md`**
+### `[x]` **2.1 Scope-boundary section in `template-draft.md`**
 
 - _Goal:_ A new draft prompts for what the work will not do instead of for a size estimate no downstream stage
   consumes.
 
-- _Rationale:_ Nothing under `packages/arc-framework/src` reads any draft section name, so no source consumes the
-  size estimate — and estimating size at draft time was speculative and misleading besides. Boundary content is
-  what the later stages actually need.
-
-- _Note:_ No test couples to this file's section names. One end-to-end test asserts its H1 only; the rest are
-  existence and classification checks; and the three test matches for the old section are synthetic inline draft
-  text that never reads the template. Nothing in the test suite needs a companion change here.
-
-    - Heading is `## Scope boundary (Won't Do)`. "Scope boundary" is the shared spine term with the `outline`
-      spec form, so the carry-forward reads as one chain; "Won't Do" is vocabulary `template-tasks.md` already
-      uses rather than a new coinage.
-    - Replace `## Scope Estimate` with that section in
-      `packages/arc-framework/arc/reference/templates/arc/work-unit/template-draft.md`, then mirror to `.arc/`.
-    - Retain the old section's dependencies prompt inside the new section — dependency edges are
-      boundary-adjacent, and drafts written before a meta exists need a home for them.
-    - Forward-only: leave existing drafts that still carry the old section untouched. They keep it until each is
-      independently groomed.
+    - `## Scope Estimate` is replaced by `## Scope boundary (Won't Do)` in both copies, byte-identical. The
+      heading shares "scope boundary" with the `outline` spec form so the carry-forward reads as one chain, and
+      "Won't Do" reuses `template-tasks.md` vocabulary rather than coining a term.
+    - The new body prompts for the adjacent work being left out and says why — so the spec inherits the boundary
+      instead of rediscovering it — and retains the old section's dependencies prompt verbatim.
+    - Confirmed forward-only and consumer-free: nothing under `packages/arc-framework/src` reads the old section
+      name, and no template, workflow, or method references it. Existing drafts keep it until independently
+      groomed.
 
 ### `[ ]` **2.2 Amendment carrier on all four spec forms**
 

@@ -37,8 +37,9 @@ same ground later.
 What don't we know yet? What are we assuming? Flag assumptions that are risky or unvalidated — these may need
 investigation before committing to a PRD.
 
-## Scope Estimate
+## Scope boundary (Won't Do)
 
-Rough size: Small (hours-days) | Medium (days-week) | Large (week+)
+What will this deliberately not do? Name the adjacent work being left out, so the spec inherits the boundary
+instead of rediscovering it.
 
 Dependencies on other work, if any.
