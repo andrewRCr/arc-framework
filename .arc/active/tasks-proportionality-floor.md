@@ -16,27 +16,15 @@ must fire at every moment the planning-time method cannot reach — so the canon
 The removal from `DEV-RULES.PROJECT` is an absorption into another always-loaded surface, not a demotion to an
 on-demand destination, so no reachability trigger is owed for the content that moves.
 
-### `[ ]` **1.1 Proportionality section in `DEV-RULES.ARC`**
+### `[x]` **1.1 Proportionality section in `DEV-RULES.ARC`**
 
 - _Goal:_ Every session loads a universal rule that traces material mechanism to a stated goal, real constraint,
   trust boundary, or observed failure, and that a literal reading cannot turn into under-delivery.
 
-- _Approach:_ Transcribe the approved section text rather than re-authoring it. Nine clauses are load-bearing —
-  necessity trace, compose-first, consequence-scaled rigor, bounded adequacy rail, scope-boundary binding,
-  authority attribution, decision unbundling, completion rail, altitude pointer — and their **order** is
-  load-bearing too: each clause that permits doing less is immediately followed by the clause that bounds it.
-  Rewording must preserve both the set and the adjacency.
-
-    - Place the section between § Scaled Process, Invariant Discipline and § Commit Discipline. The adjacency
-      carries the pairing: discipline never scales down, machinery never scales up unearned.
-    - Carry no `[invariant]` marker on the section or on any clause. The non-bypassable half is already held by
-      § Rule Authority's pre-commitment-text rule, which the scope-boundary clause leans on by name.
-    - Verify the length against the 150-170 band, counting whitespace-separated tokens that contain a word
-      character and excluding the section heading. The approved text measures 160 by that rule, so it sits
-      mid-band; a count outside the band means either a wording change that needs a compensating edit, or a
-      transcription error worth finding before moving on.
-    - Author in `packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md`; the file is `Framework`, so mirror
-      the result byte-identically into `.arc/system/rules/DEV-RULES.ARC.md`.
+- _Outcome:_ `## Proportionality` sits between § Scaled Process, Invariant Discipline and § Commit Discipline in
+  both copies of `DEV-RULES.ARC`, byte-identical, carrying all nine load-bearing clauses in the approved order and
+  no `[invariant]` marker. The transcribed text measures 160 words under the counting rule — the same figure the
+  design states — so the band check doubled as verification that nothing was lost in transcription.
 
 ### `[ ]` **1.2 Scope-discipline removal from both `DEV-RULES.PROJECT` copies**
 
