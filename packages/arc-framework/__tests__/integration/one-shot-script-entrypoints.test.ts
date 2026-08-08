@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -31,7 +31,9 @@ async function createListenProbe(): Promise<{ marker: string; nodeOptions: strin
     ].join("\n"),
     "utf8",
   );
-  return { marker, nodeOptions: `--import=${probe}` };
+  // A file URL rather than a path: NODE_OPTIONS is split on whitespace, so a temporary
+  // directory containing a space would break the option into two arguments.
+  return { marker, nodeOptions: `--import=${pathToFileURL(probe).href}` };
 }
 
 afterEach(async () => {

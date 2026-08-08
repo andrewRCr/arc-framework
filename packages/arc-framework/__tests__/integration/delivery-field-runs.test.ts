@@ -23,7 +23,7 @@ const FIELD_RUN_TIMEOUT_MS = 20_000;
 
 describe("recorded delivery field runs", () => {
   let repository: string;
-  let fixtureRoot: string;
+  let fixtureRoot: string | undefined;
 
   beforeAll(async () => {
     const source = await repositoryRoot();
@@ -34,7 +34,9 @@ describe("recorded delivery field runs", () => {
   });
 
   afterAll(async () => {
-    await rm(fixtureRoot, { recursive: true, force: true });
+    // `afterAll` still runs when `beforeAll` rejects before this is assigned, and
+    // `rm(undefined, ...)` would throw over the real setup failure.
+    if (fixtureRoot !== undefined) await rm(fixtureRoot, { recursive: true, force: true });
   });
 
   it.each(RUNS)("binds every $workUnitId member to its recorded merge parents", async (run) => {

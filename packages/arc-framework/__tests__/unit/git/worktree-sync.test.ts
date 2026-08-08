@@ -84,6 +84,30 @@ describe("analyzeWorktreeSnapshot", () => {
     });
   });
 
+  it("classifies detachment ahead of the disabled-sync shortcut", async () => {
+    // Both conditions hold at once. Reporting `skipped` here would carry a null branch
+    // under a state whose envelope invariant requires a named one, so the composite
+    // would reject its own result rather than describe a detached HEAD.
+    const { exec } = buildExec({});
+
+    await expect(analyzeWorktreeSnapshot({
+      exec,
+      remoteSyncEnabled: false,
+      originConfigured: true,
+      branch: null,
+      upstreamBranch: null,
+      snapshot: { kind: "unreachable", failureReason: "network" },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      history: { kind: "unavailable", reason: "execution" },
+    })).resolves.toEqual({
+      state: "detached-head",
+      ahead: 0,
+      behind: 0,
+      branch: null,
+      remoteEvidence: "not-applicable",
+    });
+  });
+
   it("returns detached-head before inspecting remote evidence", async () => {
     const { exec } = buildExec({});
 

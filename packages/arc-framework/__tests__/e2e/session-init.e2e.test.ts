@@ -219,7 +219,7 @@ async function createGitTraceHarness(): Promise<GitTraceHarness> {
     "  1:*refs/notes/arc/user/*|1:*refs/arc/user/*|1:*refs/arc/tmp/transient-discovery/*)",
     "    ;;",
     "  1:fetch*|1:update-ref*|1:symbolic-ref*|1:branch*|1:pack-objects*|1:index-pack*|1:maintenance*|1:gc*)",
-    "    printf '%s\n' 'code-repository metadata write denied' >&2",
+    "    printf '%s\\n' 'code-repository metadata write denied' >&2",
     "    exit 97",
     "    ;;",
     "esac",

@@ -65,6 +65,7 @@ import type { GitExec } from "../../src/lib/git/index.js";
 import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
+import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
 
 interface Fixture {
   root: string;
@@ -898,9 +899,7 @@ function makeRealWorktreeProbes(
       if (result.state === "remote-unavailable") {
         return { ...result, remoteEvidence: "unreachable" as const, failureReason: result.failureReason ?? "error" };
       }
-      const remoteEvidence = ["skipped", "no-upstream", "detached-head", "no-remote"].includes(result.state)
-        ? "not-applicable" as const
-        : "exact" as const;
+      const remoteEvidence = worktreeStateEvidence(result.state);
       const { failureReason, ...value } = result;
       void failureReason;
       return { ...value, remoteEvidence };

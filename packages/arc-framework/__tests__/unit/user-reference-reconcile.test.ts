@@ -149,6 +149,40 @@ describe("planUserReferenceReconcile", () => {
     expect(refs).toEqual([BASE_OID]);
   });
 
+  it("offers no remedy when no remote evidence was required", () => {
+    // Remote sync off or no remote configured is a deliberate configuration, not a
+    // failed read. Surfacing here would report a transient fault the operator cannot
+    // act on, for a state they chose.
+    const authority = {
+      status: "unavailable",
+      ref: "origin/main",
+      reason: "remote-not-required",
+      remoteEvidence: "not-applicable",
+    } as const;
+
+    expect(projectUserReferenceSessionResult(authority, {
+      userInbox: { path: "USER-INBOX.md", content: "" },
+    })).toMatchObject({
+      status: "unavailable",
+      plan: null,
+      recommendedAction: "skip",
+      recommendedPromptText: "",
+    });
+  });
+
+  it("still surfaces an unreachable remote as an authority it cannot establish", () => {
+    const authority = {
+      status: "unavailable",
+      ref: "origin/main",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    } as const;
+
+    expect(projectUserReferenceSessionResult(authority, {
+      userInbox: { path: "USER-INBOX.md", content: "" },
+    })).toMatchObject({ recommendedAction: "surface" });
+  });
+
   it("returns typed pending authority when the advertised base object is missing", async () => {
     let enumerated = false;
     await expect(analyzeUserReferenceAuthority({

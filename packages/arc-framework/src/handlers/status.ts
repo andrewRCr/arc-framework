@@ -984,6 +984,9 @@ export async function handleStatus(
           ? await analyzeUserReferenceAuthority({
             protection,
             baseBranch,
+            // The unsupplied arms are reachable only under `partial` protection, which
+            // returns before either is read. They are placeholders for an unused
+            // parameter rather than evidence, and never reach a result.
             snapshot: prerequisites.kind === "supplied"
               ? prerequisites.snapshot
               : { kind: "unreachable", failureReason: "error" },
@@ -993,10 +996,14 @@ export async function handleStatus(
             enumerateAt: (ref) => enumerateGitRetirementRecords(localOnlyExec, ref),
           })
           : {
+              // `not-needed` means remote sync is off or no remote is configured. That is
+              // a deliberate configuration, not a failed read, so this reports the
+              // not-applicable qualifier as the sibling probes do rather than fabricating
+              // an unreachable reading the operator would read as a network fault.
               status: "unavailable" as const,
               ref: `origin/${baseBranch}`,
-              remoteEvidence: "unreachable" as const,
-              failureReason: "error" as const,
+              reason: "remote-not-required" as const,
+              remoteEvidence: "not-applicable" as const,
             };
         const sessionNotesPath = surfaces.sessionNotesPath(SlugSchema.parse(slug));
         return projectUserReferenceSessionResult(authority, {

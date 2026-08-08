@@ -82,6 +82,7 @@ import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js"
 import type { TaskListCursorFileResult } from "../../../src/lib/task-list/file-cursor.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 import { assertLoadSetPath, resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
+import { worktreeStateEvidence } from "../../helpers/worktree-evidence.js";
 
 // --- Fixtures ---
 
@@ -235,9 +236,7 @@ function passiveWorktreeSync(
       ? { ...base, remoteEvidence: "pending-fetch" }
       : { ...base, remoteEvidence: "unreachable", failureReason };
   }
-  const remoteEvidence = ["skipped", "no-upstream", "detached-head", "no-remote"].includes(value.state)
-    ? "not-applicable" as const
-    : "exact" as const;
+  const remoteEvidence = worktreeStateEvidence(value.state);
   return { ...base, remoteEvidence };
 }
 

@@ -37,7 +37,16 @@ function fixture(name: string): Record<string, unknown> {
   };
   const baseDistanceValue = baseDistance.value;
   if (baseDistance.ok === true && baseDistanceValue !== undefined && baseDistanceValue.remoteEvidence === undefined) {
-    baseDistanceValue.remoteEvidence = ["skipped", "no-remote"].includes(baseDistanceValue.state ?? "")
+    const state = baseDistanceValue.state ?? "";
+    // `remote-unavailable` admits exact, pending-fetch, and unreachable, each with a
+    // different required shape, so no default can be correct — a fixture must say which.
+    if (state === "remote-unavailable") {
+      throw new Error("A remote-unavailable base-distance fixture must state its remoteEvidence.");
+    }
+    // The arms that resolve before any snapshot evidence is consulted. Keep this list in
+    // step with the base-distance rule in `commands/status/schema.ts`; a state missing
+    // here defaults to `exact` and silently passes a fixture the producer cannot emit.
+    baseDistanceValue.remoteEvidence = ["skipped", "no-remote", "detached-head"].includes(state)
       ? "not-applicable"
       : "exact";
   }

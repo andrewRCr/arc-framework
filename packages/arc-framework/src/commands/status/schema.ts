@@ -120,6 +120,12 @@ const UserReferenceAuthorityViewSchema = z.union([
   z.object({
     status: z.literal("unavailable"),
     ref: NON_EMPTY_TEXT,
+    reason: z.literal("remote-not-required"),
+    remoteEvidence: z.literal("not-applicable"),
+  }).loose(),
+  z.object({
+    status: z.literal("unavailable"),
+    ref: NON_EMPTY_TEXT,
     remoteEvidence: z.literal("unreachable"),
     failureReason: z.enum(["timeout", "network", "auth", "error"]),
   }).loose(),
@@ -666,19 +672,23 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
   if (!countsMatch || (value.verdict === "clean" && value.behind !== 0) || (value.verdict === "reconcile" && value.behind === 0)) {
     context.addIssue({ code: "custom", path: ["ahead"], message: "counts must match base-distance verdict" });
   }
+  // Keyed on state, falling through to evidence only for `remote-unavailable`, the one
+  // state that admits several readings. Indentation tracks nesting depth exactly: the
+  // arms previously sat at mixed depths and read as a grouping other than the one that
+  // executed, which is how a state came to be missing from the ladder above.
   const unavailableShapeMatches = value.state === "no-remote"
     ? value.unavailableReason === "no-remote" && value.baseOid === null
     : value.state === "detached-head"
-    ? value.unavailableReason === "detached-head" && value.baseOid === null
-    : healthy
-      ? value.unavailableReason === undefined && value.baseOid !== null
-      : value.state === "skipped"
-        ? value.unavailableReason === undefined && value.baseOid === null
-    : value.remoteEvidence === "exact"
-      ? value.unavailableReason === "remote-base-absent" && value.baseOid === null
-      : value.remoteEvidence === "pending-fetch"
-        ? value.unavailableReason === "base-object-pending-fetch" && value.baseOid !== null
-        : value.unavailableReason === undefined && value.baseOid === null;
+      ? value.unavailableReason === "detached-head" && value.baseOid === null
+      : healthy
+        ? value.unavailableReason === undefined && value.baseOid !== null
+        : value.state === "skipped"
+          ? value.unavailableReason === undefined && value.baseOid === null
+          : value.remoteEvidence === "exact"
+            ? value.unavailableReason === "remote-base-absent" && value.baseOid === null
+            : value.remoteEvidence === "pending-fetch"
+              ? value.unavailableReason === "base-object-pending-fetch" && value.baseOid !== null
+              : value.unavailableReason === undefined && value.baseOid === null;
   if (!unavailableShapeMatches) {
     context.addIssue({ code: "custom", path: ["unavailableReason"], message: "must match base-distance evidence" });
   }

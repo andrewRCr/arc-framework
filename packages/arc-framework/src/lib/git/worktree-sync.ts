@@ -145,21 +145,24 @@ export type WorktreeMaterializingInspectionResult = Omit<
 export async function analyzeWorktreeSnapshot(
   options: AnalyzeWorktreeSnapshotOptions,
 ): Promise<WorktreeSnapshotAnalysisResult> {
-  if (!options.remoteSyncEnabled) {
-    return {
-      state: "skipped",
-      ahead: 0,
-      behind: 0,
-      branch: options.branch,
-      remoteEvidence: "not-applicable",
-    };
-  }
+  // Detachment outranks the disabled-sync shortcut. Returning `skipped` first would
+  // emit a null branch under a state whose envelope invariant requires a named one,
+  // so a detached HEAD with remote sync off made the composite reject its own result.
   if (options.branch === null) {
     return {
       state: "detached-head",
       ahead: 0,
       behind: 0,
       branch: null,
+      remoteEvidence: "not-applicable",
+    };
+  }
+  if (!options.remoteSyncEnabled) {
+    return {
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      branch: options.branch,
       remoteEvidence: "not-applicable",
     };
   }
