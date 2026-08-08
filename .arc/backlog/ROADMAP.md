@@ -13,15 +13,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                     | Priority | Owner  | Depends on | Cohort                        |
-| ---------- | ----------------------------- | -------- | ------ | ---------- | ----------------------------- |
-| `Active`   | decompose-transition-record   | P1       | andrew | —          | decompose-transform-integrity |
-| `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment     |
-| `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                             |
-| `Active`   | delivery-slice-review-vehicle | P1       | andrew | —          | —                             |
-| `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                             |
-| `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                             |
-| `Planning` | stub-mint-to-launch           | P1       | andrew | —          | —                             |
+| State         | Work unit                     | Priority | Owner  | Depends on | Cohort                        |
+| ------------- | ----------------------------- | -------- | ------ | ---------- | ----------------------------- |
+| `Active`      | decompose-transition-record   | P1       | andrew | —          | decompose-transform-integrity |
+| `Planning`    | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment     |
+| `Planning`    | decomposition-doctrine        | P1       | andrew | —          | —                             |
+| `Integrating` | delivery-slice-review-vehicle | P1       | andrew | —          | —                             |
+| `Planning`    | integration-boundary-accuracy | P1       | andrew | —          | —                             |
+| `Planning`    | review-checkout-lifecycle     | P1       | andrew | —          | —                             |
+| `Planning`    | stub-mint-to-launch           | P1       | andrew | —          | —                             |
 
 ## Ready
 

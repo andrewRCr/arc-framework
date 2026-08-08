@@ -1,8 +1,8 @@
 # Metadata: delivery-slice-review-vehicle
 
-| **State** | **Owner** | **Branch**                           | **Class** | **Priority** |
-| --------- | --------- | ------------------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/delivery-slice-review-vehicle` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                           | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/delivery-slice-review-vehicle` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.1 — Complete verification (all tasks complete)
+- **Last Completed:** Task 6.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
