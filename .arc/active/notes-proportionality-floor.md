@@ -1,8 +1,10 @@
 # Notes: proportionality-floor
 
-- Rejected directions
-- Clause gloss
-- Editing constraints
+## Contents
+
+- [Rejected directions](#rejected-directions)
+- [Clause gloss](#clause-gloss)
+- [Editing constraints](#editing-constraints)
 
 ---
 
