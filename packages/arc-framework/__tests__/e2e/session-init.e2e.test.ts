@@ -14,7 +14,7 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -33,6 +33,18 @@ interface SessionInitEnvelope {
     value?: { kind: string; workflow: string | null; sessionType: string | null };
   };
   user?: unknown;
+  userReferenceReconcile?: {
+    ok: boolean;
+    value?: { authority?: { remoteEvidence?: string } };
+  };
+  worktree?: {
+    ok: boolean;
+    value?: {
+      state: string;
+      remoteEvidence?: string;
+      failureReason?: string;
+    };
+  };
   baseDistance?: {
     ok: boolean;
     value?: {
@@ -96,6 +108,10 @@ interface SessionInitEnvelope {
         marks?: string[];
       }>;
     };
+  };
+  materializableWorkUnits?: {
+    ok: boolean;
+    value?: { remoteEvidence: string; candidates: unknown[] };
   };
   currentHusk?: {
     ok: boolean;
@@ -163,6 +179,79 @@ interface RecoverAuditReport {
   };
 }
 
+interface GitTraceHarness {
+  binDir: string;
+  logPath: string;
+  batchInputPath: string;
+  env: Record<string, string>;
+}
+
+async function createGitTraceHarness(): Promise<GitTraceHarness> {
+  const binDir = await mkdtemp(join(tmpdir(), "arc-session-init-git-trace-"));
+  const logPath = join(binDir, "git.log");
+  const batchInputPath = join(binDir, "batch-input.txt");
+  const wrapperPath = join(binDir, "git");
+  await writeFile(wrapperPath, [
+    "#!/bin/sh",
+    // Compose the record, then append it in one write: the probes run concurrently, so
+    // separate appends can interleave mid-record and corrupt the trace being asserted on.
+    // The tab-per-field shape is preserved because the reader splits records on tabs.
+    "__arc_record=$(printf '%s\\t' \"$PWD\" \"$@\")",
+    "printf '%s\\n' \"$__arc_record\" >> \"$ARC_GIT_TRACE_LOG\"",
+    "case \"$ARC_GIT_TRACE_HISTORY:$*\" in",
+    "  shallow:*\"rev-parse --is-shallow-repository\"*)",
+    "    printf '%s\\n' 'true'",
+    "    exit 0",
+    "    ;;",
+    "esac",
+    "case \"$ARC_GIT_TRACE_FAIL:$*\" in",
+    "  remote:*\"ls-remote --heads origin\"*)",
+    "    printf '%s\\n' 'network is unreachable' >&2",
+    "    exit 1",
+    "    ;;",
+    "  batch:*\"cat-file --batch-check\"*)",
+    "    /bin/cat > /dev/null",
+    "    printf '%s\\n' 'local object inspection denied' >&2",
+    "    exit 1",
+    "    ;;",
+    "esac",
+    "case \"$ARC_GIT_TRACE_REJECT_CODE_WRITES:$*\" in",
+    "  1:*refs/notes/arc/user/*|1:*refs/arc/user/*|1:*refs/arc/tmp/transient-discovery/*)",
+    "    ;;",
+    "  1:fetch*|1:update-ref*|1:symbolic-ref*|1:branch*|1:pack-objects*|1:index-pack*|1:maintenance*|1:gc*)",
+    "    printf '%s\\n' 'code-repository metadata write denied' >&2",
+    "    exit 97",
+    "    ;;",
+    "esac",
+    "case \" $* \" in",
+    "  *\" cat-file --batch-check\"*)",
+    "    /bin/cat > \"$ARC_GIT_TRACE_BATCH_INPUT\"",
+    "    PATH=\"$ARC_GIT_REAL_PATH\" exec git \"$@\" < \"$ARC_GIT_TRACE_BATCH_INPUT\"",
+    "    ;;",
+    "esac",
+    "PATH=\"$ARC_GIT_REAL_PATH\" exec git \"$@\"",
+    "",
+  ].join("\n"));
+  await chmod(wrapperPath, 0o755);
+  const realPath = process.env.PATH ?? "";
+  return {
+    binDir,
+    logPath,
+    batchInputPath,
+    env: {
+      PATH: `${binDir}:${realPath}`,
+      ARC_GIT_REAL_PATH: realPath,
+      ARC_GIT_TRACE_LOG: logPath,
+      ARC_GIT_TRACE_BATCH_INPUT: batchInputPath,
+    },
+  };
+}
+
+async function readGitTrace(harness: GitTraceHarness): Promise<string[][]> {
+  const content = await readFile(harness.logPath, "utf8");
+  return content.trim().split("\n").filter(Boolean).map((line) => line.split("\t").filter(Boolean));
+}
+
 async function writeStatusFixture(
   arcRoot: string,
   category: string,
@@ -170,7 +259,7 @@ async function writeStatusFixture(
   fields: { taskList?: string; nextAction: string },
 ): Promise<void> {
   await git(arcRoot, ["add", "-A"]);
-  await git(arcRoot, ["commit", "-m", "initialize fixture"]);
+  await git(arcRoot, ["commit", "--allow-empty", "-m", "initialize fixture"]);
   await git(arcRoot, ["switch", "-c", `${category}/${stem}`]);
   const dir = join(arcRoot, ".arc", "active");
   await mkdir(dir, { recursive: true });
@@ -264,6 +353,8 @@ describe("session-init E2E — sessionType across type variants", () => {
   });
 
   it("does not warn that a valid v3 Errand identity is malformed", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
     await seedOpenErrandIdentity(tmpDir, "valid-v3");
 
     const result = await runArc(["status", "--session-init", "--json"], tmpDir);
@@ -630,6 +721,231 @@ describe("session-init E2E — sessionType across type variants", () => {
   });
 });
 
+describe("session-init E2E — request-scoped remote acquisition", () => {
+  it("uses one all-heads generation and one local availability batch without code-ref mutation", async () => {
+    const repo = await createTempRepo();
+    const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-generation-origin-"));
+    const trace = await createGitTraceHarness();
+    try {
+      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await git(repo, ["remote", "add", "origin", bareDir]);
+      await git(repo, ["add", "-A"]);
+      await git(repo, ["commit", "-m", "install ARC"]);
+      await git(repo, ["push", "-u", "origin", "main"]);
+      const mainOid = await git(repo, ["rev-parse", "HEAD"]);
+
+      await git(repo, ["switch", "-c", "feat/remote-generation"]);
+      await writeFile(join(repo, "remote-generation.txt"), "remote generation\n");
+      await git(repo, ["add", "remote-generation.txt"]);
+      await git(repo, ["commit", "-m", "remote generation"]);
+      const topicOid = await git(repo, ["rev-parse", "HEAD"]);
+      await git(repo, ["push", "origin", "HEAD:feat/remote-generation"]);
+      await git(repo, ["push", "origin", "HEAD:feat/remote-generation-alias"]);
+      await git(repo, ["switch", "main"]);
+      await writeStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
+
+      await expect(execFileAsync("git", ["fetch", "origin", "main"], {
+        cwd: repo,
+        env: { ...process.env, ...trace.env, ARC_GIT_TRACE_REJECT_CODE_WRITES: "1" },
+      })).rejects.toMatchObject({ code: 97 });
+      await writeFile(trace.logPath, "", "utf8");
+
+      const result = await runArc(["status", "--session-init", "--json"], repo, {
+        env: { ...trace.env, ARC_GIT_TRACE_REJECT_CODE_WRITES: "1" },
+      });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.active.value?.resolution).toBe("single");
+      expect(envelope.userReferenceReconcile).toMatchObject({
+        ok: true,
+        value: { authority: { remoteEvidence: expect.stringMatching(/^(exact|not-applicable)$/u) } },
+      });
+
+      const commands = await readGitTrace(trace);
+      const argsFor = (fields: string[]): string[] => fields.slice(1);
+      const allHeadsReads = commands.filter((fields) =>
+        argsFor(fields).join(" ") === "ls-remote --heads origin"
+      );
+      const availabilityBatches = commands.filter((fields) => {
+        const args = argsFor(fields);
+        return args.includes("cat-file") && args.includes("--batch-check");
+      });
+      expect(allHeadsReads).toHaveLength(1);
+      expect(availabilityBatches).toHaveLength(1);
+      const batchOids = (await readFile(trace.batchInputPath, "utf8")).trim().split("\n").sort();
+      expect(batchOids).toEqual([mainOid, topicOid].sort());
+
+      const transientOperations = commands.filter((fields) => {
+        const command = argsFor(fields).join(" ");
+        return command.includes("refs/arc/user/test-user/errands")
+          || command.includes("refs/arc/tmp/transient-discovery/");
+      });
+      expect(transientOperations.length).toBeGreaterThan(0);
+      expect(commands.some((fields) =>
+        argsFor(fields).join(" ") === "ls-remote origin refs/notes/arc/user/test-user"
+      )).toBe(true);
+
+      const codeRepositoryMutations = commands.filter((fields) => {
+        const args = argsFor(fields);
+        const command = args.join(" ");
+        if (command.includes("refs/arc/user/test-user/errands")
+          || command.includes("refs/arc/tmp/transient-discovery/")) return false;
+        return args.some((arg) => ["fetch", "prune", "update-ref", "symbolic-ref"].includes(arg));
+      });
+      expect(codeRepositoryMutations).toEqual([]);
+    } finally {
+      await Promise.all([
+        cleanupTempDir(repo),
+        removeGitBackedDir(bareDir),
+        cleanupTempDir(trace.binDir),
+      ]);
+    }
+  });
+
+  it("isolates an unreachable all-heads read while preserving local orientation", async () => {
+    const repo = await createTempRepo();
+    const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-unreachable-origin-"));
+    const trace = await createGitTraceHarness();
+    try {
+      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await git(repo, ["remote", "add", "origin", bareDir]);
+      await git(repo, ["add", "-A"]);
+      await git(repo, ["commit", "-m", "install ARC"]);
+      await git(repo, ["push", "-u", "origin", "main"]);
+
+      const result = await runArc(["status", "--session-init", "--json"], repo, {
+        env: { ...trace.env, ARC_GIT_TRACE_FAIL: "remote" },
+      });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.active).toMatchObject({ ok: true, value: { resolution: "none" } });
+      expect(envelope.derivedLocusState).toMatchObject({ ok: true });
+      expect(envelope).toMatchObject({
+        worktree: {
+          ok: true,
+          value: { state: "remote-unavailable", remoteEvidence: "unreachable", failureReason: "network" },
+        },
+        baseDistance: {
+          ok: true,
+          value: { remoteEvidence: "unreachable", failureReason: "network" },
+        },
+        baseBranchSync: {
+          ok: true,
+          value: { remoteEvidence: "unreachable", failureReason: "network" },
+        },
+        materializableWorkUnits: {
+          ok: true,
+          value: { remoteEvidence: "unreachable", failureReason: "network" },
+        },
+      });
+      const commands = await readGitTrace(trace);
+      expect(commands.filter((fields) =>
+        fields.slice(1).join(" ") === "ls-remote --heads origin"
+      )).toHaveLength(1);
+    } finally {
+      await Promise.all([
+        cleanupTempDir(repo),
+        removeGitBackedDir(bareDir),
+        cleanupTempDir(trace.binDir),
+      ]);
+    }
+  });
+
+  it("isolates a failed local availability prerequisite while preserving snapshot-only absence", async () => {
+    const repo = await createTempRepo();
+    const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-local-probe-origin-"));
+    const trace = await createGitTraceHarness();
+    try {
+      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await git(repo, ["remote", "add", "origin", bareDir]);
+      await git(repo, ["add", "-A"]);
+      await git(repo, ["commit", "-m", "install ARC"]);
+      await git(repo, ["push", "-u", "origin", "main"]);
+
+      const result = await runArc(["status", "--session-init", "--json"], repo, {
+        env: { ...trace.env, ARC_GIT_TRACE_FAIL: "batch" },
+      });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.active).toMatchObject({ ok: true, value: { resolution: "none" } });
+      expect(envelope.derivedLocusState).toMatchObject({ ok: true });
+      for (const slot of ["worktree", "baseDistance", "baseBranchSync"] as const) {
+        expect(envelope[slot]).toMatchObject({ ok: false, error: { kind: "runtime" } });
+      }
+      expect(envelope.materializableWorkUnits).toEqual({
+        ok: true,
+        value: {
+          candidates: [],
+          remoteEvidence: "exact",
+          pendingBranchCount: 0,
+          refreshRemedy: null,
+          warnings: [],
+        },
+      });
+      const commands = await readGitTrace(trace);
+      expect(commands.filter((fields) => {
+        const args = fields.slice(1);
+        return args.includes("cat-file") && args.includes("--batch-check");
+      })).toHaveLength(1);
+    } finally {
+      await Promise.all([
+        cleanupTempDir(repo),
+        removeGitBackedDir(bareDir),
+        cleanupTempDir(trace.binDir),
+      ]);
+    }
+  });
+
+  it("keeps snapshot-only absence exact while shallow graph slots fail locally", async () => {
+    const repo = await createTempRepo();
+    const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-shallow-origin-"));
+    const trace = await createGitTraceHarness();
+    try {
+      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await git(repo, ["remote", "add", "origin", bareDir]);
+      await git(repo, ["add", "-A"]);
+      await git(repo, ["commit", "-m", "install ARC"]);
+      await git(repo, ["push", "-u", "origin", "main"]);
+
+      await git(repo, ["switch", "-c", "publisher"]);
+      await writeFile(join(repo, "remote-main.txt"), "remote main\n");
+      await git(repo, ["add", "remote-main.txt"]);
+      await git(repo, ["commit", "-m", "advance remote main"]);
+      await git(repo, ["push", "origin", "HEAD:main"]);
+      await git(repo, ["switch", "main"]);
+      await git(repo, ["branch", "-D", "publisher"]);
+
+      const result = await runArc(["status", "--session-init", "--json"], repo, {
+        env: { ...trace.env, ARC_GIT_TRACE_HISTORY: "shallow" },
+      });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const envelope = parseJsonEnvelope(result.stdout);
+      for (const slot of ["worktree", "baseDistance", "baseBranchSync"] as const) {
+        expect(envelope[slot]).toMatchObject({ ok: false, error: { kind: "runtime" } });
+      }
+      expect(envelope.materializableWorkUnits).toMatchObject({
+        ok: true,
+        value: { candidates: [], remoteEvidence: "exact", pendingBranchCount: 0 },
+      });
+      expect(envelope.active).toMatchObject({ ok: true, value: { resolution: "none" } });
+    } finally {
+      await Promise.all([
+        cleanupTempDir(repo),
+        removeGitBackedDir(bareDir),
+        cleanupTempDir(trace.binDir),
+      ]);
+    }
+  });
+});
+
 describe("session-init E2E — current detached husk advisory", () => {
   let repo: string;
   let worktreeParent: string;
@@ -677,8 +993,8 @@ describe("session-init E2E — current detached husk advisory", () => {
 
     const canonicalResult = await runArc(["status", "--session-init", "--json"], canonical);
     const ordinaryResult = await runArc(["status", "--session-init", "--json"], ordinary);
-    expect(canonicalResult.exitCode).toBe(0);
-    expect(ordinaryResult.exitCode).toBe(0);
+    expect(canonicalResult.exitCode, canonicalResult.stdout + canonicalResult.stderr).toBe(0);
+    expect(ordinaryResult.exitCode, ordinaryResult.stdout + ordinaryResult.stderr).toBe(0);
 
     const canonicalEnvelope = parseJsonEnvelope(canonicalResult.stdout);
     const ordinaryEnvelope = parseJsonEnvelope(ordinaryResult.stdout);
@@ -719,6 +1035,69 @@ describe("session-init E2E — current detached husk advisory", () => {
     const untrustedResult = await runArc(["status", "--session-init", "--json"], canonical);
     expect(untrustedResult.exitCode).toBe(0);
     expect(parseJsonEnvelope(untrustedResult.stdout).currentHusk).toEqual({ ok: true, value: null });
+  });
+
+  it("projects an omitted descendant blob from the local-only status reader as a slot error", async () => {
+    const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-byte-reader-origin-"));
+    const trace = await createGitTraceHarness();
+    try {
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await git(repo, ["remote", "add", "origin", bareDir]);
+      const canonical = join(worktreeParent, "missing-blob");
+      await git(repo, ["branch", "feat/shipped-widget"]);
+      await git(repo, ["worktree", "add", canonical, "feat/shipped-widget"]);
+      await git(canonical, ["switch", "--detach"]);
+      const head = await git(canonical, ["rev-parse", "HEAD"]);
+
+      const completedDir = join(repo, ".arc", "completed", "2026-q3", "shipped-widget");
+      const completedPath = ".arc/completed/2026-q3/shipped-widget/meta-shipped-widget.md";
+      await mkdir(completedDir, { recursive: true });
+      await writeFile(join(repo, completedPath), "# Metadata: shipped-widget\n");
+      await git(repo, ["add", completedPath]);
+      await git(repo, ["commit", "-m", "record shipped widget"]);
+      await git(repo, ["push", "-u", "origin", "main"]);
+      const baseOid = await git(repo, ["rev-parse", "HEAD"]);
+      const blobOid = await git(repo, ["rev-parse", `${baseOid}:${completedPath}`]);
+      const markerDir = join(canonical, ".arc", "system", ".internal");
+      await mkdir(markerDir, { recursive: true });
+      await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
+        spawnedByArc: true,
+        wuName: "shipped-widget",
+        createdFor: { kind: "work-unit", name: "shipped-widget" },
+        spawningIdentity: "test-user",
+        createdAt: "2026-07-14T00:00:00.000Z",
+        husk: {
+          sha: head,
+          at: "2026-07-14T01:00:00.000Z",
+          subject: { kind: "work-unit", name: "shipped-widget" },
+          branch: "feat/shipped-widget",
+          authorization: "merged-preserved",
+          remoteRef: null,
+          evidence: {
+            kind: "shipped",
+            expectedLifecycle: "completed",
+            resultDigest: `sha256:${"1".repeat(64)}`,
+            baseProofOid: baseOid,
+          },
+        },
+      }));
+      await unlink(join(repo, ".git", "objects", blobOid.slice(0, 2), blobOid.slice(2)));
+
+      const result = await runArc(["status", "--session-init", "--json"], canonical, { env: trace.env });
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.currentHusk).toMatchObject({ ok: false, error: { kind: "runtime" } });
+      const commands = await readGitTrace(trace);
+      expect(commands.some((fields) => {
+        const args = fields.slice(1);
+        return args[0] === "--no-lazy-fetch" && args.includes("ls-tree") && args.includes(baseOid);
+      })).toBe(true);
+    } finally {
+      await Promise.all([
+        removeGitBackedDir(bareDir),
+        cleanupTempDir(trace.binDir),
+      ]);
+    }
   });
 });
 
@@ -906,6 +1285,18 @@ describe("session-init E2E — shared advisory base drift", () => {
   });
 
   it("emits typed reconcile evidence and passes register text through", async () => {
+    const pendingRun = await runArc(["status", "--session-init", "--json"], repo);
+    expect(pendingRun.exitCode).toBe(0);
+    expect(parseJsonEnvelope(pendingRun.stdout).baseDistance?.value).toMatchObject({
+      mode: "advisory",
+      verdict: "unavailable",
+      unavailableReason: "base-object-pending-fetch",
+      remoteEvidence: "pending-fetch",
+      recommendedAction: "skip",
+    });
+
+    const materialized = await runArc(["base", "sync", "--json"], repo);
+    expect(materialized.exitCode, materialized.stdout + materialized.stderr).toBe(0);
     const run = await runArc(["status", "--session-init", "--json"], repo);
     expect(run.exitCode).toBe(0);
     const value = parseJsonEnvelope(run.stdout).baseDistance?.value;

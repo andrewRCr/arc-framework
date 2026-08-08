@@ -27,6 +27,51 @@ import {
 } from "../../../src/commands/status/schema.js";
 
 describe("shared git routing views", () => {
+  it("accepts evidence-qualified base-sync results and rejects crossed evidence fields", () => {
+    const pending = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      unavailableReason: "base-object-pending-fetch",
+      refreshRemedy: {
+        text: "Materialize and synchronize the local main branch.",
+        argv: ["arc", "base", "sync", "--json"],
+      },
+      guidance: null,
+      remoteEvidence: "pending-fetch",
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
+    };
+
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(pending).success).toBe(true);
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
+      ...pending,
+      failureReason: "network",
+    }).success).toBe(false);
+    // A valid unreachable baseline, so the remedy assertion below varies one field
+    // rather than relying on other crossed fields to force the rejection.
+    const unreachable = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      refreshRemedy: null,
+      guidance: "Remote base evidence is unavailable (network).",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+      recommendedAction: "surface",
+      recommendedPromptText: "Remote base evidence is unavailable (network).",
+    };
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(unreachable).success).toBe(true);
+    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
+      ...unreachable,
+      refreshRemedy: pending.refreshRemedy,
+    }).success).toBe(false);
+  });
+
   it.each([
     [DirtyStateValueViewSchema, { state: "broken" }],
     [WorktreeSyncValueViewSchema, { state: "broken" }],
@@ -320,6 +365,7 @@ describe("deep advisory routing views", () => {
 
   it("pins stale-worktree report and cleanup decision discriminants", () => {
     const value = {
+      remoteEvidence: "exact",
       worktrees: [
         {
           kind: "branched",
@@ -360,7 +406,11 @@ describe("deep advisory routing views", () => {
   it("pins work-unit classification, behind-base, and nudge fields", () => {
     const value = {
       inFlight: {
-        workUnits: [{ state: "mergeable", behindBase: true, name: "alpha" }],
+        workUnits: [{
+          state: "mergeable",
+          behindBase: { status: "known", value: true, remoteEvidence: "exact" },
+          name: "alpha",
+        }],
         retained: true,
       },
       nudge: { shouldNudge: false, markerPath: "kept" },
@@ -377,8 +427,30 @@ describe("deep advisory routing views", () => {
     ).toBe(false);
   });
 
+  it("requires precomputed guidance for unavailable mergeability", () => {
+    const value = {
+      inFlight: {
+        workUnits: [{
+          state: "mergeability-unavailable",
+          behindBase: {
+            status: "unavailable",
+            remoteEvidence: "pending-fetch",
+            reason: "base-object-pending-fetch",
+          },
+          mergeabilityGuidance: "Fetch remote evidence before deciding whether this work unit is mergeable.",
+        }],
+      },
+      nudge: { shouldNudge: false },
+    };
+    expect(WorkUnitStateValueViewSchema.safeParse(value).success).toBe(true);
+    const missingGuidance = structuredClone(value);
+    delete (missingGuidance.inFlight.workUnits[0] as { mergeabilityGuidance?: string }).mergeabilityGuidance;
+    expect(WorkUnitStateValueViewSchema.safeParse(missingGuidance).success).toBe(false);
+  });
+
   it("pins errand resume, classification, materialization, and nudge fields", () => {
     const value = {
+      remoteEvidence: "exact",
       resume: { resumable: true, slug: "kept" },
       inFlight: { errands: [{ state: "in-progress", detail: "kept" }] },
       materializable: {
@@ -410,6 +482,42 @@ describe("deep advisory routing views", () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it("rejects cleanup authority when remote evidence is incomplete", () => {
+    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+      remoteEvidence: "pending-fetch",
+      worktrees: [{ kind: "branched", decision: { action: "removable" } }],
+      renameMoves: [],
+      retirements: [],
+    }).success).toBe(false);
+    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+      worktrees: [],
+      renameMoves: [],
+      retirements: [{
+        status: "actionable",
+        lifecycle: {
+          subject: { slug: "retired", branch: "feat/retired" },
+          transition: "abandon",
+          cleanup: {
+            branch: { status: "pending" },
+            worktree: { status: "pending" },
+            userWorkspace: { status: "pending" },
+          },
+          successorReadiness: { candidates: [], actionable: false, remedy: null },
+        },
+        teardown: { argv: ["arc", "teardown", "retired"], text: "arc teardown retired" },
+      }],
+    }).success).toBe(false);
+    expect(ErrandStateValueViewSchema.safeParse({
+      remoteEvidence: "not-applicable",
+      resume: { resumable: false },
+      inFlight: { errands: [{ state: "merged-cleanup" }] },
+      materializable: { candidates: [] },
+      nudge: { shouldNudge: false },
+    }).success).toBe(false);
   });
 
   it("accepts mapped-only payloads because the views are not full mirrors", () => {
@@ -447,6 +555,7 @@ describe("deep advisory routing views", () => {
     [
       StaleWorktreeSweepValueViewSchema,
       {
+        remoteEvidence: "exact",
         worktrees: [
           {
             kind: "branched",
@@ -470,7 +579,7 @@ describe("deep advisory routing views", () => {
           workUnits: [
             {
               state: "mergeable",
-              behindBase: false,
+              behindBase: { status: "known", value: false, remoteEvidence: "exact" },
               evidence: { retained: true },
             },
           ],
@@ -483,6 +592,7 @@ describe("deep advisory routing views", () => {
     [
       ErrandStateValueViewSchema,
       {
+        remoteEvidence: "exact",
         resume: { resumable: false, evidence: { retained: true } },
         inFlight: { errands: [], evidence: { retained: true } },
         materializable: {
@@ -544,7 +654,10 @@ describe("deep advisory routing views", () => {
       SessionInitWorktreeValueViewSchema,
       {
         state: "clean",
+        ahead: 0,
+        behind: 0,
         branch: "feat/test",
+        remoteEvidence: "exact",
         identity: {
           kind: "linked",
           path: "/worktree",
@@ -573,6 +686,11 @@ describe("deep advisory routing views", () => {
       SessionInitBaseDistanceValueViewSchema,
       {
         verdict: "clean",
+        state: "clean",
+        ahead: 0,
+        behind: 0,
+        baseOid: "a".repeat(40),
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
         evidence: { deep: { retained: true } },
@@ -600,6 +718,7 @@ describe("deep advisory routing views", () => {
       {
         state: "clean",
         branch: "feat/test",
+        remoteEvidence: "exact",
         identity: {
           kind: "linked",
           path: "/worktree",

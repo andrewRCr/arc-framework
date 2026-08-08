@@ -19,7 +19,14 @@ import {
   assertReviewDurableRecordInventory,
 } from "../../../../src/scripts/review-gate/core/schema-inventory.js";
 
-const kernelIdentities = ["priority", "slug", "work-class", "work-unit-state"];
+const kernelIdentities = [
+  "priority",
+  "remote-evidence",
+  "remote-failure-reason",
+  "slug",
+  "work-class",
+  "work-unit-state",
+];
 const reviewIdentities = [
   "approved-disposition-record",
   "approved-disposition-set",

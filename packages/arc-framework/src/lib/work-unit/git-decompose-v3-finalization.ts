@@ -249,6 +249,7 @@ async function resolveComposition(
     fs: createGitV3RepositoryTreeProjectViewFs(dependencies.cwd, tree),
     localRefs: {
       exec: bindGitCwd(dependencies.exec, dependencies.cwd),
+      acquisitionPolicy: "local",
       baseBranch,
       decompositionClaimCwd: dependencies.cwd,
     },

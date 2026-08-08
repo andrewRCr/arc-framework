@@ -62,6 +62,13 @@ export type CompletedEvidenceRead =
     }
   | { status: "unavailable"; reason: "archive-tree-read-failed" };
 
+/** Exact archived metadata blob for one work-unit slug at a pinned ref. */
+export type ArchivedWorkUnitMetaRead =
+  | { readonly kind: "absent" }
+  | { readonly kind: "read"; readonly path: string; readonly text: string }
+  | { readonly kind: "duplicate"; readonly paths: readonly string[] }
+  | { readonly kind: "unreadable"; readonly path?: string; readonly reason: string };
+
 /** `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. */
 const ARCHIVE_DIR_RE = /^\d+_(.+)$/u;
 const COHORT_ARCHIVE_PREFIX = "cohort-";
@@ -158,6 +165,77 @@ export async function readShippedWorkUnitsFromRef(
   return new Set((await readShippedWorkUnitRecordsFromRef(exec, ref)).keys());
 }
 
+/**
+ * Read the shipped work-unit index from an exact locally available commit.
+ *
+ * Unlike the compatibility reader, this strict boundary propagates an
+ * unreadable tree and relies on the caller to supply local-only object access.
+ *
+ * @param exec - Git executor bound to the caller's object-access policy.
+ * @param ref - Exact commit object ID whose completed tree is authoritative.
+ * @returns Shipped work-unit slugs found in the completed tree.
+ */
+export async function readShippedWorkUnitsFromExactRef(
+  exec: GitExec,
+  ref: string,
+): Promise<Set<string>> {
+  const { stdout } = await exec(
+    "git",
+    ["ls-tree", "--full-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX],
+  );
+  const slugs = new Set<string>();
+  for (const line of stdout.split("\n")) {
+    const path = line.trim();
+    if (!path.startsWith(COMPLETED_PATH_PREFIX)) continue;
+    const entry = path.slice(COMPLETED_PATH_PREFIX.length).split("/")[1];
+    if (entry === undefined) continue;
+    const slug = slugFromArchiveDir(entry);
+    if (slug !== null) slugs.add(slug);
+  }
+  return slugs;
+}
+
+/**
+ * Read one exact archived work-unit metadata blob without collapsing ambiguity to absence.
+ *
+ * @param exec - Git executor pre-bound to the checkout whose object database owns the ref
+ * @param ref - Pinned tree containing the archived candidate
+ * @param slug - Marker-selected work-unit slug
+ * @returns Exact blob evidence, absence, ambiguity, or an explicit read failure
+ */
+export async function readArchivedWorkUnitMetaFromRef(
+  exec: GitExec,
+  ref: string,
+  slug: string,
+): Promise<ArchivedWorkUnitMetaRead> {
+  if (!SlugSchema.safeParse(slug).success) {
+    return { kind: "unreadable", reason: "invalid-work-unit-slug" };
+  }
+  const expectedName = `meta-${slug}.md`;
+  const treePaths = await readCompletedTreePathsFromRef(exec, ref);
+  if (treePaths === null) return { kind: "unreadable", reason: "archive-tree-read-failed" };
+
+  const paths = treePaths.flatMap((path) => {
+    if (!path.startsWith(COMPLETED_PATH_PREFIX)) return [];
+    const segments = path.slice(COMPLETED_PATH_PREFIX.length).split("/");
+    const entry = segments[1];
+    if (entry === undefined || slugFromArchiveDir(entry) !== slug) return [];
+    return segments.slice(2).join("/") === expectedName ? [path] : [];
+  });
+  if (paths.length === 0) return { kind: "absent" };
+  if (paths.length > 1) return { kind: "duplicate", paths };
+
+  const path = paths[0];
+  if (path === undefined) return { kind: "absent" };
+  let stdout: string;
+  try {
+    ({ stdout } = await exec("git", ["show", `${ref}:${path}`]));
+  } catch {
+    return { kind: "unreadable", path, reason: "archive-meta-read-failed" };
+  }
+  return { kind: "read", path, text: stdout };
+}
+
 /** Read shipped WU archive facts from a git ref's `.arc/completed/` tree. */
 export async function readShippedWorkUnitRecordsFromRef(
   exec: GitExec,
@@ -172,22 +250,12 @@ export async function readCompletedEvidenceFromRef(
   exec: GitExec,
   ref: string,
 ): Promise<CompletedEvidenceRead> {
-  let stdout: string;
-  try {
-    // --full-tree: without it the completed-path pathspec resolves relative to
-    // the invoking directory; pin the read to the tree root regardless of cwd.
-    ({ stdout } = await exec(
-      "git",
-      ["ls-tree", "--full-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX],
-    ));
-  } catch {
-    return { status: "unavailable", reason: "archive-tree-read-failed" };
-  }
+  const treePaths = await readCompletedTreePathsFromRef(exec, ref);
+  if (treePaths === null) return { status: "unavailable", reason: "archive-tree-read-failed" };
 
   const records = new Map<string, ShippedWorkUnitRecord>();
   const metaPaths = new Map<string, string>();
-  for (const line of stdout.split("\n")) {
-    const path = line.trim();
+  for (const path of treePaths) {
     if (!path.startsWith(COMPLETED_PATH_PREFIX)) continue;
     // `<quarter>/<NN_slug>/<file...>` — segment 1 is the archive directory.
     const segments = path.slice(COMPLETED_PATH_PREFIX.length).split("/");
@@ -218,6 +286,23 @@ export async function readCompletedEvidenceFromRef(
   return unreadableMetaPaths.length === 0
     ? { status: "available", records }
     : { status: "partial", records, unreadableMetaPaths: unreadableMetaPaths.sort() };
+}
+
+async function readCompletedTreePathsFromRef(
+  exec: GitExec,
+  ref: string,
+): Promise<readonly string[] | null> {
+  try {
+    // --full-tree: without it the completed-path pathspec resolves relative to
+    // the invoking directory; pin the read to the tree root regardless of cwd.
+    const { stdout } = await exec(
+      "git",
+      ["ls-tree", "--full-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX],
+    );
+    return stdout.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
+  } catch {
+    return null;
+  }
 }
 
 async function readCompletedRecordFromMeta(

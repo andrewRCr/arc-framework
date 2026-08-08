@@ -16,7 +16,7 @@ import * as p from "@clack/prompts";
 import {
   buildActiveSessionInitSummary,
   buildActiveStatusSummary,
-  runActiveInFlight,
+  runActiveInFlightExpansion,
   runActiveRoster,
   runActiveSessionInitStatus,
   runActiveStatus,
@@ -28,7 +28,7 @@ import {
 } from "../lib/git/in-flight-derivation.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
-import { createGitExec } from "../lib/io-context.js";
+import { createGitExec, gitExecInput } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
@@ -163,8 +163,9 @@ export async function handleActiveInFlight(
     }),
   );
 
-  const result = await runActiveInFlight({
+  const result = await runActiveInFlightExpansion({
     exec,
+    execInput: gitExecInput,
     cwd,
     identity,
     teamMode,
@@ -175,19 +176,29 @@ export async function handleActiveInFlight(
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
+    if (result.candidateExpansion.status === "partial" || result.candidateExpansion.status === "failed") {
+      process.exitCode = 1;
+    }
     return;
   }
 
   p.intro("arc active in-flight");
-  const degradedNotice = result.reachable ? "" : "\n[remote unreachable — local-only view]";
+  const expansionNotice = result.remoteEvidence === "pending-fetch"
+    ? `\n[expansion partial — ${result.candidateExpansion.pendingBranchCount} advertised branches remain unavailable]`
+    : result.remoteEvidence === "unreachable"
+      ? `\n[expansion failed — remote ${result.failureReason}]`
+      : "";
   if (result.entries.length === 0) {
-    p.note(`No work units or errands in flight.${degradedNotice}`, "In-flight");
+    p.note(`No work units or errands in flight.${expansionNotice}`, "In-flight");
   } else {
     const lines = result.entries.map(formatActiveInFlightLine);
-    p.note(`${lines.join("\n")}${degradedNotice}`, "In-flight");
+    p.note(`${lines.join("\n")}${expansionNotice}`, "In-flight");
   }
   for (const warning of result.warnings) {
     p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
+  if (result.candidateExpansion.status === "partial" || result.candidateExpansion.status === "failed") {
+    process.exitCode = 1;
+  }
 }

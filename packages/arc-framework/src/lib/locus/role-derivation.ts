@@ -55,7 +55,7 @@ export type OwnershipMarkerProjection =
 export type WorkUnitLifecycleProjection =
   | AbsentEvidence
   | UnreadableEvidence
-  | (SubjectEvidence<DerivedWorkUnitSubject> & { readonly state: "active" | "retired" });
+  | (SubjectEvidence<DerivedWorkUnitSubject> & { readonly state: "active" | "integration" | "retired" });
 
 /** Narrow transient identity authority projection. */
 export type ErrandIdentityProjection =

@@ -47,6 +47,7 @@ describe("resolveSessionInitDirtyState", () => {
 
     await expect(resolveSessionInitDirtyState({
       compactionSeedGitSnapshotP: Promise.resolve({
+        branch: "feat/compaction-recovery",
         head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
         uncommittedFiles: ["src/changed.ts", "README.md"],
       }),

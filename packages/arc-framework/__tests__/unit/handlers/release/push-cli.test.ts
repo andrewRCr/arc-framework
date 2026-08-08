@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   resolveUserIdentity: vi.fn(),
   runPushabilityStatus: vi.fn(),
   runReleasePush: vi.fn(),
+  runMaterializingWorktreeInspection: vi.fn(),
   runWorktreeSyncStatus: vi.fn(),
 }));
 
@@ -29,6 +30,7 @@ vi.mock("../../../../src/lib/paths.js", () => ({
   resolveArcRoot: () => "/repo",
 }));
 vi.mock("../../../../src/lib/git/index.js", () => ({
+  runMaterializingWorktreeInspection: mocks.runMaterializingWorktreeInspection,
   runPushabilityStatus: mocks.runPushabilityStatus,
   runWorktreeSyncStatus: mocks.runWorktreeSyncStatus,
 }));
@@ -84,6 +86,12 @@ beforeEach(() => {
     await input.exec("git", ["fetch", "origin", "feat/test"]);
     return { state: "local-ahead", ahead: 1, behind: 0, branch: "feat/test" };
   });
+  mocks.runMaterializingWorktreeInspection.mockImplementation(async (input: { exec: GitExec }) => {
+    await input.exec("git", ["fetch", "origin", "feat/test"]);
+    return {
+      state: "local-ahead", ahead: 1, behind: 0, branch: "feat/test", remoteEvidence: "exact",
+    };
+  });
   mocks.runPushabilityStatus.mockImplementation(async (input: { exec: GitExec }) => {
     await input.exec("git", ["rev-parse", "--git-path", "rebase-merge"]);
     return { allowed: true, conditions: [] };
@@ -110,6 +118,12 @@ describe("handleReleasePush", () => {
     expect(mocks.createGitExec).toHaveBeenCalledWith(context.subprocess);
     expect(mocks.ambientExec).not.toHaveBeenCalled();
     expect(mocks.boundExec).toHaveBeenCalledWith("git", ["fetch", "origin", "feat/test"]);
+    expect(mocks.runMaterializingWorktreeInspection).toHaveBeenCalledWith({
+      exec: mocks.boundExec,
+      cwd: "/repo",
+    });
+    expect(mocks.resolveCurrentBranchName).not.toHaveBeenCalled();
+    expect(mocks.runWorktreeSyncStatus).not.toHaveBeenCalled();
     expect(mocks.pushWorktreeBranch).toHaveBeenCalledWith({
       exec: mocks.boundExec,
       branch: "feat/test",
@@ -119,5 +133,33 @@ describe("handleReleasePush", () => {
       interaction: context.subprocess,
     });
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("uses the branch carried by materialized worktree evidence", async () => {
+    mocks.resolveCurrentBranchName.mockResolvedValue("stale-branch");
+    mocks.runMaterializingWorktreeInspection.mockResolvedValue({
+      state: "local-ahead",
+      ahead: 1,
+      behind: 0,
+      branch: "snapshot-branch",
+      remoteEvidence: "exact",
+    });
+
+    await expect(handleReleasePush({ args: [] }, context)).resolves.toBeUndefined();
+
+    expect(mocks.resolveCurrentBranchName).not.toHaveBeenCalled();
+    expect(mocks.runPushabilityStatus).toHaveBeenCalledWith(expect.objectContaining({
+      worktreeBranch: "snapshot-branch",
+    }));
+  });
+
+  it("stops before pushability or push when worktree materialization fails", async () => {
+    mocks.runMaterializingWorktreeInspection.mockRejectedValue(new Error("fetch denied"));
+
+    await expect(handleReleasePush({ args: [] }, context)).rejects.toThrow("fetch denied");
+
+    expect(mocks.runPushabilityStatus).not.toHaveBeenCalled();
+    expect(mocks.runReleasePush).not.toHaveBeenCalled();
+    expect(mocks.pushWorktreeBranch).not.toHaveBeenCalled();
   });
 });

@@ -174,6 +174,7 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
 
 async function emit(overrides: {
   uncommittedFiles?: string[];
+  snapshotBranch?: string;
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
 } = {}) {
@@ -181,6 +182,7 @@ async function emit(overrides: {
     cwd: "/repo",
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
+      branch: overrides.snapshotBranch ?? "feat/compaction-recovery",
       head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
       uncommittedFiles: overrides.uncommittedFiles ?? [],
     },
@@ -411,6 +413,22 @@ describe("emitCompactionSeed", () => {
     }
   });
 
+  it("keeps the local snapshot branch when the remote-dependent worktree probe is unavailable", async () => {
+    // A branch the envelope never carries, so the assertion proves the local snapshot
+    // was the source rather than matching whatever the worktree probe would have said.
+    const result = await emit({
+      snapshotBranch: "feat/local-snapshot-only",
+      envelope: {
+        worktree: { ok: false, error: new Error("remote snapshot unavailable") },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.branch).toBe("feat/local-snapshot-only");
+    }
+  });
+
   it("uses currentWorkflow from the resolved active envelope without rereading the meta", async () => {
     const result = await emit({
       envelope: {
@@ -500,6 +518,7 @@ describe("emitCompactionSeed", () => {
       cwd: "/repo",
       envelope: envelope({ identity: { identity: null } }),
       gitSnapshot: {
+        branch: "feat/compaction-recovery",
         head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
         uncommittedFiles: [],
       },

@@ -28,6 +28,9 @@ pwd && arc status --session-init --json
 The probe returns a single JSON envelope. Its required `derivedLocusState` slot is the sole session-frame and
 checkout-role authority; `locusGuidance` carries CLI-composed narration from that same read. The remaining slots
 provide sync, notes, base, configuration, active-artifact, load-set, discovery, and advisory projections.
+Remote-aware slots consume one internal request generation; they do not independently acquire or refresh code
+refs. Each slot remains an independent `Probe`, so a failed remote prerequisite degrades only the result that
+needs it while healthy local orientation and unrelated exact results continue.
 
 Load [the probe-envelope reference][probe-envelope] when a slot's shape, presence condition, or provenance is
 needed beyond the procedural checks below.
@@ -61,6 +64,11 @@ exact selected row. Never select a second frame from branch shape, metas, anothe
 commands may explain the failure, but they never establish a session frame, select a subject, authorize context
 loading, or permit mutation.
 
+**Per-slot probe failure:** Only a failed `derivedLocusState` invokes the stop above. Preserve every other failed slot as
+an independent runtime error, omit only the action or authority that slot would have supplied, and surface the
+error in Step 6. Never replace a failed remote-aware result with a tracking-ref reading or use it to downgrade a
+healthy local slot.
+
 ## 2. Dispatch & Conditional Sync
 
 From the selected/re-probed state, realign branch sync if needed, select the **entry mode** from the resolved role
@@ -71,23 +79,18 @@ row, and run the conditional sync pulls for arms that continue into context-load
 When `worktree.value.state == "branch-gone"`, align git state _before_ anything reads against the working
 branch. The upstream was deleted (the branch shipped elsewhere), so the notes pull here and Step 3's
 context-load would otherwise surface metas and companion files that don't exist on the recovered branch.
-The `recovery` slot carries pre-computed candidates (no scanning across turns). One arm recovers without
-asking; every other renders a single recovery prompt, branched on `recovery.value.kind`:
+The `recovery` slot carries pre-computed candidates, evidence, action, and narration (no scanning or comparison
+across turns). Dispatch on `recovery.value.recommendedAction` and render `recommendedPromptText` verbatim:
 
-- `resolved` + `proposedAction: switch` + `dirty.value.state == "clean"` — switch and report it in
-  orientation rather than prompting. Step 7 designates a cleanly-resolved roster mismatch
-  auto-recover-with-notice and names this mechanism as its own example; the switch is reversible in one turn
-  and no uncommitted work is at risk.
-- `resolved` on any other `proposedAction`, or against a dirty tree — offer the one candidate directly; when
-  its `proposedAction` is `removable`, offer to remove the shipped worktree and archive its meta instead of
-  switching (`external` candidates are surfaced, not acted on).
-- `surface` — list each candidate's `branch` + `proposedAction` for the operator to choose, never guessing.
-- `main-fallback` — offer `main`.
+- `switch` — switch to the resolved candidate and report it in orientation. The CLI emits this only for an exact,
+  clean, reversible switch with no uncommitted work at risk.
+- `prompt` — ask once with the pre-composed text. On acceptance, a `pending` result invokes its exact
+  `refreshRemedy.argv` and re-runs Step 1; `resolved`, `surface`, and `main-fallback` retain their candidate,
+  operator-choice, and `main` recovery actions respectively.
+- `surface` — render the pre-composed manual-recovery guidance and do not act.
 
-```text
-**Branch gone:** `{branch}`'s upstream was deleted on `origin`. Recover onto `{candidate.branch}`?
-(surface → list candidates, ask which; main-fallback → switch to `main`?)
-```
+Do not compare `remoteEvidence`, pending counts, candidate counts, or dirt in workflow prose. The CLI owns those
+combinations; pending evidence offers only its explicit refresh or manual recovery.
 
 On a switch, fetch the target first when it is a remote branch not yet checked out locally, then **re-run the
 Step 1 probe** so the entry dispatch below and Step 3 read against the recovered branch — the re-probed
@@ -326,18 +329,19 @@ matters, re-probe to confirm.
 **Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
 — SESSION-NOTES reads below would be stale otherwise.
 
-**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against a freshly
-fetched base OID. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
+**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against the
+advertised base OID from the session's shared passive remote evidence; the slot performs no fetch of
+its own. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
 analyzer-owned register text, or `skip` for every other verdict; it never resolves to `pull` / `prompt`.
 Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
 base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
-pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
-(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. The slot also
-carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` is `not-checked-out` /
-`current` / `elsewhere` / `unknown` — the probe's safety signal for whether fetch-into-ref is viable:
+pull channel — distinct from the advisory-only base-distance channel above. The comparison runs against the
+request's shared passive remote evidence; the slot itself fetches nothing. Dispatch on `recommendedAction`
+(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. Do not compare its
+evidence, failure, relation, checkout, or remedy fields — the action and text already encode those combinations:
 
 - `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. Only when the
   base is **not** checked out in any worktree. Freshens a non-checked-out ref (fetch-into-ref, not the
@@ -345,12 +349,9 @@ carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` i
   divergence fails safe rather than merging. Current-worktree dirt does **not** gate this action (it only
   moves a branch tip elsewhere).
 - `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`
-  (same not-checked-out precondition).
-- `surface` — carry the state into Step 6's stale-base section. Includes: a behind base under `manual`; a
-  base checked out **elsewhere** (primary-aware text naming the holding worktree and offering
-  `arc base sync`); checkout location unknown; or a diverged base. No pull.
-- `skip` — the base is current or only ahead, **or** this worktree holds the base (`checkout.kind ===
-  "current"` — the worktree channel owns pull/dirty for HEAD).
+  (the recommendation already establishes the same not-checked-out precondition).
+- `surface` — carry `recommendedPromptText` verbatim into Step 6's stale-base section. No pull.
+- `skip` — no action.
 
 Independent of the worktree + notes combined prompt — like base-distance, it composes its own offer and never
 folds into `recommendedCombinedPrompt`.
@@ -613,6 +614,9 @@ Produce the orientation summary.
 Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, `baseBranchSync`, `dirty`,
 `user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
 claims copied from SESSION-NOTES prose.
+
+Render each present non-`derivedLocusState` slot with `ok == false` as a concise degraded-slot line using its error kind
+and message. Continue with every healthy slot; the failed slot supplies no action, relation, or cleanup authority.
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
@@ -893,13 +897,15 @@ tracked source documents the work.
   local-only `plan/ → <type>/` rename); worktree-checked-out and errand-record-carrying branches never appear
   here (their own surfaces clean those up). Prefer the re-runnable `arc teardown {shippedWorkUnit}` when the orphan
   carries a non-null `shippedWorkUnit` (its own containment guards decide the reap); otherwise offer an
-  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in `origin/<base>`; never `-D`),
-  and surface an unmerged one as not-removable. Branch hygiene only — never auto-removed.
+  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in the advertised base; never `-D`),
+  and surface an unmerged or `blockingReason: evidence-unavailable` entry as not-removable. Branch hygiene only —
+  never auto-removed.
 
   ```text
   **Branch orphans:** {N} stale local branch(es) with a deleted upstream linger:
   - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
   - `{branch}` — merged to base → remove? `git branch -d {branch}`
+  - `{branch}` — remote evidence unavailable; no cleanup authority
   - `{branch}` — not merged; surfaced, not removed (never `-D`)
   ```
 
@@ -946,17 +952,21 @@ tracked source documents the work.
 
 - `workUnitState.value.inFlight.workUnits` non-empty (any roster-resolved arm): owned work units sit in the
   completion tail (`Integrating`, awaiting review). Surface them as advisory routes — never auto-switch,
-  auto-merge, or auto-archive. The actionable events (`mergeable`, `merged-needs-archival`) surface every
-  session-init; the time-gated `stale` overlay batches once per calendar day — suppress `stale` entries unless
-  `workUnitState.value.nudge.shouldNudge`. A `behindBase` WU needs its base merged in before it can merge;
-  surface that qualifier alongside `mergeable`. After surfacing any `stale` entry, write
+  auto-merge, or auto-archive. The actionable events (`mergeable`, `mergeability-unavailable`,
+  `merged-needs-archival`) surface every session-init; the time-gated `stale` overlay batches once per calendar day
+  — suppress `stale` entries unless
+  `workUnitState.value.nudge.shouldNudge`. For `mergeability-unavailable`, render `mergeabilityGuidance` verbatim
+  and offer no merge or base-reconciliation action. A `mergeable` WU whose `behindBase` relation is known true
+  needs its base merged in first. After surfacing any `stale` entry, write
   `workUnitState.value.nudge.today` to `workUnitState.value.nudge.markerPath` (create the parent directory if
   needed) so the stale nudge batches to once per calendar day.
 
   ```text
   **Work units in flight:** {N} owned WU(s) in the completion tail:
-  - `{branch}` — {awaiting-review | mergeable | blocked | merged-needs-archival | stale} ({ageDays}d)
-  - mergeable but `behindBase` → merge the base in first; merged-needs-archival → archive it
+  - `{branch}` — {awaiting-review | mergeable | mergeability-unavailable | blocked | merged-needs-archival |
+    stale} ({ageDays}d)
+  - mergeability-unavailable → {mergeabilityGuidance}; mergeable with known true `behindBase` → merge the base in
+    first; merged-needs-archival → archive it
   ```
 
 - `materializableWorkUnits.value.candidates` non-empty (Orient arm — no active WU): remote-only owned work units
@@ -968,6 +978,10 @@ tracked source documents the work.
   **Materializable work units:** {N} remote WU(s) available:
   - `{name}` (`{branch}`) — materialize and resume?
   ```
+
+- `materializableWorkUnits.value.refreshRemedy != null` (Orient arm): render its `text` verbatim after any exact
+  candidates. On approval invoke its exact `argv`, re-run the Step 1 probe, and offer only candidates from the
+  refreshed envelope. Do not compare evidence or pending counts in prose.
 
 - `errandState.value.materializable.candidates` non-empty (Orient arm — no active WU): exact remote-only paused or
   awaiting-merge Errand generations can be materialized onto this machine for cross-machine pickup. Surface each

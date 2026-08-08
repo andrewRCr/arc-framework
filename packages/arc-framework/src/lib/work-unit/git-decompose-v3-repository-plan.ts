@@ -278,6 +278,7 @@ export async function composeGitV3RepositoryPlan(
           fs: createGitV3RepositoryTreeProjectViewFs(dependencies.cwd, projectedTree),
           localRefs: {
             exec: bindGitCwd(dependencies.exec, dependencies.cwd),
+            acquisitionPolicy: "local",
             baseBranch,
             decompositionClaimCwd: dependencies.cwd,
           },

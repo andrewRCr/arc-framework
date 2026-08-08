@@ -5,6 +5,8 @@ import {
   runLandedRetirementSweep,
 } from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
+import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
 import type { RegisteredWorktree } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
@@ -116,6 +118,20 @@ function noRecords(): RetirementRecordEnumerationResult {
 
 const exec: GitExec = async () => ({ stdout: "", stderr: "" });
 
+function exactBaseEvidence(baseOid = "b".repeat(40)): {
+  remoteSyncEnabled: boolean;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+  history: { kind: "complete" };
+} {
+  return {
+    remoteSyncEnabled: true,
+    snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+    objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+    history: { kind: "complete" },
+  };
+}
+
 function authorizedDecision() {
   return {
     status: "authorized" as const,
@@ -184,6 +200,155 @@ describe("projectRenameMoveRemedy", () => {
 });
 
 describe("runLandedRetirementSweep", () => {
+  it("authorizes landed retirement only from the exact advertised base", async () => {
+    const baseOid = "b".repeat(40);
+    const localOnlyExec: GitExec = async (_command, args, options) => {
+      if (args[0] === "fetch") throw new Error("session inspection must not fetch");
+      if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+      return { stdout: "", stderr: "" };
+    };
+
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec: localOnlyExec,
+      readBlob: async () => null,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+      enumerateRecords: async (ref) => ref === baseOid ? enumerated(abandonReceipt()) : noRecords(),
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    });
+
+    expect(result.retirements[0]?.status).toBe("actionable");
+    expect(result.remoteEvidence).toBe("exact");
+  });
+
+  it.each([
+    {
+      name: "pending-fetch",
+      evidence: {
+        ...exactBaseEvidence(),
+        objectAvailability: { kind: "complete", commits: { ["b".repeat(40)]: false } },
+      },
+      remoteEvidence: "pending-fetch" as const,
+    },
+    {
+      name: "unreachable",
+      evidence: {
+        ...exactBaseEvidence(),
+        snapshot: { kind: "unreachable", failureReason: "network" },
+      },
+      remoteEvidence: "unreachable" as const,
+    },
+    {
+      name: "remote-base-absent",
+      evidence: {
+        ...exactBaseEvidence(),
+        snapshot: { kind: "available", scope: "all-heads", tips: {} },
+        objectAvailability: { kind: "complete", commits: {} },
+      },
+      remoteEvidence: "exact" as const,
+    },
+  ] satisfies Array<{
+    name: string;
+    evidence: ReturnType<typeof exactBaseEvidence>;
+    remoteEvidence: "pending-fetch" | "unreachable" | "exact";
+  }>)("keeps retirement blocked without teardown for $name evidence", async ({ evidence, remoteEvidence }) => {
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec,
+      readBlob: async () => null,
+      baseEvidence: evidence,
+      enumerateRecords: async () => enumerated(abandonReceipt()),
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    });
+
+    expect(result.retirements).toEqual([{
+      status: "blocked",
+      worktreePath: "/wt/retired",
+      subject: { slug: "retired", branch: "feat/retired" },
+      reason: "evidence-unavailable",
+    }]);
+    expect(result.remoteEvidence).toBe(remoteEvidence);
+    expect(result.retirements[0]).not.toHaveProperty("teardown");
+  });
+
+  it("propagates an unexpected exact-base retirement-record failure", async () => {
+    await expect(runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec,
+      readBlob: async () => null,
+      baseEvidence: exactBaseEvidence(),
+      enumerateRecords: async () => { throw new Error("retirement records failed"); },
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    })).rejects.toThrow("retirement records failed");
+  });
+
+  it("enumerates exact-base retirement records with local-only object access", async () => {
+    const result = await runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec: async (_command, args, options) => {
+        if (args[0] !== "ls-tree") throw new Error(`unexpected git call: ${args.join(" ")}`);
+        if (options?.objectAccess !== "local-only") throw new Error("record access was not local-only");
+        return { stdout: "", stderr: "" };
+      },
+      readBlob: async () => null,
+      baseEvidence: exactBaseEvidence(),
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    });
+
+    expect(result).toEqual({ remoteEvidence: "exact", retirements: [], warnings: [] });
+  });
+
+  it("propagates a missing required retirement-index blob from a local base commit", async () => {
+    const recordOid = "c".repeat(40);
+    await expect(runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec: async (_command, args, options) => {
+        if (options?.objectAccess !== "local-only") throw new Error("blob access was not local-only");
+        if (args[0] === "ls-tree") {
+          return {
+            stdout: `100644 blob ${recordOid}\t.arc/system/.internal/retirement-receipts/sha256-${"1".repeat(64)}.json\0`,
+            stderr: "",
+          };
+        }
+        if (args[0] === "show" && args[1] === recordOid) throw new Error("required blob missing");
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      },
+      readBlob: async () => null,
+      baseEvidence: exactBaseEvidence(),
+      authorize: async () => authorizedDecision(),
+      isClean: async () => true,
+    })).rejects.toThrow("required blob missing");
+  });
+
   it("lets landed retirement authority supersede stale branch-local active metadata", async () => {
     const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
 
@@ -202,7 +367,6 @@ describe("runLandedRetirementSweep", () => {
       protection: "full",
       exec,
       readBlob: async () => null,
-      fetchBase: async () => true,
       enumerateRecords,
       authorize: async () => authorizedDecision(),
       isClean: async () => true,
@@ -228,7 +392,6 @@ describe("runLandedRetirementSweep", () => {
       protection: "full",
       exec,
       readBlob: async () => null,
-      fetchBase: async () => true,
       enumerateRecords,
       authorize,
       isClean: async () => true,
@@ -327,21 +490,21 @@ describe("runLandedRetirementSweep", () => {
       protection: "full",
       exec,
       readBlob: async () => null,
-      fetchBase: async () => true,
       enumerateRecords: async () => noRecords(),
       authorize,
       isClean: async () => true,
     });
 
-    expect(result).toEqual({ retirements: [], warnings: [] });
+    expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
     expect(authorize).not.toHaveBeenCalled();
   });
 
-  it("reads the local integrating base under partial protection without fetching", async () => {
-    const fetchBase = vi.fn(async () => true);
-    const enumerateRecords = vi.fn(async () => enumerated(abandonReceipt()));
+  it("reads the local integrating base under partial protection without remote acquisition", async () => {
+    const enumerateRecords = vi.fn(async (ref: string) => ref === "main"
+      ? enumerated(abandonReceipt())
+      : noRecords());
 
-    await runLandedRetirementSweep({
+    const result = await runLandedRetirementSweep({
       roster: { entries: [], warnings: [] },
       topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
       markers: new Map([["/wt/retired", ownedMarker()]]),
@@ -349,14 +512,37 @@ describe("runLandedRetirementSweep", () => {
       protection: "partial",
       exec,
       readBlob: async () => null,
-      fetchBase,
       enumerateRecords,
       authorize: async () => authorizedDecision(),
       isClean: async () => true,
     });
 
-    expect(fetchBase).not.toHaveBeenCalled();
-    expect(enumerateRecords).toHaveBeenCalledWith("main");
+    expect(result.retirements[0]?.status).toBe("actionable");
+  });
+
+  it("propagates a local graph failure while correlating refused retirement evidence", async () => {
+    const parent = "2".repeat(40);
+    const receipt: RetirementReceipt = {
+      ...abandonReceipt(),
+      source: { ...abandonReceipt().source, head: parent },
+    };
+
+    await expect(runLandedRetirementSweep({
+      roster: { entries: [], warnings: [] },
+      topology: [registered({ path: "/wt/retired", branch: "feat/retired" })],
+      markers: new Map([["/wt/retired", ownedMarker()]]),
+      baseBranch: "main",
+      protection: "full",
+      exec: async (_command, args) => {
+        if (args[0] === "rev-list") throw new Error("graph failed");
+        return { stdout: "", stderr: "" };
+      },
+      readBlob: async () => null,
+      baseEvidence: exactBaseEvidence(),
+      enumerateRecords: async () => enumerated(receipt),
+      authorize: async () => ({ status: "refused", reason: "authority-unavailable" }),
+      isClean: async () => true,
+    })).rejects.toThrow("graph failed");
   });
 
   it("keeps dirty receipt-backed residue blocked and grants no teardown", async () => {

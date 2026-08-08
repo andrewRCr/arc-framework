@@ -25,7 +25,14 @@ describe("command-input schema adapter and registry", () => {
 
   it("starts with only kernel identities and adds isolated canonical command schemas", () => {
     const empty = createCommandInputRegistry();
-    expect(empty.ids()).toEqual(["priority", "slug", "work-class", "work-unit-state"]);
+    expect(empty.ids()).toEqual([
+      "priority",
+      "remote-evidence",
+      "remote-failure-reason",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
 
     const schema = z.object({ value: z.string() });
     const registry = createCommandInputRegistry([{
@@ -37,6 +44,8 @@ describe("command-input schema adapter and registry", () => {
     expect(registry.ids()).toEqual([
       "command-example-create-input",
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",
@@ -69,6 +78,8 @@ describe("command-input schema adapter and registry", () => {
     expect(registry.ids()).toEqual([
       ...expectedPaths.map(commandInputSchemaId),
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",

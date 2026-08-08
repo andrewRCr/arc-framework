@@ -5,10 +5,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  analyzeUserReferenceAuthority,
+  materializeUserReferenceAuthority,
   planUserReferenceReconcile,
+  projectUserReferenceSessionResult,
   resolveUserReferenceAuthority,
   runUserReferenceReconcile,
 } from "../../src/lib/user-reference-reconcile.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
+
+const BASE_OID = "b".repeat(40);
 
 const inbox = `# User Inbox
 
@@ -115,6 +121,268 @@ describe("planUserReferenceReconcile", () => {
     expect(partial).toMatchObject({ status: "ready", ref: "main" });
     expect(full).toMatchObject({ status: "ready", ref: "origin/main" });
     expect(refs).toEqual(["main", "origin/main"]);
+  });
+
+  it("preserves reconciliation planning at a locally available advertised base OID", async () => {
+    const refs: string[] = [];
+    const authority = await analyzeUserReferenceAuthority({
+      protection: "full",
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      enumerateAt: async (ref) => {
+        refs.push(ref);
+        return { status: "valid", records: [] };
+      },
+    });
+
+    expect(authority).toMatchObject({
+      status: "ready",
+      ref: BASE_OID,
+      transitions: [],
+      remoteEvidence: "exact",
+    });
+    if (authority.status !== "ready") throw new Error("expected exact authority");
+    expect(projectUserReferenceSessionResult(authority, {
+      userInbox: { path: "USER-INBOX.md", content: inbox },
+    })).toMatchObject({ status: "clean", plan: { status: "clean" } });
+    expect(refs).toEqual([BASE_OID]);
+  });
+
+  it("offers no remedy when no remote evidence was required", () => {
+    // Remote sync off or no remote configured is a deliberate configuration, not a
+    // failed read. Surfacing here would report a transient fault the operator cannot
+    // act on, for a state they chose.
+    const authority = {
+      status: "unavailable",
+      ref: "origin/main",
+      reason: "remote-not-required",
+      remoteEvidence: "not-applicable",
+    } as const;
+
+    expect(projectUserReferenceSessionResult(authority, {
+      userInbox: { path: "USER-INBOX.md", content: "" },
+    })).toMatchObject({
+      status: "unavailable",
+      plan: null,
+      recommendedAction: "skip",
+      recommendedPromptText: "",
+    });
+  });
+
+  it("still surfaces an unreachable remote as an authority it cannot establish", () => {
+    const authority = {
+      status: "unavailable",
+      ref: "origin/main",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    } as const;
+
+    expect(projectUserReferenceSessionResult(authority, {
+      userInbox: { path: "USER-INBOX.md", content: "" },
+    })).toMatchObject({ recommendedAction: "surface" });
+  });
+
+  it("returns typed pending authority when the advertised base object is missing", async () => {
+    let enumerated = false;
+    await expect(analyzeUserReferenceAuthority({
+      protection: "full",
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: false } },
+      enumerateAt: async () => {
+        enumerated = true;
+        return { status: "valid", records: [] };
+      },
+    })).resolves.toEqual({
+      status: "pending",
+      ref: BASE_OID,
+      reason: "base-object-pending-fetch",
+      remoteEvidence: "pending-fetch",
+    });
+    expect(enumerated).toBe(false);
+  });
+
+  it("returns typed unavailable authority when remote evidence is unreachable", async () => {
+    let enumerated = false;
+    await expect(analyzeUserReferenceAuthority({
+      protection: "full",
+      baseBranch: "main",
+      snapshot: { kind: "unreachable", failureReason: "auth" },
+      objectAvailability: { kind: "complete", commits: {} },
+      enumerateAt: async () => {
+        enumerated = true;
+        return { status: "valid", records: [] };
+      },
+    })).resolves.toEqual({
+      status: "unavailable",
+      ref: "origin/main",
+      remoteEvidence: "unreachable",
+      failureReason: "auth",
+    });
+    expect(enumerated).toBe(false);
+  });
+
+  it("returns exact unavailable authority when the advertised base is absent", async () => {
+    let enumerated = false;
+    await expect(analyzeUserReferenceAuthority({
+      protection: "full",
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "all-heads", tips: {} },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      enumerateAt: async () => {
+        enumerated = true;
+        return { status: "valid", records: [] };
+      },
+    })).resolves.toEqual({
+      status: "unavailable",
+      ref: "origin/main",
+      reason: "remote-base-absent",
+      remoteEvidence: "exact",
+    });
+    expect(enumerated).toBe(false);
+  });
+
+  it("retains local-base authority under partial protection", async () => {
+    const refs: string[] = [];
+    await expect(analyzeUserReferenceAuthority({
+      protection: "partial",
+      baseBranch: "main",
+      snapshot: { kind: "unreachable", failureReason: "network" },
+      objectAvailability: { kind: "unavailable", reason: "execution" },
+      enumerateAt: async (ref) => {
+        refs.push(ref);
+        return { status: "valid", records: [] };
+      },
+    })).resolves.toMatchObject({
+      status: "ready",
+      ref: "main",
+      transitions: [],
+      remoteEvidence: "not-applicable",
+    });
+    expect(refs).toEqual(["main"]);
+  });
+
+  it("propagates unexpected retirement-record enumeration failure", async () => {
+    await expect(analyzeUserReferenceAuthority({
+      protection: "full",
+      baseBranch: "main",
+      snapshot: { kind: "available", scope: "exact", tips: { main: BASE_OID } },
+      objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
+      enumerateAt: () => Promise.reject(new Error("enumeration failed")),
+    })).rejects.toThrow("enumeration failed");
+  });
+
+  it("supplies exact authority after explicit full-protection materialization", async () => {
+    const calls: string[][] = [];
+    const authority = await materializeUserReferenceAuthority({
+      exec: async (_command, args, options) => {
+        calls.push(args);
+        if (args[0] === "check-ref-format") return { stdout: "" };
+        if (args[0] === "fetch") {
+          expect(options?.diagnosticLocale).toBe("stable");
+          return { stdout: "" };
+        }
+        if (args[0] === "rev-parse") return { stdout: `${BASE_OID}\n` };
+        throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+      },
+      protection: "full",
+      baseBranch: "main",
+      enumerateAt: (ref) => Promise.resolve(
+        ref === BASE_OID ? { status: "valid", records: [] } : { status: "namespace-corrupt" },
+      ),
+    });
+
+    expect(authority).toMatchObject({ status: "ready", ref: BASE_OID, remoteEvidence: "exact" });
+    expect(calls).toEqual([
+      ["check-ref-format", "refs/heads/main"],
+      ["fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"],
+      ["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"],
+    ]);
+  });
+
+  it("preserves exact remote-base absence without reading a stale tracking ref", async () => {
+    const calls: string[][] = [];
+    const result = await materializeUserReferenceAuthority({
+      exec: async (_command, args) => {
+        calls.push(args);
+        if (args[0] === "check-ref-format") return { stdout: "" };
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args,
+          exitCode: 128,
+          expectedOutcome: "absent-remote-ref",
+        });
+      },
+      protection: "full",
+      baseBranch: "main",
+      enumerateAt: () => Promise.reject(new Error("must not enumerate")),
+    });
+
+    expect(result).toEqual({
+      status: "unavailable",
+      ref: "origin/main",
+      reason: "remote-base-absent",
+      remoteEvidence: "exact",
+    });
+    expect(calls).toEqual([
+      ["check-ref-format", "refs/heads/main"],
+      ["fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"],
+    ]);
+  });
+
+  it("rejects an unsafe configured base before any Git invocation", async () => {
+    let invoked = false;
+    await expect(materializeUserReferenceAuthority({
+      exec: async () => {
+        invoked = true;
+        return { stdout: "" };
+      },
+      protection: "full",
+      baseBranch: "-unsafe",
+      enumerateAt: async () => ({ status: "valid", records: [] }),
+    })).rejects.toThrow("Unsafe base ref");
+    expect(invoked).toBe(false);
+  });
+
+  it.each([
+    ["timeout", (_args: string[], signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(Object.assign(new Error("canceled"), { isCanceled: true })));
+    }), "timeout"],
+    ["network", () => Promise.reject(Object.assign(new Error("fetch failed"), {
+      exitCode: 128,
+      stderr: "fatal: Could not resolve host remote.example",
+    })), "network"],
+    ["authentication", () => Promise.reject(Object.assign(new Error("fetch failed"), {
+      exitCode: 128,
+      stderr: "fatal: Authentication failed",
+    })), "auth"],
+    ["local metadata denial", () => Promise.reject(new Error("cannot lock ref: operation not permitted")), "error"],
+  ] as const)("returns typed unavailable authority on %s", async (_label, fail, failureReason) => {
+    let enumerated = false;
+    const result = await materializeUserReferenceAuthority({
+      exec: async (_command, args, options) => {
+        if (args[0] === "check-ref-format") return { stdout: "" };
+        if (args[0] !== "fetch") throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+        return fail(args, options?.signal);
+      },
+      protection: "full",
+      baseBranch: "main",
+      fetchTimeoutMs: 5,
+      enumerateAt: async () => {
+        enumerated = true;
+        return { status: "valid", records: [] };
+      },
+    });
+
+    expect(result).toEqual({
+      status: "unavailable",
+      ref: "origin/main",
+      remoteEvidence: "unreachable",
+      failureReason,
+    });
+    expect(enumerated).toBe(false);
   });
 
   it("keeps decompose targets and ordinary prose advisory-only", () => {

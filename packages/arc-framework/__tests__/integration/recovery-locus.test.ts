@@ -110,7 +110,13 @@ function frame(entering: DerivedCheckoutRow, siblings: readonly DerivedCheckoutR
 function recoverProbes(state: DerivedLocusFrame): SessionRecoverProbes {
   return {
     derivedLocusState: async () => state,
-    worktree: async () => ({ state: "clean", ahead: 0, behind: 0, branch: "feat/demo" }),
+    worktree: async () => ({
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      branch: "feat/demo",
+      remoteEvidence: "exact",
+    }),
     worktreeIdentity: async () => ({ kind: "linked", path: state.entering.kind === "selected"
       ? state.entering.row.checkout.path
       : state.entering.checkoutPath }),

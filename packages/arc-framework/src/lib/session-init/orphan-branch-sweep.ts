@@ -31,43 +31,120 @@
 import { z } from "zod";
 
 import { isLandedInBase } from "../git/branch-containment.js";
+import { isLandedInBaseStrict } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import { listGoneUpstreamBranches } from "../git/gone-upstream-branches.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
-import { SlugSchema } from "../kernel/index.js";
+import { SlugSchema, withRemoteEvidence } from "../kernel/index.js";
 import {
   branchToWorkUnitSlug,
+  readShippedWorkUnitsFromExactRef,
   readShippedWorkUnitsFromRef,
 } from "../work-unit/completed-index.js";
 import { locusOwnsBranch } from "./locus-classification.js";
+import {
+  projectCleanupRemoteEvidence,
+  type CleanupBaseEvidence,
+  type CleanupRemoteEvidence,
+} from "./cleanup-remote-evidence.js";
 
 /** The ref namespace scoping the sweep to local branches. */
 const LOCAL_BRANCH_REF_PREFIX = "refs/heads/";
 
 /** Runtime authority for one gone-upstream branch and its cleanup verdicts. */
-export const OrphanBranchReportSchema = z.strictObject({
-  branch: z.string().refine((value) => value.trim().length > 0, "branch must not be empty"),
-  merged: z.boolean(),
-  shippedWorkUnit: SlugSchema.nullable(),
-});
+const OrphanBranchNameSchema = z.string().refine((value) => value.trim().length > 0, "branch must not be empty");
+export const OrphanBranchReportSchema = z.union([
+  z.strictObject({
+    branch: OrphanBranchNameSchema,
+    merged: z.boolean(),
+    shippedWorkUnit: SlugSchema.nullable(),
+    blockingReason: z.null().optional(),
+  }),
+  z.strictObject({
+    branch: OrphanBranchNameSchema,
+    merged: z.null(),
+    shippedWorkUnit: z.null(),
+    blockingReason: z.literal("evidence-unavailable"),
+  }),
+]);
 
 /** One gone-upstream local branch paired with its cleanup verdicts. */
 export type OrphanBranchReport = z.infer<typeof OrphanBranchReportSchema>;
 
 /** Runtime authority for the orphan-branch sweep advisory. */
-export const OrphanBranchSweepResultSchema = z.strictObject({
+export const OrphanBranchSweepResultSchema = withRemoteEvidence({
   orphans: z.array(OrphanBranchReportSchema),
 });
 
 /** Gone-upstream type-prefixed local branches and their cleanup verdicts. */
 export type OrphanBranchSweepResult = z.infer<typeof OrphanBranchSweepResultSchema>;
 
+/** Supplied prerequisites for orphan classification against advertised base evidence. */
+export interface AnalyzeOrphanBranchesSnapshotOptions extends CleanupBaseEvidence {
+  exec: GitExec;
+  branches: readonly string[];
+  baseBranch: string;
+}
+
+/** Analyze filtered local orphan branches against one immutable advertised base snapshot. */
+export async function analyzeOrphanBranchesSnapshot(
+  options: AnalyzeOrphanBranchesSnapshotOptions,
+): Promise<OrphanBranchSweepResult> {
+  const evidence = projectCleanupRemoteEvidence(options.baseBranch, options);
+  if (evidence.remoteEvidence !== "exact") return unavailableOrphans(options.branches, evidence);
+  if (options.snapshot.kind === "unreachable") return unavailableOrphans(options.branches, evidence);
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) return unavailableOrphans(options.branches, evidence);
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return unavailableOrphans(options.branches, { remoteEvidence: "pending-fetch" });
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  if (options.history.kind === "shallow") return unavailableOrphans(options.branches, evidence);
+  if (options.history.kind !== "complete") throw new Error("Orphan history completeness could not be inspected.");
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const shipped = await readShippedWorkUnitsFromExactRef(localOnlyExec, baseOid);
+  const orphans = await Promise.all(options.branches.map(async (branch) => {
+    const slug = branchToWorkUnitSlug(branch);
+    const shippedSlug = slug !== null && shipped.has(slug) ? SlugSchema.safeParse(slug) : null;
+    return {
+      branch,
+      merged: await isLandedInBaseStrict(localOnlyExec, branch, baseOid),
+      shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
+    };
+  }));
+  return { ...evidence, orphans };
+}
+
+function unavailableOrphans(
+  branches: readonly string[],
+  evidence: CleanupRemoteEvidence,
+): OrphanBranchSweepResult {
+  return {
+    ...evidence,
+    orphans: branches.map((branch) => ({
+      branch,
+      merged: null,
+      shippedWorkUnit: null,
+      blockingReason: "evidence-unavailable" as const,
+    })),
+  };
+}
+
 export interface RunOrphanBranchSweepOptions {
   /** Physical-worktree identity of the calling session. */
   worktreeIdentity: WorktreeIdentity;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
   baseBranch: string;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers. */
+  baseEvidence?: CleanupBaseEvidence;
   /**
    * Branches carrying an errand record — excluded from the sweep; the errand
    * surfaces (resume, close replay) own their cleanup. `null` when the records
@@ -98,7 +175,7 @@ export async function runOrphanBranchSweep(
   // a WU branch, and a `git branch -d` offer on one would orphan its record —
   // decline the whole advisory rather than risk it.
   if (errandBranches === null || options.derivedRoster === null) {
-    return { orphans: [] };
+    return { orphans: [], remoteEvidence: "not-applicable" };
   }
   const derivedRoster = options.derivedRoster;
 
@@ -108,7 +185,16 @@ export async function runOrphanBranchSweep(
       && !locusOwnsBranch(derivedRoster, branch),
   );
   if (goneBranches.length === 0) {
-    return { orphans: [] };
+    return { orphans: [], remoteEvidence: "not-applicable" };
+  }
+
+  if (options.baseEvidence !== undefined) {
+    return analyzeOrphanBranchesSnapshot({
+      ...options.baseEvidence,
+      exec,
+      branches: goneBranches,
+      baseBranch,
+    });
   }
 
   const integrationTarget = `origin/${baseBranch}`;
@@ -126,5 +212,5 @@ export async function runOrphanBranchSweep(
     }),
   );
 
-  return { orphans };
+  return { orphans, remoteEvidence: "not-applicable" };
 }

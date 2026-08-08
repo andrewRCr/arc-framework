@@ -5,13 +5,24 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import { runActiveInFlight } from "../../src/commands/active/in-flight.js";
+import {
+  runActiveInFlight,
+  runActiveInFlightExpansion,
+} from "../../src/commands/active/in-flight.js";
 import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
+import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
 import {
   detectForeignArtifactOverlap,
   projectInFlightToOverlapRoster,
 } from "../../src/lib/git/foreign-artifact-detection.js";
-import { deriveInFlight } from "../../src/lib/git/in-flight-derivation.js";
+import { analyzeInFlightSnapshot, deriveInFlight } from "../../src/lib/git/in-flight-derivation.js";
+import { readHistoryCompleteness } from "../../src/lib/git/history-completeness.js";
+import { readObjectAvailability } from "../../src/lib/git/object-availability.js";
+import {
+  readLocalInFlightRefSnapshot,
+  readRemoteHeadSnapshot,
+} from "../../src/lib/git/remote-ref-reader.js";
+import { resolveWorktreePathsByBranchResult } from "../../src/lib/git/worktree-roster.js";
 import { findMaterializableWorkUnits } from "../../src/lib/session-init/materializable-work-units.js";
 import {
   detectStagedForeignWrites,
@@ -22,8 +33,41 @@ import {
   setupInFlightReshuffleFixture,
   type InFlightReshuffleFixture,
 } from "../helpers/in-flight-reshuffle.js";
+import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
+import { setupMultiClone } from "../helpers/multi-clone.js";
 
 const execFileAsync = promisify(execFile);
+
+async function probeMaterializableCandidates(
+  exec: GitExec,
+  execInput: GitExecInput,
+  cwd: string,
+): Promise<{ pendingBranchCount: number; candidates: Array<{ name: string; branch: string }> }> {
+  const snapshot = await readRemoteHeadSnapshot({ exec, scope: { kind: "all-heads" } });
+  if (snapshot.kind !== "available") throw new Error("Expected an available remote-head snapshot.");
+  const [objectAvailability, history, localRefs, worktrees] = await Promise.all([
+    readObjectAvailability({ execInput, oids: Object.values(snapshot.tips), cwd }),
+    readHistoryCompleteness({ exec, cwd }),
+    readLocalInFlightRefSnapshot(exec),
+    resolveWorktreePathsByBranchResult(exec),
+  ]);
+  const analysis = await analyzeInFlightSnapshot({
+    exec,
+    snapshot,
+    objectAvailability,
+    history,
+    localRefs,
+    worktrees,
+    identity: "andrew",
+    teamMode: false,
+    errandSlugByBranch: new Map(),
+    baseBranch: "main",
+  });
+  return {
+    pendingBranchCount: analysis.pendingBranchCount,
+    candidates: findMaterializableWorkUnits({ entries: analysis.entries, identity: "andrew" }).candidates,
+  };
+}
 
 async function commitPaths(cwd: string, paths: Record<string, string>, message: string): Promise<void> {
   for (const [path, content] of Object.entries(paths)) {
@@ -545,6 +589,65 @@ describe("in-flight reshuffle fixture", () => {
           matchedPaths: [targetPath],
         },
       ]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("makes the next supplied-evidence materialization probe exact after explicit expansion", async () => {
+    const fixture = await setupMultiClone({
+      cloneA: { config: { "arc.identity": "andrew" } },
+      cloneB: { config: { "arc.identity": "andrew" } },
+    });
+    try {
+      const branch = "plan/cross-machine-candidate";
+      const metaPath = ".arc/active/meta-cross-machine-candidate.md";
+      await execFileAsync("git", ["switch", "-c", branch], { cwd: fixture.cloneB });
+      await mkdir(dirname(join(fixture.cloneB, metaPath)), { recursive: true });
+      await writeFile(
+        join(fixture.cloneB, metaPath),
+        renderMetaProjectionFile("cross-machine-candidate", {
+          State: "Planning",
+          Owner: "andrew",
+          Branch: branch,
+          Class: "Light",
+          Priority: "P3",
+        }),
+        "utf-8",
+      );
+      await execFileAsync("git", ["add", metaPath], { cwd: fixture.cloneB });
+      await execFileAsync(
+        "git",
+        ["-c", "core.hooksPath=/dev/null", "commit", "-m", "add cross-machine candidate"],
+        { cwd: fixture.cloneB },
+      );
+      await execFileAsync("git", ["push", "origin", `HEAD:refs/heads/${branch}`], { cwd: fixture.cloneB });
+
+      const exec = makeGitExec(fixture.cloneA);
+      const execInput = makeGitExecInput(fixture.cloneA);
+      await expect(probeMaterializableCandidates(exec, execInput, fixture.cloneA)).resolves.toEqual({
+        pendingBranchCount: 1,
+        candidates: [],
+      });
+
+      const expansion = await runActiveInFlightExpansion({
+        exec,
+        execInput,
+        cwd: fixture.cloneA,
+        identity: "andrew",
+        teamMode: false,
+        localOnly: false,
+        baseBranch: "main",
+      });
+      expect(expansion).toMatchObject({
+        remoteEvidence: "exact",
+        candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+      });
+
+      await expect(probeMaterializableCandidates(exec, execInput, fixture.cloneA)).resolves.toEqual({
+        pendingBranchCount: 0,
+        candidates: [{ name: "cross-machine-candidate", branch }],
+      });
     } finally {
       await fixture.cleanup();
     }

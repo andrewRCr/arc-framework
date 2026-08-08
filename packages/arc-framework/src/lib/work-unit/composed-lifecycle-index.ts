@@ -49,7 +49,7 @@ export interface ResolveComposedLifecycleIndexOptions {
   cwd: string;
   fs?: ProjectViewFs;
   /** Omit for exact tree-only parity. `baseBranch` is required because exclusion is load-bearing. */
-  oracle?: Omit<ProjectReadinessOracleOptions, "baseBranch"> & { baseBranch: string };
+  oracle?: ProjectReadinessOracleOptions & { baseBranch: string };
   /** Optional staged-tree precedence for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
   /** Optional receipt-blind transition suppression. */
@@ -201,11 +201,14 @@ export async function resolveComposedLifecycleIndex(
       })),
     ),
     recordsBySlug,
-    qualityFacts: qualityFactsFor(oracleResult, options.oracle !== undefined && options.oracle.localOnly !== true),
+    qualityFacts: qualityFactsFor(
+      oracleResult,
+      options.oracle !== undefined && options.oracle.acquisitionPolicy !== "local",
+    ),
     worktreePathBySlug,
     liveRefs: { ...(oracleResult?.liveRefs ?? {}) },
     reachable: oracleResult?.reachable ?? false,
-    readQuality: options.oracle === undefined || options.oracle.localOnly === true
+    readQuality: options.oracle === undefined || options.oracle.acquisitionPolicy === "local"
       ? "tree-only"
       : oracleResult?.reachable === true ? "reachable" : "degraded",
   };
