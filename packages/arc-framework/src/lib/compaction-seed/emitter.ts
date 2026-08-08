@@ -46,6 +46,8 @@ export interface CompactionSeedEnvelope {
 
 /** Git state captured by the status handler for seed emission. */
 export interface CompactionSeedGitSnapshot {
+  /** Locally observed branch name, or Git's literal `HEAD` for a detached checkout. */
+  branch: string;
   /** HEAD SHA at the same status-handler snapshot used for seed emission. */
   head: string;
   /** Deterministic dirty-file path set from `git status --porcelain=v1 -z`. */
@@ -204,9 +206,7 @@ export async function emitCompactionSeed(
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
     emittedAt: (options.now ?? (() => new Date()))().toISOString(),
     repoRoot: options.cwd,
-    branch: options.envelope.worktree.ok
-      ? options.envelope.worktree.value.branch ?? "HEAD"
-      : "HEAD",
+    branch: options.gitSnapshot.branch,
     head: options.gitSnapshot.head,
     dirty: uncommittedFiles.length > 0,
     activeWorkUnit: activeWorkUnitName(metaPath),

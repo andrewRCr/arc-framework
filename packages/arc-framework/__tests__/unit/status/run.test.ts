@@ -53,8 +53,8 @@ import type {
 } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
 import {
-  BaseBranchSyncStatusResultSchema,
-  type BaseBranchSyncStatusResult,
+  BaseBranchSnapshotAnalysisResultSchema,
+  type BaseBranchSnapshotAnalysisResult,
 } from "../../../src/lib/git/base-branch-sync.js";
 import type { SupersessionResult } from "../../../src/lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
@@ -69,10 +69,11 @@ import {
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../../src/lib/session-init/errand-state.js";
 import {
-  MaterializableWorkUnitsResultSchema,
-  type MaterializableWorkUnitsResult,
+  MaterializableWorkUnitDiscoveryResultSchema,
+  type MaterializableWorkUnitDiscoveryResult,
 } from "../../../src/lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../../src/lib/session-init/work-unit-state.js";
+import type { SessionRemoteContext } from "../../../src/handlers/status-remote-context.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-init/partial-push-marker-surface.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
@@ -90,8 +91,13 @@ function retiredSubdirResult(candidates: string[]): RetiredSubdirDetectionResult
 
 function materializableResult(
   candidates: Array<{ name: string; branch: string }>,
-): MaterializableWorkUnitsResult {
-  return MaterializableWorkUnitsResultSchema.parse({ candidates });
+): MaterializableWorkUnitDiscoveryResult {
+  return MaterializableWorkUnitDiscoveryResultSchema.parse({
+    candidates,
+    remoteEvidence: "exact",
+    pendingBranchCount: 0,
+    refreshRemedy: null,
+  });
 }
 
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
@@ -237,13 +243,16 @@ function baseDistance(
 
 function baseBranchSync(
   overrides: Record<string, unknown> = {},
-): BaseBranchSyncStatusResult {
-  return BaseBranchSyncStatusResultSchema.parse({
+): BaseBranchSnapshotAnalysisResult {
+  return BaseBranchSnapshotAnalysisResultSchema.parse({
     state: "clean",
     ahead: 0,
     behind: 0,
     base: "main",
     checkout: { kind: "not-checked-out" },
+    refreshRemedy: null,
+    guidance: null,
+    remoteEvidence: "exact",
     ...overrides,
   });
 }
@@ -554,6 +563,10 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
       }
       return derivedFrameFromActive(activeResult, identity, activeExtensions, cohortDocPath, cursor);
     }),
+    remoteContext: vi.fn(async () => ({
+      kind: "not-needed" as const,
+      reason: "remote-sync-disabled" as const,
+    })),
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
@@ -590,7 +603,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
     errandState: vi.fn(async (): Promise<ErrandStateResult> => errandStateResult()),
     materializableWorkUnits: vi.fn(
-      async (): Promise<MaterializableWorkUnitsResult> => ({ candidates: [] }),
+      async (): Promise<MaterializableWorkUnitDiscoveryResult> => materializableResult([]),
     ),
     workUnitState: vi.fn(async (): Promise<WorkUnitStateResult> => workUnitStateResult()),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
@@ -862,6 +875,112 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(probes.domainRules).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
     expect(probes.errandState).toHaveBeenCalledTimes(1);
+  });
+
+  it("threads one unreachable context through eager and later gated dependents", async () => {
+    const context: SessionRemoteContext = {
+      kind: "unreachable",
+      snapshot: { kind: "unreachable", failureReason: "network" },
+    };
+    const received: SessionRemoteContext[] = [];
+    const remoteContext = vi.fn(async () => context);
+    const probes = sessionInitProbes({
+      remoteContext,
+      active: async () => activeSessionInit({ resolution: "none", path: null }),
+      worktree: async (value) => {
+        received.push(value);
+        return worktreeSync({ state: "branch-gone", branch: "feat/gone" });
+      },
+      baseDistance: async (value) => {
+        received.push(value);
+        return baseDistance();
+      },
+      baseBranchSync: async (value) => {
+        received.push(value);
+        return baseBranchSync();
+      },
+      retiredSubdirs: async (value) => {
+        received.push(value);
+        return { candidates: [] };
+      },
+      recovery: async (value) => {
+        received.push(value);
+        return { kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" };
+      },
+      sweep: async (value) => {
+        received.push(value);
+        return {
+          remoteEvidence: "unreachable",
+          failureReason: "network",
+          worktrees: [],
+          renameMoves: [],
+          retirements: [],
+          warnings: [],
+        };
+      },
+      orphanBranchSweep: async (value) => {
+        received.push(value);
+        return { remoteEvidence: "unreachable", failureReason: "network", orphans: [] };
+      },
+      errandState: async (value) => {
+        received.push(value);
+        return errandStateResult();
+      },
+      materializableWorkUnits: async (value) => {
+        received.push(value);
+        return materializableResult([]);
+      },
+      workUnitState: async (value) => {
+        received.push(value);
+        return workUnitStateResult();
+      },
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(received).toHaveLength(10);
+    expect(received.every((value) => value === context)).toBe(true);
+    // Identical references alone would also hold for a probe returning a constant;
+    // the composition happens once only if the reader is invoked once.
+    expect(remoteContext).toHaveBeenCalledTimes(1);
+    expect(result.worktree.ok && result.worktree.value.state).toBe("branch-gone");
+    expect(result.recovery?.ok).toBe(true);
+    expect(result.sweep?.ok).toBe(true);
+    expect(result.orphanBranchSweep?.ok).toBe(true);
+    expect(result.errandState?.ok).toBe(true);
+    expect(result.materializableWorkUnits?.ok).toBe(true);
+    expect(result.workUnitState?.ok).toBe(true);
+  });
+
+  it("isolates a failed local context prerequisite from independent slots", async () => {
+    const probes = sessionInitProbes({
+      remoteContext: async () => ({ kind: "unavailable", prerequisite: "remote-configuration" }),
+      dirty: async () => dirtyState({ state: "dirty", fileCount: 2 }),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.worktree).toEqual({
+      ok: false,
+      error: {
+        kind: "runtime",
+        message: "Session remote prerequisite failed: remote-configuration.",
+      },
+    });
+    expect(result.baseDistance.ok).toBe(false);
+    expect(result.baseBranchSync.ok).toBe(false);
+    expect(result.dirty).toEqual({ ok: true, value: { state: "dirty", fileCount: 2 } });
+    expect(result.config.ok).toBe(true);
+    // The gated second-stage slots resolve on a different path in the compositor, so
+    // eager-slot isolation does not imply theirs.
+    const prerequisiteError = {
+      ok: false,
+      error: { kind: "runtime", message: "Session remote prerequisite failed: remote-configuration." },
+    };
+    expect(result.sweep).toEqual(prerequisiteError);
+    expect(result.orphanBranchSweep).toEqual(prerequisiteError);
+    expect(result.materializableWorkUnits).toEqual(prerequisiteError);
+    expect(result.workUnitState).toEqual(prerequisiteError);
   });
 
   it("exposes the domainRules slot with ok=true on success", async () => {
@@ -1695,18 +1814,26 @@ describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
 
 describe("runSessionInitStatus — diverged supersession downgrade", () => {
   it("downgrades the diverged reconcile to a lossless-reset offer on patch-equal supersession", async () => {
+    const context: SessionRemoteContext = {
+      kind: "available",
+      snapshot: { kind: "available", scope: "all-heads", tips: { "feat/x": "a".repeat(40) } },
+      objectAvailability: { kind: "complete", commits: { ["a".repeat(40)]: true } },
+      history: { kind: "complete" },
+    };
     const probes = sessionInitProbes({
+      remoteContext: async () => context,
       worktree: vi.fn(async () =>
         worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feat/x" }),
       ),
-      supersession: vi.fn(async () =>
-        supersessionResult({ superseded: true, supersededCommits: ["a", "b"] }),
+      supersession: vi.fn(async (received) =>
+        supersessionResult(received === context
+          ? { superseded: true, supersededCommits: ["a", "b"] }
+          : { superseded: false }),
       ),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     // The detector fires once, scoped to the diverged branch.
     expect(probes.supersession).toHaveBeenCalledTimes(1);
-    expect(probes.supersession).toHaveBeenCalledWith("feat/x");
     expect(result.worktree.ok).toBe(true);
     if (result.worktree.ok) {
       expect(result.worktree.value.supersession?.superseded).toBe(true);
@@ -1891,7 +2018,9 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     expect(result.worktree.ok).toBe(true);
     if (result.worktree.ok) {
       expect(result.worktree.value.state).toBe("remote-unavailable");
-      expect(result.worktree.value.failureReason).toBe("timeout");
+      expect(
+        "failureReason" in result.worktree.value && result.worktree.value.failureReason,
+      ).toBe("timeout");
     }
   });
 
@@ -2291,7 +2420,7 @@ describe("runSessionInitStatus — branch-gone recovery gating", () => {
       probes,
     });
     expect(probes.recovery).toHaveBeenCalledTimes(1);
-    expect(probes.recovery).toHaveBeenCalledWith(rosterValue, "feat/gone");
+    expect(probes.recovery).toHaveBeenCalledWith(expect.anything(), rosterValue, "feat/gone");
     expect(result.recovery?.ok).toBe(true);
     if (result.recovery?.ok) {
       expect(result.recovery.value).toMatchObject({
@@ -2416,7 +2545,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.sweep).toHaveBeenCalledTimes(1);
-    expect(probes.sweep).toHaveBeenCalledWith(rosterValue, { kind: "primary" });
+    expect(probes.sweep).toHaveBeenCalledWith(expect.anything(), rosterValue, { kind: "primary" });
     expect(result.sweep?.ok).toBe(true);
     if (result.sweep?.ok) {
       expect(result.sweep.value.worktrees[0]?.decision).toEqual({ action: "removable" });
@@ -2488,6 +2617,10 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
   it.each(["detached-head", "skipped"] as const)(
     "emits the advisory for a linked branchless %s worktree",
     async (state) => {
+      const context: SessionRemoteContext = {
+        kind: "unreachable",
+        snapshot: { kind: "unreachable", failureReason: "network" },
+      };
       const advisory = {
         worktreePath: "/wt/shipped",
         subject: { kind: "work-unit" as const, name: "shipped" },
@@ -2495,15 +2628,15 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
         stamp: { kind: "legacy" as const, authorization: "merged-preserved" as const },
       };
       const probes = sessionInitProbes({
+        remoteContext: async () => context,
         worktree: vi.fn(async () => worktreeSync({ state, branch: null })),
         worktreeIdentity: vi.fn(async () =>
           worktreeIdentity({ kind: "linked", path: "/wt/shipped" })),
-        currentHusk: vi.fn(async () => advisory),
+        currentHusk: vi.fn(async (received) => received === context ? advisory : null),
       });
 
       const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-      expect(probes.currentHusk).toHaveBeenCalledWith("/wt/shipped");
       expect(result.currentHusk).toEqual({ ok: true, value: advisory });
     },
   );
@@ -2518,7 +2651,7 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
 
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(probes.currentHusk).toHaveBeenCalledWith("/wt/unmarked");
+    expect(probes.currentHusk).toHaveBeenCalledWith(expect.anything(), "/wt/unmarked");
     expect(result.currentHusk).toEqual({ ok: true, value: null });
   });
 
@@ -2537,7 +2670,7 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
     expect("currentHusk" in result).toBe(false);
   });
 
-  it("omits a degraded advisory without rejecting session-init", async () => {
+  it("preserves a degraded advisory as a per-slot runtime error", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => worktreeSync({ state: "detached-head", branch: null })),
       worktreeIdentity: vi.fn(async () =>
@@ -2547,7 +2680,10 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
 
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect("currentHusk" in result).toBe(false);
+    expect(result.currentHusk).toEqual({
+      ok: false,
+      error: { kind: "runtime", message: "marker read failed" },
+    });
     expect(result.worktree.ok).toBe(true);
   });
 });
@@ -2565,7 +2701,10 @@ describe("runSessionInitStatus — work-unit-state slot", () => {
 
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(probes.workUnitState).toHaveBeenCalledWith({ roster: rosterValue, includeSharpening: false });
+    expect(probes.workUnitState).toHaveBeenCalledWith(
+      expect.anything(),
+      { roster: rosterValue, includeSharpening: false },
+    );
     expect(result.workUnitState?.ok).toBe(true);
   });
 
@@ -2580,7 +2719,10 @@ describe("runSessionInitStatus — work-unit-state slot", () => {
 
     await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(probes.workUnitState).toHaveBeenCalledWith({ roster: rosterValue, includeSharpening: true });
+    expect(probes.workUnitState).toHaveBeenCalledWith(
+      expect.anything(),
+      { roster: rosterValue, includeSharpening: true },
+    );
   });
 
   it("omits the slot in a linked worktree (the roster never resolves there)", async () => {
@@ -2635,7 +2777,7 @@ describe("runSessionInitStatus — errand-state slot", () => {
 
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(probes.errandState).toHaveBeenCalledWith({
+    expect(probes.errandState).toHaveBeenCalledWith(expect.anything(), {
       currentBranch: "main",
       hasBackingMeta: false,
       includeDiscovery: true,
@@ -2663,7 +2805,7 @@ describe("runSessionInitStatus — errand-state slot", () => {
 
     await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
-    expect(probes.errandState).toHaveBeenCalledWith({
+    expect(probes.errandState).toHaveBeenCalledWith(expect.anything(), {
       currentBranch: "feat/x",
       hasBackingMeta: true,
       includeDiscovery: false,
@@ -2760,10 +2902,10 @@ describe("runSessionInitStatus — materializable-WU oracle slot", () => {
 describe("runSessionInitStatus — retired-subdir detection slot", () => {
   it("fires the detection when identity resolved, passing the identity", async () => {
     const probes = sessionInitProbes({
-      retiredSubdirs: vi.fn(async () => retiredSubdirResult(["old-wu"])),
+      retiredSubdirs: vi.fn(async (context, id) =>
+        retiredSubdirResult(context.kind === "not-needed" && id === "andrew" ? ["old-wu"] : [])),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(probes.retiredSubdirs).toHaveBeenCalledWith("andrew");
     expect(result.retiredSubdirs?.ok).toBe(true);
     if (result.retiredSubdirs?.ok) {
       expect(result.retiredSubdirs.value.candidates).toEqual(["old-wu"]);
@@ -2878,6 +3020,54 @@ describe("JSON wire shape — discriminated union survives serialization", () =>
 });
 
 describe("runSessionHandoffStatus — orchestration", () => {
+  it("uses only the passive worktree adapter and never acquires session-init context", async () => {
+    const remoteContext = vi.fn(async () => ({
+      kind: "unreachable" as const,
+      snapshot: { kind: "unreachable" as const, failureReason: "network" as const },
+    }));
+    const probes = {
+      ...sessionHandoffProbes(),
+      remoteContext,
+    };
+
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
+    });
+
+    expect(remoteContext).not.toHaveBeenCalled();
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(result.worktree.ok).toBe(true);
+  });
+
+  it("preserves passive unreachable evidence without deriving an action matrix", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () => ({
+        ...worktreeSync({ state: "remote-unavailable" }),
+        remoteEvidence: "unreachable" as const,
+        failureReason: "auth" as const,
+      })),
+    });
+
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+      resolveHandoffSurfaces: async () => stubHandoffSurfaces(),
+    });
+
+    expect(result.worktree).toMatchObject({
+      ok: true,
+      value: { remoteEvidence: "unreachable", failureReason: "auth" },
+    });
+    expect(result.recommendedSummaryLine).toBeNull();
+    if (result.worktree.ok) {
+      expect("recommendedAction" in result.worktree.value).toBe(false);
+    }
+  });
+
   it("invokes every probe helper exactly once", async () => {
     const probes = sessionHandoffProbes();
     await runSessionHandoffStatus({

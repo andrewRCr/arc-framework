@@ -106,6 +106,12 @@ describe("session-init envelope schema", () => {
     expectContractFailure(value, "derivedLocusState.value");
   });
 
+  it("does not publish the request-only remote context", () => {
+    const value = fixture("orient");
+    value.remoteContext = { kind: "available", generation: "internal" };
+    expectInvalid(value);
+  });
+
   it("asserts full and thin producer defects with the registered contract identity", () => {
     const fullDefect = fixture("orient");
     (fullDefect.identity as { role: string }).role = "";
@@ -638,22 +644,26 @@ describe("session-init envelope schema", () => {
     expectInvalid(missingSweep);
   });
 
-  it("allows current-husk omission but rejects impossible presence and failure probes", () => {
+  it("requires current-husk at a linked branchless locus and forbids it elsewhere", () => {
+    // An eligible locus always emits the slot, so omission there would report a failed
+    // probe as an inapplicable locus rather than as the degraded slot it is.
     const omitted = fixture("current-husk");
     delete omitted.currentHusk;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
+    expectInvalid(omitted);
 
     expectInvalid({
       ...fixture("orient"),
       currentHusk: fixture("current-husk").currentHusk,
     });
-    expectInvalid({
+    const failed = {
       ...fixture("current-husk"),
       currentHusk: {
         ok: false,
         error: { kind: "runtime", message: "degraded" },
       },
-    });
+    };
+    expect(SessionInitProbeResultSchema.safeParse(failed).success).toBe(true);
+    expectInvalid({ ...fixture("orient"), currentHusk: failed.currentHusk });
   });
 
   it("enforces orphan and identity-scoped advisory presence", () => {

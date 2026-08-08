@@ -10,12 +10,12 @@ import { z } from "zod";
 
 import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
 import { probe } from "./types.js";
-import { BaseBranchSyncStatusResultSchema } from "../../lib/git/base-branch-sync.js";
+import { BaseBranchSnapshotAnalysisResultSchema } from "../../lib/git/base-branch-sync.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
 import { SessionInitRecoveryValueSchema } from "../../lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../lib/session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../../lib/session-init/inbox-state.js";
-import { MaterializableWorkUnitsResultSchema } from "../../lib/session-init/materializable-work-units.js";
+import { MaterializableWorkUnitDiscoveryResultSchema } from "../../lib/session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../../lib/session-init/notes-compaction-advisory.js";
 import { OrphanBranchSweepResultSchema } from "../../lib/session-init/orphan-branch-sweep.js";
 import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/partial-push-marker-surface.js";
@@ -492,7 +492,7 @@ function withoutRecommendation(value: Record<string, unknown>): Record<string, u
 
 /** Full base-sync authority composed with recommendation routing fields. */
 export const SessionInitBaseBranchSyncValueViewSchema = RecommendationValueViewSchema.refine((value) => {
-  return BaseBranchSyncStatusResultSchema.safeParse(withoutRecommendation(value)).success;
+  return BaseBranchSnapshotAnalysisResultSchema.safeParse(withoutRecommendation(value)).success;
 }, "invalid base-branch-sync value");
 
 /** Full retired-subdirectory authority composed with recommendation routing fields. */
@@ -605,7 +605,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   retiredSubdirs: probe(SessionInitRetiredSubdirsValueViewSchema).optional(),
   errandSweep: probe(ErrandStalenessSweepResultSchema).optional(),
   errandState: probe(ErrandStateValueViewSchema).optional(),
-  materializableWorkUnits: probe(MaterializableWorkUnitsResultSchema).optional(),
+  materializableWorkUnits: probe(MaterializableWorkUnitDiscoveryResultSchema).optional(),
   workUnitState: probe(WorkUnitStateValueViewSchema).optional(),
   inboxState: probe(InboxStateResultSchema).optional(),
   partialPushMarker: probe(PartialPushMarkerSurfaceResultSchema).optional(),
@@ -668,12 +668,15 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
       requireExactPresence(value, context, "sweep", rosterSuccessful);
     }
 
-    if (hasOwn(value, "currentHusk")) {
-      const validLocus = worktreeIdentity.kind === "linked" && worktree.branch === null;
-      if (!validLocus || value.currentHusk?.ok !== true) {
-        addPresenceIssue(context, "currentHusk", "requires a successful linked branchless worktree advisory");
-      }
-    }
+    // Presence is exact rather than merely permitted: omission means the locus is
+    // inapplicable, so an eligible locus that omitted the slot would hide a failed
+    // probe as inapplicability instead of publishing it as `{ ok: false }`.
+    requireExactPresence(
+      value,
+      context,
+      "currentHusk",
+      worktreeIdentity.kind === "linked" && worktree.branch === null,
+    );
 
     if (!identityKnown) {
       requireExactPresence(value, context, "orphanBranchSweep", worktreeIdentity.kind === "primary");

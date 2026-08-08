@@ -69,6 +69,7 @@ async function runBounded(
   exec: GitExec,
   args: string[],
   timeoutMs: number,
+  cwd?: string,
 ): Promise<BoundedResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => {
@@ -79,6 +80,7 @@ async function runBounded(
       signal: controller.signal,
       interaction: PASSIVE_REMOTE_INTERACTION,
       diagnosticLocale: "stable",
+      ...(cwd === undefined ? {} : { cwd }),
     });
     return { ok: true, stdout };
   } catch {
@@ -128,6 +130,12 @@ export interface ReadLiveRemoteHeadsOptions {
   remote?: string;
   /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
+  /**
+   * Repository root the read runs against. The executor is not bound to a root, so a
+   * caller composing one request's evidence must name it, or the read resolves against
+   * the process directory and can describe a different repository.
+   */
+  cwd?: string;
 }
 
 /** Remote branch scope requested from the bounded snapshot reader. */
@@ -178,6 +186,7 @@ export async function readRemoteHeadSnapshot(
     remote = DEFAULT_REMOTE,
     scope,
     timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+    cwd,
   } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => {
@@ -191,6 +200,7 @@ export async function readRemoteHeadSnapshot(
       signal: controller.signal,
       interaction: PASSIVE_REMOTE_INTERACTION,
       diagnosticLocale: "stable",
+      ...(cwd === undefined ? {} : { cwd }),
     });
     const parsed = parseLiveMembership(stdout);
     if (!parsed.complete) return { kind: "unreachable", failureReason: "error" };
@@ -299,10 +309,19 @@ function parseLocalRefSnapshot(stdout: string, remote: string): LocalInFlightRef
   return { remoteTracking, localHeads };
 }
 
-/** Read local remote-tracking and branch-head tips. */
+/**
+ * Read local remote-tracking and branch-head tips.
+ *
+ * @param exec - Injectable command executor (local only — no remote).
+ * @param remote - Remote whose tracking refs are read. Defaults to `origin`.
+ * @param cwd - Repository root the read runs against; see
+ * {@link ReadLiveRemoteHeadsOptions.cwd}. Omitted, the executor's own directory
+ * applies, which for the production executor is the process directory.
+ */
 export async function readLocalInFlightRefSnapshot(
   exec: GitExec,
   remote = DEFAULT_REMOTE,
+  cwd?: string,
 ): Promise<LocalInFlightRefSnapshotResult> {
   let stdout: string;
   try {
@@ -311,7 +330,7 @@ export async function readLocalInFlightRefSnapshot(
       "--format=%(refname)\t%(objectname)",
       `refs/remotes/${remote}`,
       "refs/heads",
-    ]));
+    ], cwd === undefined ? {} : { cwd }));
   } catch {
     return { ok: false, refs: emptyLocalRefSnapshot() };
   }
@@ -454,11 +473,16 @@ export interface FetchRefBoundedOptions {
   branch: string;
   /** Network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
+  /** Repository root the fetch runs against; see {@link ReadLiveRemoteHeadsOptions.cwd}. */
+  cwd?: string;
 }
 
 /**
  * Bounded-fetch a candidate ref so a never-seen-locally branch's objects become
  * present and readable (the meta of a WU in flight only on another machine).
+ * Explicit acquisition disables any partial-clone filter for this fetch: the
+ * candidate's commit alone is insufficient when classification must read its
+ * tree and metadata blob without a later implicit fetch.
  * On success the fetched tip is at `FETCH_HEAD`. Degrades to `false` on timeout
  * or unreachable remote; the caller owns the resulting quality posture.
  *
@@ -466,8 +490,38 @@ export interface FetchRefBoundedOptions {
  * @returns `true` when the fetch succeeded, `false` on timeout/unreachable.
  */
 export async function fetchRefBounded(options: FetchRefBoundedOptions): Promise<boolean> {
-  const { exec, remote = DEFAULT_REMOTE, branch, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  return (await runBounded(exec, ["fetch", remote, branch], timeoutMs)).ok;
+  const { exec, remote = DEFAULT_REMOTE, branch, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS, cwd } = options;
+  return (await runBounded(exec, ["fetch", "--no-filter", remote, branch], timeoutMs, cwd)).ok;
+}
+
+/**
+ * Maximum candidate fetches in flight at once. Exported so an explicit acquisition
+ * caller can size its own aggregate budget in whole rounds.
+ */
+export const CANDIDATE_FETCH_CONCURRENCY = 4;
+
+/**
+ * Size an aggregate fetch budget that covers every pending branch.
+ *
+ * {@link fetchRefsBounded} defaults its whole-request deadline to
+ * {@link DEFAULT_NETWORK_TIMEOUT_MS} — at the default per-fetch bound, one round.
+ * That is right for a passive request path: an unresponsive remote costs one bounded
+ * read however many branches are pending. An explicit acquisition path owns
+ * the cost it was asked to spend, so it budgets one bounded round per concurrency
+ * slot instead — otherwise a slow remote leaves branches pending after every run and
+ * the documented `pending-fetch` remedy never converges.
+ *
+ * @param pendingCount - How many branches still need acquisition.
+ * @param timeoutMs - Per-fetch bound. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}.
+ * @returns A whole-request deadline covering `ceil(pendingCount / concurrency)` rounds,
+ * never less than one bounded round.
+ */
+export function roundScaledFetchBudgetMs(
+  pendingCount: number,
+  timeoutMs: number = DEFAULT_NETWORK_TIMEOUT_MS,
+): number {
+  const rounds = Math.max(1, Math.ceil(pendingCount / CANDIDATE_FETCH_CONCURRENCY));
+  return timeoutMs * rounds;
 }
 
 /** Inputs for {@link fetchRefsBounded}. */
@@ -478,24 +532,61 @@ export interface FetchRefsBoundedOptions {
   remote?: string;
   /** Remote branches to fetch so their objects become readable via `git show`. */
   branches: readonly string[];
-  /** Network timeout in ms for the single invocation. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
+  /** Per-fetch network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
+  /**
+   * Deadline for the whole request in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS},
+   * so the aggregate cost matches one bounded read however many branches are pending.
+   */
+  totalTimeoutMs?: number;
+  /** Injectable monotonic clock, for deterministic deadline coverage. */
+  now?: () => number;
+  /** Repository root the fetches run against; see {@link ReadLiveRemoteHeadsOptions.cwd}. */
+  cwd?: string;
 }
 
 /**
- * Bounded-fetch several candidate refs in one invocation, so a caller with many
- * unavailable branches does not spawn one process per branch. The whole request
- * shares a single timeout, and the boolean reports only whether that invocation
- * succeeded — callers establish per-branch availability by re-reading the
- * objects, never by trusting this result.
+ * Bounded-fetch several candidate refs, capping how many run at once so a caller
+ * with many unavailable branches cannot spawn one process per branch. Each branch
+ * keeps its own invocation, so one unreachable candidate does not withhold the
+ * others that did materialize. A whole-request deadline bounds the total cost:
+ * without it, an unreachable remote would charge each sequential round its own
+ * timeout on a request path. Callers still establish per-branch availability by
+ * re-reading the objects rather than trusting these results.
  *
- * @param options - Executor, branches to fetch, and optional timeout.
- * @returns `true` when the fetch succeeded, `false` on timeout/unreachable.
+ * @param options - Executor, branches to fetch, and optional per-fetch and total deadlines.
+ * @returns The branches whose fetch invocation succeeded. Order reflects completion,
+ * not input order, and is not part of the contract — callers re-read availability.
  */
-export async function fetchRefsBounded(options: FetchRefsBoundedOptions): Promise<boolean> {
-  const { exec, remote = DEFAULT_REMOTE, branches, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  if (branches.length === 0) return true;
-  return (await runBounded(exec, ["fetch", remote, ...branches], timeoutMs)).ok;
+export async function fetchRefsBounded(options: FetchRefsBoundedOptions): Promise<string[]> {
+  const {
+    exec,
+    remote = DEFAULT_REMOTE,
+    branches,
+    timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+    totalTimeoutMs = DEFAULT_NETWORK_TIMEOUT_MS,
+    now = () => Date.now(),
+    cwd,
+  } = options;
+  const pending = [...branches];
+  const fetched: string[] = [];
+  const deadline = now() + totalTimeoutMs;
+  const workers = Array.from(
+    { length: Math.min(CANDIDATE_FETCH_CONCURRENCY, pending.length) },
+    async () => {
+      for (let branch = pending.shift(); branch !== undefined; branch = pending.shift()) {
+        // Claim no further branch once the request deadline passes; whatever already
+        // materialized still counts, and the rest stay pending for the caller to report.
+        const remaining = deadline - now();
+        if (remaining <= 0) return;
+        const bounded = Math.min(timeoutMs, remaining);
+        const fetchOptions = { exec, remote, branch, timeoutMs: bounded, ...(cwd === undefined ? {} : { cwd }) };
+        if (await fetchRefBounded(fetchOptions)) fetched.push(branch);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return fetched;
 }
 
 /** Inputs for {@link readMetaAtRef}. */

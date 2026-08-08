@@ -28,6 +28,9 @@ pwd && arc status --session-init --json
 The probe returns a single JSON envelope. Its required `derivedLocusState` slot is the sole session-frame and
 checkout-role authority; `locusGuidance` carries CLI-composed narration from that same read. The remaining slots
 provide sync, notes, base, configuration, active-artifact, load-set, discovery, and advisory projections.
+Remote-aware slots consume one internal request generation; they do not independently acquire or refresh code
+refs. Each slot remains an independent `Probe`, so a failed remote prerequisite degrades only the result that
+needs it while healthy local orientation and unrelated exact results continue.
 
 Load [the probe-envelope reference][probe-envelope] when a slot's shape, presence condition, or provenance is
 needed beyond the procedural checks below.
@@ -60,6 +63,11 @@ exact selected row. Never select a second frame from branch shape, metas, anothe
 **Composite probe failure:** If the composite call itself fails, surface the failure and stop. Direct diagnostic
 commands may explain the failure, but they never establish a session frame, select a subject, authorize context
 loading, or permit mutation.
+
+**Per-slot probe failure:** Only a failed `derivedLocusState` invokes the stop above. Preserve every other failed slot as
+an independent runtime error, omit only the action or authority that slot would have supplied, and surface the
+error in Step 6. Never replace a failed remote-aware result with a tracking-ref reading or use it to downgrade a
+healthy local slot.
 
 ## 2. Dispatch & Conditional Sync
 
@@ -321,18 +329,19 @@ matters, re-probe to confirm.
 **Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
 — SESSION-NOTES reads below would be stale otherwise.
 
-**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against a freshly
-fetched base OID. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
+**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against the
+advertised base OID from the session's shared passive remote evidence; the slot performs no fetch of
+its own. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
 analyzer-owned register text, or `skip` for every other verdict; it never resolves to `pull` / `prompt`.
 Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
 base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
-pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
-(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. The slot also
-carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` is `not-checked-out` /
-`current` / `elsewhere` / `unknown` — the probe's safety signal for whether fetch-into-ref is viable:
+pull channel — distinct from the advisory-only base-distance channel above. The comparison runs against the
+request's shared passive remote evidence; the slot itself fetches nothing. Dispatch on `recommendedAction`
+(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. Do not compare its
+evidence, failure, relation, checkout, or remedy fields — the action and text already encode those combinations:
 
 - `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. Only when the
   base is **not** checked out in any worktree. Freshens a non-checked-out ref (fetch-into-ref, not the
@@ -340,12 +349,9 @@ carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` i
   divergence fails safe rather than merging. Current-worktree dirt does **not** gate this action (it only
   moves a branch tip elsewhere).
 - `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`
-  (same not-checked-out precondition).
-- `surface` — carry the state into Step 6's stale-base section. Includes: a behind base under `manual`; a
-  base checked out **elsewhere** (primary-aware text naming the holding worktree and offering
-  `arc base sync`); checkout location unknown; or a diverged base. No pull.
-- `skip` — the base is current or only ahead, **or** this worktree holds the base (`checkout.kind ===
-  "current"` — the worktree channel owns pull/dirty for HEAD).
+  (the recommendation already establishes the same not-checked-out precondition).
+- `surface` — carry `recommendedPromptText` verbatim into Step 6's stale-base section. No pull.
+- `skip` — no action.
 
 Independent of the worktree + notes combined prompt — like base-distance, it composes its own offer and never
 folds into `recommendedCombinedPrompt`.
@@ -599,6 +605,9 @@ Produce the orientation summary.
 Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, `baseBranchSync`, `dirty`,
 `user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
 claims copied from SESSION-NOTES prose.
+
+Render each present non-`derivedLocusState` slot with `ok == false` as a concise degraded-slot line using its error kind
+and message. Continue with every healthy slot; the failed slot supplies no action, relation, or cleanup authority.
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
@@ -879,13 +888,15 @@ tracked source documents the work.
   local-only `plan/ → <type>/` rename); worktree-checked-out and errand-record-carrying branches never appear
   here (their own surfaces clean those up). Prefer the re-runnable `arc teardown {shippedWorkUnit}` when the orphan
   carries a non-null `shippedWorkUnit` (its own containment guards decide the reap); otherwise offer an
-  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in `origin/<base>`; never `-D`),
-  and surface an unmerged one as not-removable. Branch hygiene only — never auto-removed.
+  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in the advertised base; never `-D`),
+  and surface an unmerged or `blockingReason: evidence-unavailable` entry as not-removable. Branch hygiene only —
+  never auto-removed.
 
   ```text
   **Branch orphans:** {N} stale local branch(es) with a deleted upstream linger:
   - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
   - `{branch}` — merged to base → remove? `git branch -d {branch}`
+  - `{branch}` — remote evidence unavailable; no cleanup authority
   - `{branch}` — not merged; surfaced, not removed (never `-D`)
   ```
 
@@ -958,6 +969,10 @@ tracked source documents the work.
   **Materializable work units:** {N} remote WU(s) available:
   - `{name}` (`{branch}`) — materialize and resume?
   ```
+
+- `materializableWorkUnits.value.refreshRemedy != null` (Orient arm): render its `text` verbatim after any exact
+  candidates. On approval invoke its exact `argv`, re-run the Step 1 probe, and offer only candidates from the
+  refreshed envelope. Do not compare evidence or pending counts in prose.
 
 - `errandState.value.materializable.candidates` non-empty (Orient arm — no active WU): exact remote-only paused or
   awaiting-merge Errand generations can be materialized onto this machine for cross-machine pickup. Surface each

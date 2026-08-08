@@ -10,8 +10,6 @@
  */
 
 import type { TransientIdentityRecord } from "../errand/identity-record.js";
-import type { InFlightEntry } from "../git/in-flight-derivation.js";
-
 /** One exact ordinary-v3 identity tail that can be materialized. */
 export interface MaterializableErrand {
   slug: string;
@@ -23,12 +21,12 @@ export interface MaterializableErrand {
 }
 
 export interface FindMaterializableErrandsOptions {
-  /** Oracle-derived in-flight entries (work units and errands). */
-  entries: readonly InFlightEntry[];
   /** Complete identity records whose exact generation authorizes resume. */
   records: readonly TransientIdentityRecord[];
   /** Live remote tips keyed by branch short-name. */
   remoteTips: ReadonlyMap<string, string>;
+  /** Branches already represented by a local head or worktree. */
+  locallyPresentBranches: ReadonlySet<string>;
 }
 
 export interface MaterializableErrandsResult {
@@ -39,18 +37,15 @@ export interface MaterializableErrandsResult {
 /**
  * Select exact resumable identities with matching remote-only branch evidence.
  *
- * @param options - Complete identities and oracle-derived branch presence.
+ * @param options - Complete identities plus advertised and local branch presence.
  * @returns Stable exact-generation materialization projections.
  */
 export function findMaterializableErrands(
   options: FindMaterializableErrandsOptions,
 ): MaterializableErrandsResult {
-  const remoteOnlyBranches = new Set(options.entries
-    .filter((entry) => entry.kind === "errand" && entry.remoteOnly)
-    .map((entry) => entry.branch));
   const candidates = options.records.flatMap((record): MaterializableErrand[] => {
     if (record.kind !== "errand" || record.purpose !== "errand") return [];
-    if (!remoteOnlyBranches.has(record.branch)) return [];
+    if (!options.remoteTips.has(record.branch) || options.locallyPresentBranches.has(record.branch)) return [];
     const generation = record.state === "paused"
       ? { expectedHead: record.savedHead, state: record.state }
       : record.state === "awaiting-merge" && record.changeRequest.headRef === record.branch

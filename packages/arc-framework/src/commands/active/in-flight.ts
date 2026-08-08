@@ -32,6 +32,7 @@ import {
   fetchRefsBounded,
   readLocalInFlightRefSnapshot,
   readRemoteHeadSnapshot,
+  roundScaledFetchBudgetMs,
 } from "../../lib/git/remote-ref-reader.js";
 import { resolveWorktreePathsByBranchResult } from "../../lib/git/worktree-roster.js";
 import { RemoteFailureReasonSchema } from "../../lib/kernel/index.js";
@@ -194,6 +195,7 @@ export async function expandActiveInFlight(
     exec,
     scope: { kind: "all-heads" },
     timeoutMs,
+    ...(cwd === undefined ? {} : { cwd }),
   });
   if (snapshot.kind === "unreachable") {
     return {
@@ -224,18 +226,32 @@ export async function expandActiveInFlight(
   const missingBranches = Object.entries(eligibleTips)
     .filter(([, oid]) => initialAvailability.commits[oid] !== true)
     .map(([branch]) => branch);
-  // One bounded invocation rather than a process per branch: a fresh clone leaves every
-  // advertised head missing, and this runs on the lifecycle preflight path. Per-branch
-  // success is not consulted — the availability re-read below establishes what landed.
-  await fetchRefsBounded({ exec, branches: missingBranches, timeoutMs });
+  // One bounded fetch per branch, at most `CANDIDATE_FETCH_CONCURRENCY` in flight: a
+  // fresh clone leaves every advertised head missing, and this runs on the lifecycle
+  // preflight path. Per-branch success is not consulted — the availability re-read
+  // below establishes what landed.
+  //
+  // This is the explicit acquisition path the strategy names as the `pending-fetch`
+  // remedy, so it sizes its own budget rather than taking the passive default. The
+  // remote is already proven reachable here — the snapshot read above returned — so
+  // that budget buys rounds against a live remote rather than waiting out a dead one.
+  await fetchRefsBounded({
+    exec,
+    branches: missingBranches,
+    timeoutMs,
+    totalTimeoutMs: roundScaledFetchBudgetMs(missingBranches.length, timeoutMs),
+    ...(cwd === undefined ? {} : { cwd }),
+  });
 
   const [objectAvailability, history, localRefs, worktrees] = await Promise.all([
     missingBranches.length === 0
       ? initialAvailability
       : readObjectAvailability({ execInput, oids: eligibleOids, cwd }),
     readHistoryCompleteness({ exec, cwd }),
-    readLocalInFlightRefSnapshot(exec),
-    resolveWorktreePathsByBranchResult(exec),
+    // Default remote, request root: these local reads join the snapshot and
+    // availability facts above, so they must name the same repository.
+    readLocalInFlightRefSnapshot(exec, undefined, cwd),
+    resolveWorktreePathsByBranchResult(exec, cwd),
   ]);
   const analysis = await analyzeInFlightSnapshot({
     exec,

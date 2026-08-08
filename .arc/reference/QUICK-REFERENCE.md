@@ -279,6 +279,31 @@ additional full-suite gates.
 > to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
 > directly.
 
+### Command Prerequisites and Remote Access
+
+ARC requires Node.js 24 or newer and Git 2.45 or newer.
+
+`npx arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
+generation and inspects only objects already present locally. It does not fetch code objects, update or create code
+refs, prune, or run maintenance. This holds in linked worktrees, where ref and object writes would target the shared
+Git common directory. Missing advertised objects return `pending-fetch`; unreachable transport returns
+`unreachable`; disabled or absent transport returns `not-applicable`. Shallow history or missing partial-clone
+trees/blobs cannot produce an exact graph or content result and do not trigger lazy fetching.
+
+Use an explicit operation when acquisition is intended:
+
+```bash
+# Expand live in-flight candidates; may fetch missing advertised candidate objects
+npx arc active in-flight --json
+
+# Fast-forward the local base ref from advertised remote state
+npx arc base sync --json
+```
+
+Materialization, pull, and sync verbs likewise own their documented Git writes. User-notes refs and transient
+Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
+code-head evidence. See [Session Operations Strategy][session-ops] § Remote access boundary.
+
 ### Setup and Configuration
 
 ```bash

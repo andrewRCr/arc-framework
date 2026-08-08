@@ -3,15 +3,15 @@
  * retired-WU user subdirs.
  *
  * A per-WU subdir under `user/{identity}/` is a retired candidate exactly when
- * its WU has shipped (read from the `origin/<base>` `completed/` tree — the
- * canonical, branch-independent oracle) — the same
+ * its WU has shipped (read from the advertised base OID's `completed/` tree —
+ * the canonical, branch-independent oracle) — the same
  * {@link planRetiredSubdirReconcile} decision the load / pull path acts on, read
  * against the same oracle so detection and remediation cannot disagree. This slot
  * only *surfaces* candidates; removal (with the `.internal/` backup) happens at
  * `arc user load` / `pull`.
  *
  * Follows the stale-worktree sweep's cheap-base / gated-expensive shape: the
- * local-subdir read is cheap; the shipped-ref read fires only when a local subdir
+ * local-subdir read is cheap; the shipped-tree read fires only when a local subdir
  * is present, so the common no-lingering-subdir session pays nothing for it.
  *
  * @module
@@ -29,6 +29,7 @@ import { readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
 import { readShippedWorkUnitsFromExactRef } from "../work-unit/completed-index.js";
 import type { ObjectAvailabilityResult } from "../git/object-availability.js";
 import type { RemoteHeadSnapshotResult } from "../git/remote-ref-reader.js";
+import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
 
 export interface RunRetiredSubdirDetectionOptions {
   /** Repository root containing `.arc/`. */
@@ -37,6 +38,8 @@ export interface RunRetiredSubdirDetectionOptions {
   identity: string;
   /** Configured base branch — `shipped` is read from `origin/<baseBranch>`. */
   baseBranch: string;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers. */
+  baseEvidence?: CleanupBaseEvidence;
   /** Git runner for the shipped-ref read. */
   exec: GitExec;
   /** Recursive user-dir reader (relative file paths) — `UserIOContext.readDir`. */
@@ -110,6 +113,17 @@ export async function runRetiredSubdirDetection(
     .catch(() => ({ version: 2, files: {} }) satisfies SyncManifest);
   const localSubdirs = subdirsFromPaths(Object.keys(diskManifest.files));
   if (localSubdirs.length === 0) return { candidates: [] };
+
+  if (options.baseEvidence !== undefined) {
+    return analyzeRetiredSubdirSnapshot({
+      exec,
+      localSubdirs,
+      baseBranch,
+      remoteSyncEnabled: options.baseEvidence.remoteSyncEnabled,
+      snapshot: options.baseEvidence.snapshot,
+      objectAvailability: options.baseEvidence.objectAvailability,
+    });
+  }
 
   const shipped = await readShippedWorkUnitsFromRef(exec, `origin/${baseBranch}`);
   const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, shipped });
