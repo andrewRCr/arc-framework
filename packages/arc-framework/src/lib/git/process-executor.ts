@@ -32,7 +32,12 @@ const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_COMMON_DIR",
 ]);
 
-const NONINTERACTIVE_OPENSSH_OPTIONS = "-oBatchMode=yes -oNumberOfPasswordPrompts=0";
+const NONINTERACTIVE_OPENSSH_OPTIONS = [
+  "-oBatchMode=yes",
+  "-oNumberOfPasswordPrompts=0",
+] as const;
+
+const LITERAL_OPENSSH_COMMAND = /^[ \t]*(?<executable>(?:[A-Za-z0-9_@%+=:,./-]*\/)?ssh(?:\.exe)?)(?<arguments>(?:[ \t]+(?:[A-Za-z0-9_@%+=:,./-]+|'[^'\r\n]*'|"[^"$`\\\r\n]*"))*)[ \t]*$/iu;
 
 /**
  * Build an environment where `cwd` selects the Git repository.
@@ -65,15 +70,26 @@ function applyInteractionEnvironment(
  * Prevent an SSH transport used by Git from reopening a controlling terminal.
  *
  * `GIT_TERMINAL_PROMPT=0` covers Git's credential prompts, but OpenSSH can still
- * prompt through `/dev/tty` when stdin is closed. Keep an inherited
- * `GIT_SSH_COMMAND` intact as the command prefix and compose OpenSSH's
- * noninteractive options onto it rather than replacing user configuration.
+ * prompt through `/dev/tty` when stdin is closed. OpenSSH uses the first value
+ * obtained for most options, so the noninteractive options must precede any
+ * inherited configuration. Accept only a conservative literal OpenSSH command
+ * line, preserving its already-quoted arguments after the fixed options.
+ * Refusing shell expressions keeps an inherited command from bypassing this
+ * ordering.
  */
 function applyNonInteractiveSshEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const sshCommand = base.GIT_SSH_COMMAND ?? "ssh";
+  const match = LITERAL_OPENSSH_COMMAND.exec(sshCommand);
+  const executable = match?.groups?.executable;
+  const inheritedArguments = match?.groups?.arguments;
+  if (executable === undefined || inheritedArguments === undefined) {
+    throw new TypeError(
+      "GIT_SSH_COMMAND must be a literal OpenSSH command without shell expansion or control operators",
+    );
+  }
   return {
     ...base,
-    GIT_SSH_COMMAND: `${sshCommand} ${NONINTERACTIVE_OPENSSH_OPTIONS}`,
+    GIT_SSH_COMMAND: `${executable} ${NONINTERACTIVE_OPENSSH_OPTIONS.join(" ")}${inheritedArguments}`,
     SSH_ASKPASS_REQUIRE: "never",
   };
 }

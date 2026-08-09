@@ -45,7 +45,7 @@ describe("local-only object access", () => {
 
     execaMock.mockImplementation(async (_command, _args, options) => {
       expect(options.env).toMatchObject({
-        GIT_SSH_COMMAND: 'ssh -F "/configs/work account" -i "/keys/work key" -oBatchMode=yes -oNumberOfPasswordPrompts=0',
+        GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oNumberOfPasswordPrompts=0 -F "/configs/work account" -i "/keys/work key"',
         SSH_ASKPASS_REQUIRE: "never",
       });
       expect(options.env.GIT_DIR).toBeUndefined();
@@ -57,27 +57,54 @@ describe("local-only object access", () => {
       .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
   });
 
-  it("makes a prompt-capable SSH transport fail promptly in a real Git process", async () => {
-    const promptCapableSsh = [
-      "sh -c '",
-      'if [ "$1" = -oBatchMode=yes ] && [ "$2" = -oNumberOfPasswordPrompts=0 ];',
-      "then exit 86; fi;",
-      "sleep 10",
-      "' arc-ssh-fixture",
-    ].join(" ");
-    vi.stubEnv("GIT_SSH_COMMAND", promptCapableSsh);
+  it("places prompt suppression before inherited conflicting OpenSSH options", async () => {
+    vi.stubEnv(
+      "GIT_SSH_COMMAND",
+      "ssh -oBatchMode=no -o NumberOfPasswordPrompts=3 -F '/configs/work account'",
+    );
+
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env.GIT_SSH_COMMAND).toBe(
+        "ssh -oBatchMode=yes -oNumberOfPasswordPrompts=0 -oBatchMode=no -o NumberOfPasswordPrompts=3 -F '/configs/work account'",
+      );
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/repo")(["rev-parse", "HEAD"]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
+  it("proves inherited conflicting values lose by OpenSSH first-value precedence", async () => {
+    vi.stubEnv(
+      "GIT_SSH_COMMAND",
+      "ssh -oBatchMode=no -oNumberOfPasswordPrompts=3",
+    );
 
     execaMock.mockImplementation(async (command, args, options) => {
       const actual = await vi.importActual<typeof import("execa")>("execa");
       return actual.execa(command, args, { ...options, timeout: 2_000 });
     });
 
-    const startedAt = Date.now();
-    await expect(createExecaRawGitExec(process.cwd())([
-      "ls-remote",
-      "ssh://prompt.invalid/repository",
-    ])).rejects.toMatchObject({ kind: "nonzero-exit", exitCode: 128 });
-    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    const result = await createExecaRawGitExec(process.cwd())([
+      "-c",
+      'alias.ssh-policy=!f() { eval "$GIT_SSH_COMMAND -G prompt.invalid"; }; f',
+      "ssh-policy",
+    ]);
+    const configuration = Buffer.from(result.stdout).toString("utf8");
+    expect(configuration).toMatch(/^batchmode yes$/mu);
+    expect(configuration).toMatch(/^numberofpasswordprompts 0$/mu);
+  });
+
+  it.each([
+    "sh -c 'exec ssh \"$@\"' arc-ssh",
+    "ssh -i $SSH_KEY",
+    "ssh -F config; ssh",
+  ])("refuses an inherited shell expression before starting Git: %s", async (sshCommand) => {
+    vi.stubEnv("GIT_SSH_COMMAND", sshCommand);
+
+    await expect(createExecaRawGitExec("/repo")(["rev-parse", "HEAD"]))
+      .rejects.toThrow(/GIT_SSH_COMMAND must be a literal OpenSSH command/u);
+    expect(execaMock).not.toHaveBeenCalled();
   });
 
   it("pairs the Git global option and environment guard for captured output", async () => {
