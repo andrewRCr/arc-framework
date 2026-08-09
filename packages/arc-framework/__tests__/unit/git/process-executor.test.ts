@@ -57,6 +57,30 @@ describe("local-only object access", () => {
       .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
   });
 
+  it.each([
+    {
+      sshCommand: "'/opt/OpenSSH Client/bin/ssh' -F '/configs/work account'",
+      expected: "'/opt/OpenSSH Client/bin/ssh' -oBatchMode=yes -oNumberOfPasswordPrompts=0 -F '/configs/work account'",
+    },
+    {
+      sshCommand: '"C:\\Program Files\\OpenSSH\\ssh.exe" -i "C:/keys/work key"',
+      expected: '"C:\\Program Files\\OpenSSH\\ssh.exe" -oBatchMode=yes -oNumberOfPasswordPrompts=0 -i "C:/keys/work key"',
+    },
+  ])("preserves a safely quoted OpenSSH executable: $sshCommand", async ({
+    sshCommand,
+    expected,
+  }) => {
+    vi.stubEnv("GIT_SSH_COMMAND", sshCommand);
+
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env.GIT_SSH_COMMAND).toBe(expected);
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/repo")(["rev-parse", "HEAD"]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
   it("places prompt suppression before inherited conflicting OpenSSH options", async () => {
     vi.stubEnv(
       "GIT_SSH_COMMAND",
@@ -99,6 +123,8 @@ describe("local-only object access", () => {
     "sh -c 'exec ssh \"$@\"' arc-ssh",
     "ssh -i $SSH_KEY",
     "ssh -F config; ssh",
+    '"$SSH_BIN" -i key',
+    "'sh' -c 'exec ssh \"$@\"'",
   ])("refuses an inherited shell expression before starting Git: %s", async (sshCommand) => {
     vi.stubEnv("GIT_SSH_COMMAND", sshCommand);
 

@@ -37,7 +37,16 @@ const NONINTERACTIVE_OPENSSH_OPTIONS = [
   "-oNumberOfPasswordPrompts=0",
 ] as const;
 
-const LITERAL_OPENSSH_COMMAND = /^[ \t]*(?<executable>(?:[A-Za-z0-9_@%+=:,./-]*\/)?ssh(?:\.exe)?)(?<arguments>(?:[ \t]+(?:[A-Za-z0-9_@%+=:,./-]+|'[^'\r\n]*'|"[^"$`\\\r\n]*"))*)[ \t]*$/iu;
+const LITERAL_OPENSSH_COMMAND = /^[ \t]*(?<executable>[A-Za-z0-9_@%+=:,./-]+|'[^'\r\n]*'|"(?:[^"$`\\\r\n]|\\[^"$`\\\r\n])*")(?<arguments>(?:[ \t]+(?:[A-Za-z0-9_@%+=:,./-]+|'[^'\r\n]*'|"[^"$`\\\r\n]*"))*)[ \t]*$/u;
+const OPENSSH_EXECUTABLE_PATH = /^(?:.*[\\/])?ssh(?:\.exe)?$/iu;
+
+function isLiteralOpenSshExecutable(executable: string): boolean {
+  const quote = executable.at(0);
+  const path = quote === "'" || quote === '"'
+    ? executable.slice(1, -1)
+    : executable;
+  return OPENSSH_EXECUTABLE_PATH.test(path);
+}
 
 /**
  * Build an environment where `cwd` selects the Git repository.
@@ -82,7 +91,11 @@ function applyNonInteractiveSshEnvironment(base: NodeJS.ProcessEnv): NodeJS.Proc
   const match = LITERAL_OPENSSH_COMMAND.exec(sshCommand);
   const executable = match?.groups?.executable;
   const inheritedArguments = match?.groups?.arguments;
-  if (executable === undefined || inheritedArguments === undefined) {
+  if (
+    executable === undefined
+    || inheritedArguments === undefined
+    || !isLiteralOpenSshExecutable(executable)
+  ) {
     throw new TypeError(
       "GIT_SSH_COMMAND must be a literal OpenSSH command without shell expansion or control operators",
     );
