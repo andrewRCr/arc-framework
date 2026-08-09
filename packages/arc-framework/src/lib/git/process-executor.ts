@@ -32,6 +32,8 @@ const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_COMMON_DIR",
 ]);
 
+const NONINTERACTIVE_OPENSSH_OPTIONS = "-oBatchMode=yes -oNumberOfPasswordPrompts=0";
+
 /**
  * Build an environment where `cwd` selects the Git repository.
  *
@@ -56,6 +58,23 @@ function applyInteractionEnvironment(
     GIT_EDITOR: "true",
     GIT_PAGER: "cat",
     PAGER: "cat",
+  };
+}
+
+/**
+ * Prevent an SSH transport used by Git from reopening a controlling terminal.
+ *
+ * `GIT_TERMINAL_PROMPT=0` covers Git's credential prompts, but OpenSSH can still
+ * prompt through `/dev/tty` when stdin is closed. Keep an inherited
+ * `GIT_SSH_COMMAND` intact as the command prefix and compose OpenSSH's
+ * noninteractive options onto it rather than replacing user configuration.
+ */
+function applyNonInteractiveSshEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sshCommand = base.GIT_SSH_COMMAND ?? "ssh";
+  return {
+    ...base,
+    GIT_SSH_COMMAND: `${sshCommand} ${NONINTERACTIVE_OPENSSH_OPTIONS}`,
+    SSH_ASKPASS_REQUIRE: "never",
   };
 }
 
@@ -109,11 +128,13 @@ export function createExecaRawGitExec(
     const objectEnvironment = options.objectAccess === "local-only"
       ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : environment;
-    const env = applyInteractionEnvironment(objectEnvironment, {
-      terminalPrompts: "forbidden",
-      presenters: "forbidden",
-      ambientStdin: "closed",
-    });
+    const env = applyNonInteractiveSshEnvironment(
+      applyInteractionEnvironment(objectEnvironment, {
+        terminalPrompts: "forbidden",
+        presenters: "forbidden",
+        ambientStdin: "closed",
+      }) ?? objectEnvironment ?? {},
+    );
     const effectiveArgs = options.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;

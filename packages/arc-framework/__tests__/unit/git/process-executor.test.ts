@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { execaMock } = vi.hoisted(() => ({ execaMock: vi.fn() }));
 
@@ -14,14 +14,21 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("local-only object access", () => {
   it("keeps byte-preserving Git reads noninteractive without invocation-specific policy", async () => {
+    vi.stubEnv("GIT_SSH_COMMAND", undefined);
     execaMock.mockImplementation(async (_command, _args, options) => {
       expect(options.env).toMatchObject({
         GIT_TERMINAL_PROMPT: "0",
         GIT_EDITOR: "true",
         GIT_PAGER: "cat",
         PAGER: "cat",
+        GIT_SSH_COMMAND: "ssh -oBatchMode=yes -oNumberOfPasswordPrompts=0",
+        SSH_ASKPASS_REQUIRE: "never",
       });
       expect(options.stdin).toBe("ignore");
       return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
@@ -29,6 +36,48 @@ describe("local-only object access", () => {
 
     await expect(createExecaRawGitExec("/repo")(["cat-file", "blob", "a".repeat(40)]))
       .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
+  it("composes SSH prompt suppression with user commands after cwd environment sanitization", async () => {
+    vi.stubEnv("GIT_SSH_COMMAND", 'ssh -F "/configs/work account" -i "/keys/work key"');
+    vi.stubEnv("GIT_DIR", "/wrong/repository");
+    vi.stubEnv("GIT_CONFIG_COUNT", "1");
+
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env).toMatchObject({
+        GIT_SSH_COMMAND: 'ssh -F "/configs/work account" -i "/keys/work key" -oBatchMode=yes -oNumberOfPasswordPrompts=0',
+        SSH_ASKPASS_REQUIRE: "never",
+      });
+      expect(options.env.GIT_DIR).toBeUndefined();
+      expect(options.env.GIT_CONFIG_COUNT).toBeUndefined();
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/intended/repository")(["rev-parse", "HEAD"]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
+  it("makes a prompt-capable SSH transport fail promptly in a real Git process", async () => {
+    const promptCapableSsh = [
+      "sh -c '",
+      'if [ "$1" = -oBatchMode=yes ] && [ "$2" = -oNumberOfPasswordPrompts=0 ];',
+      "then exit 86; fi;",
+      "sleep 10",
+      "' arc-ssh-fixture",
+    ].join(" ");
+    vi.stubEnv("GIT_SSH_COMMAND", promptCapableSsh);
+
+    execaMock.mockImplementation(async (command, args, options) => {
+      const actual = await vi.importActual<typeof import("execa")>("execa");
+      return actual.execa(command, args, { ...options, timeout: 2_000 });
+    });
+
+    const startedAt = Date.now();
+    await expect(createExecaRawGitExec(process.cwd())([
+      "ls-remote",
+      "ssh://prompt.invalid/repository",
+    ])).rejects.toMatchObject({ kind: "nonzero-exit", exitCode: 128 });
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
   });
 
   it("pairs the Git global option and environment guard for captured output", async () => {

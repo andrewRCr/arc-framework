@@ -24,9 +24,34 @@ const rawGitSubprocessPolicy = {
 };
 
 const rawGitCommandPaths = [
-  "start",
+  "abandon",
+  "activate",
+  "archive",
+  "deactivate",
   "decompose",
   "delivery compose",
+  "delivery plan abandon",
+  "delivery plan from-branch",
+  "delivery plan from-tasks",
+  "demote",
+  "finalize",
+  "integrate",
+  "materialize",
+  "park",
+  "promote",
+  "rename",
+  "reopen",
+  "repoint-design",
+  "resume",
+  "review chunking resolve",
+  "review planning-lane",
+  "set-stage",
+  "start",
+  "status",
+  "stub",
+  "teardown",
+  "user reconcile-references",
+  "wu reconcile",
 ] as const;
 
 /**
