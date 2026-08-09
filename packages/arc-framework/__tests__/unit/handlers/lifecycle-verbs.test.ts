@@ -34,6 +34,7 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 vi.mock("../../../src/lib/io-context.js", () => ({
+  createRawGitExec: () => vi.fn(),
   createUserIOContext: (...args: unknown[]) => {
     mockCreateUserIOContext(...args);
     return {

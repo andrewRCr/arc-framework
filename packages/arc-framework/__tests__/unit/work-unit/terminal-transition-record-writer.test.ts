@@ -52,6 +52,7 @@ function harness(options: {
   const writer = createInRepoTerminalTransitionRecordWriter({
     cwd: "/repo",
     exec,
+    isOriginOccupied: async () => options.committedOccupied === true || options.indexOccupied === true,
     createRecord: async (candidate) => {
       if (options.createFailure !== undefined) {
         throw Object.assign(new Error(options.createFailure), { code: options.createFailure });

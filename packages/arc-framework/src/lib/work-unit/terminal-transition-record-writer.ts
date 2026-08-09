@@ -25,6 +25,7 @@ export interface TerminalTransitionRecordWriter {
 export interface InRepoTerminalTransitionRecordWriterDeps {
   cwd: string;
   exec: GitExec;
+  isOriginOccupied(origin: string): Promise<boolean>;
   createRecord(record: TransitionRecord): Promise<void>;
   removeRecord(origin: string): Promise<void>;
 }
@@ -37,7 +38,8 @@ export function createInRepoTerminalTransitionRecordWriter(
     record: async (record) => {
       const path = resolveTransitionRecordRelativePath(record.origin);
       try {
-        if (await isGitOriginOccupied(deps, path)) return { status: "origin-occupied" };
+        if (await isGitPathOccupied(deps, path)) return { status: "origin-occupied" };
+        if (await deps.isOriginOccupied(record.origin)) return { status: "origin-occupied" };
       } catch (error) {
         return {
           status: "unavailable",
@@ -67,7 +69,7 @@ export function createInRepoTerminalTransitionRecordWriter(
   };
 }
 
-async function isGitOriginOccupied(
+async function isGitPathOccupied(
   deps: InRepoTerminalTransitionRecordWriterDeps,
   path: string,
 ): Promise<boolean> {

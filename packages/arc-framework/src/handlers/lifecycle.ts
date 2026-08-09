@@ -42,6 +42,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
 import {
+  createRawGitExec,
   createUserIOContext,
   prepareGitRefVerification,
   readGitBlobBytes,
@@ -105,6 +106,7 @@ import {
   landParkPlanningTransition,
 } from "../lib/work-unit/park-planning-landing.js";
 import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
+import { isGitTransitionOriginOccupied } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
@@ -290,9 +292,11 @@ function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
 
 /** Bind exclusive terminal-history creation and index staging. */
 function terminalTransitionWriter(base: VerbBase): ReturnType<typeof createInRepoTerminalTransitionRecordWriter> {
+  const transitionExec = createRawGitExec(base.cwd);
   return createInRepoTerminalTransitionRecordWriter({
     cwd: base.cwd,
     exec: base.io.exec,
+    isOriginOccupied: (origin) => isGitTransitionOriginOccupied(transitionExec, origin),
     createRecord: (record) => writeTransitionRecord(base.cwd, record),
     removeRecord: (origin) => rm(resolveTransitionRecordPath(base.cwd, origin), { force: true }),
   });

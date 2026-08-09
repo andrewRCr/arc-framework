@@ -29,7 +29,9 @@ import {
   writeTransitionRecord,
 } from "./transition-record-store.js";
 import { createInRepoTerminalTransitionRecordWriter } from "./terminal-transition-record-writer.js";
+import { isGitTransitionOriginOccupied } from "./git-transition-record-enumeration.js";
 import type { ProtectionMode } from "../git/write-context.js";
+import { createExecaRawGitExec } from "../git/process-executor.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
 import { readLiveRemoteBranchTip } from "../git/remote-ref-reader.js";
 import {
@@ -211,6 +213,7 @@ export async function executeGitV3DecomposeOperation(
         return await createInRepoTerminalTransitionRecordWriter({
           cwd,
           exec: dependencies.exec,
+          isOriginOccupied: (origin) => isGitTransitionOriginOccupied(createExecaRawGitExec(cwd), origin),
           createRecord: async (candidate) => {
             await writeTransitionRecord(cwd, candidate);
           },
@@ -225,6 +228,7 @@ export async function executeGitV3DecomposeOperation(
         return await createInRepoTerminalTransitionRecordWriter({
           cwd,
           exec: dependencies.exec,
+          isOriginOccupied: (origin) => isGitTransitionOriginOccupied(createExecaRawGitExec(cwd), origin),
           createRecord: async (candidate) => {
             await writeTransitionRecord(cwd, candidate);
           },

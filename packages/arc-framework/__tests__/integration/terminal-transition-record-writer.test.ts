@@ -4,12 +4,21 @@ import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
+import {
+  createExecaGitExec,
+  createExecaRawGitExec,
+} from "../../src/lib/git/process-executor.js";
+import { isGitTransitionOriginOccupied } from
+  "../../src/lib/work-unit/git-transition-record-enumeration.js";
 import { createInRepoTerminalTransitionRecordWriter } from "../../src/lib/work-unit/terminal-transition-record-writer.js";
-import type { TransitionRecord } from "../../src/lib/work-unit/transition-record.js";
+import {
+  serializeTransitionRecord,
+  type TransitionRecord,
+} from "../../src/lib/work-unit/transition-record.js";
 import {
   resolveTransitionRecordPath,
   resolveTransitionRecordRelativePath,
+  TRANSITION_RECORD_NAMESPACE,
   writeTransitionRecord,
 } from "../../src/lib/work-unit/transition-record-store.js";
 
@@ -45,6 +54,7 @@ function writer(repo: Awaited<ReturnType<typeof repository>>) {
   return createInRepoTerminalTransitionRecordWriter({
     cwd: repo.root,
     exec: repo.exec,
+    isOriginOccupied: (origin) => isGitTransitionOriginOccupied(createExecaRawGitExec(repo.root), origin),
     createRecord: (candidate) => writeTransitionRecord(repo.root, candidate),
     removeRecord: (origin) => rm(resolveTransitionRecordPath(repo.root, origin), { force: true }),
   });
@@ -79,5 +89,45 @@ describe("terminal transition record writer over Git", () => {
 
     expect((await repo.exec("git", ["show", `:${path}`])).stdout).toBe(before);
     await expect(readFile(absolute)).rejects.toThrow();
+  });
+
+  it("refuses committed history whose content claims the origin under another filename", async () => {
+    const repo = await repository();
+    const aliasPath = `${TRANSITION_RECORD_NAMESPACE}/historical-alias.json`;
+    await mkdir(dirname(join(repo.root, aliasPath)), { recursive: true });
+    await writeFile(join(repo.root, aliasPath), serializeTransitionRecord(record));
+    await repo.exec("git", ["add", "--", aliasPath]);
+    await repo.exec("git", ["commit", "-m", "record aliased transition"]);
+
+    await expect(writer(repo).record(record)).resolves.toEqual({ status: "origin-occupied" });
+
+    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin))).rejects.toThrow();
+  });
+
+  it("refuses staged history whose content claims the origin under another filename", async () => {
+    const repo = await repository();
+    const aliasPath = `${TRANSITION_RECORD_NAMESPACE}/staged-alias.json`;
+    await mkdir(dirname(join(repo.root, aliasPath)), { recursive: true });
+    await writeFile(join(repo.root, aliasPath), serializeTransitionRecord(record));
+    await repo.exec("git", ["add", "--", aliasPath]);
+
+    await expect(writer(repo).record(record)).resolves.toEqual({ status: "origin-occupied" });
+
+    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin))).rejects.toThrow();
+  });
+
+  it("allows a mismatched filename whose content claims a different origin", async () => {
+    const repo = await repository();
+    const aliasPath = `${TRANSITION_RECORD_NAMESPACE}/historical-alias.json`;
+    const otherRecord: TransitionRecord = { ...record, origin: "other-origin" };
+    await mkdir(dirname(join(repo.root, aliasPath)), { recursive: true });
+    await writeFile(join(repo.root, aliasPath), serializeTransitionRecord(otherRecord));
+    await repo.exec("git", ["add", "--", aliasPath]);
+    await repo.exec("git", ["commit", "-m", "record mismatched transition filename"]);
+
+    await expect(writer(repo).record(record)).resolves.toEqual({ status: "recorded" });
+
+    await expect(readFile(resolveTransitionRecordPath(repo.root, record.origin), "utf8"))
+      .resolves.toBe(serializeTransitionRecord(record));
   });
 });
