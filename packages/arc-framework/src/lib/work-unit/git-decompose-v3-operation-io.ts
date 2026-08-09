@@ -1,6 +1,5 @@
 /** Production Git and filesystem seams for one v3 decomposition operation. */
 
-import { createHash } from "node:crypto";
 import {
   chmod,
   lstat,
@@ -216,119 +215,19 @@ function collision(
   };
 }
 
-function exactUnmarkedRegistration(
-  facts: CandidateFacts,
-  request: DecomposeCandidateCreationRequest,
-): boolean {
-  return exactRegistration(facts, request) && facts.marker.kind === "absent";
-}
-
-function candidateRecoveryRef(request: DecomposeCandidateCreationRequest): string {
-  const token = createHash("sha256")
-    .update(JSON.stringify([request.branch, request.baseHead, normalize(request.path)]))
-    .digest("hex");
-  return `refs/arc/tmp/decompose-candidate-recovery/${token}`;
-}
-
-async function hasCandidateRecoveryClaim(
-  input: Pick<GitV3DecomposeOperationIOInput, "cwd" | "exec">,
-  request: DecomposeCandidateCreationRequest,
-): Promise<boolean> {
-  return await resolveCommit(input.exec, input.cwd, candidateRecoveryRef(request)) === request.baseHead;
-}
-
-async function deleteCandidateRecoveryClaim(
-  input: Pick<GitV3DecomposeOperationIOInput, "cwd" | "exec">,
-  request: DecomposeCandidateCreationRequest,
-): Promise<void> {
-  await input.exec(
-    "git",
-    ["update-ref", "-d", candidateRecoveryRef(request), request.baseHead],
-    { cwd: input.cwd },
-  );
-}
-
-async function rollbackAddedCandidate(
-  input: Pick<GitV3DecomposeOperationIOInput, "cwd" | "exec">,
-  request: DecomposeCandidateCreationRequest,
-): Promise<void> {
-  let facts = await candidateFacts(input.exec, input.cwd, request);
-  if (!exactUnmarkedRegistration(facts, request)) return;
-
-  const { stdout: status } = await input.exec(
-    "git",
-    ["status", "--porcelain=v1", "--untracked-files=all"],
-    { cwd: request.path },
-  );
-  if (status !== "") return;
-
-  // Cleanliness is only an observation. Revalidate ownership-free exact topology,
-  // then let non-force removal reject content that races the observation.
-  facts = await candidateFacts(input.exec, input.cwd, request);
-  if (!exactUnmarkedRegistration(facts, request)) return;
-  await input.exec("git", ["worktree", "remove", request.path], { cwd: input.cwd });
-
-  // The worktree is gone, but the branch remains independently mutable. Delete
-  // only the exact ref generation created by this invocation, after verifying no
-  // registration or path raced into the vacated locus.
-  facts = await candidateFacts(input.exec, input.cwd, request);
-  if (facts.observation.registrations.length !== 0
-    || facts.worktreePaths.has(request.path)
-    || facts.pathExists
-    || facts.observation.branchHead !== request.baseHead) {
-    return;
-  }
-  // Unlike update-ref, branch deletion checks linked-worktree occupation as part
-  // of the deletion operation and refuses if a foreign worktree attached meanwhile.
-  await input.exec("git", ["branch", "-d", "--", request.branch], { cwd: input.cwd });
-  if (await resolveCommit(input.exec, input.cwd, `refs/heads/${request.branch}`) !== null) {
-    throw new Error("Candidate branch remained after compare-delete.");
-  }
-}
-
 async function ensureCandidate(
   input: Pick<GitV3DecomposeOperationIOInput, "cwd" | "exec" | "spawningIdentity">,
   request: DecomposeCandidateCreationRequest,
 ): Promise<DecomposeCandidateCreationResult> {
   let facts = await candidateFacts(input.exec, input.cwd, request);
   if (exactRegistration(facts, request)) {
-    if (exactMarker(facts, request)) {
-      if (await hasCandidateRecoveryClaim(input, request)) {
-        await deleteCandidateRecoveryClaim(input, request).catch(() => undefined);
-      }
-      return { status: "ready", observation: facts.observation };
-    }
-    if (!exactUnmarkedRegistration(facts, request)
-      || !await hasCandidateRecoveryClaim(input, request)) {
-      return collision(facts, request);
-    }
-    await rollbackAddedCandidate(input, request).catch(() => undefined);
-    facts = await candidateFacts(input.exec, input.cwd, request);
-    if (!Object.values(absenceEvidence(facts, request)).every(Boolean)) return collision(facts, request);
-    await deleteCandidateRecoveryClaim(input, request).catch(() => undefined);
+    return exactMarker(facts, request)
+      ? { status: "ready", observation: facts.observation }
+      : collision(facts, request);
   }
 
-  let absence = absenceEvidence(facts, request);
+  const absence = absenceEvidence(facts, request);
   if (!Object.values(absence).every(Boolean)) return collision(facts, request);
-  const recoveryRef = candidateRecoveryRef(request);
-  try {
-    await input.exec(
-      "git",
-      ["update-ref", recoveryRef, request.baseHead, ""],
-      { cwd: input.cwd },
-    );
-  } catch {
-    return collision(await candidateFacts(input.exec, input.cwd, request), request);
-  }
-  // The claim precedes mutation, so re-observe before using it. A foreign actor
-  // that occupied the locus before the claim must remain foreign and untouched.
-  facts = await candidateFacts(input.exec, input.cwd, request);
-  absence = absenceEvidence(facts, request);
-  if (!Object.values(absence).every(Boolean)) {
-    await deleteCandidateRecoveryClaim(input, request).catch(() => undefined);
-    return collision(facts, request);
-  }
-  let added = false;
   try {
     await mkdir(dirname(request.path), { recursive: true });
     await input.exec(
@@ -336,7 +235,6 @@ async function ensureCandidate(
       ["worktree", "add", request.path, "-b", request.branch, request.baseHead],
       { cwd: input.cwd },
     );
-    added = true;
     await ensureWorktreeMarkerIgnored(request.path, input.exec, nodeWorktreeMarkerIgnoreFs);
     await writeWorktreeOwnershipMarker(request.path, {
       createdByArc: true,
@@ -345,25 +243,14 @@ async function ensureCandidate(
     });
   } catch {
     facts = await candidateFacts(input.exec, input.cwd, request);
-    if (added && exactRegistration(facts, request) && exactMarker(facts, request)) {
-      await deleteCandidateRecoveryClaim(input, request).catch(() => undefined);
-      return { status: "ready", observation: facts.observation };
-    }
-    if (added) {
-      await rollbackAddedCandidate(input, request).catch(() => undefined);
-      facts = await candidateFacts(input.exec, input.cwd, request);
-    }
-    if (Object.values(absenceEvidence(facts, request)).every(Boolean)) {
-      await deleteCandidateRecoveryClaim(input, request).catch(() => undefined);
-    }
-    return collision(facts, request);
+    return exactRegistration(facts, request) && exactMarker(facts, request)
+      ? { status: "ready", observation: facts.observation }
+      : collision(facts, request);
   }
   facts = await candidateFacts(input.exec, input.cwd, request);
-  if (exactRegistration(facts, request) && exactMarker(facts, request)) {
-    await deleteCandidateRecoveryClaim(input, request).catch(() => undefined);
-    return { status: "ready", observation: facts.observation };
-  }
-  return collision(facts, request);
+  return exactRegistration(facts, request) && exactMarker(facts, request)
+    ? { status: "ready", observation: facts.observation }
+    : collision(facts, request);
 }
 
 function literalPath(path: string): string {
