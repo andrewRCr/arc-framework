@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 5 — Verification complete
+- **Last Completed:** Integration review pass 2 corrections complete
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open one PR with contract-cohesive chunked review
+- **Next Action:** integrate-work-unit Step 3 — review current head; changes end at `9d21fcaee`; then open PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
