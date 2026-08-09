@@ -1,8 +1,8 @@
 # Metadata: decompose-transition-record
 
-| **State** | **Owner** | **Branch**                         | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/decompose-transition-record` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/decompose-transition-record` | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Base reconciliation — merged `main` at `6eee0a325` and passed Tier 3 verification
+- **Last Completed:** Phase 5 — Verification complete
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — enter Integrating for one PR with chunked review
+- **Next Action:** Open one PR with contract-cohesive chunked review
 
 - **PR URL:** [none]
 - **Completed:** [none]
