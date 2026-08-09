@@ -397,6 +397,32 @@ describe("arc wu reconcile", () => {
     expect(JSON.parse(drift.stdout)).toMatchObject({ diskState: "different" });
   });
 
+  it("exits without a plan when full-protection base materialization fails", async () => {
+    const configRoot = join(repo, ".arc", "system");
+    await mkdir(configRoot, { recursive: true });
+    await writeFile(
+      join(configRoot, "arc-config.yml"),
+      "branch.base: main\nbranch.protection: full\n",
+      "utf8",
+    );
+
+    const result = await runArc(["user", "reconcile-references", "--json"], repo);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schemaVersion: 1,
+      status: "unavailable",
+      authority: {
+        status: "unavailable",
+        ref: "origin/main",
+        remoteEvidence: "unreachable",
+        failureReason: "error",
+      },
+      plan: null,
+      recommendedCommand: null,
+    });
+  });
+
   it("keeps a clean checkout-owned reconcile silent without minting a locus record", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");

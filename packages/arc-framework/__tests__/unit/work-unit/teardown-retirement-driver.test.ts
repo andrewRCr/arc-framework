@@ -10,6 +10,7 @@ import {
 } from "../../../src/lib/work-unit/git-retirement-authorization-context.js";
 import {
   revalidateHuskRetirementEvidence,
+  revalidateHuskRetirementEvidenceStrict,
   type TeardownBlobReader,
 } from "../../../src/lib/work-unit/teardown-retirement-driver.js";
 import type { TeardownAuthorizationDecision } from "../../../src/lib/work-unit/retirement-authority.js";
@@ -149,6 +150,56 @@ describe("shipped teardown retirement evidence", () => {
       "main",
       unreadable,
     )).resolves.toBe(false);
+  });
+
+  it("propagates an unexpected exact-base blob failure in strict revalidation", async () => {
+    const unreadable: TeardownBlobReader = async () => { throw new Error("blob unavailable"); };
+    await expect(revalidateHuskRetirementEvidenceStrict(
+      execWithCompletedProjection(),
+      stamp,
+      proof(`sha256:${"c".repeat(64)}`),
+      baseOid,
+      unreadable,
+    )).rejects.toThrow("blob unavailable");
+  });
+
+  it("propagates malformed exact-base graph output in strict revalidation", async () => {
+    const malformed: GitExec = async (command, args, options) => {
+      if (args[0] === "cherry") return { stdout: "+ malformed\n", stderr: "" };
+      return await execWithCompletedProjection()(command, args, options);
+    };
+    await expect(revalidateHuskRetirementEvidenceStrict(
+      malformed,
+      stamp,
+      proof(`sha256:${"c".repeat(64)}`),
+      baseOid,
+      readBlob,
+    )).rejects.toThrow("Malformed git cherry output");
+  });
+
+  it("propagates an unexpected exact-base transition-proof failure in strict revalidation", async () => {
+    const transitionProof: Extract<TeardownAuthorizationDecision, { status: "authorized" }> = {
+      status: "authorized",
+      authorization: "discard-confirmed",
+      authorityVersion: "version",
+      evidence: {
+        kind: "git-transition",
+        transition: "abandon",
+        resultDigest: `sha256:${"2".repeat(64)}`,
+      },
+      refs: { localOid: stamp.sha, remote: null },
+    };
+    const unreadableGraph: GitExec = async (_command, _args, options) => {
+      if (options?.objectAccess !== "local-only") throw new Error("graph access was not local-only");
+      throw new Error("transition graph unavailable");
+    };
+    await expect(revalidateHuskRetirementEvidenceStrict(
+      unreadableGraph,
+      stamp,
+      transitionProof,
+      baseOid,
+      readBlob,
+    )).rejects.toThrow("transition graph unavailable");
   });
 
   it("rejects shipped evidence copied onto an unpreserved retiring head", async () => {

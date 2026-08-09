@@ -35,8 +35,9 @@ Thumbs.db
 # MkDocs build output
 site/
 
-# Local dependencies
-node_modules/
+# Local dependencies. No trailing slash: a linked worktree may carry `node_modules`
+# as a symlink into a shared install, and a directory-only pattern does not match one.
+node_modules
 
 # ARC Framework (managed by arc cli)
 .arc/system/.internal/pristine.json

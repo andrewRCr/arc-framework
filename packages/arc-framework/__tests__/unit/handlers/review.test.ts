@@ -1004,7 +1004,14 @@ describe("handleReviewLocalPrepare", () => {
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
-  it("emits a typed invalid-input envelope for repository preconditions", async () => {
+  it.each([
+    ["dirty-worktree", "clean-worktree"],
+    ["non-commit-head", "commit-head"],
+    ["unresolved-base", "base-resolved"],
+  ] as const)("emits a typed invalid-input envelope for the %s precondition", async (
+    reason,
+    precondition,
+  ) => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
@@ -1022,7 +1029,7 @@ describe("handleReviewLocalPrepare", () => {
         },
       }),
       prepare: async () => {
-        throw new LocalTargetDerivationError("dirty-worktree");
+        throw new LocalTargetDerivationError(reason);
       },
       write,
       setExitCode,
@@ -1030,16 +1037,9 @@ describe("handleReviewLocalPrepare", () => {
 
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
-      diagnostics: [{
-        code: "repository-precondition",
-        message: "dirty-worktree",
-        precondition: "clean-worktree",
-      }],
+      diagnostics: [{ code: "repository-precondition", message: reason, precondition }],
       mode: "review-local-prepare",
-      error: {
-        code: "invalid-input",
-        message: "dirty-worktree",
-      },
+      error: { code: "invalid-input", message: reason },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });

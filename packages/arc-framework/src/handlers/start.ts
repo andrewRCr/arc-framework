@@ -30,6 +30,7 @@ import {
   runGraduate,
   deriveColdStartWuName,
 } from "../commands/start.js";
+import { expandActiveInFlight } from "../commands/active.js";
 import { validateClass } from "../commands/active/types.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
@@ -264,14 +265,32 @@ export async function handleStart(
     process.exitCode = 1;
     return;
   }
+  if (io.execInput === undefined) {
+    p.log.error("remote start expansion requires stdin-capable Git I/O");
+    process.exitCode = 1;
+    return;
+  }
+  const expandedInFlight = await expandActiveInFlight({
+    exec: io.exec,
+    execInput: io.execInput,
+    cwd,
+    identity,
+    teamMode: false,
+    baseBranch: settings["branch.base"],
+  });
+  if (expandedInFlight.candidateExpansion.status !== "complete") {
+    p.log.error("could not completely expand remote work-unit candidates; retry `arc start`.");
+    process.exitCode = 1;
+    return;
+  }
   const composed = await resolveComposedLifecycleIndex({
     cwd,
     fs: baseSnapshot.fs,
     oracle: {
       exec: io.exec,
       baseBranch: settings["branch.base"],
-      localOnly: false,
-      expandLiveOnly: true,
+      acquisitionPolicy: "materialized-live",
+      suppliedResult: expandedInFlight,
     },
   });
   const dispatch = resolveStartDispatch(composed.index, wuName, { create: input.new === true });

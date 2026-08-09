@@ -26,6 +26,7 @@ const OperationEnvelopeShape = {
 const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
   z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema }),
+  z.strictObject({ kind: z.literal("delivery-member"), identity: IdentifierSchema }),
 ]);
 
 export const FrontlineRunStateSchema = z.strictObject({
@@ -91,6 +92,13 @@ export const LocalReviewStateSchema = z.strictObject({
     const target = validateReviewTarget(state.target);
     const requirement = validateReviewRequirement(target, state.requirement);
     const request = validateReviewRequest(target, state.request);
+    if ((state.vehicle.kind === "delivery-member") !== (target.kind === "delivery-member")) {
+      context.addIssue({
+        code: "custom",
+        message: "operation vehicle and target kinds mismatch",
+        path: ["vehicle"],
+      });
+    }
     if (state.repositoryId !== target.repositoryId || state.targetId !== target.targetId) {
       context.addIssue({ code: "custom", message: "operation target snapshot mismatch", path: ["target"] });
     }

@@ -112,6 +112,23 @@ unit.
 
 ---
 
+## Proportionality
+
+Every material mechanism — in a design, an implementation, a proposed fix, a review response — traces to a stated
+goal, real constraint, actual trust boundary, or observed failure; plausibility, thoroughness, symmetry, and
+imagined threat models are not requirements. Prefer composing existing substrate over new mechanism. Concentrate
+rigor where failure is destructive, authoritative, or irreversible; advisory and retryable paths get lighter
+handling. The same trace bounds simplification: never drop behavior it marks as required.
+
+A spec's scope boundary is pre-commitment text (§ Rule Authority); unrequested capability is a scope decision, not
+engineering taste. Propose the smallest complete in-scope response to a finding or request on its own; anything
+beyond it is a separate proposal, named as a scope expansion, landing only by forward amendment — the scope owner
+decides with the expansion in plain sight. Finishing what a change requires — callsites, migrations, tests — is
+completion, not expansion. At planning boundaries the deep instrument is `assess-design-proportionality`;
+everywhere else, apply this trace as one inline judgment.
+
+---
+
 ## Commit Discipline
 
 ### Commit control

@@ -6,6 +6,7 @@
 
 import { execa } from "execa";
 
+import type { InteractionContext } from "../command-input/interaction-context.js";
 import type { GitExec, GitExecInput } from "./exec.js";
 import { normalizeGitRejection } from "./process-error.js";
 
@@ -43,6 +44,20 @@ export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv
   );
 }
 
+function applyInteractionEnvironment(
+  base: NodeJS.ProcessEnv | undefined,
+  interaction: InteractionContext["subprocess"] | undefined,
+): NodeJS.ProcessEnv | undefined {
+  if (interaction?.terminalPrompts !== "forbidden") return base;
+  return {
+    ...(base ?? process.env),
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_EDITOR: "true",
+    GIT_PAGER: "cat",
+    PAGER: "cat",
+  };
+}
+
 /**
  * Construct the captured-output execa adapter without changing the live binding.
  *
@@ -55,18 +70,18 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
     const indexedEnvironment = options?.indexFile === undefined
       ? environment
       : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
-    const forbidden = options?.interaction?.terminalPrompts === "forbidden";
-    const env = forbidden
-      ? {
-          ...(indexedEnvironment ?? process.env),
-          GIT_TERMINAL_PROMPT: "0",
-          GIT_EDITOR: "true",
-          GIT_PAGER: "cat",
-          PAGER: "cat",
-        }
+    const diagnosticEnvironment = options?.diagnosticLocale === "stable"
+      ? { ...(indexedEnvironment ?? process.env), LC_ALL: "C", LANG: "C" }
       : indexedEnvironment;
+    const objectEnvironment = options?.objectAccess === "local-only"
+      ? { ...(diagnosticEnvironment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : diagnosticEnvironment;
+    const env = applyInteractionEnvironment(objectEnvironment, options?.interaction);
+    const effectiveArgs = options?.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
     try {
-      const result = await execa(command, args, {
+      const result = await execa(command, effectiveArgs, {
         cwd: options?.cwd,
         env,
         extendEnv: env === undefined,
@@ -77,7 +92,7 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
       });
       return { stdout: result.stdout.trimEnd(), stderr: result.stderr };
     } catch (error) {
-      throw normalizeGitRejection(error, { command, args });
+      throw normalizeGitRejection(error, { command, args: effectiveArgs });
     }
   };
 }
@@ -86,23 +101,34 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
  * Construct the stdin-fed execa adapter without changing the live binding.
  *
  * @param maxBuffer - Captured-output ceiling; injectable only for focused process-boundary tests.
+ * @param interaction - Invocation-bound terminal and prompt policy.
  * @returns A raw-stdout {@link GitExecInput} implementation.
  */
-export function createExecaGitExecInput(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExecInput {
+export function createExecaGitExecInput(
+  maxBuffer = MAX_GIT_OUTPUT_BYTES,
+  interaction?: InteractionContext["subprocess"],
+): GitExecInput {
   return async (args, input, options) => {
     const environment = environmentForGitCwd(options?.cwd);
+    const objectEnvironment = options?.objectAccess === "local-only"
+      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : environment;
+    const env = applyInteractionEnvironment(objectEnvironment, interaction);
+    const effectiveArgs = options?.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
     try {
-      const result = await execa("git", args, {
+      const result = await execa("git", effectiveArgs, {
         cwd: options?.cwd,
-        env: environment,
-        extendEnv: environment === undefined,
+        env,
+        extendEnv: env === undefined,
         input,
         maxBuffer,
         stripFinalNewline: false,
       });
       return result.stdout;
     } catch (error) {
-      throw normalizeGitRejection(error, { command: "git", args });
+      throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
     }
   };
 }

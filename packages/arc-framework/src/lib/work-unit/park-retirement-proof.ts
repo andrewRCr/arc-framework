@@ -83,29 +83,37 @@ export async function validateParkRetirementProof(
   projection: { subject: string; retiringHead: string; resultHead: string },
 ): Promise<ParkRetirementProofResult> {
   try {
-    const [retiring, effectiveBase] = await Promise.all([
-      ctx.readProjection(projection.retiringHead, projection.subject),
-      ctx.readProjection(projection.resultHead, projection.subject),
-    ]);
-    if (retiring.lifecycle !== "planned" || effectiveBase.lifecycle !== "planned") {
-      return { status: "refused", reason: "projection-mismatch" };
-    }
-
-    const retiringArtifacts = validateArtifactGroup(projection.subject, retiring.artifacts);
-    const baseArtifacts = validateArtifactGroup(projection.subject, effectiveBase.artifacts);
-    if (retiringArtifacts === null || baseArtifacts === null) {
-      return { status: "refused", reason: "conservation-unproven" };
-    }
-    if (!artifactMapsEqual(retiringArtifacts.byPath, baseArtifacts.byPath)) {
-      return { status: "refused", reason: "conservation-unproven" };
-    }
-    return {
-      status: "proved",
-      proof: { lifecycle: "planned", resultInventory: baseArtifacts.inventory },
-    };
+    return await validateParkRetirementProofStrict(ctx, projection);
   } catch {
     return { status: "refused", reason: "authority-unavailable" };
   }
+}
+
+/** Prove a park transition while preserving unexpected projection-read failures. */
+export async function validateParkRetirementProofStrict(
+  ctx: ParkRetirementProofContext,
+  projection: { subject: string; retiringHead: string; resultHead: string },
+): Promise<ParkRetirementProofResult> {
+  const [retiring, effectiveBase] = await Promise.all([
+    ctx.readProjection(projection.retiringHead, projection.subject),
+    ctx.readProjection(projection.resultHead, projection.subject),
+  ]);
+  if (retiring.lifecycle !== "planned" || effectiveBase.lifecycle !== "planned") {
+    return { status: "refused", reason: "projection-mismatch" };
+  }
+
+  const retiringArtifacts = validateArtifactGroup(projection.subject, retiring.artifacts);
+  const baseArtifacts = validateArtifactGroup(projection.subject, effectiveBase.artifacts);
+  if (retiringArtifacts === null || baseArtifacts === null) {
+    return { status: "refused", reason: "conservation-unproven" };
+  }
+  if (!artifactMapsEqual(retiringArtifacts.byPath, baseArtifacts.byPath)) {
+    return { status: "refused", reason: "conservation-unproven" };
+  }
+  return {
+    status: "proved",
+    proof: { lifecycle: "planned", resultInventory: baseArtifacts.inventory },
+  };
 }
 
 interface ValidArtifactGroup {

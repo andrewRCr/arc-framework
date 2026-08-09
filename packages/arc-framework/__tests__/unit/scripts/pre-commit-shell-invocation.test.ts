@@ -47,9 +47,9 @@ describe("pre-commit hook shell-script invocation", () => {
 });
 
 describe("foreign-write advisory backstop wiring", () => {
-  it("invokes the foreign-write entry point via npx tsx", () => {
+  it("invokes the foreign-write entry point through the TypeScript loader", () => {
     expect(preCommitSource).toContain(
-      "npx tsx packages/arc-framework/src/scripts/check-foreign-writes.ts",
+      'node --import "$tsx_loader" packages/arc-framework/src/scripts/check-foreign-writes.ts',
     );
   });
 
@@ -82,7 +82,7 @@ describe("ROADMAP conflict auto-remedy wiring", () => {
 
     const markerCheckIndex = block.indexOf("conflict_markers=");
     const remedyCommands = [
-      "npx tsx packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts",
+      'node --import "$tsx_loader" packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts',
       "arc hook-remedy-roadmap-conflict",
     ];
     for (const command of remedyCommands) {
@@ -104,9 +104,9 @@ describe("ROADMAP conflict auto-remedy wiring", () => {
 });
 
 describe("ROADMAP regeneration assert wiring", () => {
-  it("invokes the ROADMAP assert entry point via npx tsx", () => {
+  it("invokes the ROADMAP assert entry point through the TypeScript loader", () => {
     expect(preCommitSource).toContain(
-      "npx tsx packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts",
+      'node --import "$tsx_loader" packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts',
     );
   });
 

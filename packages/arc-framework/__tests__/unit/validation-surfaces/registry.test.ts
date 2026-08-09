@@ -56,6 +56,8 @@ describe("validation-surfaces schema registry", () => {
       "local-sync-state",
       "meta-record",
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",
@@ -94,6 +96,8 @@ describe("validation-surfaces schema registry", () => {
     expect(serializeKernelSchemaBundle(projectKernelSchemas())).toBe(defaultBytes);
     expect(Object.keys(JSON.parse(defaultBytes).schemas as object)).toEqual([
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",
@@ -116,6 +120,8 @@ describe("validation-surfaces schema registry", () => {
       "local-sync-state",
       "meta-record",
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",

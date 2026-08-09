@@ -6,6 +6,7 @@
 
 import type { GitExec } from "./exec.js";
 import type { OverlapEvidence, ReconciliationClassifier } from "./base-drift-types.js";
+import { isGitObjectId } from "./object-id.js";
 
 export interface AnalyzeBaseOverlapOptions {
   exec: GitExec;
@@ -25,7 +26,7 @@ export async function analyzeBaseOverlap(
   let mergeBase: string;
   try {
     mergeBase = (await options.exec("git", ["merge-base", "HEAD", options.baseOid])).stdout.trim();
-    if (!/^[0-9a-f]{40,64}$/u.test(mergeBase)) throw new Error("Invalid merge base.");
+    if (!isGitObjectId(mergeBase)) throw new Error("Invalid merge base.");
   } catch {
     return { status: "unavailable", reason: "merge-base-failed" };
   }

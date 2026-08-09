@@ -17,13 +17,13 @@ import {
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const packageRoot = join(testDir, "..", "..", "..");
 const scriptPath = join(packageRoot, "src", "scripts", "remedy-roadmap-conflict.ts");
-const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
+const scriptArguments = ["--import", import.meta.resolve("tsx"), scriptPath];
 
 describe("ROADMAP conflict remedy script", () => {
   it("reports unexpected Git failures without an unhandled rejection", () => {
     const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-remedy-"));
     try {
-      const result = spawnSync(process.execPath, [tsxCliPath, scriptPath], {
+      const result = spawnSync(process.execPath, scriptArguments, {
         cwd,
         encoding: "utf8",
       });
@@ -78,7 +78,7 @@ describe("ROADMAP conflict remedy script", () => {
         ".arc/backlog/ROADMAP.md",
       );
 
-      const remedy = spawnSync(process.execPath, [tsxCliPath, scriptPath], {
+      const remedy = spawnSync(process.execPath, scriptArguments, {
         cwd,
         encoding: "utf8",
       });

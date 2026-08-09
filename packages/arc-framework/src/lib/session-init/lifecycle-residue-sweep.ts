@@ -22,9 +22,15 @@ import type {
 } from "../work-unit/retirement-authority.js";
 import {
   createTeardownRetirementAuthority,
+  createTeardownRetirementAuthorityStrict,
   type TeardownBlobReader,
 } from "../work-unit/teardown-retirement-driver.js";
 import { resolveParkProofTarget, type ParkProofTarget } from "../work-unit/park-retirement-proof.js";
+import {
+  projectCleanupRemoteEvidence,
+  type CleanupBaseEvidence,
+  type CleanupRemoteEvidence,
+} from "./cleanup-remote-evidence.js";
 
 /** Structured outside-worktree action for one validated deferred rename move. */
 export interface RenameMoveRemedy {
@@ -64,10 +70,10 @@ export type LandedRetirementResidue =
       reason: string;
     };
 
-export interface LandedRetirementSweepResult {
+export type LandedRetirementSweepResult = CleanupRemoteEvidence & {
   retirements: LandedRetirementResidue[];
   warnings: string[];
-}
+};
 
 export interface RunLandedRetirementSweepOptions {
   topology: readonly RegisteredWorktree[];
@@ -77,6 +83,9 @@ export interface RunLandedRetirementSweepOptions {
   exec: GitExec;
   readBlob: TeardownBlobReader;
   remote?: string;
+  /** Supplied advertised-base prerequisites from session composition. */
+  baseEvidence?: CleanupBaseEvidence;
+  /** Compatibility acquisition seam for callers outside session composition. */
   fetchBase?: () => Promise<boolean>;
   authorize?: (request: TeardownAuthorizationRequest) => Promise<TeardownAuthorizationDecision>;
   isClean?: (worktreePath: string) => Promise<boolean>;
@@ -134,6 +143,7 @@ export function projectRenameMoveRemedy(
 export async function runLandedRetirementSweep(
   options: RunLandedRetirementSweepOptions,
 ): Promise<LandedRetirementSweepResult> {
+  const projectedEvidence = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const candidates = options.topology.filter((entry) => {
     if (entry.detached || entry.branch === null) return false;
     const marker = options.markers.get(entry.path);
@@ -143,41 +153,78 @@ export async function runLandedRetirementSweep(
       && marker.marker.husk === undefined
       && marker.marker.renameMovePending === undefined;
   });
-  if (candidates.length === 0) return { retirements: [], warnings: [] };
+  if (candidates.length === 0) return { ...projectedEvidence, retirements: [], warnings: [] };
 
   const remote = options.remote ?? "origin";
   const baseRef = options.protection === "full" ? `${remote}/${options.baseBranch}` : options.baseBranch;
+  let authorityExec = options.exec;
   let proofTarget: ParkProofTarget;
-  try {
-    proofTarget = await resolveParkProofTarget({
-      refreshRemoteBase: async (remoteName, baseBranch) => {
-        const fetched = options.fetchBase === undefined
-          ? await fetchAuthorityBase(options.exec, remoteName, baseBranch)
-          : await options.fetchBase();
-        if (!fetched) throw new Error("remote base refresh failed");
-        const head = await readRefTip(options.exec, `${remoteName}/${baseBranch}`);
-        if (head === null) throw new Error("remote base read failed");
-        return head;
-      },
-      readLocalBase: async (baseBranch) => {
-        const head = await readRefTip(options.exec, baseBranch);
-        if (head === null) throw new Error("local base read failed");
-        return head;
-      },
-    }, {
-      protection: options.protection,
-      remote,
-      baseBranch: options.baseBranch,
+  if (options.baseEvidence !== undefined) {
+    const baseEvidence = options.baseEvidence;
+    if (!baseEvidence.remoteSyncEnabled || baseEvidence.snapshot.kind === "unreachable") {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    const baseOid = baseEvidence.snapshot.tips[options.baseBranch];
+    if (baseOid === undefined) {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    if (baseEvidence.objectAvailability.kind !== "complete") {
+      throw new Error("Advertised retirement object availability could not be inspected.");
+    }
+    const baseCommitIsLocal = baseEvidence.objectAvailability.commits[baseOid];
+    if (baseCommitIsLocal === false) {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    if (baseCommitIsLocal === undefined) {
+      throw new Error("The advertised base commit has no local availability fact.");
+    }
+    if (baseEvidence.history.kind === "shallow") {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    if (baseEvidence.history.kind !== "complete") {
+      throw new Error("Local retirement history completeness could not be inspected.");
+    }
+    authorityExec = (command, args, execOptions) => options.exec(command, args, {
+      ...execOptions,
+      objectAccess: "local-only",
     });
-  } catch {
-    return {
-      retirements: [],
-      warnings: [`Could not resolve lifecycle authority ref \`${baseRef}\`; retirement cleanup remains manual.`],
-    };
+    proofTarget = { ref: baseOid, head: baseOid };
+  } else {
+    try {
+      proofTarget = await resolveParkProofTarget({
+        refreshRemoteBase: async (remoteName, baseBranch) => {
+          const fetched = options.fetchBase === undefined
+            ? await fetchAuthorityBase(options.exec, remoteName, baseBranch)
+            : await options.fetchBase();
+          if (!fetched) throw new Error("remote base refresh failed");
+          const head = await readRefTip(options.exec, `${remoteName}/${baseBranch}`);
+          if (head === null) throw new Error("remote base read failed");
+          return head;
+        },
+        readLocalBase: async (baseBranch) => {
+          const head = await readRefTip(options.exec, baseBranch);
+          if (head === null) throw new Error("local base read failed");
+          return head;
+        },
+      }, {
+        protection: options.protection,
+        remote,
+        baseBranch: options.baseBranch,
+      });
+    } catch {
+      return {
+        ...projectedEvidence,
+        retirements: [],
+        warnings: [`Could not resolve lifecycle authority ref \`${baseRef}\`; retirement cleanup remains manual.`],
+      };
+    }
   }
 
   const authority = options.authorize === undefined
-    ? createTeardownRetirementAuthority(options.exec, proofTarget, options.readBlob).authorize
+    ? (options.baseEvidence === undefined
+        ? createTeardownRetirementAuthority(authorityExec, proofTarget, options.readBlob)
+        : createTeardownRetirementAuthorityStrict(authorityExec, proofTarget, options.readBlob)
+      ).authorize
     : options.authorize;
   const clean = options.isClean
     ?? (async (worktreePath: string) => await isWorktreeClean({ exec: options.exec, cwd: worktreePath }));
@@ -237,7 +284,31 @@ export async function runLandedRetirementSweep(
     };
   }));
   const retirements = projected.filter((entry): entry is LandedRetirementResidue => entry !== null);
-  return { retirements, warnings: [] };
+  return { ...projectedEvidence, retirements, warnings: [] };
+}
+
+function blockedRetirements(
+  evidence: CleanupRemoteEvidence,
+  candidates: readonly RegisteredWorktree[],
+  markers: ReadonlyMap<string, WorktreeMarkerReadResult>,
+): LandedRetirementSweepResult {
+  return {
+    ...evidence,
+    retirements: candidates.flatMap((candidate): LandedRetirementResidue[] => {
+      const marker = markers.get(candidate.path);
+      return candidate.branch !== null
+        && marker?.kind === "present"
+        && marker.marker.createdFor?.kind === "work-unit"
+        ? [{
+            status: "blocked",
+            worktreePath: candidate.path,
+            subject: { slug: marker.marker.createdFor.name, branch: candidate.branch },
+            reason: "evidence-unavailable",
+          }]
+        : [];
+    }),
+    warnings: [],
+  };
 }
 
 async function fetchAuthorityBase(exec: GitExec, remote: string, baseBranch: string): Promise<boolean> {

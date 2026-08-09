@@ -281,6 +281,7 @@ export async function renderRoadmapFromIndexViewResult(
     fs,
     localRefs: {
       exec: options.exec,
+      acquisitionPolicy: "local",
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
       ...errandContext,

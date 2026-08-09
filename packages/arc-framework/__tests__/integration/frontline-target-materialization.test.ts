@@ -60,6 +60,7 @@ describe("frontline exact-target materialization", () => {
     });
 
     expect(materialized.target).toEqual(records.target);
+    expect(materialized.target.kind).toBe("change-set");
     expect(await git(materialized.reviewRoot, "rev-parse", "HEAD")).toBe(records.target.headSha);
     expect(await git(materialized.reviewRoot, "branch", "--show-current")).toBe("");
 

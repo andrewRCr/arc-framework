@@ -32,7 +32,7 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     },
     {
         file: "lib/session-init/materializable-work-units.ts",
-        type: "MaterializableWorkUnitsResult",
+        type: "MaterializableWorkUnitDiscoveryResult",
     },
     {
         file: "lib/session-init/orphan-branch-sweep.ts",
@@ -51,7 +51,7 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
         file: "lib/session-init/branch-gone-cascade.ts",
         type: "CascadeResolution",
     },
-    { file: "lib/git/base-branch-sync.ts", type: "BaseBranchSyncStatusResult" },
+    { file: "lib/git/base-branch-sync.ts", type: "BaseBranchSnapshotAnalysisResult" },
     { file: "commands/status/types.ts", type: "StatusIdentity" },
     { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
 ];

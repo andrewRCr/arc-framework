@@ -293,7 +293,7 @@ describe("arc rename", () => {
     expect(await hasUserWorkspace(fixture.repo, "new-name")).toBe(true);
   }, 30_000);
 
-  it("renames from reachable tree truth when the composed oracle cannot reach origin", async () => {
+  it("refuses rename when explicit candidate expansion cannot reach origin", async () => {
     const fixture = await createFixture();
     cleanupPaths.push(fixture.remote, fixture.repo);
     const stubbed = await runArcNoTty([
@@ -310,9 +310,10 @@ describe("arc rename", () => {
 
     const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
 
-    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
-    await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
-    await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Could not completely expand remote work-unit candidates");
+    expect(await exists(join(fixture.repo, oldArtifactDir))).toBe(true);
+    expect(await exists(join(fixture.repo, newArtifactDir))).toBe(false);
   }, 30_000);
 
   it("self-renames every identity leg while deferring the live worktree directory move", async () => {

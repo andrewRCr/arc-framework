@@ -19,7 +19,10 @@ import { artifactGroupDigest } from "../canonical/content-digest.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-index.js";
 import { resolveSlugState } from "./lifecycle-resolver.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import { validateParkRetirementProof } from "./park-retirement-proof.js";
+import {
+  validateParkRetirementProof,
+  validateParkRetirementProofStrict,
+} from "./park-retirement-proof.js";
 import type { ParkProofTarget } from "./park-retirement-proof.js";
 import type {
   RetirementAuthorizationContext,
@@ -77,46 +80,56 @@ export async function locateAbandonTransition(
   request: TeardownAuthorizationRequest,
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<AbandonTransitionLocation> {
-  if (request.subject.kind !== "work-unit" || !isSlugSafe(request.subject.name)) {
-    return { status: "absent" };
-  }
   try {
-    const directParents = await readCommitParents(exec, request.head);
-    if (directParents.length === 1 && directParents[0] !== undefined) {
-      const direct = await validateAbandonTransition(
-        exec,
-        request,
-        directParents[0],
-        request.head,
-        "direct",
-        readBlob,
-      );
-      if (direct !== null) return { status: "unique", proof: direct };
-    }
-
-    const baseHead = await resolveCommit(exec, baseRef);
-    const matches: AbandonTransitionProof[] = [];
-    for (const resultHead of await listAbandonCandidates(exec, baseHead, request.subject.name)) {
-      const parents = await readCommitParents(exec, resultHead);
-      const sourceHead = parents.length === 1 ? parents[0] : undefined;
-      if (sourceHead === undefined) continue;
-      const proof = await validateAbandonTransition(
-        exec,
-        request,
-        sourceHead,
-        resultHead,
-        "landed",
-        readBlob,
-      );
-      if (proof !== null) matches.push(proof);
-    }
-    if (matches.length === 0) return { status: "absent" };
-    if (matches.length > 1) return { status: "ambiguous" };
-    const proof = matches[0];
-    return proof === undefined ? { status: "absent" } : { status: "unique", proof };
+    return await locateAbandonTransitionStrict(exec, baseRef, request, readBlob);
   } catch {
     return { status: "unavailable" };
   }
+}
+
+/** Locate an abandon transition while preserving unexpected graph/blob failures. */
+export async function locateAbandonTransitionStrict(
+  exec: GitExec,
+  baseRef: string,
+  request: TeardownAuthorizationRequest,
+  readBlob: RetirementAuthorizationBlobReader,
+): Promise<AbandonTransitionLocation> {
+  if (request.subject.kind !== "work-unit" || !isSlugSafe(request.subject.name)) {
+    return { status: "absent" };
+  }
+  const directParents = await readCommitParents(exec, request.head);
+  if (directParents.length === 1 && directParents[0] !== undefined) {
+    const direct = await validateAbandonTransition(
+      exec,
+      request,
+      directParents[0],
+      request.head,
+      "direct",
+      readBlob,
+    );
+    if (direct !== null) return { status: "unique", proof: direct };
+  }
+
+  const baseHead = await resolveCommit(exec, baseRef);
+  const matches: AbandonTransitionProof[] = [];
+  for (const resultHead of await listAbandonCandidates(exec, baseHead, request.subject.name)) {
+    const parents = await readCommitParents(exec, resultHead);
+    const sourceHead = parents.length === 1 ? parents[0] : undefined;
+    if (sourceHead === undefined) continue;
+    const proof = await validateAbandonTransition(
+      exec,
+      request,
+      sourceHead,
+      resultHead,
+      "landed",
+      readBlob,
+    );
+    if (proof !== null) matches.push(proof);
+  }
+  if (matches.length === 0) return { status: "absent" };
+  if (matches.length > 1) return { status: "ambiguous" };
+  const proof = matches[0];
+  return proof === undefined ? { status: "absent" } : { status: "unique", proof };
 }
 
 async function listAbandonCandidates(
@@ -224,6 +237,7 @@ export function createGitRetirementAuthorizationContext(
   exec: GitExec,
   baseTarget: string | ParkProofTarget,
   readBlob: RetirementAuthorizationBlobReader,
+  options: { strict?: boolean } = {},
 ): RetirementAuthorizationContext {
   const baseRef = typeof baseTarget === "string" ? baseTarget : baseTarget.head;
   return {
@@ -264,7 +278,9 @@ export function createGitRetirementAuthorizationContext(
       };
     },
     readGitTransitionProof: async (request) => {
-      const abandon = await locateAbandonTransition(exec, baseRef, request, readBlob);
+      const abandon = await (options.strict === true
+        ? locateAbandonTransitionStrict(exec, baseRef, request, readBlob)
+        : locateAbandonTransition(exec, baseRef, request, readBlob));
       if (abandon.status === "unique") {
         return {
           status: "proved" as const,
@@ -285,7 +301,10 @@ export function createGitRetirementAuthorizationContext(
       if (request.subject.kind !== "work-unit") {
         return { status: "refused" as const, reason: "unsupported-transition" as const };
       }
-      const park = await validateParkRetirementProof(
+      const parkValidator = options.strict === true
+        ? validateParkRetirementProofStrict
+        : validateParkRetirementProof;
+      const park = await parkValidator(
         {
           readProjection: async (head, subject) => {
             const index = await readSlugLifecycleIndex(exec, head, subject);
@@ -339,36 +358,52 @@ export async function validateGitTransitionRetirementEvidence(
   readBlob: RetirementAuthorizationBlobReader,
 ): Promise<boolean> {
   try {
-    const pinnedBase = await resolveCommit(exec, baseRef);
-    const context = createGitRetirementAuthorizationContext(exec, pinnedBase, readBlob);
-    const replay = await context.readGitTransitionProof({
-      subject: input.subject,
-      branch: input.branch,
-      head: input.retiringHead,
-      remote: "origin",
-      requestedMode: "abandoned",
-    });
-    if (replay.status === "refused") return false;
-    const { proof } = replay;
-    const authorization = proof.transition === "park-planning"
-      ? "planning-relocated"
-      : "discard-confirmed";
-    if (
-      proof.transition !== input.evidence.transition
-      || proof.retiringHead !== input.retiringHead
-      || authorization !== input.authorization
-    ) return false;
-    return gitTransitionResultDigest({
-      transition: proof.transition,
-      subject: input.subject,
-      branch: input.branch,
-      retiringHead: proof.retiringHead,
-      resultHead: proof.resultHead,
-      resultInventory: proof.resultInventory,
-    }) === input.evidence.resultDigest;
+    return await validateGitTransitionRetirementEvidenceStrict(exec, baseRef, input, readBlob);
   } catch {
     return false;
   }
+}
+
+/** Validate Git-derived husk evidence while preserving unexpected local failures. */
+export async function validateGitTransitionRetirementEvidenceStrict(
+  exec: GitExec,
+  baseRef: string,
+  input: {
+    subject: WorktreeSubject;
+    branch: string;
+    retiringHead: string;
+    authorization: HuskAuthorization;
+    evidence: Extract<RetirementEvidenceRef, { kind: "git-transition" }>;
+  },
+  readBlob: RetirementAuthorizationBlobReader,
+): Promise<boolean> {
+  const pinnedBase = await resolveCommit(exec, baseRef);
+  const context = createGitRetirementAuthorizationContext(exec, pinnedBase, readBlob, { strict: true });
+  const replay = await context.readGitTransitionProof({
+    subject: input.subject,
+    branch: input.branch,
+    head: input.retiringHead,
+    remote: "origin",
+    requestedMode: "abandoned",
+  });
+  if (replay.status === "refused") return false;
+  const { proof } = replay;
+  const authorization = proof.transition === "park-planning"
+    ? "planning-relocated"
+    : "discard-confirmed";
+  if (
+    proof.transition !== input.evidence.transition
+    || proof.retiringHead !== input.retiringHead
+    || authorization !== input.authorization
+  ) return false;
+  return gitTransitionResultDigest({
+    transition: proof.transition,
+    subject: input.subject,
+    branch: input.branch,
+    retiringHead: proof.retiringHead,
+    resultHead: proof.resultHead,
+    resultInventory: proof.resultInventory,
+  }) === input.evidence.resultDigest;
 }
 
 interface StoredArtifact {

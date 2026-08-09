@@ -36,6 +36,10 @@ export interface GitExecOptions {
   indexFile?: string;
   /** Per-invocation terminal, presenter, and ambient-stdin policy. */
   interaction?: InteractionContext["subprocess"];
+  /** Pin process diagnostics to the stable C locale for bounded classification. */
+  diagnosticLocale?: "stable";
+  /** Forbid Git from lazily fetching missing objects during passive inspection. */
+  objectAccess?: "local-only";
 }
 
 /** Plain-Promise, argument-array Git execution seam. */
@@ -56,7 +60,7 @@ export type GitExec = (
 export type GitExecInput = (
   args: string[],
   input: string,
-  options?: Pick<GitExecOptions, "cwd">,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess">,
 ) => Promise<string>;
 
 /** One Git index transaction staged through the repository's index lock. */
@@ -226,7 +230,10 @@ export async function boundedFetch(
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", ["fetch", "origin", ref], { signal: controller.signal });
+    await exec("git", ["fetch", "origin", ref], {
+      signal: controller.signal,
+      diagnosticLocale: "stable",
+    });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args: ["fetch", "origin", ref] });
@@ -252,7 +259,7 @@ export async function boundedGitInvocation(
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", args, { signal: controller.signal });
+    await exec("git", args, { signal: controller.signal, diagnosticLocale: "stable" });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args });

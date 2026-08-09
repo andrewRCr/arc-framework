@@ -23,6 +23,7 @@ pm_mode=$(arc_config_get "pm.mode" "none")
 base_branch=$(arc_config_get "branch.base" "main")
 branch_protection=$(arc_config_get "branch.protection" "partial")
 arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
+tsx_loader=${ARC_TSX_LOADER:-tsx}
 
 # Exit early if hook is disabled
 if [ "$hook_enabled" = "disabled" ]; then
@@ -121,7 +122,7 @@ done
 if [ "$pm_mode" = "arc-in-git" ]; then
     roadmap_remedy_status=0
     if [ -f packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts ]; then
-        roadmap_remedy_output=$(npx tsx packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts 2>&1) || roadmap_remedy_status=$?
+        roadmap_remedy_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts 2>&1) || roadmap_remedy_status=$?
     else
         roadmap_remedy_output=$(arc hook-remedy-roadmap-conflict 2>&1) || roadmap_remedy_status=$?
     fi
@@ -337,7 +338,7 @@ fi
 # ============================================================================
 # CHECK 11: Frontmatter schema validation (methods / extensions)
 # ============================================================================
-# Delegates to validate-frontmatter.ts via tsx — schema logic lives in
+# Delegates to validate-frontmatter.ts via Node's TypeScript loader — schema logic lives in
 # TypeScript where it is unit-tested; this hook is a thin invoker. Catches
 # missing or malformed frontmatter on staged files under system/methods/
 # and system/extensions/.
@@ -346,7 +347,7 @@ frontmatter_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$frontmatter_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! frontmatter_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $frontmatter_candidates 2>&1); then
+    if ! frontmatter_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-frontmatter.ts $frontmatter_candidates 2>&1); then
         echo -e "${RED}Error: Frontmatter schema validation failed:${NC}"
         echo "$frontmatter_output" | sed 's/^/   /'
         echo ""
@@ -367,7 +368,7 @@ domain_rules_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$domain_rules_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! domain_rules_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $domain_rules_candidates 2>&1); then
+    if ! domain_rules_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-frontmatter.ts $domain_rules_candidates 2>&1); then
         echo -e "${RED}Error: Domain-rules frontmatter validation failed:${NC}"
         echo "$domain_rules_output" | sed 's/^/   /'
         echo ""
@@ -412,7 +413,7 @@ neutrality_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$neutrality_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! neutrality_output=$(npx tsx packages/arc-framework/src/scripts/validate-package-neutrality.ts $neutrality_candidates 2>&1); then
+    if ! neutrality_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-package-neutrality.ts $neutrality_candidates 2>&1); then
         echo -e "${RED}Error: Package-source neutrality check failed:${NC}"
         echo "$neutrality_output" | sed 's/^/   /'
         echo ""
@@ -438,7 +439,7 @@ extension_point_candidates=$(git diff --cached --name-only --diff-filter=ACMR | 
 
 if [ -n "$extension_point_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! extension_point_output=$(npx tsx packages/arc-framework/src/scripts/validate-extension-points.ts $extension_point_candidates 2>&1); then
+    if ! extension_point_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-extension-points.ts $extension_point_candidates 2>&1); then
         echo -e "${RED}Error: Extension-point reference validation failed:${NC}"
         echo "$extension_point_output" | sed 's/^/   /'
         echo ""
@@ -460,7 +461,7 @@ meta_spec_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$meta_spec_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! meta_spec_output=$(npx tsx packages/arc-framework/src/scripts/validate-meta-spec.ts $meta_spec_candidates 2>&1); then
+    if ! meta_spec_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-meta-spec.ts $meta_spec_candidates 2>&1); then
         echo -e "${RED}Error: Meta-file validation failed:${NC}"
         echo "$meta_spec_output" | sed 's/^/   /'
         echo ""
@@ -520,7 +521,7 @@ cohort_consistency_candidates=$(git diff --cached --name-only --diff-filter=ACMR
 
 if [ -n "$cohort_consistency_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! cohort_consistency_output=$(npx tsx packages/arc-framework/src/scripts/validate-cohort-consistency.ts $cohort_consistency_candidates 2>&1); then
+    if ! cohort_consistency_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-cohort-consistency.ts $cohort_consistency_candidates 2>&1); then
         echo -e "${RED}Error: Cohort-consistency validation failed:${NC}"
         echo "$cohort_consistency_output" | sed 's/^/   /'
         echo ""
@@ -544,7 +545,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
         grep -E '^\.arc/backlog/ROADMAP\.md$' || true)
 
     if [ -n "$roadmap_assert_candidate" ]; then
-        if ! roadmap_assert_output=$(npx tsx packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts 2>&1); then
+        if ! roadmap_assert_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts 2>&1); then
             echo -e "${RED}Error: ROADMAP is not regenerated from sources:${NC}"
             echo "$roadmap_assert_output" | sed 's/^/   /'
             errors=$((errors + 1))
@@ -571,7 +572,7 @@ foreign_write_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$foreign_write_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    foreign_write_output=$(npx tsx packages/arc-framework/src/scripts/check-foreign-writes.ts $foreign_write_candidates 2>/dev/null || true)
+    foreign_write_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/check-foreign-writes.ts $foreign_write_candidates 2>/dev/null || true)
     if [ -n "$foreign_write_output" ]; then
         echo -e "${YELLOW}Warning: In-flight artifact advisory:${NC}"
         echo "$foreign_write_output" | sed 's/^/   /'

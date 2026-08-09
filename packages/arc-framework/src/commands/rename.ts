@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { expandActiveInFlight } from "./active.js";
 import { canonicalDigest } from "../lib/canonical/canonical-json.js";
 import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
@@ -75,7 +76,7 @@ export interface RenameCommandContext {
   cwd: string;
   identity: string;
   baseBranch: string;
-  io: UserIOContext;
+  io: UserIOContext & { execInput: NonNullable<UserIOContext["execInput"]> };
   retirement: RenameRetirementContext;
   transitionWriter: TerminalTransitionRecordWriter;
   onPreparedAdvisories?(advisories: readonly string[]): Promise<void>;
@@ -99,14 +100,25 @@ export async function runRenameCommand(
     preflight: async (request) => {
       const names = validateRenameRequest(request.sourceSlug, request.targetSlug);
       const currentBranch = await getCurrentBranch(exec);
+      const expandedInFlight = await expandActiveInFlight({
+        exec,
+        execInput: command.io.execInput,
+        cwd: command.cwd,
+        identity: command.identity,
+        teamMode: false,
+        baseBranch: command.baseBranch,
+      });
+      if (expandedInFlight.candidateExpansion.status !== "complete") {
+        throw new Error("Could not completely expand remote work-unit candidates.");
+      }
       const composed = await resolveComposedLifecycleIndex({
         cwd: command.cwd,
         fs: lifecycleFs,
         oracle: {
           exec,
           baseBranch: command.baseBranch,
-          localOnly: false,
-          expandLiveOnly: true,
+          acquisitionPolicy: "materialized-live",
+          suppliedResult: expandedInFlight,
         },
         ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
       });

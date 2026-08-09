@@ -21,6 +21,8 @@
  */
 
 import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
+import type { RemoteFailureReason } from "../kernel/index.js";
+import { composeMergeabilityGuidance } from "./recommended-action.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -28,9 +30,18 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export type InFlightWorkUnitState =
   | "awaiting-review"
   | "mergeable"
+  | "mergeability-unavailable"
   | "blocked"
   | "merged-needs-archival"
   | "stale";
+
+/** Evidence-qualified relation between one work-unit branch and the advertised integration base. */
+export type BehindBaseRelation =
+  | { status: "known"; value: boolean; remoteEvidence: "exact" }
+  | { status: "unavailable"; remoteEvidence: "pending-fetch"; reason: "base-object-pending-fetch" }
+  | { status: "unavailable"; remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
+  | { status: "unavailable"; remoteEvidence: "exact"; reason: "remote-base-absent" }
+  | { status: "not-applicable"; remoteEvidence: "not-applicable" };
 
 /** Caller-resolved facts for one owned work unit in the completion tail. */
 export interface InFlightWorkUnitFacts {
@@ -51,33 +62,41 @@ export interface InFlightWorkUnitFacts {
   /** Whether an open PR has failing checks. */
   checksFailed: boolean;
   /**
-   * Whether the branch is behind its integration base — the base carries
-   * commits the branch lacks, so a merge needs the base folded in first. An
-   * advisory qualifier on the surfaced state (notably `mergeable`), never a
-   * state of its own.
-   */
-  behindBase: boolean;
+   * Evidence-qualified relation to the integration base. A known true value
+   * means the base carries commits the branch lacks; incomplete evidence never
+   * becomes a known false relation.
+  */
+  behindBase: BehindBaseRelation;
   /** Whole-day age of the branch's latest commit — the staleness anchor. */
   ageDays: number;
 }
 
-/** One classified in-flight work unit. */
-export interface InFlightWorkUnitReport {
+interface InFlightWorkUnitReportCommon {
   /** The work unit's name. */
   name: string;
   /** The work unit's branch name. */
   branch: string;
-  /** Derived completion-tail state. */
-  state: InFlightWorkUnitState;
   /**
-   * Whether the branch is behind its integration base — an advisory qualifier
-   * the orientation surfaces alongside the state (e.g. "mergeable, but behind
-   * base"). Orthogonal to the state; never gates or auto-acts.
+   * Evidence-qualified relation to the integration base, consumed by the
+   * completion-tail recommendation layer.
    */
-  behindBase: boolean;
+  behindBase: BehindBaseRelation;
   /** Whole-day age of the branch's latest commit. */
   ageDays: number;
 }
+
+/** One classified in-flight work unit. */
+export type InFlightWorkUnitReport = InFlightWorkUnitReportCommon & (
+  | {
+    state: Exclude<InFlightWorkUnitState, "mergeability-unavailable">;
+    mergeabilityGuidance?: never;
+  }
+  | {
+    state: "mergeability-unavailable";
+    /** Precomputed evidence guidance for approved work whose base relation is unavailable. */
+    mergeabilityGuidance: string;
+  }
+);
 
 export interface ClassifyInFlightWorkUnitsOptions {
   /** Caller-enumerated owned work units with their resolved facts. */
@@ -117,19 +136,29 @@ export function classifyInFlightWorkUnits(
       ? "merged-needs-archival"
       : wu.hasOpenPr && (wu.changesRequested || wu.checksFailed)
         ? "blocked"
-        : wu.hasOpenPr && wu.approved
+        : wu.hasOpenPr && wu.approved && wu.behindBase.status !== "known"
+          ? "mergeability-unavailable"
+          : wu.hasOpenPr && wu.approved
           ? "mergeable"
           : wu.ageDays > staleThresholdDays
             ? "stale"
             : "awaiting-review";
 
-    reports.push({
+    const report = {
       name: wu.name,
       branch: wu.branch,
-      state,
       behindBase: wu.behindBase,
       ageDays: wu.ageDays,
-    });
+    };
+    if (state === "mergeability-unavailable") {
+      reports.push({
+        ...report,
+        state,
+        mergeabilityGuidance: composeMergeabilityGuidance(wu.behindBase),
+      });
+    } else {
+      reports.push({ ...report, state });
+    }
   }
   return { workUnits: reports };
 }
@@ -200,7 +229,7 @@ export interface ProjectWorkUnitPresenceFactsOptions {
  * A roster-sourced WU has its meta in `active/`, so it is never `archived`; the
  * live-PR facts (`merged`, `hasOpenPr`, `approved`, `changesRequested`,
  * `checksFailed`) are left `false` for the mergeable-sharpening tier to upgrade,
- * and `behindBase` `false` for the composer's network-free base read to overlay.
+ * and `behindBase` not applicable for the supplied-evidence base tier to overlay.
  * The committer-date anchor becomes a whole-day age against `now`. The presence
  * tier therefore classifies every WU as `awaiting-review` (or `stale` when aged
  * past the threshold) until a PR source sharpens it.
@@ -221,7 +250,7 @@ export function projectWorkUnitPresenceFacts(
     approved: false,
     changesRequested: false,
     checksFailed: false,
-    behindBase: false,
+    behindBase: { status: "not-applicable", remoteEvidence: "not-applicable" },
     ageDays: ageDays(wu.committerDate, nowMs),
   }));
 }

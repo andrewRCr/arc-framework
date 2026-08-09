@@ -27,6 +27,7 @@ import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-syn
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
 import {
   BaseBranchSyncStatusResultSchema,
+  type BaseBranchSnapshotAnalysisResult,
   type BaseBranchSyncStatusResult,
 } from "../../../src/lib/git/base-branch-sync.js";
 import type { UserSessionInitStatusResult } from "../../../src/commands/user/types.js";
@@ -448,6 +449,52 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
   }
 
   const policy = (p: BaseBranchSyncPullPolicy): BaseBranchSyncPullPolicy => p;
+
+  it("offers only the base-sync remedy while advertised base objects are pending", () => {
+    const pending: BaseBranchSnapshotAnalysisResult = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      unavailableReason: "base-object-pending-fetch",
+      refreshRemedy: {
+        text: "Materialize and synchronize the local main branch.",
+        argv: ["arc", "base", "sync", "--json"],
+      },
+      guidance: null,
+      remoteEvidence: "pending-fetch",
+    };
+
+    expect(inferBaseBranchSync(pending, policy("prompt"))).toEqual({
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
+    });
+    // The always policy does not convert the guarded remedy into a fetch-into-ref either.
+    expect(inferBaseBranchSync(pending, policy("always"))).toEqual({
+      recommendedAction: "surface",
+      recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
+    });
+  });
+
+  it("surfaces unreachable evidence as local-safe guidance without a refresh offer", () => {
+    const unreachable: BaseBranchSnapshotAnalysisResult = {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      refreshRemedy: null,
+      guidance: "Remote base evidence is unavailable (auth).",
+      remoteEvidence: "unreachable",
+      failureReason: "auth",
+    };
+
+    expect(inferBaseBranchSync(unreachable, policy("always"))).toEqual({
+      recommendedAction: "surface",
+      recommendedPromptText: "Remote base evidence is unavailable (auth).",
+    });
+  });
 
   it("always + behind & fast-forwardable → pull, no prompt text", () => {
     const result = inferBaseBranchSync(baseBranchSync({ state: "remote-ahead", behind: 3 }), policy("always"));

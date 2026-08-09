@@ -23,6 +23,7 @@ import {
   MAX_GIT_OUTPUT_BYTES,
 } from "../lib/git/process-executor.js";
 import { GitProcessError, normalizeGitRejection } from "../lib/git/process-error.js";
+import { isGitObjectId } from "../lib/git/object-id.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 import type { InteractionContext } from "./command-input/interaction-context.js";
 
@@ -32,10 +33,17 @@ export { environmentForGitCwd } from "../lib/git/process-executor.js";
 export function createRawGitExec(cwd = process.cwd()): RawGitExec {
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
+    const environment = environmentForGitCwd(effectiveCwd);
+    const env = options.objectAccess === "local-only"
+      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : environment;
+    const effectiveArgs = options.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
     try {
-      const result = await execa("git", args, {
+      const result = await execa("git", effectiveArgs, {
         cwd: effectiveCwd,
-        env: environmentForGitCwd(effectiveCwd),
+        env,
         encoding: "buffer",
         stripFinalNewline: false,
         extendEnv: false,
@@ -44,7 +52,7 @@ export function createRawGitExec(cwd = process.cwd()): RawGitExec {
       });
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
-      throw normalizeGitRejection(error, { command: "git", args });
+      throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
     }
   };
 }
@@ -63,44 +71,46 @@ export async function readGitBlobBytes(
   cwd: string,
   ref: string | null,
   path: string,
+  options: { objectAccess?: "local-only" } = {},
 ): Promise<Uint8Array | null> {
-  const options = {
-    cwd,
-    env: environmentForGitCwd(cwd),
-    maxBuffer: MAX_GIT_OUTPUT_BYTES,
-  };
+  const exec = createRawGitExec(cwd);
+  const execOptions = options.objectAccess === undefined
+    ? undefined
+    : { objectAccess: options.objectAccess };
+  const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   let oid: string;
   if (ref === null) {
-    const { stdout } = await execaGit(["ls-files", "--stage", "-z", "--", `:(literal)${path}`], options);
-    if (stdout === "") return null;
-    const entries = stdout.split("\0").filter(Boolean);
-    const match = entries.length === 1
-      ? /^\d+ ([0-9a-f]{40,64}) 0\t/u.exec(entries[0] ?? "")
-      : null;
-    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    const { stdout: stdoutBytes } = await exec(
+      ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
+      execOptions,
+    );
+    if (stdoutBytes.length === 0) return null;
+    const nul = stdoutBytes.indexOf(0);
+    const tab = stdoutBytes.indexOf(9);
+    if (nul !== stdoutBytes.length - 1 || tab < 0 || tab > nul) {
+      throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    }
+    const metadata = decode(stdoutBytes.subarray(0, tab));
+    const match = /^\d+ ([0-9a-f]+) 0$/u.exec(metadata);
+    if (match?.[1] === undefined || !isGitObjectId(match[1])) {
+      throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    }
     oid = match[1];
   } else {
-    const { stdout } = await execaGit(
+    const { stdout: stdoutBytes } = await exec(
       ["ls-tree", "-z", "--format=%(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
-      options,
+      execOptions,
     );
+    const stdout = decode(stdoutBytes);
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
-    const match = entries.length === 1 ? /^blob ([0-9a-f]{40,64})$/u.exec(entries[0] ?? "") : null;
-    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
+    const match = entries.length === 1 ? /^blob ([0-9a-f]+)$/u.exec(entries[0] ?? "") : null;
+    if (match?.[1] === undefined || !isGitObjectId(match[1])) {
+      throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
+    }
     oid = match[1];
   }
-  try {
-    const { stdout } = await execa("git", ["cat-file", "blob", oid], {
-      ...options,
-      encoding: "buffer",
-      stripFinalNewline: false,
-      extendEnv: false,
-    });
-    return stdout;
-  } catch (error) {
-    throw normalizeGitRejection(error, { command: "git", args: ["cat-file", "blob", oid] });
-  }
+  return (await exec(["cat-file", "blob", oid], execOptions)).stdout;
 }
 
 /**
@@ -116,7 +126,7 @@ export async function readGitObjectBytes(
   oid: string,
   objectKind = "blob",
 ): Promise<Uint8Array> {
-  if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(oid)) {
+  if (!isGitObjectId(oid)) {
     throw new Error("Cannot read an invalid Git object id.");
   }
   const gitObjectKind = objectKind === "gitlink"
@@ -126,22 +136,6 @@ export async function readGitObjectBytes(
       : null;
   if (gitObjectKind === null) throw new Error(`Cannot read unsupported Git object kind: ${objectKind}.`);
   return (await createRawGitExec(cwd)(["cat-file", gitObjectKind, oid])).stdout;
-}
-
-async function execaGit(
-  args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv | undefined; maxBuffer: number },
-): Promise<{ stdout: string; stderr: string }> {
-  try {
-    const result = await execa("git", args, {
-      ...options,
-      stripFinalNewline: false,
-      extendEnv: false,
-    });
-    return { stdout: result.stdout, stderr: result.stderr };
-  } catch (error) {
-    throw normalizeGitRejection(error, { command: "git", args });
-  }
 }
 
 /** Prepared verification-only ref transaction held until the caller releases it. */
@@ -167,7 +161,7 @@ export async function prepareGitRefVerification(
   ref: string,
   expectedOid: string,
 ): Promise<GitRefVerificationLease> {
-  if (/[\0\r\n]/u.test(ref) || !/^[0-9a-f]{40,64}$/u.test(expectedOid)) {
+  if (/[\0\r\n]/u.test(ref) || !isGitObjectId(expectedOid)) {
     throw new Error("Cannot prepare an invalid Git ref verification.");
   }
   const args = ["update-ref", "--stdin"];
@@ -367,9 +361,12 @@ export function createUserIOContext(interaction?: InteractionContext["subprocess
   const exec: GitExec = interaction === undefined
     ? gitExec
     : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
+  const execInput = interaction === undefined
+    ? gitExecInput
+    : createExecaGitExecInput(MAX_GIT_OUTPUT_BYTES, interaction);
   return {
     exec,
-    execInput: gitExecInput,
+    execInput,
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: atomicWriteFile,
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),

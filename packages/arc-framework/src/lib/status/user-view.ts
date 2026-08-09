@@ -137,6 +137,7 @@ export async function runStatusUserView(
   const remoteResult = await deriveInFlight({
     exec,
     localOnly,
+    expandLiveOnly: false,
     baseBranch,
     timeoutMs,
     identity,

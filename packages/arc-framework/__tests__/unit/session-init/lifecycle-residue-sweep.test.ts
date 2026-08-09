@@ -5,6 +5,8 @@ import {
   runLandedRetirementSweep,
 } from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
+import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
 import type { RegisteredWorktree } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
@@ -66,6 +68,22 @@ function ownedMarker(name = "retired"): WorktreeMarkerReadResult {
 }
 
 const DIGEST = `sha256:${"1".repeat(64)}` as const;
+const BASE_OID = "b".repeat(40);
+
+function exactBaseEvidence(overrides: {
+  snapshot?: RemoteHeadSnapshotResult;
+  objectAvailability?: ObjectAvailabilityResult;
+  history?: { kind: "complete" } | { kind: "shallow" } | { kind: "unavailable"; reason: "execution" };
+} = {}) {
+  return {
+    remoteSyncEnabled: true,
+    snapshot: overrides.snapshot
+      ?? { kind: "available" as const, scope: "all-heads" as const, tips: { main: BASE_OID } },
+    objectAvailability: overrides.objectAvailability
+      ?? { kind: "complete" as const, commits: { [BASE_OID]: true } },
+    history: overrides.history ?? { kind: "complete" as const },
+  };
+}
 
 const exec: GitExec = async (_command, args) => ({
   stdout: args[0] === "rev-parse" ? `${HEAD}\n` : "",
@@ -255,6 +273,7 @@ describe("runLandedRetirementSweep", () => {
       });
 
       expect(result).toEqual({
+        remoteEvidence: "not-applicable",
         retirements: [],
         warnings: [
           `Could not resolve lifecycle authority ref \`${protection === "full" ? "origin/main" : "main"}\`; `
@@ -282,7 +301,7 @@ describe("runLandedRetirementSweep", () => {
       authorize: async () => ({ status: "refused", reason: "evidence-missing" }),
     });
 
-    expect(result).toEqual({ retirements: [], warnings: [] });
+    expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
   });
 
   it.each(["projection-mismatch", "authority-unavailable", "authority-ambiguous"] as const)(
@@ -316,6 +335,82 @@ describe("runLandedRetirementSweep", () => {
       }),
     });
 
-    expect(result).toEqual({ retirements: [], warnings: [] });
+    expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
+  });
+
+  it("uses exact supplied base evidence without compatibility acquisition", async () => {
+    const fetchBase = vi.fn(async () => true);
+    const authorize = vi.fn(async () => authorizedDecision());
+    const result = await runLandedRetirementSweep({
+      ...options(),
+      protection: "full",
+      baseEvidence: exactBaseEvidence(),
+      fetchBase,
+      authorize,
+    });
+
+    expect(result.remoteEvidence).toBe("exact");
+    expect(result.retirements).toHaveLength(1);
+    expect(fetchBase).not.toHaveBeenCalled();
+    expect(authorize).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    {
+      name: "pending base object",
+      evidence: exactBaseEvidence({
+        objectAvailability: { kind: "complete", commits: { [BASE_OID]: false } },
+      }),
+      remoteEvidence: "pending-fetch" as const,
+    },
+    {
+      name: "unreachable remote",
+      evidence: exactBaseEvidence({
+        snapshot: { kind: "unreachable", failureReason: "network" },
+      }),
+      remoteEvidence: "unreachable" as const,
+    },
+    {
+      name: "absent remote base",
+      evidence: exactBaseEvidence({
+        snapshot: { kind: "available", scope: "all-heads", tips: {} },
+        objectAvailability: { kind: "complete", commits: {} },
+      }),
+      remoteEvidence: "exact" as const,
+    },
+  ])("blocks cleanup when supplied evidence has a $name", async ({ evidence, remoteEvidence }) => {
+    const authorize = vi.fn(async () => authorizedDecision());
+    const result = await runLandedRetirementSweep({
+      ...options(),
+      protection: "full",
+      baseEvidence: evidence,
+      authorize,
+    });
+
+    expect(result.remoteEvidence).toBe(remoteEvidence);
+    expect(result.retirements).toEqual([{
+      status: "blocked",
+      worktreePath: "/wt/retired",
+      subject: { slug: "retired", branch: "feat/retired" },
+      reason: "evidence-unavailable",
+    }]);
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("propagates uninspectable supplied history", async () => {
+    await expect(runLandedRetirementSweep({
+      ...options(),
+      protection: "full",
+      baseEvidence: exactBaseEvidence({ history: { kind: "unavailable", reason: "execution" } }),
+    })).rejects.toThrow("Local retirement history completeness could not be inspected");
+  });
+
+  it("propagates unexpected exact-base authorization failures", async () => {
+    await expect(runLandedRetirementSweep({
+      ...options(),
+      protection: "full",
+      baseEvidence: exactBaseEvidence(),
+      authorize: async () => { throw new Error("transition graph unavailable"); },
+    })).rejects.toThrow("transition graph unavailable");
   });
 });

@@ -47,9 +47,6 @@ or focus areas]
 
 ## Code Quality Principles
 
-**Scope discipline:** Don't build what wasn't asked for. Speculative abstraction and unrequested capability are
-scope decisions rather than engineering taste, and they belong to whoever set the scope.
-
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
 <!-- Add language-specific or framework-specific standards below. Examples: -->

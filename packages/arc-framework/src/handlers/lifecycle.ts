@@ -37,6 +37,7 @@ import {
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
+import { expandActiveInFlight, runActiveInFlightExpansion } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
@@ -53,7 +54,7 @@ import {
   resolveWorktreePathsByBranch,
   runWorktreeRoster,
 } from "../lib/git/worktree-roster.js";
-import { deriveInFlight, renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
+import { renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
@@ -250,15 +251,29 @@ async function resolveTransformComposition(
   base: VerbBase,
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
 ): Promise<ComposedLifecycleIndexResult> {
+  if (base.io.execInput === undefined) {
+    throw new Error("Remote lifecycle expansion requires stdin-capable Git I/O.");
+  }
   const currentBranch = await getCurrentBranch(base.io.exec);
+  const expandedInFlight = await expandActiveInFlight({
+    exec: base.io.exec,
+    execInput: base.io.execInput,
+    cwd: base.cwd,
+    identity: base.identity,
+    teamMode: false,
+    baseBranch: settings["branch.base"],
+  });
+  if (expandedInFlight.candidateExpansion.status !== "complete") {
+    throw new Error("Could not completely expand remote work-unit candidates.");
+  }
   return await resolveComposedLifecycleIndex({
     cwd: base.cwd,
     fs: lifecycleFs,
     oracle: {
       exec: base.io.exec,
       baseBranch: settings["branch.base"],
-      localOnly: false,
-      expandLiveOnly: true,
+      acquisitionPolicy: "materialized-live",
+      suppliedResult: expandedInFlight,
     },
     ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
   });
@@ -862,12 +877,17 @@ export async function handleRename(
   const { slug: renameSource, newSlug: renameTarget } = input;
   const base = await resolveVerbBase(context);
   if (base === null) return;
+  if (base.io.execInput === undefined) {
+    refuse("remote rename expansion requires stdin-capable Git I/O");
+    return;
+  }
+  const io = { ...base.io, execInput: base.io.execInput };
   const { settings } = await readConfigSettings(base.cwd);
   const result = await runRenameCommand({
     cwd: base.cwd,
     identity: base.identity,
     baseBranch: settings["branch.base"],
-    io: base.io,
+    io,
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
     transitionWriter: terminalTransitionWriter(base),
     onPreparedAdvisories: (advisories) => {
@@ -1383,10 +1403,16 @@ async function resolveMaterializeCandidate(
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
   slug: string | undefined,
 ): Promise<MaterializableWorkUnit | null> {
+  if (base.io.execInput === undefined) {
+    refuse("remote materialization discovery requires stdin-capable Git I/O");
+    return null;
+  }
   const target = slug?.trim();
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs }));
-  const result = await deriveInFlight({
+  const result = await runActiveInFlightExpansion({
     exec: base.io.exec,
+    execInput: base.io.execInput,
+    cwd: base.cwd,
     localOnly: false,
     baseBranch: settings["branch.base"],
     identity: base.identity,
@@ -1396,8 +1422,14 @@ async function resolveMaterializeCandidate(
   for (const warning of result.warnings) {
     p.log.warn(renderInFlightWarning(warning));
   }
-  if (!result.reachable) {
+  if (result.candidateExpansion.status === "failed") {
     refuse("could not refresh remote materialize candidates from `origin` — retry when the remote is reachable.");
+    return null;
+  }
+  if (result.candidateExpansion.status === "partial") {
+    refuse(
+      `could not materialize ${result.candidateExpansion.pendingBranchCount} remote candidate branch(es) — retry.`,
+    );
     return null;
   }
   const { entries } = result;

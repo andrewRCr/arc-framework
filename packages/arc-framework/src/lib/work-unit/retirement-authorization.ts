@@ -55,6 +55,18 @@ export async function authorizeRetirement(
   ctx: RetirementAuthorizationContext,
   request: TeardownAuthorizationRequest,
 ): Promise<TeardownAuthorizationDecision> {
+  try {
+    return await authorizeRetirementStrict(ctx, request);
+  } catch {
+    return { status: "refused", reason: "authority-unavailable" };
+  }
+}
+
+/** Authorize retirement while preserving unexpected evidence-read failures. */
+export async function authorizeRetirementStrict(
+  ctx: RetirementAuthorizationContext,
+  request: TeardownAuthorizationRequest,
+): Promise<TeardownAuthorizationDecision> {
   const subjectRefusal = retirementSubjectRefusal(request.subject);
   if (subjectRefusal !== null) return { status: "refused", reason: subjectRefusal };
   if (request.subject.kind === "branch" && request.subject.ref !== request.branch) {
@@ -64,25 +76,21 @@ export async function authorizeRetirement(
     return { status: "refused", reason: "unsupported-transition" };
   }
 
-  try {
-    const [local, remoteOid] = await Promise.all([
-      ctx.readLocalProjection(request),
-      ctx.readRemoteRef(request.remote, request.branch),
-    ]);
-    if (local.oid !== request.head || !local.worktreeProjectionSafe) {
-      return { status: "refused", reason: "projection-mismatch" };
-    }
-    if (remoteOid !== null && remoteOid !== request.head) {
-      return { status: "refused", reason: "projection-mismatch" };
-    }
-
-    if (request.requestedMode === "shipped") {
-      return await authorizeShipped(ctx, request, local.oid, remoteOid);
-    }
-    return await authorizeFromGitTransition(ctx, request, local.oid, remoteOid);
-  } catch {
-    return { status: "refused", reason: "authority-unavailable" };
+  const [local, remoteOid] = await Promise.all([
+    ctx.readLocalProjection(request),
+    ctx.readRemoteRef(request.remote, request.branch),
+  ]);
+  if (local.oid !== request.head || !local.worktreeProjectionSafe) {
+    return { status: "refused", reason: "projection-mismatch" };
   }
+  if (remoteOid !== null && remoteOid !== request.head) {
+    return { status: "refused", reason: "projection-mismatch" };
+  }
+
+  if (request.requestedMode === "shipped") {
+    return await authorizeShipped(ctx, request, local.oid, remoteOid);
+  }
+  return await authorizeFromGitTransition(ctx, request, local.oid, remoteOid);
 }
 
 /**

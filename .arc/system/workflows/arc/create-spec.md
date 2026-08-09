@@ -93,6 +93,12 @@ silently. On `revise`, correct a wrong named mechanism, shape, or interface in t
 is already settled; when the finding exposes an unshaped or under-derived direction, fire
 [`resolve-planning-depth`][resolve-planning-depth]'s mid-stage re-entry valve and return to `draft-design`.
 
+### Scope-boundary carry-forward (all forms)
+
+The spec's boundary inherits the draft's and sharpens it; never silently drop a commitment the draft recorded.
+Where no `draft-*` exists, the inheritance arrives as the determinacy-confirm carried from `draft-design`
+rather than a draft section — carry it forward the same way.
+
 ### `brief` — intent + scope + one signal
 
 The design is determinate. Confirm three things are concrete: the intent, the scope boundary, and the one
@@ -194,6 +200,14 @@ When two `detailed` specs are authored as a **paired** PRD + RFC, additionally d
 entirely: the PRD's Technical Considerations and the RFC's context spine (Introduction / Goals / Non-Goals) —
 the PRD owns the shared spine, the RFC references it. A standalone `detailed` spec keeps every section; only the
 markers are stripped.
+
+**Retain the boundary carrier on emit.** Each form's boundary surface carries this contract line inside a
+section body you otherwise replace wholesale — keep it, along with the `brief` form's clause-scoping sentence
+where that form applies:
+
+```text
+_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+```
 
 **Naming:** The `{name}` descriptor in the spec filename becomes the work unit's identifier across all artifacts
 — task list (`tasks-{name}.md`), notes (`notes-{name}.md`), completion record, and branch name. Choose a
