@@ -167,4 +167,48 @@ describe("cleanupGitOwnedDecomposeCandidate", () => {
     expect(result).toEqual({ status: "refused", reason: "candidate-cleanup-raced" });
     expect((await git(candidate.root, ["rev-parse", candidate.branch])).trim()).toBe(movedHead);
   });
+
+  it("preserves a candidate branch that advances after status observation", async () => {
+    const candidate = await candidateRepository();
+    await writeFile(join(candidate.path, "seed.txt"), "staged drift\n");
+    await git(candidate.path, ["add", "seed.txt"]);
+    let movedHead: string | undefined;
+    let statusObserved = false;
+    const racingExec: GitExec = async (command, args, options) => {
+      if (options?.cwd === candidate.path && args[0] === "status") {
+        const result = await exec(command, args, options);
+        statusObserved = true;
+        return result;
+      }
+      if (statusObserved
+        && options?.cwd === candidate.path
+        && (args[0] === "reset" || args[0] === "restore")) {
+        statusObserved = false;
+        await writeFile(join(candidate.root, "advanced.txt"), "advanced candidate\n");
+        await git(candidate.root, ["add", "advanced.txt"]);
+        await git(candidate.root, ["commit", "-qm", "advance candidate"]);
+        movedHead = (await git(candidate.root, ["rev-parse", "HEAD"])).trim();
+        await git(candidate.root, [
+          "update-ref",
+          `refs/heads/${candidate.branch}`,
+          movedHead,
+          candidate.head,
+        ]);
+      }
+      return await exec(command, args, options);
+    };
+
+    const result = await cleanupGitOwnedDecomposeCandidate({
+      origin: "origin",
+      expectedHead: candidate.head,
+      expectedPath: candidate.path,
+    }, { cwd: candidate.root, exec: racingExec });
+
+    expect(result).toEqual({ status: "refused", reason: "candidate-cleanup-raced" });
+    expect(movedHead).toBeDefined();
+    expect((await git(candidate.root, ["rev-parse", candidate.branch])).trim()).toBe(movedHead);
+    expect(await git(candidate.root, ["show", `${candidate.branch}:advanced.txt`])).toBe(
+      "advanced candidate\n",
+    );
+  });
 });

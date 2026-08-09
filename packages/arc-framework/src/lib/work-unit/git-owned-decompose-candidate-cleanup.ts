@@ -134,14 +134,29 @@ export async function cleanupGitOwnedDecomposeCandidate(
     { cwd: path },
   );
   if (hasUserContent(status)) return { status: "refused", reason: "candidate-user-content" };
-  if (status !== "") {
-    await deps.exec("git", ["reset", "--hard", input.expectedHead], { cwd: path });
-  }
-  const [headAfterReset, markerAfterReset] = await Promise.all([
+
+  // Status is only an observation: the checked-out branch can move before cleanup starts.
+  // Revalidate that observation, then clean the index/worktree without updating HEAD or its
+  // branch ref. The later compare-delete remains the only ref mutation and performs the CAS.
+  const [headBeforeCleanup, markerBeforeCleanup] = await Promise.all([
     resolveBranchHead(deps, branch),
     (deps.readMarker ?? readWorktreeMarker)(path),
   ]);
-  if (headAfterReset !== input.expectedHead || !markerMatches(markerAfterReset, branch)) {
+  if (headBeforeCleanup !== input.expectedHead || !markerMatches(markerBeforeCleanup, branch)) {
+    return { status: "refused", reason: "candidate-cleanup-raced" };
+  }
+  if (status !== "") {
+    await deps.exec(
+      "git",
+      ["restore", "--source", input.expectedHead, "--staged", "--worktree", "--", "."],
+      { cwd: path },
+    );
+  }
+  const [headAfterCleanup, markerAfterCleanup] = await Promise.all([
+    resolveBranchHead(deps, branch),
+    (deps.readMarker ?? readWorktreeMarker)(path),
+  ]);
+  if (headAfterCleanup !== input.expectedHead || !markerMatches(markerAfterCleanup, branch)) {
     return { status: "refused", reason: "candidate-cleanup-raced" };
   }
 

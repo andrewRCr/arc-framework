@@ -221,17 +221,7 @@ async function ensureCandidate(
 ): Promise<DecomposeCandidateCreationResult> {
   let facts = await candidateFacts(input.exec, input.cwd, request);
   if (exactRegistration(facts, request)) {
-    if (!exactMarker(facts, request)) {
-      if (facts.marker.kind !== "absent") return collision(facts, request);
-      await ensureWorktreeMarkerIgnored(request.path, input.exec, nodeWorktreeMarkerIgnoreFs);
-      await writeWorktreeOwnershipMarker(request.path, {
-        createdByArc: true,
-        createdFor: { kind: "branch", ref: request.branch },
-        spawningIdentity: input.spawningIdentity,
-      });
-      facts = await candidateFacts(input.exec, input.cwd, request);
-    }
-    return exactRegistration(facts, request) && exactMarker(facts, request)
+    return exactMarker(facts, request)
       ? { status: "ready", observation: facts.observation }
       : collision(facts, request);
   }
