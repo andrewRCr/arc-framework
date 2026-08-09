@@ -789,6 +789,21 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("keeps authoritative transition history review-owned across merge-gate surfaces", async () => {
+    const [repositoryOwners, templateOwners, readme, setup] = await Promise.all([
+      readRepositoryFile(".github/CODEOWNERS"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/CODEOWNERS"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/README.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/setup-merge-gate.md"),
+    ]);
+
+    for (const owners of [repositoryOwners, templateOwners]) {
+      expect(owners).not.toContain("/.arc/system/.internal/transitions/*.json");
+    }
+    expect(readme).toMatch(/transition-record namespace remains review-owned/iu);
+    expect(setup).toMatch(/transition-record namespace owned/iu);
+  });
+
   it("offers review-source and merge-lock setup as independent default-off choices", async () => {
     const paths = [
       "packages/arc-framework/arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",

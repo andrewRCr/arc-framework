@@ -16,8 +16,8 @@
 # supported directories and depths. The canonical classifier remains
 # authoritative for exact filenames, rename/copy endpoints, and type/mode
 # changes that CODEOWNERS cannot express.
-# The transition-record namespace rides this block; the rest of
-# /.arc/system/.internal/ stays owned by the catch-all above.
+# Authoritative transition history remains owned by the catch-all above, as
+# does the rest of /.arc/system/.internal/.
 /.arc/active/draft-*.md
 /.arc/active/tasks-*.md
 /.arc/active/meta-*.md
@@ -59,4 +59,3 @@
 /.arc/backlog/provisional/*/*/analysis-*.md
 /.arc/backlog/provisional/*/*/spec-*.md
 /.arc/backlog/ROADMAP.md
-/.arc/system/.internal/transitions/*.json

@@ -323,3 +323,11 @@ source at planning time rather than a live artifact pointer. This spec is the su
 `notes-decompose-transition-record.md` retains the consumer trace, and `tasks-decompose-transition-record.md`
 retains implementation and deviation history. This document-topology clarification changes no design, non-goal,
 or success criterion.
+
+### Review ownership correction
+
+Integration review established that transition records differ from ordinary planning prose at the host boundary:
+their parsed content directly changes reference reconciliation and lifecycle history. The generic planning
+classifier and exact namespace predicate remain unchanged, preserving Success Criterion 1 and lightweight CI
+selection, but transition records remain code-owner reviewed rather than joining the unowned auto-merge block. This
+narrows the accepted trust downgrade without adding record validation, sealing, state, or compatibility machinery.

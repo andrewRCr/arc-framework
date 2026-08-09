@@ -125,7 +125,10 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
 
-The transition-record namespace rides the unowned block; the rest of `.arc/system/.internal/` stays owned.
+The transition-record namespace remains review-owned because its records are authoritative history. The canonical
+classifier may still return `planning` for a transition-bearing change set, keeping heavy-job selection aligned with
+the planning substrate, but code-owner approval remains required. The rest of `.arc/system/.internal/` also stays
+owned.
 
 A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
 additionally waits on owner approval and must not be armed by ARC. The

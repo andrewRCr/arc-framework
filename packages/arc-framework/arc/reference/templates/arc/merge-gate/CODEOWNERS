@@ -9,8 +9,8 @@
 # These patterns mirror the classifier's supported directories and depths.
 # CODEOWNERS cannot express filename grammar or Git type/mode changes, so the
 # canonical classifier remains authoritative when ARC arms auto-merge.
-# The transition-record namespace rides the unowned block below; the rest of
-# /.arc/system/.internal/ stays owned by the catch-all.
+# Authoritative transition history remains owned by the catch-all, as does the
+# rest of /.arc/system/.internal/.
 #
 # Replace @your-org/reviewers with your reviewers (a user or team).
 
@@ -71,4 +71,3 @@
 /.arc/backlog/provisional/*/*/analysis-*.md
 /.arc/backlog/provisional/*/*/spec-*.md
 /.arc/backlog/ROADMAP.md
-/.arc/system/.internal/transitions/*.json
