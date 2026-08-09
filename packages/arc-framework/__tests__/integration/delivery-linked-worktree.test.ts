@@ -19,6 +19,7 @@ import {
 } from "../../src/lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest, canonicalize } from "../../src/lib/kernel/index.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
 import {
   TRANSITION_RECORD_NAMESPACE,
 } from "../../src/lib/work-unit/transition-record-store.js";
@@ -214,7 +215,7 @@ describe("delivery records from an artifact-free linked worktree", () => {
     await publishPlan(stored);
     await publishTransitions([renameTransition("old-unit", "current-unit")], "record rename");
     const store = planStore(member);
-    const transitionSource = new GitDeliveryRenameTransitionSource(makeGitExec(member));
+    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member));
 
     await expect(resolveExistingDeliveryPlan({
       planStore: store,
@@ -239,7 +240,7 @@ describe("delivery records from an artifact-free linked worktree", () => {
       renameTransition("unit-b", "unit-a"),
     ], "record cycle");
     const store = planStore(member);
-    const transitionSource = new GitDeliveryRenameTransitionSource(makeGitExec(member));
+    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member));
     const input = {
       planStore: store,
       currentWorkUnitId: "current-unit",

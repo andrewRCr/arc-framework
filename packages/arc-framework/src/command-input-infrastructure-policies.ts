@@ -22,7 +22,7 @@ export const infrastructureCommandInputPolicyDeclarations = [{
   commandPath: "sync",
   aliases: [],
   sites: [
-    ...([1, 2] as const).map((occurrence) => declareInteractionSite(
+    ...([1, 2, 3] as const).map((occurrence) => declareInteractionSite(
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
       terminalSubprocessPolicy,
     )),
@@ -30,9 +30,9 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "lib/git/push-worktree.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       terminalSubprocessPolicy,
     ),
-    ...([1, 2] as const).map((occurrence) => declareInteractionSite(
-      { file: "lib/io-context.ts", kind: "subprocess", callee: "execa", occurrence },
+    declareInteractionSite(
+      { file: "lib/io-context.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       terminalSubprocessPolicy,
-    )),
+    ),
   ],
 }] satisfies readonly CommandInputDeclaration[];

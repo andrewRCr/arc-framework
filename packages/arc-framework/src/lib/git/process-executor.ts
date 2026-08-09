@@ -7,6 +7,7 @@
 import { execa } from "execa";
 
 import type { InteractionContext } from "../command-input/interaction-context.js";
+import type { RawGitExec } from "../change-facts.js";
 import type { GitExec, GitExecInput } from "./exec.js";
 import { normalizeGitRejection } from "./process-error.js";
 
@@ -93,6 +94,37 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
       return { stdout: result.stdout.trimEnd(), stderr: result.stderr };
     } catch (error) {
       throw normalizeGitRejection(error, { command, args: effectiveArgs });
+    }
+  };
+}
+
+/** Construct a byte-preserving Git adapter for raw tree and object reads. */
+export function createExecaRawGitExec(
+  cwd = process.cwd(),
+  maxBuffer = MAX_GIT_OUTPUT_BYTES,
+): RawGitExec {
+  return async (args, options = {}) => {
+    const effectiveCwd = options.cwd ?? cwd;
+    const environment = environmentForGitCwd(effectiveCwd);
+    const env = options.objectAccess === "local-only"
+      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : environment;
+    const effectiveArgs = options.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
+    try {
+      const result = await execa("git", effectiveArgs, {
+        cwd: effectiveCwd,
+        env,
+        encoding: "buffer",
+        stripFinalNewline: false,
+        extendEnv: false,
+        maxBuffer,
+        ...(options.input === undefined ? {} : { input: options.input }),
+      });
+      return { stdout: result.stdout, stderr: result.stderr };
+    } catch (error) {
+      throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
     }
   };
 }

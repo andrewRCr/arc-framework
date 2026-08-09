@@ -1,7 +1,6 @@
 /** Byte-preserving Git adapter for transition-record enumeration. */
 
 import type { RawGitExec } from "../change-facts.js";
-import type { GitExec } from "../git/exec.js";
 import {
   queryTransitionDisposition,
   type TransitionDispositionQuery,
@@ -16,19 +15,6 @@ import { TRANSITION_RECORD_NAMESPACE } from "./transition-record-store.js";
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const TREE_ENTRY_PATTERN = /^([0-7]{6}) ([^ ]+) ([0-9a-f]{40}(?:[0-9a-f]{24})?)\t(.+)$/u;
-const encoder = new TextEncoder();
-
-/** Adapt the CLI's text Git boundary to the byte-oriented transition reader. */
-export function transitionRecordGitExec(exec: GitExec): RawGitExec {
-  return async (args, options) => {
-    const result = await exec("git", args, { cwd: options?.cwd });
-    return {
-      stdout: encoder.encode(result.stdout),
-      ...(result.stderr === undefined ? {} : { stderr: encoder.encode(result.stderr) }),
-    };
-  };
-}
-
 /** Enumerate transition records from exactly one selected Git tree. */
 export async function enumerateGitTransitionRecords(
   exec: RawGitExec,

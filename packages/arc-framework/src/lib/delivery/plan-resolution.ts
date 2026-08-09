@@ -1,9 +1,8 @@
 /** Resolve a current work unit's stored delivery plan through authenticated rename history. */
 
-import type { GitExec } from "../git/exec.js";
+import type { RawGitExec } from "../change-facts.js";
 import {
   enumerateGitTransitionRecords,
-  transitionRecordGitExec,
 } from "../work-unit/git-transition-record-enumeration.js";
 import {
   enumerateTransitionReferenceTransitions,
@@ -66,12 +65,12 @@ export type ForwardDeliverySubjectTransitionResolution<TRecord> =
 
 /** Git-backed source of authenticated transitions from one established ref. */
 export class GitDeliveryRenameTransitionSource implements DeliveryRenameTransitionSource {
-  constructor(private readonly exec: GitExec) {}
+  constructor(private readonly exec: RawGitExec) {}
 
   async enumerate(ref: string): Promise<DeliveryRenameTransitionResult> {
     try {
       const transitions = enumerateTransitionReferenceTransitions(
-        await enumerateGitTransitionRecords(transitionRecordGitExec(this.exec), ref),
+        await enumerateGitTransitionRecords(this.exec, ref),
       );
       return transitions.status === "valid"
         ? { status: "ok", value: transitions.transitions }

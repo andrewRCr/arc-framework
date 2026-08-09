@@ -120,7 +120,8 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { GitExec, GitExecInput } from "../lib/git/index.js";
-import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
+import { createGitExec, createRawGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
+import type { RawGitExec } from "../lib/change-facts.js";
 import {
   projectTransientInFlightRead,
   readFetchedTransientInFlightIndexes,
@@ -159,7 +160,6 @@ import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import {
   enumerateGitTransitionRecords,
   queryGitTransitionDisposition,
-  transitionRecordGitExec,
 } from "../lib/work-unit/git-transition-record-enumeration.js";
 import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
@@ -433,6 +433,11 @@ export async function handleStatus(
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const json = Boolean(opts.json);
+  const transitionExec = createRawGitExec(cwd);
+  const localOnlyTransitionExec: RawGitExec = (args, options) => transitionExec(args, {
+    ...options,
+    objectAccess: "local-only",
+  });
 
   if (slug !== undefined) {
     // Slug→state query: a subject-keyed read over the lifecycle-complete index.
@@ -961,8 +966,8 @@ export async function handleStatus(
           {
             index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
             queryDisposition: (input) =>
-              queryGitTransitionDisposition(transitionRecordGitExec(exec), "HEAD", input),
-            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionRecordGitExec(exec), "HEAD"),
+              queryGitTransitionDisposition(transitionExec, "HEAD", input),
+            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
             listArtifactPaths: (slug, ownedMetaPath) =>
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
             readFile: (path) => io.readFile(resolve(cwd, path)),
@@ -976,10 +981,6 @@ export async function handleStatus(
         const protection = resolved.settings["branch.protection"] === "full" ? "full" : "partial";
         const baseBranch = resolved.settings["branch.base"];
         const prerequisites = sessionRemotePrerequisites(context);
-        const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
-          ...options,
-          objectAccess: "local-only",
-        });
         const authority = prerequisites.kind === "supplied" || protection === "partial"
           ? await analyzeUserReferenceAuthority({
             protection,
@@ -993,7 +994,7 @@ export async function handleStatus(
             objectAvailability: prerequisites.kind === "supplied"
               ? prerequisites.objectAvailability
               : { kind: "unavailable", reason: "execution" },
-            enumerateAt: (ref) => enumerateGitTransitionRecords(transitionRecordGitExec(localOnlyExec), ref),
+            enumerateAt: (ref) => enumerateGitTransitionRecords(localOnlyTransitionExec, ref),
           })
           : {
               // `not-needed` means remote sync is off or no remote is configured. That is

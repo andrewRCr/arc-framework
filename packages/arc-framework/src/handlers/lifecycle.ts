@@ -294,7 +294,7 @@ function terminalTransitionWriter(base: VerbBase): ReturnType<typeof createInRep
     cwd: base.cwd,
     exec: base.io.exec,
     createRecord: (record) => writeTransitionRecord(base.cwd, record),
-    removeRecord: (origin) => rm(resolveTransitionRecordPath(base.cwd, origin)),
+    removeRecord: (origin) => rm(resolveTransitionRecordPath(base.cwd, origin), { force: true }),
   });
 }
 

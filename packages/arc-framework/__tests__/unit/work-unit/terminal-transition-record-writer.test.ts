@@ -17,9 +17,17 @@ function record(): TransitionRecord {
   };
 }
 
-function harness(options: { occupied?: boolean; createFailure?: string; stageFailure?: boolean } = {}) {
+function harness(options: {
+  occupied?: boolean;
+  createFailure?: string;
+  stageFailure?: boolean;
+  indexCleanupFailures?: number;
+  recordRemovalFailures?: number;
+} = {}) {
   const files = new Set<string>(options.occupied === true ? ["retired-origin"] : []);
   const staged = new Set<string>();
+  let indexCleanupFailures = options.indexCleanupFailures ?? 0;
+  let recordRemovalFailures = options.recordRemovalFailures ?? 0;
   const exec: GitExec = async (_file, args) => {
     const path = args.at(-1);
     if (path === undefined) throw new Error("test command requires a path");
@@ -27,6 +35,10 @@ function harness(options: { occupied?: boolean; createFailure?: string; stageFai
       if (options.stageFailure === true) throw new Error("index locked");
       staged.add(path);
     } else if (args[0] === "rm") {
+      if (indexCleanupFailures > 0) {
+        indexCleanupFailures -= 1;
+        throw new Error("index still locked");
+      }
       staged.delete(path);
     }
     return { stdout: "", stderr: "" };
@@ -42,6 +54,10 @@ function harness(options: { occupied?: boolean; createFailure?: string; stageFai
       files.add(candidate.origin);
     },
     removeRecord: async (origin) => {
+      if (recordRemovalFailures > 0) {
+        recordRemovalFailures -= 1;
+        throw new Error("record still busy");
+      }
       files.delete(origin);
     },
   });
@@ -77,6 +93,45 @@ describe("terminal transition record writer", () => {
 
     expect(state.files).toEqual(new Set());
     expect(state.staged).toEqual(new Set());
+  });
+
+  it("retries transient index and filesystem cleanup failures", async () => {
+    const state = harness({
+      stageFailure: true,
+      indexCleanupFailures: 1,
+      recordRemovalFailures: 1,
+    });
+
+    await expect(state.writer.record(record())).resolves.toMatchObject({
+      status: "unavailable",
+      diagnostic: expect.stringContaining("index locked"),
+    });
+
+    expect(state.files).toEqual(new Set());
+    expect(state.staged).toEqual(new Set());
+  });
+
+  it("surfaces record residue when filesystem cleanup still fails after retry", async () => {
+    const state = harness({ stageFailure: true, recordRemovalFailures: 2 });
+
+    await expect(state.writer.record(record())).resolves.toMatchObject({
+      status: "unavailable",
+      diagnostic: expect.stringMatching(/record removal failed.*record still busy/iu),
+    });
+
+    expect(state.files).toEqual(new Set(["retired-origin"]));
+    expect(state.staged).toEqual(new Set());
+  });
+
+  it("surfaces staged residue when index cleanup still fails after retry", async () => {
+    const state = harness({ stageFailure: true, indexCleanupFailures: 2 });
+
+    await expect(state.writer.record(record())).resolves.toMatchObject({
+      status: "unavailable",
+      diagnostic: expect.stringMatching(/index cleanup failed.*index still locked/iu),
+    });
+
+    expect(state.files).toEqual(new Set());
   });
 
   it("unstages and removes a recorded attempt", async () => {

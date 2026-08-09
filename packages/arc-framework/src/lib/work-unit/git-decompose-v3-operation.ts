@@ -215,7 +215,7 @@ export async function executeGitV3DecomposeOperation(
             await writeTransitionRecord(cwd, candidate);
           },
           removeRecord: async (origin) => {
-            await rm(resolveTransitionRecordPath(cwd, origin));
+            await rm(resolveTransitionRecordPath(cwd, origin), { force: true });
           },
         }).record(record);
       },
@@ -229,7 +229,7 @@ export async function executeGitV3DecomposeOperation(
             await writeTransitionRecord(cwd, candidate);
           },
           removeRecord: async (origin) => {
-            await rm(resolveTransitionRecordPath(cwd, origin));
+            await rm(resolveTransitionRecordPath(cwd, origin), { force: true });
           },
         }).rollback(record);
       },

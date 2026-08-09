@@ -37,7 +37,7 @@ import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createRawGitExec, createUserIOContext } from "../lib/io-context.js";
 import { atomicWriteFile } from "../lib/fs.js";
 import {
   resolveProcessInteractionContext,
@@ -48,7 +48,6 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import {
   enumerateGitTransitionRecords,
-  transitionRecordGitExec,
 } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
   materializeUserReferenceAuthority,
@@ -91,6 +90,7 @@ export async function handleUserReconcileReferences(
   const identity = SlugSchema.parse(await resolveUserIdentity());
   const io = createUserIOContext(context?.subprocess);
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { ...options, cwd });
+  const transitionExec = createRawGitExec(cwd);
   const [{ settings }, surfaces, currentWuName] = await Promise.all([
     readConfigSettings(cwd),
     resolveUserSurfaceResolver({ cwd, identity, exec }),
@@ -100,7 +100,7 @@ export async function handleUserReconcileReferences(
     exec,
     protection: settings["branch.protection"] === "full" ? "full" : "partial",
     baseBranch: settings["branch.base"],
-    enumerateAt: (ref) => enumerateGitTransitionRecords(transitionRecordGitExec(exec), ref),
+    enumerateAt: (ref) => enumerateGitTransitionRecords(transitionExec, ref),
   });
   if (authority.status !== "ready") {
     emitUserReferenceResult(opts, { status: authority.status, authority, plan: null });

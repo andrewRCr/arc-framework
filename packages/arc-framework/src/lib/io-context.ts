@@ -19,6 +19,7 @@ import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
 import {
   createExecaGitExec,
   createExecaGitExecInput,
+  createExecaRawGitExec,
   environmentForGitCwd,
   MAX_GIT_OUTPUT_BYTES,
 } from "../lib/git/process-executor.js";
@@ -31,30 +32,7 @@ export { environmentForGitCwd } from "../lib/git/process-executor.js";
 
 /** Create a byte-preserving Git adapter without importing an executable module at the CLI entrypoint. */
 export function createRawGitExec(cwd = process.cwd()): RawGitExec {
-  return async (args, options = {}) => {
-    const effectiveCwd = options.cwd ?? cwd;
-    const environment = environmentForGitCwd(effectiveCwd);
-    const env = options.objectAccess === "local-only"
-      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
-      : environment;
-    const effectiveArgs = options.objectAccess === "local-only"
-      ? ["--no-lazy-fetch", ...args]
-      : args;
-    try {
-      const result = await execa("git", effectiveArgs, {
-        cwd: effectiveCwd,
-        env,
-        encoding: "buffer",
-        stripFinalNewline: false,
-        extendEnv: false,
-        maxBuffer: MAX_GIT_OUTPUT_BYTES,
-        ...(options.input === undefined ? {} : { input: options.input }),
-      });
-      return { stdout: result.stdout, stderr: result.stderr };
-    } catch (error) {
-      throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
-    }
-  };
+  return createExecaRawGitExec(cwd);
 }
 
 const candidateGitExec = createExecaGitExec();

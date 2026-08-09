@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../../src/lib/change-facts.js";
+import { createExecaGitExec } from "../../../src/lib/git/process-executor.js";
+import { createRawGitExec } from "../../../src/lib/io-context.js";
 import {
   enumerateGitTransitionRecords,
   queryGitTransitionDisposition,
@@ -12,6 +18,11 @@ import {
 import { TRANSITION_RECORD_NAMESPACE } from "../../../src/lib/work-unit/transition-record-store.js";
 
 const encoder = new TextEncoder();
+const roots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
 
 function treeLine(oid: string, filename: string): Uint8Array {
   return encoder.encode(`100644 blob ${oid}\t${TRANSITION_RECORD_NAMESPACE}/${filename}\0`);
@@ -114,6 +125,28 @@ describe("Git transition record enumeration", () => {
       .resolves.toMatchObject({ status: "valid" });
     await expect(enumerateGitTransitionRecords(exec, "refs/heads/selected-malformed"))
       .resolves.toEqual({ status: "namespace-corrupt", filename: "malformed.json" });
+  });
+
+  it("preserves invalid record bytes through the production Git process boundary", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-transition-bytes-"));
+    roots.push(root);
+    const exec = createExecaGitExec();
+    await exec("git", ["init", "-b", "main"], { cwd: root });
+    await exec("git", ["config", "user.name", "ARC Test"], { cwd: root });
+    await exec("git", ["config", "user.email", "arc@example.test"], { cwd: root });
+    const recordDir = join(root, TRANSITION_RECORD_NAMESPACE);
+    await mkdir(recordDir, { recursive: true });
+    const prefix = encoder.encode(
+      '{"schemaVersion":1,"origin":"bad","kind":"decompose","successors":[],"edges":['
+      + '{"dependent":"consumer","disposition":{"kind":"drop","reason":"',
+    );
+    const suffix = encoder.encode('"}}]}\n');
+    await writeFile(join(recordDir, "bad.json"), Uint8Array.from([...prefix, 0xc3, 0x28, ...suffix]));
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-m", "invalid bytes"], { cwd: root });
+
+    await expect(enumerateGitTransitionRecords(createRawGitExec(root), "HEAD"))
+      .resolves.toEqual({ status: "namespace-corrupt", filename: "bad.json" });
   });
 
   it("returns the selected ref's transition answer across divergent histories", async () => {

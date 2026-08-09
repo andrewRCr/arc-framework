@@ -65,19 +65,35 @@ async function rollbackRecord(
 ): Promise<TerminalTransitionRecordRollbackResult> {
   const failures: string[] = [];
   const path = resolveTransitionRecordRelativePath(record.origin);
-  try {
+  const indexFailure = await retryCleanup(async () => {
     await deps.exec("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", path], { cwd: deps.cwd });
-  } catch (error) {
-    failures.push(`index cleanup failed: ${errorMessage(error)}`);
-  }
-  try {
-    await deps.removeRecord(record.origin);
-  } catch (error) {
-    failures.push(`record removal failed: ${errorMessage(error)}`);
-  }
+  });
+  if (indexFailure !== null) failures.push(`index cleanup failed after retry: ${indexFailure}`);
+  const removalFailure = await retryCleanup(async () => {
+    try {
+      await deps.removeRecord(record.origin);
+    } catch (error) {
+      if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+    }
+  });
+  if (removalFailure !== null) failures.push(`record removal failed after retry: ${removalFailure}`);
   return failures.length === 0
     ? { status: "rolled-back" }
     : { status: "unavailable", diagnostic: failures.join("; ") };
+}
+
+async function retryCleanup(action: () => Promise<void>): Promise<string | null> {
+  try {
+    await action();
+    return null;
+  } catch {
+    try {
+      await action();
+      return null;
+    } catch (error) {
+      return errorMessage(error);
+    }
+  }
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

@@ -13,7 +13,7 @@ import { z } from "zod";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createRawGitExec, createUserIOContext } from "../lib/io-context.js";
 import { captureGitIndexState, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
@@ -21,7 +21,6 @@ import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lif
 import {
   enumerateGitTransitionRecords,
   queryGitTransitionDisposition,
-  transitionRecordGitExec,
 } from "../lib/work-unit/git-transition-record-enumeration.js";
 import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import {
@@ -104,6 +103,7 @@ export async function handleWuReconcile(
   if (cwd === null) return;
   const io = createUserIOContext(context?.subprocess);
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { cwd, ...options });
+  const transitionExec = createRawGitExec(cwd);
   const [index, currentBranch] = await Promise.all([
     buildLifecycleIndex({ cwd, fs: nodeLifecycleFs }),
     getCurrentBranch(exec),
@@ -119,8 +119,8 @@ export async function handleWuReconcile(
   }
   const result = await runCurrentWuReconcile({
     index,
-    queryDisposition: (input) => queryGitTransitionDisposition(transitionRecordGitExec(exec), "HEAD", input),
-    enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionRecordGitExec(exec), "HEAD"),
+    queryDisposition: (input) => queryGitTransitionDisposition(transitionExec, "HEAD", input),
+    enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
     listArtifactPaths: (slug, metaPath) =>
       listCurrentWuArtifactPaths(slug, metaPath, (path) => readdir(resolve(cwd, path))),
     readFile: (path) => io.readFile(resolve(cwd, path)),
