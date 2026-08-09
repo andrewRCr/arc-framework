@@ -215,6 +215,53 @@ function collision(
   };
 }
 
+function exactUnmarkedRegistration(
+  facts: CandidateFacts,
+  request: DecomposeCandidateCreationRequest,
+): boolean {
+  return exactRegistration(facts, request) && facts.marker.kind === "absent";
+}
+
+async function rollbackAddedCandidate(
+  input: Pick<GitV3DecomposeOperationIOInput, "cwd" | "exec">,
+  request: DecomposeCandidateCreationRequest,
+): Promise<void> {
+  let facts = await candidateFacts(input.exec, input.cwd, request);
+  if (!exactUnmarkedRegistration(facts, request)) return;
+
+  const { stdout: status } = await input.exec(
+    "git",
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    { cwd: request.path },
+  );
+  if (status !== "") return;
+
+  // Cleanliness is only an observation. Revalidate ownership-free exact topology,
+  // then let non-force removal reject content that races the observation.
+  facts = await candidateFacts(input.exec, input.cwd, request);
+  if (!exactUnmarkedRegistration(facts, request)) return;
+  await input.exec("git", ["worktree", "remove", request.path], { cwd: input.cwd });
+
+  // The worktree is gone, but the branch remains independently mutable. Delete
+  // only the exact ref generation created by this invocation, after verifying no
+  // registration or path raced into the vacated locus.
+  facts = await candidateFacts(input.exec, input.cwd, request);
+  if (facts.observation.registrations.length !== 0
+    || facts.worktreePaths.has(request.path)
+    || facts.pathExists
+    || facts.observation.branchHead !== request.baseHead) {
+    return;
+  }
+  await input.exec(
+    "git",
+    ["update-ref", "-d", `refs/heads/${request.branch}`, request.baseHead],
+    { cwd: input.cwd },
+  );
+  if (await resolveCommit(input.exec, input.cwd, `refs/heads/${request.branch}`) !== null) {
+    throw new Error("Candidate branch remained after compare-delete.");
+  }
+}
+
 async function ensureCandidate(
   input: Pick<GitV3DecomposeOperationIOInput, "cwd" | "exec" | "spawningIdentity">,
   request: DecomposeCandidateCreationRequest,
@@ -228,6 +275,7 @@ async function ensureCandidate(
 
   const absence = absenceEvidence(facts, request);
   if (!Object.values(absence).every(Boolean)) return collision(facts, request);
+  let added = false;
   try {
     await mkdir(dirname(request.path), { recursive: true });
     await input.exec(
@@ -235,6 +283,7 @@ async function ensureCandidate(
       ["worktree", "add", request.path, "-b", request.branch, request.baseHead],
       { cwd: input.cwd },
     );
+    added = true;
     await ensureWorktreeMarkerIgnored(request.path, input.exec, nodeWorktreeMarkerIgnoreFs);
     await writeWorktreeOwnershipMarker(request.path, {
       createdByArc: true,
@@ -243,6 +292,13 @@ async function ensureCandidate(
     });
   } catch {
     facts = await candidateFacts(input.exec, input.cwd, request);
+    if (added && exactRegistration(facts, request) && exactMarker(facts, request)) {
+      return { status: "ready", observation: facts.observation };
+    }
+    if (added) {
+      await rollbackAddedCandidate(input, request).catch(() => undefined);
+      facts = await candidateFacts(input.exec, input.cwd, request);
+    }
     return collision(facts, request);
   }
   facts = await candidateFacts(input.exec, input.cwd, request);

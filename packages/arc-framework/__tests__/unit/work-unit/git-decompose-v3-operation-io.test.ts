@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -23,6 +23,123 @@ afterEach(async () => {
 });
 
 describe("Git v3 decomposition candidate creation", () => {
+  it("rolls back a failed post-add marker step and retries idempotently", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-decompose-candidate-retry-"));
+    roots.push(root);
+    await git(root, ["init", "-q"]);
+    await git(root, ["config", "user.email", "arc@example.com"]);
+    await git(root, ["config", "user.name", "ARC Test"]);
+    await writeFile(join(root, "seed.txt"), "seed\n");
+    await git(root, ["add", "seed.txt"]);
+    await git(root, ["commit", "-qm", "seed"]);
+
+    const baseHead = (await git(root, ["rev-parse", "HEAD"])).trim();
+    const branch = "chore/decompose-marker-retry";
+    const path = join(root, "candidate");
+    let failMarkerIgnore = true;
+    let worktreeAdds = 0;
+    let worktreeRemoves = 0;
+    const branchDeletes: string[][] = [];
+    const exec: GitExec = async (_command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "add") worktreeAdds += 1;
+      if (args[0] === "worktree" && args[1] === "remove") worktreeRemoves += 1;
+      if (args[0] === "update-ref" && args[1] === "-d") branchDeletes.push(args);
+      if (failMarkerIgnore
+        && options?.cwd === path
+        && args[0] === "rev-parse"
+        && args[1] === "--git-path"
+        && args[2] === "info/exclude") {
+        failMarkerIgnore = false;
+        throw new Error("injected marker-ignore failure");
+      }
+      return {
+        stdout: await git(options?.cwd ?? root, args),
+        stderr: "",
+      };
+    };
+    const io = await createGitV3DecomposeOperationIO({
+      cwd: root,
+      exec,
+      spawningIdentity: "test",
+      blobs: [],
+    });
+    const request = { branch, baseHead, path };
+
+    await expect(io.occupation.ensureCandidate(request)).resolves.toMatchObject({
+      status: "collision",
+      noMutation: true,
+    });
+    await expect(access(path)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await git(root, ["branch", "--list", branch])).toBe("");
+    expect(await git(root, ["worktree", "list", "--porcelain"])).not.toContain(path);
+
+    const retried = await io.occupation.ensureCandidate(request);
+    expect(retried.status).toBe("ready");
+    await expect(readWorktreeMarker(path)).resolves.toMatchObject({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: { kind: "branch", ref: branch },
+      },
+    });
+    await expect(io.occupation.ensureCandidate(request)).resolves.toEqual(retried);
+    expect({ worktreeAdds, worktreeRemoves, branchDeletes }).toEqual({
+      worktreeAdds: 2,
+      worktreeRemoves: 1,
+      branchDeletes: [["update-ref", "-d", `refs/heads/${branch}`, baseHead]],
+    });
+  });
+
+  it("preserves user content that races post-add rollback", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-decompose-candidate-content-race-"));
+    roots.push(root);
+    await git(root, ["init", "-q"]);
+    await git(root, ["config", "user.email", "arc@example.com"]);
+    await git(root, ["config", "user.name", "ARC Test"]);
+    await writeFile(join(root, "seed.txt"), "seed\n");
+    await git(root, ["add", "seed.txt"]);
+    await git(root, ["commit", "-qm", "seed"]);
+
+    const baseHead = (await git(root, ["rev-parse", "HEAD"])).trim();
+    const branch = "chore/decompose-content-race";
+    const path = join(root, "candidate");
+    let failMarkerIgnore = true;
+    let raceStatus = true;
+    const exec: GitExec = async (_command, args, options) => {
+      if (failMarkerIgnore
+        && options?.cwd === path
+        && args[0] === "rev-parse"
+        && args[1] === "--git-path"
+        && args[2] === "info/exclude") {
+        failMarkerIgnore = false;
+        throw new Error("injected marker-ignore failure");
+      }
+      const result = {
+        stdout: await git(options?.cwd ?? root, args),
+        stderr: "",
+      };
+      if (raceStatus && options?.cwd === path && args[0] === "status") {
+        raceStatus = false;
+        await writeFile(join(path, "user-content.txt"), "preserve me\n");
+      }
+      return result;
+    };
+    const io = await createGitV3DecomposeOperationIO({
+      cwd: root,
+      exec,
+      spawningIdentity: "test",
+      blobs: [],
+    });
+
+    await expect(io.occupation.ensureCandidate({ branch, baseHead, path })).resolves.toEqual({
+      status: "collision",
+      noMutation: false,
+    });
+    await expect(access(join(path, "user-content.txt"))).resolves.toBeUndefined();
+    expect(await git(root, ["branch", "--list", branch])).toContain(branch);
+    await expect(readWorktreeMarker(path)).resolves.toEqual({ kind: "absent" });
+  });
+
   it("does not claim a foreign exact candidate that appears after initial observation", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-decompose-candidate-race-"));
     roots.push(root);
