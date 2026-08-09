@@ -95,6 +95,11 @@ export async function classifyDecompositionPlanningLane(
   if (receiptChanges.length === 0) {
     return { outcome: classifyPlanningLane(changeSet) };
   }
+  // A migration may retire this legacy namespace wholesale. That change must
+  // remain review-gated, but deleting old evidence is not malformed evidence.
+  if (receiptChanges.some((change) => change.status === "deleted")) {
+    return { outcome: "reviewed" };
+  }
   const firstReceiptPath = receiptChanges[0]?.path ?? RETIREMENT_RECORD_NAMESPACE;
   const invalidShape = receiptChanges.find((change) =>
     change.status !== "added" || change.newMode !== "100644");

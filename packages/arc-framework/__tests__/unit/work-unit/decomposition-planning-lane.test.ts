@@ -87,7 +87,7 @@ describe("decomposition planning lane", () => {
     expect(deps.validateLanding).not.toHaveBeenCalled();
   });
 
-  it("refuses multiple, modified, or deleted receipt claims", async () => {
+  it("refuses multiple or modified receipt claims", async () => {
     const { changeSet, receipt } = exactChangeSet();
     const receiptPath = changeSet.changes.at(-1)!.path;
     const secondPath = `${receiptPath.slice(0, -5)}f.json`;
@@ -97,15 +97,29 @@ describe("decomposition planning lane", () => {
       changeSet: "known",
       changes: [...changeSet.changes, change(secondPath)],
     }, BASE, HEAD, deps)).resolves.toMatchObject({ outcome: "invalid-retirement" });
-    for (const status of ["modified", "deleted"] as const) {
-      await expect(classifyDecompositionPlanningLane({
-        changeSet: "known",
-        changes: [...changeSet.changes.slice(0, -1), change(receiptPath, status)],
-      }, BASE, HEAD, deps)).resolves.toEqual({
-        outcome: "invalid-retirement",
-        locus: receiptPath,
-      });
-    }
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: [...changeSet.changes.slice(0, -1), change(receiptPath, "modified")],
+    }, BASE, HEAD, deps)).resolves.toEqual({
+      outcome: "invalid-retirement",
+      locus: receiptPath,
+    });
+  });
+
+  it("reviews retirement-receipt deletion without reading legacy evidence", async () => {
+    const { changeSet, receipt } = exactChangeSet();
+    const receiptPath = changeSet.changes.at(-1)!.path;
+    const deps = dependencies(receipt);
+
+    await expect(classifyDecompositionPlanningLane({
+      changeSet: "known",
+      changes: [
+        ...changeSet.changes.slice(0, -1),
+        change(receiptPath, "deleted"),
+      ],
+    }, BASE, HEAD, deps)).resolves.toEqual({ outcome: "reviewed" });
+    expect(deps.readReceipt).not.toHaveBeenCalled();
+    expect(deps.assemble).not.toHaveBeenCalled();
   });
 
   it("reviews multiple authenticated records that are not decomposition receipts", async () => {
