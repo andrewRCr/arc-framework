@@ -36,7 +36,7 @@ export function createRespondDependencies(input: {
     readReceipt: async (reference) => (await receipts()).readReceiptReference(reference),
     confirmTarget: (target) => prepare.confirmTarget(target),
     resolveLocalActors: async (evaluatorIdentity) => {
-      const authority = await prepare.resolveAuthority(evaluatorIdentity);
+      const { authority } = await prepare.resolveAuthority(evaluatorIdentity);
       return {
         approverIdentity: authority.authorIdentity,
         proposerIdentity: authority.runtimeIdentity,

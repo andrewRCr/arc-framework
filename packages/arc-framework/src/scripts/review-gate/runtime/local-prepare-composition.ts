@@ -17,9 +17,13 @@ import {
   ensureLocalReviewSourceMaterialized,
 } from "../hosts/local/review-materialization.js";
 import {
+  composeDeliveryMemberTarget,
   deriveLocalReviewTarget,
   confirmLocalReviewTarget,
 } from "../hosts/local/repository-target.js";
+import {
+  RepositoryDeliveryMemberLookup,
+} from "../hosts/local/delivery-member-lookup.js";
 import {
   resolveLocalReviewAuthority,
 } from "../hosts/local/review-authority.js";
@@ -74,6 +78,7 @@ export function createLocalPrepareDependencies(input: {
     liveContext ??= readLocalReviewLiveContext(input);
     return liveContext;
   };
+  const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const methodFiles = createLocalReviewMethodFilePort({ cwd: input.cwd });
   const rubricPort = createLocalReviewRubricBindingPort({ cwd: input.cwd });
 
@@ -96,33 +101,43 @@ export function createLocalPrepareDependencies(input: {
     },
     readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
     resolveRepositoryId: () => resolveRepositoryIdentity(publisher),
-    deriveTarget: async (repositoryId) => {
+    deriveTarget: async (repositoryId, member) => {
       const config = await readConfigSettings(input.cwd);
-      return deriveLocalReviewTarget({
+      const boundary = {
         exec: input.exec,
         cwd: input.cwd,
         baseRef: config.settings["branch.base"],
         repositoryId,
-      });
+      };
+      return member === undefined
+        ? deriveLocalReviewTarget(boundary)
+        : composeDeliveryMemberTarget({ ...boundary, member });
     },
     confirmTarget: (target) => confirmLocalReviewTarget({
       exec: input.exec,
       cwd: input.cwd,
       attemptedTarget: target,
     }),
-    resolveAuthority: (evaluatorIdentity) => resolveLocalReviewAuthority(
-      { evaluatorIdentity },
+    resolveAuthority: (evaluatorIdentity, memberHeadObjectId) => resolveLocalReviewAuthority(
+      {
+        evaluatorIdentity,
+        ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
+      },
       {
         readLiveContext: async () => (await readLive()).context,
         resolveRuntimeBinding: () => Promise.resolve({
           kind: "arc-cli",
           identity: `arc-cli/${getFrameworkVersion()}`,
         }),
+        memberLookup,
       },
     ),
     composeAssurance: async (authority: LocalReviewAuthority) => {
       const live = await readLive();
-      if (authority.vehicle.kind === "work-unit") {
+      // A member's assurance is its owning work unit's: same meta, same work
+      // class, same rubric. Left unrouted it would fall to the Errand arm below
+      // and compose an assurance with no work class at all.
+      if (authority.vehicle.kind === "work-unit" || authority.vehicle.kind === "delivery-member") {
         if (live.meta === null) return { status: "refused", diagnostics: ["work-unit meta unavailable"] };
         const composed = composeWorkUnitReviewAssurance(live.meta, methodFiles, rubricPort);
         if (composed.status === "refused") {
