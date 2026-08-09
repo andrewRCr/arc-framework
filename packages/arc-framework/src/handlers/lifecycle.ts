@@ -1987,7 +1987,11 @@ export async function handleTeardown(
         readTeardownSelection,
         teardownWorktree,
       },
-      { branch: branchArg, base: baseBranch },
+      {
+        branch: branchArg,
+        base: baseBranch,
+        protection: settings["branch.protection"] === "full" ? "full" : "partial",
+      },
     );
     if (result.status === "rejected") {
       if (result.huskRefusal !== undefined) {

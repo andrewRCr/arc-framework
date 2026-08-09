@@ -884,7 +884,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       const teardown = await runArc(["teardown", "solo", "--force"], worktree);
 
       expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
-      expect(await branchExists(repo, "plan/solo")).toBe(true);
+      expect(await branchExists(repo, "plan/solo")).toBe(false);
     } finally {
       await removeGitBackedDir(origin);
     }
@@ -987,7 +987,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc abandon (CLI) — remove artifacts in-verb, defer teardown out-of-band
   // -------------------------------------------------------------------------
 
-  it("fails closed when parked history presents competing structural transitions", async () => {
+  it("fails closed when historical abandon evidence does not bind the retiring branch", async () => {
     const { worktree, branch } = await scaffoldActiveWu(repo, "mono");
     worktrees.push(worktree);
     await writeWorktreeOwnershipMarker(worktree, {
@@ -1017,7 +1017,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const teardown = await runArc(["teardown", "mono"], repo);
 
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(1);
-    expect(teardown.stdout + teardown.stderr).toMatch(/conflicting evidence/iu);
+    expect(teardown.stdout + teardown.stderr).toMatch(/live branch projection does not match/iu);
     expect(await branchExists(repo, branch)).toBe(true);
     expect(await pathExists(sessionNotes)).toBe(true);
   });
@@ -1108,7 +1108,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc teardown --force — the four silently-broken behaviors
   // -------------------------------------------------------------------------
 
-  it("authorizes primary-side linked cleanup from the committed transition alone", async () => {
+  it("refuses primary-side linked cleanup from unrelated historical deletion", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     // Retire the origin (remove its active/ meta) so it is un-shipped, then reap.
@@ -1123,8 +1123,9 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
     const result = await runArc(["teardown", "mono", "--force"], repo);
 
-    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-    expect(await branchExists(repo, "plan/mono")).toBe(false);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout + result.stderr).toMatch(/live branch projection does not match/iu);
+    expect(await branchExists(repo, "plan/mono")).toBe(true);
   });
 
   it("authorizes in-place primary cleanup from the committed transition alone", async () => {
@@ -1140,7 +1141,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(repo)).toBe(true);
   });
 
-  it("authorizes linked self-teardown from the committed transition alone", async () => {
+  it("refuses linked self-teardown from unrelated historical deletion", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     await rm(join(repo, ".arc/active/meta-mono.md"));
@@ -1156,7 +1157,8 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     // process complete despite its cwd disappearing.
     const result = await runArc(["teardown", "mono", "--force"], worktree!);
 
-    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout + result.stderr).toMatch(/live branch projection does not match/iu);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
   });

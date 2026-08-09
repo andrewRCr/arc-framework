@@ -76,10 +76,14 @@ export type ParkPlanningLandingResult =
   | { status: "rejected"; reason: string };
 
 /** Low-level production boundaries for the in-repository landing adapter. */
-export interface InRepoParkPlanningLandingDeps {
-  cwd: string;
+export interface ParkPlanningTransitionValidationDeps {
+  cwd?: string;
   exec: GitExec;
   readBlob(ref: string | null, path: ManagedPath): Promise<Uint8Array | null>;
+}
+
+export interface InRepoParkPlanningLandingDeps extends ParkPlanningTransitionValidationDeps {
+  cwd: string;
   prepareRefVerification(ref: string, expectedOid: string): Promise<{ release(): Promise<void> }>;
   fs: {
     lstat(path: string): Promise<{ isDirectory(): boolean; isSymbolicLink(): boolean }>;
@@ -190,87 +194,124 @@ async function readCommittedTransition(
     if (owner === undefined) {
       return { status: "rejected", reason: `The exact \`${branch}\` tip is not owned by a registered worktree.` };
     }
-
-    const parents = await readCommitParents(deps, commit);
-    const [parent] = parents;
-    if (parents.length !== 1 || parent === undefined) {
-      return { status: "rejected", reason: "The park transition must be a direct single-parent commit." };
-    }
-    const plannedRoot = resolveArcPath({ kind: "placement-root", tier: "planned" });
-    const sourceDir = resolveArcPath({ kind: "placement-root", tier: "active" });
-    const matcher = artifactMatcher(params.name);
-    const [plannedRootTree, sourceTree, operations] = await Promise.all([
-      readTreeEntries(deps, commit, plannedRoot),
-      readTreeEntries(deps, parent, sourceDir),
-      readDiffOperations(deps, parent, commit),
-    ]);
-    const plannedCandidates = plannedRootTree.filter((entry) => matcher.test(posix.basename(entry.path)));
-    const plannedMetas = plannedCandidates.filter(
-      (entry) => posix.basename(entry.path) === `meta-${params.name}.md`,
-    );
-    const plannedMeta = plannedMetas[0];
-    if (plannedMetas.length !== 1 || plannedMeta === undefined) {
-      return { status: "rejected", reason: "The transition does not contain a complete planning artifact group." };
-    }
-    const plannedDir = posix.dirname(plannedMeta.path);
-    const plannedMetaBytes = await requireBlob(deps, commit, plannedMeta.path);
-    const cohort = parseMetaRecord(decodeUtf8(plannedMetaBytes)).cohort?.trim() ?? "";
-    if (!isSafeCohortPath(cohort) || validateCohortPath(cohort) !== null) {
-      return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
-    }
-    const cohortSegments = cohort === "" || cohort === "[none]" ? [] : cohort.split("/");
-    if (cohortSegments.some((segment) => !SlugSchema.safeParse(segment).success)) {
-      return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
-    }
-    const expectedPlannedDir = resolveArcPath({
-      kind: "work-unit-container",
-      placement: {
-        kind: "backlog",
-        commitment: "planned",
-        cohort: cohortSegments.map((segment) => SlugSchema.parse(segment)),
-      },
-      slug: SlugSchema.parse(params.name),
-    });
-    if (plannedDir !== expectedPlannedDir) {
-      return { status: "rejected", reason: "The planned result does not match its Cohort placement." };
-    }
-    const plannedTree = plannedRootTree.filter(
-      (entry) => entry.path === plannedDir || entry.path.startsWith(`${plannedDir}/`),
-    );
-    const plannedEntries = selectExactArtifactGroup(plannedTree, plannedDir, matcher);
-    const sourceEntries = selectExactArtifactGroup(sourceTree, sourceDir, matcher);
-    const metaName = `meta-${params.name}.md`;
-    if (
-      !plannedEntries.some((entry) => posix.basename(entry.path) === metaName)
-      || !sourceEntries.some((entry) => posix.basename(entry.path) === metaName)
-    ) {
-      return { status: "rejected", reason: "The transition does not contain a complete planning artifact group." };
-    }
-    if (plannedTree.length !== plannedEntries.length) {
-      return { status: "rejected", reason: "The planned result contains a path outside the work-unit artifact group." };
-    }
-    assertMatchingRelocation(sourceEntries, plannedEntries);
-    await assertAllowedTransitionPatch(
-      deps,
-      parent,
+    return await validateCommittedParkPlanningTransitionStrict(deps, {
+      name: params.name,
+      branch,
       commit,
-      params.name,
-      operations,
-      sourceEntries,
-      plannedEntries,
-    );
-
-    const plannedFiles = await Promise.all(plannedEntries.map((entry) => landingFile(deps, commit, entry)));
-    return {
-      status: "resolved",
-      transition: { commit, name: params.name, files: plannedFiles },
-    };
+    });
   } catch (err) {
     return {
       status: "rejected",
       reason: err instanceof Error ? err.message : "The park transition could not be validated.",
     };
   }
+}
+
+/** Validate one committed park transition without requiring its live branch or worktree. */
+export async function validateCommittedParkPlanningTransition(
+  deps: ParkPlanningTransitionValidationDeps,
+  params: { name: string; branch: string; commit: string },
+): Promise<
+  | { status: "resolved"; transition: ParkLandingTransition }
+  | { status: "rejected"; reason: string }
+> {
+  try {
+    return await validateCommittedParkPlanningTransitionStrict(deps, params);
+  } catch (err) {
+    return {
+      status: "rejected",
+      reason: err instanceof Error ? err.message : "The park transition could not be validated.",
+    };
+  }
+}
+
+/** Validate committed park structure while preserving unexpected Git/blob failures. */
+export async function validateCommittedParkPlanningTransitionStrict(
+  deps: ParkPlanningTransitionValidationDeps,
+  params: { name: string; branch: string; commit: string },
+): Promise<
+  | { status: "resolved"; transition: ParkLandingTransition }
+  | { status: "rejected"; reason: string }
+> {
+  const commit = await resolveCommit(deps, params.commit);
+  const parents = await readCommitParents(deps, commit);
+  const [parent] = parents;
+  if (parents.length !== 1 || parent === undefined) {
+    return { status: "rejected", reason: "The park transition must be a direct single-parent commit." };
+  }
+  const plannedRoot = resolveArcPath({ kind: "placement-root", tier: "planned" });
+  const sourceDir = resolveArcPath({ kind: "placement-root", tier: "active" });
+  const matcher = artifactMatcher(params.name);
+  const [plannedRootTree, sourceTree, operations] = await Promise.all([
+    readTreeEntries(deps, commit, plannedRoot),
+    readTreeEntries(deps, parent, sourceDir),
+    readDiffOperations(deps, parent, commit),
+  ]);
+  const plannedCandidates = plannedRootTree.filter((entry) => matcher.test(posix.basename(entry.path)));
+  const plannedMetas = plannedCandidates.filter(
+    (entry) => posix.basename(entry.path) === `meta-${params.name}.md`,
+  );
+  const plannedMeta = plannedMetas[0];
+  if (plannedMetas.length !== 1 || plannedMeta === undefined) {
+    return { status: "rejected", reason: "The transition does not contain a complete planning artifact group." };
+  }
+  const plannedDir = posix.dirname(plannedMeta.path);
+  const plannedMetaBytes = await requireBlob(deps, commit, plannedMeta.path);
+  const plannedRecord = parseMetaRecord(decodeUtf8(plannedMetaBytes));
+  if (plannedRecord.state !== "Planning" || plannedRecord.branch !== params.branch) {
+    return { status: "rejected", reason: "The planned result does not match its planning branch." };
+  }
+  const cohort = plannedRecord.cohort?.trim() ?? "";
+  if (!isSafeCohortPath(cohort) || validateCohortPath(cohort) !== null) {
+    return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
+  }
+  const cohortSegments = cohort === "" || cohort === "[none]" ? [] : cohort.split("/");
+  if (cohortSegments.some((segment) => !SlugSchema.safeParse(segment).success)) {
+    return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
+  }
+  const expectedPlannedDir = resolveArcPath({
+    kind: "work-unit-container",
+    placement: {
+      kind: "backlog",
+      commitment: "planned",
+      cohort: cohortSegments.map((segment) => SlugSchema.parse(segment)),
+    },
+    slug: SlugSchema.parse(params.name),
+  });
+  if (plannedDir !== expectedPlannedDir) {
+    return { status: "rejected", reason: "The planned result does not match its Cohort placement." };
+  }
+  const plannedTree = plannedRootTree.filter(
+    (entry) => entry.path === plannedDir || entry.path.startsWith(`${plannedDir}/`),
+  );
+  const plannedEntries = selectExactArtifactGroup(plannedTree, plannedDir, matcher);
+  const sourceEntries = selectExactArtifactGroup(sourceTree, sourceDir, matcher);
+  const metaName = `meta-${params.name}.md`;
+  if (
+    !plannedEntries.some((entry) => posix.basename(entry.path) === metaName)
+    || !sourceEntries.some((entry) => posix.basename(entry.path) === metaName)
+  ) {
+    return { status: "rejected", reason: "The transition does not contain a complete planning artifact group." };
+  }
+  if (plannedTree.length !== plannedEntries.length) {
+    return { status: "rejected", reason: "The planned result contains a path outside the work-unit artifact group." };
+  }
+  assertMatchingRelocation(sourceEntries, plannedEntries);
+  await assertAllowedTransitionPatch(
+    deps,
+    parent,
+    commit,
+    params.name,
+    operations,
+    sourceEntries,
+    plannedEntries,
+  );
+
+  const plannedFiles = await Promise.all(plannedEntries.map((entry) => landingFile(deps, commit, entry)));
+  return {
+    status: "resolved",
+    transition: { commit, name: params.name, files: plannedFiles },
+  };
 }
 
 async function readBaseSnapshot(
@@ -450,15 +491,15 @@ function isMissingPathError(error: unknown): boolean {
     && (error as { code?: unknown }).code === "ENOENT";
 }
 
-async function resolveCommit(deps: InRepoParkPlanningLandingDeps, ref: string): Promise<string> {
-  const { stdout } = await deps.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], { cwd: deps.cwd });
+async function resolveCommit(deps: ParkPlanningTransitionValidationDeps, ref: string): Promise<string> {
+  const { stdout } = await deps.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], gitCwd(deps));
   const oid = stdout.trim();
   if (oid === "") throw new Error(`Cannot resolve commit: ${ref}`);
   return oid;
 }
 
-async function readCommitParents(deps: InRepoParkPlanningLandingDeps, commit: string): Promise<string[]> {
-  const { stdout } = await deps.exec("git", ["rev-list", "--parents", "-n", "1", commit], { cwd: deps.cwd });
+async function readCommitParents(deps: ParkPlanningTransitionValidationDeps, commit: string): Promise<string[]> {
+  const { stdout } = await deps.exec("git", ["rev-list", "--parents", "-n", "1", commit], gitCwd(deps));
   const fields = stdout.trim().split(/\s+/u);
   if (fields.shift() !== commit) throw new Error(`Cannot read commit relation: ${commit}`);
   return fields;
@@ -472,14 +513,14 @@ interface TreeEntry {
 }
 
 async function readTreeEntries(
-  deps: InRepoParkPlanningLandingDeps,
+  deps: ParkPlanningTransitionValidationDeps,
   ref: string,
   path: string,
 ): Promise<TreeEntry[]> {
   const { stdout } = await deps.exec(
     "git",
     ["ls-tree", "--full-tree", "-r", "-z", ref, "--", path],
-    { cwd: deps.cwd },
+    gitCwd(deps),
   );
   return splitNull(stdout).map((record) => {
     const match = /^(\d+) ([^ ]+) ([0-9a-f]+)\t(.+)$/u.exec(record);
@@ -515,7 +556,7 @@ function assertMatchingRelocation(source: readonly TreeEntry[], planned: readonl
 }
 
 async function assertAllowedTransitionPatch(
-  deps: InRepoParkPlanningLandingDeps,
+  deps: ParkPlanningTransitionValidationDeps,
   parent: string,
   commit: string,
   name: string,
@@ -572,7 +613,7 @@ function roadmapState(content: string, name: string): string | null {
 }
 
 async function landingFile(
-  deps: InRepoParkPlanningLandingDeps,
+  deps: ParkPlanningTransitionValidationDeps,
   ref: string,
   entry: TreeEntry,
 ): Promise<ParkLandingFile> {
@@ -583,7 +624,7 @@ async function landingFile(
 }
 
 async function requireBlob(
-  deps: InRepoParkPlanningLandingDeps,
+  deps: ParkPlanningTransitionValidationDeps,
   ref: string,
   path: ManagedPath,
 ): Promise<Uint8Array> {
@@ -593,14 +634,14 @@ async function requireBlob(
 }
 
 async function readDiffOperations(
-  deps: InRepoParkPlanningLandingDeps,
+  deps: ParkPlanningTransitionValidationDeps,
   parent: string,
   commit: string,
 ): Promise<PatchOperation[]> {
   const { stdout } = await deps.exec(
     "git",
     ["diff-tree", "--no-commit-id", "--name-status", "--no-renames", "-r", "-z", parent, commit],
-    { cwd: deps.cwd },
+    gitCwd(deps),
   );
   const fields = splitNull(stdout);
   if (fields.length % 2 !== 0) throw new Error("Malformed Git name-status output.");
@@ -621,6 +662,10 @@ async function readDiffOperations(
     throw new Error(`Unsupported park transition operation ${status}: ${path}`);
   }
   return operations;
+}
+
+function gitCwd(deps: ParkPlanningTransitionValidationDeps): { cwd: string } | undefined {
+  return deps.cwd === undefined ? undefined : { cwd: deps.cwd };
 }
 
 function decodeUtf8(bytes: Uint8Array): string {

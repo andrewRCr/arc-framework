@@ -45,7 +45,7 @@
  * @module
  */
 
-import { isLandedInBase } from "../../git/branch-containment.js";
+import { isContainedIn, isLandedInBase } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
 import { readRefTip } from "../../git/ref-tree.js";
 import { refreshBase } from "../../git/refresh-base.js";
@@ -86,6 +86,9 @@ import {
 import { isSlugSafe } from "../slug.js";
 import { isAbsolute, join } from "node:path";
 import { parseMetaRecord } from "../../active/meta-reader.js";
+import { readRemoteBranchOid } from "../rename-identity.js";
+import { isDecomposeCandidateBranch } from "../decompose-candidate.js";
+import { cleanupGitOwnedDecomposeCandidate } from "../git-owned-decompose-candidate-cleanup.js";
 import {
   createTeardownRetirementAuthority,
   revalidateHuskRetirementEvidence,
@@ -180,6 +183,8 @@ export interface BranchTeardownParams {
   base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
   remote?: string;
+  /** Configured result-projection model used to select the candidate's base authority. */
+  protection?: ProtectionMode;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
 }
@@ -1143,6 +1148,10 @@ export async function runBranchTeardown(
   if (!presence.ok) {
     return { status: "rejected", reason: `Could not resolve local branch \`${branch}\` (${presence.message}).` };
   }
+  if (presence.present && isDecomposeCandidateBranch(branch)) {
+    const candidate = await tryCleanupDecomposeCandidate(ctx, { ...params, branch });
+    if (candidate !== null) return candidate;
+  }
   return teardownBranchProjection(ctx, {
     branch: presence.present ? branch : null,
     subject: { kind: "branch", ref: branch },
@@ -1151,6 +1160,91 @@ export async function runBranchTeardown(
     mode: "shipped",
     suggestion: params.suggestion,
   });
+}
+
+async function tryCleanupDecomposeCandidate(
+  ctx: TeardownContext,
+  params: BranchTeardownParams & { branch: string },
+): Promise<TeardownResult | null> {
+  const prefix = "chore/decompose-";
+  const origin = params.branch.slice(prefix.length);
+  if (!isSlugSafe(origin)) return null;
+  const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
+  if (!scan.ok) return null;
+  const registrations = scan.worktrees.filter((entry) => entry.branch === params.branch);
+  const registration = registrations[0];
+  const primary = scan.worktrees.find((entry) => entry.primary);
+  if (registrations.length !== 1 || registration === undefined || primary === undefined) return null;
+  const branchHead = await readRefTip(ctx.exec, `refs/heads/${params.branch}`);
+  if (branchHead === null || registration.head !== branchHead) return null;
+
+  let baseHead: string;
+  let remoteHead: string | null;
+  try {
+    const proofTarget = await resolveParkProofTarget({
+      refreshRemoteBase: async (remoteName, baseBranch) => {
+        await ctx.exec("git", ["fetch", remoteName, baseBranch]);
+        const head = await readRefTip(ctx.exec, `${remoteName}/${baseBranch}`);
+        if (head === null) throw new Error("remote base is unavailable");
+        return head;
+      },
+      readLocalBase: async (baseBranch) => {
+        const head = await readRefTip(ctx.exec, baseBranch);
+        if (head === null) throw new Error("local base is unavailable");
+        return head;
+      },
+    }, {
+      protection: params.protection ?? "partial",
+      remote: params.remote ?? "origin",
+      baseBranch: params.base,
+    });
+    baseHead = proofTarget.head;
+    remoteHead = await readRemoteBranchOid(ctx.exec, params.remote ?? "origin", params.branch);
+  } catch {
+    return null;
+  }
+  if (remoteHead !== null || !await isContainedIn(ctx.exec, branchHead, baseHead)) return null;
+
+  const cleanup = await cleanupGitOwnedDecomposeCandidate({
+    origin,
+    expectedHead: branchHead,
+    expectedPath: registration.path,
+  }, {
+    cwd: primary.path,
+    exec: ctx.exec,
+    scanWorktrees: () => Promise.resolve(scan),
+    removeWorktree: async (path) => {
+      const remove = async (): Promise<void> => {
+        if (await isSelfTeardown(path, ctx.cwd)) ctx.chdir(primary.path);
+        await ctx.exec("git", ["worktree", "remove", path], { cwd: primary.path });
+      };
+      if (ctx.serializeWorktreeOperation === undefined) await remove();
+      else await ctx.serializeWorktreeOperation(path, remove);
+    },
+  });
+  if (cleanup.status === "refused") {
+    return { status: "rejected", reason: `Owned decomposition candidate cleanup refused: ${cleanup.reason}.` };
+  }
+  let pruned = true;
+  const notices: string[] = [];
+  try {
+    await fetchPrune({ exec: ctx.exec }, { remote: params.remote });
+  } catch (error) {
+    pruned = false;
+    notices.push(`Could not prune remote-tracking refs (${error instanceof Error ? error.message : String(error)}).`);
+  }
+  return {
+    status: "torn-down",
+    mode: "shipped",
+    branch: params.branch,
+    branchDeleted: cleanup.branchOutcome !== "already-absent",
+    remoteBranchDeleted: false,
+    worktreeRemoved: cleanup.worktreeOutcome === "removed" ? registration.path : null,
+    husk: null,
+    pruned,
+    notices,
+    suggestion: params.suggestion ?? null,
+  };
 }
 
 /**

@@ -324,9 +324,9 @@ export async function executeGitV3DecomposeCommand(
     let remedy: string;
     switch (result.recovery.kind) {
       case "full-candidate":
-        remedy = `Clean the owned candidate at ${result.recovery.path}, then retry: ${
-          renderV3DecomposeExecuteCommand(input.origin, cutMapPath)
-        }`;
+        remedy = `Clean the owned candidate at ${result.recovery.path}: `
+          + `arc teardown --branch ${result.recovery.candidateBranch}. Then retry: `
+          + renderV3DecomposeExecuteCommand(input.origin, cutMapPath);
         break;
       case "partial-restoration":
         remedy = result.recovery.status === "restored"

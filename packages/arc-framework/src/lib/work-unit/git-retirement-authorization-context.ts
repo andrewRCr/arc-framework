@@ -24,6 +24,7 @@ import {
   validateParkRetirementProofStrict,
 } from "./park-retirement-proof.js";
 import type { ParkProofTarget } from "./park-retirement-proof.js";
+import { validateCommittedParkPlanningTransitionStrict } from "./park-planning-landing.js";
 import type {
   RetirementAuthorizationContext,
 } from "./retirement-authorization.js";
@@ -115,7 +116,7 @@ export async function locateAbandonTransitionStrict(
   for (const resultHead of await listAbandonCandidates(exec, baseHead, request.subject.name)) {
     const parents = await readCommitParents(exec, resultHead);
     const sourceHead = parents.length === 1 ? parents[0] : undefined;
-    if (sourceHead === undefined) continue;
+    if (sourceHead === undefined || sourceHead !== request.head) continue;
     const proof = await validateAbandonTransition(
       exec,
       request,
@@ -140,6 +141,7 @@ async function listAbandonCandidates(
   const metaName = `meta-${slug}.md`;
   const { stdout } = await exec("git", [
     "log",
+    "--full-history",
     "--format=%H",
     "--diff-filter=D",
     "--no-renames",
@@ -282,11 +284,14 @@ export function createGitRetirementAuthorizationContext(
         ? locateAbandonTransitionStrict(exec, baseRef, request, readBlob)
         : locateAbandonTransition(exec, baseRef, request, readBlob));
       if (abandon.status === "unique") {
+        const retiringHead = abandon.proof.topology === "direct"
+          ? abandon.proof.resultHead
+          : abandon.proof.sourceHead;
         return {
           status: "proved" as const,
           proof: {
             transition: "abandon" as const,
-            retiringHead: request.head,
+            retiringHead,
             resultHead: abandon.proof.resultHead,
             resultInventory: [],
           },
@@ -300,6 +305,19 @@ export function createGitRetirementAuthorizationContext(
       }
       if (request.subject.kind !== "work-unit") {
         return { status: "refused" as const, reason: "unsupported-transition" as const };
+      }
+      let parkTransition: Awaited<ReturnType<typeof validateCommittedParkPlanningTransitionStrict>>;
+      try {
+        parkTransition = await validateCommittedParkPlanningTransitionStrict(
+          { exec, readBlob },
+          { name: request.subject.name, branch: request.branch, commit: request.head },
+        );
+      } catch (error) {
+        if (options.strict === true) throw error;
+        return { status: "refused" as const, reason: "authority-unavailable" as const };
+      }
+      if (parkTransition.status === "rejected") {
+        return { status: "refused" as const, reason: "projection-mismatch" as const };
       }
       const parkValidator = options.strict === true
         ? validateParkRetirementProofStrict

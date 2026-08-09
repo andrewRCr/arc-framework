@@ -216,6 +216,31 @@ describe("structural abandon transition location", () => {
     });
   });
 
+  it("does not bind historical abandon evidence to a different retiring head", async () => {
+    const repo = await createRepository();
+    await writeFile(join(repo.root, "later-work.txt"), "later work\n");
+    await execCommit(repo, "later work");
+    const laterHead = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+
+    await expect(locate(repo, { baseRef: laterHead, head: laterHead })).resolves.toEqual({ status: "absent" });
+    await expect(validateGitTransitionRetirementEvidence(
+      repo.exec,
+      laterHead,
+      {
+        subject: { kind: "work-unit", name: "sample" },
+        branch,
+        retiringHead: laterHead,
+        authorization: "discard-confirmed",
+        evidence: {
+          kind: "git-transition",
+          transition: "abandon",
+          resultDigest: `sha256:${"a".repeat(64)}`,
+        },
+      },
+      readRepoBlob(repo),
+    )).resolves.toBe(false);
+  });
+
   it("authenticates the target without reading unrelated lifecycle metas", async () => {
     const irrelevantMetaPath = ".arc/backlog/provisional/unrelated/meta-unrelated.md";
     const repo = await createRepository({ irrelevantMetaPath });
@@ -403,25 +428,29 @@ describe("structural abandon transition location", () => {
 
   it("returns ambiguous when the selected base contains two valid abandon transitions", async () => {
     const repo = await createRepository();
-    await mkdir(join(repo.root, ".arc/active"), { recursive: true });
-    await writeFile(join(repo.root, metaPath), renderMetaProjectionFile("sample", {
-      State: "Active",
-      Branch: branch,
-      Cohort: "[none]",
-    }));
-    await writeFile(join(repo.root, specPath), "# Sample\n");
-    await execCommit(repo, "restore");
+    await repo.exec("git", ["checkout", "-b", "second-abandon", repo.sourceHead]);
     await unlink(join(repo.root, metaPath));
     await unlink(join(repo.root, specPath));
-    await execCommit(repo, "abandon again");
-    const secondResult = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+    await writeFile(join(repo.root, roadmapPath), "# second result\n");
+    await mkdir(join(repo.root, ".arc/system/.internal/transitions"), { recursive: true });
+    await writeFile(join(repo.root, transitionPath), JSON.stringify({
+      schemaVersion: 1,
+      origin: "sample",
+      kind: "abandon",
+      successors: [],
+      edges: [],
+    }));
+    await execCommit(repo, "second abandon");
+    await repo.exec("git", ["checkout", branch]);
+    await repo.exec("git", ["merge", "-s", "ours", "--no-ff", "second-abandon", "-m", "join abandon history"]);
+    const joinedBase = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
 
-    await expect(locate(repo, { baseRef: secondResult, head: repo.sourceHead })).resolves.toEqual({
+    await expect(locate(repo, { baseRef: joinedBase, head: repo.sourceHead })).resolves.toEqual({
       status: "ambiguous",
     });
     await expect(validateGitTransitionRetirementEvidence(
       repo.exec,
-      secondResult,
+      joinedBase,
       {
         subject: { kind: "work-unit", name: "sample" },
         branch,

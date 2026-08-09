@@ -966,7 +966,7 @@ describe("Git v3 repository plan", () => {
       },
     });
     expect(result).toMatchObject({
-      remedy: expect.stringContaining(`then retry: arc decompose origin --execute ${cutMapPath}`),
+      remedy: expect.stringContaining(`Then retry: arc decompose origin --execute ${cutMapPath}`),
     });
     expect(result.status === "refused" ? result.remedy : "").not.toContain("discard");
     expect(await claimFiles(repo)).toEqual([]);

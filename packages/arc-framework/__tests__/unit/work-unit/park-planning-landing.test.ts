@@ -1,17 +1,25 @@
 /** Base-version orchestration tests for partial-protection park landing. */
 
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { createExecaGitExec } from "../../../src/lib/git/process-executor.js";
+import { readGitBlobBytes } from "../../../src/lib/io-context.js";
 import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
+  validateCommittedParkPlanningTransition,
   type ParkLandingBaseSnapshot,
   type ParkLandingTransition,
   type ParkPlanningLandingContext,
 } from "../../../src/lib/work-unit/park-planning-landing.js";
+import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const transition: ParkLandingTransition = {
@@ -24,6 +32,40 @@ const transition: ParkLandingTransition = {
     bytes: new TextEncoder().encode("meta"),
   }],
 };
+
+const roots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+async function committedPark(options: { branch?: string; extraPath?: string } = {}) {
+  const root = await mkdtemp(join(tmpdir(), "arc-park-transition-"));
+  roots.push(root);
+  const rawExec = createExecaGitExec();
+  const exec: GitExec = (command, args, execOptions) => rawExec(command, args, { ...execOptions, cwd: root });
+  await exec("git", ["init", "-b", "plan/sample"]);
+  await exec("git", ["config", "user.name", "ARC Test"]);
+  await exec("git", ["config", "user.email", "arc@example.test"]);
+  await mkdir(join(root, ".arc/active"), { recursive: true });
+  const meta = renderMetaProjectionFile("sample", {
+    State: "Planning",
+    Branch: options.branch ?? "plan/sample",
+    Cohort: "[none]",
+  });
+  await writeFile(join(root, ".arc/active/meta-sample.md"), meta);
+  await writeFile(join(root, ".arc/active/draft-sample.md"), "# Draft\n");
+  await exec("git", ["add", "."]);
+  await exec("git", ["commit", "-m", "planning source"]);
+  await mkdir(join(root, ".arc/backlog/planned/sample"), { recursive: true });
+  await exec("git", ["mv", ".arc/active/meta-sample.md", ".arc/backlog/planned/sample/meta-sample.md"]);
+  await exec("git", ["mv", ".arc/active/draft-sample.md", ".arc/backlog/planned/sample/draft-sample.md"]);
+  if (options.extraPath !== undefined) await writeFile(join(root, options.extraPath), "unrelated\n");
+  await exec("git", ["add", "."]);
+  await exec("git", ["commit", "-m", "park planning"]);
+  const parkHead = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+  return { root, exec, parkHead };
+}
 
 function base(version: string, conflicts: readonly string[] = []): ParkLandingBaseSnapshot {
   return {
@@ -321,5 +363,67 @@ describe("landParkPlanningTransition", () => {
       args: expect.arrayContaining(["update-index", "--cacheinfo"]),
       indexFile: "/repo/.git/index.lock",
     }));
+  });
+});
+
+describe("committed park transition validation", () => {
+  it("accepts the exact structural relocation commit", async () => {
+    const repo = await committedPark();
+
+    await expect(validateCommittedParkPlanningTransition({
+      cwd: repo.root,
+      exec: repo.exec,
+      readBlob: (ref, path) => readGitBlobBytes(repo.root, ref, path),
+    }, {
+      name: "sample",
+      branch: "plan/sample",
+      commit: repo.parkHead,
+    })).resolves.toMatchObject({ status: "resolved", transition: { commit: repo.parkHead } });
+  });
+
+  it("rejects unrelated changes in the park commit", async () => {
+    const repo = await committedPark({ extraPath: "unrelated.txt" });
+
+    await expect(validateCommittedParkPlanningTransition({
+      cwd: repo.root,
+      exec: repo.exec,
+      readBlob: (ref, path) => readGitBlobBytes(repo.root, ref, path),
+    }, {
+      name: "sample",
+      branch: "plan/sample",
+      commit: repo.parkHead,
+    })).resolves.toMatchObject({ status: "rejected" });
+  });
+
+  it("rejects a later commit even when the planned result remains unchanged", async () => {
+    const repo = await committedPark();
+    await writeFile(join(repo.root, "later.txt"), "later\n");
+    await repo.exec("git", ["add", "."]);
+    await repo.exec("git", ["commit", "-m", "later work"]);
+    const laterHead = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+
+    await expect(validateCommittedParkPlanningTransition({
+      cwd: repo.root,
+      exec: repo.exec,
+      readBlob: (ref, path) => readGitBlobBytes(repo.root, ref, path),
+    }, {
+      name: "sample",
+      branch: "plan/sample",
+      commit: laterHead,
+    })).resolves.toMatchObject({ status: "rejected" });
+  });
+
+  it("rejects a relocation whose meta declares another branch", async () => {
+    const repo = await committedPark({ branch: "plan/other" });
+
+    await expect(validateCommittedParkPlanningTransition({
+      cwd: repo.root,
+      exec: repo.exec,
+      readBlob: (ref, path) => readGitBlobBytes(repo.root, ref, path),
+    }, {
+      name: "sample",
+      branch: "plan/sample",
+      commit: repo.parkHead,
+    })).resolves.toMatchObject({ status: "rejected" });
   });
 });
