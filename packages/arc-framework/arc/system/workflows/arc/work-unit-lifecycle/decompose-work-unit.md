@@ -91,11 +91,21 @@ explicit cleanup direction.
 
 ## 6. Release through the reported protection arm
 
-Follow exactly one protection arm from the staged result.
+From the reported result locus, stage only the approved paths reported by the successful execute result. Then verify
+that no reported path retains unstaged changes and that the complete staged path set exactly matches the reported set:
+
+```bash
+git add -- <reported-staged-paths>
+git diff --quiet -- <reported-staged-paths>
+git diff --cached --name-only --no-renames
+```
+
+Any unstaged reported path or additional/missing cached path stops release. Follow exactly one protection arm only
+after the approved working-tree bytes and the index match.
 
 ### Partial protection
 
-The complete transform is already staged on the configured base.
+The approved transform is staged on the configured base.
 
 Use the [`commit-format` method][commit-format] for the message.
 
@@ -113,7 +123,8 @@ interlock, or merge.
 
 ### Full protection
 
-Use the exact reported candidate branch as it stands. Do not create, switch, repair, or delete a branch or worktree.
+Use the exact reported candidate branch with the approved transform staged. Do not create, switch, repair, or delete
+a branch or worktree.
 
 Use the [`commit-format` method][commit-format] for the message.
 

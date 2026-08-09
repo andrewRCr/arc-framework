@@ -38,6 +38,20 @@ describe("decompose workflow contract", () => {
     expect(release).toBeGreaterThan(interlocks[0]!.index);
   });
 
+  it("re-stages and verifies the approved authored bytes before either release arm", () => {
+    const interlock = workflow.indexOf("`workflow-interlock`");
+    const staging = workflow.indexOf("git add -- <reported-staged-paths>");
+    const partial = workflow.indexOf("### Partial protection");
+    const full = workflow.indexOf("### Full protection");
+
+    expect(staging).toBeGreaterThan(interlock);
+    expect(staging).toBeLessThan(partial);
+    expect(staging).toBeLessThan(full);
+    expect(workflow).toContain("git diff --quiet -- <reported-staged-paths>");
+    expect(workflow).toContain("git diff --cached --name-only --no-renames");
+    expect(workflow).not.toMatch(/git add -- (?:\.arc|\.|--all|-A)\b/u);
+  });
+
   it("uses only preflight, staged execution, and receipt-free base advancement", () => {
     const bashCommands = [...workflow.matchAll(/```bash\n([\s\S]*?)```/gu)].map(
       (match) => match[1]!.trim(),
@@ -46,6 +60,9 @@ describe("decompose workflow contract", () => {
     expect(bashCommands).toEqual([
       "arc decompose <origin> --preflight > <scratch-starter-map>",
       "arc decompose <origin> --execute <completed-map>",
+      "git add -- <reported-staged-paths>\n"
+        + "git diff --quiet -- <reported-staged-paths>\n"
+        + "git diff --cached --name-only --no-renames",
       "arc decompose <origin> --advance-base <completed-map>",
       "arc status",
       "arc teardown --branch <reported-candidate-branch>\narc teardown <origin>",

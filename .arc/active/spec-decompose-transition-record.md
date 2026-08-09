@@ -315,3 +315,11 @@ Resolved during the work, none blocking start:
   the rest is cut.
 - **Exact per-cluster removal lists.** The ~5,000-line estimate is verified cluster by cluster by the
   trace-before-cut passes; the clusters themselves are enumerated above.
+
+## Amendment — Integration Review (2026-08-09)
+
+Activation retired the formative backlog draft. The Introduction's reference to “the draft” records the evidence
+source at planning time rather than a live artifact pointer. This spec is the surviving design authority;
+`notes-decompose-transition-record.md` retains the consumer trace, and `tasks-decompose-transition-record.md`
+retains implementation and deviation history. This document-topology clarification changes no design, non-goal,
+or success criterion.
