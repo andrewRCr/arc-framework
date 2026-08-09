@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "lane-attestation-receipt-removal",
+  "claimId": "36c47c6e1b08268dabdf1a0e0efc34ee",
+  "createdAt": "2026-08-09T23:32:47.352Z",
+  "updatedAt": "2026-08-09T23:32:47.352Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Classify legacy retirement-receipt deletion as reviewed so one-way migration PRs fail closed without breaking lane attestation",
+  "branch": "chore/lane-attestation-receipt-removal",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
