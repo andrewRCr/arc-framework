@@ -19,6 +19,8 @@ function record(): TransitionRecord {
 
 function harness(options: {
   occupied?: boolean;
+  committedOccupied?: boolean;
+  indexOccupied?: boolean;
   createFailure?: string;
   stageFailure?: boolean;
   indexCleanupFailures?: number;
@@ -31,7 +33,11 @@ function harness(options: {
   const exec: GitExec = async (_file, args) => {
     const path = args.at(-1);
     if (path === undefined) throw new Error("test command requires a path");
-    if (args[0] === "add") {
+    if (args[0] === "ls-tree") {
+      return { stdout: options.committedOccupied === true ? `100644 blob abc\t${path}\0` : "", stderr: "" };
+    } else if (args[0] === "ls-files") {
+      return { stdout: options.indexOccupied === true ? `100644 abc 0\t${path}\0` : "", stderr: "" };
+    } else if (args[0] === "add") {
       if (options.stageFailure === true) throw new Error("index locked");
       staged.add(path);
     } else if (args[0] === "rm") {
@@ -80,6 +86,24 @@ describe("terminal transition record writer", () => {
     await expect(state.writer.record(record())).resolves.toEqual({ status: "origin-occupied" });
 
     expect(state.files).toEqual(new Set(["retired-origin"]));
+    expect(state.staged).toEqual(new Set());
+  });
+
+  it("returns origin-occupied when committed history is absent from the worktree", async () => {
+    const state = harness({ committedOccupied: true });
+
+    await expect(state.writer.record(record())).resolves.toEqual({ status: "origin-occupied" });
+
+    expect(state.files).toEqual(new Set());
+    expect(state.staged).toEqual(new Set());
+  });
+
+  it("returns origin-occupied without replacing an existing index entry", async () => {
+    const state = harness({ indexOccupied: true });
+
+    await expect(state.writer.record(record())).resolves.toEqual({ status: "origin-occupied" });
+
+    expect(state.files).toEqual(new Set());
     expect(state.staged).toEqual(new Set());
   });
 

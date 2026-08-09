@@ -37,6 +37,14 @@ export function createInRepoTerminalTransitionRecordWriter(
     record: async (record) => {
       const path = resolveTransitionRecordRelativePath(record.origin);
       try {
+        if (await isGitOriginOccupied(deps, path)) return { status: "origin-occupied" };
+      } catch (error) {
+        return {
+          status: "unavailable",
+          diagnostic: `transition record occupancy check failed: ${errorMessage(error)}`,
+        };
+      }
+      try {
         await deps.createRecord(record);
       } catch (error) {
         return isNodeError(error) && error.code === "EEXIST"
@@ -57,6 +65,17 @@ export function createInRepoTerminalTransitionRecordWriter(
     },
     rollback: async (record) => await rollbackRecord(deps, record),
   };
+}
+
+async function isGitOriginOccupied(
+  deps: InRepoTerminalTransitionRecordWriterDeps,
+  path: string,
+): Promise<boolean> {
+  const [committed, indexed] = await Promise.all([
+    deps.exec("git", ["ls-tree", "--full-tree", "-z", "HEAD", "--", path], { cwd: deps.cwd }),
+    deps.exec("git", ["ls-files", "--stage", "-z", "--", path], { cwd: deps.cwd }),
+  ]);
+  return committed.stdout !== "" || indexed.stdout !== "";
 }
 
 async function rollbackRecord(
