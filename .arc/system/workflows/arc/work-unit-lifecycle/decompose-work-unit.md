@@ -91,12 +91,14 @@ explicit cleanup direction.
 
 ## 6. Release through the reported protection arm
 
-From the reported result locus, stage only the approved paths reported by the successful execute result. Then verify
-that no reported path retains unstaged changes and that the complete staged path set exactly matches the reported set:
+From the reported result locus, stage only the approved release paths reported by the successful execute result.
+This set includes every authorable destination, including paths that execute found already applied, plus the
+transition record. Then verify that no release path retains unstaged changes and that the complete staged path set
+exactly matches the reported release set:
 
 ```bash
-git add -- <reported-staged-paths>
-git diff --quiet -- <reported-staged-paths>
+git add -- <reported-release-paths>
+git diff --quiet -- <reported-release-paths>
 git diff --cached --name-only --no-renames
 ```
 
@@ -137,15 +139,30 @@ feat(planning): decompose {origin}
 Context: {deepest-planning-artifact} (planning)
 ```
 
-If the configured base advanced after staging, re-derive and stage the append-only merge from the same completed
-map:
+Invoke the authoritative advancement operation unconditionally after the initial commit. It re-derives the current
+configured base and stages an append-only merge from the same completed map only when needed:
 
 ```bash
 arc decompose <origin> --advance-base <completed-map>
 ```
 
-Commit an `advanced` result before push. An `unchanged` result needs no commit. On refusal, surface the reason and
-stop; do not rebuild the candidate, map, or merge manually.
+An `unchanged` result continues without a commit. An `advanced` result fires the interlock below. On refusal, surface
+the reason and stop; do not rebuild the candidate, map, or merge manually.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after an `advanced` result. Surface its candidate branch, previous and current base,
+> and complete staged merge diff; await explicit 'commit' direction before committing the advancement.
+
+Use the [`commit-format` method][commit-format] for the advancement message.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the approved advanced result as `workflowCommit`:
+
+```text
+chore(planning): advance decomposition {origin} to current base
+
+Context: {deepest-planning-artifact} (planning)
+```
 
 - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list, load and execute
   its `.actions` before the push. Halt on failure; otherwise, skip.

@@ -14,15 +14,30 @@ const terminalSubprocessPolicy = {
   subprocess: "terminal-prompts" as const,
 };
 
+const rawGitSubprocessPolicy = {
+  acquisition: "subprocess" as const,
+  schemaOwnership: "none" as const,
+  cancellation: "not-applicable" as const,
+  automation: { noInput: "same" as const, flags: [], acceptedSyntax: [] },
+  mutationBoundary: "byte-preserving repository read",
+  subprocess: "close-stdin" as const,
+};
+
+const rawGitCommandPaths = [
+  "start",
+  "decompose",
+  "delivery compose",
+] as const;
+
 /**
  * Shared-source policies that cannot live in a single command adapter because
- * the implementation is reused across the sync subprocess boundary.
+ * the process executors are reused across several command boundaries.
  */
 export const infrastructureCommandInputPolicyDeclarations = [{
   commandPath: "sync",
   aliases: [],
   sites: [
-    ...([1, 2, 3] as const).map((occurrence) => declareInteractionSite(
+    ...([1, 3] as const).map((occurrence) => declareInteractionSite(
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence },
       terminalSubprocessPolicy,
     )),
@@ -35,4 +50,11 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       terminalSubprocessPolicy,
     ),
   ],
-}] satisfies readonly CommandInputDeclaration[];
+}, ...rawGitCommandPaths.map((commandPath) => ({
+  commandPath,
+  aliases: [],
+  sites: [declareInteractionSite(
+    { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
+    rawGitSubprocessPolicy,
+  )],
+}))] satisfies readonly CommandInputDeclaration[];

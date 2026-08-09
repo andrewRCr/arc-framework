@@ -101,6 +101,7 @@ export type V3DecomposeOperationResult =
       report: V3DecomposeResultReport;
       transitionRecord: NonNullable<ReturnType<typeof createDecomposeTransitionRecord>>;
       stagedPaths: string[];
+      releasePaths: string[];
     }
   | {
       status: "refused";
@@ -296,6 +297,7 @@ export async function executeV3DecomposeOperation(
   const mutatedPaths = materialization.paths
     .filter(({ disposition }) => disposition === "applied")
     .map(({ path }) => path);
+  const authorablePaths = materialization.paths.map(({ path }) => path);
   const recoverMutation = async (): Promise<V3DecomposeOperationRecovery> => {
     if (occupation.protection === "full") return fullRecovery(input.plan, occupation);
     if (partialRecovery === undefined) {
@@ -369,6 +371,10 @@ export async function executeV3DecomposeOperation(
     transitionRecord,
     stagedPaths: [
       ...mutatedPaths,
+      resolveTransitionRecordRelativePath(transitionRecord.origin),
+    ],
+    releasePaths: [
+      ...authorablePaths,
       resolveTransitionRecordRelativePath(transitionRecord.origin),
     ],
   };

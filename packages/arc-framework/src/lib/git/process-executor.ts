@@ -106,9 +106,14 @@ export function createExecaRawGitExec(
   return async (args, options = {}) => {
     const effectiveCwd = options.cwd ?? cwd;
     const environment = environmentForGitCwd(effectiveCwd);
-    const env = options.objectAccess === "local-only"
+    const objectEnvironment = options.objectAccess === "local-only"
       ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
       : environment;
+    const env = applyInteractionEnvironment(objectEnvironment, {
+      terminalPrompts: "forbidden",
+      presenters: "forbidden",
+      ambientStdin: "closed",
+    });
     const effectiveArgs = options.objectAccess === "local-only"
       ? ["--no-lazy-fetch", ...args]
       : args;
@@ -120,7 +125,9 @@ export function createExecaRawGitExec(
         stripFinalNewline: false,
         extendEnv: false,
         maxBuffer,
-        ...(options.input === undefined ? {} : { input: options.input }),
+        ...(options.input === undefined
+          ? { stdin: "ignore" as const }
+          : { input: options.input }),
       });
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {

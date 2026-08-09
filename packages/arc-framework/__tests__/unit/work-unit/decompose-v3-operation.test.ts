@@ -244,6 +244,47 @@ describe("executeV3DecomposeOperation", () => {
     expect(result.stagedPaths.at(-1)).toBe(resolveTransitionRecordRelativePath("origin"));
   });
 
+  it("authorizes every reported materialization path for post-execute destination authoring", async () => {
+    const fixture = operationFixture();
+    const events: string[] = [];
+    const deps = dependencies(fixture, fullOccupation(), events, {
+      materializer: {
+        observe: async (path) => {
+          events.push(`observe:${path}`);
+          return path === fixture.firstPath ? firstAfter : { kind: "absent" };
+        },
+        readBlob: async (digest) => digest === firstAfter.contentDigest ? firstBytes : secondBytes,
+        applyAndStageFinal: async (path) => {
+          events.push(`apply:${path}`);
+        },
+      },
+    });
+
+    const result = await executeV3DecomposeOperation({
+      protection: "full",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, deps);
+
+    expect(result.status).toBe("staged");
+    if (result.status !== "staged") return;
+    expect(result.report.paths).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: fixture.firstPath, disposition: "already-applied" }),
+      expect.objectContaining({ path: fixture.secondPath, disposition: "applied" }),
+    ]));
+    expect(result.stagedPaths).toEqual([
+      fixture.secondPath,
+      resolveTransitionRecordRelativePath("origin"),
+    ]);
+    expect(result.releasePaths).toEqual([
+      fixture.firstPath,
+      fixture.secondPath,
+      resolveTransitionRecordRelativePath("origin"),
+    ]);
+    expect(events).not.toContain(`apply:${fixture.firstPath}`);
+  });
+
   it("restores only actually changed partial paths from distinct index and worktree preimages", async () => {
     const fixture = operationFixture();
     const events: string[] = [];

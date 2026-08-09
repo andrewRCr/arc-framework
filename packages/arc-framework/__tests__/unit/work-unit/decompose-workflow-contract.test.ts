@@ -27,27 +27,30 @@ describe("decompose workflow contract", () => {
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
   });
 
-  it("places one distribution interlock after destination authoring and before release", () => {
+  it("places distribution and advanced-result interlocks at their distinct release boundaries", () => {
     const authoring = workflow.indexOf("## 4. Author every reported destination");
     const release = workflow.indexOf("## 6. Release through the reported protection arm");
     const interlocks = [...workflow.matchAll(/`workflow-interlock`/gu)];
 
     expect(authoring).toBeGreaterThan(-1);
-    expect(interlocks).toHaveLength(1);
+    expect(interlocks).toHaveLength(2);
     expect(interlocks[0]!.index).toBeGreaterThan(authoring);
     expect(release).toBeGreaterThan(interlocks[0]!.index);
+    expect(interlocks[1]!.index).toBeGreaterThan(workflow.indexOf("--advance-base"));
+    expect(interlocks[1]!.index).toBeLessThan(workflow.indexOf("`push-interlock`"));
   });
 
   it("re-stages and verifies the approved authored bytes before either release arm", () => {
     const interlock = workflow.indexOf("`workflow-interlock`");
-    const staging = workflow.indexOf("git add -- <reported-staged-paths>");
+    const staging = workflow.indexOf("git add -- <reported-release-paths>");
     const partial = workflow.indexOf("### Partial protection");
     const full = workflow.indexOf("### Full protection");
 
     expect(staging).toBeGreaterThan(interlock);
     expect(staging).toBeLessThan(partial);
     expect(staging).toBeLessThan(full);
-    expect(workflow).toContain("git diff --quiet -- <reported-staged-paths>");
+    expect(workflow).toContain("git diff --quiet -- <reported-release-paths>");
+    expect(workflow).toContain("including paths that execute found already applied");
     expect(workflow).toContain("git diff --cached --name-only --no-renames");
     expect(workflow).not.toMatch(/git add -- (?:\.arc|\.|--all|-A)\b/u);
   });
@@ -60,8 +63,8 @@ describe("decompose workflow contract", () => {
     expect(bashCommands).toEqual([
       "arc decompose <origin> --preflight > <scratch-starter-map>",
       "arc decompose <origin> --execute <completed-map>",
-      "git add -- <reported-staged-paths>\n"
-        + "git diff --quiet -- <reported-staged-paths>\n"
+      "git add -- <reported-release-paths>\n"
+        + "git diff --quiet -- <reported-release-paths>\n"
         + "git diff --cached --name-only --no-renames",
       "arc decompose <origin> --advance-base <completed-map>",
       "arc status",
@@ -106,6 +109,10 @@ describe("decompose workflow contract", () => {
 
     expect(fullControls).not.toContain(-1);
     expect(fullControls).toEqual([...fullControls].sort((left, right) => left - right));
+    expect(full).toContain("Invoke the authoritative advancement operation unconditionally");
+    expect(full).toContain("An `advanced` result fires the interlock below");
+    expect(full.match(/`workflowCommit`/gu)).toHaveLength(2);
+    expect(full.match(/`commit-interlock`/gu)).toHaveLength(2);
   });
 
   it("leaves Git topology and candidate cleanup to typed verbs", () => {

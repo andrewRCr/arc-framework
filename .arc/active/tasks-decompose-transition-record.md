@@ -526,6 +526,9 @@ respective predecessors, then retire the old namespace only after every survivin
       Left unextended it would have classified a decomposition `planning` and then blocked the same PR on
       code-owner review, so the transitions entry and the surrounding ownership guidance were carried there too.
       Verified as the only such re-statement in the tree.
+    - **Integration correction:** transition history remains code-owner reviewed. The generic predicate still grants
+      the lightweight planning lane, but integration review superseded the unowned-block conclusion because parsed
+      record content directly drives reference reconciliation and lifecycle history.
 
 - `[x]` Exactly eight live terminal decisions exist as schema-v1 origin-keyed transition records, the park record
   is not converted, and query/reference answers match the characterized predecessor answers for every live read.

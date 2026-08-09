@@ -7,6 +7,7 @@ vi.mock("execa", () => ({ execa: execaMock }));
 import {
   createExecaGitExec,
   createExecaGitExecInput,
+  createExecaRawGitExec,
 } from "../../../src/lib/git/process-executor.js";
 
 beforeEach(() => {
@@ -14,6 +15,22 @@ beforeEach(() => {
 });
 
 describe("local-only object access", () => {
+  it("keeps byte-preserving Git reads noninteractive without invocation-specific policy", async () => {
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env).toMatchObject({
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_EDITOR: "true",
+        GIT_PAGER: "cat",
+        PAGER: "cat",
+      });
+      expect(options.stdin).toBe("ignore");
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/repo")(["cat-file", "blob", "a".repeat(40)]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
   it("pairs the Git global option and environment guard for captured output", async () => {
     execaMock.mockImplementation(async (_command, args, options) => {
       if (args[0] !== "--no-lazy-fetch" || options.env?.GIT_NO_LAZY_FETCH !== "1") {

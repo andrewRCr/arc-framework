@@ -183,6 +183,19 @@ describe("repository command-input inventory", () => {
     expect(command?.action?.interactionContext).toBe(true);
   });
 
+  it("assigns the byte-preserving raw Git boundary to its command families", () => {
+    const rawGitCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-git-process-executor.ts-subprocess-execa-2")
+      .map((entry) => entry.commandPath);
+
+    expect(rawGitCommands).toEqual(expect.arrayContaining([
+      "decompose",
+      "delivery compose",
+      "start",
+    ]));
+    expect(rawGitCommands).not.toContain("sync");
+  });
+
   it("routes lifecycle and errand command boundaries through the interaction-context adapter", () => {
     const adapterCommands = new Map(snapshot.source.commands.map((command) => [
       command.path,
