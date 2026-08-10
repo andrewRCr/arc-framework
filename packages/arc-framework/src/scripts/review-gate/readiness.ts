@@ -38,7 +38,13 @@ import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js
 import type { DeliveryMemberLookup } from "./core/delivery-member-lookup.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
-const RepositorySchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
+const RepositorySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
+  .refine(
+    (repository) => repository.split("/").every((segment) => /[^.]/u.test(segment)),
+    "repository segments must not consist only of dots",
+  );
 const ShaSchema = z.string().regex(/^[a-f0-9]{40}$/u);
 const PlanIdSchema = z.uuid();
 const DeliverableIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
