@@ -1331,9 +1331,10 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
   const distAgeText = verdict.distAge === null
     ? "dist/cli.js missing"
     : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
-  const baseMsg
-    = `arc dev build is stale (${verdict.newestSrc} changed `
-    + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
+  const staleCause = verdict.basis === "content-hash"
+    ? "source content differs from the build stamp"
+    : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
+  const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
 
   // Sole exception: the compaction-seed write. A seed produced by stale logic
   // is revalidated when recovery reads it, so it beats no seed. The option is

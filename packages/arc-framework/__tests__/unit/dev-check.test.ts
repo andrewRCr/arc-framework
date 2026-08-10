@@ -56,6 +56,7 @@ describe("checkDevBuildStaleness", () => {
 
     expect(result).toEqual({
       kind: "stale",
+      basis: "missing-dist",
       srcAge: 30,
       distAge: null,
       newestSrc: "src/cli.ts",
@@ -73,6 +74,7 @@ describe("checkDevBuildStaleness", () => {
 
     expect(result).toEqual({
       kind: "stale",
+      basis: "mtime",
       srcAge: 12,
       distAge: 7200,
       newestSrc: "src/lib/foo.ts",
@@ -122,6 +124,7 @@ describe("checkDevBuildStaleness", () => {
 
     expect(result).toEqual({
       kind: "stale",
+      basis: "content-hash",
       srcAge: 600,
       distAge: 60,
       newestSrc: "src/cli.ts",
