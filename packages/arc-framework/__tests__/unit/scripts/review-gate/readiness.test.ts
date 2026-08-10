@@ -8,6 +8,7 @@ import type {
 } from "../../../../src/scripts/review-gate/core/delivery-member-lookup.js";
 import {
   evaluateReviewReadiness,
+  ReviewTargetSchema,
   type ReviewReadinessFs,
   ReviewVehicleSchema,
 } from "../../../../src/scripts/review-gate/readiness.js";
@@ -193,6 +194,19 @@ function readinessRequest(
     vehicle,
   };
 }
+
+describe("review repository schema", () => {
+  it("rejects all-dot segments without rejecting a leading dot in a named segment", () => {
+    const target = {
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: SHA,
+    };
+
+    expect(ReviewTargetSchema.safeParse({ ...target, repository: "../.." }).success).toBe(false);
+    expect(ReviewTargetSchema.safeParse({ ...target, repository: ".owner/repo" }).success).toBe(true);
+  });
+});
 
 describe("evaluateReviewReadiness", () => {
   it("accepts a manual-cadence work unit without inventing Release Notes applicability", async () => {
