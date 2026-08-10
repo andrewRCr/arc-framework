@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "remove-quick-reference-measured-costs",
+  "claimId": "995cda641f011537e87ea04fc74355c8",
+  "createdAt": "2026-08-10T14:58:03.027Z",
+  "updatedAt": "2026-08-10T14:58:03.027Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "remove-quick-reference-measured-costs",
+  "branch": "chore/remove-quick-reference-measured-costs",
+  "origin": "inbox",
+  "originEntry": "Remove the measured-cost figures from `QUICK-REFERENCE` § Quality Gate Commands",
+  "originEntrySourceDigest": "sha256:704243f9b07278b275ae48782e2cc97089b2671b6ce1684bd62bf60613d86ed3",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
