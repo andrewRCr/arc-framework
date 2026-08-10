@@ -1,8 +1,8 @@
 # Metadata: decompose-transition-record
 
-| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/decompose-transition-record` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 3 — review current head; changes end at `9d21fcaee`; then open PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/482>
+- **Completed:** 2026-08-09
 
 ---
 
