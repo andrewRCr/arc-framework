@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "document-park-resume-pr-lock-exclusion",
+  "claimId": "7fdd6c09a18c6ceb087e97a919ff69f7",
+  "createdAt": "2026-08-10T14:05:22.063Z",
+  "updatedAt": "2026-08-10T14:05:22.063Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "document-park-resume-pr-lock-exclusion",
+  "branch": "chore/document-park-resume-pr-lock-exclusion",
+  "origin": "inbox",
+  "originEntry": "Record that park and resume pull requests open unlocked by design",
+  "originEntrySourceDigest": "sha256:7f9e143e3428b2325ccecb642ed2e1750a1ab52ba2fa6861dafbeaaebd2d8cbe",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
