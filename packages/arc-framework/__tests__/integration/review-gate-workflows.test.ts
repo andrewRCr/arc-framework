@@ -595,7 +595,11 @@ describe("trusted review-gate workflows", () => {
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md",
     );
     const partial = sectionBetween(decompose, "### Partial protection", "### Full protection");
-    const full = sectionBetween(decompose, "### Full protection", "## 8. Resolve the landed handoff");
+    const full = sectionBetween(
+      decompose,
+      "### Full protection",
+      "## 7. Confirm lifecycle readiness and clean up",
+    );
     const status = full.indexOf("Surface PR status");
     const interlock = full.indexOf("`integration-interlock`");
     const merge = full.indexOf("merge according to project policy");
@@ -783,6 +787,21 @@ describe("trusted review-gate workflows", () => {
       ]);
       expect(project, path).toBe(packaged);
     }
+  });
+
+  it("keeps authoritative transition history review-owned across merge-gate surfaces", async () => {
+    const [repositoryOwners, templateOwners, readme, setup] = await Promise.all([
+      readRepositoryFile(".github/CODEOWNERS"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/CODEOWNERS"),
+      readRepositoryFile("packages/arc-framework/arc/reference/templates/arc/merge-gate/README.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/setup-merge-gate.md"),
+    ]);
+
+    for (const owners of [repositoryOwners, templateOwners]) {
+      expect(owners).not.toContain("/.arc/system/.internal/transitions/*.json");
+    }
+    expect(readme).toMatch(/transition-record namespace remains review-owned/iu);
+    expect(setup).toMatch(/transition-record namespace owned/iu);
   });
 
   it("offers review-source and merge-lock setup as independent default-off choices", async () => {

@@ -132,12 +132,15 @@ describe("init", () => {
       "utf-8",
     );
     const authoringIndex = decomposeWorkflow.indexOf("## 4. Author every reported destination");
-    const interlockIndex = decomposeWorkflow.indexOf("`workflow-interlock`");
-    const finalizationIndex = decomposeWorkflow.indexOf("## 6. Finalize with explicit continuation");
-    expect(decomposeWorkflow.match(/`workflow-interlock`/g)).toHaveLength(1);
+    const interlockIndexes = [...decomposeWorkflow.matchAll(/`workflow-interlock`/g)]
+      .map((match) => match.index);
+    const releaseIndex = decomposeWorkflow.indexOf("## 6. Release through the reported protection arm");
+    const advancementIndex = decomposeWorkflow.indexOf("--advance-base");
+    expect(interlockIndexes).toHaveLength(2);
     expect(authoringIndex).toBeGreaterThanOrEqual(0);
-    expect(interlockIndex).toBeGreaterThan(authoringIndex);
-    expect(finalizationIndex).toBeGreaterThan(interlockIndex);
+    expect(interlockIndexes[0]).toBeGreaterThan(authoringIndex);
+    expect(releaseIndex).toBeGreaterThan(interlockIndexes[0]!);
+    expect(interlockIndexes[1]).toBeGreaterThan(advancementIndex);
     expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
 

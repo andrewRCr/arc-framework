@@ -15,12 +15,11 @@ describe("decompose workflow contract", () => {
     const headings = [
       "## 1. Emit the exact preflight",
       "## 2. Complete the operator-owned map",
-      "## 3. Prepare and materialize the result",
+      "## 3. Stage the complete result",
       "## 4. Author every reported destination",
       "## 5. Review the distributed result",
-      "## 6. Finalize with explicit continuation",
-      "## 7. Release through the reported protection arm",
-      "## 8. Resolve the landed handoff",
+      "## 6. Release through the reported protection arm",
+      "## 7. Confirm lifecycle readiness and clean up",
     ];
     const positions = headings.map((heading) => workflow.indexOf(heading));
 
@@ -28,19 +27,35 @@ describe("decompose workflow contract", () => {
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
   });
 
-  it("places one distribution interlock after destination authoring and before finalization", () => {
+  it("places distribution and advanced-result interlocks at their distinct release boundaries", () => {
     const authoring = workflow.indexOf("## 4. Author every reported destination");
-    const finalization = workflow.indexOf("## 6. Finalize with explicit continuation");
+    const release = workflow.indexOf("## 6. Release through the reported protection arm");
     const interlocks = [...workflow.matchAll(/`workflow-interlock`/gu)];
 
     expect(authoring).toBeGreaterThan(-1);
-    expect(interlocks).toHaveLength(1);
+    expect(interlocks).toHaveLength(2);
     expect(interlocks[0]!.index).toBeGreaterThan(authoring);
-    expect(finalization).toBeGreaterThan(interlocks[0]!.index);
-    expect(workflow.slice(interlocks[0]!.index, finalization)).toContain("selected-slugs-or-none");
+    expect(release).toBeGreaterThan(interlocks[0]!.index);
+    expect(interlocks[1]!.index).toBeGreaterThan(workflow.indexOf("--advance-base"));
+    expect(interlocks[1]!.index).toBeLessThan(workflow.indexOf("`push-interlock`"));
   });
 
-  it("uses only closed command modes and CLI-reported continuation and recovery", () => {
+  it("re-stages and verifies the approved authored bytes before either release arm", () => {
+    const interlock = workflow.indexOf("`workflow-interlock`");
+    const staging = workflow.indexOf("git add -- <reported-release-paths>");
+    const partial = workflow.indexOf("### Partial protection");
+    const full = workflow.indexOf("### Full protection");
+
+    expect(staging).toBeGreaterThan(interlock);
+    expect(staging).toBeLessThan(partial);
+    expect(staging).toBeLessThan(full);
+    expect(workflow).toContain("git diff --quiet -- <reported-release-paths>");
+    expect(workflow).toContain("including paths that execute found already applied");
+    expect(workflow).toContain("git diff --cached --name-only --no-renames");
+    expect(workflow).not.toMatch(/git add -- (?:\.arc|\.|--all|-A)\b/u);
+  });
+
+  it("uses only preflight, staged execution, and receipt-free base advancement", () => {
     const bashCommands = [...workflow.matchAll(/```bash\n([\s\S]*?)```/gu)].map(
       (match) => match[1]!.trim(),
     );
@@ -48,30 +63,32 @@ describe("decompose workflow contract", () => {
     expect(bashCommands).toEqual([
       "arc decompose <origin> --preflight > <scratch-starter-map>",
       "arc decompose <origin> --execute <completed-map>",
-      "arc decompose <origin> --handoff",
+      "git add -- <reported-release-paths>\n"
+        + "git diff --quiet -- <reported-release-paths>\n"
+        + "git diff --cached --name-only --no-renames",
+      "arc decompose <origin> --advance-base <completed-map>",
+      "arc status",
+      "arc teardown --branch <reported-candidate-branch>\narc teardown <origin>",
     ]);
     expect(workflow).toContain("profile and topology packets");
-    expect(workflow).toContain("next.continuationPath");
-    expect(workflow).toContain("next.command");
-    expect(workflow).toContain("discard.command");
     expect(workflow).toContain("reject");
-    expect(workflow).toContain("abandon");
-    expect(workflow).toContain("--finalize");
-    expect(workflow).toContain("--continuation");
-    expect(workflow).toContain("exact reported command");
-    expect(workflow).not.toContain("--cut-map");
+    for (const retired of ["--discard", "--finalize", "--continuation", "--handoff"]) {
+      expect(workflow).not.toContain(retired);
+    }
+    expect(workflow).not.toMatch(/\breceipt\b/iu);
+    expect(workflow).not.toMatch(/\bprepar(?:e|ation|ed)\b/iu);
   });
 
   it("keeps partial and full release controls mutually exclusive and ordered", () => {
     const partialStart = workflow.indexOf("### Partial protection");
     const fullStart = workflow.indexOf("### Full protection");
-    const handoffStart = workflow.indexOf("## 8. Resolve the landed handoff");
+    const readinessStart = workflow.indexOf("## 7. Confirm lifecycle readiness and clean up");
     expect(partialStart).toBeGreaterThan(-1);
     expect(fullStart).toBeGreaterThan(partialStart);
-    expect(handoffStart).toBeGreaterThan(fullStart);
+    expect(readinessStart).toBeGreaterThan(fullStart);
 
     const partial = workflow.slice(partialStart, fullStart);
-    const full = workflow.slice(fullStart, handoffStart);
+    const full = workflow.slice(fullStart, readinessStart);
     expect(partial).toContain("`commit-interlock`");
     expect(partial).toContain("`workflowCommit`");
     expect(partial).not.toContain("pre-push-review");
@@ -92,6 +109,10 @@ describe("decompose workflow contract", () => {
 
     expect(fullControls).not.toContain(-1);
     expect(fullControls).toEqual([...fullControls].sort((left, right) => left - right));
+    expect(full).toContain("Invoke the authoritative advancement operation unconditionally");
+    expect(full).toContain("An `advanced` result fires the interlock below");
+    expect(full.match(/`workflowCommit`/gu)).toHaveLength(2);
+    expect(full.match(/`commit-interlock`/gu)).toHaveLength(2);
   });
 
   it("leaves Git topology and candidate cleanup to typed verbs", () => {
@@ -100,7 +121,7 @@ describe("decompose workflow contract", () => {
     );
     expect(workflow).not.toContain("gh pr merge");
     expect(workflow).not.toContain("--squash");
-    expect(workflow).not.toContain("arc teardown");
+    expect(workflow).toContain("arc teardown <origin>");
   });
 
   it("keeps package source and the self-hosted project projection byte-equal", () => {

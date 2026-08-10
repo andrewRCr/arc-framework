@@ -1,25 +1,18 @@
-/** Built-CLI coverage for destructive decomposition candidate discard. */
+/** Built-CLI coverage for decomposition execution and base mobility. */
 
-import { execFile } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import {
-  resolveConfiguredBaseDecompositionAnchor,
-} from "../../src/lib/work-unit/configured-base-decomposition-anchor.js";
-import {
   cleanupTempDir,
   createTempRepo,
   git,
   runArcNoTty,
 } from "./helpers.js";
-
-const execFileAsync = promisify(execFile);
 
 async function write(repo: string, path: string, content: string): Promise<void> {
   const absolute = join(repo, path);
@@ -392,7 +385,7 @@ describe("arc decompose command modes", () => {
     if (repo !== undefined) await cleanupTempDir(repo);
   });
 
-  it("executes and discards only the exact canonical candidate generation", async () => {
+  it("stages one complete full-protection transition without a receipt successor", async () => {
     repo = await startedRepository();
     const cutMapPath = await writeCompletedCutMap(repo);
 
@@ -402,176 +395,20 @@ describe("arc decompose command modes", () => {
       { timeout: 60_000 },
     );
     expect(executed.exitCode, executed.stderr).toBe(0);
-    expect(JSON.parse(executed.stdout)).toMatchObject({
-      status: "prepared",
+    const result = JSON.parse(executed.stdout) as Record<string, unknown>;
+    expect(result).toMatchObject({
+      status: "staged",
       operation: {
         occupation: {
           protection: "full",
-          candidateOwnership: {
-            generation: 1,
-            candidateBranch: "chore/decompose-origin",
-          },
+          candidateBranch: "chore/decompose-origin",
         },
       },
     });
-
-    const discarded = await runArcNoTty(
-      ["decompose", "origin", "--discard", cutMapPath],
-      repo,
-      { timeout: 60_000 },
-    );
-    expect(discarded.exitCode, discarded.stderr).toBe(0);
-    expect(JSON.parse(discarded.stdout)).toMatchObject({
-      status: "discarded",
-      generation: 1,
-      candidateBranch: "chore/decompose-origin",
-    });
-    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
-    expect(await git(repo, ["worktree", "list", "--porcelain"]))
-      .not.toContain("branch refs/heads/chore/decompose-origin");
-    const claims = await claimFiles(repo);
-    expect(claims).toHaveLength(1);
-    expect(JSON.parse(await readFile(
-      join(await claimDirectory(repo), claims[0]!),
-      "utf8",
-    ))).toMatchObject({
-      state: { kind: "terminal", terminal: { kind: "discarded" } },
-      registration: { kind: "released" },
-    });
-  });
-
-  it("finalizes the exact prepared receipt from its candidate worktree", async () => {
-    repo = await startedRepository();
-    const cutMapPath = await writeCompletedCutMap(repo);
-    const executed = await runArcNoTty(
-      ["decompose", "origin", "--execute", cutMapPath],
-      repo,
-      { timeout: 60_000 },
-    );
-    expect(executed.exitCode, executed.stderr).toBe(0);
-    const prepared = JSON.parse(executed.stdout) as {
-      status: "prepared";
-      operation: {
-        occupation: { path: string };
-        preparation: { receiptId: string };
-      };
-      next: {
-        kind: "finalize-with-continuation";
-        continuationPath: string;
-        command: string;
-      };
-    };
-    const continuationPath = `${cutMapPath}.continuation.json`;
-    expect(prepared.next).toEqual({
-      kind: "finalize-with-continuation",
-      continuationPath,
-      command: `arc decompose origin --finalize ${prepared.operation.preparation.receiptId} `
-        + `--continuation ${continuationPath}`,
-    });
-    await writeFile(
-      prepared.next.continuationPath,
-      `${canonicalize({ kind: "selected", slugs: ["member"] })}\n`,
-    );
-
-    const finalized = await runArcNoTty(
-      [
-        "decompose",
-        "origin",
-        "--finalize",
-        prepared.operation.preparation.receiptId,
-        "--continuation",
-        prepared.next.continuationPath,
-      ],
-      prepared.operation.occupation.path,
-      { timeout: 60_000 },
-    );
-
-    expect(finalized.exitCode, finalized.stderr).toBe(0);
-    expect(JSON.parse(finalized.stdout)).toMatchObject({
-      status: "recorded",
-      receipt: {
-        receiptId: prepared.operation.preparation.receiptId,
-        finalized: {
-          publication: {
-            initialContinuation: { kind: "selected", slugs: ["member"] },
-          },
-        },
-      },
-    });
-  });
-
-  it("advances one committed candidate through the built CLI without rewriting its head", async () => {
-    repo = await startedRepository();
-    const cutMapPath = await writeCompletedCutMap(repo);
-    const executed = await runArcNoTty(
-      ["decompose", "origin", "--execute", cutMapPath],
-      repo,
-      { timeout: 60_000 },
-    );
-    expect(executed.exitCode, executed.stderr).toBe(0);
-    const prepared = JSON.parse(executed.stdout) as {
-      operation: {
-        occupation: { path: string };
-        preparation: { receiptId: string };
-      };
-      next: { continuationPath: string };
-    };
-    await writeFile(
-      prepared.next.continuationPath,
-      `${canonicalize({ kind: "selected", slugs: ["member"] })}\n`,
-    );
-    const finalized = await runArcNoTty([
-      "decompose",
-      "origin",
-      "--finalize",
-      prepared.operation.preparation.receiptId,
-      "--continuation",
-      prepared.next.continuationPath,
-    ], prepared.operation.occupation.path, { timeout: 60_000 });
-    expect(finalized.exitCode, finalized.stderr).toBe(0);
-    await git(prepared.operation.occupation.path, ["commit", "-m", "finalize candidate"]);
-    const candidateHead = await git(repo, ["rev-parse", "chore/decompose-origin"]);
-
-    await write(repo, ".arc/backlog/planned/observer/meta-observer.md", renderMetaFile("observer", {
-      state: "Planning",
-      owner: "test-user",
-      workClass: "Light",
-      priority: "P3",
-      origin: "internal",
-      design: ["draft-observer.md"],
-      currentWorkflow: "draft-design",
-      nextAction: "Begin draft-design",
-    }));
-    await write(repo, ".arc/backlog/planned/observer/draft-observer.md", "# Draft: observer\n");
-    await git(repo, ["add", ".arc/backlog/planned/observer"]);
-    await git(repo, ["commit", "-m", "advance base"]);
-    const currentBaseHead = await git(repo, ["rev-parse", "main"]);
-
-    const advanced = await runArcNoTty([
-      "decompose",
-      "origin",
-      "--advance-base",
-      prepared.operation.preparation.receiptId,
-    ], repo, { timeout: 60_000 });
-
-    expect(advanced.exitCode, advanced.stderr).toBe(0);
-    expect(JSON.parse(advanced.stdout)).toEqual({
-      status: "advanced",
-      receiptId: prepared.operation.preparation.receiptId,
-      previousBaseHead: expect.any(String),
-      currentBaseHead,
-      candidateHead,
-    });
-    expect(await git(repo, ["rev-parse", "chore/decompose-origin"])).toBe(candidateHead);
-    expect(await git(prepared.operation.occupation.path, ["rev-parse", "MERGE_HEAD"]))
-      .toBe(currentBaseHead);
-    const staged = await git(
-      prepared.operation.occupation.path,
-      ["diff", "--cached", "--name-only"],
-    );
-    expect(staged).toContain(".arc/backlog/ROADMAP.md");
-    expect(staged).toContain(".arc/backlog/planned/observer/meta-observer.md");
-    expect(staged).toContain(".arc/system/.internal/retirement-receipts/");
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(executed.stdout).not.toContain("receiptId");
+    expect(executed.stdout).not.toContain("continuation");
+    expect(executed.stdout).not.toContain("discard");
   });
 
   it("refuses destination-owned multi-member direct placement before repository mutation", async () => {
@@ -639,36 +476,27 @@ describe("arc decompose command modes", () => {
       { timeout: 60_000 },
     );
     expect(executed.exitCode, executed.stderr).toBe(0);
-    const prepared = JSON.parse(executed.stdout) as {
-      status: "prepared";
+    const staged = JSON.parse(executed.stdout) as {
+      status: "staged";
       operation: {
         occupation: {
           protection: "partial";
-          candidateOwnership: { kind: "not-applicable"; protection: "partial" };
         };
-        preparation: { receiptId: string };
         report: {
           topology: Array<{ kind: string; action: string; disposition: string; path?: string }>;
           destinations: Array<{ path: string }>;
         };
       };
-      next: {
-        kind: "finalize-with-continuation";
-        continuationPath: string;
-        command: string;
-      };
     };
-    expect(prepared).toMatchObject({
-      status: "prepared",
+    expect(staged).toMatchObject({
+      status: "staged",
       operation: {
         occupation: {
           protection: "partial",
-          candidateOwnership: { kind: "not-applicable", protection: "partial" },
         },
       },
-      next: { kind: "finalize-with-continuation" },
     });
-    expect(prepared.operation.report.topology).toEqual([{
+    expect(staged.operation.report.topology).toEqual([{
       kind: "topology",
       action: "none",
       disposition: "no-write",
@@ -694,163 +522,9 @@ describe("arc decompose command modes", () => {
       .toBe(".arc/backlog/planned/existing/meta-existing.md");
     const stagedAfterExecute = await git(repo, ["diff", "--cached", "--name-only", "--no-renames"]);
     expect(stagedAfterExecute).not.toContain("cohort-");
-    expect(stagedAfterExecute).not.toContain("meta-document.md");
-
-    const sharedAfter = sharedBefore.replace(
-      "## Allocation target\n\nReplace only this allocated section.\n",
-      "## Allocation target\n\nAllocated origin responsibility now lives here.\n",
-    );
-    expect(sharedAfter).not.toBe(sharedBefore);
-    expect(sharedAfter).toContain("## Retained prefix\n\nKeep this prefix byte-for-byte.");
-    expect(sharedAfter).toContain("## Retained suffix\n\nKeep this suffix byte-for-byte.");
-    await writeFile(sharedPath, sharedAfter);
-    await git(repo, ["add", "--", ".arc/reference/shared.md"]);
-    await writeFile(
-      prepared.next.continuationPath,
-      `${canonicalize({ kind: "none" })}\n`,
-    );
-
-    const finalized = await runArcNoTty(
-      [
-        "decompose",
-        "origin",
-        "--finalize",
-        prepared.operation.preparation.receiptId,
-        "--continuation",
-        prepared.next.continuationPath,
-      ],
-      repo,
-      { timeout: 60_000 },
-    );
-    expect(finalized.exitCode, finalized.stderr).toBe(0);
-    const recorded = JSON.parse(finalized.stdout) as {
-      status: string;
-      receipt: {
-        prepared: {
-          candidateOwnership: { kind: string; protection: string };
-        };
-        finalized: {
-          publication: {
-            logicalAnchor: unknown;
-            entries: unknown[];
-            initialContinuation: unknown;
-          };
-          managedPathResults: Array<{ path: string; after: { kind: string } }>;
-        };
-      };
-    };
-    expect(recorded).toMatchObject({
-      status: "recorded",
-      receipt: {
-        prepared: {
-          candidateOwnership: { kind: "not-applicable", protection: "partial" },
-        },
-        finalized: {
-          publication: {
-            logicalAnchor: { kind: "direct-member", slug: "member" },
-            entries: [
-              {
-                kind: "existing-destination",
-                destinationId: "document",
-                target: { kind: "document", path: ".arc/reference/shared.md" },
-              },
-              {
-                kind: "existing-destination",
-                destinationId: "existing",
-                target: { kind: "work-unit", slug: "existing" },
-              },
-              { kind: "new-leaf", slug: "member" },
-            ],
-            initialContinuation: { kind: "none" },
-          },
-        },
-      },
-    });
-    expect(recorded.receipt.finalized.managedPathResults)
-      .toContainEqual(expect.objectContaining({
-        path: ".arc/reference/shared.md",
-        after: expect.objectContaining({ kind: "file" }),
-      }));
-    expect(await readFile(sharedPath, "utf8")).toBe(sharedAfter);
+    expect(stagedAfterExecute).toContain(".arc/system/.internal/transitions/");
+    expect(executed.stdout).not.toContain("receiptId");
+    expect(executed.stdout).not.toContain("continuation");
     expect(await claimFiles(repo)).toEqual([]);
-
-    await git(repo, [
-      "commit",
-      "-m",
-      "Land partial heterogeneous decomposition",
-    ]);
-    const landedHead = await git(repo, ["rev-parse", "main"]);
-    const anchor = await resolveConfiguredBaseDecompositionAnchor(
-      "main",
-      "origin",
-      {
-        exec: async (command, args, options) => {
-          const { stdout } = await execFileAsync(command, args, {
-            cwd: options?.cwd ?? repo,
-            encoding: "utf8",
-            maxBuffer: 20 * 1024 * 1024,
-          });
-          return { stdout };
-        },
-        readBlob: async (oid) => {
-          const { stdout } = await execFileAsync("git", ["cat-file", "blob", oid], {
-            cwd: repo,
-            encoding: "buffer",
-            maxBuffer: 20 * 1024 * 1024,
-          });
-          return new Uint8Array(stdout);
-        },
-      },
-    );
-    expect(anchor).toMatchObject({
-      status: "resolved",
-      anchor: {
-        currentBaseHead: landedHead,
-        candidateCommitHead: landedHead,
-        claimRetirement: { kind: "not-applicable", protection: "partial" },
-      },
-    });
-
-    const handoff = await runArcNoTty(["decompose", "origin", "--handoff"], repo);
-    expect(handoff.exitCode, handoff.stderr).toBe(0);
-    const publication = JSON.parse(handoff.stdout) as {
-      status: string;
-      handoff: {
-        logicalAnchor: unknown;
-        entries: Array<{ kind: string; destinationId?: string; readiness?: unknown }>;
-        initialContinuation: unknown;
-        selectedReadiness: Array<{ slug: string }>;
-      };
-    };
-    expect(publication).toMatchObject({
-      status: "resolved",
-      handoff: {
-        logicalAnchor: { kind: "direct-member", slug: "member" },
-        initialContinuation: { kind: "none" },
-        selectedReadiness: [],
-      },
-    });
-    expect(publication.handoff.entries.filter(({ kind }) =>
-      kind === "existing-destination",
-    )).toEqual([
-      {
-        kind: "existing-destination",
-        destinationId: "document",
-        target: { kind: "document", path: ".arc/reference/shared.md" },
-        displayPath: ".arc/reference/shared.md",
-      },
-      {
-        kind: "existing-destination",
-        destinationId: "existing",
-        target: { kind: "work-unit", slug: "existing" },
-        displayPath: ".arc/backlog/planned/existing",
-      },
-    ]);
-    expect(publication.handoff.entries.filter(({ kind }) =>
-      kind === "existing-destination",
-    ).every((entry) => entry.readiness === undefined)).toBe(true);
-    expect(await claimFiles(repo)).toEqual([]);
-    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
-    expect(await git(repo, ["remote"])).toBe("origin");
   });
 });

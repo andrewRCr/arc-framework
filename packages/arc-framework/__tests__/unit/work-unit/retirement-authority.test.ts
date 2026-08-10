@@ -1,16 +1,89 @@
 import { describe, expect, it } from "vitest";
 
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
+import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import {
   describeTeardownAuthorizationRefusal,
+  gitTransitionExpectedLifecycle,
+  gitTransitionResultDigest,
   retirementSubjectRefusal,
-  validateReceiptMatrix,
   worktreeSubjectsEqual,
-  type RetirementReceipt,
   type TeardownAuthorizationRefusal,
 } from "../../../src/lib/work-unit/retirement-authority.js";
 
 const digest = (value: string) => contentDigest(new TextEncoder().encode(value));
+
+describe("Git transition result digest", () => {
+  const draftPath = validateManagedPath(".arc/backlog/planned/sample/draft-sample.md");
+  const metaPath = validateManagedPath(".arc/backlog/planned/sample/meta-sample.md");
+  const input = {
+    transition: "park-planning" as const,
+    subject: { kind: "work-unit", name: "sample" } as const,
+    branch: "plan/sample",
+    retiringHead: "a".repeat(40),
+    resultHead: "b".repeat(40),
+    resultInventory: [
+      { path: metaPath, contentDigest: digest("meta") },
+      { path: draftPath, contentDigest: digest("draft") },
+    ],
+  };
+
+  it("uses one versioned domain-separated vector with a path-sorted result inventory", () => {
+    expect(gitTransitionResultDigest(input)).toBe(canonicalDigest({
+      domain: "arc.git-transition-result",
+      schemaVersion: 1,
+      transition: "park-planning",
+      subject: input.subject,
+      branch: input.branch,
+      retiringHead: input.retiringHead,
+      resultHead: input.resultHead,
+      expectedLifecycle: "planned",
+      resultInventory: [
+        { path: draftPath, contentDigest: digest("draft") },
+        { path: metaPath, contentDigest: digest("meta") },
+      ],
+    }));
+    expect(gitTransitionResultDigest({
+      ...input,
+      resultInventory: [...input.resultInventory].reverse(),
+    })).toBe(gitTransitionResultDigest(input));
+  });
+
+  it("sorts non-ASCII paths by their canonical UTF-8 bytes", () => {
+    const asciiPath = validateManagedPath(".arc/z.json");
+    const nonAsciiPath = validateManagedPath(".arc/é.json");
+    const resultInventory = [
+      { path: nonAsciiPath, contentDigest: digest("non-ascii") },
+      { path: asciiPath, contentDigest: digest("ascii") },
+    ];
+
+    expect(gitTransitionResultDigest({ ...input, resultInventory })).toBe(canonicalDigest({
+      domain: "arc.git-transition-result",
+      schemaVersion: 1,
+      transition: "park-planning",
+      subject: input.subject,
+      branch: input.branch,
+      retiringHead: input.retiringHead,
+      resultHead: input.resultHead,
+      expectedLifecycle: "planned",
+      resultInventory: [
+        { path: asciiPath, contentDigest: digest("ascii") },
+        { path: nonAsciiPath, contentDigest: digest("non-ascii") },
+      ],
+    }));
+  });
+
+  it("changes when any replay-bound transition fact changes", () => {
+    const expected = gitTransitionResultDigest(input);
+    expect(gitTransitionResultDigest({ ...input, transition: "abandon" })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, branch: "plan/other" })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, retiringHead: "c".repeat(40) })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, resultHead: "d".repeat(40) })).not.toBe(expected);
+    expect(gitTransitionResultDigest({ ...input, resultInventory: [] })).not.toBe(expected);
+    expect(gitTransitionExpectedLifecycle("abandon")).toBe("nonexistent");
+  });
+});
 
 const refusalDescriptions = {
   "unsupported-transition": "unsupported transition",
@@ -23,27 +96,6 @@ const refusalDescriptions = {
   "authority-ambiguous": "retirement authority found conflicting evidence",
   "authority-conflict": "retirement authority changed during the operation",
 } as const satisfies Record<TeardownAuthorizationRefusal, string>;
-
-function receipt(
-  overrides: Partial<Omit<Extract<RetirementReceipt, { schemaVersion: 1 }>, "schemaVersion">> = {},
-): RetirementReceipt {
-  return {
-    schemaVersion: 1,
-    receiptId: digest("receipt"),
-    subject: { kind: "work-unit", name: "sample" },
-    transition: "abandon",
-    source: {
-      branch: "plan/sample",
-      head: "a".repeat(40),
-      artifactDigest: digest("source"),
-    },
-    transitionPatchDigest: digest("patch"),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "discard-confirmed",
-    result: { kind: "discard", artifactDigest: "absent" },
-    ...overrides,
-  };
-}
 
 describe("TeardownAuthorizationRefusal", () => {
   it("is handled exhaustively by the runtime renderer", () => {
@@ -69,54 +121,5 @@ describe("worktree subject identity", () => {
     expect(retirementSubjectRefusal({ kind: "errand", slug: "shared" })).toBe("unsupported-transition");
     expect(retirementSubjectRefusal({ kind: "work-unit", name: "shared" })).toBeNull();
     expect(retirementSubjectRefusal({ kind: "branch", ref: "chore/shared" })).toBeNull();
-  });
-});
-
-describe("receipt cross-field matrix", () => {
-  it.each([
-    [receipt(), "nonexistent"],
-    [
-      receipt({
-        transition: "park-planning",
-        authorization: "planning-relocated",
-        result: { kind: "relocate", plannedArtifactDigest: digest("planned") },
-      }),
-      "planned",
-    ],
-    [
-      receipt({
-        transition: "rename",
-        authorization: "identity-renamed",
-        result: { kind: "rename", targetSlug: "renamed", artifactDigest: digest("renamed") },
-      }),
-      "nonexistent",
-    ],
-  ] as const)("accepts the fixed %s combination", (candidate, expectedLifecycle) => {
-    expect(validateReceiptMatrix(candidate, expectedLifecycle)).toBeNull();
-  });
-
-  it.each([
-    [receipt(), "planned"],
-    [receipt({ authorization: "planning-relocated" }), "nonexistent"],
-    [receipt({ result: { kind: "relocate", plannedArtifactDigest: digest("planned") } }), "nonexistent"],
-    [receipt({ transition: "park-planning" }), "planned"],
-    [
-      receipt({
-        transition: "rename",
-        authorization: "discard-confirmed",
-        result: { kind: "rename", targetSlug: "renamed", artifactDigest: digest("renamed") },
-      }),
-      "nonexistent",
-    ],
-    [
-      receipt({
-        transition: "abandon",
-        authorization: "identity-renamed",
-        result: { kind: "rename", targetSlug: "renamed", artifactDigest: digest("renamed") },
-      }),
-      "nonexistent",
-    ],
-  ] as const)("rejects an unsupported cross-field combination", (candidate, expectedLifecycle) => {
-    expect(validateReceiptMatrix(candidate, expectedLifecycle)).toBe("evidence-mismatch");
   });
 });

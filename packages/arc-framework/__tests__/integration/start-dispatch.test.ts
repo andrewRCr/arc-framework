@@ -19,7 +19,6 @@ import { promisify } from "node:util";
 import { runColdStart, runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
 import { handleStart } from "../../src/handlers/start.js";
 import { parseMetaProjectionRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { digestBytes } from "../../src/lib/canonical/canonical-json.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
@@ -30,12 +29,7 @@ import {
   prepareGitGraduationTransaction,
   type GitGraduationTransactionResult,
 } from "../../src/lib/work-unit/git-graduation-transaction.js";
-import {
-  produceDecompositionIntegrationAnchor,
-  type DecompositionIntegrationAnchor,
-} from "../../src/lib/work-unit/decomposition-integration-anchor.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
-import { v3DecompositionEvidenceFixture } from "../fixtures/decompose-v3.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
@@ -88,7 +82,6 @@ function prepareTransaction(
   slug: string,
   mode: "spawned" | "in-place",
   worktreePath: string,
-  anchor?: DecompositionIntegrationAnchor,
 ): () => Promise<GitGraduationTransactionResult> {
   return () => prepareGitGraduationTransaction({
     exec: h.io.exec,
@@ -110,10 +103,6 @@ function prepareTransaction(
         throw error;
       }
     },
-    resolveAnchor: async (receiptId) =>
-      anchor?.receiptId === receiptId
-        ? { status: "resolved", anchor }
-        : { status: "refused", reason: "no-receipt" },
   }, {
     cwd: h.repo,
     slug,
@@ -537,95 +526,6 @@ describe("arc start dispatch — against real worktrees", () => {
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "widget", "SESSION-NOTES.md"), "utf8");
     expect(notes).toContain("Graduated the backlog stub");
     expect(notes).toContain("**Commit at Handoff:** `[start ceremony pending]`");
-  });
-
-  it("graduate: consumes one resolved receipt anchor and removes its planning marker", async () => {
-    const slug = "anchored-widget";
-    const root = `.arc/backlog/planned/${slug}`;
-    const draftPath = `${root}/draft-${slug}.md`;
-    const metaPath = `${root}/meta-${slug}.md`;
-    const draftBytes = new TextEncoder().encode("# Draft\n");
-    const { receipt } = v3DecompositionEvidenceFixture();
-    const resolved = produceDecompositionIntegrationAnchor({
-      receipts: [receipt],
-      preparedBaseHead: receipt.prepared.completedMap.machine.resultBase.head,
-      candidateCommit: { head: "c".repeat(40), tree: "d".repeat(40) },
-      receiptTransitionTree: "d".repeat(40),
-      currentBaseHead: "c".repeat(40),
-      baseDescent: { kind: "exact" },
-      landingRelation: { kind: "exact" },
-      landing: {
-        kind: "fast-forward",
-        beforeHead: receipt.prepared.completedMap.machine.resultBase.head,
-        resultHead: "c".repeat(40),
-        resultTree: "d".repeat(40),
-      },
-    });
-    if (resolved.status !== "resolved") throw new Error("fixture anchor did not resolve");
-    const metaContent = renderMetaFile(slug, {
-      state: "Planning",
-      owner: IDENTITY,
-      workClass: "Light",
-      design: [`draft-${slug}.md`],
-      currentWorkflow: "draft-design",
-      decompositionReceipt: resolved.anchor.receiptId,
-    });
-    const metaBytes = new TextEncoder().encode(metaContent);
-    resolved.anchor.receipt.prepared.completedMap.machine.planningProfile = {
-      kind: "draft",
-      sourceDesign: ["draft-origin.md"],
-    };
-    resolved.anchor.receipt.finalized.publication.entries = [{ kind: "new-leaf", slug }];
-    resolved.anchor.receipt.finalized.managedPathResults = [
-      {
-        path: metaPath,
-        before: { kind: "absent" },
-        after: { kind: "file", mode: "100644", contentDigest: digestBytes(metaBytes) },
-      },
-      {
-        path: draftPath,
-        before: { kind: "absent" },
-        after: { kind: "file", mode: "100644", contentDigest: digestBytes(draftBytes) },
-      },
-    ];
-    await mkdir(join(h.repo, root), { recursive: true });
-    await writeFile(join(h.repo, metaPath), metaBytes);
-    await writeFile(join(h.repo, draftPath), draftBytes);
-    await execFileAsync("git", ["add", "-A"], { cwd: h.repo });
-    await execFileAsync("git", ["commit", "-m", "anchored stub"], { cwd: h.repo });
-
-    const wt = resolveWorktreeLocation({
-      template: h.locationTemplate,
-      repo: basename(h.repo),
-      name: slug,
-      branch: `plan/${slug}`,
-    });
-    h.spawned.push(wt);
-    const result = await runGraduate(
-      buildExecutorContext({
-        cwd: h.repo,
-        io: h.io,
-        identity: IDENTITY,
-        teamMode: false,
-        internalTemplateDir: getInternalTemplatePath(),
-      }),
-      {
-        name: slug,
-        cls: "Light",
-        baseBranch: "main",
-        locationTemplate: h.locationTemplate,
-        repo: basename(h.repo),
-        spawningIdentity: IDENTITY,
-        prepareTransaction: prepareTransaction(h, slug, "spawned", wt, resolved.anchor),
-      },
-    );
-
-    if (result.status !== "graduated") throw new Error(JSON.stringify(result));
-    const activeMeta = parseMetaProjectionRecord(
-      await readFile(join(wt, ".arc", "active", `meta-${slug}.md`), "utf8"),
-    );
-    expect(activeMeta["Decomposition Receipt"]).toBeNull();
-    expect(activeMeta["Current Workflow"]).toBe("draft-design");
   });
 
   it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {

@@ -16,7 +16,7 @@ import {
 } from "../../../../src/lib/work-unit/verbs/teardown.js";
 import { contentDigest } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
-import { artifactGroupDigest } from "../../../../src/lib/canonical/receipt-id.js";
+import { artifactGroupDigest } from "../../../../src/lib/canonical/content-digest.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
@@ -217,10 +217,8 @@ function buildCtx(metas: MetaSpec[], execOpts?: ExecOptions): { ctx: TeardownCon
             baseProofOid: request.head,
           }
         : {
-            kind: "receipt",
-            receiptId: `sha256:${"1".repeat(64)}`,
+            kind: "git-transition",
             transition: "abandon",
-            expectedLifecycle: "nonexistent",
             resultDigest: `sha256:${"2".repeat(64)}`,
           },
       refs: { localOid: request.head, remote: null },
@@ -305,7 +303,8 @@ function installRemoteDeleteAuthority(ctx: TeardownContext, onAuthorize: () => v
   };
 }
 
-function enableSelfHusk(ctx: TeardownContext): void {
+function enableSelfHusk(ctx: TeardownContext): () => WorktreeMarker | null {
+  let stampedMarker: WorktreeMarker | null = null;
   ctx.cwd = CWD;
   ctx.worktreeFs = {
     pathExists: async () => false,
@@ -327,8 +326,10 @@ function enableSelfHusk(ctx: TeardownContext): void {
       createdAt: "2026-07-14T19:00:00.000Z",
       husk,
     };
+    stampedMarker = marker;
     return { kind: "stamped", marker };
   };
+  return () => stampedMarker;
 }
 
 function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
@@ -453,12 +454,12 @@ describe("runTeardown — arc-state authority gate", () => {
       "--full-tree",
       "-r",
       "--name-only",
-      "origin/main",
+      "deadbeef",
       "--",
       ".arc/completed/",
     ]);
     const fetchIndex = calls.findIndex((call) => call.join(" ") === "git fetch origin main");
-    const authorityReadIndex = calls.findIndex((call) => call[1] === "ls-tree" && call[5] === "origin/main");
+    const authorityReadIndex = calls.findIndex((call) => call[1] === "ls-tree" && call[5] === "deadbeef");
     expect(fetchIndex).toBeGreaterThanOrEqual(0);
     expect(authorityReadIndex).toBeGreaterThan(fetchIndex);
   });
@@ -496,7 +497,7 @@ describe("runTeardown — arc-state authority gate", () => {
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/could not refresh lifecycle authority ref `origin\/main`/i),
+      reason: expect.stringMatching(/could not resolve lifecycle authority ref `origin\/main`/i),
     });
     expect(calls).not.toContainEqual(expect.arrayContaining(["ls-tree"]));
   });
@@ -811,7 +812,7 @@ describe("runTeardown — linked self-husk", () => {
       branches: ["feat/demo"],
       worktreePorcelain: SELF_PORCELAIN,
     });
-    enableSelfHusk(ctx);
+    const readStampedMarker = enableSelfHusk(ctx);
     let request: unknown;
     ctx.readTeardownSelection = async (input) => {
       request = input;
@@ -820,6 +821,19 @@ describe("runTeardown — linked self-husk", () => {
 
     await expect(runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" }))
       .resolves.toMatchObject({ status: "torn-down", husk: { outcome: "created" } });
+    expect(readStampedMarker()?.husk).toEqual({
+      sha: "def",
+      at: "2026-07-14T20:00:00.000Z",
+      subject: { kind: "work-unit", name: "demo" },
+      branch: "feat/demo",
+      authorization: "discard-confirmed",
+      remoteRef: null,
+      evidence: {
+        kind: "git-transition",
+        transition: "abandon",
+        resultDigest: `sha256:${"2".repeat(64)}`,
+      },
+    });
     expect(request).toMatchObject({ checkoutPath: "/repo", subject: { kind: "work-unit", name: "demo" } });
     expect(calls).toContainEqual(["git", "switch", "--detach", "def"]);
   });
@@ -1365,7 +1379,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       "--full-tree",
       "-r",
       "--name-only",
-      "origin/main",
+      "deadbeef",
       "--",
       ".arc/completed/",
     ]);

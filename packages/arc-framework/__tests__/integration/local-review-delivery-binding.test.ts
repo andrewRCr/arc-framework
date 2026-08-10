@@ -36,7 +36,6 @@ const meta: MetaRecord = MetaRecordSchema.parse({
   design: [`spec-${WORK_UNIT}.md`],
   taskList: `tasks-${WORK_UNIT}.md`,
   reviewRubric: null,
-  decompositionReceipt: null,
   promotionReceipt: null,
   currentWorkflow: null,
   lastCompleted: null,

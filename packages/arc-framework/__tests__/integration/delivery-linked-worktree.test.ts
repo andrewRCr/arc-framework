@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { z } from "zod";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { receiptId } from "../../src/lib/canonical/receipt-id.js";
 import {
   RepositoryDeliveryPlanStore,
   RepositoryDeliveryStateStore,
@@ -20,18 +19,20 @@ import {
 } from "../../src/lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest, canonicalize } from "../../src/lib/kernel/index.js";
-import type { RetirementReceipt } from "../../src/lib/work-unit/retirement-authority.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
 import {
-  RETIREMENT_RECORD_NAMESPACE,
-  writeRetirementRecord,
-} from "../../src/lib/work-unit/retirement-record-store.js";
+  TRANSITION_RECORD_NAMESPACE,
+} from "../../src/lib/work-unit/transition-record-store.js";
+import type { TransitionRecord } from "../../src/lib/work-unit/transition-record.js";
 import {
   cleanupTempDir,
   createTempRepo,
   execFileAsync,
   makeCommit,
   makeGitExec,
+  mkdir,
   rm,
+  writeFile,
 } from "../helpers/integration.js";
 
 const FIRST_PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
@@ -89,33 +90,13 @@ function state(input: {
   });
 }
 
-function renameReceipt(subject: string, targetSlug: string, marker: string): RetirementReceipt {
-  const typedSubject = { kind: "work-unit", name: subject } as const;
-  const source = {
-    branch: `feat/${subject}-${marker}`,
-    head: marker.repeat(40),
-    artifactDigest: canonicalDigest({ source: subject, marker }),
-  };
+function renameTransition(subject: string, targetSlug: string): TransitionRecord {
   return {
     schemaVersion: 1,
-    receiptId: receiptId({
-      schemaVersion: 1,
-      subject: typedSubject,
-      transition: "rename",
-      sourceBranch: source.branch,
-      sourceHead: source.head,
-    }),
-    subject: typedSubject,
-    transition: "rename",
-    source,
-    transitionPatchDigest: canonicalDigest({ patch: subject, marker }),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "identity-renamed",
-    result: {
-      kind: "rename",
-      targetSlug,
-      artifactDigest: canonicalDigest({ target: targetSlug }),
-    },
+    origin: subject,
+    kind: "rename",
+    successors: [targetSlug],
+    edges: [],
   };
 }
 
@@ -164,11 +145,13 @@ describe("delivery records from an artifact-free linked worktree", () => {
     if (result.status === "refused") throw new Error(`plan publication refused: ${result.reason}`);
   }
 
-  async function publishReceipts(receipts: readonly RetirementReceipt[], message: string): Promise<void> {
-    for (const receipt of receipts) {
-      await writeRetirementRecord(primary, receipt.receiptId, canonicalize(receipt));
+  async function publishTransitions(records: readonly TransitionRecord[], message: string): Promise<void> {
+    const directory = join(primary, TRANSITION_RECORD_NAMESPACE);
+    await mkdir(directory, { recursive: true });
+    for (const [index, record] of records.entries()) {
+      await writeFile(join(directory, `${record.origin}-${index}.json`), canonicalize(record), "utf8");
     }
-    await execFileAsync("git", ["add", "--", RETIREMENT_RECORD_NAMESPACE], { cwd: primary });
+    await execFileAsync("git", ["add", "--", TRANSITION_RECORD_NAMESPACE], { cwd: primary });
     await makeCommit(primary, message);
   }
 
@@ -230,9 +213,9 @@ describe("delivery records from an artifact-free linked worktree", () => {
   it("adopts a plan through reachable rename evidence and refuses unestablished reachability", async () => {
     const stored = plan(FIRST_PLAN_ID, "old-unit");
     await publishPlan(stored);
-    await publishReceipts([renameReceipt("old-unit", "current-unit", "a")], "record rename");
+    await publishTransitions([renameTransition("old-unit", "current-unit")], "record rename");
     const store = planStore(member);
-    const transitionSource = new GitDeliveryRenameTransitionSource(makeGitExec(member));
+    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member));
 
     await expect(resolveExistingDeliveryPlan({
       planStore: store,
@@ -252,12 +235,12 @@ describe("delivery records from an artifact-free linked worktree", () => {
 
   it("distinguishes cyclic rename history from an ambiguous subject", async () => {
     await publishPlan(plan(FIRST_PLAN_ID, "unit-a"));
-    await publishReceipts([
-      renameReceipt("unit-a", "unit-b", "a"),
-      renameReceipt("unit-b", "unit-a", "b"),
+    await publishTransitions([
+      renameTransition("unit-a", "unit-b"),
+      renameTransition("unit-b", "unit-a"),
     ], "record cycle");
     const store = planStore(member);
-    const transitionSource = new GitDeliveryRenameTransitionSource(makeGitExec(member));
+    const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(member));
     const input = {
       planStore: store,
       currentWorkUnitId: "current-unit",
@@ -269,9 +252,9 @@ describe("delivery records from an artifact-free linked worktree", () => {
     await expect(resolveExistingDeliveryPlan(input)).resolves.toEqual({ status: "no-match" });
 
     await publishPlan(plan(SECOND_PLAN_ID, "ambiguous-unit"));
-    await publishReceipts([
-      renameReceipt("ambiguous-unit", "current-unit", "c"),
-      renameReceipt("ambiguous-unit", "other-unit", "d"),
+    await publishTransitions([
+      renameTransition("ambiguous-unit", "current-unit"),
+      renameTransition("ambiguous-unit", "other-unit"),
     ], "record ambiguity");
     await expect(resolveExistingDeliveryPlan(input))
       .resolves.toEqual({ status: "indeterminate", reason: "ambiguous-subject" });

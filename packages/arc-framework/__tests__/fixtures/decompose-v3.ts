@@ -1,54 +1,54 @@
 import { canonicalDigest, sortByCanonicalBytes } from "../../src/lib/canonical/canonical-json.js";
 import {
-  v3CandidatePublication,
-  v3DecomposeReceiptPath,
   v3PlanId,
-  v3PreparationId,
   v3TopologyDigest,
-  type V3DecomposePreparation,
-} from "../../src/lib/work-unit/decompose-v3-preparation.js";
-import {
-  createV3DecomposeReceipt,
-  type V3DecomposeReceipt,
-} from "../../src/lib/work-unit/decompose-v3-receipt.js";
+} from "../../src/lib/work-unit/decompose-v3-plan.js";
 import {
   v3AllowedPathsDigest,
   v3CutMapDigest,
   v3IncomingEdgeId,
-  v3IncomingEdgeInventoryDigest,
-  v3OutgoingEdgeInventoryDigest,
   v3PreflightId,
-  v3ReceiptId,
-  v3SourceArtifactDigest,
   v3SourceId,
-  v3SourceInventoryDigest,
   type V3DecomposeCutMap,
-  type V3SourceArtifactEntry,
 } from "../../src/lib/work-unit/decompose-v3-schema.js";
 
-export function v3DecompositionEvidenceFixture(options: {
-  origin?: string;
-  sourceHead?: string;
-  sourceRef?: string;
-  sourceLogicalBranch?: string;
-  resultBaseHead?: string;
-  digestLabel?: (label: string) => ReturnType<typeof canonicalDigest>;
-  additionalSourceArtifacts?: readonly V3SourceArtifactEntry[];
-  candidateOwnership?: V3DecomposePreparation["facts"]["candidateOwnership"];
-  destinationRoot?: string;
-} = {}): {
-  preparation: V3DecomposePreparation;
-  receipt: V3DecomposeReceipt;
+/** Canonical completed-map and plan facts shared by receipt-free decomposition tests. */
+export function v3DecompositionEvidenceFixture(): {
+  preparation: {
+    facts: {
+      completedMap: V3DecomposeCutMap;
+      cutMapDigest: ReturnType<typeof canonicalDigest>;
+      allowedPaths: string[];
+      allowedPathsDigest: ReturnType<typeof canonicalDigest>;
+      topology: {
+        facts: Array<{
+          kind: "create";
+          path: string;
+          before: { kind: "absent" };
+          after: { kind: "file"; mode: "100644"; contentDigest: ReturnType<typeof canonicalDigest> };
+        }>;
+        digest: ReturnType<typeof canonicalDigest>;
+      };
+      destinationOutputPaths: Array<{ destinationId: string; paths: string[] }>;
+      prospectiveProjection: {
+        overlay: { origin: string; sourceBranch: string; planId: ReturnType<typeof canonicalDigest> };
+        roadmap: {
+          path: string;
+          before: { kind: "file"; mode: "100644"; contentDigest: ReturnType<typeof canonicalDigest> };
+          after: { kind: "file"; mode: "100644"; contentDigest: ReturnType<typeof canonicalDigest> };
+        };
+      };
+    };
+  };
 } {
-  const origin = options.origin ?? "origin";
-  const sourceBranch = options.sourceLogicalBranch ?? `plan/${origin}`;
-  const digestLabel = options.digestLabel ?? canonicalDigest;
+  const origin = "origin";
+  const sourceBranch = `plan/${origin}`;
   const sourceLocator = { artifact: `draft-${origin}.md`, kind: "preamble" as const };
   const sourceUnit = {
     sourceId: v3SourceId({ sourcePath: `.arc/active/draft-${origin}.md`, sourceLocator }),
     sourcePath: `.arc/active/draft-${origin}.md`,
     sourceLocator,
-    contentDigest: digestLabel("source unit"),
+    contentDigest: canonicalDigest("source unit"),
   };
   const incomingEdge = {
     dependent: "consumer",
@@ -60,19 +60,18 @@ export function v3DecompositionEvidenceFixture(options: {
       origin,
       kind: "started-planning" as const,
       logicalBranch: sourceBranch,
-      ref: options.sourceRef ?? `refs/heads/${sourceBranch}`,
-      head: options.sourceHead ?? "a".repeat(40),
+      ref: `refs/heads/${sourceBranch}`,
+      head: "a".repeat(40),
     },
-    resultBase: { ref: "refs/heads/main", head: options.resultBaseHead ?? "b".repeat(40) },
+    resultBase: { ref: "refs/heads/main", head: "b".repeat(40) },
     planningProfile: { kind: "draft" as const, sourceDesign: [`draft-${origin}.md`] },
     sourceUnits: [sourceUnit],
     incomingEdges: [incomingEdge],
     outgoingEdges: [],
   };
-  const machine = { preflightId: v3PreflightId(machineFacts), ...machineFacts };
   const completedMap: V3DecomposeCutMap = {
     schemaVersion: 3,
-    machine,
+    machine: { preflightId: v3PreflightId(machineFacts), ...machineFacts },
     authoring: {
       shape: "symmetric",
       placement: { kind: "cohort", cohort: origin },
@@ -97,27 +96,16 @@ export function v3DecompositionEvidenceFixture(options: {
       outgoingDispositions: [],
     },
   };
-  const receiptId = v3ReceiptId(machine);
-  const destinationRoot = options.destinationRoot ?? `.arc/backlog/planned/${origin}`;
+  const destinationRoot = `.arc/backlog/planned/${origin}`;
   const resultPaths = [
     `${destinationRoot}/member-a/meta-member-a.md`,
     `${destinationRoot}/member-b/meta-member-b.md`,
   ];
   const roadmapPath = ".arc/backlog/ROADMAP.md";
-  const topologyPath = `.arc/backlog/planned/${origin}/cohort-${origin}.md`;
-  const recordPath = v3DecomposeReceiptPath(receiptId);
-  const allowedPaths = sortByCanonicalBytes([
-    ...resultPaths,
-    roadmapPath,
-    topologyPath,
-    recordPath,
-  ]);
+  const topologyPath = `${destinationRoot}/cohort-${origin}.md`;
+  const allowedPaths = sortByCanonicalBytes([...resultPaths, roadmapPath, topologyPath]);
   const allowedPathsDigest = v3AllowedPathsDigest(allowedPaths);
   if (allowedPathsDigest === null) throw new Error("fixture paths must be canonical");
-  const candidatePublication = v3CandidatePublication(
-    completedMap,
-    { kind: "cohort", cohort: origin },
-  );
   const topologyFacts = [{
     kind: "create" as const,
     path: topologyPath,
@@ -125,119 +113,39 @@ export function v3DecompositionEvidenceFixture(options: {
     after: {
       kind: "file" as const,
       mode: "100644" as const,
-      contentDigest: digestLabel("cohort topology"),
+      contentDigest: canonicalDigest("cohort topology"),
     },
   }];
   const topology = { facts: topologyFacts, digest: v3TopologyDigest(topologyFacts) };
   const cutMapDigest = v3CutMapDigest(completedMap);
   const planId = v3PlanId({
-    preflightId: machine.preflightId,
+    preflightId: completedMap.machine.preflightId,
     cutMapDigest,
     allowedPathsDigest,
-    candidatePublication,
     topologyDigest: topology.digest,
   });
-  const absent = { kind: "absent" as const };
   const file = (label: string) => ({
     kind: "file" as const,
     mode: "100644" as const,
-    contentDigest: digestLabel(label),
+    contentDigest: canonicalDigest(label),
   });
-  const prospectiveProjection = {
-    overlay: { origin, sourceBranch, planId },
-    roadmap: {
-      path: roadmapPath,
-      before: file("roadmap before"),
-      after: file("roadmap after"),
+  return {
+    preparation: {
+      facts: {
+        completedMap,
+        cutMapDigest,
+        allowedPaths,
+        allowedPathsDigest,
+        topology,
+        destinationOutputPaths: [
+          { destinationId: "member-a", paths: [resultPaths[0]!] },
+          { destinationId: "member-b", paths: [resultPaths[1]!] },
+        ],
+        prospectiveProjection: {
+          overlay: { origin, sourceBranch, planId },
+          roadmap: { path: roadmapPath, before: file("roadmap before"), after: file("roadmap after") },
+        },
+      },
     },
   };
-  const destinationOutputPaths = [
-    { destinationId: "member-a", paths: [resultPaths[0]!] },
-    { destinationId: "member-b", paths: [resultPaths[1]!] },
-  ];
-  const sourceArtifactInventory = [{
-    path: sourceUnit.sourcePath,
-    objectKind: "blob",
-    mode: "100644",
-    contentDigest: sourceUnit.contentDigest,
-  } satisfies V3SourceArtifactEntry, ...(options.additionalSourceArtifacts ?? [])]
-    .sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
-  const sourceArtifactDigest = v3SourceArtifactDigest(sourceArtifactInventory);
-  if (sourceArtifactDigest === null) throw new Error("fixture source artifacts must be canonical");
-  const facts = {
-    preflightId: machine.preflightId,
-    completedMap,
-    cutMapDigest,
-    sourceArtifactDigest,
-    sourceInventoryDigest: v3SourceInventoryDigest(machine),
-    incomingEdgeInventoryDigest: v3IncomingEdgeInventoryDigest(machine),
-    outgoingEdgeInventoryDigest: v3OutgoingEdgeInventoryDigest(machine),
-    allowedPaths,
-    allowedPathsDigest,
-    candidateOwnership: options.candidateOwnership
-      ?? { kind: "not-applicable" as const, protection: "partial" as const },
-    candidatePublication,
-    topology,
-    destinationOutputPaths,
-    prospectiveProjection,
-  };
-  const preparationId = v3PreparationId({
-    receiptId,
-    planId,
-    resultBaseHead: machine.resultBase.head,
-    sourceArtifactDigest: facts.sourceArtifactDigest,
-    sourceInventoryDigest: facts.sourceInventoryDigest,
-    incomingEdgeInventoryDigest: facts.incomingEdgeInventoryDigest,
-    outgoingEdgeInventoryDigest: facts.outgoingEdgeInventoryDigest,
-    cutMapDigest,
-    allowedPathsDigest,
-    candidateOwnership: facts.candidateOwnership,
-    candidatePublication,
-    topologyDigest: topology.digest,
-    destinationOutputPaths,
-    prospectiveProjection,
-  });
-  const preparation: V3DecomposePreparation = {
-    kind: "prepared-decompose",
-    schemaVersion: 3,
-    receiptId,
-    preparationId,
-    facts,
-  };
-  const managedPathResults = [
-    {
-      path: roadmapPath,
-      before: prospectiveProjection.roadmap.before,
-      after: prospectiveProjection.roadmap.after,
-    },
-    {
-      path: topologyPath,
-      before: absent,
-      after: topologyFacts[0]!.after,
-    },
-    ...resultPaths.map((path, index) => ({
-      path,
-      before: absent,
-      after: file(`result ${index}`),
-    })),
-  ];
-  const outputsA = [{
-    path: resultPaths[0]!,
-    after: managedPathResults.find(({ path }) => path === resultPaths[0])!.after,
-  }];
-  const outputsB = [{
-    path: resultPaths[1]!,
-    after: managedPathResults.find(({ path }) => path === resultPaths[1])!.after,
-  }];
-  const receipt = createV3DecomposeReceipt(
-    preparation,
-    managedPathResults,
-    [
-      { destinationId: "member-a", outputs: outputsA },
-      { destinationId: "member-b", outputs: outputsB },
-    ],
-    { kind: "selected", slugs: ["member-a"] },
-  );
-  if (receipt === null) throw new Error("fixture receipt must be canonical");
-  return { preparation, receipt };
 }

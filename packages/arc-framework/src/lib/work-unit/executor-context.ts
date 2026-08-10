@@ -62,12 +62,14 @@ import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import type { UserIOContext } from "../../commands/user/types.js";
+import type { RawGitExec } from "../change-facts.js";
+import { createExecaRawGitExec } from "../git/process-executor.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "./git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+} from "./git-transition-record-enumeration.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
 import { listParkedSlugs } from "./lifecycle-resolver.js";
 import { listCurrentWuArtifactPaths } from "./reference-reconcile.js";
@@ -107,6 +109,8 @@ export interface ExecutorContextDeps {
   baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
+  /** Optional byte-preserving Git seam for transition history reads. */
+  transitionExec?: RawGitExec;
 }
 
 /**
@@ -130,6 +134,7 @@ export function buildExecutorContext(
   // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
+  const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
   const readTeardownSelection = identity === null
     ? undefined
     : createNodeTeardownSelectionReader({ exec, identity });
@@ -294,8 +299,9 @@ export function buildExecutorContext(
         prepareCurrentWuReconcile(
           {
             index: await buildLifecycleIndex({ cwd, fs: indexFs }),
-            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+            queryDisposition: (input) =>
+              queryGitTransitionDisposition(transitionExec, "HEAD", input),
+            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
             listArtifactPaths: (slug, ownedMetaPath) =>
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(at(path))),
             readFile: (path) => io.readFile(at(path)),

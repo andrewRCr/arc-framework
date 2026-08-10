@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import type { V3MaterializationResult } from "../../../src/lib/work-unit/decompose-v3-materializer.js";
 import type {
+  V3TopologyFact,
   V3ValidatedPathMutation,
   ValidatedDecomposePlan,
 } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import { reportV3DecomposeResult } from "../../../src/lib/work-unit/decompose-v3-result-report.js";
 import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
-import type { V3TopologyFact } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
 
 const absent = { kind: "absent" as const };
 const final = {
@@ -78,13 +78,7 @@ function plan(
     cutMapDigest: canonicalDigest("cut-map"),
     sourceHead: "source-head",
     expectedBaseHead: "base-head",
-    candidateAuthority: {
-      candidatePublication: {
-        logicalAnchor: { kind: "direct-member", slug: "member" },
-        entries: [{ kind: "new-leaf", slug: "member" }],
-      },
-      topology: { facts, digest: canonicalDigest(facts) },
-    },
+    topology: { facts, digest: canonicalDigest(facts) },
     allowedPaths,
     allowedPathsDigest: canonicalDigest(allowedPaths),
     prospectiveOverlay: createProspectiveTransitionOverlay({

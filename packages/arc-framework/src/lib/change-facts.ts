@@ -384,6 +384,7 @@ export function isPlanningArtifactPath(path: string): boolean {
   const artifactName = "(?:draft|tasks|meta|notes|cohort|research|analysis|spec)-[a-z0-9]+(?:-[a-z0-9]+)*\\.md";
   const workUnitDirectory = "[a-z0-9]+(?:-[a-z0-9]+)*";
   return path === ".arc/backlog/ROADMAP.md"
+    || new RegExp(`^\\.arc/system/\\.internal/transitions/${workUnitDirectory}\\.json$`, "u").test(path)
     || new RegExp(`^\\.arc/active/${artifactName}$`, "u").test(path)
     || new RegExp(
       `^\\.arc/backlog/(?:planned|provisional)/(?:${workUnitDirectory}/){1,2}${artifactName}$`,

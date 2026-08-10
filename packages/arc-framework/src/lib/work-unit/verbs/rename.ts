@@ -10,8 +10,6 @@
  * @module
  */
 
-import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
-import { receiptId } from "../../canonical/receipt-id.js";
 import type { RenameRemoteBranchResult } from "../rename-identity.js";
 import type {
   RenameWorktreeMoveResolution,
@@ -22,7 +20,10 @@ import type {
   RenameRetirementContext,
   RenameTransitionSourceEvidence,
 } from "../direct-retirement-driver.js";
-import type { InventoryRead, RetirementReceipt } from "../retirement-authority.js";
+import { validateManagedPath } from "../../canonical/managed-path.js";
+import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
+import type { TransitionRecord } from "../transition-record.js";
+import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";
 
 /** Subject shapes with distinct identity-leg applicability. */
 export type RenameSubjectShape = "spawned" | "in-place" | "stub";
@@ -43,7 +44,6 @@ export interface RenamePlan {
   additionalPaths: readonly string[];
   worktreePath: string | null;
   baseBranch: string;
-  inventoryRead: Exclude<InventoryRead, "not-applicable">;
   coordinationAdvisories: readonly string[];
 }
 
@@ -71,11 +71,12 @@ export interface RenameCheckoutReport {
 /** Injected operations driven by {@link runRename}. */
 export interface RunRenameContext {
   retirement: RenameRetirementContext;
+  transitionWriter: TerminalTransitionRecordWriter;
   preflight(params: { sourceSlug: string; targetSlug: string }): Promise<RenamePlan>;
   onPrepared?(plan: RenamePlan): Promise<void>;
   mutateTracked(plan: RenamePlan): Promise<void>;
   regenerateReadiness(plan: RenamePlan): Promise<string | undefined>;
-  commitTracked(plan: RenamePlan, receipt: RetirementReceipt): Promise<void>;
+  commitTracked(plan: RenamePlan): Promise<void>;
   withStubBranch<T>(plan: RenamePlan, operation: () => Promise<T>): Promise<T>;
   renameLocalBranch(plan: RenamePlan): Promise<void>;
   renameUserWorkspace(plan: RenamePlan): Promise<void>;
@@ -192,17 +193,11 @@ async function runTrackedRename(
     return { status: "rejected", reason: `rename authority snapshot refused: ${snapshot.reason}` };
   }
 
-  let patch: readonly PatchOperation[];
-  let artifactDigest: RetirementReceipt["source"]["artifactDigest"];
   let readinessAdvisory: string | undefined;
   try {
     await ctx.mutateTracked(plan);
     await ctx.retirement.stageTransition(source);
     readinessAdvisory = await ctx.regenerateReadiness(plan);
-    [patch, artifactDigest] = await Promise.all([
-      ctx.retirement.readTransitionPatch(source),
-      ctx.retirement.readResultArtifactDigest(source),
-    ]);
   } catch (error) {
     try {
       await ctx.retirement.rollbackTransition(source);
@@ -215,48 +210,51 @@ async function runTrackedRename(
     return { status: "rejected", reason: `rename conservation failed: ${errorMessage(error)}` };
   }
 
-  const id = receiptId({
-    schemaVersion: 2,
-    subject: source.scope.subject,
-    transition: "rename",
-    sourceBranch: source.scope.source.branch,
-    sourceHead: source.scope.source.head,
-  });
-  const receipt: RetirementReceipt = {
-    schemaVersion: 2,
-    inventoryRead: plan.inventoryRead,
-    receiptId: id,
-    subject: source.scope.subject,
-    transition: "rename",
-    source: {
-      branch: source.scope.source.branch,
-      head: source.scope.source.head,
-      artifactDigest: source.artifactDigest,
-    },
-    transitionPatchDigest: patchDigest(patch),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "identity-renamed",
-    result: { kind: "rename", targetSlug: plan.targetSlug, artifactDigest },
+  const transitionRecord: TransitionRecord = {
+    schemaVersion: 1,
+    origin: plan.sourceSlug,
+    kind: "rename",
+    successors: [plan.targetSlug],
+    edges: [],
   };
-  const recorded = await ctx.retirement.authority.record(receipt, snapshot.snapshot.authorityVersion);
-  if (recorded.status === "refused") {
-    const rollback = await ctx.retirement.rollbackRefusedCommit(source, id);
+  const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
+  if (transitionRecorded.status !== "recorded") {
+    const rollback = await ctx.retirement.rollbackRefusedCommit(source);
     return {
       status: "rejected",
-      reason: `rename receipt recording refused: ${recorded.reason}`
-        + (recorded.diagnostic === undefined ? "" : `; ${recorded.diagnostic}`)
+      reason: `rename transition recording refused: ${transitionRecorded.status}`
+        + (transitionRecorded.status === "unavailable" ? `; ${transitionRecorded.diagnostic}` : "")
         + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`),
     };
   }
 
+  const completed = await ctx.retirement.completeTransition(
+    source,
+    snapshot.snapshot.authorityVersion,
+    [validateManagedPath(resolveTransitionRecordRelativePath(plan.sourceSlug))],
+  );
+  if (completed.status === "refused") {
+    const transitionRollback = await ctx.transitionWriter.rollback(transitionRecord);
+    const rollback = await ctx.retirement.rollbackRefusedCommit(source);
+    return {
+      status: "rejected",
+      reason: `rename completion refused: ${completed.reason}`
+        + (completed.diagnostic === undefined ? "" : `; ${completed.diagnostic}`)
+        + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`)
+        + (transitionRollback.status === "rolled-back" ? "" : `; ${transitionRollback.diagnostic}`),
+    };
+  }
+
   try {
-    await ctx.commitTracked(plan, receipt);
+    await ctx.commitTracked(plan);
   } catch (error) {
-    const rollback = await ctx.retirement.rollbackRefusedCommit(source, id);
+    const transitionRollback = await ctx.transitionWriter.rollback(transitionRecord);
+    const rollback = await ctx.retirement.rollbackRefusedCommit(source);
     return {
       status: "rejected",
       reason: `rename commit refused: ${errorMessage(error)}`
-        + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`),
+        + (rollback.status === "rolled-back" ? "" : `; ${rollback.diagnostic}`)
+        + (transitionRollback.status === "rolled-back" ? "" : `; ${transitionRollback.diagnostic}`),
     };
   }
   return {

@@ -387,10 +387,9 @@ function huskEvidenceMatchesAuthorization(
 ): boolean {
   if (evidence.kind === "shipped") return authorization === "merged-preserved";
   if (evidence.transition === "park-planning") {
-    return authorization === "planning-relocated" && evidence.expectedLifecycle === "planned";
+    return authorization === "planning-relocated";
   }
-  return authorization === "discard-confirmed"
-    && evidence.expectedLifecycle === "nonexistent";
+  return authorization === "discard-confirmed";
 }
 
 function isHuskAuthorization(value: unknown): value is HuskAuthorization {
@@ -421,11 +420,14 @@ function decodeKnownEvidence(value: PersistedRetirementEvidence | undefined): Re
       ? value as RetirementEvidenceRef
       : null;
   }
-  if (value?.kind === "receipt") {
+  if (value?.kind === "git-transition") {
     const candidate = value as Record<string, unknown>;
-    return isCanonicalDigest(candidate.receiptId)
-      && (candidate.transition === "abandon" || candidate.transition === "decompose" || candidate.transition === "park-planning")
-      && (candidate.expectedLifecycle === "planned" || candidate.expectedLifecycle === "nonexistent")
+    const keys = Object.keys(candidate).sort();
+    return keys.length === 3
+      && keys[0] === "kind"
+      && keys[1] === "resultDigest"
+      && keys[2] === "transition"
+      && (candidate.transition === "abandon" || candidate.transition === "park-planning")
       && isCanonicalDigest(candidate.resultDigest)
       ? value as RetirementEvidenceRef
       : null;

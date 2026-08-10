@@ -45,7 +45,7 @@
  * @module
  */
 
-import { isLandedInBase } from "../../git/branch-containment.js";
+import { isContainedIn, isLandedInBase } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
 import { readRefTip } from "../../git/ref-tree.js";
 import { refreshBase } from "../../git/refresh-base.js";
@@ -68,6 +68,7 @@ import { localPathsEqual } from "../../local-path-identity.js";
 import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
+  gitTransitionExpectedLifecycle,
   type RetirementAuthorityPort,
   type TeardownAuthorizationDecision,
   type TeardownAuthorizationRequest,
@@ -85,11 +86,15 @@ import {
 import { isSlugSafe } from "../slug.js";
 import { isAbsolute, join } from "node:path";
 import { parseMetaRecord } from "../../active/meta-reader.js";
+import { readRemoteBranchOid } from "../rename-identity.js";
+import { isDecomposeCandidateBranch } from "../decompose-candidate.js";
+import { cleanupGitOwnedDecomposeCandidate } from "../git-owned-decompose-candidate-cleanup.js";
 import {
   createTeardownRetirementAuthority,
   revalidateHuskRetirementEvidence,
   type TeardownBlobReader,
 } from "../teardown-retirement-driver.js";
+import { resolveParkProofTarget, type ParkProofTarget } from "../park-retirement-proof.js";
 import type {
   TeardownSelection,
   TeardownSelectionDecision,
@@ -178,6 +183,8 @@ export interface BranchTeardownParams {
   base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
   remote?: string;
+  /** Configured result-projection model used to select the candidate's base authority. */
+  protection?: ProtectionMode;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
 }
@@ -309,20 +316,14 @@ async function hasCompetingLifecycleProjection(
   try {
     const content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
     const declaredBranch = parseMetaRecord(content).branch;
+    const expectedLifecycle = proof.evidence.kind === "shipped"
+      ? "completed"
+      : gitTransitionExpectedLifecycle(proof.evidence.transition);
     if (
-      (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed")
-      || (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned")
+      (expectedLifecycle === "completed" && entry.location === "completed")
+      || (expectedLifecycle === "planned" && entry.location === "planned")
     ) {
       return declaredBranch === branch && !(await isSelfTeardown(retiringPath, ctx.cwd));
-    }
-    if (
-      proof.evidence.kind === "receipt"
-      && proof.evidence.transition === "decompose"
-      && proof.evidence.expectedLifecycle === "nonexistent"
-      && declaredBranch === branch
-      && await isSelfTeardown(retiringPath, ctx.cwd)
-    ) {
-      return false;
     }
     return declaredBranch === branch;
   } catch {
@@ -337,6 +338,7 @@ interface TeardownBranchProjectionParams {
   remote?: string;
   mode: TeardownMode;
   protection?: ProtectionMode;
+  proofTarget?: ParkProofTarget;
   suggestion?: string;
   huskPath?: string;
 }
@@ -420,7 +422,8 @@ async function teardownBranchProjection(
   const baseRef = mode === "shipped" || protection === "full"
     ? await refreshBase(exec, base, remote)
     : base;
-  const evidenceBaseRef = mode === "abandoned" && protection === "partial" ? base : baseRef;
+  const evidenceBaseRef = params.proofTarget?.head
+    ?? (mode === "abandoned" && protection === "partial" ? base : baseRef);
 
   // Worktree arm: shipped non-self cleanup retains the legacy physical-removal
   // choreography. Non-shipped linked projections instead become stamped detached
@@ -574,7 +577,11 @@ async function teardownBranchProjection(
         remote: remote ?? "origin",
         requestedMode: mode,
       };
-      authority = ctx.authority ?? createTeardownRetirementAuthority(exec, evidenceBaseRef, ctx.readBlob);
+      authority = ctx.authority ?? createTeardownRetirementAuthority(
+        exec,
+        params.proofTarget ?? evidenceBaseRef,
+        ctx.readBlob,
+      );
       const authorization = await authority.authorize(authorizationRequest);
       if (authorization.status === "refused") {
         return {
@@ -816,7 +823,7 @@ async function teardownBranchProjection(
   }
 
   // Branch delete — mode-keyed. `shipped` without a stamped authorization keeps
-  // the merged-safe containment path. Stamped/receipt-backed cleanup resolves the
+  // the merged-safe containment path. Stamped cleanup resolves the
   // persisted remote disposition first, then compare-deletes the exact local OID;
   // unresolved obligations retain the path-addressable husk for replay.
   let branchDeleted = false;
@@ -1141,6 +1148,10 @@ export async function runBranchTeardown(
   if (!presence.ok) {
     return { status: "rejected", reason: `Could not resolve local branch \`${branch}\` (${presence.message}).` };
   }
+  if (presence.present && isDecomposeCandidateBranch(branch)) {
+    const candidate = await tryCleanupDecomposeCandidate(ctx, { ...params, branch });
+    if (candidate !== null) return candidate;
+  }
   return teardownBranchProjection(ctx, {
     branch: presence.present ? branch : null,
     subject: { kind: "branch", ref: branch },
@@ -1151,12 +1162,97 @@ export async function runBranchTeardown(
   });
 }
 
+async function tryCleanupDecomposeCandidate(
+  ctx: TeardownContext,
+  params: BranchTeardownParams & { branch: string },
+): Promise<TeardownResult | null> {
+  const prefix = "chore/decompose-";
+  const origin = params.branch.slice(prefix.length);
+  if (!isSlugSafe(origin)) return null;
+  const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
+  if (!scan.ok) return null;
+  const registrations = scan.worktrees.filter((entry) => entry.branch === params.branch);
+  const registration = registrations[0];
+  const primary = scan.worktrees.find((entry) => entry.primary);
+  if (registrations.length !== 1 || registration === undefined || primary === undefined) return null;
+  const branchHead = await readRefTip(ctx.exec, `refs/heads/${params.branch}`);
+  if (branchHead === null || registration.head !== branchHead) return null;
+
+  let baseHead: string;
+  let remoteHead: string | null;
+  try {
+    const proofTarget = await resolveParkProofTarget({
+      refreshRemoteBase: async (remoteName, baseBranch) => {
+        await ctx.exec("git", ["fetch", remoteName, baseBranch]);
+        const head = await readRefTip(ctx.exec, `${remoteName}/${baseBranch}`);
+        if (head === null) throw new Error("remote base is unavailable");
+        return head;
+      },
+      readLocalBase: async (baseBranch) => {
+        const head = await readRefTip(ctx.exec, baseBranch);
+        if (head === null) throw new Error("local base is unavailable");
+        return head;
+      },
+    }, {
+      protection: params.protection ?? "partial",
+      remote: params.remote ?? "origin",
+      baseBranch: params.base,
+    });
+    baseHead = proofTarget.head;
+    remoteHead = await readRemoteBranchOid(ctx.exec, params.remote ?? "origin", params.branch);
+  } catch {
+    return null;
+  }
+  if (remoteHead !== null || !await isContainedIn(ctx.exec, branchHead, baseHead)) return null;
+
+  const cleanup = await cleanupGitOwnedDecomposeCandidate({
+    origin,
+    expectedHead: branchHead,
+    expectedPath: registration.path,
+  }, {
+    cwd: primary.path,
+    exec: ctx.exec,
+    scanWorktrees: () => Promise.resolve(scan),
+    removeWorktree: async (path) => {
+      const remove = async (): Promise<void> => {
+        if (await isSelfTeardown(path, ctx.cwd)) ctx.chdir(primary.path);
+        await ctx.exec("git", ["worktree", "remove", path], { cwd: primary.path });
+      };
+      if (ctx.serializeWorktreeOperation === undefined) await remove();
+      else await ctx.serializeWorktreeOperation(path, remove);
+    },
+  });
+  if (cleanup.status === "refused") {
+    return { status: "rejected", reason: `Owned decomposition candidate cleanup refused: ${cleanup.reason}.` };
+  }
+  let pruned = true;
+  const notices: string[] = [];
+  try {
+    await fetchPrune({ exec: ctx.exec }, { remote: params.remote });
+  } catch (error) {
+    pruned = false;
+    notices.push(`Could not prune remote-tracking refs (${error instanceof Error ? error.message : String(error)}).`);
+  }
+  return {
+    status: "torn-down",
+    mode: "shipped",
+    branch: params.branch,
+    branchDeleted: cleanup.branchOutcome !== "already-absent",
+    remoteBranchDeleted: false,
+    worktreeRemoved: cleanup.worktreeOutcome === "removed" ? registration.path : null,
+    husk: null,
+    pruned,
+    notices,
+    suggestion: params.suggestion ?? null,
+  };
+}
+
 /**
  * Run `teardown`: read authoritative arc-state, infer its mode,
  * resolve the WU branch, then compose the cleanup legs in their constraint-safe
  * order — projection preparation, remote disposition, exact local ref mutation,
  * deferred physical removal, and prune. Shipped cleanup keeps its merged-safe,
- * push-state-gated compatibility path; abandoned cleanup requires receipt-backed
+ * push-state-gated compatibility path; abandoned cleanup requires Git-proven
  * retirement authority. Rejects on a
  * gate mismatch (a not-yet-shipped WU in `shipped`, a `completed/` WU in
  * `abandoned`), an ambiguous branch match, or a dirty linked worktree.
@@ -1183,27 +1279,36 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   //    origin), but refuse a `completed/` one so the retirement path can't reap a
   //    merged WU that the safe path handles.
   let shipped: boolean;
+  let proofTarget: ParkProofTarget | undefined;
   if (params.protection === undefined) {
     shipped = isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name);
   } else {
     const authorityRef = params.protection === "full" ? `${remote ?? "origin"}/${base}` : base;
-    if (params.protection === "full") {
-      try {
-        await exec("git", ["fetch", remote ?? "origin", base]);
-      } catch {
-        return {
-          status: "rejected",
-          reason: `Could not refresh lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
-        };
-      }
-    }
-    if (await readRefTip(exec, authorityRef) === null) {
+    try {
+      proofTarget = await resolveParkProofTarget({
+        refreshRemoteBase: async (remoteName, baseBranch) => {
+          await exec("git", ["fetch", remoteName, baseBranch]);
+          const head = await readRefTip(exec, `${remoteName}/${baseBranch}`);
+          if (head === null) throw new Error("remote base is unavailable");
+          return head;
+        },
+        readLocalBase: async (baseBranch) => {
+          const head = await readRefTip(exec, baseBranch);
+          if (head === null) throw new Error("local base is unavailable");
+          return head;
+        },
+      }, {
+        protection: params.protection,
+        remote: remote ?? "origin",
+        baseBranch: base,
+      });
+    } catch {
       return {
         status: "rejected",
         reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
       };
     }
-    shipped = (await readShippedWorkUnitsFromRef(exec, authorityRef)).has(name);
+    shipped = (await readShippedWorkUnitsFromRef(exec, proofTarget.head)).has(name);
   }
   const mode: TeardownMode = params.mode ?? (shipped ? "shipped" : "abandoned");
   if (params.mode === "shipped" && !shipped) {
@@ -1227,7 +1332,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   if (!shipped && branch === null && params.huskPath === undefined) {
     return {
       status: "rejected",
-      reason: `No branch or detached husk remains for receipt-backed teardown of \`${name}\`.`,
+      reason: `No branch or detached husk remains for evidence-backed teardown of \`${name}\`.`,
     };
   }
 
@@ -1238,6 +1343,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     remote,
     mode,
     protection: params.protection,
+    proofTarget,
     huskPath: params.huskPath,
     suggestion,
   });

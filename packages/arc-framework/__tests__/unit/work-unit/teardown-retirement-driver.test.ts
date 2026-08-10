@@ -177,31 +177,29 @@ describe("shipped teardown retirement evidence", () => {
     )).rejects.toThrow("Malformed git cherry output");
   });
 
-  it("propagates an unexpected exact-base receipt-record failure in strict revalidation", async () => {
-    const receiptProof: Extract<TeardownAuthorizationDecision, { status: "authorized" }> = {
+  it("propagates an unexpected exact-base transition-proof failure in strict revalidation", async () => {
+    const transitionProof: Extract<TeardownAuthorizationDecision, { status: "authorized" }> = {
       status: "authorized",
       authorization: "discard-confirmed",
       authorityVersion: "version",
       evidence: {
-        kind: "receipt",
-        receiptId: `sha256:${"1".repeat(64)}`,
+        kind: "git-transition",
         transition: "abandon",
-        expectedLifecycle: "nonexistent",
         resultDigest: `sha256:${"2".repeat(64)}`,
       },
       refs: { localOid: stamp.sha, remote: null },
     };
-    const unreadableRecords: GitExec = async (_command, _args, options) => {
-      if (options?.objectAccess !== "local-only") throw new Error("record access was not local-only");
-      throw new Error("receipt records unavailable");
+    const unreadableGraph: GitExec = async (_command, _args, options) => {
+      if (options?.objectAccess !== "local-only") throw new Error("graph access was not local-only");
+      throw new Error("transition graph unavailable");
     };
     await expect(revalidateHuskRetirementEvidenceStrict(
-      unreadableRecords,
+      unreadableGraph,
       stamp,
-      receiptProof,
+      transitionProof,
       baseOid,
       readBlob,
-    )).rejects.toThrow("receipt records unavailable");
+    )).rejects.toThrow("transition graph unavailable");
   });
 
   it("rejects shipped evidence copied onto an unpreserved retiring head", async () => {

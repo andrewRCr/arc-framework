@@ -56,7 +56,7 @@ describe("foreign-write advisory backstop wiring", () => {
   it("treats the backstop as advisory — increments warnings, never errors", () => {
     // The foreign-write block runs between the ROADMAP assert and the Summary.
     const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 21"),
+      preCommitSource.indexOf("CHECK 20"),
       preCommitSource.indexOf("# Summary"),
     );
     expect(block).toContain("warnings=$((warnings + 1))");
@@ -100,20 +100,6 @@ describe("ROADMAP conflict auto-remedy wiring", () => {
     expect(block).toContain("roadmap_remedy_status");
     expect(block).toContain("ROADMAP conflict auto-remedy failed");
     expect(block.match(/errors=\$\(\(errors \+ 1\)\)/gu)).toHaveLength(2);
-  });
-});
-
-describe("decompose retirement record gate wiring", () => {
-  it("uses the source validator when present and the packaged CLI otherwise", () => {
-    const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 20"),
-      preCommitSource.indexOf("CHECK 21"),
-    );
-    expect(block).toContain(
-      'node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-decompose-record.ts',
-    );
-    expect(block).toContain("arc hook-validate-decompose-record");
-    expect(block).toContain("errors=$((errors + 1))");
   });
 });
 

@@ -391,10 +391,8 @@ describe("decodeWorktreeHuskStamp", () => {
       authorization: "discard-confirmed",
       remoteRef: { remote: "origin", oid: base.sha, disposition: "delete" },
       evidence: {
-        kind: "receipt",
-        receiptId: `sha256:${"1".repeat(64)}`,
+        kind: "git-transition",
         transition: "abandon",
-        expectedLifecycle: "nonexistent",
         resultDigest: `sha256:${"2".repeat(64)}`,
       },
     };
@@ -423,10 +421,8 @@ describe("decodeWorktreeHuskStamp", () => {
       ...common,
       authorization: "planning-relocated",
       evidence: {
-        kind: "receipt",
-        receiptId: digest,
+        kind: "git-transition",
         transition: "park-planning",
-        expectedLifecycle: "planned",
         resultDigest: digest,
       },
     }).kind).toBe("current");
@@ -434,10 +430,8 @@ describe("decodeWorktreeHuskStamp", () => {
       ...common,
       authorization: "discard-confirmed",
       evidence: {
-        kind: "receipt",
-        receiptId: digest,
-        transition: "decompose",
-        expectedLifecycle: "nonexistent",
+        kind: "git-transition",
+        transition: "abandon",
         resultDigest: digest,
       },
     }).kind).toBe("current");
@@ -456,10 +450,8 @@ describe("decodeWorktreeHuskStamp", () => {
       ...common,
       authorization: "planning-relocated",
       evidence: {
-        kind: "receipt",
-        receiptId: digest,
+        kind: "git-transition",
         transition: "abandon",
-        expectedLifecycle: "nonexistent",
         resultDigest: digest,
       },
     })).toEqual({ kind: "manual-only", reason: "evidence-mismatch" });
@@ -467,13 +459,70 @@ describe("decodeWorktreeHuskStamp", () => {
       ...common,
       authorization: "discard-confirmed",
       evidence: {
-        kind: "receipt",
-        receiptId: digest,
-        transition: "decompose",
-        expectedLifecycle: "planned",
+        kind: "git-transition",
+        transition: "park-planning",
         resultDigest: digest,
       },
     })).toEqual({ kind: "manual-only", reason: "evidence-mismatch" });
+  });
+
+  it("keeps retired receipt evidence manual-only", () => {
+    const digest = `sha256:${"3".repeat(64)}` as const;
+    expect(decodeWorktreeHuskStamp({
+      ...base,
+      authorization: "discard-confirmed",
+      remoteRef: null,
+      evidence: {
+        kind: "receipt",
+        receiptId: digest,
+        transition: "abandon",
+        expectedLifecycle: "nonexistent",
+        resultDigest: digest,
+      },
+    })).toEqual({ kind: "manual-only", reason: "unknown-evidence" });
+  });
+
+  it.each([
+    {
+      name: "a partial shape",
+      evidence: { kind: "git-transition", transition: "abandon" },
+    },
+    {
+      name: "a noncanonical digest",
+      evidence: { kind: "git-transition", transition: "abandon", resultDigest: "sha256:short" },
+    },
+    {
+      name: "an extra lifecycle field",
+      evidence: {
+        kind: "git-transition",
+        transition: "abandon",
+        resultDigest: `sha256:${"4".repeat(64)}`,
+        expectedLifecycle: "nonexistent",
+      },
+    },
+    {
+      name: "rename evidence",
+      evidence: {
+        kind: "git-transition",
+        transition: "rename",
+        resultDigest: `sha256:${"4".repeat(64)}`,
+      },
+    },
+    {
+      name: "decompose evidence",
+      evidence: {
+        kind: "git-transition",
+        transition: "decompose",
+        resultDigest: `sha256:${"4".repeat(64)}`,
+      },
+    },
+  ])("keeps $name manual-only", ({ evidence }) => {
+    expect(decodeWorktreeHuskStamp({
+      ...base,
+      authorization: "discard-confirmed",
+      remoteRef: null,
+      evidence,
+    })).toEqual({ kind: "manual-only", reason: "unknown-evidence" });
   });
 
   it("makes mixed and unknown future shapes manual-only", () => {
@@ -624,6 +673,49 @@ describe("stampWorktreeHusk", () => {
 
     expect((await stampWorktreeHusk(cwd, husk)).kind).toBe("malformed");
     expect(await readFile(path, "utf8")).toBe("{ not json");
+  });
+
+  it.each([
+    {
+      authorization: "discard-confirmed",
+      evidence: {
+        kind: "git-transition",
+        transition: "abandon",
+        resultDigest: `sha256:${"5".repeat(64)}`,
+      },
+    },
+    {
+      authorization: "planning-relocated",
+      evidence: {
+        kind: "git-transition",
+        transition: "park-planning",
+        resultDigest: `sha256:${"6".repeat(64)}`,
+      },
+    },
+  ] as const)("round-trips $evidence.transition evidence with the exact terminal projection", async ({
+    authorization,
+    evidence,
+  }) => {
+    const marker: WorktreeMarker = {
+      spawnedByArc: true,
+      wuName: "worktree-foundation",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    const currentHusk: WorktreeHuskStamp = {
+      ...husk,
+      authorization,
+      remoteRef: null,
+      evidence,
+    };
+    await writeWorktreeMarker(cwd, marker);
+
+    await stampWorktreeHusk(cwd, currentHusk);
+
+    expect(await readWorktreeMarker(cwd)).toEqual({
+      kind: "present",
+      marker: { ...marker, husk: currentHusk },
+    });
   });
 
   it("clears a pending rename move when terminal husking supersedes it", async () => {

@@ -21,6 +21,7 @@ import {
   resolveComposedLifecycleIndex,
 } from "../lib/work-unit/composed-lifecycle-index.js";
 import type { RenameRetirementContext } from "../lib/work-unit/direct-retirement-driver.js";
+import type { TerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
 import type { LifecycleIndexFs, LifecycleIndexEntry } from "../lib/work-unit/lifecycle-index.js";
 import {
   reconcileWorkUnitWorktree,
@@ -77,6 +78,7 @@ export interface RenameCommandContext {
   baseBranch: string;
   io: UserIOContext & { execInput: NonNullable<UserIOContext["execInput"]> };
   retirement: RenameRetirementContext;
+  transitionWriter: TerminalTransitionRecordWriter;
   onPreparedAdvisories?(advisories: readonly string[]): Promise<void>;
 }
 
@@ -91,6 +93,7 @@ export async function runRenameCommand(
   const exec = command.io.exec;
   const ctx: RunRenameContext = {
     retirement: command.retirement,
+    transitionWriter: command.transitionWriter,
     onPrepared: async (plan) => {
       await command.onPreparedAdvisories?.(plan.coordinationAdvisories);
     },
@@ -113,7 +116,6 @@ export async function runRenameCommand(
         fs: lifecycleFs,
         oracle: {
           exec,
-          decompositionClaimCwd: command.cwd,
           baseBranch: command.baseBranch,
           acquisitionPolicy: "materialized-live",
           suppliedResult: expandedInFlight,
@@ -183,7 +185,6 @@ export async function runRenameCommand(
         additionalPaths,
         worktreePath: composed.worktreePathBySlug.get(subject.resolvedSlug) ?? null,
         baseBranch: command.baseBranch,
-        inventoryRead: composed.readQuality,
         coordinationAdvisories: coordination.map((advisory) => advisory.text),
       };
     },

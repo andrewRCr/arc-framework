@@ -26,6 +26,14 @@ export type ArtifactSetEntry =
   | { path: ManagedPath; state: "present"; contentDigest: CanonicalDigest }
   | { path: ManagedPath; state: "absent" };
 
+/** Digest a complete artifact group independently of input order. */
+export function artifactGroupDigest(entries: readonly ArtifactSetEntry[]): CanonicalDigest {
+  const pathSorted = [...entries].sort((left, right) =>
+    Buffer.compare(Buffer.from(left.path, "utf8"), Buffer.from(right.path, "utf8")),
+  );
+  return canonicalDigest(pathSorted);
+}
+
 /** A single patch operation over one managed path. */
 export type PatchOperation =
   | { operation: "write"; path: ManagedPath; contentDigest: CanonicalDigest }

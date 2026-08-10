@@ -66,7 +66,6 @@ export const CurrentWuReconcileSessionValueViewSchema = z
         reason: z.enum([
           "ambiguous-history",
           "rename-cycle",
-          "version-conflict",
           "namespace-corrupt",
         ]),
       })).optional(),
@@ -132,7 +131,7 @@ const UserReferenceAuthorityViewSchema = z.union([
   z.object({
     status: z.literal("conflict"),
     ref: NON_EMPTY_TEXT,
-    reason: z.enum(["version-conflict", "namespace-corrupt"]),
+    reason: z.enum(["ambiguous-history", "namespace-corrupt"]),
     remoteEvidence: z.enum(["exact", "not-applicable"]),
   }).loose(),
 ]).superRefine((value, context) => {

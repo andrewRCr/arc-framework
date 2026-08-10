@@ -3,14 +3,12 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest, sortByCanonicalBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
   buildValidatedDecomposePlan,
-  type V3PlanContributorClaim,
-  type V3PlanPathClaim,
-} from "../../../src/lib/work-unit/decompose-v3-plan.js";
-import {
   v3PlanId,
   v3TopologyDigest,
+  type V3PlanContributorClaim,
+  type V3PlanPathClaim,
   type V3TopologyFact,
-} from "../../../src/lib/work-unit/decompose-v3-preparation.js";
+} from "../../../src/lib/work-unit/decompose-v3-plan.js";
 
 describe("validated v3 decomposition plan path registry", () => {
   const digest = (value: string) => canonicalDigest(value);
@@ -65,13 +63,6 @@ describe("validated v3 decomposition plan path registry", () => {
           before: dependencyA,
           after: dependencyB,
         },
-      },
-      {
-        kind: "exclusive",
-        path: ".arc/system/.internal/retirement-receipts/receipt.json",
-        base: absent,
-        after: file("receipt"),
-        role: "receipt-evidence",
       },
       {
         kind: "contributor",
@@ -136,7 +127,6 @@ describe("validated v3 decomposition plan path registry", () => {
     const allowedPaths = sortByCanonicalBytes([
       path,
       ".arc/backlog/ROADMAP.md",
-      ".arc/system/.internal/retirement-receipts/receipt.json",
     ]);
     expect(result.plan.allowedPaths).toEqual(allowedPaths);
     expect(result.plan.mutations.find((entry) => entry.path === path)).toMatchObject({
@@ -153,7 +143,6 @@ describe("validated v3 decomposition plan path registry", () => {
       preflightId: operands.preflightId,
       cutMapDigest: operands.cutMapDigest,
       allowedPathsDigest: result.plan.allowedPathsDigest,
-      candidatePublication: operands.candidatePublication,
       topologyDigest: topologyInput.digest,
     });
     expect(result.plan.planId).toBe(expectedPlanId);

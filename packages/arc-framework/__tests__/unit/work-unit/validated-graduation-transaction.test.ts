@@ -3,14 +3,10 @@ import { describe, expect, it } from "vitest";
 import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
-  produceDecompositionIntegrationAnchor,
-} from "../../../src/lib/work-unit/decomposition-integration-anchor.js";
-import {
   prepareValidatedGraduationTransaction,
   type GraduationStoredArtifact,
   type PrepareGraduationTransactionInput,
 } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
-import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 
 const ROOT = ".arc/backlog/planned/widget";
 const TARGET = ".arc/active";
@@ -52,7 +48,6 @@ function input(options: {
     targetDirectory: TARGET,
     artifacts,
     destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
-    anchor: null,
     classResolution: options.suppliedClass
       ? { kind: "supplied", value: "Light" }
       : { kind: "preserved", value: "Heavy" },
@@ -74,54 +69,6 @@ function input(options: {
       },
     },
   };
-}
-
-function markedInput(descendant = false): PrepareGraduationTransactionInput {
-  const base = input({ workflow: "draft-design" });
-  const { receipt } = v3DecompositionEvidenceFixture();
-  const resolved = produceDecompositionIntegrationAnchor({
-    receipts: [receipt],
-    preparedBaseHead: "b".repeat(40),
-    candidateCommit: { head: "c".repeat(40), tree: "d".repeat(40) },
-    receiptTransitionTree: "d".repeat(40),
-    currentBaseHead: descendant ? "f".repeat(40) : "c".repeat(40),
-    baseDescent: descendant
-      ? { kind: "descendant", from: "c".repeat(40), to: "f".repeat(40) }
-      : { kind: "exact" },
-    landingRelation: { kind: "exact" },
-    landing: {
-      kind: "fast-forward",
-      beforeHead: "b".repeat(40),
-      resultHead: "c".repeat(40),
-      resultTree: "d".repeat(40),
-    },
-  });
-  if (resolved.status !== "resolved") throw new Error("fixture anchor did not resolve");
-  const metaContent = renderMetaFile("widget", {
-    state: "Planning",
-    owner: "andrew",
-    workClass: "Heavy",
-    design: ["draft-widget.md"],
-    currentWorkflow: "draft-design",
-    decompositionReceipt: resolved.anchor.receiptId,
-  });
-  base.artifacts[0] = artifact("meta-widget.md", metaContent);
-  resolved.anchor.receipt.prepared.completedMap.machine.planningProfile = {
-    kind: "draft",
-    sourceDesign: ["draft-origin.md"],
-  };
-  resolved.anchor.receipt.finalized.publication.entries = [{ kind: "new-leaf", slug: "widget" }];
-  resolved.anchor.receipt.finalized.managedPathResults = base.artifacts.map((entry) => ({
-    path: entry.sourcePath,
-    before: { kind: "absent" },
-    after: {
-      kind: "file",
-      mode: entry.mode,
-      contentDigest: digestBytes(entry.bytes),
-    },
-  }));
-  base.anchor = resolved.anchor;
-  return base;
 }
 
 describe("prepareValidatedGraduationTransaction", () => {
@@ -148,28 +95,6 @@ describe("prepareValidatedGraduationTransaction", () => {
     expect(meta.workClass).toBe("Light");
     expect(meta.currentWorkflow).toBe("draft-design");
     expect(meta.nextAction).toBe("[begin current workflow]");
-  });
-
-  it("removes landed decomposition provenance in the same complete target meta", () => {
-    const result = prepareValidatedGraduationTransaction(markedInput());
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
-    expect(result.transaction.policy.decompositionReceiptRemoved).toBe(true);
-    const metaContent = new TextDecoder().decode(result.transaction.target.metaBytes);
-    const meta = parseMetaRecord(metaContent);
-    expect(meta.decompositionReceipt).toBeNull();
-    expect(meta.design).toEqual(["draft-widget.md"]);
-    expect(meta.taskList).toBeNull();
-  });
-
-  it("graduates from the unchanged anchor contract after the base advances past landing", () => {
-    const candidate = markedInput(true);
-    const result = prepareValidatedGraduationTransaction(candidate);
-    expect(result.status).toBe("ready");
-    expect(candidate.anchor).toMatchObject({
-      currentBaseHead: "f".repeat(40),
-      landedCommitHead: "c".repeat(40),
-    });
   });
 
   it("refuses destination, planning-tuple, and class mismatches before producing authority", () => {

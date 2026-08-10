@@ -614,10 +614,8 @@ describe("runStaleWorktreeSweep", () => {
     marker.marker.husk.authorization = "discard-confirmed";
     marker.marker.husk.remoteRef = null;
     marker.marker.husk.evidence = {
-      kind: "receipt",
-      receiptId: `sha256:${"1".repeat(64)}`,
+      kind: "git-transition",
       transition: "abandon",
-      expectedLifecycle: "nonexistent",
       resultDigest: `sha256:${"2".repeat(64)}`,
     };
     const revalidateEvidence = vi.fn().mockResolvedValue(false);
@@ -650,10 +648,8 @@ describe("runStaleWorktreeSweep", () => {
     marker.marker.husk.authorization = "discard-confirmed";
     marker.marker.husk.remoteRef = null;
     marker.marker.husk.evidence = {
-      kind: "receipt",
-      receiptId: `sha256:${"1".repeat(64)}`,
+      kind: "git-transition",
       transition: "abandon",
-      expectedLifecycle: "nonexistent",
       resultDigest: `sha256:${"2".repeat(64)}`,
     };
 
@@ -689,10 +685,8 @@ describe("runStaleWorktreeSweep", () => {
     marker.marker.husk.authorization = "discard-confirmed";
     marker.marker.husk.remoteRef = null;
     marker.marker.husk.evidence = {
-      kind: "receipt",
-      receiptId: `sha256:${"1".repeat(64)}`,
+      kind: "git-transition",
       transition: "abandon",
-      expectedLifecycle: "nonexistent",
       resultDigest: `sha256:${"2".repeat(64)}`,
     };
 
@@ -725,8 +719,7 @@ describe("runStaleWorktreeSweep", () => {
     marker.marker.husk.authorization = "discard-confirmed";
     marker.marker.husk.remoteRef = null;
     marker.marker.husk.evidence = {
-      kind: "receipt", receiptId: `sha256:${"1".repeat(64)}`, transition: "abandon",
-      expectedLifecycle: "nonexistent", resultDigest: `sha256:${"2".repeat(64)}`,
+      kind: "git-transition", transition: "abandon", resultDigest: `sha256:${"2".repeat(64)}`,
     };
 
     const result = await runStaleWorktreeSweep({

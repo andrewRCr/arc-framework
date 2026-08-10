@@ -61,7 +61,6 @@ import { userSyncCommandInputPolicyDeclarations } from "./handlers/user-sync.js"
 import type { CommandInputDeclaration } from "./lib/command-input/declaration.js";
 import { viewCommandInputPolicyDeclarations, viewCommandInputRegistration } from "./handlers/view.js";
 import { remedyRoadmapConflictInputPolicyDeclarations } from "./scripts/remedy-roadmap-conflict.js";
-import { validateDecomposeRecordInputPolicyDeclarations } from "./scripts/validate-decompose-record.js";
 import type { CommandInputRegistration } from "./lib/command-input/registry.js";
 
 /** Every command-owned schema registration contributed by migrated families. */
@@ -119,6 +118,5 @@ export const commandInputPolicyDeclarations = [
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,
-  ...validateDecomposeRecordInputPolicyDeclarations,
   ...infrastructureCommandInputPolicyDeclarations,
 ] as const satisfies readonly CommandInputDeclaration[];

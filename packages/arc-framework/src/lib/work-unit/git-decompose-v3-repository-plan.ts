@@ -280,7 +280,6 @@ export async function composeGitV3RepositoryPlan(
             exec: bindGitCwd(dependencies.exec, dependencies.cwd),
             acquisitionPolicy: "local",
             baseBranch,
-            decompositionClaimCwd: dependencies.cwd,
           },
           transitionOverlay: transitionOverlayCompositionInput(overlay),
         });

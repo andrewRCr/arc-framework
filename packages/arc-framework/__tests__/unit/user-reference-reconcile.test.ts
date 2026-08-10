@@ -95,7 +95,7 @@ describe("planUserReferenceReconcile", () => {
       refreshRemoteBase: () => Promise.resolve(false),
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
     const partial = await resolveUserReferenceAuthority({
@@ -104,7 +104,7 @@ describe("planUserReferenceReconcile", () => {
       refreshRemoteBase: () => Promise.reject(new Error("must not fetch")),
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
     const full = await resolveUserReferenceAuthority({
@@ -113,7 +113,7 @@ describe("planUserReferenceReconcile", () => {
       refreshRemoteBase: () => Promise.resolve(true),
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
 
@@ -132,7 +132,7 @@ describe("planUserReferenceReconcile", () => {
       objectAvailability: { kind: "complete", commits: { [BASE_OID]: true } },
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
 
@@ -192,7 +192,7 @@ describe("planUserReferenceReconcile", () => {
       objectAvailability: { kind: "complete", commits: { [BASE_OID]: false } },
       enumerateAt: async () => {
         enumerated = true;
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     })).resolves.toEqual({
       status: "pending",
@@ -212,7 +212,7 @@ describe("planUserReferenceReconcile", () => {
       objectAvailability: { kind: "complete", commits: {} },
       enumerateAt: async () => {
         enumerated = true;
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     })).resolves.toEqual({
       status: "unavailable",
@@ -232,7 +232,7 @@ describe("planUserReferenceReconcile", () => {
       objectAvailability: { kind: "unavailable", reason: "execution" },
       enumerateAt: async () => {
         enumerated = true;
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     })).resolves.toEqual({
       status: "unavailable",
@@ -252,7 +252,7 @@ describe("planUserReferenceReconcile", () => {
       objectAvailability: { kind: "unavailable", reason: "execution" },
       enumerateAt: async (ref) => {
         refs.push(ref);
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     })).resolves.toMatchObject({
       status: "ready",
@@ -289,7 +289,7 @@ describe("planUserReferenceReconcile", () => {
       protection: "full",
       baseBranch: "main",
       enumerateAt: (ref) => Promise.resolve(
-        ref === BASE_OID ? { status: "valid", records: [] } : { status: "namespace-corrupt" },
+        ref === BASE_OID ? { status: "valid", groups: [] } : { status: "namespace-corrupt" },
       ),
     });
 
@@ -341,7 +341,7 @@ describe("planUserReferenceReconcile", () => {
       },
       protection: "full",
       baseBranch: "-unsafe",
-      enumerateAt: async () => ({ status: "valid", records: [] }),
+      enumerateAt: async () => ({ status: "valid", groups: [] }),
     })).rejects.toThrow("Unsafe base ref");
     expect(invoked).toBe(false);
   });
@@ -372,7 +372,7 @@ describe("planUserReferenceReconcile", () => {
       fetchTimeoutMs: 5,
       enumerateAt: async () => {
         enumerated = true;
-        return { status: "valid", records: [] };
+        return { status: "valid", groups: [] };
       },
     });
 

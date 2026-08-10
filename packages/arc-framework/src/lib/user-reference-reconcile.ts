@@ -9,12 +9,12 @@
  */
 
 import {
-  enumerateReferenceTransitions,
+  enumerateTransitionReferenceTransitions,
   resolveReferenceTransition,
   type ReachableReferenceTransition,
   type ReferenceTransitionResolution,
 } from "./work-unit/reference-reconcile.js";
-import type { RetirementRecordEnumerationResult } from "./work-unit/retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "./work-unit/transition-record-enumeration.js";
 import type { ObjectAvailabilityResult } from "./git/object-availability.js";
 import {
   classifyRemoteFailure,
@@ -90,7 +90,7 @@ export interface UserReferenceAuthorityContext {
   protection: "full" | "partial";
   baseBranch: string;
   refreshRemoteBase: () => Promise<boolean>;
-  enumerateAt: (ref: string) => Promise<RetirementRecordEnumerationResult>;
+  enumerateAt: (ref: string) => Promise<TransitionRecordEnumerationResult>;
 }
 
 /** Supplied base evidence for protection-aware user-reference authority analysis. */
@@ -99,7 +99,7 @@ export interface AnalyzeUserReferenceAuthorityOptions {
   baseBranch: string;
   snapshot: RemoteHeadSnapshotResult;
   objectAvailability: ObjectAvailabilityResult;
-  enumerateAt: (ref: string) => Promise<RetirementRecordEnumerationResult>;
+  enumerateAt: (ref: string) => Promise<TransitionRecordEnumerationResult>;
 }
 
 /** Explicit acquisition inputs for user-reference authority. */
@@ -108,7 +108,7 @@ export interface MaterializeUserReferenceAuthorityOptions {
   protection: "full" | "partial";
   baseBranch: string;
   fetchTimeoutMs?: number;
-  enumerateAt: (ref: string) => Promise<RetirementRecordEnumerationResult>;
+  enumerateAt: (ref: string) => Promise<TransitionRecordEnumerationResult>;
 }
 
 /** User-reference authority qualified by the evidence that established it. */
@@ -152,7 +152,7 @@ export type UserReferenceEvidenceAuthorityResult =
   | {
       status: "conflict";
       ref: string;
-      reason: "version-conflict" | "namespace-corrupt";
+      reason: "ambiguous-history" | "namespace-corrupt";
       remoteEvidence: "exact" | "not-applicable";
     };
 
@@ -160,7 +160,7 @@ export type UserReferenceEvidenceAuthorityResult =
 export type UserReferenceAuthorityResult =
   | { status: "ready"; ref: string; transitions: readonly ReachableReferenceTransition[] }
   | { status: "unavailable"; ref: string }
-  | { status: "conflict"; ref: string; reason: "version-conflict" | "namespace-corrupt" };
+  | { status: "conflict"; ref: string; reason: "ambiguous-history" | "namespace-corrupt" };
 
 /** Read-only session projection with CLI-owned dispatch. */
 export interface UserReferenceReconcileSessionResult {
@@ -267,7 +267,7 @@ export async function analyzeUserReferenceAuthority(
 ): Promise<UserReferenceEvidenceAuthorityResult> {
   if (options.protection === "partial") {
     const ref = options.baseBranch;
-    const projected = enumerateReferenceTransitions(await options.enumerateAt(ref));
+    const projected = enumerateTransitionReferenceTransitions(await options.enumerateAt(ref));
     return projected.status === "valid"
       ? { status: "ready", ref, transitions: projected.transitions, remoteEvidence: "not-applicable" }
       : { status: "conflict", ref, reason: projected.reason, remoteEvidence: "not-applicable" };
@@ -304,7 +304,7 @@ export async function analyzeUserReferenceAuthority(
   if (baseCommitIsLocal === undefined) {
     throw new Error("The advertised base commit has no local availability fact.");
   }
-  const projected = enumerateReferenceTransitions(await options.enumerateAt(baseOid));
+  const projected = enumerateTransitionReferenceTransitions(await options.enumerateAt(baseOid));
   return projected.status === "valid"
     ? { status: "ready", ref: baseOid, transitions: projected.transitions, remoteEvidence: "exact" }
     : { status: "conflict", ref: baseOid, reason: projected.reason, remoteEvidence: "exact" };
@@ -393,13 +393,13 @@ export async function resolveUserReferenceAuthority(
   if (ctx.protection === "full" && !await ctx.refreshRemoteBase()) {
     return { status: "unavailable", ref };
   }
-  let enumeration: RetirementRecordEnumerationResult;
+  let enumeration: TransitionRecordEnumerationResult;
   try {
     enumeration = await ctx.enumerateAt(ref);
   } catch {
     return { status: "unavailable", ref };
   }
-  const projected = enumerateReferenceTransitions(enumeration);
+  const projected = enumerateTransitionReferenceTransitions(enumeration);
   return projected.status === "valid"
     ? { status: "ready", ref, transitions: projected.transitions }
     : { status: "conflict", ref, reason: projected.reason };

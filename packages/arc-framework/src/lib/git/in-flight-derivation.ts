@@ -29,7 +29,7 @@ import {
   type ParsedMetaRecord,
 } from "../active/meta-reader.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
-import { readLiveDecomposeTransientClaimProjection } from "../work-unit/decompose-transient-claim-store.js";
+import { isDecomposeCandidateBranch } from "../work-unit/decompose-candidate.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import { locusOwnsBranch } from "../session-init/locus-classification.js";
 
@@ -103,7 +103,6 @@ export type InFlightWarningCode =
   | "stale-location-shadow"
   | "candidate-shadowed"
   | "location-ambiguous"
-  | "decomposition-claim-invalid"
   | "input-snapshot-disagreement";
 
 /** Structured warning surfaced by in-flight derivation consumers. */
@@ -276,10 +275,28 @@ export interface DeriveInFlightOptions {
   parkedSlugs?: ReadonlySet<string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
   prSource?: PrSource;
-  /** Exact live decomposition candidate branches from the validated transient-claim reader. */
-  decompositionCandidateBranches?: ReadonlySet<string>;
-  /** Checkout used to load repository-common decomposition candidate claims. */
-  decompositionClaimCwd?: string;
+}
+
+async function deriveOwnedDecompositionCandidateBranches(
+  worktreePaths: ReadonlyMap<string, string>,
+  readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>,
+): Promise<Set<string>> {
+  const candidates = [...worktreePaths.entries()]
+    .filter(([branch]) => isDecomposeCandidateBranch(branch));
+  const owned = await Promise.all(candidates.map(async ([branch, path]) => {
+    try {
+      const marker = await readMarker(path);
+      return marker.kind === "present"
+        && marker.marker.spawnedByArc
+        && marker.marker.createdFor?.kind === "branch"
+        && marker.marker.createdFor.ref === branch
+        ? branch
+        : null;
+    } catch {
+      return null;
+    }
+  }));
+  return new Set(owned.filter((branch): branch is string => branch !== null));
 }
 
 /** Default base branch excluded from the in-flight discovery universe. */
@@ -336,7 +353,6 @@ const CLASSIFICATION_FAILURE_CODES = [
   "meta-malformed",
   "state-unrecognized",
   "branch-field-missing",
-  "decomposition-claim-invalid",
 ] as const satisfies readonly InFlightWarning["code"][];
 
 /** Analyze in-flight work from caller-supplied immutable evidence. */
@@ -462,12 +478,10 @@ async function deriveFromResolvedInputs(
   const remoteReadDegraded = internallyAcquired
     && !("localOnly" in options && (options.localOnly ?? false))
     && !branchSet.reachable;
-  const claimProjection = options.decompositionClaimCwd === undefined
-    ? null
-    : await readLiveDecomposeTransientClaimProjection(exec, options.decompositionClaimCwd);
-  const decompositionCandidateBranches = options.decompositionCandidateBranches
-    ?? claimProjection?.branches
-    ?? new Set<string>();
+  const decompositionCandidateBranches = await deriveOwnedDecompositionCandidateBranches(
+    worktreePaths,
+    options.readMarker ?? readWorktreeMarker,
+  );
   const classifiedResidue = dedupeResidue(
     classified
       .map((classification) => classification.residue)
@@ -508,12 +522,6 @@ async function deriveFromResolvedInputs(
     );
   if (!worktreeResult.ok) {
     warnings.unshift(worktreeListFailedWarning());
-  }
-  if (claimProjection !== null) {
-    warnings.unshift(...claimProjection.diagnostics.map((rendered): InFlightWarning => ({
-      code: "decomposition-claim-invalid",
-      rendered,
-    })));
   }
   warnings.unshift(...input.warnings);
   if (!errandRecordsComplete) warnings.unshift(errandRecordReadFailedWarning());

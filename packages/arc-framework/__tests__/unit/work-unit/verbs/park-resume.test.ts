@@ -19,7 +19,6 @@ import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord, type ParsedMetaRecord } from "../../../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
-import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
 import type {
   ExecuteTransitionContext,
@@ -33,11 +32,6 @@ import {
 } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 import {
-  validateReceiptMatrix,
-  type RetirementReceipt,
-} from "../../../../src/lib/work-unit/retirement-authority.js";
-import { queryRetirementDisposition } from "../../../../src/lib/work-unit/retirement-disposition-query.js";
-import {
   runPark,
   runResume,
   type ParkContext,
@@ -48,17 +42,6 @@ import {
 const CWD = "/repo";
 const WORKTREE = "/repo/../wt-foo";
 const LOCUS = "/repo/../wt-foo";
-function parkTransitionOperations(resultDir: string): readonly PatchOperation[] {
-  return [
-    { operation: "delete", path: validateManagedPath(".arc/active/meta-foo.md") },
-    {
-      operation: "write",
-      path: validateManagedPath(`${resultDir}/meta-foo.md`),
-      contentDigest: canonicalDigest({ content: "planned-meta" }),
-    },
-  ];
-}
-
 interface MetaSpec {
   slug: string;
   /** Lifecycle tier directory under `.arc/` (e.g. `active`, `backlog/planned`). */
@@ -145,7 +128,6 @@ interface Harness {
   writes: { path: string; content: string }[];
   removals: string[];
   worktreeOps: unknown[];
-  recordedReceipts: RetirementReceipt[];
 }
 
 function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
@@ -153,8 +135,6 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const writes: Harness["writes"] = [];
   const removals: string[] = [];
   const worktreeOps: unknown[] = [];
-  const recordedReceipts: RetirementReceipt[] = [];
-  let transitionOperations = parkTransitionOperations(".arc/backlog/planned/foo");
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -221,7 +201,6 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const planningRetirement: ParkContext["planningRetirement"] = {
     captureSource: async ({ name, resultDir }) => {
       calls.push(`retirement:capture:${name}`);
-      transitionOperations = parkTransitionOperations(resultDir);
       return {
         scope: {
           subject: { kind: "work-unit", name },
@@ -229,7 +208,6 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
           source: { branch: "plan/foo", head: "a".repeat(40) },
           resultProjection: { ref: "plan/foo", head: "a".repeat(40) },
         },
-        artifactDigest: canonicalDigest({ artifact: "source-foo" }),
         sourceArtifactPaths: [validateManagedPath(".arc/active/meta-foo.md")],
         resultArtifactPaths: [validateManagedPath(`${resultDir}/meta-foo.md`)],
       };
@@ -241,14 +219,8 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
           authorityVersion: canonicalDigest({ authority: "before-park" }),
           sourceRefOid: "a".repeat(40),
           resultRefOid: "a".repeat(40),
-          recordState: "absent",
         },
       }),
-      record: async (receipt) => {
-        calls.push("retirement:record");
-        recordedReceipts.push(receipt);
-        return { status: "recorded", authorityVersion: canonicalDigest({ authority: "after-park" }) };
-      },
     },
     stageTransition: async () => {
       calls.push("retirement:stage-transition");
@@ -256,11 +228,13 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     rollbackTransition: async () => {
       calls.push("retirement:rollback-transition");
     },
-    readTransitionPatch: async () => transitionOperations,
-    readResultArtifactDigest: async () => canonicalDigest({ artifact: "planned-foo" }),
+    completeTransition: async () => {
+      calls.push("retirement:complete");
+      return { status: "completed-no-record", authorityVersion: canonicalDigest({ authority: "after-park" }) };
+    },
   };
 
-  return { ctx: { executor, fs, planningRetirement }, calls, writes, removals, worktreeOps, recordedReceipts };
+  return { ctx: { executor, fs, planningRetirement }, calls, writes, removals, worktreeOps };
 }
 
 const ACTIVE: MetaSpec = {
@@ -313,8 +287,8 @@ const BASE_RESUME: ResumeParams = {
 };
 
 describe("runPark — park@Planning", () => {
-  it("captures the source and records the relocated result on the planning branch", async () => {
-    const { ctx, calls, recordedReceipts } = buildCtx([PLANNING]);
+  it("captures the source and completes the relocation without a retirement record", async () => {
+    const { ctx, calls } = buildCtx([PLANNING]);
 
     const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
 
@@ -322,39 +296,17 @@ describe("runPark — park@Planning", () => {
     expect(calls.indexOf("retirement:capture:foo")).toBeLessThan(
       calls.indexOf("relocate:.arc/active->.arc/backlog/planned/foo"),
     );
-    expect(recordedReceipts).toHaveLength(1);
-    expect(recordedReceipts[0]).toMatchObject({
-      transition: "park-planning",
-      schemaVersion: 2,
-      inventoryRead: "tree-only",
-      authorization: "planning-relocated",
-      source: { branch: "plan/foo", head: "a".repeat(40) },
-      result: { kind: "relocate", plannedArtifactDigest: canonicalDigest({ artifact: "planned-foo" }) },
-    });
+    expect(result).not.toHaveProperty("receipt");
+    expect(result).not.toHaveProperty("authorityVersion");
   });
 
-  it("stages the relocation and planning-relocated receipt for one direct-transition commit", async () => {
-    const { ctx, calls, recordedReceipts } = buildCtx([PLANNING]);
+  it("stages and completes the relocation without a direct-transition record", async () => {
+    const { ctx, calls } = buildCtx([PLANNING]);
 
     const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
 
     expect(result.status).toBe("parked");
-    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:record"));
-    const [recorded] = recordedReceipts;
-    if (recorded === undefined) throw new Error("expected a park receipt");
-    expect(validateReceiptMatrix(recorded, "planned")).toBeNull();
-    expect(validateReceiptMatrix(recorded, "nonexistent")).toBe("evidence-mismatch");
-    expect(queryRetirementDisposition({
-      status: "valid",
-      records: [{
-        id: recorded.receiptId,
-        content: "",
-        record: { kind: "receipt", value: recorded },
-      }],
-    }, {
-      retiredSubject: "foo",
-      dependentSlug: "consumer",
-    })).toEqual({ status: "absent" });
+    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:complete"));
   });
 
   it("preserves the advisory returned by deferred workspace cleanup", async () => {
@@ -386,7 +338,7 @@ describe("runPark — park@Planning", () => {
         status: "ok",
         advisories: [
           existing,
-          "Park evidence was recorded, but the user workspace could not be closed: workspace locked.",
+          "Park completed, but the user workspace could not be closed: workspace locked.",
         ],
       },
     });
@@ -395,17 +347,17 @@ describe("runPark — park@Planning", () => {
   it("rolls back the relocation and leaves workspace cleanup deferred when recording refuses", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
     if (ctx.planningRetirement === undefined) throw new Error("missing planning retirement context");
-    ctx.planningRetirement.authority.record = async () => ({
+    ctx.planningRetirement.completeTransition = async () => ({
       status: "refused",
       reason: "authority-conflict",
-      diagnostic: "Receipt cleanup was incomplete: index rollback failed.",
+      diagnostic: "index changed",
     });
 
     const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/rolled back.*Receipt cleanup was incomplete: index rollback failed\./iu),
+      reason: expect.stringMatching(/rolled back.*index changed/iu),
     });
     expect(calls).toContain("retirement:rollback-transition");
     expect(calls).not.toContain("side:user-workspace");
@@ -437,7 +389,7 @@ describe("runPark — park@Planning", () => {
     "preserves the %s cohort placement when parking Planning work",
     async (cohort) => {
       const planning = { ...PLANNING, cohort };
-      const { ctx, calls, recordedReceipts } = buildCtx([planning]);
+      const { ctx, calls } = buildCtx([planning]);
 
       const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(planning) });
 
@@ -446,22 +398,18 @@ describe("runPark — park@Planning", () => {
         metaPath: `.arc/backlog/planned/${cohort}/foo/meta-foo.md`,
       });
       expect(calls).toContain(`relocate:.arc/active->.arc/backlog/planned/${cohort}/foo`);
-      expect(recordedReceipts).toHaveLength(1);
-      expect(recordedReceipts[0]?.transitionPatchDigest).toBe(
-        patchDigest(parkTransitionOperations(`.arc/backlog/planned/${cohort}/foo`)),
-      );
+      expect(calls).toContain("retirement:complete");
     },
   );
 });
 
 describe("runPark — park@Active", () => {
-  it("leaves the pointer-record path outside retirement receipt recording", async () => {
-    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+  it("leaves the pointer-record path outside direct-transition completion", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
 
     const result = await runPark(ctx, BASE_PARK);
 
     expect(result.status).toBe("parked");
-    expect(recordedReceipts).toEqual([]);
     expect(calls.some((call) => call.startsWith("retirement:"))).toBe(false);
   });
 

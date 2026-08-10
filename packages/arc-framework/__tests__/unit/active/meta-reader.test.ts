@@ -215,7 +215,6 @@ describe("renderMetaFile — semantic record", () => {
       design: ["spec-a.md", "spec-b.md"],
       taskList: "tasks-foo.md",
       reviewRubric: null,
-      decompositionReceipt: null,
       promotionReceipt: `errand-v1/repair/${"a".repeat(32)}`,
       currentWorkflow: "integrate-work-unit",
       lastCompleted: "Task 7.1",
@@ -1319,55 +1318,6 @@ describe("Review Rubric field — optional safe identity", () => {
       expect(parseReviewRubric(parseMetaRecord(content).reviewRubric))
         .toBe("implementation-audit");
     }
-  });
-});
-
-describe("Decomposition Receipt field — omit-when-absent identity", () => {
-  const receiptId = `sha256:${"a".repeat(64)}`;
-
-  it("omits semantic absence from ordinary rendering and parsing returns absence", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-    });
-
-    expect(content).not.toContain("Decomposition Receipt");
-    expect(parseMetaRecord(content).decompositionReceipt).toBeNull();
-  });
-
-  it("renders a supplied receipt immediately after Review Rubric and round-trips it", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-      reviewRubric: "implementation-audit",
-      decompositionReceipt: receiptId,
-    });
-
-    expect(content.indexOf("Review Rubric")).toBeLessThan(content.indexOf("Decomposition Receipt"));
-    expect(content.indexOf("Decomposition Receipt")).toBeLessThan(content.indexOf("Current Workflow"));
-    expect(parseMetaRecord(content).decompositionReceipt).toBe(receiptId);
-  });
-
-  it("does not backfill the optional marker during managed reconciliation", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-    });
-
-    const reconciled = reconcileMetaFields(content);
-    expect(reconciled.content).toBe(content);
-    expect(reconciled.backfilled).not.toContain("Decomposition Receipt");
-  });
-
-  it("preserves one explicitly supplied marker during managed reconciliation", () => {
-    const content = renderMetaFile("foo", {
-      state: "Planning",
-      owner: "andrew",
-      decompositionReceipt: receiptId,
-    });
-    const reconciled = reconcileMetaFields(content);
-    expect(reconciled.content).toBe(content);
-    expect(parseMetaRecord(reconciled.content).decompositionReceipt).toBe(receiptId);
   });
 });
 

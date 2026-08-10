@@ -1,5 +1,7 @@
 /** Pure canonical managed-path registry for one immutable v3 decomposition plan. */
 
+import { z } from "zod";
+
 import {
   canonicalDigest,
   isCanonicalDigest,
@@ -11,16 +13,76 @@ import {
   createProspectiveTransitionOverlay,
   type ProspectiveTransitionOverlay,
 } from "./transition-overlay.js";
-import {
-  V3PathStateSchema,
-  V3CandidatePublicationSchema,
-  parseV3TopologyFacts,
-  v3PlanId,
-  v3TopologyDigest,
-  type V3CandidatePublication,
-  type V3ProjectedCandidateAuthority,
-  type V3TopologyFact,
-} from "./decompose-v3-preparation.js";
+
+const DigestSchema = z.custom<CanonicalDigest>(isCanonicalDigest, "must be a canonical digest");
+const ManagedPathSchema = z.string().refine(
+  (value: string): boolean => isManagedPath(value),
+  "must be a managed repository-relative path",
+);
+
+/** Canonical regular-file or absence state retained by a validated plan. */
+export const V3PathStateSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("absent") }),
+  z.strictObject({
+    kind: z.literal("file"),
+    mode: z.enum(["100644", "100755"]),
+    contentDigest: DigestSchema,
+  }),
+]);
+
+const TopologyFactSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("none") }),
+  ...(["create", "ensure", "backfill", "reuse", "append"] as const).map((kind) => z.strictObject({
+    kind: z.literal(kind),
+    path: ManagedPathSchema,
+    before: V3PathStateSchema,
+    after: V3PathStateSchema,
+  })),
+]);
+
+export type V3TopologyFact = z.infer<typeof TopologyFactSchema>;
+
+function ordered(values: readonly string[]): boolean {
+  let previous: string | undefined;
+  for (const value of values) {
+    if (previous !== undefined
+      && Buffer.compare(Buffer.from(previous, "utf8"), Buffer.from(value, "utf8")) >= 0) return false;
+    previous = value;
+  }
+  return true;
+}
+
+/** Decode one canonical topology fact set. */
+export function parseV3TopologyFacts(input: unknown): V3TopologyFact[] | null {
+  const parsed = z.array(TopologyFactSchema).safeParse(input);
+  if (!parsed.success || parsed.data.length === 0) return null;
+  if (parsed.data.length === 1 && parsed.data[0]?.kind === "none") return parsed.data;
+  if (parsed.data.some(({ kind }) => kind === "none")) return null;
+  const actions = parsed.data as Array<Exclude<V3TopologyFact, { kind: "none" }>>;
+  if (!ordered(actions.map(({ path }) => path))) return null;
+  for (const action of actions) {
+    const equal = canonicalDigest(action.before) === canonicalDigest(action.after);
+    if ((action.kind === "reuse" || action.kind === "ensure") !== equal) return null;
+  }
+  return parsed.data;
+}
+
+/** Digest the exact closed constitutive-topology fact array. */
+export function v3TopologyDigest(facts: readonly V3TopologyFact[]): CanonicalDigest {
+  const parsed = parseV3TopologyFacts(facts);
+  if (parsed === null) throw new Error("invalid-v3-topology-facts");
+  return canonicalDigest(parsed);
+}
+
+/** Bind a completed map's immutable operands into its mutation-plan identity. */
+export function v3PlanId(input: {
+  preflightId: CanonicalDigest;
+  cutMapDigest: CanonicalDigest;
+  allowedPathsDigest: CanonicalDigest;
+  topologyDigest: CanonicalDigest;
+}): CanonicalDigest {
+  return canonicalDigest({ schemaVersion: 3, ...input });
+}
 
 export type V3PlanFileState = {
   kind: "file";
@@ -36,7 +98,6 @@ export type V3PlanObservedPathState = V3PlanCanonicalPathState | {
 };
 
 export type V3PlanExclusiveRole =
-  | "receipt-evidence"
   | "retiring-source"
   | "predecessor-retirement"
   | "roadmap";
@@ -98,7 +159,6 @@ export interface BuildValidatedDecomposePlanInput {
   cutMapDigest: CanonicalDigest;
   sourceHead: string;
   expectedBaseHead: string;
-  candidatePublication: V3CandidatePublication;
   topology: {
     facts: V3TopologyFact[];
     digest: CanonicalDigest;
@@ -133,7 +193,10 @@ export interface ValidatedDecomposePlan {
   cutMapDigest: CanonicalDigest;
   sourceHead: string;
   expectedBaseHead: string;
-  candidateAuthority: V3ProjectedCandidateAuthority;
+  topology: {
+    facts: V3TopologyFact[];
+    digest: CanonicalDigest;
+  };
   allowedPaths: string[];
   allowedPathsDigest: CanonicalDigest;
   prospectiveOverlay: ProspectiveTransitionOverlay;
@@ -261,7 +324,6 @@ function invalidOperand(input: BuildValidatedDecomposePlanInput): boolean {
     || !isCanonicalDigest(input.topology.digest)
     || topologyFacts === null
     || input.topology.digest !== v3TopologyDigest(topologyFacts)
-    || !V3CandidatePublicationSchema.safeParse(input.candidatePublication).success
     || !validIdentity(input.sourceHead)
     || !validIdentity(input.expectedBaseHead)
     || !validIdentity(input.origin)
@@ -426,7 +488,6 @@ export function buildValidatedDecomposePlan(
     preflightId: input.preflightId,
     cutMapDigest: input.cutMapDigest,
     allowedPathsDigest,
-    candidatePublication: input.candidatePublication,
     topologyDigest: input.topology.digest,
   });
   return {
@@ -436,10 +497,7 @@ export function buildValidatedDecomposePlan(
       cutMapDigest: input.cutMapDigest,
       sourceHead: input.sourceHead,
       expectedBaseHead: input.expectedBaseHead,
-      candidateAuthority: {
-        candidatePublication: structuredClone(input.candidatePublication),
-        topology: structuredClone(input.topology),
-      },
+      topology: structuredClone(input.topology),
       allowedPaths,
       allowedPathsDigest,
       prospectiveOverlay: createProspectiveTransitionOverlay({

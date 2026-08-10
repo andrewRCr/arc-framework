@@ -15,14 +15,13 @@ const DRAFT_OID = "e".repeat(40);
 const SOURCE = ".arc/backlog/planned/widget";
 const TARGET = ".arc/active";
 
-function meta(owner = "andrew", decompositionReceipt?: `sha256:${string}`): Uint8Array {
+function meta(owner = "andrew"): Uint8Array {
   return new TextEncoder().encode(renderMetaFile("widget", {
     state: "Planning",
     owner,
     workClass: "Heavy",
     design: ["draft-widget.md"],
     currentWorkflow: "create-spec",
-    ...(decompositionReceipt === undefined ? {} : { decompositionReceipt }),
   }));
 }
 
@@ -105,7 +104,6 @@ function dependencies(options: {
       return null;
     },
     pathExists: async () => false,
-    resolveAnchor: async () => ({ status: "refused", reason: "unexpected ordinary anchor lookup" }),
   };
 }
 
@@ -156,14 +154,14 @@ describe("prepareGitGraduationTransaction", () => {
   });
 
   it("distinguishes malformed UTF-8 meta structure from invalid UTF-8 bytes", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}`;
     const malformedText = [
       "# Metadata: widget",
       "",
       "| --- | --- | --- | --- | --- |",
       "",
       "- **Review Rubric:** [none]",
-      `- **Decomposition Receipt:** \`${receiptId}\``,
+      "",
+      "---",
       "",
     ].join("\n");
 
@@ -186,7 +184,7 @@ describe("prepareGitGraduationTransaction", () => {
       },
     })).resolves.toMatchObject({
       status: "refused",
-      reason: "source-shape",
+      reason: "transaction",
       detail: expect.stringMatching(/malformed|core-block|table/iu),
     });
 
@@ -211,33 +209,6 @@ describe("prepareGitGraduationTransaction", () => {
       status: "refused",
       reason: "source-shape",
       detail: expect.stringMatching(/not valid UTF-8/iu),
-    });
-  });
-
-  it("preserves anchor-policy as a typed refusal instead of classifying message text", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}` as const;
-    await expect(prepareGitGraduationTransaction(dependencies({
-      metaBytes: meta("andrew", receiptId),
-    }), {
-      cwd: "/repo",
-      slug: "widget",
-      location: "planned",
-      sourceRef: "base",
-      sourceDirectory: SOURCE,
-      targetDirectory: TARGET,
-      mode: "spawned",
-      worktreePath: "/wt",
-      classResolution: { kind: "preserved", value: "Heavy" },
-      spawn: {
-        locationTemplate: "../{repo}.{name}",
-        repo: "repo",
-        spawningIdentity: "andrew",
-      },
-    })).resolves.toMatchObject({
-      status: "refused",
-      reason: "anchor-policy",
-      locus: SOURCE,
-      detail: expect.stringMatching(/no exact landed anchor/iu),
     });
   });
 

@@ -233,6 +233,7 @@ describe("classifyPlanningLane", () => {
       ".arc/backlog/planned/nested/analysis-example.md",
       ".arc/backlog/planned/nested/spec-example.md",
       ".arc/backlog/ROADMAP.md",
+      ".arc/system/.internal/transitions/example.json",
     ];
     expect(classifyPlanningLane({
       changeSet: "known",
@@ -249,6 +250,22 @@ describe("classifyPlanningLane", () => {
     ".arc/backlog/planned/example/spec-example",
     ".arc/backlog/planned/example/spec-.md",
   ])("rejects planning-like path outside the complete artifact grammar: %s", (path) => {
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [change(path)],
+    })).toBe("reviewed");
+  });
+
+  it.each([
+    ".arc/system/.internal/transitions/",
+    ".arc/system/.internal/transitions/origin.txt",
+    ".arc/system/.internal/transitions/Not-Valid.json",
+    ".arc/system/.internal/transitions/nested/origin.json",
+    ".arc/system/.internal/githooks/pre-commit",
+    ".arc/system/.internal/scripts/check.sh",
+    ".arc/system/.internal/skills/arc-session/SKILL.md",
+    ".arc/system/.internal/other/origin.json",
+  ])("rejects adjacent internal content outside an exact transition leaf: %s", (path) => {
     expect(classifyPlanningLane({
       changeSet: "known",
       changes: [change(path)],
@@ -297,6 +314,22 @@ describe("classifyPlanningLane", () => {
         ...change(".arc/active/meta-example.md", { newMode: "120000" }),
         status: "type-changed",
       }],
+    })).toBe("reviewed");
+  });
+
+  it("keeps transition rename endpoints and non-regular entries fail-closed", () => {
+    const transition = ".arc/system/.internal/transitions/origin.json";
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [{
+        ...change(transition),
+        status: "renamed",
+        previousPath: ".arc/system/.internal/scripts/origin.json",
+      }],
+    })).toBe("reviewed");
+    expect(classifyPlanningLane({
+      changeSet: "known",
+      changes: [change(transition, { newMode: "100755" })],
     })).toBe("reviewed");
   });
 });

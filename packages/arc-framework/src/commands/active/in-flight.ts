@@ -266,7 +266,6 @@ export async function expandActiveInFlight(
     baseBranch,
     parkedSlugs,
     prSource,
-    ...(cwd === undefined ? {} : { decompositionClaimCwd: cwd }),
   });
   const evidence: ActiveInFlightEvidence = analysis.pendingBranchCount === 0
     ? {
@@ -292,7 +291,7 @@ export async function expandActiveInFlight(
 export async function runActiveInFlight(
   options: ActiveInFlightOptions,
 ): Promise<ActiveInFlightResult> {
-  const { exec, cwd, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
+  const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
   const errandSlugByBranch = projectTransientInFlightRead(
     await readTransientInFlightIndexes({ exec, identity }),
   ).indexes.slugByBranch;
@@ -307,7 +306,6 @@ export async function runActiveInFlight(
     errandSlugByBranch,
     parkedSlugs,
     prSource,
-    ...(cwd === undefined ? {} : { decompositionClaimCwd: cwd }),
   });
   const evidence: ActiveInFlightEvidence = localOnly
     ? {

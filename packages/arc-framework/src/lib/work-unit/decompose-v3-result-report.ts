@@ -105,7 +105,7 @@ export function reportV3DecomposeResult(
   }
 
   const topology: V3ReportedTopologyOutcome[] = [];
-  for (const fact of plan.candidateAuthority.topology.facts) {
+  for (const fact of plan.topology.facts) {
     if (fact.kind === "none") {
       topology.push({ kind: "topology", action: "none", disposition: "no-write" });
       continue;

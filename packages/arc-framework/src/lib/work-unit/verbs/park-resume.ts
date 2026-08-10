@@ -49,9 +49,7 @@ import {
   type ParsedMetaRecord,
 } from "../../active/meta-reader.js";
 import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
-import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
-import { receiptId } from "../../canonical/receipt-id.js";
 import { SlugSchema, type Slug } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 import type { WriteFileFn } from "../../template/files.js";
@@ -71,7 +69,6 @@ import {
   describeTeardownAuthorizationRefusal,
   type RetirementAuthorityPort,
   type RetirementAuthorityScope,
-  type RetirementReceipt,
 } from "../retirement-authority.js";
 import { isSlugSafe } from "../slug.js";
 
@@ -132,14 +129,13 @@ export interface ParkContext {
 /** Source/result paths captured before a park-at-Planning relocation. */
 export interface ParkPlanningSourceEvidence {
   scope: RetirementAuthorityScope;
-  artifactDigest: RetirementReceipt["source"]["artifactDigest"];
   sourceArtifactPaths: readonly ManagedPath[];
   resultArtifactPaths: readonly ManagedPath[];
 }
 
 /** Retirement seams used only by the park-at-Planning arm. */
 export interface ParkPlanningRetirementContext {
-  authority: Pick<RetirementAuthorityPort, "readSnapshot" | "record">;
+  authority: Pick<RetirementAuthorityPort, "readSnapshot">;
   captureSource(params: {
     name: string;
     sourceDir: string;
@@ -148,10 +144,13 @@ export interface ParkPlanningRetirementContext {
   }): Promise<ParkPlanningSourceEvidence>;
   stageTransition(source: ParkPlanningSourceEvidence): Promise<void>;
   rollbackTransition(source: ParkPlanningSourceEvidence): Promise<void>;
-  readTransitionPatch(source: ParkPlanningSourceEvidence): Promise<readonly PatchOperation[]>;
-  readResultArtifactDigest(
+  completeTransition(
     source: ParkPlanningSourceEvidence,
-  ): Promise<RetirementReceipt["source"]["artifactDigest"]>;
+    expectedAuthorityVersion: string,
+  ): Promise<
+    | { status: "completed-no-record"; authorityVersion: string }
+    | { status: "refused"; reason: "authority-conflict" | "authority-unavailable"; diagnostic?: string }
+  >;
 }
 
 /** The judgment + operational inputs a `park` supplies. */
@@ -216,8 +215,6 @@ export type ParkResult =
       outcome: TransitionOutcome;
       metaPath: string;
       pointerRecord?: string;
-      receipt?: RetirementReceipt;
-      authorityVersion?: string;
     };
 
 /** The outcome of a `resume` attempt — a rejection, or the re-attached meta path. */
@@ -372,55 +369,27 @@ async function parkPlanning(
   const outcome = await executeTransition(transitionExecutor, { verb: "park", slug: name, inputs: { toDir } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
-  let transitionPatch: readonly PatchOperation[];
-  let plannedArtifactDigest: RetirementReceipt["source"]["artifactDigest"];
   try {
     await retirement.stageTransition(source);
-    [transitionPatch, plannedArtifactDigest] = await Promise.all([
-      retirement.readTransitionPatch(source),
-      retirement.readResultArtifactDigest(source),
-    ]);
   } catch (err) {
     const rollbackFailure = await rollbackParkPlanning(ctx, retirement, source, outcome, name);
     return {
       status: "rejected",
       reason:
-        "The park transition was rolled back because its retirement receipt could not be prepared: "
+        "The park transition was rolled back because its completion could not be prepared: "
         + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  const receipt: RetirementReceipt = {
-    schemaVersion: 2,
-    inventoryRead: ctx.composed?.readQuality ?? "tree-only",
-    receiptId: receiptId({
-      schemaVersion: 2,
-      subject: source.scope.subject,
-      transition: "park-planning",
-      sourceBranch: source.scope.source.branch,
-      sourceHead: source.scope.source.head,
-    }),
-    subject: source.scope.subject,
-    transition: "park-planning",
-    source: {
-      branch: source.scope.source.branch,
-      head: source.scope.source.head,
-      artifactDigest: source.artifactDigest,
-    },
-    transitionPatchDigest: patchDigest(transitionPatch),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "planning-relocated",
-    result: { kind: "relocate", plannedArtifactDigest },
-  };
-  const recorded = await retirement.authority.record(receipt, snapshot.snapshot.authorityVersion);
-  if (recorded.status === "refused") {
+  const completed = await retirement.completeTransition(source, snapshot.snapshot.authorityVersion);
+  if (completed.status === "refused") {
     const rollbackFailure = await rollbackParkPlanning(ctx, retirement, source, outcome, name);
     return {
       status: "rejected",
       reason:
-        "The park transition was rolled back because its retirement receipt could not be recorded: "
-        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
-        + (recorded.diagnostic === undefined ? "" : ` ${recorded.diagnostic}`)
+        "The park transition was rolled back because its completion could not be recorded: "
+        + `${describeTeardownAuthorizationRefusal(completed.reason)}.`
+        + (completed.diagnostic === undefined ? "" : ` ${completed.diagnostic}`)
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
@@ -431,7 +400,7 @@ async function parkPlanning(
       if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
     } catch (err) {
       advisories.push(
-        `Park evidence was recorded, but the user workspace could not be closed: ${err instanceof Error ? err.message : String(err)}.`,
+        `Park completed, but the user workspace could not be closed: ${err instanceof Error ? err.message : String(err)}.`,
       );
     }
   }
@@ -442,8 +411,6 @@ async function parkPlanning(
     status: "parked",
     outcome: completedOutcome,
     metaPath,
-    receipt,
-    authorityVersion: recorded.authorityVersion,
   };
 }
 

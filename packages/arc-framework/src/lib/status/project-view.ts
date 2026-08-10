@@ -172,8 +172,6 @@ export interface ProjectReadinessProspectiveInput {
 /** Shared in-flight oracle inputs for project-readiness renders. */
 interface ProjectReadinessOracleOptionsBase {
   exec: GitExec;
-  /** Repository checkout used to resolve repository-common candidate claims. */
-  decompositionClaimCwd?: string;
   baseBranch?: string;
   errandSlugByBranch?: ReadonlyMap<string, string>;
   /**
@@ -614,7 +612,6 @@ async function resolveOracleCandidates(
       errandSlugByBranch: options.errandSlugByBranch,
       errandRecordsComplete: options.errandRecordsComplete,
       parkedSlugs: options.parkedSlugs,
-      decompositionClaimCwd: options.decompositionClaimCwd,
     });
   const entries = prospective === undefined && transitionOverlay === undefined
     ? result.entries

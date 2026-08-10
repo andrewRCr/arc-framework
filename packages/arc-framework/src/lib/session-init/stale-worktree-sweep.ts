@@ -133,7 +133,7 @@ export type StaleWorktreeSweepResult = CleanupRemoteEvidence & {
   worktrees: StaleWorktreeReport[];
   /** Validated deferred rename moves that can run only from outside their source worktrees. */
   renameMoves: RenameMoveResidue[];
-  /** Still-branched receipt-backed retirements projected from authoritative base evidence. */
+  /** Still-branched retirements projected from authoritative base evidence. */
   retirements: LandedRetirementResidue[];
   /** Roster warnings, passed through untouched. */
   warnings: string[];
@@ -332,7 +332,6 @@ export async function runStaleWorktreeSweep(
     if (projected !== null) renameMoves.push(projected);
   }
   const retirementSweep = await runLandedRetirementSweep({
-    roster,
     topology: scan.worktrees,
     markers: branchedMarkers,
     baseBranch,

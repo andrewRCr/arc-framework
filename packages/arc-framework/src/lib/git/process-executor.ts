@@ -7,6 +7,7 @@
 import { execa } from "execa";
 
 import type { InteractionContext } from "../command-input/interaction-context.js";
+import type { RawGitExec } from "../change-facts.js";
 import type { GitExec, GitExecInput } from "./exec.js";
 import { normalizeGitRejection } from "./process-error.js";
 
@@ -30,6 +31,22 @@ const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_SHALLOW_FILE",
   "GIT_COMMON_DIR",
 ]);
+
+const NONINTERACTIVE_OPENSSH_OPTIONS = [
+  "-oBatchMode=yes",
+  "-oNumberOfPasswordPrompts=0",
+] as const;
+
+const LITERAL_OPENSSH_COMMAND = /^[ \t]*(?<executable>[A-Za-z0-9_@%+=:,./-]+|'[^'\r\n]*'|"(?:[^"$`\\\r\n]|\\[^"$`\\\r\n])*")(?<arguments>(?:[ \t]+(?:[A-Za-z0-9_@%+=:,./-]+|'[^'\r\n]*'|"[^"$`\\\r\n]*"))*)[ \t]*$/u;
+const OPENSSH_EXECUTABLE_PATH = /^(?:.*[\\/])?ssh(?:\.exe)?$/iu;
+
+function isLiteralOpenSshExecutable(executable: string): boolean {
+  const quote = executable.at(0);
+  const path = quote === "'" || quote === '"'
+    ? executable.slice(1, -1)
+    : executable;
+  return OPENSSH_EXECUTABLE_PATH.test(path);
+}
 
 /**
  * Build an environment where `cwd` selects the Git repository.
@@ -55,6 +72,38 @@ function applyInteractionEnvironment(
     GIT_EDITOR: "true",
     GIT_PAGER: "cat",
     PAGER: "cat",
+  };
+}
+
+/**
+ * Prevent an SSH transport used by Git from reopening a controlling terminal.
+ *
+ * `GIT_TERMINAL_PROMPT=0` covers Git's credential prompts, but OpenSSH can still
+ * prompt through `/dev/tty` when stdin is closed. OpenSSH uses the first value
+ * obtained for most options, so the noninteractive options must precede any
+ * inherited configuration. Accept only a conservative literal OpenSSH command
+ * line, preserving its already-quoted arguments after the fixed options.
+ * Refusing shell expressions keeps an inherited command from bypassing this
+ * ordering.
+ */
+function applyNonInteractiveSshEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sshCommand = base.GIT_SSH_COMMAND ?? "ssh";
+  const match = LITERAL_OPENSSH_COMMAND.exec(sshCommand);
+  const executable = match?.groups?.executable;
+  const inheritedArguments = match?.groups?.arguments;
+  if (
+    executable === undefined
+    || inheritedArguments === undefined
+    || !isLiteralOpenSshExecutable(executable)
+  ) {
+    throw new TypeError(
+      "GIT_SSH_COMMAND must be a literal OpenSSH command without shell expansion or control operators",
+    );
+  }
+  return {
+    ...base,
+    GIT_SSH_COMMAND: `${executable} ${NONINTERACTIVE_OPENSSH_OPTIONS.join(" ")}${inheritedArguments}`,
+    SSH_ASKPASS_REQUIRE: "never",
   };
 }
 
@@ -93,6 +142,46 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
       return { stdout: result.stdout.trimEnd(), stderr: result.stderr };
     } catch (error) {
       throw normalizeGitRejection(error, { command, args: effectiveArgs });
+    }
+  };
+}
+
+/** Construct a byte-preserving Git adapter for raw tree and object reads. */
+export function createExecaRawGitExec(
+  cwd = process.cwd(),
+  maxBuffer = MAX_GIT_OUTPUT_BYTES,
+): RawGitExec {
+  return async (args, options = {}) => {
+    const effectiveCwd = options.cwd ?? cwd;
+    const environment = environmentForGitCwd(effectiveCwd);
+    const objectEnvironment = options.objectAccess === "local-only"
+      ? { ...(environment ?? process.env), GIT_NO_LAZY_FETCH: "1" }
+      : environment;
+    const env = applyNonInteractiveSshEnvironment(
+      applyInteractionEnvironment(objectEnvironment, {
+        terminalPrompts: "forbidden",
+        presenters: "forbidden",
+        ambientStdin: "closed",
+      }) ?? objectEnvironment ?? {},
+    );
+    const effectiveArgs = options.objectAccess === "local-only"
+      ? ["--no-lazy-fetch", ...args]
+      : args;
+    try {
+      const result = await execa("git", effectiveArgs, {
+        cwd: effectiveCwd,
+        env,
+        encoding: "buffer",
+        stripFinalNewline: false,
+        extendEnv: false,
+        maxBuffer,
+        ...(options.input === undefined
+          ? { stdin: "ignore" as const }
+          : { input: options.input }),
+      });
+      return { stdout: result.stdout, stderr: result.stderr };
+    } catch (error) {
+      throw normalizeGitRejection(error, { command: "git", args: effectiveArgs });
     }
   };
 }

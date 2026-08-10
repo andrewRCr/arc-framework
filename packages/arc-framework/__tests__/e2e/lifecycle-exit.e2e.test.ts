@@ -19,7 +19,6 @@
  */
 
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   chmod,
   mkdir,
@@ -230,7 +229,10 @@ async function scaffoldCommittedParkTransition(
   repo: string,
   slug: string,
   cohort = "[none]",
-): Promise<{ worktree: string; transition: string; receiptFile: string }> {
+  options: {
+    fault?: "planned-content" | "incomplete" | "source-survivor" | "invalid-roadmap";
+  } = {},
+): Promise<{ worktree: string; transition: string }> {
   const { worktree } = await scaffoldStartedWu(repo, slug, "linked", cohort);
   expect(worktree).toBeDefined();
 
@@ -245,11 +247,23 @@ async function scaffoldCommittedParkTransition(
     worktree!,
   );
   expect(park.exitCode, park.stdout + park.stderr).toBe(0);
+  const plannedDir = cohort === "[none]"
+    ? join(worktree!, ".arc/backlog/planned", slug)
+    : join(worktree!, ".arc/backlog/planned", cohort, slug);
+  const plannedDraft = join(plannedDir, `draft-${slug}.md`);
+  if (options.fault === "planned-content") await writeFile(plannedDraft, "# edited after relocation\n");
+  if (options.fault === "incomplete") await rm(plannedDraft);
+  if (options.fault === "source-survivor") {
+    const activeDir = join(worktree!, ".arc/active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(join(activeDir, `draft-${slug}.md`), await readFile(plannedDraft));
+  }
+  if (options.fault === "invalid-roadmap") {
+    await writeFile(join(worktree!, ".arc/backlog/ROADMAP.md"), "# forged roadmap\n");
+  }
   await commitFixtureBypassingHooks(worktree!, `park ${slug}`);
   const transition = await git(worktree!, ["rev-parse", "HEAD"]);
-  const receiptFile = (await readdir(join(worktree!, ".arc/system/.internal/retirement-receipts")))[0];
-  expect(receiptFile).toBeDefined();
-  return { worktree: worktree!, transition, receiptFile: receiptFile! };
+  return { worktree: worktree!, transition };
 }
 
 /** Encode the public canonical JSON wire shape without importing CLI internals. */
@@ -364,43 +378,6 @@ async function repositorySnapshot(cwd: string): Promise<{
     worktrees: await git(cwd, ["worktree", "list", "--porcelain"]),
     claims,
   };
-}
-
-async function treeManifest(
-  cwd: string,
-  ref: string,
-  paths: readonly string[],
-): Promise<Array<{
-  path: string;
-  kind: "absent" | "file";
-  mode?: string;
-  oid?: string;
-  contentDigest?: string;
-}>> {
-  const manifest = [];
-  for (const path of paths) {
-    const entry = await git(cwd, ["ls-tree", ref, "--", `:(literal)${path}`]);
-    if (entry === "") {
-      manifest.push({ path, kind: "absent" as const });
-      continue;
-    }
-    const match = /^(100644|100755) blob ([0-9a-f]{40,64})\t(.+)$/u.exec(entry);
-    if (match?.[1] === undefined || match[2] === undefined || match[3] !== path) {
-      throw new Error(`Unexpected tree entry for ${path}: ${entry}`);
-    }
-    const { stdout } = await execFileAsync("git", ["cat-file", "blob", match[2]], {
-      cwd,
-      encoding: "buffer",
-    });
-    manifest.push({
-      path,
-      kind: "file" as const,
-      mode: match[1],
-      oid: match[2],
-      contentDigest: `sha256:${createHash("sha256").update(stdout).digest("hex")}`,
-    });
-  }
-  return manifest;
 }
 
 describe("lifecycle exit choreography (CLI seam)", () => {
@@ -745,7 +722,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await writeFile(cutMapPath, `${canonicalJson(completed)}\n`);
     expect(JSON.parse(await readFile(cutMapPath, "utf8"))).toEqual(completed);
 
-    const sourceTreeBeforeOccupation = await git(repo, ["rev-parse", "plan/origin^{tree}"]);
     const executed = await runArcNoTty(
       ["decompose", "origin", "--execute", cutMapPath],
       repo,
@@ -753,585 +729,47 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     );
     expect(executed.exitCode, executed.stderr).toBe(0);
     expect(executed.stderr).toBe("");
-    const prepared = JSON.parse(executed.stdout) as {
-      status: "prepared";
+    const staged = JSON.parse(executed.stdout) as {
+      status: "staged";
       operation: {
         occupation: {
           protection: "full";
           path: string;
-          candidateOwnership: {
-            claimId: string;
-            generation: number;
-            candidateBranch: string;
-            candidateWorktree: string;
-          };
+          candidateBranch: string;
         };
-        preparation: { receiptId: string };
-        report: {
-          destinations: Array<{ path: string }>;
-          topology: Array<{ path?: string }>;
+        transitionRecord: {
+          schemaVersion: 1;
+          origin: string;
+          kind: "decompose";
+          successors: string[];
+          edges: unknown[];
         };
-      };
-      next: {
-        kind: "finalize-with-continuation";
-        continuationPath: string;
-        command: string;
       };
     };
-    expect(prepared).toMatchObject({
-      status: "prepared",
+    expect(staged).toMatchObject({
+      status: "staged",
       operation: {
         occupation: {
           protection: "full",
-          candidateOwnership: {
-            generation: 1,
-            candidateBranch: "chore/decompose-origin",
-          },
+          candidateBranch: "chore/decompose-origin",
         },
       },
-      next: { kind: "finalize-with-continuation" },
     });
-    expect(prepared.next.command).toBe(
-      `arc decompose origin --finalize ${prepared.operation.preparation.receiptId} `
-        + `--continuation ${prepared.next.continuationPath}`,
-    );
-    const candidateWorktree = prepared.operation.occupation.path;
+    expect(staged.operation.transitionRecord).toEqual({
+      schemaVersion: 1,
+      origin: "origin",
+      kind: "decompose",
+      successors: ["blocked-leaf", "selected-leaf", "unselected-leaf"],
+      edges: [],
+    });
+    const candidateWorktree = staged.operation.occupation.path;
     worktrees.push(candidateWorktree);
     expect(await pathExists(candidateWorktree)).toBe(true);
     expect(await git(repo, ["rev-parse", "chore/decompose-origin"])).toBe(baseHead);
-    expect(await git(repo, ["worktree", "list", "--porcelain"]))
-      .toContain(`worktree ${candidateWorktree}`);
-    expect(await git(repo, ["rev-parse", "plan/origin^{tree}"])).toBe(sourceTreeBeforeOccupation);
-    const preparedClaims = (await repositorySnapshot(repo)).claims;
-    expect(preparedClaims).toHaveLength(1);
-    const claimPath = join(
-      resolve(repo, await git(repo, ["rev-parse", "--git-common-dir"])),
-      "arc",
-      "transient-claims",
-      preparedClaims[0]!,
-    );
-    const claim = JSON.parse(await readFile(claimPath, "utf8")) as {
-      claimId: string;
-      generation: number;
-      binding: {
-        origin: string;
-        candidateBranch: string;
-        sourceHead: string;
-        resultBaseHead: string;
-      };
-      state: { kind: string };
-      registration: { kind: string; path?: string };
-    };
-    expect(claim).toMatchObject({
-      claimId: prepared.operation.occupation.candidateOwnership.claimId,
-      generation: 1,
-      binding: {
-        origin: "origin",
-        candidateBranch: "chore/decompose-origin",
-        sourceHead: finalSourceHead,
-        resultBaseHead: baseHead,
-      },
-      state: { kind: "occupied" },
-      registration: { kind: "registered", path: candidateWorktree },
-    });
-
-    const preparedBaseBefore = await repositorySnapshot(repo);
-    const preparedCandidateBefore = await repositorySnapshot(candidateWorktree);
-    const preparedStatus = await runArcNoTty(["status", "origin", "--json"], repo, {
-      env: hookPath.env,
-    });
-    expect(preparedStatus.exitCode, preparedStatus.stderr).toBe(0);
-    expect(preparedStatus.stdout).toContain("\"slug\":\"origin\"");
-    expect(preparedStatus.stdout).not.toContain("selected-leaf");
-    const preparedHandoff = await runArcNoTty(
-      ["decompose", "origin", "--handoff"],
-      repo,
-      { env: hookPath.env },
-    );
-    expect(preparedHandoff.exitCode).not.toBe(0);
-    expect(JSON.parse(preparedHandoff.stdout)).toMatchObject({ status: "absent" });
-    expect(await repositorySnapshot(repo)).toEqual(preparedBaseBefore);
-    expect(await repositorySnapshot(candidateWorktree)).toEqual(preparedCandidateBefore);
-
-    expect(await git(candidateWorktree, ["config", "--get", "core.hooksPath"]))
-      .toBe(".arc/system/.internal/githooks");
-    expect(await pathExists(
-      join(candidateWorktree, ".arc", "system", ".internal", "githooks", "pre-commit"),
-    )).toBe(true);
     expect(await git(candidateWorktree, ["diff", "--cached", "--name-only"]))
-      .toContain(
-        `retirement-receipts/${prepared.operation.preparation.receiptId.replace(":", "-")}.json`,
-      );
-    const premature = await commitAttempt(
-      candidateWorktree,
-      "feat(test): Commit prepared decomposition\n\nContext: standalone (maintenance)",
-      hookPath.env,
-    );
-    expect(premature.exitCode, premature.stdout + premature.stderr).not.toBe(0);
-    expect(premature.stdout + premature.stderr)
-      .toContain("decompose record is prepared but not finalized");
-    expect(await git(candidateWorktree, ["rev-parse", "HEAD"])).toBe(baseHead);
-
-    const reportedDestinations = [...new Set(
-      prepared.operation.report.destinations.map(({ path }) => path),
-    )];
-    expect(reportedDestinations.length).toBeGreaterThanOrEqual(7);
-    for (const path of reportedDestinations) {
-      expect((await readFile(join(candidateWorktree, path), "utf8")).trim()).not.toBe("");
-    }
-    const cohortPath = prepared.operation.report.topology
-      .map(({ path }) => path)
-      .find((path) => path?.endsWith("/cohort-origin.md"));
-    expect(cohortPath).toBeDefined();
-    if (cohortPath === undefined) throw new Error("Prepared result did not report its cohort topology.");
-    const cohortBefore = await readFile(join(candidateWorktree, cohortPath), "utf8");
-    expect(cohortBefore).toContain("**Purpose:** —");
-    await writeFile(
-      join(candidateWorktree, cohortPath),
-      cohortBefore.replace(
-        "**Purpose:** —",
-        "**Purpose:** Coordinate the three independently launchable concerns.",
-      ),
-    );
-    await git(candidateWorktree, ["add", "--", cohortPath]);
-    await writeFile(
-      prepared.next.continuationPath,
-      `${canonicalJson({ kind: "selected", slugs: ["selected-leaf"] })}\n`,
-    );
-
-    const finalized = await runArcNoTty(
-      [
-        "decompose",
-        "origin",
-        "--finalize",
-        prepared.operation.preparation.receiptId,
-        "--continuation",
-        prepared.next.continuationPath,
-      ],
-      candidateWorktree,
-      { timeout: 60_000, env: hookPath.env },
-    );
-    expect(finalized.exitCode, finalized.stderr).toBe(0);
-    expect(finalized.stderr).toBe("");
-    const finalizedResult = JSON.parse(finalized.stdout) as {
-      status: string;
-      receipt: {
-        receiptId: string;
-        preparationId: string;
-        prepared: {
-          allowedPaths: string[];
-          candidateOwnership: {
-            kind: string;
-            claimId?: string;
-            generation?: number;
-            candidateBranch?: string;
-            candidateWorktree?: string;
-          };
-        };
-        finalized: {
-          publication: {
-            logicalAnchor: unknown;
-            entries: unknown[];
-            initialContinuation: unknown;
-          };
-          transitionPatch: Array<{
-            path: string;
-            before: unknown;
-            after: unknown;
-          }>;
-          managedPathResults: Array<{
-            path: string;
-            before: unknown;
-            after: { kind: string; mode?: string; contentDigest?: string };
-          }>;
-        };
-      };
-    };
-    expect(finalizedResult).toMatchObject({
-      status: "recorded",
-      receipt: {
-        receiptId: prepared.operation.preparation.receiptId,
-        finalized: {
-          publication: {
-            logicalAnchor: { kind: "cohort", cohort: "origin" },
-            initialContinuation: { kind: "selected", slugs: ["selected-leaf"] },
-          },
-        },
-      },
-    });
-    const finalizeRetry = await runArcNoTty(
-      [
-        "decompose",
-        "origin",
-        "--finalize",
-        prepared.operation.preparation.receiptId,
-        "--continuation",
-        prepared.next.continuationPath,
-      ],
-      candidateWorktree,
-      { timeout: 60_000, env: hookPath.env },
-    );
-    expect(finalizeRetry.exitCode, finalizeRetry.stderr).toBe(0);
-    expect(JSON.parse(finalizeRetry.stdout)).toMatchObject({ status: "already-finalized" });
-
-    const finalizedCommit = await commitAttempt(
-      candidateWorktree,
-      "feat(test): Finalize canonical decomposition\n\nContext: standalone (maintenance)",
-      hookPath.env,
-    );
-    expect(finalizedCommit.exitCode, finalizedCommit.stdout + finalizedCommit.stderr).toBe(0);
-    expect(finalizedCommit.stdout + finalizedCommit.stderr).toContain("Pre-commit checks PASSED");
-    expect(finalizedCommit.stdout + finalizedCommit.stderr).toContain("Commit validation PASSED");
-    const candidateHead = await git(candidateWorktree, ["rev-parse", "HEAD"]);
-    const candidateTree = await git(candidateWorktree, ["rev-parse", "HEAD^{tree}"]);
-    const pushTracePath = join(hookPath.directory, "candidate-push-trace.json");
-    const pushedCandidate = await execFileAsync(
-      "git",
-      ["push", "-u", "origin", "chore/decompose-origin"],
-      {
-        cwd: candidateWorktree,
-        env: {
-          ...process.env,
-          ...hookPath.env,
-          GIT_TRACE2_EVENT: pushTracePath,
-        },
-      },
-    );
-    expect(pushedCandidate.stdout + pushedCandidate.stderr).toContain("chore/decompose-origin");
-    expect(await readFile(pushTracePath, "utf8")).toContain("\"hook_name\":\"pre-push\"");
-    expect(await git(sourceWorktree, ["rev-parse", "plan/origin"])).toBe(finalSourceHead);
-    expect(await git(sourceWorktree, ["rev-parse", "plan/origin^{tree}"]))
-      .toBe(sourceTreeBeforeOccupation);
-    expect(candidateHead).not.toBe(baseHead);
-    expect(candidateTree).not.toBe(await git(repo, ["rev-parse", "main^{tree}"]));
-
-    await git(repo, ["branch", "chore/decompose-foreign", baseHead]);
-    const committedBaseBefore = await repositorySnapshot(repo);
-    const committedCandidateBefore = await repositorySnapshot(candidateWorktree);
-    const committedStatus = await runArcNoTty(["status", "origin", "--json"], repo, {
-      env: hookPath.env,
-    });
-    expect(committedStatus.exitCode, committedStatus.stderr).toBe(0);
-    const committedHandoff = await runArcNoTty(
-      ["decompose", "origin", "--handoff"],
-      repo,
-      { env: hookPath.env },
-    );
-    expect(committedHandoff.exitCode).not.toBe(0);
-    expect(JSON.parse(committedHandoff.stdout)).toEqual({ status: "absent" });
-    for (const path of reportedDestinations) {
-      await expect(git(repo, ["cat-file", "-e", `main:${path}`])).rejects.toThrow();
-    }
-
-    type PublicProjectView = {
-      markdown: string;
-      facts: Array<{ slug: string }>;
-      warnings: Array<{ rendered: string }>;
-    };
-    const baseProjectResult = await runArcNoTty(
-      ["status", "--project", "--local", "--json"],
-      repo,
-      { env: hookPath.env },
-    );
-    const candidateProjectResult = await runArcNoTty(
-      ["status", "--project", "--local", "--json"],
-      candidateWorktree,
-      { env: hookPath.env },
-    );
-    expect(baseProjectResult.exitCode, baseProjectResult.stderr).toBe(0);
-    expect(candidateProjectResult.exitCode, candidateProjectResult.stderr).toBe(0);
-    const baseProject = JSON.parse(baseProjectResult.stdout) as PublicProjectView;
-    const candidateProject = JSON.parse(candidateProjectResult.stdout) as PublicProjectView;
-    expect(baseProject.facts.map(({ slug }) => slug)).toContain("origin");
-    expect(baseProject.facts.map(({ slug }) => slug)).not.toContain("selected-leaf");
-    expect(candidateProject.facts.map(({ slug }) => slug)).toEqual(expect.arrayContaining([
-      "origin",
-      "selected-leaf",
-      "blocked-leaf",
-      "unselected-leaf",
-    ]));
-    expect(candidateProject.warnings.map(({ rendered }) => rendered).join("\n"))
-      .toContain("chore/decompose-foreign");
-    expect(candidateProject.warnings.map(({ rendered }) => rendered).join("\n"))
-      .not.toContain("chore/decompose-origin");
-    expect(candidateProject.markdown).toContain("selected-leaf");
-    expect(await readFile(join(repo, ".arc", "backlog", "ROADMAP.md"), "utf8"))
-      .not.toContain("selected-leaf");
-    const candidateRoadmap = await readFile(
-      join(candidateWorktree, ".arc", "backlog", "ROADMAP.md"),
-      "utf8",
-    );
-    expect(candidateRoadmap).toContain("selected-leaf");
-    expect(await repositorySnapshot(repo)).toEqual(committedBaseBefore);
-    expect(await repositorySnapshot(candidateWorktree)).toEqual(committedCandidateBefore);
-
-    expect(await git(repo, ["rev-parse", "main"])).toBe(baseHead);
-    await git(repo, [
-      "-c",
-      "core.hooksPath=/dev/null",
-      "merge",
-      "--no-ff",
-      "chore/decompose-origin",
-      "-m",
-      "Land canonical decomposition fixture",
-    ]);
-    const landedHead = await git(repo, ["rev-parse", "main"]);
-    const landedParents = (await git(repo, ["rev-list", "--parents", "-n", "1", landedHead])).split(" ");
-    expect(landedParents).toEqual([landedHead, baseHead, candidateHead]);
-    expect(await git(repo, ["rev-parse", "main^{tree}"])).toBe(candidateTree);
-    expect(await readFile(join(repo, ".arc", "backlog", "ROADMAP.md"), "utf8"))
-      .toBe(candidateRoadmap);
-    await git(repo, ["push", "origin", "main"], hookPath.env);
-    expect(await git(repo, ["rev-parse", "origin/main"])).toBe(landedHead);
-
-    const landedProjectResult = await runArcNoTty(
-      ["status", "--project", "--local", "--json"],
-      repo,
-      { env: hookPath.env },
-    );
-    expect(landedProjectResult.exitCode, landedProjectResult.stderr).toBe(0);
-    const landedProject = JSON.parse(landedProjectResult.stdout) as PublicProjectView;
-    expect(landedProject.facts).toEqual(candidateProject.facts);
-    expect(landedProject.markdown).toContain("selected-leaf");
-    expect(landedProject.facts.map(({ slug }) => slug)).toContain("origin");
-
-    const beforeLandedHandoff = await repositorySnapshot(repo);
-    const landedHandoffResult = await runArcNoTty(
-      ["decompose", "origin", "--handoff"],
-      repo,
-      { env: hookPath.env },
-    );
-    expect(landedHandoffResult.exitCode, landedHandoffResult.stderr).toBe(0);
-    const landedHandoff = JSON.parse(landedHandoffResult.stdout) as {
-      status: string;
-      handoff: {
-        authority: {
-          configuredBaseHead: string;
-          receiptId: string;
-          sourceHead: string;
-          candidateCommitHead: string;
-          landedCommitHead: string;
-          landedTree: string;
-        };
-        entries: Array<{
-          kind: string;
-          slug?: string;
-          readiness?: {
-            kind: string;
-            blockers?: Array<{ code: string; locus: string }>;
-          };
-        }>;
-        selectedReadiness: Array<{ slug: string; readiness: { kind: string } }>;
-        launchableSelected: Array<{ slug: string; displayPath: string }>;
-      };
-    };
-    expect(landedHandoff).toMatchObject({
-      status: "resolved",
-      handoff: {
-        authority: {
-          configuredBaseHead: landedHead,
-          receiptId: prepared.operation.preparation.receiptId,
-          sourceHead: finalSourceHead,
-          candidateCommitHead: candidateHead,
-          landedCommitHead: landedHead,
-          landedTree: candidateTree,
-        },
-        logicalAnchor: { kind: "cohort", cohort: "origin" },
-        displayAnchor: {
-          kind: "cohort",
-          cohort: "origin",
-          displayPath: ".arc/backlog/planned/origin",
-        },
-        initialContinuation: { kind: "selected", slugs: ["selected-leaf"] },
-        selectedReadiness: [{ slug: "selected-leaf", readiness: { kind: "ready" } }],
-        launchableSelected: [{
-          slug: "selected-leaf",
-          displayPath: ".arc/backlog/planned/origin/selected-leaf",
-        }],
-      },
-    });
-    expect(landedHandoff.handoff.entries).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        kind: "new-leaf",
-        slug: "selected-leaf",
-        readiness: { kind: "ready" },
-      }),
-      expect.objectContaining({
-        kind: "new-leaf",
-        slug: "unselected-leaf",
-        readiness: { kind: "ready" },
-      }),
-    ]));
-    expect(landedHandoff.handoff.entries.find(({ slug }) => slug === "blocked-leaf")).toEqual({
-      kind: "new-leaf",
-      slug: "blocked-leaf",
-      displayPath: ".arc/backlog/planned/origin/blocked-leaf",
-      readiness: {
-        kind: "blocked",
-        blockers: [
-          {
-            code: "dependency-planned",
-            locus: `${join(
-              repo,
-              ".arc",
-              "backlog",
-              "planned",
-              "origin",
-              "blocked-leaf",
-              "meta-blocked-leaf.md",
-            )}:Depends On:selected-leaf`,
-          },
-          {
-            code: "provider-blocked",
-            locus: `${join(
-              repo,
-              ".arc",
-              "backlog",
-              "planned",
-              "origin",
-              "blocked-leaf",
-              "meta-blocked-leaf.md",
-            )}:provider`,
-          },
-        ],
-      },
-    });
-    expect(await repositorySnapshot(repo)).toEqual(beforeLandedHandoff);
-
-    const allowedPaths = finalizedResult.receipt.prepared.allowedPaths;
-    expect(allowedPaths).toEqual([...allowedPaths].sort((left, right) =>
-      Buffer.compare(Buffer.from(left), Buffer.from(right))));
-    const candidateManifest = await treeManifest(repo, candidateHead, allowedPaths);
-    const landedManifest = await treeManifest(repo, landedHead, allowedPaths);
-    expect(landedManifest).toEqual(candidateManifest);
-    for (const result of finalizedResult.receipt.finalized.managedPathResults) {
-      const entry = landedManifest.find(({ path }) => path === result.path);
-      expect(entry).toBeDefined();
-      if (result.after.kind === "absent") {
-        expect(entry).toEqual({ path: result.path, kind: "absent" });
-      } else {
-        expect(entry).toMatchObject({
-          path: result.path,
-          kind: "file",
-          mode: result.after.mode,
-          oid: expect.stringMatching(/^[0-9a-f]{40,64}$/u),
-          contentDigest: result.after.contentDigest,
-        });
-      }
-    }
-    const receiptPath = allowedPaths.find((path) =>
-      path.endsWith(
-        `/${finalizedResult.receipt.receiptId.replace(":", "-")}.json`,
-      ));
-    expect(receiptPath).toBeDefined();
-    if (receiptPath === undefined) throw new Error("Finalized receipt path is absent from allowed paths.");
-    expect(await git(repo, ["show", `${landedHead}:${receiptPath}`]))
-      .toBe(JSON.stringify(finalizedResult.receipt));
-    const changedPaths = (await git(repo, [
-      "diff",
-      "--name-only",
-      "--no-renames",
-      baseHead,
-      candidateHead,
-    ])).split("\n").filter(Boolean).sort();
-    expect(changedPaths).toEqual([
-      receiptPath,
-      ...finalizedResult.receipt.finalized.transitionPatch.map(({ path }) => path),
-    ].sort());
-
-    for (const slug of ["blocked-leaf", "selected-leaf", "unselected-leaf"]) {
-      const memberRoot = `.arc/backlog/planned/origin/${slug}`;
-      const meta = await git(repo, ["show", `${landedHead}:${memberRoot}/meta-${slug}.md`]);
-      expect(meta).toContain(
-        `- **Design:** \`spec-${slug}-prd.md\`, \`spec-${slug}-rfc.md\``,
-      );
-      expect(meta).toContain("- **Task List:** [none]");
-      expect(meta).toContain("- **Current Workflow:** `generate-tasks`");
-      await expect(git(repo, ["cat-file", "-e", `${landedHead}:${memberRoot}/tasks-${slug}.md`]))
-        .rejects.toThrow();
-      expect(await git(repo, ["cat-file", "-t", `${landedHead}:${memberRoot}/spec-${slug}-prd.md`]))
-        .toBe("blob");
-      expect(await git(repo, ["cat-file", "-t", `${landedHead}:${memberRoot}/spec-${slug}-rfc.md`]))
-        .toBe("blob");
-    }
-    expect(await git(repo, ["rev-parse", "plan/origin"])).toBe(finalSourceHead);
-    expect(await git(repo, ["rev-parse", "plan/origin^{tree}"]))
-      .toBe(sourceTreeBeforeOccupation);
-
-    expect(await git(repo, ["ls-remote", "--heads", "origin", "refs/heads/plan/origin"]))
-      .toBe(`${finalSourceHead}\trefs/heads/plan/origin`);
-    expect(await git(repo, [
-      "ls-remote",
-      "--heads",
-      "origin",
-      "refs/heads/chore/decompose-origin",
-    ])).toBe(`${candidateHead}\trefs/heads/chore/decompose-origin`);
-
-    const teardown = await runArcNoTty(
-      ["teardown", "origin"],
-      repo,
-      { timeout: 60_000, env: hookPath.env },
-    );
-    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
-    expect(teardown.stdout).toContain("Claim retirement: retired");
-    expect(teardown.stdout).toContain("Claim registration: released");
-    expect(teardown.stdout).toContain("Remote cleanup: not authorized");
-    expect(await pathExists(sourceWorktree)).toBe(false);
-    expect(await pathExists(candidateWorktree)).toBe(false);
-    expect(await branchExists(repo, "plan/origin")).toBe(false);
-    expect(await branchExists(repo, "chore/decompose-origin")).toBe(false);
-    expect(await git(repo, ["ls-remote", "--heads", "origin", "refs/heads/plan/origin"]))
-      .toBe(`${finalSourceHead}\trefs/heads/plan/origin`);
-    expect(await git(repo, [
-      "ls-remote",
-      "--heads",
-      "origin",
-      "refs/heads/chore/decompose-origin",
-    ])).toBe(`${candidateHead}\trefs/heads/chore/decompose-origin`);
-    expect(JSON.parse(await readFile(claimPath, "utf8"))).toMatchObject({
-      state: {
-        kind: "terminal",
-        terminal: {
-          kind: "landed",
-          receiptId: finalizedResult.receipt.receiptId,
-          candidateHead,
-        },
-      },
-      registration: { kind: "released", lastPath: candidateWorktree },
-    });
-
-    const convergedProjectResult = await runArcNoTty(
-      ["status", "--project", "--local", "--json"],
-      repo,
-      { env: hookPath.env },
-    );
-    expect(convergedProjectResult.exitCode, convergedProjectResult.stderr).toBe(0);
-    const convergedProject = JSON.parse(convergedProjectResult.stdout) as PublicProjectView;
-    expect(convergedProject.facts).toEqual(candidateProject.facts);
-    expect(convergedProject.markdown).toContain("selected-leaf");
-    expect(convergedProject.facts.map(({ slug }) => slug)).toContain("origin");
-    expect(await readFile(join(repo, ".arc", "backlog", "ROADMAP.md"), "utf8"))
-      .toBe(candidateRoadmap);
-
-    const teardownRetry = await runArcNoTty(
-      ["teardown", "origin"],
-      repo,
-      { timeout: 60_000, env: hookPath.env },
-    );
-    expect(teardownRetry.exitCode, teardownRetry.stdout + teardownRetry.stderr).toBe(0);
-    expect(teardownRetry.stdout).toContain("Claim retirement: already-retired-matching");
-    expect(teardownRetry.stdout).toContain("Claim registration: already-released-matching");
-
-    await git(repo, ["branch", "-D", "chore/decompose-foreign"]);
-    await git(repo, ["branch", "-D", "chore/canonical-decompose-fixture"]);
-    await git(repo, ["branch", "-D", "chore/create-origin-predecessor"]);
-    expect(await git(repo, ["worktree", "list", "--porcelain"]))
-      .not.toMatch(/plan\/origin|chore\/decompose-origin/u);
-    expect(await git(repo, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]))
-      .toBe("main");
-    // Drives the installed CLI through a full decomposition and lands ~138s against
-    // the previous 150s ceiling, so it fails on a shared CI runner while passing in
-    // isolation. Sized for margin, still short enough to catch a hang.
+      .toContain(".arc/system/.internal/transitions/origin.json");
+    expect(executed.stdout).not.toContain("receiptId");
+    expect(executed.stdout).not.toContain("finalize-with-continuation");
   }, 240_000);
 
   // -------------------------------------------------------------------------
@@ -1349,41 +787,36 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     );
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-    // Relocation and its receipt are staged together on the planning branch; the
-    // branch + worktree linger for the post-action reap.
+    // Relocation is staged without retirement history; the branch + worktree
+    // linger for the post-action reap.
     expect(await pathExists(join(worktree!, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(true);
     expect(await pathExists(join(worktree!, ".arc/active/meta-solo.md"))).toBe(false);
-    const receiptDir = join(worktree!, ".arc/system/.internal/retirement-receipts");
-    const receiptFiles = await readdir(receiptDir);
-    expect(receiptFiles).toHaveLength(1);
     const staged = await git(worktree!, ["diff", "--cached", "--name-only"]);
     expect(staged).toContain(".arc/backlog/planned/solo/meta-solo.md");
-    expect(staged).toContain(`.arc/system/.internal/retirement-receipts/${receiptFiles[0]}`);
+    expect(staged).not.toContain("retirement-receipts");
+    expect(staged).not.toContain(".arc/system/.internal/transitions/solo.json");
+    expect(await pathExists(join(worktree!, ".arc/system/.internal/transitions/solo.json"))).toBe(false);
     expect(await branchExists(repo, "plan/solo")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/`arc teardown solo`/);
   });
 
   it("arc park --land stages the exact planning result on a partial-protection base", async () => {
-    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
 
     const land = await runArc(["park", "solo", "--land", transition], repo);
 
     expect(land.exitCode, land.stdout + land.stderr).toBe(0);
     const plannedPath = ".arc/backlog/planned/solo/meta-solo.md";
-    const receiptPath = `.arc/system/.internal/retirement-receipts/${receiptFile}`;
     const staged = await git(repo, ["diff", "--cached", "--name-only"]);
     expect(staged).toContain(plannedPath);
-    expect(staged).toContain(receiptPath);
+    expect(staged).not.toContain("retirement-receipts");
     expect(await readFile(join(repo, plannedPath))).toEqual(await readFile(join(worktree!, plannedPath)));
-    expect(await readFile(join(repo, receiptPath))).toEqual(await readFile(join(worktree!, receiptPath)));
     expect(await git(repo, ["rev-parse", `:${plannedPath}`])).toBe(
       await git(worktree, ["rev-parse", `${transition}:${plannedPath}`]),
     );
-    expect(await git(repo, ["rev-parse", `:${receiptPath}`])).toBe(
-      await git(worktree, ["rev-parse", `${transition}:${receiptPath}`]),
-    );
+    expect(land.stdout + land.stderr).not.toContain("Receipt:");
   });
 
   it("arc park --land preserves nested cohort placement", async () => {
@@ -1417,9 +850,21 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
     expect(await branchExists(repo, "plan/solo")).toBe(false);
     expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+
+    const replay = await runArc(["teardown", "solo", "--husk", worktree!], worktree!);
+    expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+
+    const plannedMeta = join(repo, ".arc/backlog/planned/solo/meta-solo.md");
+    await writeFile(plannedMeta, `${await readFile(plannedMeta, "utf8")}\n`);
+    await commitFixtureBypassingHooks(repo, "change parked bytes");
+
+    const changedReplay = await runArc(["teardown", "solo", "--husk", worktree!], worktree!);
+    expect(changedReplay.exitCode, changedReplay.stdout + changedReplay.stderr).toBe(1);
+    expect(changedReplay.stdout + changedReplay.stderr).toMatch(/retirement evidence mismatch/iu);
+    expect(await pathExists(worktree!)).toBe(true);
   });
 
-  it("partial-protection park landing round-trips to a stamped planning husk", async () => {
+  it("partial-protection park landing preserves receipt-free teardown authority", async () => {
     const origin = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
     await git(repo, ["remote", "set-url", "origin", origin]);
@@ -1440,14 +885,13 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
       expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
       expect(await branchExists(repo, "plan/solo")).toBe(false);
-      expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
     } finally {
       await removeGitBackedDir(origin);
     }
   });
 
   it("arc park --land refuses a non-tip transition without writing the base", async () => {
-    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await writeFile(join(worktree, "later.txt"), "later\n");
     await commitFixtureBypassingHooks(worktree, "advance planning tip");
@@ -1457,11 +901,10 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(land.exitCode).toBe(1);
     expect(land.stdout + land.stderr).toMatch(/not the exact local tip/);
     expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
-    expect(await pathExists(join(repo, `.arc/system/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
   });
 
   it("arc park --land refuses a planning branch without a registered owner", async () => {
-    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await git(repo, ["worktree", "remove", worktree]);
 
@@ -1470,11 +913,10 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(land.exitCode).toBe(1);
     expect(land.stdout + land.stderr).toMatch(/not owned by a registered worktree/);
     expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
-    expect(await pathExists(join(repo, `.arc/system/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
   });
 
   it("arc park --land refuses a broken direct-transition relation", async () => {
-    const { worktree, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    const { worktree } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     await writeFile(join(worktree, "later.txt"), "later\n");
     await commitFixtureBypassingHooks(worktree, "advance beyond the transition");
@@ -1484,7 +926,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
     expect(land.exitCode).toBe(1);
     expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
-    expect(await pathExists(join(repo, `.arc/system/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
   });
 
   it("arc park --land refuses an outside transition path without writing the base", async () => {
@@ -1507,8 +948,29 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
   });
 
+  it.each([
+    ["edited planned bytes", "planned-content"],
+    ["an incomplete planned group", "incomplete"],
+    ["a surviving source artifact", "source-survivor"],
+    ["an invalid ROADMAP transition", "invalid-roadmap"],
+  ] as const)("arc park --land refuses %s without writing the base", async (_label, fault) => {
+    const { worktree, transition } = await scaffoldCommittedParkTransition(
+      repo,
+      "solo",
+      "[none]",
+      { fault },
+    );
+    worktrees.push(worktree);
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode).toBe(1);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
+  });
+
   it("arc park --land refuses a conflicting base slug without a partial write", async () => {
-    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo");
     worktrees.push(worktree);
     const conflictDir = join(repo, ".arc/backlog/provisional/solo");
     await mkdir(conflictDir, { recursive: true });
@@ -1519,14 +981,13 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(land.exitCode).toBe(1);
     expect(land.stdout + land.stderr).toMatch(/conflicting work-unit result/);
     expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
-    expect(await pathExists(join(repo, `.arc/system/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
   });
 
   // -------------------------------------------------------------------------
   // arc abandon (CLI) — remove artifacts in-verb, defer teardown out-of-band
   // -------------------------------------------------------------------------
 
-  it("parked Active abandon preserves its branch until the base receipt lands, then tears down", async () => {
+  it("fails closed when historical abandon evidence does not bind the retiring branch", async () => {
     const { worktree, branch } = await scaffoldActiveWu(repo, "mono");
     worktrees.push(worktree);
     await writeWorktreeOwnershipMarker(worktree, {
@@ -1552,17 +1013,13 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(join(repo, ".arc/backlog/planned/mono/meta-mono.md"))).toBe(false);
     expect(abandon.stdout + abandon.stderr).toMatch(/`arc teardown mono`/);
 
-    const premature = await runArc(["teardown", "mono"], repo);
-    expect(premature.exitCode).toBe(1);
-    expect(await branchExists(repo, branch)).toBe(true);
-    expect(await pathExists(sessionNotes)).toBe(true);
-
     await commitFixtureBypassingHooks(repo, "abandon parked mono");
     const teardown = await runArc(["teardown", "mono"], repo);
 
-    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
-    expect(await branchExists(repo, branch)).toBe(false);
-    expect(await pathExists(sessionNotes)).toBe(false);
+    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(1);
+    expect(teardown.stdout + teardown.stderr).toMatch(/live branch projection does not match/iu);
+    expect(await branchExists(repo, branch)).toBe(true);
+    expect(await pathExists(sessionNotes)).toBe(true);
   });
 
   it("arc abandon refuses a started work unit outside its recorded source branch", async () => {
@@ -1586,15 +1043,13 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const result = await runArc(["abandon", "mono", "--yes"], worktree!);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-    // Artifacts and the exact receipt are staged together on the retiring branch;
-    // the branch + worktree linger for the post-action reap.
+    // Artifacts and lean transition history are staged together on the retiring
+    // branch; the branch + worktree linger for the post-action reap.
     expect(await pathExists(join(worktree!, ".arc/active/meta-mono.md"))).toBe(false);
-    const receiptDir = join(worktree!, ".arc/system/.internal/retirement-receipts");
-    const receiptFiles = await readdir(receiptDir);
-    expect(receiptFiles).toHaveLength(1);
     const staged = await git(worktree!, ["diff", "--cached", "--name-only"]);
     expect(staged).toContain(".arc/active/meta-mono.md");
-    expect(staged).toContain(`.arc/system/.internal/retirement-receipts/${receiptFiles[0]}`);
+    expect(staged).toContain(".arc/system/.internal/transitions/mono.json");
+    expect(staged).not.toContain("retirement-receipts");
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/`arc teardown mono`/);
@@ -1632,38 +1087,6 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(worktree!)).toBe(true);
   });
 
-  it("refuses a committed abandon receipt whose transition patch digest was forged", async () => {
-    const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
-    if (worktree !== undefined) worktrees.push(worktree);
-    await writeWorktreeOwnershipMarker(worktree!, {
-      createdByArc: true,
-      createdFor: { kind: "work-unit", name: "mono" },
-      spawningIdentity: "test-user",
-    });
-
-    const abandon = await runArc(["abandon", "mono", "--yes"], worktree!);
-    expect(abandon.exitCode, abandon.stdout + abandon.stderr).toBe(0);
-    const receiptDir = join(worktree!, ".arc/system/.internal/retirement-receipts");
-    const [receiptName] = await readdir(receiptDir);
-    if (receiptName === undefined) throw new Error("expected a staged abandon receipt");
-    const receiptPath = join(receiptDir, receiptName);
-    const content = await readFile(receiptPath, "utf8");
-    const forged = content.replace(
-      /"transitionPatchDigest":"sha256:[0-9a-f]{64}"/u,
-      `"transitionPatchDigest":"sha256:${"f".repeat(64)}"`,
-    );
-    expect(forged).not.toBe(content);
-    await writeFile(receiptPath, forged);
-    await commitFixtureBypassingHooks(worktree!, "forge abandon receipt patch");
-
-    const teardown = await runArc(["teardown", "mono", "--force"], worktree!);
-
-    expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(1);
-    expect(teardown.stdout + teardown.stderr).toMatch(/retirement evidence does not match/iu);
-    expect(await branchExists(repo, "plan/mono")).toBe(true);
-    expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/mono");
-  });
-
   it("arc abandon → commit → teardown --force preserves a retained primary projection", async () => {
     await scaffoldStartedWu(repo, "mono", "in-place");
 
@@ -1685,23 +1108,27 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc teardown --force — the four silently-broken behaviors
   // -------------------------------------------------------------------------
 
-  it("refuses primary-side linked cleanup without committed retirement evidence", async () => {
+  it("refuses primary-side linked cleanup from unrelated historical deletion", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     // Retire the origin (remove its active/ meta) so it is un-shipped, then reap.
     await rm(join(repo, ".arc/active/meta-mono.md"));
     await rm(join(repo, ".arc/active/draft-mono.md"));
     await commitFixtureBypassingHooks(repo, "retire origin mono");
+    await writeWorktreeOwnershipMarker(worktree!, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "mono" },
+      spawningIdentity: "test-user",
+    });
 
     const result = await runArc(["teardown", "mono", "--force"], repo);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
+    expect(result.stdout + result.stderr).toMatch(/live branch projection does not match/iu);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
-    expect(worktree !== undefined && (await pathExists(worktree))).toBe(true);
   });
 
-  it("refuses in-place primary cleanup without committed retirement evidence", async () => {
+  it("authorizes in-place primary cleanup from the committed transition alone", async () => {
     await scaffoldStartedWu(repo, "mono", "in-place");
     // Primary is checked out on plan/mono; retire the origin there.
     await rm(join(repo, ".arc/active/meta-mono.md"));
@@ -1710,26 +1137,28 @@ describe("lifecycle exit choreography (CLI seam)", () => {
 
     const result = await runArc(["teardown", "mono", "--force"], repo);
 
-    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     expect(await pathExists(repo)).toBe(true);
-    expect(await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/mono");
-    expect(await branchExists(repo, "plan/mono")).toBe(true);
   });
 
-  it("refuses a linked self-teardown without committed retirement evidence", async () => {
+  it("refuses linked self-teardown from unrelated historical deletion", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
     await rm(join(repo, ".arc/active/meta-mono.md"));
     await rm(join(repo, ".arc/active/draft-mono.md"));
     await commitFixtureBypassingHooks(repo, "retire origin mono");
+    await writeWorktreeOwnershipMarker(worktree!, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "mono" },
+      spawningIdentity: "test-user",
+    });
 
     // Invoke from *inside* the worktree being torn down — the locus-hop must let the
     // process complete despite its cwd disappearing.
     const result = await runArc(["teardown", "mono", "--force"], worktree!);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
+    expect(result.stdout + result.stderr).toMatch(/live branch projection does not match/iu);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
   });

@@ -85,8 +85,8 @@ classifier over the exact base/head before arming auto-merge; only literal `plan
 classifier gate plus the integration interlock is the procedural boundary — never infer merge safety from
 agent-layer discipline alone.
 
-The shipped skeleton deliberately keeps decomposition receipts owned; do not add that namespace to the unowned
-block while copying or reconciling the skeleton.
+The shipped skeleton deliberately keeps the transition-record namespace owned because it carries authoritative
+history; do not add that namespace to the unowned block while copying or reconciling the skeleton.
 
 ## Step 3: Require the merge-ok check in branch protection
 

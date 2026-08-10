@@ -28,7 +28,6 @@ const meta = (overrides: Partial<MetaRecord> = {}): MetaRecord => MetaRecordSche
   design: ["spec-review-surface-binding.md"],
   taskList: "tasks-review-surface-binding.md",
   reviewRubric: null,
-  decompositionReceipt: null,
   promotionReceipt: null,
   currentWorkflow: null,
   lastCompleted: null,

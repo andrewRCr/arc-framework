@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
-import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-preparation.js";
-import { v3TransitionPatchDigest } from "../../../src/lib/work-unit/decompose-v3-receipt.js";
+import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import {
   createV3DecomposeStarterMap,
   decodeV3DecomposeCutMap,
@@ -15,7 +14,6 @@ import {
   v3OutgoingEdgeId,
   v3OutgoingEdgeInventoryDigest,
   v3PreflightId,
-  v3ReceiptId,
   v3SourceArtifactDigest,
   v3SourceId,
   v3SourceInventoryDigest,
@@ -332,10 +330,6 @@ describe("v3 decomposition map schema", () => {
   it("binds every canonical identity to its exact versioned preimage", () => {
     const facts = machine();
     const map = completed();
-    expect(v3ReceiptId(facts)).not.toBe(v3ReceiptId({
-      ...facts,
-      source: { ...facts.source, head: "c".repeat(40) },
-    }));
     expect(v3CutMapDigest(map)).not.toBe(v3CutMapDigest({
       ...map,
       authoring: { ...map.authoring, placement: { kind: "direct-member" } },
@@ -392,12 +386,6 @@ describe("v3 decomposition map schema", () => {
       kind: "none",
       topologyDigest: canonicalDigest("self"),
     } as Parameters<typeof v3TopologyDigest>[0][number]])).toThrow();
-    expect(() => v3TransitionPatchDigest([{
-      path: "a.md",
-      before: { kind: "absent" },
-      after: { kind: "file", mode: "100644", contentDigest: canonicalDigest("after") },
-      transitionPatchDigest: canonicalDigest("self"),
-    } as Parameters<typeof v3TransitionPatchDigest>[0][number]])).toThrow();
   });
 
   it("returns direct guidance at the first incomplete or tampered locus", () => {
@@ -712,19 +700,6 @@ describe("v3 decomposition map schema", () => {
     expect(v3OutgoingEdgeId({ prerequisite: "foundation" }))
       .not.toBe(v3OutgoingEdgeId({ prerequisite: "other-foundation" }));
 
-    expect(v3ReceiptId(facts)).not.toBe(v3ReceiptId({
-      ...facts,
-      source: { ...facts.source, origin: "changed-origin" },
-    }));
-    expect(v3ReceiptId(facts)).not.toBe(v3ReceiptId({
-      ...facts,
-      source: { ...facts.source, logicalBranch: "plan/changed-origin" },
-    }));
-    expect(v3ReceiptId(facts)).not.toBe(v3ReceiptId({
-      ...facts,
-      source: { ...facts.source, head: "c".repeat(40) },
-    }));
-
     const unit = facts.sourceUnits[0]!;
     expect(v3SourceId({ sourcePath: unit.sourcePath, sourceLocator: unit.sourceLocator }))
       .not.toBe(v3SourceId({ sourcePath: `${unit.sourcePath}.other`, sourceLocator: unit.sourceLocator }));
@@ -839,17 +814,6 @@ describe("v3 decomposition map schema", () => {
       after: { ...topology[0]!.after, mode: "100755" },
     }])).not.toBe(topologyDigest);
 
-    const patch = [{ path: "a.md", before: topology[0]!.before, after: topology[0]!.after }];
-    const patchDigest = v3TransitionPatchDigest(patch);
-    expect(v3TransitionPatchDigest([{ ...patch[0]!, path: "b.md" }])).not.toBe(patchDigest);
-    expect(v3TransitionPatchDigest([{
-      ...patch[0]!,
-      before: { kind: "file", mode: "100644", contentDigest: canonicalDigest("before") },
-    }])).not.toBe(patchDigest);
-    expect(v3TransitionPatchDigest([{
-      ...patch[0]!,
-      after: { ...patch[0]!.after, mode: "100755" },
-    }])).not.toBe(patchDigest);
   });
 
   it("pins every named versioned digest preimage", () => {
@@ -871,17 +835,7 @@ describe("v3 decomposition map schema", () => {
         contentDigest: canonicalDigest("topology-after"),
       },
     }];
-    const patch = [{
-      path: ".arc/backlog/ROADMAP.md",
-      before: { kind: "absent" as const },
-      after: {
-        kind: "file" as const,
-        mode: "100644" as const,
-        contentDigest: canonicalDigest("patch-after"),
-      },
-    }];
     expect({
-      receiptId: v3ReceiptId(facts),
       preflightId: facts.preflightId,
       sourceId: facts.sourceUnits[0]!.sourceId,
       incomingEdgeId: facts.incomingEdges[0]!.edgeId,
@@ -889,13 +843,11 @@ describe("v3 decomposition map schema", () => {
       cutMapDigest: v3CutMapDigest(map),
       allowedPathsDigest: v3AllowedPathsDigest(["a.md", "b.md"]),
       topologyDigest: v3TopologyDigest(topology),
-      transitionPatchDigest: v3TransitionPatchDigest(patch),
       sourceArtifactDigest: v3SourceArtifactDigest(artifact),
       sourceInventoryDigest: v3SourceInventoryDigest(facts),
       incomingInventoryDigest: v3IncomingEdgeInventoryDigest(facts),
       outgoingInventoryDigest: v3OutgoingEdgeInventoryDigest(facts),
     }).toEqual({
-      receiptId: "sha256:d69f8e709ff03781fce64adaab549f669ec328f93c726ce7b7c3ad67a1896f01",
       preflightId: "sha256:b022832be770a88c034697c72eed20c7fb5b577829046af524bd2ad758aa663b",
       sourceId: "sha256:1746baa12ae6a59ab3f2798506769ada531f3c4bd54eddc7b81fe5020bbe4c0e",
       incomingEdgeId: "sha256:6562eeb5557735ce19d452629a0b9dec7c57c0bb75ab5405b2a903699e448038",
@@ -903,8 +855,6 @@ describe("v3 decomposition map schema", () => {
       cutMapDigest: "sha256:220124864fd22f6743df622ad7c369749208047b9a729349aaff26bd5f30d591",
       allowedPathsDigest: "sha256:3a7859f5699f28d740ac1a17e3eadc456104ffe68bfd93779ed8e40fdb51100c",
       topologyDigest: "sha256:e82afa273ab2091806eb2b776fba0b97d4d207dc8f4221ba3f505d27980ea1ba",
-      transitionPatchDigest:
-        "sha256:747d670a4e9c70a3d04026503e21165c5330500a9f9b51371e0d275f390f29ed",
       sourceArtifactDigest:
         "sha256:eb04ac5ec3e4200b1f33a7239ba91f446c13fb68710a3e6072c06c4ad337bab5",
       sourceInventoryDigest:

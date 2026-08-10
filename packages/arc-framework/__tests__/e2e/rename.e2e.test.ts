@@ -15,7 +15,6 @@ import {
   runArcAnchored,
   runArcNoTty,
 } from "./helpers.js";
-import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 
 const execFileAsync = promisify(execFile);
@@ -203,11 +202,8 @@ async function installRenameGateHook(
   const hook = join(repo, ".git", "hooks", "pre-commit");
   await writeFile(hook, [
     "#!/usr/bin/env node",
-    "const { spawnSync } = require('node:child_process');",
     "const { existsSync, writeFileSync } = require('node:fs');",
     `writeFileSync(${JSON.stringify(marker)}, '');`,
-    `const result = spawnSync(process.execPath, [${JSON.stringify(CLI_PATH)}, 'hook-validate-decompose-record'], { stdio: 'inherit' });`,
-    "if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);",
     ...(options.rejectOnce === true ? [
       `if (!existsSync(${JSON.stringify(refusalMarker)})) {`,
       `  writeFileSync(${JSON.stringify(refusalMarker)}, '');`,
@@ -229,7 +225,7 @@ describe("arc rename", () => {
     for (const path of cleanupPaths.splice(0).reverse()) await removeGitBackedDir(path);
   });
 
-  it("renames a backlog stub through CHECK 20 on a short-lived branch and rests on main", async () => {
+  it("renames a backlog stub through a rejecting commit hook and rests on main", async () => {
     const fixture = await createFixture();
     cleanupPaths.push(fixture.remote, fixture.repo);
     const stubbed = await runArcNoTty([
@@ -249,7 +245,7 @@ describe("arc rename", () => {
     expect(refused.exitCode).toBe(1);
     expect(refused.stdout + refused.stderr).toContain("rename commit refused");
     expect(await exists(gate.ranMarker)).toBe(true);
-    expect(await exists(gate.refusalMarker)).toBe(true);
+    expect(await exists(gate.refusalMarker), refused.stdout + refused.stderr).toBe(true);
     expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
     expect(await exists(join(fixture.repo, oldArtifactDir, "meta-old-name.md"))).toBe(true);
     expect(await exists(join(fixture.repo, newArtifactDir, "meta-new-name.md"))).toBe(false);
@@ -259,17 +255,12 @@ describe("arc rename", () => {
     expect(renamed.exitCode).toBe(0);
     expect(renamed.stdout).toContain("pending integration");
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
-    const receiptPaths = (await git(fixture.repo, [
-      "ls-tree", "-r", "--name-only", "chore/rename-old-name-to-new-name", "--",
-      ".arc/system/.internal/retirement-receipts",
-    ])).split("\n").filter(Boolean);
-    expect(receiptPaths).toHaveLength(1);
-    const receipt = JSON.parse(await git(fixture.repo, [
-      "show", `chore/rename-old-name-to-new-name:${receiptPaths[0]}`,
-    ])) as { transition: string; result: { kind: string; targetSlug: string } };
-    expect(receipt).toMatchObject({
-      transition: "rename",
-      result: { kind: "rename", targetSlug: "new-name" },
+    const transition = JSON.parse(await git(fixture.repo, [
+      "show", "chore/rename-old-name-to-new-name:.arc/system/.internal/transitions/old-name.json",
+    ])) as { kind: string; successors: string[] };
+    expect(transition).toMatchObject({
+      kind: "rename",
+      successors: ["new-name"],
     });
     await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
     await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");

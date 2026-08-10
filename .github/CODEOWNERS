@@ -16,7 +16,8 @@
 # supported directories and depths. The canonical classifier remains
 # authoritative for exact filenames, rename/copy endpoints, and type/mode
 # changes that CODEOWNERS cannot express.
-# Decomposition receipts stay owned here.
+# Authoritative transition history remains owned by the catch-all above, as
+# does the rest of /.arc/system/.internal/.
 /.arc/active/draft-*.md
 /.arc/active/tasks-*.md
 /.arc/active/meta-*.md

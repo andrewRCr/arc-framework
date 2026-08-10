@@ -11,7 +11,7 @@
 import { dirname, join } from "node:path";
 
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import type { RetirementRecordEnumerationResult } from "./retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
 
 /** One storage-independent retirement transition relevant to tracked references. */
 export interface ReachableReferenceTransition {
@@ -21,6 +21,12 @@ export interface ReachableReferenceTransition {
     | { kind: "decompose" }
     | { kind: "removed" };
 }
+
+/** Lean transition projection before current tracked-reference planning. */
+export type TransitionReferenceProjectionResult =
+  | { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
+  | { status: "conflict"; reason: "ambiguous-history"; subject: string }
+  | { status: "conflict"; reason: "namespace-corrupt" };
 
 /** One exact artifact snapshot supplied to the pure planner. */
 export interface ReferenceArtifactSnapshot {
@@ -54,7 +60,7 @@ export interface ReferenceAdvisory {
 /** A subject whose reachable history cannot grant mechanical rewrite authority. */
 export interface ReferenceTransitionConflict {
   subject: string;
-  reason: "ambiguous-history" | "rename-cycle" | "version-conflict" | "namespace-corrupt";
+  reason: "ambiguous-history" | "rename-cycle" | "namespace-corrupt";
 }
 
 /** Closed pure reference plan. */
@@ -97,41 +103,26 @@ export async function listCurrentWuArtifactPaths(
     .map((basename) => join(directory, basename));
 }
 
-/**
- * Project authenticated reachable receipts into reference transitions.
- *
- * @param enumeration - Complete authenticated namespace reachable from the current WU history
- * @returns Valid work-unit transitions or a namespace-level refusal
- */
-export function enumerateReferenceTransitions(
-  enumeration: RetirementRecordEnumerationResult,
-): { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
-  | { status: "conflict"; reason: "version-conflict" | "namespace-corrupt" } {
-  if (enumeration.status !== "valid") return { status: "conflict", reason: enumeration.status };
+/** Project authenticated lean transition groups into reference transitions. */
+export function enumerateTransitionReferenceTransitions(
+  enumeration: TransitionRecordEnumerationResult,
+): TransitionReferenceProjectionResult {
+  if (enumeration.status !== "valid") return { status: "conflict", reason: "namespace-corrupt" };
   const transitions: ReachableReferenceTransition[] = [];
-  for (const entry of enumeration.records) {
-    if (entry.record.kind === "v3-decomposition-receipt") {
-      transitions.push({
-        subject: entry.record.value.prepared.completedMap.machine.source.origin,
-        outcome: { kind: "decompose" },
-      });
-      continue;
+  for (const group of enumeration.groups) {
+    if (group.records.length > 1) {
+      return { status: "conflict", reason: "ambiguous-history", subject: group.origin };
     }
-    if (entry.record.kind !== "receipt") continue;
-    const receipt = entry.record.value;
-    if (receipt.subject.kind !== "work-unit") continue;
-    switch (receipt.result.kind) {
-      case "rename":
-        transitions.push({
-          subject: receipt.subject.name,
-          outcome: { kind: "rename", targetSlug: receipt.result.targetSlug },
-        });
-        break;
-      case "discard":
-        transitions.push({ subject: receipt.subject.name, outcome: { kind: "removed" } });
-        break;
-      case "relocate":
-        break;
+    const record = group.records[0];
+    if (record === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+    if (record.kind === "rename") {
+      const targetSlug = record.successors[0];
+      if (targetSlug === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+      transitions.push({ subject: record.origin, outcome: { kind: "rename", targetSlug } });
+    } else if (record.kind === "abandon") {
+      transitions.push({ subject: record.origin, outcome: { kind: "removed" } });
+    } else {
+      transitions.push({ subject: record.origin, outcome: { kind: "decompose" } });
     }
   }
   return { status: "valid", transitions };

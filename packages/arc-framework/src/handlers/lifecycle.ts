@@ -19,7 +19,7 @@
  * @module
  */
 
-import { basename, join, posix, win32 } from "node:path";
+import { basename, join, posix, resolve, win32 } from "node:path";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
@@ -42,6 +42,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
 import {
+  createRawGitExec,
   createUserIOContext,
   prepareGitRefVerification,
   readGitBlobBytes,
@@ -85,25 +86,12 @@ import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/pa
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
-import { decomposeReadinessDeps } from "../lib/work-unit/decompose-launch-readiness.js";
-import {
-  resolveGitLandedDecompositionHandoff,
-} from "../lib/work-unit/git-landed-decomposition-handoff.js";
-import {
-  cleanupGitLandedDecompositionLocally,
-} from "../lib/work-unit/git-decomposition-local-cleanup.js";
 import {
   executeGitV3DecomposeCommand,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
-import {
-  discardGitV3DecomposeCandidate,
-} from "../lib/work-unit/git-decompose-v3-candidate-discard.js";
-import {
-  finalizeGitV3DecomposeOperation,
-} from "../lib/work-unit/git-decompose-v3-finalization.js";
-import {
-  advanceGitV3DecomposeBase,
-} from "../lib/work-unit/git-decompose-v3-base-advancement.js";
+import { advanceGitDecomposeTransitionBase } from
+  "../lib/work-unit/git-decompose-transition-base-advancement.js";
+import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -117,10 +105,12 @@ import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
 } from "../lib/work-unit/park-planning-landing.js";
+import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
+import { isGitTransitionOriginOccupied } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
-  resolveRetirementRecordPath,
-  writeRetirementRecord,
-} from "../lib/work-unit/retirement-record-store.js";
+  resolveTransitionRecordPath,
+  writeTransitionRecord,
+} from "../lib/work-unit/transition-record-store.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
@@ -283,7 +273,6 @@ async function resolveTransformComposition(
     fs: lifecycleFs,
     oracle: {
       exec: base.io.exec,
-      decompositionClaimCwd: base.cwd,
       baseBranch: settings["branch.base"],
       acquisitionPolicy: "materialized-live",
       suppliedResult: expandedInFlight,
@@ -298,10 +287,19 @@ function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
     cwd: base.cwd,
     exec: base.io.exec,
     readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-    readFile: base.io.readFile,
-    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
-    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
   };
+}
+
+/** Bind exclusive terminal-history creation and index staging. */
+function terminalTransitionWriter(base: VerbBase): ReturnType<typeof createInRepoTerminalTransitionRecordWriter> {
+  const transitionExec = createRawGitExec(base.cwd);
+  return createInRepoTerminalTransitionRecordWriter({
+    cwd: base.cwd,
+    exec: base.io.exec,
+    isOriginOccupied: (origin) => isGitTransitionOriginOccupied(transitionExec, origin),
+    createRecord: (record) => writeTransitionRecord(base.cwd, record),
+    removeRecord: (origin) => rm(resolveTransitionRecordPath(base.cwd, origin), { force: true }),
+  });
 }
 
 /** Surface a transition's success note plus any side-effect advisories. */
@@ -375,17 +373,13 @@ const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).
 /** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
 export const DECOMPOSE_MODE_KEYS = [
   "preflight",
-  "handoff",
   "execute",
-  "discard",
-  "finalize",
   "advanceBase",
 ] as const;
 
 /** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
 export const DECOMPOSE_MACHINE_READABLE_KEYS = [
   ...DECOMPOSE_MODE_KEYS,
-  "continuation",
 ] as const;
 
 type DecomposeRoutingOptions = Partial<Record<
@@ -406,24 +400,14 @@ export function isDecomposeMachineReadableInvocation(options: DecomposeRoutingOp
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
   preflight: z.literal(true).optional(),
-  handoff: z.literal(true).optional(),
   execute: z.string().trim().min(1).optional(),
-  discard: z.string().trim().min(1).optional(),
-  finalize: z.string().trim().min(1).optional(),
-  continuation: z.string().trim().min(1).optional(),
   advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
   if (modes !== 1) {
     refinement.addIssue({
       code: "custom",
-      message: "Exactly one of --preflight, --execute, --discard, --finalize, --handoff, or --advance-base is required.",
-    });
-  }
-  if ((value.finalize === undefined) !== (value.continuation === undefined)) {
-    refinement.addIssue({
-      code: "custom",
-      message: "--finalize and --continuation are required together.",
+      message: "Exactly one of --preflight, --execute, or --advance-base is required.",
     });
   }
 });
@@ -530,11 +514,7 @@ export const lifecycleCommandInputRegistrations = [
     schemaFields: {
       "operand.origin": "origin",
       "option.preflight": "preflight",
-      "option.handoff": "handoff",
       "option.execute": "execute",
-      "option.discard": "discard",
-      "option.finalize": "finalize",
-      "option.continuation": "continuation",
       "option.advance-base": "advanceBase",
     },
   },
@@ -762,17 +742,9 @@ export async function handleStub(
 export interface DecomposeOptions {
   /** Emit one exact machine-derived starter map without mutation. */
   preflight?: true;
-  /** Emit one exact facts-only landed handoff without mutation. */
-  handoff?: true;
-  /** Prepare one exact repository result from a canonical completed cut map. */
+  /** Stage one exact repository result from a canonical completed cut map. */
   execute?: string;
-  /** Discard the exact uncommitted candidate bound to a canonical cut map. */
-  discard?: string;
-  /** Finalize one exact prepared receipt. */
-  finalize?: string;
-  /** Canonical continuation input paired with `finalize`. */
-  continuation?: string;
-  /** Advance one committed full-protection candidate to the configured base. */
+  /** Advance one committed full-protection candidate from its canonical completed cut map. */
   advanceBase?: string;
 }
 
@@ -786,7 +758,7 @@ function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolea
  * Dispatch one closed v3 decomposition command mode.
  *
  * @param origin - Planning source slug to authenticate and inspect.
- * @param opts - Closed command mode and its exact file/receipt operands.
+ * @param opts - Closed command mode and its exact cut-map operands.
  * @param context - Optional interaction context supplying subprocess execution.
  * @returns A promise that resolves after emitting one canonical result or refusal.
  */
@@ -833,30 +805,6 @@ export async function handleDecompose(
       process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
       return;
     }
-    if (parsed.data.handoff === true) {
-      const result = await resolveGitLandedDecompositionHandoff(
-        settings["branch.base"],
-        parsed.data.origin,
-        {
-          cwd,
-          exec: io.exec,
-          readBlob: (oid) => readGitObjectBytes(cwd, oid),
-          readiness: decomposeReadinessDeps,
-        },
-      );
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status !== "resolved") {
-        const reason = "reason" in result && result.reason !== undefined
-          ? `: ${result.reason}`
-          : "";
-        const locus = "locus" in result && result.locus !== undefined
-          ? `: ${result.locus}`
-          : "";
-        process.stderr.write(`${result.status}${reason}${locus}\n`);
-        process.exitCode = 1;
-      }
-      return;
-    }
     const cohortTemplate = new Uint8Array(await readFile(join(
       getArcTemplatePath(),
       "reference",
@@ -884,50 +832,31 @@ export async function handleDecompose(
         cutMapPath: parsed.data.execute,
       });
       process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status !== "prepared") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
-      }
-      return;
-    }
-    if (parsed.data.discard !== undefined) {
-      const result = await discardGitV3DecomposeCandidate(
-        repository,
-        settings["branch.base"],
-        parsed.data.origin,
-        parsed.data.discard,
-      );
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status !== "discarded" && result.status !== "already-discarded") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
-      }
-      return;
-    }
-    if (parsed.data.finalize !== undefined && parsed.data.continuation !== undefined) {
-      const result = await finalizeGitV3DecomposeOperation(repository, {
-        baseBranch: settings["branch.base"],
-        origin: parsed.data.origin,
-        receiptId: parsed.data.finalize,
-        continuationPath: parsed.data.continuation,
-      });
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status === "refused") {
+      if (result.status !== "staged") {
         process.stderr.write(`${result.reason}\n${result.remedy}\n`);
         process.exitCode = 1;
       }
       return;
     }
     if (parsed.data.advanceBase !== undefined) {
-      const result = await advanceGitV3DecomposeBase(repository, {
-        protection,
-        baseBranch: settings["branch.base"],
-        origin: parsed.data.origin,
-        receiptId: parsed.data.advanceBase,
-      });
+      let completedMap: unknown;
+      try {
+        completedMap = JSON.parse(await readFile(resolve(cwd, parsed.data.advanceBase), "utf8"));
+      } catch {
+        completedMap = null;
+      }
+      const decoded = decodeV3DecomposeCutMap(completedMap);
+      const result = decoded.status === "accepted"
+        && decoded.value.machine.source.origin === parsed.data.origin
+        ? await advanceGitDecomposeTransitionBase(repository, {
+            protection,
+            baseBranch: settings["branch.base"],
+            completedMap: decoded.value,
+          })
+        : { status: "refused" as const, reason: "map:invalid" };
       process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status === "refused") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
+        process.stderr.write(`${result.reason}\n`);
         process.exitCode = 1;
       }
       return;
@@ -964,6 +893,7 @@ export async function handleRename(
     baseBranch: settings["branch.base"],
     io,
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+    transitionWriter: terminalTransitionWriter(base),
     onPreparedAdvisories: (advisories) => {
       for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
@@ -1330,7 +1260,6 @@ export async function handlePark(
       [
         `Work unit: ${target}`,
         `Commit:    ${result.commit}`,
-        `Receipt:   ${result.receiptPath}`,
         `Artifacts: ${result.plannedPaths.length} staged`,
       ].join("\n"),
       "Park result landed",
@@ -1862,6 +1791,7 @@ export async function handleAbandon(
       executor,
       fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
       retirement,
+      transitionWriter: terminalTransitionWriter(base),
       composed,
     },
     { name: target, confirmed: true },
@@ -2061,7 +1991,11 @@ export async function handleTeardown(
         readTeardownSelection,
         teardownWorktree,
       },
-      { branch: branchArg, base: baseBranch },
+      {
+        branch: branchArg,
+        base: baseBranch,
+        protection: settings["branch.protection"] === "full" ? "full" : "partial",
+      },
     );
     if (result.status === "rejected") {
       if (result.huskRefusal !== undefined) {
@@ -2081,55 +2015,6 @@ export async function handleTeardown(
       huskedTitle: "Branch worktree husked",
     });
     return;
-  }
-
-  if (input.husk === undefined) {
-    const decomposition = await cleanupGitLandedDecompositionLocally(
-      baseBranch,
-      wuName ?? "",
-      {
-        cwd: base.cwd,
-        exec,
-        readBlob: (oid) => readGitObjectBytes(base.cwd, oid),
-        closeUserWorkspace: async (origin) => {
-          await runUserClose({ cwd: base.cwd, identity: base.identity, wuName: origin });
-        },
-        chdir: (dir) => { process.chdir(dir); locus = dir; },
-        readCurrentLocus: () => locus,
-        readTeardownSelection,
-        teardownWorktree,
-      },
-    );
-    if (decomposition.status === "refused") {
-      const progress = decomposition.progress;
-      refuse(progress === undefined
-        ? decomposition.reason
-        : [
-            decomposition.reason,
-            "",
-            "Completed cleanup outcomes:",
-            `- Candidate worktree: ${progress.candidate.worktreeOutcome ?? "pending"}`,
-            `- Candidate branch: ${progress.candidate.branchOutcome ?? "pending"}`,
-            `- Source worktree: ${progress.source.worktreeOutcome ?? "pending"}`,
-            `- Source branch: ${progress.source.branchOutcome ?? "pending"}`,
-            `- User workspace: ${progress.userWorkspace}`,
-          ].join("\n"));
-      return;
-    }
-    if (decomposition.status === "cleaned") {
-      p.note([
-        `Work unit:          ${wuName}`,
-        `Source branch:      ${decomposition.source.branch} (${decomposition.source.branchOutcome})`,
-        `Source worktree:    ${decomposition.source.worktreeOutcome}`,
-        `Candidate branch:   ${decomposition.candidate.branch} (${decomposition.candidate.branchOutcome})`,
-        `Candidate worktree: ${decomposition.candidate.worktreeOutcome}`,
-        `Claim retirement: ${decomposition.retirement}`,
-        `Claim registration: ${decomposition.registration}`,
-        "Remote cleanup: not authorized",
-      ].join("\n"), "Decomposition torn down");
-      p.outro("Done.");
-      return;
-    }
   }
 
   const result = await runTeardown(

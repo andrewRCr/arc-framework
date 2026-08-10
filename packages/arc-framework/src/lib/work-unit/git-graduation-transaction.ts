@@ -9,10 +9,6 @@ import { isAbsolute, posix, resolve } from "node:path";
 import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import { parseGitWorktreePorcelain } from "../git/worktree-porcelain.js";
-import {
-  readDecompositionReceiptMarker,
-} from "./decomposition-receipt-marker.js";
-import type { DecompositionIntegrationAnchor } from "./decomposition-integration-anchor.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import {
   prepareValidatedGraduationTransaction,
@@ -30,10 +26,6 @@ export interface GitGraduationTransactionDependencies {
   readBlob(ref: string | null, path: string): Promise<Uint8Array | null>;
   readWorktreeFile(path: string): Promise<Uint8Array | null>;
   pathExists(path: string): Promise<boolean>;
-  resolveAnchor(receiptId: string): Promise<
-    | { status: "resolved"; anchor: DecompositionIntegrationAnchor }
-    | { status: "refused"; reason: string }
-  >;
 }
 
 /** Start-arm facts known before any branch, worktree, or artifact mutation. */
@@ -73,7 +65,7 @@ interface CapturedGraduationInput {
   sourceTree: string;
 }
 
-type GraduationCaptureReason = "git-read" | "source-shape" | "anchor-policy";
+type GraduationCaptureReason = "git-read" | "source-shape";
 
 class GraduationCaptureError extends Error {
   constructor(
@@ -273,39 +265,11 @@ async function capture(
   const metaPath = posix.join(request.sourceDirectory, `meta-${request.slug}.md`);
   const metaArtifact = artifacts.find(({ sourcePath }) => sourcePath === metaPath);
   if (metaArtifact === undefined) captureRefusal("source-shape", `Backlog meta is absent: ${metaPath}.`);
-  let metaContent: string;
   try {
-    metaContent = new TextDecoder("utf-8", { fatal: true }).decode(metaArtifact.bytes);
+    new TextDecoder("utf-8", { fatal: true }).decode(metaArtifact.bytes);
   } catch {
     captureRefusal("source-shape", `Backlog meta is not valid UTF-8: ${metaPath}.`);
   }
-  let marker;
-  try {
-    marker = readDecompositionReceiptMarker(metaContent);
-  } catch (error) {
-    captureRefusal(
-      "source-shape",
-      `Backlog meta is malformed: ${metaPath}. ${errorMessage(error)}`,
-    );
-  }
-  if (marker.status === "refused") {
-    captureRefusal(
-      "source-shape",
-      `Backlog meta has a ${marker.reason} decomposition receipt marker: ${metaPath}.`,
-    );
-  }
-  let anchor: DecompositionIntegrationAnchor | null = null;
-  if (marker.receiptId !== null) {
-    const resolved = await deps.resolveAnchor(marker.receiptId);
-    if (resolved.status !== "resolved") {
-      captureRefusal(
-        "anchor-policy",
-        `Decomposition receipt ${marker.receiptId} has no exact landed anchor: ${resolved.reason}.`,
-      );
-    }
-    anchor = resolved.anchor;
-  }
-
   return {
     sourceHead,
     sourceTree,
@@ -316,7 +280,6 @@ async function capture(
       targetDirectory: request.targetDirectory,
       artifacts,
       destinations: artifacts.map(({ targetPath }) => ({ path: targetPath, state: { kind: "absent" } })),
-      anchor,
       classResolution: request.classResolution,
       occupation: {
         mode: request.mode,

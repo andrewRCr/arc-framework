@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { execaMock } = vi.hoisted(() => ({ execaMock: vi.fn() }));
 
@@ -7,13 +7,132 @@ vi.mock("execa", () => ({ execa: execaMock }));
 import {
   createExecaGitExec,
   createExecaGitExecInput,
+  createExecaRawGitExec,
 } from "../../../src/lib/git/process-executor.js";
 
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("local-only object access", () => {
+  it("keeps byte-preserving Git reads noninteractive without invocation-specific policy", async () => {
+    vi.stubEnv("GIT_SSH_COMMAND", undefined);
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env).toMatchObject({
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_EDITOR: "true",
+        GIT_PAGER: "cat",
+        PAGER: "cat",
+        GIT_SSH_COMMAND: "ssh -oBatchMode=yes -oNumberOfPasswordPrompts=0",
+        SSH_ASKPASS_REQUIRE: "never",
+      });
+      expect(options.stdin).toBe("ignore");
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/repo")(["cat-file", "blob", "a".repeat(40)]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
+  it("composes SSH prompt suppression with user commands after cwd environment sanitization", async () => {
+    vi.stubEnv("GIT_SSH_COMMAND", 'ssh -F "/configs/work account" -i "/keys/work key"');
+    vi.stubEnv("GIT_DIR", "/wrong/repository");
+    vi.stubEnv("GIT_CONFIG_COUNT", "1");
+
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env).toMatchObject({
+        GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oNumberOfPasswordPrompts=0 -F "/configs/work account" -i "/keys/work key"',
+        SSH_ASKPASS_REQUIRE: "never",
+      });
+      expect(options.env.GIT_DIR).toBeUndefined();
+      expect(options.env.GIT_CONFIG_COUNT).toBeUndefined();
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/intended/repository")(["rev-parse", "HEAD"]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
+  it.each([
+    {
+      sshCommand: "'/opt/OpenSSH Client/bin/ssh' -F '/configs/work account'",
+      expected: "'/opt/OpenSSH Client/bin/ssh' -oBatchMode=yes -oNumberOfPasswordPrompts=0 -F '/configs/work account'",
+    },
+    {
+      sshCommand: '"C:\\Program Files\\OpenSSH\\ssh.exe" -i "C:/keys/work key"',
+      expected: '"C:\\Program Files\\OpenSSH\\ssh.exe" -oBatchMode=yes -oNumberOfPasswordPrompts=0 -i "C:/keys/work key"',
+    },
+  ])("preserves a safely quoted OpenSSH executable: $sshCommand", async ({
+    sshCommand,
+    expected,
+  }) => {
+    vi.stubEnv("GIT_SSH_COMMAND", sshCommand);
+
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env.GIT_SSH_COMMAND).toBe(expected);
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/repo")(["rev-parse", "HEAD"]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
+  it("places prompt suppression before inherited conflicting OpenSSH options", async () => {
+    vi.stubEnv(
+      "GIT_SSH_COMMAND",
+      "ssh -oBatchMode=no -o NumberOfPasswordPrompts=3 -F '/configs/work account'",
+    );
+
+    execaMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env.GIT_SSH_COMMAND).toBe(
+        "ssh -oBatchMode=yes -oNumberOfPasswordPrompts=0 -oBatchMode=no -o NumberOfPasswordPrompts=3 -F '/configs/work account'",
+      );
+      return { stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) };
+    });
+
+    await expect(createExecaRawGitExec("/repo")(["rev-parse", "HEAD"]))
+      .resolves.toEqual({ stdout: Buffer.from("raw"), stderr: Buffer.alloc(0) });
+  });
+
+  it("proves inherited conflicting values lose by OpenSSH first-value precedence", async () => {
+    vi.stubEnv(
+      "GIT_SSH_COMMAND",
+      "ssh -oBatchMode=no -oNumberOfPasswordPrompts=3",
+    );
+
+    execaMock.mockImplementation(async (command, args, options) => {
+      const actual = await vi.importActual<typeof import("execa")>("execa");
+      return actual.execa(command, args, { ...options, timeout: 2_000 });
+    });
+
+    const result = await createExecaRawGitExec(process.cwd())([
+      "-c",
+      'alias.ssh-policy=!f() { eval "$GIT_SSH_COMMAND -G prompt.invalid"; }; f',
+      "ssh-policy",
+    ]);
+    const configuration = Buffer.from(result.stdout).toString("utf8");
+    expect(configuration).toMatch(/^batchmode yes$/mu);
+    expect(configuration).toMatch(/^numberofpasswordprompts 0$/mu);
+  });
+
+  it.each([
+    "sh -c 'exec ssh \"$@\"' arc-ssh",
+    "ssh -i $SSH_KEY",
+    "ssh -F config; ssh",
+    '"$SSH_BIN" -i key',
+    "'sh' -c 'exec ssh \"$@\"'",
+  ])("refuses an inherited shell expression before starting Git: %s", async (sshCommand) => {
+    vi.stubEnv("GIT_SSH_COMMAND", sshCommand);
+
+    await expect(createExecaRawGitExec("/repo")(["rev-parse", "HEAD"]))
+      .rejects.toThrow(/GIT_SSH_COMMAND must be a literal OpenSSH command/u);
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
   it("pairs the Git global option and environment guard for captured output", async () => {
     execaMock.mockImplementation(async (_command, args, options) => {
       if (args[0] !== "--no-lazy-fetch" || options.env?.GIT_NO_LAZY_FETCH !== "1") {

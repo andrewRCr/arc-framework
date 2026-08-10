@@ -23,7 +23,6 @@ function validRecord(): Record<string, unknown> {
     design: ["spec-cli-validation-surfaces.md"],
     taskList: "tasks-cli-validation-surfaces.md",
     reviewRubric: null,
-    decompositionReceipt: null,
     promotionReceipt: null,
     currentWorkflow: null,
     lastCompleted: null,
@@ -144,7 +143,6 @@ describe("MetaProjectionRecordSchema", () => {
       Design: "spec-example.md",
       "Task List": "tasks-example.md",
       "Review Rubric": null,
-      "Decomposition Receipt": null,
       "Promotion Receipt": null,
       "Current Workflow": null,
       "Last Completed": null,
@@ -169,7 +167,7 @@ describe("MetaProjectionRecordSchema", () => {
       Object.entries(complete).filter(([name]) => name !== "Promotion Receipt"),
     );
 
-    expect(Object.keys(complete)).toHaveLength(20);
+    expect(Object.keys(complete)).toHaveLength(19);
     expect(MetaProjectionRecordSchema.parse(historical)["Promotion Receipt"]).toBeNull();
     expect(MetaProjectionRecordSchema.safeParse(missing).success).toBe(false);
     expect(MetaProjectionRecordSchema.safeParse({ ...complete, Extra: null }).success).toBe(false);

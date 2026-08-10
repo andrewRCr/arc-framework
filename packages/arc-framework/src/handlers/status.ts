@@ -120,7 +120,8 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { GitExec, GitExecInput } from "../lib/git/index.js";
-import { createGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
+import { createGitExec, createRawGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
+import type { RawGitExec } from "../lib/change-facts.js";
 import {
   projectTransientInFlightRead,
   readFetchedTransientInFlightIndexes,
@@ -143,7 +144,7 @@ import {
 } from "../lib/status/project-view.js";
 import {
   renderRoadmapFromIndexViewResult,
-  resolveStagedRetirementTransitionOverlay,
+  resolveStagedTransitionOverlay,
 } from "../lib/status/roadmap-regeneration-assert.js";
 import {
   assertSessionInitProbeResult,
@@ -157,9 +158,9 @@ import {
 import { SlugSchema } from "../lib/kernel/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "../lib/work-unit/git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+} from "../lib/work-unit/git-transition-record-enumeration.js";
 import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
@@ -432,6 +433,11 @@ export async function handleStatus(
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const json = Boolean(opts.json);
+  const transitionExec = createRawGitExec(cwd);
+  const localOnlyTransitionExec: RawGitExec = (args, options) => transitionExec(args, {
+    ...options,
+    objectAccess: "local-only",
+  });
 
   if (slug !== undefined) {
     // Slug→state query: a subject-keyed read over the lifecycle-complete index.
@@ -451,7 +457,6 @@ export async function handleStatus(
       },
       oracle: {
         exec,
-        decompositionClaimCwd: cwd,
         acquisitionPolicy: opts.fetch === true ? "passive-live" : "local",
         baseBranch: settings["branch.base"],
         errandSlugByBranch: transient.indexes.slugByBranch,
@@ -755,7 +760,6 @@ export async function handleStatus(
         const transientIndexes = transient.indexes;
         const result = await analyzeInFlightSnapshot({
           exec,
-          decompositionClaimCwd: cwd,
           snapshot: prerequisites.snapshot,
           objectAvailability: prerequisites.objectAvailability,
           history: prerequisites.history,
@@ -961,8 +965,9 @@ export async function handleStatus(
         runCurrentWuReconcileSessionProbe(
           {
             index: await buildLifecycleIndex({ cwd, fs: lifecycleFs }),
-            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+            queryDisposition: (input) =>
+              queryGitTransitionDisposition(transitionExec, "HEAD", input),
+            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
             listArtifactPaths: (slug, ownedMetaPath) =>
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(resolve(cwd, path))),
             readFile: (path) => io.readFile(resolve(cwd, path)),
@@ -976,10 +981,6 @@ export async function handleStatus(
         const protection = resolved.settings["branch.protection"] === "full" ? "full" : "partial";
         const baseBranch = resolved.settings["branch.base"];
         const prerequisites = sessionRemotePrerequisites(context);
-        const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
-          ...options,
-          objectAccess: "local-only",
-        });
         const authority = prerequisites.kind === "supplied" || protection === "partial"
           ? await analyzeUserReferenceAuthority({
             protection,
@@ -993,7 +994,7 @@ export async function handleStatus(
             objectAvailability: prerequisites.kind === "supplied"
               ? prerequisites.objectAvailability
               : { kind: "unavailable", reason: "execution" },
-            enumerateAt: (ref) => enumerateGitRetirementRecords(localOnlyExec, ref),
+            enumerateAt: (ref) => enumerateGitTransitionRecords(localOnlyTransitionExec, ref),
           })
           : {
               // `not-needed` means remote sync is off or no remote is configured. That is
@@ -1324,7 +1325,7 @@ export async function handleStatus(
       // pre-commit ROADMAP regen check validates against, so
       // `arc status --project --staged > ROADMAP` produces exactly what the
       // hook expects (staged sweep or clean tree).
-      const transitionOverlay = await resolveStagedRetirementTransitionOverlay({ cwd, exec });
+      const transitionOverlay = await resolveStagedTransitionOverlay({ cwd, exec });
       const { result } = await renderRoadmapFromIndexViewResult({
         cwd,
         exec,
@@ -1352,7 +1353,6 @@ export async function handleStatus(
       fs: lifecycleFs,
       oracle: {
         exec,
-        decompositionClaimCwd: cwd,
         acquisitionPolicy: localOnly ? "local" : "passive-live",
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,

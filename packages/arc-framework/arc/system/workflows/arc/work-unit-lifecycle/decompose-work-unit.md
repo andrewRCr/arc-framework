@@ -10,18 +10,18 @@ arc:
 
 # Workflow: Decompose Work Unit
 
-**The operator owns semantic distribution; `arc decompose` owns source discovery, evidence, topology, mutation,
-validation, recovery, and the landed handoff** · `[invariant]`.
+**The operator owns semantic distribution; `arc decompose` owns source discovery, topology, mutation, validation,
+rollback, and the durable transition record** · `[invariant]`.
 
 Use only CLI-reported paths, packets, statuses, and remedies. On refusal, surface the returned status and remedy
-unchanged, stop, and re-enter only at the reported action. Never construct identifiers, evidence, Git topology, or
-recovery commands.
+unchanged, stop, and re-enter only at the reported action. Never construct identifiers, Git topology, or recovery
+commands.
 
 ## Preconditions
 
 - The origin is a supported Planning source or backlog planning stub.
 - Destination, dependency, and placement intent is settled.
-- Existing destinations are exact edit homes, never implicit new members or continuation candidates.
+- Existing destinations are exact edit homes, never implicit new members.
 
 An Active origin, extraction, or extension-owned transform is outside this core workflow. Follow the typed refusal
 or route it to its owning work unit.
@@ -52,7 +52,7 @@ Edit only the starter map's authoring slots:
 Preserve every machine-owned field. Do not calculate paths or identifiers, add a surviving origin, or create
 unreported destinations.
 
-## 3. Prepare and materialize the result
+## 3. Stage the complete result
 
 Run the completed map through the closed execute mode:
 
@@ -60,13 +60,13 @@ Run the completed map through the closed execute mode:
 arc decompose <origin> --execute <completed-map>
 ```
 
-On success, retain the complete result, including its plan packet, profile and topology packets, protection arm,
-candidate facts when applicable, `discard` disposition, and `next` action. A full candidate reports the exact
-`discard.command`; partial protection reports discard as not applicable. The command owns occupation, mutation,
-staging, preparation, and restoration.
+On success, retain the complete staged result, including its plan packet, profile and topology packets, protection
+arm, and candidate branch and worktree when applicable. The command owns occupation, mutation, transition-record
+creation, staging, and rollback.
 
-On refusal, stop and surface only its typed status and remedy. Run retry or discard only when the result supplies
-the exact command; prose guidance and mismatch loci are never command operands.
+On refusal, stop and surface its typed status and remedy. Retry only after the reported state is resolved. A failed
+full-protection attempt leaves only an ARC-owned candidate that ordinary cleanup may remove; it creates no special
+discard or recovery protocol.
 
 ## 4. Author every reported destination
 
@@ -77,51 +77,42 @@ Follow the successful result packets in their reported order:
 - apply every reported existing-home semantic edit;
 - preserve the reported profile, topology, dependency effects, and task-pointer maturity.
 
-Do not edit preparation or receipt evidence. Do not add unreported destinations, topology changes, or dependency
-edits.
+Do not add unreported destinations, topology changes, or dependency edits.
 
 ## 5. Review the distributed result
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after every reported destination is authored. Surface the actual distributed
-> authority, dependency effects, topology, publication entries, and explicit selected-slugs-or-none continuation;
-> await approval before proceeding to the continuation input and finalization.
+> `workflow-interlock`: Stop after every reported destination is authored. Surface the actual distributed authority,
+> dependency effects, topology, and transition record; await approval before proceeding to release.
 
-This is the sole semantic distribution approval. It creates no token, signature, or evidence field. Commit, push,
-and integration interlocks are release controls only.
+This is the sole semantic distribution approval. Commit, push, and integration interlocks are release controls only.
+If approval rejects the distribution, leave the staged partial result or ARC-owned candidate unchanged and await
+explicit cleanup direction.
 
-If approval rejects the distribution, run the retained exact `discard.command` when the result reports one, then
-stop. When discard is not applicable, leave the staged partial result unchanged and surface that disposition.
+## 6. Release through the reported protection arm
 
-## 6. Finalize with explicit continuation
+From the reported result locus, stage only the approved release paths reported by the successful execute result.
+This set includes every authorable destination, including paths that execute found already applied, plus the
+transition record. Then verify that no release path retains unstaged changes and that the complete staged path set
+exactly matches the reported release set:
 
-Write only the approved closed continuation input to the exact `next.continuationPath` reported by execute. Invoke
-the reported `next.command` verbatim; it is the complete `--finalize` with `--continuation` command. Never rebuild
-the command from receipt, candidate, path, or mismatch facts.
+```bash
+git add -- <reported-release-paths>
+git diff --quiet -- <reported-release-paths>
+git diff --cached --name-only --no-renames
+```
 
-Continue only when finalization reports `recorded`, `already-finalized`, or `refreshed`. On refusal, surface only
-the typed status and remedy, stop, and follow its indicated re-entry:
-
-- retry or discard runs only an exact reported command;
-- re-preflight returns to Step 1;
-- reauthor returns to Step 4 without changing mechanical bindings;
-- prose-only guidance remains prose.
-
-If direction after a finalization stop is to abandon a full candidate, run only the exact `discard.command` retained
-from execute. Never derive it from the refusal, candidate facts, or mismatch loci.
-
-## 7. Release through the reported protection arm
-
-Follow exactly one protection arm from the finalized result.
+Any unstaged reported path or additional/missing cached path stops release. Follow exactly one protection arm only
+after the approved working-tree bytes and the index match.
 
 ### Partial protection
 
-The finalized transform is already staged on the configured base.
+The approved transform is staged on the configured base.
 
 Use the [`commit-format` method][commit-format] for the message.
 
 > [!CAUTION]
-> `commit-interlock` release — commit the finalized transform as `workflowCommit`:
+> `commit-interlock` release — commit the staged transform as `workflowCommit`:
 
 ```text
 feat(planning): decompose {origin}
@@ -134,16 +125,41 @@ interlock, or merge.
 
 ### Full protection
 
-Use the exact reported candidate branch as it stands. Do not create, switch, repair, or delete a branch or
-worktree.
+Use the exact reported candidate branch with the approved transform staged. Do not create, switch, repair, or delete
+a branch or worktree.
 
 Use the [`commit-format` method][commit-format] for the message.
 
 > [!CAUTION]
-> `commit-interlock` release — commit the finalized transform as `workflowCommit`:
+> `commit-interlock` release — commit the staged transform as `workflowCommit`:
 
 ```text
 feat(planning): decompose {origin}
+
+Context: {deepest-planning-artifact} (planning)
+```
+
+Invoke the authoritative advancement operation unconditionally after the initial commit. It re-derives the current
+configured base and stages an append-only merge from the same completed map only when needed:
+
+```bash
+arc decompose <origin> --advance-base <completed-map>
+```
+
+An `unchanged` result continues without a commit. An `advanced` result fires the interlock below. On refusal, surface
+the reason and stop; do not rebuild the candidate, map, or merge manually.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after an `advanced` result. Surface its candidate branch, previous and current base,
+> and complete staged merge diff; await explicit 'commit' direction before committing the advancement.
+
+Use the [`commit-format` method][commit-format] for the advancement message.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the approved advanced result as `workflowCommit`:
+
+```text
+chore(planning): advance decomposition {origin} to current base
 
 Context: {deepest-planning-artifact} (planning)
 ```
@@ -162,22 +178,30 @@ checks.
 > merging.
 
 After approval, merge according to project policy. Do not hardcode a merge method or infer merge authority from
-finalization, review, or checks.
+review or checks.
 
-## 8. Resolve the landed handoff
+## 7. Confirm lifecycle readiness and clean up
 
-After the configured base contains the exact landing, run:
+After the configured base contains the landing, resolve the ordinary lifecycle and ready/blocked frontier:
 
 ```bash
-arc decompose <origin> --handoff
+arc status
 ```
 
-The read-only result carries the pinned landing and receipt facts, logical and display anchor, ordered publication,
-immutable initial continuation, and current selected readiness or blockers. It launches nothing and persists no
-scheduling state.
+Use the reported lifecycle state to continue normal work-unit processing. The transition stores no launch advice,
+publication packet, or selected successor.
 
-Route only CLI-reported local cleanup and claim outcomes. Never infer teardown authority, mutate a partial-protection
-claim, delete remote state, or launch members from this workflow.
+When the landed origin's local projections should be removed, run the ordinary teardown verb:
+
+```bash
+arc teardown --branch <reported-candidate-branch>
+arc teardown <origin>
+```
+
+The branch form applies only to full protection; partial protection has no candidate projection.
+
+Route only CLI-reported cleanup outcomes. Never infer teardown authority, delete remote state, or launch members
+from this workflow.
 
 ---
 

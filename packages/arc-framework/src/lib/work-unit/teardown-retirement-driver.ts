@@ -7,14 +7,16 @@ import type {
   WorktreeHuskStamp,
 } from "../git/worktree-marker.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
+import type { ParkProofTarget } from "./park-retirement-proof.js";
 import {
   createGitRetirementAuthorizationContext,
   readCompletedProjectionDigest,
-  validateGitRetirementReceiptEvidence,
-  validateGitRetirementReceiptEvidenceStrict,
+  validateGitTransitionRetirementEvidence,
+  validateGitTransitionRetirementEvidenceStrict,
 } from "./git-retirement-authorization-context.js";
 import {
   authorizeRetirement,
+  authorizeRetirementStrict,
   revalidateRetirementAuthorization,
 } from "./retirement-authorization.js";
 import {
@@ -28,13 +30,25 @@ export type TeardownBlobReader = (ref: string, path: ManagedPath) => Promise<Uin
 /** Build the Git-backed authorize/revalidate port consumed by directional teardown. */
 export function createTeardownRetirementAuthority(
   exec: GitExec,
-  baseRef: string,
+  baseTarget: string | ParkProofTarget,
   readBlob: TeardownBlobReader,
 ): Pick<RetirementAuthorityPort, "authorize" | "revalidate"> {
-  const context = createGitRetirementAuthorizationContext(exec, baseRef, readBlob);
+  const context = createGitRetirementAuthorizationContext(exec, baseTarget, readBlob);
   return {
     authorize: async (request) => await authorizeRetirement(context, request),
     revalidate: async (request, proof) => await revalidateRetirementAuthorization(context, request, proof),
+  };
+}
+
+/** Build an exact-base authority port that preserves unexpected local evidence failures. */
+export function createTeardownRetirementAuthorityStrict(
+  exec: GitExec,
+  baseTarget: string | ParkProofTarget,
+  readBlob: TeardownBlobReader,
+): Pick<RetirementAuthorityPort, "authorize"> {
+  const context = createGitRetirementAuthorizationContext(exec, baseTarget, readBlob, { strict: true });
+  return {
+    authorize: async (request) => await authorizeRetirementStrict(context, request),
   };
 }
 
@@ -78,7 +92,7 @@ export async function revalidateHuskRetirementEvidence(
       return false;
     }
   }
-  return await validateGitRetirementReceiptEvidence(exec, baseRef, {
+  return await validateGitTransitionRetirementEvidence(exec, baseRef, {
     subject: stamp.subject,
     branch: stamp.branch,
     retiringHead: stamp.sha,
@@ -126,7 +140,7 @@ export async function revalidateHuskRetirementEvidenceStrict(
     const currentDigest = await readCompletedProjectionDigest(localOnlyExec, pinnedBase, stamp.subject, readBlob);
     return currentDigest !== null && currentDigest === evidence.resultDigest;
   }
-  return validateGitRetirementReceiptEvidenceStrict(localOnlyExec, baseOid, {
+  return validateGitTransitionRetirementEvidenceStrict(localOnlyExec, baseOid, {
     subject: stamp.subject,
     branch: stamp.branch,
     retiringHead: stamp.sha,

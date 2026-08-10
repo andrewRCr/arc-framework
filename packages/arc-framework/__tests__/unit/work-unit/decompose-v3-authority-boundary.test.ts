@@ -32,54 +32,20 @@ function identifierViolations(forbidden: ReadonlySet<string>): { file: string; i
   return violations;
 }
 
-type ExportedBoundaryQuery =
-  | { kind: "function"; name: string }
-  | { kind: "interface-member"; interfaceName: string; memberName: string }
-  | { kind: "union-arm"; typeName: string; discriminant: string; value: string };
-
-function hasExportedBoundary(path: string, query: ExportedBoundaryQuery): boolean {
-  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
-  const exported = (statement: ts.Statement): boolean =>
-    ts.canHaveModifiers(statement)
-    && ts.getModifiers(statement)?.some(({ kind }) => kind === ts.SyntaxKind.ExportKeyword) === true;
-  const propertyName = (name: ts.PropertyName | undefined): string | undefined =>
-    name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name)) ? name.text : undefined;
-  if (query.kind === "function") {
-    return source.statements.some((statement) =>
-      exported(statement)
-      && ts.isFunctionDeclaration(statement)
-      && statement.name?.text === query.name);
-  }
-  if (query.kind === "interface-member") {
-    return source.statements.some((statement) =>
-      exported(statement)
-      && ts.isInterfaceDeclaration(statement)
-      && statement.name.text === query.interfaceName
-      && statement.members.some((member) =>
-        ts.isPropertySignature(member) && propertyName(member.name) === query.memberName));
-  }
-  return source.statements.some((statement) =>
-    exported(statement)
-    && ts.isTypeAliasDeclaration(statement)
-    && statement.name.text === query.typeName
-    && ts.isUnionTypeNode(statement.type)
-    && statement.type.types.some((arm) =>
-      ts.isTypeLiteralNode(arm)
-      && arm.members.some((member) =>
-        ts.isPropertySignature(member)
-        && propertyName(member.name) === query.discriminant
-        && member.type !== undefined
-        && ts.isLiteralTypeNode(member.type)
-        && ts.isStringLiteral(member.type.literal)
-        && member.type.literal.text === query.value)));
-}
-
 describe("decomposition v3 authority boundary", () => {
   it("ships no legacy authoring or executor modules", () => {
     const removedModules = [
       "lib/work-unit/decompose-cut-map-schema.ts",
       "lib/work-unit/decompose-cut-map.ts",
       "lib/work-unit/verbs/decompose.ts",
+      "lib/work-unit/decompose-preparation.ts",
+      "lib/work-unit/decompose-finalization.ts",
+      "lib/work-unit/decompose-finalization-recovery.ts",
+      "lib/work-unit/decompose-v3-preparation.ts",
+      "lib/work-unit/decompose-v3-receipt.ts",
+      "lib/work-unit/retirement-receipt-codec.ts",
+      "lib/work-unit/retirement-record-store.ts",
+      "scripts/validate-decompose-record.ts",
     ];
 
     expect(removedModules.filter((path) => existsSync(join(SOURCE_ROOT, path)))).toEqual([]);
@@ -108,62 +74,31 @@ describe("decomposition v3 authority boundary", () => {
     expect(identifierViolations(forbidden)).toEqual([]);
   });
 
-  it("retains the positive v3 preparation and finalization boundary", () => {
-    const preparation = join(SOURCE_ROOT, "lib/work-unit/decompose-preparation.ts");
-    const finalization = join(SOURCE_ROOT, "lib/work-unit/decompose-finalization.ts");
+  it("carries no receipt-era transaction vocabulary in production", () => {
+    const forbidden = new Set([
+      "V3CandidatePublication",
+      "V3CandidatePublicationSchema",
+      "V3DecomposeReceipt",
+      "V3DecomposeReceiptSchema",
+      "candidatePublication",
+      "candidateAuthority",
+      "projectV3CandidateAuthority",
+      "receiptId",
+      "preparationId",
+      "initialContinuation",
+      "validateReceiptMatrix",
+    ]);
 
-    expect(hasExportedBoundary(preparation, {
-      kind: "function",
-      name: "prepareV3DecomposeRetirement",
-    })).toBe(true);
-    expect(hasExportedBoundary(finalization, {
-      kind: "function",
-      name: "finalizeV3DecomposeRetirement",
-    })).toBe(true);
+    expect(identifierViolations(forbidden)).toEqual([]);
   });
 
-  it("resolves exported interface members and type-alias union arms", () => {
-    expect(hasExportedBoundary(
-      join(SOURCE_ROOT, "lib/work-unit/decomposition-integration-anchor.ts"),
-      {
-        kind: "interface-member",
-        interfaceName: "DecompositionIntegrationFacts",
-        memberName: "baseDescent",
-      },
-    )).toBe(true);
-    expect(hasExportedBoundary(
-      join(SOURCE_ROOT, "lib/work-unit/decompose-finalization-recovery.ts"),
-      {
-        kind: "union-arm",
-        typeName: "V3DecomposeFinalizationRecovery",
-        discriminant: "action",
-        value: "advance-base",
-      },
-    )).toBe(true);
-  });
+  it("keeps receipt-free base advancement independent of retired codecs and authorities", () => {
+    const advancement = join(SOURCE_ROOT, "lib/work-unit/git-decompose-transition-base-advancement.ts");
+    const content = readFileSync(advancement, "utf8");
 
-  it("retains the descendant-mobility authority boundary", () => {
-    expect(hasExportedBoundary(
-      join(SOURCE_ROOT, "lib/work-unit/validate-descendant-base-landing.ts"),
-      { kind: "function", name: "validateBoundDescendantBaseLanding" },
-    )).toBe(true);
-    expect(hasExportedBoundary(
-      join(SOURCE_ROOT, "lib/work-unit/decomposition-integration-anchor.ts"),
-      {
-        kind: "interface-member",
-        interfaceName: "DecompositionIntegrationFacts",
-        memberName: "baseDescent",
-      },
-    )).toBe(true);
-    expect(hasExportedBoundary(
-      join(SOURCE_ROOT, "lib/work-unit/decompose-finalization-recovery.ts"),
-      {
-        kind: "union-arm",
-        typeName: "V3DecomposeFinalizationRecovery",
-        discriminant: "action",
-        value: "advance-base",
-      },
-    )).toBe(true);
+    expect(content).not.toMatch(
+      /retirement-receipt|retirement-authority|decompose-v3-receipt|decompose[^\n]*preparation|decompose[^\n]*finalization/iu,
+    );
   });
 
   it("keeps shipped methodology v3-only and its project projection synchronized", () => {

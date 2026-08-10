@@ -12,12 +12,11 @@
  *
  * - `provisional` / `planned` — a branchless backlog stub: just remove the
  *   artifact set.
- * - `planning` / `active` — remove the artifact set in-verb, record the receipt,
- *   and defer branch, worktree, and per-WU workspace cleanup until that evidence
+ * - `planning` / `active` — remove the artifact set in-verb, record its lean terminal transition,
+ *   and defer branch, worktree, and per-WU workspace cleanup until Git evidence
  *   is authoritative on the protection-aware base.
- * - `parked` — remove the base-branch pointer, record the preserved branch as
- *   the unchanged retiring projection, and defer branch + workspace cleanup
- *   until that evidence is authoritative.
+ * - `parked` — remove the base-branch pointer and defer branch + workspace cleanup
+ *   until Git evidence is authoritative.
  *
  * `integrating` and merged / `shipped` are illegal (the table's marked cells):
  * post-merge backout is a new origin-linked WU (ADR-026 amendment), never a
@@ -35,9 +34,8 @@ import { basename, join, posix } from "node:path";
 
 import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
 import { canonicalDigest } from "../../canonical/canonical-json.js";
-import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
-import type { ManagedPath } from "../../canonical/managed-path.js";
-import { DISCARD_RESULT, receiptId } from "../../canonical/receipt-id.js";
+import type { PatchOperation } from "../../canonical/content-digest.js";
+import { validateManagedPath, type ManagedPath } from "../../canonical/managed-path.js";
 import { resolveArcPath } from "../../layout/index.js";
 import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
@@ -54,13 +52,15 @@ import {
   describeTeardownAuthorizationRefusal,
   type RetirementAuthorityPort,
   type RetirementAuthorityScope,
-  type RetirementReceipt,
 } from "../retirement-authority.js";
 import {
-  projectPendingRetirementLifecycle,
+  projectPendingAbandonLifecycle,
   type RetirementLifecycleResult,
 } from "../retirement-lifecycle-result.js";
 import { createProspectiveTransitionOverlay } from "../transition-overlay.js";
+import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
+import type { TransitionRecord } from "../transition-record.js";
+import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";
 import { validFromStates } from "./dispatch.js";
 
 /** Filesystem seam for the `remove` artifact disposition — list, delete files, drop the emptied subdir. */
@@ -81,6 +81,7 @@ export interface AbandonContext {
   executor: Omit<ExecuteTransitionContext, "scaffoldOrRemove">;
   fs: AbandonFs;
   retirement: AbandonRetirementContext;
+  transitionWriter: TerminalTransitionRecordWriter;
   /** Remote-aware lifecycle truth; omitted only by tree-compatible library callers. */
   composed?: ComposedLifecycleIndexResult;
 }
@@ -88,14 +89,13 @@ export interface AbandonContext {
 /** Source evidence captured before an abandon removes its artifact group. */
 export interface AbandonSourceEvidence {
   scope: RetirementAuthorityScope;
-  artifactDigest: RetirementReceipt["source"]["artifactDigest"];
   sourceArtifactPaths: readonly ManagedPath[];
   resultArtifactPaths: readonly ManagedPath[];
 }
 
 /** Retirement seams used to bind an abandon to one exact direct transition. */
 export interface AbandonRetirementContext {
-  authority: Pick<RetirementAuthorityPort, "readSnapshot" | "record">;
+  authority: Pick<RetirementAuthorityPort, "readSnapshot">;
   captureSource(params: {
     name: string;
     sourceDir: string;
@@ -107,8 +107,24 @@ export interface AbandonRetirementContext {
   }): Promise<AbandonSourceEvidence>;
   stageTransition(source: AbandonSourceEvidence): Promise<void>;
   rollbackTransition(source: AbandonSourceEvidence): Promise<void>;
+  rollbackRefusedCommit(
+    source: AbandonSourceEvidence,
+  ): Promise<AbandonRollbackResult>;
+  completeTransition(
+    source: AbandonSourceEvidence,
+    expectedAuthorityVersion: string,
+    additionalStagedPaths?: readonly ManagedPath[],
+  ): Promise<
+    | { status: "completed-no-record"; authorityVersion: string }
+    | { status: "refused"; reason: "authority-conflict" | "authority-unavailable"; diagnostic?: string }
+  >;
   readTransitionPatch(source: AbandonSourceEvidence): Promise<readonly PatchOperation[]>;
 }
+
+/** Outcome of restoring a refused abandon recording to its captured source. */
+export type AbandonRollbackResult =
+  | { status: "rolled-back" }
+  | { status: "refused"; reason: "authority-unavailable"; diagnostic: string };
 
 /** The judgment + operational inputs an `abandon` supplies. */
 export interface AbandonParams {
@@ -124,12 +140,10 @@ export type AbandonResult =
   | {
       status: "abandoned";
       outcome: TransitionOutcome;
-      receipt: RetirementReceipt;
-      authorityVersion: string;
       lifecycle: RetirementLifecycleResult;
     };
 
-/** Started states whose branch + worktree cleanup is deferred until receipt landing. */
+/** Started states whose branch + worktree cleanup is deferred until transition landing. */
 const STARTED: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
 
 /** Parked state retains a branch but has no registered worktree. */
@@ -162,7 +176,7 @@ export function planAbandon(state: LifecycleState, branch: string | null, name: 
   if (!validFromStates("abandon").includes(state)) return { legal: false, lines: [] };
   const lines = ["Artifacts: remove the work unit's artifact set"];
   if (STARTED.has(state)) {
-    lines.push(`Teardown:  after landing — \`arc teardown ${name}\` (receipt-backed cleanup)`);
+    lines.push(`Teardown:  after landing — \`arc teardown ${name}\` (Git-proven cleanup)`);
   } else if (PARKED.has(state)) {
     lines.push(`Teardown:  after landing — \`arc teardown ${name}\` (preserved branch \`${branch ?? "[none]"}\`)`);
   }
@@ -277,60 +291,56 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
-  let transitionPatch: readonly PatchOperation[];
   try {
     await retirement.stageTransition(source);
-    transitionPatch = await retirement.readTransitionPatch(source);
   } catch (err) {
     const rollbackFailure = await rollbackAbandon(executor, retirement, source, outcome, name);
     return {
       status: "rejected",
       reason:
-        "The abandon transition was rolled back because its retirement receipt could not be prepared: "
+        "The abandon transition was rolled back because its completion could not be prepared: "
         + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  const receipt: RetirementReceipt = {
-    schemaVersion: 2,
-    inventoryRead: ctx.composed?.readQuality ?? "tree-only",
-    receiptId: receiptId({
-      schemaVersion: 2,
-      subject: source.scope.subject,
-      transition: "abandon",
-      sourceBranch: source.scope.source.branch,
-      sourceHead: source.scope.source.head,
-    }),
-    subject: source.scope.subject,
-    transition: "abandon",
-    source: {
-      branch: source.scope.source.branch,
-      head: source.scope.source.head,
-      artifactDigest: source.artifactDigest,
-    },
-    transitionPatchDigest: patchDigest(transitionPatch),
-    retiringProjection: PARKED.has(state) ? { kind: "unchanged" } : { kind: "direct-transition" },
-    authorization: "discard-confirmed",
-    result: DISCARD_RESULT,
+  const transitionRecord: TransitionRecord = {
+    schemaVersion: 1,
+    origin: name,
+    kind: "abandon",
+    successors: [],
+    edges: [],
   };
-  const recorded = await retirement.authority.record(receipt, snapshot.snapshot.authorityVersion);
-  if (recorded.status === "refused") {
-    const rollbackFailure = await rollbackAbandon(executor, retirement, source, outcome, name);
+  const transitionRecorded = await ctx.transitionWriter.record(transitionRecord);
+  if (transitionRecorded.status !== "recorded") {
+    const rollback = await retirement.rollbackRefusedCommit(source);
     return {
       status: "rejected",
-      reason:
-        "The abandon transition was rolled back because its retirement receipt could not be recorded: "
-        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
-        + (recorded.diagnostic === undefined ? "" : ` ${recorded.diagnostic}`)
-        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
+      reason: "The abandon transition was rolled back because transition history could not be recorded: "
+        + `${transitionRecorded.status}.`
+        + (transitionRecorded.status === "unavailable" ? ` ${transitionRecorded.diagnostic}` : "")
+        + (rollback.status === "rolled-back" ? "" : ` Rollback was incomplete: ${rollback.diagnostic}`),
     };
   }
-  const pendingLifecycle = projectPendingRetirementLifecycle({
+  const completed = await retirement.completeTransition(
+    source,
+    snapshot.snapshot.authorityVersion,
+    [validateManagedPath(resolveTransitionRecordRelativePath(name))],
+  );
+  if (completed.status === "refused") {
+    const transitionRollback = await ctx.transitionWriter.rollback(transitionRecord);
+    const rollback = await retirement.rollbackRefusedCommit(source);
+    return {
+      status: "rejected",
+      reason: "The abandon transition was rolled back because its completion could not be recorded: "
+        + `${describeTeardownAuthorizationRefusal(completed.reason)}.`
+        + (completed.diagnostic === undefined ? "" : ` ${completed.diagnostic}`)
+        + (rollback.status === "rolled-back" ? "" : ` Rollback was incomplete: ${rollback.diagnostic}`)
+        + (transitionRollback.status === "rolled-back" ? "" : ` ${transitionRollback.diagnostic}`),
+    };
+  }
+  const pendingLifecycle = projectPendingAbandonLifecycle({
     slug: name,
     branch: sourceBranch ?? null,
-    transition: "abandon",
-    receiptId: receipt.receiptId,
-    authorityVersion: recorded.authorityVersion,
   });
   const lifecycle = !PARKED.has(state)
     ? pendingLifecycle
@@ -344,8 +354,6 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   return {
     status: "abandoned",
     outcome,
-    receipt,
-    authorityVersion: recorded.authorityVersion,
     lifecycle,
   };
 }
