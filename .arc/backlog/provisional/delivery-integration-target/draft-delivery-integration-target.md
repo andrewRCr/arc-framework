@@ -1,11 +1,11 @@
 # Draft: delivery-integration-target — guarded delivery through a private target
 
-- **Cohort:** `chunked-delivery` — `cohort-chunked-delivery.md` owns the shared v1 lifecycle, robustness floor,
-  non-goals, and hardening-admission boundary.
+- **Commitment:** Standalone and provisional. This work unit is not part of `chunked-delivery` and does not gate that
+  cohort's completion or closeout.
 - **Purpose:** Execute the work-unit integration-target projection by landing planned members sequentially on a
   private target, then hand the completed contribution to the existing work-unit integration lifecycle.
-- **Position:** Demand-held. Depends on `delivery-plan-record`; expected to reuse the projection-neutral landing core
-  built by `delivery-stack-topology`. Stack-specific behavior remains in `delivery-stack-topology`.
+- **Position:** Demand-held. Depends on `delivery-plan-record` and the projection-neutral landing core built by
+  `delivery-stack-topology`. Stack-specific behavior remains in `delivery-stack-topology`.
 
 ---
 
@@ -81,9 +81,9 @@ This member does not add:
 
 ## Hardening boundary
 
-The cohort's hardening-admission rule applies. In particular, a proposed store, identity, retry state, provider
-capability, or proof record must answer a demonstrated failure in this sequential lifecycle. Supporting a hypothetical
-future adapter or making the result more auditable is not sufficient by itself.
+A proposed store, identity, retry state, provider capability, or proof record must answer a demonstrated failure in
+this sequential lifecycle. Supporting a hypothetical future adapter or making the result more auditable is not
+sufficient by itself.
 
 ## Open implementation details
 

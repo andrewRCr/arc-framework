@@ -42,7 +42,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                | P2       | andrew | —          | agent-context-optimization    |
 | commit-increments                  | P2       | andrew | —          | approval-flow-refinement      |
 | check-id-stabilization             | P2       | andrew | —          | architecture-remediation      |
-| delivery-integration-target        | P2       | andrew | —          | chunked-delivery              |
 | cli-substrate-complete-migration   | P2       | andrew | —          | cli-substrate-adoption        |
 | decompose-candidate-abandon        | P2       | andrew | —          | decompose-transform-integrity |
 | decompose-durable-consumers        | P2       | andrew | —          | decompose-transform-integrity |
