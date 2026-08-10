@@ -13,6 +13,20 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Rename the review-gate module for the architecture that remains**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).
+- _Concern:_ `src/scripts/review-gate/` now contains review architecture after the required-status gate was retired;
+  its name collides with ARC's technical use of “gate” and deepens with every new module.
+- _Approach:_ settle directory-only versus vocabulary-wide rename scope, then sequence the mechanical move after
+  `review-protocol-alignment` so in-flight branches do not all conflict on imports and paths.
+
+---
+
 ## Problem / Motivation
 
 The review gate's machinery divides along a legible seam, and only one side earns its cost:

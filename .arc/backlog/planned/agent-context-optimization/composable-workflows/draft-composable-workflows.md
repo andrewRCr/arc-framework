@@ -19,6 +19,23 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Dispatch published remedy actions instead of reducing them to prompt text**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).
+- _Concern:_ session-init publishes structured remedies such as `argv: ["arc", "base", "sync", "--json"]`, but
+  `ChannelRecommendation` drops the executable half and workflow prose hardcodes a different command. Carry an
+  optional typed action through the recommendation/envelope contract and dispatch it as a compiled step instance.
+- _Boundary:_ the unsafe base-sync substitution was already removed; this entry owns the general typed-dispatch
+  precedent and should compose with the session-agenda design rather than mint a one-channel exception.
+
+### `[ ]` **Make focused start recon consume the concrete start preflight**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).
+- _Concern:_ `arc-session --start <slug>` can report ready while `arc start <slug>` refuses, because recon does not
+  consume the mutation path's source, artifact-tuple, destination, branch, and worktree preflight.
+- _Approach:_ compile `start=<slug>` from the same pinned, presentation-free preflight used by the concrete command;
+  consume `stub-mint-to-launch`'s shared start core if it lands first and keep judgmental capacity advice in prose.
+
 ### `[ ]` **Bound session-init read groups by aggregate tool-output budget**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain

@@ -12,6 +12,14 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Consider per-WU scope-boundary awareness for hosted reviewers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (resolved `WU_Target: review-activity-contracts`), housekeep drain
+  (2026-08-10).
+- _Concern:_ hosted reviewers cannot see a WU's Non-Goals through the current static guidance surface. During the
+  guidance redesign, evaluate supplying the governing spec's scope boundary and requiring scope-crossing findings
+  to ground why adequacy requires the crossing; primary triage remains the backstop.
+
 ### `[ ]` **Right-size review activity around disclosed agent judgment**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain

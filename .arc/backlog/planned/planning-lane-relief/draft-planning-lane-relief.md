@@ -16,6 +16,28 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Widen planning-artifact paths to the cohort nesting cap**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
+- _Concern:_ `isPlanningArtifactPath` accepts only one or two backlog directory segments, while legal subcohort
+  members use three. Pure planning changes therefore fall onto the reviewed lane; PR #465 reproduced the mismatch.
+- _Approach:_ align the path grammar with the recorded nesting cap and cover the local and server-side consumers.
+
+### `[ ]` **Detect CODEOWNERS drift from the planning-lane predicate**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (original cohort target `decompose-core-hardening`), housekeep drain
+  (2026-08-10). The target resolves to a cohort rather than a work unit; this classifier-focused WU is the concrete
+  authoritative home.
+- _Concern:_ the unowned CODEOWNERS block and shipped skeleton restate planning paths independently. Predicate drift
+  can classify a change as planning while host ownership still requires review, blocking a lane ARC meant to admit.
+- _Approach:_ define parity over representable directory/depth coverage and test the repository plus shipped skeleton.
+
+---
+
 ## Problem
 
 `classifyPlanningLane` (`change-facts.ts`) reads path-class only. The sole additional gate is

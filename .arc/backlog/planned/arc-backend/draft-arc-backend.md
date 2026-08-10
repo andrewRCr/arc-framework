@@ -26,6 +26,13 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Refresh the retired locus example**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-backend`), housekeep drain (2026-08-10).
+- _Concern:_ the machine-local-state example still treats locus records, leases, and process anchors as surviving
+  state. Re-ground it against registered checkout topology, ownership markers, tracked lifecycle, and transient
+  identity so the backend design does not preserve a retired storage problem.
+
 ### `[ ]` **Stop started or materialized WUs from leaving misleading backlog copies**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-23); observed during `review-chunking`

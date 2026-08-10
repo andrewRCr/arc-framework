@@ -5,6 +5,15 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Bind readiness attestation to the head it attests**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
+- _Concern:_ `arc merge lock release` verifies Completion Notes and Release Notes from the working tree while the
+  merge target is the pushed head. A readiness refusal naturally prompts an uncommitted correction and retry, so
+  the happy recovery path can attest different bytes from those that merge.
+- _Approach:_ bind readiness-relevant reads to the exact head, or refuse when HEAD/dirty relevant paths differ;
+  preserve the pre-open path where no head exists and state the commit/push/recheck sequence after artifact fixes.
+
 ### `[ ]` **Separate exact-target invalidation from review-applicability invalidation**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-durability-hardening`), housekeep drain

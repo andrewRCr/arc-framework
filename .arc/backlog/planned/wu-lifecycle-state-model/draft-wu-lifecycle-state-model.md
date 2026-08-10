@@ -16,6 +16,27 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Model draft-first review as a three-tier audience transition**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ the current propose/submit model assumes private versus public, but draft locking adds a visible,
+  review-suppressed middle state. Treat release rather than PR creation as the public transition when locked;
+  `merge.lock: none` collapses the two events naturally.
+
+### `[ ]` **Give parked work units a lifecycle contract consumed by integration gates**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ lane classification, merge-lock readiness, and teardown each mis-handle a parked WU because they infer
+  a shipped/abandoned binary despite a valid `park-planning` receipt. Define parked state on the model's axes and
+  make these gates consume it rather than infer from branch topology.
+
+### `[ ]` **Re-aim the retired locus-generation coordination pointer**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ the draft coordinates exact-generation mutation and locked cleanup with the killed
+  `locus-generation-binding` WU. Re-evaluate whether the surviving identity-ref CAS owns the concern; re-aim or
+  remove the pointer without weakening fail-closed missing/ambiguous-subject behavior.
+
 ### `[ ]` **Recognize the archived-but-not-torn-down work unit as a proved terminal frame**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
