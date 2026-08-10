@@ -379,7 +379,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },
       warnings: [],
     }),
-    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    inboxState: async () => ({ routableCount: 0, executeBoundCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
@@ -466,7 +466,7 @@ function makeResolvedReleaseModeSessionInitProbes(
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },
       warnings: [],
     }),
-    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    inboxState: async () => ({ routableCount: 0, executeBoundCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
@@ -523,7 +523,7 @@ function makeResolvedReleaseModeSessionHandoffProbes(
       noteFileChangesSinceHandoff: [],
     }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
-    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    inboxState: async () => ({ routableCount: 0, executeBoundCount: 0, housekeepNeeded: false }),
   };
 }
 
@@ -739,7 +739,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },
       warnings: [],
     }),
-      inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+      inboxState: async () => ({ routableCount: 0, executeBoundCount: 0, housekeepNeeded: false }),
       partialPushMarker: async () => ({ markers: [] }),
       releaseRouting: async () =>
         resolveReleaseRouting({
@@ -951,7 +951,7 @@ function makeRealWorktreeProbes(
       nudge: { shouldNudge: false, markerPath: null, today: "2026-01-01" },
       warnings: [],
     }),
-    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    inboxState: async () => ({ routableCount: 0, executeBoundCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
@@ -1451,7 +1451,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 0, housekeepNeeded: true });
     }
   });
 
@@ -1469,7 +1469,7 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+      expect(result.inboxState.value).toEqual({ routableCount: 0, executeBoundCount: 0, housekeepNeeded: false });
     }
   });
 
@@ -1532,6 +1532,11 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
         "",
         "- A routable backlog entry.",
         "",
+        "### `[ ]` **queued capture**",
+        "",
+        "- _Disposition:_ `execute-bound`",
+        "- Already routed for execution.",
+        "",
       ].join("\n"),
     );
 
@@ -1543,7 +1548,7 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 1, housekeepNeeded: true });
     }
   });
 
@@ -1556,7 +1561,7 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+      expect(result.inboxState.value).toEqual({ routableCount: 0, executeBoundCount: 0, housekeepNeeded: false });
     }
   });
 

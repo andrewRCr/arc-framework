@@ -6,7 +6,7 @@ import {
   TransientIdentityRecordV3Schema,
   groomClaimTransform,
   housekeepClaimTransform,
-  pinGroomOpenedBaseHead,
+  pinRemoteBaseHead,
   readTransientIdentitySnapshot,
   rollbackIdentityClaim,
   transactTransientIdentities,
@@ -96,14 +96,14 @@ describe("identity claim races", () => {
 
   it("pins the freshly fetched remote base rather than an unpushed local head", async () => {
     await makeCommit(dir, "local base drift");
-    await expect(pinGroomOpenedBaseHead(makeGitExec(dir), {
+    await expect(pinRemoteBaseHead(makeGitExec(dir), {
       remote: "origin",
       baseRef: "main",
     })).resolves.toMatchObject({ kind: "pinned", head: initialHead });
 
     const { stdout } = await execFileAsync(
       "git",
-      ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/groom-base"],
+      ["for-each-ref", "--format=%(refname)", "refs/arc/tmp/base-head"],
       { cwd: dir },
     );
     expect(stdout).toBe("");

@@ -88,29 +88,29 @@ export type IdentityClaimRollbackOutcome =
       cause: Extract<IdentityTransactionOutcome<null>, { kind: "refused" | "error" }>;
     };
 
-/** Remote base branch to fetch and pin before constructing a grooming claimant. */
-export interface PinGroomOpenedBaseHeadParams {
+/** Remote base branch to fetch and pin for an exact-generation proof. */
+export interface PinRemoteBaseHeadParams {
   readonly remote: string;
   readonly baseRef: string;
 }
 
 /** Outcome of freshly pinning the configured remote base branch. */
-export type PinGroomOpenedBaseHeadOutcome =
+export type PinRemoteBaseHeadOutcome =
   | { kind: "pinned"; head: string }
   | { kind: "refused"; reason: string }
   | { kind: "error"; stage: "base-ref" | "fetch" | "resolve" | "cleanup"; message: string };
 
 /**
- * Fetch and pin the configured remote base before a grooming claim transform runs.
+ * Fetch and pin the configured remote base for an exact-generation proof.
  *
  * @param exec - Argument-array Git execution boundary.
  * @param params - Configured remote and base branch.
  * @returns Fresh remote commit identity or an explicit refusal/error.
  */
-export async function pinGroomOpenedBaseHead(
+export async function pinRemoteBaseHead(
   exec: GitExec,
-  params: PinGroomOpenedBaseHeadParams,
-): Promise<PinGroomOpenedBaseHeadOutcome> {
+  params: PinRemoteBaseHeadParams,
+): Promise<PinRemoteBaseHeadOutcome> {
   const branchArgs = ["check-ref-format", "--branch", params.baseRef];
   try {
     await exec("git", branchArgs);
@@ -121,9 +121,9 @@ export async function pinGroomOpenedBaseHead(
       : { kind: "error", stage: "base-ref", message: normalized.message };
   }
 
-  const temporaryRef = `refs/arc/tmp/groom-base/${uniqueRefToken()}`;
+  const temporaryRef = `refs/arc/tmp/base-head/${uniqueRefToken()}`;
   const remoteRef = `refs/heads/${params.baseRef}`;
-  const outcome = await fetchGroomBase(exec, params.remote, remoteRef, temporaryRef);
+  const outcome = await fetchRemoteBase(exec, params.remote, remoteRef, temporaryRef);
   try {
     await exec("git", ["update-ref", "-d", temporaryRef]);
   } catch (error) {
@@ -132,12 +132,12 @@ export async function pinGroomOpenedBaseHead(
   return outcome;
 }
 
-async function fetchGroomBase(
+async function fetchRemoteBase(
   exec: GitExec,
   remote: string,
   remoteRef: string,
   temporaryRef: string,
-): Promise<PinGroomOpenedBaseHeadOutcome> {
+): Promise<PinRemoteBaseHeadOutcome> {
   const fetchArgs = ["fetch", "--", remote, `+${remoteRef}:${temporaryRef}`];
   try {
     await exec("git", fetchArgs);
@@ -156,10 +156,10 @@ async function fetchGroomBase(
 }
 
 function claimGitError(
-  stage: Extract<PinGroomOpenedBaseHeadOutcome, { kind: "error" }>["stage"],
+  stage: Extract<PinRemoteBaseHeadOutcome, { kind: "error" }>["stage"],
   error: unknown,
   args: string[],
-): Extract<PinGroomOpenedBaseHeadOutcome, { kind: "error" }> {
+): Extract<PinRemoteBaseHeadOutcome, { kind: "error" }> {
   return { kind: "error", stage, message: normalizeGitRejection(error, { command: "git", args }).message };
 }
 

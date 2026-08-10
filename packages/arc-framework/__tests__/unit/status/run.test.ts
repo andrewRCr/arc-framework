@@ -652,7 +652,11 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
       async (): Promise<MaterializableWorkUnitDiscoveryResult> => materializableResult([]),
     ),
     workUnitState: vi.fn(async (): Promise<WorkUnitStateResult> => workUnitStateResult()),
-    inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
+    inboxState: vi.fn(async (): Promise<InboxStateResult> => ({
+      routableCount: 0,
+      executeBoundCount: 0,
+      housekeepNeeded: false,
+    })),
     partialPushMarker: vi.fn(
       async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
     ),
@@ -749,7 +753,11 @@ function sessionHandoffProbes(
     pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
     restateCandidates: vi.fn(async () => restateCandidates()),
     releaseRouting: vi.fn(async () => releaseRouting()),
-    inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
+    inboxState: vi.fn(async (): Promise<InboxStateResult> => ({
+      routableCount: 0,
+      executeBoundCount: 0,
+      housekeepNeeded: false,
+    })),
     ...overrides,
   };
 }
@@ -3016,13 +3024,13 @@ describe("runSessionInitStatus — errand-staleness sweep slot", () => {
 describe("runSessionInitStatus — inbox-state slot", () => {
   it("fires the probe when identity resolved, passing the identity", async () => {
     const probes = sessionInitProbes({
-      inboxState: vi.fn(async () => ({ routableCount: 3, housekeepNeeded: true })),
+      inboxState: vi.fn(async () => ({ routableCount: 3, executeBoundCount: 1, housekeepNeeded: true })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.inboxState).toHaveBeenCalledWith("andrew");
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 3, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 3, executeBoundCount: 1, housekeepNeeded: true });
     }
   });
 
@@ -3395,7 +3403,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("exposes the inboxState slot with ok=true on success", async () => {
     const probes = sessionHandoffProbes({
-      inboxState: vi.fn(async () => ({ routableCount: 2, housekeepNeeded: true })),
+      inboxState: vi.fn(async () => ({ routableCount: 2, executeBoundCount: 1, housekeepNeeded: true })),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -3406,7 +3414,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.inboxState).toHaveBeenCalledWith("andrew");
     expect(result.inboxState?.ok).toBe(true);
     if (result.inboxState?.ok) {
-      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+      expect(result.inboxState.value).toEqual({ routableCount: 2, executeBoundCount: 1, housekeepNeeded: true });
     }
   });
 

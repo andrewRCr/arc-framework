@@ -30,6 +30,7 @@ export {
 
 export {
   InboxMutationConflictError,
+  hasExecuteBoundDisposition,
   inboxEntrySourceDigest,
   listExecuteBoundInboxEntries,
   inspectInboxEntry,

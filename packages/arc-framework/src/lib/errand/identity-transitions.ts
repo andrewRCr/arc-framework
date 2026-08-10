@@ -95,6 +95,12 @@ export type OrdinaryErrandTransition =
       changeRequest: LocusChangeRequestV1;
       lifecycle: ChangeRequestLifecycleEvidence;
     }
+  | {
+      kind: "retire";
+      previous: OrdinaryErrandRecord;
+      reason: "close";
+      authorization: "unchanged-base";
+    }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "abandon"; authorization: "local" }
   | { kind: "retire"; previous: OrdinaryErrandRecord; reason: "abandon"; lifecycle: ChangeRequestLifecycleEvidence };
 
@@ -376,11 +382,14 @@ function retirementDesired(
   // A recorded change request is the authority when the Errand has one; an open Errand that
   // merged in place has none, so the caller's observed coordinates stand in — proven merged by
   // the same host truth either way, never by the branch existing.
-  if (reason === "close"
+  if (reason === "close" && "changeRequest" in request
     && (previous.state === "awaiting-merge"
       ? changeRequestsEqual(previous.changeRequest, request.changeRequest)
       : previous.state === "open")
     && lifecycleAuthorizes(request.lifecycle, request.changeRequest, "merged")) {
+    return { kind: "desired", record: null };
+  }
+  if (reason === "close" && previous.state === "open" && hasUnchangedBaseAuthorization(request)) {
     return { kind: "desired", record: null };
   }
   if (reason === "abandon" && previous.state !== "awaiting-merge"
@@ -398,6 +407,11 @@ function retirementDesired(
 function hasLocalAuthorization(request: object): boolean {
   return "authorization" in request
     && (request as { authorization?: unknown }).authorization === "local";
+}
+
+function hasUnchangedBaseAuthorization(request: object): boolean {
+  return "authorization" in request
+    && (request as { authorization?: unknown }).authorization === "unchanged-base";
 }
 
 function lifecycleAuthorizes(

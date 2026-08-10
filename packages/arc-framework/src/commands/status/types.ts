@@ -375,9 +375,9 @@ export interface SessionInitProbeResult {
    */
   workUnitState?: Probe<WorkUnitStateResult>;
   /**
-   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
-   * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
-   * machine-resolved signal rather than an agent re-scan. Present whenever
+   * Pre-computed inbox-state probe — routable and execute-bound entry counts in
+   * `USER-INBOX`, plus a `housekeepNeeded` flag, so the Orient arm offers
+   * housekeep from a machine-resolved signal rather than an agent re-scan. Present whenever
    * identity resolved (the source is identity-scoped); omitted only when
    * identity is absent.
    */
@@ -577,9 +577,9 @@ export interface SessionHandoffResult {
   /** Resolved release-wrapper routing decisions for workflow fire-site classes. */
   releaseRouting: Probe<ReleaseRoutingValue>;
   /**
-   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
-   * and a `housekeepNeeded` flag, so the between-WUs handoff branch can offer
-   * housekeep from a machine-resolved signal rather than an agent re-scan.
+   * Pre-computed inbox-state probe — routable and execute-bound entry counts in
+   * `USER-INBOX`, plus a `housekeepNeeded` flag, so the between-WUs handoff
+   * branch can offer housekeep from a machine-resolved signal rather than an agent re-scan.
    * Present whenever identity resolved; omitted only when identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
@@ -770,7 +770,7 @@ export interface SessionInitProbes {
   }) => Promise<WorkUnitStateResult>;
   /**
    * Inbox-state resolver. Receives the resolved identity; the handler reads
-   * `user/{identity}/USER-INBOX.md` and counts its routable entries. Fired in
+   * `user/{identity}/USER-INBOX.md` and counts its routable and execute-bound entries. Fired in
    * the eager phase whenever identity resolved; advisory, read-only.
    */
   inboxState: (identity: string) => Promise<InboxStateResult>;

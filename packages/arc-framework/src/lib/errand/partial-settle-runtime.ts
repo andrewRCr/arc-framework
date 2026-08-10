@@ -1,7 +1,7 @@
 /** Marker-origin settlement for identity-free partial Errands. */
 
 import type { GitExec } from "../git/exec.js";
-import { pinGroomOpenedBaseHead } from "./identity-claims.js";
+import { pinRemoteBaseHead } from "./identity-claims.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import { errandErrorCode, type ErrandRefusalReason } from "./result-common.js";
 import {
@@ -79,7 +79,7 @@ export async function settlePartialErrandAtRuntime(
   if (authority.row === null || authority.checkoutPath === null || !authority.row.checkout.primary) {
     return refusal(operation, "authority-unresolved", "Partial Errand occupancy is incomplete or not primary-owned.");
   }
-  const pinned = await pinGroomOpenedBaseHead(options.exec, { remote: "origin", baseRef: options.base });
+  const pinned = await pinRemoteBaseHead(options.exec, { remote: "origin", baseRef: options.base });
   if (pinned.kind !== "pinned") {
     return refusal(
       operation,

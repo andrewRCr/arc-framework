@@ -155,7 +155,11 @@ Run each review increment (one for a typical errand; a few for an extended one):
 
 ## Integrate
 
-The errand's commits are made; now ship and clean up. Integrate branches on protection mode.
+The Errand's tracked changes, if any, are ready; now ship and clean up. Integrate branches on protection mode.
+
+For a full-protection Errand with no tracked change, skip Ship and invoke `arc errand close <slug> --json`
+directly. The verb completes only when the checkout is clean and the Errand branch, local base, and freshly fetched
+remote base all name the same exact head. Any tracked change continues through the ordinary PR path below.
 
 ### Ship — full protection
 
@@ -393,12 +397,15 @@ exact partial role and remove any originating capture before the session can lea
 
 ### Complete
 
-On merge (full) or final commit (partial), invoke `arc errand close <slug> --json` and consume the typed terminal
-result above. Its exact `subject` / `generation`, checkout paths, and `settlement` are the sole closure evidence.
+On merge or exact no-tracked-change proof (full), or final commit (partial), invoke
+`arc errand close <slug> --json` and consume the typed terminal result above. Its exact `subject` / `generation`,
+checkout paths, and `settlement` are the sole closure evidence.
 
-- **Full protection** — the verb proves merge/preservation, finalizes the exact v3 identity tail, reaps refs and
-  any retained checkout safely, and drops only its origin capture. A foreign checkout requires the exact generation
-  returned by the verb's confirmation result; no bypass overrides preservation or host evidence.
+- **Full protection** — the verb proves either merged-change-request preservation or an unchanged clean base
+  generation, finalizes the exact v3 identity tail, reaps refs and any retained checkout safely, and
+  drops only its origin capture. A foreign checkout requires the exact generation returned by the verb's
+  confirmation result; no
+  bypass overrides preservation or host/base evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 

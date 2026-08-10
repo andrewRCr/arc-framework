@@ -112,7 +112,7 @@ export {
   housekeepClaimTransform,
   identityClaimRollbackTransform,
   rollbackIdentityClaim,
-  pinGroomOpenedBaseHead,
+  pinRemoteBaseHead,
   type GroomIdentityRecord,
   type GroomClaimVerdict,
   type GroomAwaitMergeRequest,
@@ -124,8 +124,8 @@ export {
   type HousekeepClaimVerdict,
   type IdentityClaimRollbackParams,
   type IdentityClaimRollbackOutcome,
-  type PinGroomOpenedBaseHeadParams,
-  type PinGroomOpenedBaseHeadOutcome,
+  type PinRemoteBaseHeadParams,
+  type PinRemoteBaseHeadOutcome,
 } from "./identity-claims.js";
 
 export {
