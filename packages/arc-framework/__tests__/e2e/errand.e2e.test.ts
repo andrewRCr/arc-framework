@@ -447,6 +447,61 @@ describe("arc errand close", () => {
     await cleanupTempDir(tmpDir);
   });
 
+  it("completes a clean full-protection Errand that has no tracked change", async () => {
+    const slug = "operational-only";
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, slug);
+    try {
+      const result = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+        ["errand", "close", slug, "--json"],
+      ], tmpDir, { timeout: 60_000 });
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results).toHaveLength(2);
+      expect(result.results.at(-1)).toMatchObject({
+        outcome: "applied",
+        operation: "errand-close",
+        recommendedPromptText: expect.stringContaining("without a tracked change"),
+      });
+      expect((await git(tmpDir, ["symbolic-ref", "--quiet", "--short", "HEAD"])).trim()).toBe("main");
+      expect((await git(tmpDir, ["branch", "--list", `chore/${slug}`])).trim()).toBe("");
+      await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+        .rejects.toThrow();
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("retains the merged-change-request requirement when a full-protection Errand has a commit", async () => {
+    const slug = "tracked-change";
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, slug);
+    try {
+      const result = await runArcAnchoredSequence([
+        ["errand", "open", slug, "--json"],
+        { command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "tracked errand change"] },
+        ["errand", "close", slug, "--json"],
+      ], tmpDir, { timeout: 60_000 });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.results.at(-1)).toMatchObject({
+        outcome: "refused",
+        operation: "errand-close",
+        reason: "change-request-unverifiable",
+      });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toContain(`chore/${slug}`);
+      expect(await git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
+        .toContain('"state": "open"');
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
   it("closes a pushed partial Errand and releases its primary occupancy", async () => {
     const remoteDir = `${tmpDir}-remote.git`;
     await execFileAsync("git", ["init", "--bare", remoteDir]);

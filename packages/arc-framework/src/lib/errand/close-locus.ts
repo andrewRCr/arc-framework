@@ -16,20 +16,28 @@ type IdentityRead =
   | { kind: "error"; message: string };
 
 /**
- * The exact change request close finalizes against, paired with the record that owns it.
+ * The exact completion evidence close finalizes against, paired with the record that owns it.
  *
  * An Errand that left first carries its change request on the record; one that stayed in its
  * checkout through its own merge carries none, so the coordinates are observed at finalization
- * instead. Both arms reach every later step through this one target, so ref cleanup and
- * retirement authorization read the same coordinates host truth was proven against.
+ * instead. An unchanged Errand carries the exact head proven equal across its branch and base.
+ * Every arm reaches later cleanup and retirement through this target.
  */
-export interface CloseTarget {
-  readonly record: OrdinaryErrandRecord;
-  readonly changeRequest: LocusChangeRequestV1;
-}
+export type CloseTarget =
+  | {
+      readonly kind: "merged";
+      readonly record: OrdinaryErrandRecord;
+      readonly changeRequest: LocusChangeRequestV1;
+    }
+  | {
+      readonly kind: "unchanged-base";
+      readonly record: OrdinaryErrandRecord;
+      readonly headSha: string;
+    };
 
 export type CloseTargetResolution =
   | { kind: "resolved"; changeRequest: LocusChangeRequestV1 }
+  | { kind: "unchanged-base"; headSha: string }
   | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
@@ -96,7 +104,7 @@ export interface CloseOrdinaryErrandDependencies {
   readOccupancy(target: CloseTarget): Promise<CloseOccupancyResult>;
   cleanupRefs(target: CloseTarget, guard: CloseAuthorityGuard | null): Promise<CloseRefCleanupResult>;
   removeInbox(record: OrdinaryErrandRecord, parentCheckoutPath: string | null): Promise<CloseInboxResult>;
-  retire(target: CloseTarget, lifecycle: ChangeRequestLifecycleEvidence): Promise<RetirementResult>;
+  retire(target: CloseTarget, lifecycle: ChangeRequestLifecycleEvidence | null): Promise<RetirementResult>;
 }
 
 export interface CloseOrdinaryErrandOptions {
@@ -105,7 +113,7 @@ export interface CloseOrdinaryErrandOptions {
   dependencies: CloseOrdinaryErrandDependencies;
 }
 
-/** Finalize one identity-only merged tail without treating branch shape as merge proof. */
+/** Finalize one identity-only completion without treating branch shape as merge proof. */
 export async function closeOrdinaryErrand(
   options: CloseOrdinaryErrandOptions,
 ): Promise<TerminalOperationOutcome> {
@@ -137,21 +145,25 @@ export async function closeOrdinaryErrand(
   }
   if (resolution.kind === "refused") return refusal(resolution.reason, resolution.message);
   if (resolution.kind === "error") return failure("locus.errand-close.change-request", resolution.message);
-  const target: CloseTarget = { record, changeRequest: resolution.changeRequest };
+  const target: CloseTarget = resolution.kind === "unchanged-base"
+    ? { kind: "unchanged-base", record, headSha: resolution.headSha }
+    : { kind: "merged", record, changeRequest: resolution.changeRequest };
 
-  let lifecycle: ChangeRequestLifecycleEvidence;
-  try {
-    lifecycle = await options.dependencies.readLifecycle(target);
-  } catch (error) {
-    return failure("locus.errand-close.host", message(error));
-  }
-  if (lifecycle.kind !== "merged" || !sameChangeRequest(lifecycle, target.changeRequest)) {
-    return refusal(
-      lifecycle.kind === "open" || lifecycle.kind === "requested-work"
-        ? "change-request-open"
-        : "change-request-unverifiable",
-      `Exact host truth is '${lifecycle.kind}', not merged.`,
-    );
+  let lifecycle: ChangeRequestLifecycleEvidence | null = null;
+  if (target.kind === "merged") {
+    try {
+      lifecycle = await options.dependencies.readLifecycle(target);
+    } catch (error) {
+      return failure("locus.errand-close.host", message(error));
+    }
+    if (lifecycle.kind !== "merged" || !sameChangeRequest(lifecycle, target.changeRequest)) {
+      return refusal(
+        lifecycle.kind === "open" || lifecycle.kind === "requested-work"
+          ? "change-request-open"
+          : "change-request-unverifiable",
+        `Exact host truth is '${lifecycle.kind}', not merged.`,
+      );
+    }
   }
 
   // Read immediately before the first destructive step: ref deletion, capture removal, and
@@ -187,7 +199,7 @@ export async function closeOrdinaryErrand(
 async function finalizeAuthorizedClose(input: {
   options: CloseOrdinaryErrandOptions;
   target: CloseTarget;
-  lifecycle: ChangeRequestLifecycleEvidence;
+  lifecycle: ChangeRequestLifecycleEvidence | null;
   record: OrdinaryErrandRecord;
   settlement: Extract<CloseLocusSettlementResult, { kind: "applied" | "idempotent" }>;
   slug: string;
@@ -251,7 +263,9 @@ async function finalizeAuthorizedClose(input: {
     operation: "errand-close",
     identity: projectLocusIdentity(record),
     nextOffer: inbox.nextOffer,
-    recommendedPromptText: `Finalized merged Errand '${slug}' and retired its identity.`,
+    recommendedPromptText: target.kind === "unchanged-base"
+      ? `Completed Errand '${slug}' without a tracked change and retired its identity.`
+      : `Finalized merged Errand '${slug}' and retired its identity.`,
   });
 }
 

@@ -1,4 +1,4 @@
-/** Production ports for exact ordinary-v3 Errand merge finalization. */
+/** Production ports for exact ordinary-v3 Errand completion. */
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
@@ -13,6 +13,7 @@ import {
   tearDownExactBranchGeneration,
   type ExactBranchTeardownLockResult,
 } from "./exact-branch-generation.js";
+import { pinRemoteBaseHead } from "./identity-claims.js";
 import {
   acquireErrandCloseBranchDeletionHeadLocks,
   recoverFinalizedErrandCloseHeadLock,
@@ -53,7 +54,7 @@ type CloseIdentityRuntimeRead =
   | { kind: "refused"; reason: string }
   | { kind: "error"; message: string };
 
-/** Finalize an ordinary Errand from identity, lifecycle, and derived checkout authority. */
+/** Finalize an ordinary Errand from identity, completion evidence, and derived checkout authority. */
 export async function closeOrdinaryErrandAtRuntime(
   options: CloseOrdinaryErrandRuntimeOptions,
 ): ReturnType<typeof closeOrdinaryErrand> {
@@ -73,7 +74,9 @@ export async function closeOrdinaryErrandAtRuntime(
   const dependencies: CloseOrdinaryErrandDependencies = {
     readIdentity: () => readReconciledCloseIdentity(identityIO, options.slug, remote),
     resolveTarget: (record) => resolveCloseChangeRequest(runtimeOptions, record),
-    readLifecycle: (target) => lifecyclePort.read(target.changeRequest, target.changeRequest),
+    readLifecycle: (target) => target.kind === "merged"
+      ? lifecyclePort.read(target.changeRequest, target.changeRequest)
+      : Promise.reject(new Error("An unchanged-base close has no change request lifecycle.")),
     readOccupancy: (target) => readCloseOccupancy(runtimeOptions, target, (path) => { fallbackCwd = path; }),
     cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(
       exec,
@@ -86,16 +89,30 @@ export async function closeOrdinaryErrandAtRuntime(
     ),
     removeInbox: options.removeInbox,
     retire: async (target, lifecycle) => {
-      const result = await transactTransientIdentities(identityIO, {
-        remote,
-        message: `arc: finalize errand ${options.slug}`,
-        transform: ordinaryErrandTransform({
+      let transform: ReturnType<typeof ordinaryErrandTransform>;
+      if (target.kind === "unchanged-base") {
+        transform = ordinaryErrandTransform({
+          kind: "retire",
+          previous: target.record,
+          reason: "close",
+          authorization: "unchanged-base",
+        });
+      } else {
+        if (lifecycle === null) {
+          return { kind: "error", message: "Merged Errand close is missing lifecycle evidence." };
+        }
+        transform = ordinaryErrandTransform({
           kind: "retire",
           previous: target.record,
           reason: "close",
           changeRequest: target.changeRequest,
           lifecycle,
-        }),
+        });
+      }
+      const result = await transactTransientIdentities(identityIO, {
+        remote,
+        message: `arc: finalize errand ${options.slug}`,
+        transform,
       });
       if (result.kind === "applied" || result.kind === "idempotent") return { kind: result.kind };
       return result.kind === "refused"
@@ -157,7 +174,7 @@ async function readCloseOccupancy(
   }
   if (authority.row !== null
     && (authority.row.checkout.branch !== target.record.branch
-      || authority.row.checkout.head !== target.changeRequest.headSha)) {
+      || authority.row.checkout.head !== closeTargetHead(target))) {
     return { kind: "refused", reason: "preservation-unproven", message: "Errand branch or HEAD generation changed." };
   }
   const primaryCheckoutPath = primaryPath(frame);
@@ -186,7 +203,7 @@ async function readCloseOccupancy(
   };
 }
 
-/** Resolve the exact change request close finalizes against. */
+/** Resolve exact merged-change-request or unchanged-base completion evidence. */
 async function resolveCloseChangeRequest(
   options: CloseOrdinaryErrandRuntimeOptions,
   record: OrdinaryErrandRecord,
@@ -215,6 +232,13 @@ async function resolveCloseChangeRequest(
       reason: "preservation-unproven",
       message: "The Errand branch is absent locally, so its merged head cannot be proven.",
     };
+  }
+  const localBase = await resolveOptionalCommit(options.exec, `refs/heads/${options.base}`);
+  if (localBase.kind === "present" && localBase.oid === head.oid) {
+    const remoteBase = await pinRemoteBaseHead(options.exec, { remote: "origin", baseRef: options.base });
+    if (remoteBase.kind === "pinned" && remoteBase.head === head.oid) {
+      return { kind: "unchanged-base", headSha: head.oid };
+    }
   }
   const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, head.oid, "merged");
   return observed.kind === "observed"
@@ -245,7 +269,7 @@ export async function cleanupOrdinaryErrandRefs(
 ): Promise<CloseRefCleanupResult> {
   const result = await tearDownExactBranchGeneration(exec, {
     branch: target.record.branch,
-    expectedHead: target.changeRequest.headSha,
+    expectedHead: closeTargetHead(target),
     subject: "Errand",
     temporaryRefNamespace: "refs/arc/tmp/errand-close",
     authorizeLocalDelete: async () => {
@@ -275,6 +299,10 @@ export async function cleanupOrdinaryErrandRefs(
   return result.kind === "refused"
     ? { kind: "refused", reason: "preservation-unproven", message: result.message }
     : result;
+}
+
+function closeTargetHead(target: CloseTarget): string {
+  return target.kind === "merged" ? target.changeRequest.headSha : target.headSha;
 }
 
 function primaryPath(frame: DerivedLocusFrame): string | null {

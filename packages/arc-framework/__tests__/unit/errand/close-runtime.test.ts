@@ -53,7 +53,7 @@ function awaiting(): OrdinaryErrandRecord {
 function target(): CloseTarget {
   const record = awaiting();
   if (record.state !== "awaiting-merge") throw new Error("expected awaiting tail");
-  return { record, changeRequest: record.changeRequest };
+  return { kind: "merged", record, changeRequest: record.changeRequest };
 }
 
 function fakeGit(options: {
