@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "execute-bound-lifecycle-gaps",
+  "claimId": "750eb57c38ba416b9fa8cf2385b9f122",
+  "createdAt": "2026-08-10T16:16:20.669Z",
+  "updatedAt": "2026-08-10T16:16:20.669Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Complete clean full-protection errands without a PR and exclude execute-bound captures from housekeeping",
+  "branch": "chore/execute-bound-lifecycle-gaps",
+  "origin": "inbox",
+  "originEntry": "Allow full-protection errands to complete without a tracked change",
+  "originEntrySourceDigest": "sha256:32736ccd181f8d4b6e6b2e0237d483e95bd24aaa37559e1857da0105d071fb00",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
