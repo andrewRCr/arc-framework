@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-project-routes-20260810",
+  "claimId": "e1574270ef848c9eb3557dd97550de50",
+  "createdAt": "2026-08-10T12:16:21.707Z",
+  "updatedAt": "2026-08-10T12:16:21.707Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route remaining project and delivery inbox captures to planning homes",
+  "branch": "chore/housekeep-project-routes-20260810",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
