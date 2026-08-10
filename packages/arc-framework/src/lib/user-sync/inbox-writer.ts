@@ -138,6 +138,18 @@ function executeBoundMark(
   return { insertedLineCount: 2 };
 }
 
+/** Whether one parsed inbox entry carries the canonical execute-bound disposition. */
+export function hasExecuteBoundDisposition(raw: string): boolean {
+  const lines = raw.split("\n");
+  const title = matchInboxEntryTitle(lines[0] ?? "");
+  if (title === null) return false;
+  try {
+    return executeBoundMark(lines, { start: 0, end: lines.length, title }) !== null;
+  } catch {
+    return false;
+  }
+}
+
 function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): string[] {
   const mark = executeBoundMark(lines, entry);
   if (mark === null) return [...lines.slice(entry.start, entry.end)];
