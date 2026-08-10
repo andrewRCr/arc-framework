@@ -5,6 +5,17 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Close the two-copy sync blind spot in gate selection**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-08-10);
+  captured during `proportionality-floor` task generation.
+- _Concern:_ Framework byte identity between package source and `.arc/` is checked at commit time, but the
+  relevance table can classify a one-sided Markdown edit as documentation-only and skip code-side validation even
+  though the shipped counterpart is part of a hybrid contract.
+- _Fold-in:_ decide whether relevance classification expands when either side of a mirrored Framework pair changes,
+  or whether the sync check must emit the affected gate set explicitly. Include the warn-versus-block posture for
+  wrong-direction edits and prove both one-sided cases.
+
 ### `[ ]` **Lock a completed task's identifier against removal or rename**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during

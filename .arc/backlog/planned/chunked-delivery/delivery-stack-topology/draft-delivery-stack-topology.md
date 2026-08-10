@@ -10,6 +10,58 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Open the terminal member from the retained control branch**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); captured during
+  `delivery-slice-review-vehicle` finalization.
+- _Concern:_ the terminal member is not a `delivery-member` review vehicle, so its lifecycle/archive tail and PR
+  must originate from the retained work-unit control branch rather than a delivery ref. Record that named exception
+  in the projection topology.
+
+### `[ ]` **Drop the superseded exact-base review binding**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); captured during
+  `delivery-slice-review-vehicle` finalization.
+- _Concern:_ Projection lifecycle still binds exact base at review admission even though the settled vehicle binds
+  plan, member, owning work unit, and exact head. Reword the topology to consume that contract without retaining a
+  second authority.
+
+### `[ ]` **Keep delivery-ref naming independent of review**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); captured during
+  `delivery-slice-review-vehicle` drafting.
+- _Concern:_ review consumes plan/member identity and exact target data, not the member ref name. Preserve that as
+  a constraint-removal when settling ref presentation so no phantom review dependency shapes the naming scheme.
+
+### `[ ]` **Attach delivery to the routine work-unit lifecycle**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-10); captured during
+  `delivery-slice-review-vehicle` task generation.
+- _Concern:_ no routine lifecycle surface tells an operator when or how to enter delivery, and no current member
+  owns those attachment points. Settle entry, resume, verification, and closeout hooks while remaining compatible
+  with `draft-composable-workflows.md`.
+
+### `[ ]` **Retire landed member refs and worktrees from delivery state**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); observed after the first two
+  `remote-access-contract` members merged.
+- _Concern:_ proven-landed member refs and worktrees remain until manually cleaned. Add presence-guarded cleanup
+  authorized by versioned delivery state, without inferring settlement from branch absence or host presentation.
+
+### `[ ]` **Admit multiple finalized retirement receipts in a merge commit**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); observed while merging base during
+  `delivery-slice-review-vehicle`.
+- _Concern:_ the staged retirement overlay accepts only one finalized receipt, but an ordinary base merge can carry
+  several already-settled retirements and then fails where it has no pending transition to protect. Reuse the
+  merge-aware overlay selection so all finalized receipts represented by the merge are admitted atomically.
+
+---
+
 ## Goals
 
 - Validate that every planned member can leave the protected base green and semantically coherent before external

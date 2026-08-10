@@ -7,6 +7,30 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Place the rebuild-before-commit sequence in session-loaded guidance**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); captured during
+  `delivery-slice-review-vehicle` execution.
+- _Concern:_ the self-hosting staleness guard can correctly refuse a commit after source edits, but the recovery
+  sequence is not stated where an agent preparing that commit already reads. Integrate the minimal
+  build-before-commit instruction into the coordination contract and keep the behavior unchanged.
+
+### `[ ]` **Define freshness inputs beyond first-party source files**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10); captured during
+  `staleness-guard-policy` draft review.
+- _Concern:_ the stamp hashes `src/**/*.ts`, while bundle output can also change through build configuration,
+  dependency resolution, and other selected inputs. Hashing all of `node_modules` is not viable, and package-lock
+  identity may be too coarse.
+- _Fold-in:_ define what “fresh for this bundle” means, then align the stamp and E2E freshness proof with the
+  minimal stable input set. Keep this separate from message wording and rebuild-publication mechanics.
+
+---
+
 ## Problem / Motivation
 
 The focused-test loop currently pays two separate coordination costs:
