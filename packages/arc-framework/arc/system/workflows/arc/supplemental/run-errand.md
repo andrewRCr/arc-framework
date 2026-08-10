@@ -402,8 +402,9 @@ On merge or exact no-tracked-change proof (full), or final commit (partial), inv
 checkout paths, and `settlement` are the sole closure evidence.
 
 - **Full protection** — the verb proves either merged-change-request preservation or an unchanged clean base
-  generation, finalizes the exact v3 identity tail, reaps refs and any retained checkout safely, and drops only its
-  origin capture. A foreign checkout requires the exact generation returned by the verb's confirmation result; no
+  generation, finalizes the exact v3 identity tail, reaps refs and any retained checkout safely, and
+  drops only its origin capture. A foreign checkout requires the exact generation returned by the verb's
+  confirmation result; no
   bypass overrides preservation or host/base evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
