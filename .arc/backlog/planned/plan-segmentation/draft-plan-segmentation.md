@@ -9,6 +9,21 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Make batching the fail-first-preserving form for coupled test-first behaviors**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).
+- _Concern:_ one minimal implementation often satisfies several coupled behavior tests, making later RED steps
+  unreachable. Connect the existing batching judgment to fail-first integrity: when behaviors share one indivisible
+  implementation, batching can be the sequence in which every test genuinely fails first.
+- _Approach:_ widen the manufactured-RED rule to incidentally satisfied behaviors, record reconstruct/revert
+  evidence at completion, and weigh declaring the cycle boundary during task generation when coupling is visible.
+
+---
+
 ## Grooming status (continuity)
 
 > _Updated each `--plan plan-segmentation` pass — see `draft-design` § Re-synthesize. This is the resume anchor._

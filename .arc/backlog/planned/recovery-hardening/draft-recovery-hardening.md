@@ -14,6 +14,13 @@
 > _Routed-in concern pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`)._
 
+### `[ ]` **Reframe recovery hardening after durable locus retirement**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-08-10).
+- _Concern:_ the draft assumes a durable live locus can arbitrate seed/marker disagreement. That substrate is gone;
+  narrow recovery to safely clearing markers and seeds when their checkout moved or was torn down, grounded in the
+  freshly derived checkout frame with no replacement record, lease, liveness gate, or trust bypass.
+
 ### `[ ]` **Harden the seed-to-recovery-marker handoff against silent loss**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured after automatic Codex

@@ -11,6 +11,14 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Retire deleted locus verbs from the migration tail**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-complete-migration`), housekeep drain
+  (2026-08-10).
+- _Concern:_ remove `locus attach`, `locus release`, and `locus resolve` from the command-input migration inventory;
+  operability hardening deleted them and left bare `arc locus` read-only. Preserve the housekeep and plan migrations
+  without recreating compatibility mutations.
+
 ### `[ ]` **Migrate residual raw-Git bindings to the execa executor**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-20); captured during `cli-git-executor` planning.
