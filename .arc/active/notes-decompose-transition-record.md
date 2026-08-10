@@ -1,5 +1,10 @@
 # Notes: decompose-transition-record
 
+## Contents
+
+- [Consumer-trace map — verified loci per cluster](#consumer-trace-map--verified-loci-per-cluster)
+- [Refusal-code posture](#refusal-code-posture)
+
 ## Consumer-trace map — verified loci per cluster
 
 Source-verified starting points for the per-cluster consumer traces (readers of receipt / retirement state as of
