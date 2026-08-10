@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-methodology-routes-20260810",
+  "claimId": "1c71387bda6e165c0a499118dcfb971b",
+  "createdAt": "2026-08-10T11:58:35.805Z",
+  "updatedAt": "2026-08-10T11:58:35.805Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "housekeep-methodology-routes-20260810",
+  "branch": "chore/housekeep-methodology-routes-20260810",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
