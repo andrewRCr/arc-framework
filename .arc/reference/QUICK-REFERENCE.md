@@ -156,25 +156,6 @@ gate enforces; the tier model itself is the [Quality Gates Strategy][quality-gat
 `lint:arc:*` contract checks are required there and are easy to omit locally — doing so produces a false green
 that CI then rejects. When CI gains or renames a required gate, update this section in the same change.
 
-**Measured cost** (2026-07-25, warm cache). Targeting is what makes Tier 1 a per-task gate rather than a second
-full suite — the expensive checks narrow by an order of magnitude, and the ARC contract checks are already cheap:
-
-| Check                   | Full project | Targeted                                    |
-| ----------------------- | ------------ | ------------------------------------------- |
-| `lint:md`               | 6.9s         | 0.25s — `lint:md:file`, per file            |
-| `lint:ts`               | 21.4s        | 2.1s one file · 9.1s one directory          |
-| `lint:sh`               | 1.0s         | not narrowable (fixed hook/script set)      |
-| `lint:arc:triggers`     | 0.27s        | corpus-wide by design; already cheap        |
-| `lint:arc:domain-rules` | 0.23s        | corpus-wide by design; already cheap        |
-| `lint:arc:section-refs` | 0.22s        | corpus-wide by design; already cheap        |
-| `typecheck`             | 4.2s         | not narrowable (whole-program)              |
-| `typecheck:test`        | 7.3s         | not narrowable (whole-program)              |
-| `test:unit`             | 24.2s        | 1.1s — filename filter                      |
-| `test:arc-contracts`    | 0.9s         | subset of `test`; a Tier 1 targeting handle |
-| `test` (7,524)          | 67.0s        | narrow via `test:unit` or a per-tier script |
-| `build`                 | 5.7s         | not narrowable                              |
-| `build:fast`            | 1.1s         | not narrowable; not a gate (2026-08-04)     |
-
 ### The gates
 
 Zero violations or errors on each. Commands, config, and tooling:
@@ -246,9 +227,8 @@ npm test
 ### Full Suite — Tier 3 (per-phase / pre-PR)
 
 Tier 2 plus build verification and a change review. Run it whole — the strategy's no-partial-Tier-3 rule holds.
-Worth recording that in this repo Tier 3 exceeds Tier 2 by `build` alone (~5.7s, about 5%): the two tiers have
-nearly converged here, which is an input to the eventual tier-model rework rather than a license to substitute
-one for the other.
+In this repo Tier 3 exceeds Tier 2 by `build` alone, so the two tiers have nearly converged. That convergence is an
+input to the eventual tier-model rework rather than a license to substitute one for the other.
 
 ```bash
 # 1-9: the Tier 2 block above (which carries the full CI-required set), then:
