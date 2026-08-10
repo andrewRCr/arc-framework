@@ -64,6 +64,8 @@ export type DevCheckResult =
   | { kind: "fresh" }
   | {
       kind: "stale";
+      /** Evidence that established staleness. */
+      basis: "content-hash" | "missing-dist" | "mtime";
       /** Seconds since the newest src change. */
       srcAge: number;
       /** Seconds since dist/cli.js was built. `null` when dist is missing. */
@@ -116,7 +118,7 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
   const srcAge = Math.max(0, Math.floor((now - newest.mtimeMs) / 1000));
 
   if (distMtimeMs === null) {
-    return { kind: "stale", srcAge, distAge: null, newestSrc: newest.path };
+    return { kind: "stale", basis: "missing-dist", srcAge, distAge: null, newestSrc: newest.path };
   }
 
   const distAge = Math.max(0, Math.floor((now - distMtimeMs) / 1000));
@@ -128,12 +130,12 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
   const stampedHash = deps.stampedInputsHash?.() ?? null;
   if (currentHash !== null && stampedHash !== null) {
     if (currentHash === stampedHash) return { kind: "fresh" };
-    return { kind: "stale", srcAge, distAge, newestSrc: newest.path };
+    return { kind: "stale", basis: "content-hash", srcAge, distAge, newestSrc: newest.path };
   }
 
   // Legacy / stamp-less fallback: mtime comparison.
   if (newest.mtimeMs > distMtimeMs) {
-    return { kind: "stale", srcAge, distAge, newestSrc: newest.path };
+    return { kind: "stale", basis: "mtime", srcAge, distAge, newestSrc: newest.path };
   }
 
   return { kind: "fresh" };

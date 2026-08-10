@@ -57,6 +57,21 @@ function staleBundle(): string {
   return join(dist, "cli.js");
 }
 
+/** Build a throwaway package layout whose content stamp reports stale. */
+function contentStaleBundle(): string {
+  const fixture = join(packageRoot, `.stale-guard-fixture-${String(process.pid)}-${String(fixtures.length)}`);
+  fixtures.push(fixture);
+  rmSync(fixture, { recursive: true, force: true });
+
+  const dist = join(fixture, "dist");
+  cpSync(join(packageRoot, "dist"), dist, { recursive: true });
+
+  mkdirSync(join(fixture, "src"), { recursive: true });
+  writeFileSync(join(fixture, "src", "cli.ts"), "export const changed = true;\n");
+
+  return join(dist, "cli.js");
+}
+
 async function runStale(bundlePath: string, args: string[], cwd: string) {
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, [bundlePath, ...args], {
@@ -102,6 +117,16 @@ afterEach(async () => {
 });
 
 describe("stale-build guard", () => {
+  it("does not attribute content-hash staleness to the newest source mtime", async () => {
+    const bundle = contentStaleBundle();
+    const cwd = await ownProjectRoot();
+
+    const result = await runStale(bundle, ["status"], cwd);
+
+    expect(result.stderr).toContain("source content differs from the build stamp");
+    expect(result.stderr).not.toContain("src/cli.ts changed");
+  });
+
   it("refuses an ordinary command against a stale bundle", async () => {
     const bundle = staleBundle();
     const cwd = await ownProjectRoot();
