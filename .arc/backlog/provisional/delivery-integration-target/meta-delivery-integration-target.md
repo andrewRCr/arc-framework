@@ -4,8 +4,8 @@
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
-- **Cohort:** `chunked-delivery`
-- **Depends On:** `delivery-plan-record`
+- **Cohort:** [none]
+- **Depends On:** `delivery-plan-record`, `delivery-stack-topology`
 
 - **Origin:** [internal]
 - **Design:** `draft-delivery-integration-target.md`

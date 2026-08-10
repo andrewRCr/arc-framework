@@ -3,9 +3,9 @@
 > _Identity and coordination record for this cohort. Membership is **derived** from each member's `Cohort`
 > field — recorded here only as shared coordination, never as a roster or status table._
 
-**Purpose:** Let one work unit plan several reviewable delivery members and land them through either a private
-integration target or an ordered stack to the protected base. V1 provides guarded execution around ordinary Git,
-change-request, review, and ARC lifecycle operations. It does not create a second proof or review system.
+**Purpose:** Let one work unit plan several reviewable delivery members and land them as an ordered stack to the
+protected base. The cohort provides guarded execution around ordinary Git, change-request, review, and ARC lifecycle
+operations. It does not create a second proof or review system.
 
 ---
 
@@ -16,8 +16,6 @@ delivery-plan-record                          shipped
 └── delivery-stack-topology                   v1 spine
     └── delivery-review-cardinality           optional follow-up; not a v1 delivery prerequisite
 
-delivery-integration-target                   demand-held; not a v1 delivery prerequisite
-
 delivery-stack-topology also waits on delivery-slice-review-vehicle (external, review seam)
 delivery-review-cardinality also waits on review-request-contracts
 ```
@@ -27,8 +25,8 @@ Current readiness derives from member metas and their `Depends On`, not from thi
 The v1 delivery path is `delivery-plan-record` plus `delivery-stack-topology`, with member review admission supplied
 by the external `delivery-slice-review-vehicle`. Both recorded field deliveries were stack-shaped landings to the
 protected base, and the stack projection is the one that removes the oversized terminal pull request, so it carries
-the cohort's spine. `delivery-integration-target` and `delivery-review-cardinality` remain nearby as demand-held
-follow-ups: each activates on observed field evidence, and neither gates cohort v1 closeout.
+the cohort's spine. `delivery-review-cardinality` remains a demand-held follow-up that activates on observed field
+evidence and does not gate v1 readiness.
 
 ## Shared contracts
 
@@ -36,11 +34,8 @@ follow-ups: each activates on observed field evidence, and neither gates cohort 
   projection, and one version-checked mutable `DeliveryState`. State binds exact refs and change requests, supports
   reverse lookup from a member ref to its owning plan and work unit, and records at most one active operation.
 - `delivery-stack-topology` owns stack eligibility, guarded sequential landing to the protected base, suffix
-  reconciliation, and lifecycle-artifact exclusion. Its landing core is built projection-neutral so a later activated
-  projection reuses it. Member review admission is owned by the external `delivery-slice-review-vehicle`.
-- `delivery-integration-target` is demand-held. If activated, it owns guarded sequential landing on a private
-  work-unit target and the handoff to the existing work-unit integration lifecycle, reusing the stack projection's
-  landing core.
+  reconciliation, and lifecycle-artifact exclusion. Its landing core is built projection-neutral so downstream
+  projections can reuse it. Member review admission is owned by the external `delivery-slice-review-vehicle`.
 - `delivery-review-cardinality` owns no v1 contract. If field evidence activates it, it may improve review-request
   cardinality without weakening any member's existing obligation or creating delivery-authored review authority.
 
@@ -117,15 +112,9 @@ The model keeps four boundaries distinct:
 - **Delivery member:** a chunk or group of chunks with an independent pull-request or merge boundary.
 - **Phase:** task-plan organization, not a delivery identity.
 
-One plan revision selects one topology:
-
-- **WU integration target:** members land sequentially on a private target; the completed work unit reaches the
-  protected base once.
-- **Stack to base:** members form an ordered chain and land to the protected base one at a time. Every member must leave
-  the protected base green and semantically coherent.
-
-The plan schema retains both projection discriminants. V1 executes the stack projection; the integration-target
-executor is demand-held until a concern that cannot leave the protected base coherent in increments actually arrives.
+The cohort executes one topology: members form an ordered stack and land to the protected base one at a time. Every
+member must leave the protected base green and semantically coherent. The plan schema remains projection-neutral so a
+downstream delivery projection can consume it without expanding this cohort's closeout boundary.
 
 The lifecycle is deliberately direct:
 
@@ -165,23 +154,16 @@ landing and suffix reconciliation, and lifecycle-artifact exclusion, with the la
 Member review admission comes from the external `delivery-slice-review-vehicle`; no host-native stack API is required
 for v1.
 
-### `delivery-integration-target`
-
-Demand-held projection for a concern that cannot leave the protected base coherent in increments: sequential member
-pull requests into a private target, exact pre/post observation, unexpected-movement refusal, and transfer to existing
-work-unit integration. Its terminal merge still carries the whole contribution, so it relieves member review attention
-without shrinking the final pull request; activation requires such a concern actually arriving. No review aggregation
-or terminal proof ledger.
-
 ### `delivery-review-cardinality`
 
 An optional, evidence-triggered follow-up. It asks whether several delivery members need fewer provider requests or a
 stronger aggregate review surface than the v1 baseline supplies. It starts from observed delivery cost and existing
 review contracts; it does not begin with an assurance-group schema.
 
-## Closeout criteria
+## V1 readiness
 
-Cohort v1 closes when `delivery-plan-record` and `delivery-stack-topology` ship and a work unit can:
+The cohort's v1 delivery path is ready when `delivery-plan-record` and `delivery-stack-topology` ship and a work unit
+can:
 
 - author and amend one delivery plan;
 - execute the stack projection through guarded, resumable operations;
@@ -189,8 +171,8 @@ Cohort v1 closes when `delivery-plan-record` and `delivery-stack-topology` ship 
 - preserve ordinary work-unit verification and exact-head integration authorization; and
 - run a partial stack without exposing active lifecycle artifacts or perturbing unrelated sessions.
 
-`delivery-integration-target` and `delivery-review-cardinality` may remain planned after that closeout. Their
-activation and completion are not evidence requirements for v1 delivery.
+`delivery-review-cardinality` may follow this milestone, but as a cohort member it must ship or leave the cohort before
+the cohort itself closes and archives.
 
 ## Coordination
 
@@ -204,6 +186,12 @@ activation and completion are not evidence requirements for v1 delivery.
   work-unit identity.
 - Deterministic comparison, dispatch, and remedy selection belong in typed CLI verbs. Workflow prose invokes those
   verbs and preserves human interlocks.
+
+### Cross-cohort
+
+`delivery-integration-target` is a standalone provisional downstream projection. If activated, it consumes the shipped
+plan/state contracts and projection-neutral landing core, but it is not a cohort member and does not gate this cohort's
+readiness, completion, or archival closeout.
 
 ## Scope estimate
 
