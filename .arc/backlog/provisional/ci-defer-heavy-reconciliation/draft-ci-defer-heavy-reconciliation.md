@@ -7,6 +7,22 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Reduce hosted CI consumption without weakening the aggregate gate**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).
+- _Concern:_ hosted Actions consumption is dominated by repeated pull-request activity and review-driven label
+  churn. Content-aware job depth already skips heavy legs for planning changes, while `ci-defer-heavy` can be lost
+  or replayed across review bursts and draft-lock transitions.
+- _Fold-in:_ separate the already-settled “what runs” lane classification from the “when heavy CI starts” policy.
+  Reconcile deferral from effective state and exact head, assess draft state versus review state as the trigger, and
+  keep `ci-ok` red whenever required heavy work is deferred or uncertain.
+
+---
+
 ## Problem / Motivation
 
 A delivery PR retained `ci-defer-heavy` after the hosted provider submitted an approving review at the exact head.

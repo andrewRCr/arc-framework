@@ -26,6 +26,17 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Diagnose degraded transient-identity reads without destructive cleanup**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); observed repeatedly during
+  `merge-readiness-control`.
+- _Concern:_ session status and commit advisories report that transient identity records cannot be read completely,
+  weakening downstream classification while also listing branches that may be the known false-positive class whose
+  lifecycle authority exists only on their own checkout.
+- _Fold-in:_ establish whether the live defect is record access, cross-checkout authority projection, or both before
+  cleaning any branch. Preserve the fail-closed diagnostic while the backend design settles where transient identity
+  is stored and materialized.
+
 ### `[ ]` **Refresh the retired locus example**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-backend`), housekeep drain (2026-08-10).

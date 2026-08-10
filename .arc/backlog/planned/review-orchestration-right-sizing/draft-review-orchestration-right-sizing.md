@@ -17,6 +17,17 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Drive heavy-CI deferral from effective lane state**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-08-10); captured during `remote-access-contract` delivery review closeout.
+- _Concern:_ `ci-defer-review.yml` can lose an approving review's toggle because it trusts the triggering event,
+  while a first changes-requested review can start expensive heavy CI even when the final routed lane would not
+  require it.
+- _Approach:_ first fix reconciliation against current review state and exact head. Then decide whether the durable
+  trigger is the lane verdict, draft state, or effective review state, preserving `ci-ok` as the fail-safe aggregate
+  gate and avoiding label thrash across review bursts.
+
 ### `[ ]` **Rename the review-gate module for the architecture that remains**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).
