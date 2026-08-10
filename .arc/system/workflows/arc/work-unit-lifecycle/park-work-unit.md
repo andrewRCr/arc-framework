@@ -113,6 +113,9 @@ Under full protection, push the grooming branch and open the PR:
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin chore/park-{name}`.
 
+The park PR intentionally opens plain even when `merge.lock: draft`: it lands the lifecycle transition and is not
+the work-unit integration PR the lock governs.
+
 ```bash
 gh pr create --base {base-branch} --head chore/park-{name}
 ```
