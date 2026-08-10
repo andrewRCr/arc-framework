@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "reject-review-repository-dot-segments",
+  "claimId": "198c7d9c1f77dc55d1fc5e3b8e405c7b",
+  "createdAt": "2026-08-10T13:04:35.415Z",
+  "updatedAt": "2026-08-10T13:04:35.415Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "reject-review-repository-dot-segments",
+  "branch": "chore/reject-review-repository-dot-segments",
+  "origin": "inbox",
+  "originEntry": "Reject dot segments in the review-gate repository schema",
+  "originEntrySourceDigest": "sha256:4f8b880591479ea1ecaaa1e2ed7b7ffd4036327e50e6bd4cbd4b2b13a17fb81d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
