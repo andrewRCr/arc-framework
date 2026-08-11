@@ -42,7 +42,7 @@ import { resolveProjectErrandOracleContext } from "./project-oracle-context.js";
 export const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 /** Command users can run to recreate the tracked readiness view. */
-export const ROADMAP_RERENDER_COMMAND = `arc status --project --staged > ${ROADMAP_PATH}`;
+export const ROADMAP_RERENDER_COMMAND = "arc status --project --staged --write";
 
 /** Shared remediation instruction for hook diagnostics. */
 export const ROADMAP_RERENDER_INSTRUCTION =

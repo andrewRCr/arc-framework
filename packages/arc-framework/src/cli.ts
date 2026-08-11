@@ -970,6 +970,7 @@ program
   .option("--local", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--no-fetch", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
+  .option("--write", "With --project --staged: write the rendered view to the tracked ROADMAP atomically")
   .addOption(
     new Option(
       "--write-compaction-seed",
