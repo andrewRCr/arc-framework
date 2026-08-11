@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** create-spec — spec finalized (detailed RFC; adversarial ×2 converged)
+- **Last Completed:** generate-tasks — Phase 1–5 grounding revisions approved and folded
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Phase 6 native-stack trust model pending fresh evaluation
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Re-evaluate `notes-delivery-stack-topology.md` § Native-stack execution trust decision
 
 - **PR URL:** [none]
 - **Completed:** [none]
