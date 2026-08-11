@@ -338,7 +338,7 @@ export function buildExecutorContext(
                 ...(inputs.transitionOverlay === undefined
                   ? {}
                   : {
-                      transitionOverlay: transitionOverlayCompositionInput(inputs.transitionOverlay),
+                      transitionOverlays: [transitionOverlayCompositionInput(inputs.transitionOverlay)],
                     }),
               });
               return {

@@ -281,7 +281,7 @@ export async function composeGitV3RepositoryPlan(
             acquisitionPolicy: "local",
             baseBranch,
           },
-          transitionOverlay: transitionOverlayCompositionInput(overlay),
+          transitionOverlays: [transitionOverlayCompositionInput(overlay)],
         });
         const markdown = composeProjectReadinessViewResult({
           ...readiness,

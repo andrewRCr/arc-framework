@@ -52,8 +52,8 @@ export interface ResolveComposedLifecycleIndexOptions {
   oracle?: ProjectReadinessOracleOptions & { baseBranch: string };
   /** Optional staged-tree precedence for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
-  /** Optional receipt-blind transition suppression. */
-  transitionOverlay?: TransitionOverlayCompositionInput;
+  /** Optional receipt-blind transition suppressions. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** Tree + oracle lifecycle truth and the quality/enrichment channels consumers need beside it. */
@@ -167,7 +167,7 @@ export async function resolveComposedLifecycleIndex(
     ...(options.fs !== undefined ? { fs: options.fs } : {}),
     ...(options.oracle !== undefined ? { oracle: options.oracle } : {}),
     ...(options.prospective !== undefined ? { prospective: options.prospective } : {}),
-    ...(options.transitionOverlay !== undefined ? { transitionOverlay: options.transitionOverlay } : {}),
+    ...(options.transitionOverlays !== undefined ? { transitionOverlays: options.transitionOverlays } : {}),
   });
   const oracleResult = composition.oracleResult;
   const treeBySlug = new Map(composition.treeRecords.map((record) => [record.slug, record] as const));

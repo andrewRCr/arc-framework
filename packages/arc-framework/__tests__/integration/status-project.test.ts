@@ -12,7 +12,10 @@ import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   ROADMAP_PATH,
   renderRoadmapFromIndexResult,
+  resolveStagedTransitionOverlays,
 } from "../../src/lib/status/roadmap-regeneration-assert.js";
+import { transitionOverlayCompositionInput } from "../../src/lib/work-unit/transition-overlay.js";
+import { resolveTransitionRecordRelativePath } from "../../src/lib/work-unit/transition-record-store.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import {
   cleanupTempDir,
@@ -462,6 +465,79 @@ describe("arc status --project", () => {
 
     expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
     expect(cli).toBe(rendered.content);
+  });
+
+  it("admits multiple finalized transitions carried by one staged base merge", async () => {
+    repo = await createTempRepo("arc-status-multi-transition-merge-");
+    remote = `${repo}-origin.git`;
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
+    await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system"), { recursive: true });
+    await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nbranch.protection: partial\npm.mode: arc-in-git\n",
+    );
+    await commitAll(repo, "scaffold merge fixture");
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: repo });
+    const sharedBase = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+
+    for (const slug of ["retired-a", "retired-b"]) {
+      const branch = `plan/${slug}`;
+      await execFileAsync("git", ["switch", "-c", branch, sharedBase], { cwd: repo });
+      await mkdir(join(repo, ".arc", "active"), { recursive: true });
+      await writeFile(join(repo, ".arc", "active", `meta-${slug}.md`), meta(slug, "Planning", branch));
+      await commitAll(repo, `plan ${slug}`);
+      await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: repo });
+    }
+
+    const receivingBranch = "feat/merge-receiver";
+    await execFileAsync("git", ["switch", "-c", receivingBranch, sharedBase], { cwd: repo });
+    await writeFile(join(repo, "receiver.txt"), "receiver\n");
+    await commitAll(repo, "advance merge receiver");
+
+    await execFileAsync("git", ["switch", "main"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system", ".internal", "transitions"), { recursive: true });
+    for (const slug of ["retired-a", "retired-b"]) {
+      await writeFile(
+        join(repo, resolveTransitionRecordRelativePath(slug)),
+        `${JSON.stringify({
+          schemaVersion: 1,
+          origin: slug,
+          kind: "decompose",
+          successors: [`${slug}-successor`],
+          edges: [],
+        })}\n`,
+      );
+    }
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+    const exec = makeRawGitExec(repo);
+    const transitionOverlays = await resolveStagedTransitionOverlays({ cwd: repo, exec });
+    const rendered = await renderRoadmapFromIndexResult({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      transitionOverlays: transitionOverlays.map(transitionOverlayCompositionInput),
+    });
+    await writeFile(join(repo, ROADMAP_PATH), rendered.content);
+    await commitAll(repo, "finalize retirements");
+
+    await execFileAsync("git", ["switch", receivingBranch], { cwd: repo });
+    await execFileAsync("git", ["merge", "--no-commit", "--no-ff", "main"], { cwd: repo });
+    const hook = await runRoadmapRegenerationAssert({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      stagedPaths: [ROADMAP_PATH],
+    });
+    const cli = await runProject(repo, { project: true, staged: true });
+
+    expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    expect(cli).toBe(rendered.content);
+    expect(cli).not.toContain("retired-a");
+    expect(cli).not.toContain("retired-b");
   });
 });
 
