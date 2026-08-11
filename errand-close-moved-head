@@ -3,7 +3,7 @@
   "slug": "errand-close-moved-head",
   "claimId": "5f002570028f8dcdef72de8f68d58427",
   "createdAt": "2026-08-11T14:37:11.684Z",
-  "updatedAt": "2026-08-11T14:37:11.684Z",
+  "updatedAt": "2026-08-11T14:43:32.353Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "errand-close-moved-head",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let errand close verify a merged change request whose head moved after leave",
   "originEntrySourceDigest": "sha256:4e318b934fd6a094bc5c53c272f827fe9701bab8ca82e81931d0aa525223a538",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/errand-close-moved-head",
+    "headSha": "d4acde427ccbbac4b3966ae2d0b816370fa8bd6a"
+  }
 }
