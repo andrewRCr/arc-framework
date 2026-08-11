@@ -6,9 +6,10 @@
 **Parent:** `decompose-transform-integrity`
 
 **Purpose:** Close the post-ship safety, operability, performance, and authoring gaps exposed when the v3
-decomposition transform met real work-unit cuts. These members all harden the shipped core contract; they remain
-separate because conservation, finalization diagnostics, execution cost, preflight cost, and authored cut-map
-expressiveness can each land and be verified independently.
+decomposition transform met real work-unit cuts. Two members harden the shipped core contract: the
+conservation/authoring spine (safety, expressiveness, and refusal quality as one deliverable with separable arms)
+and a measure-first cost stub. They remain separate because content-safety work and cost work land and verify
+independently.
 
 ---
 
@@ -22,29 +23,15 @@ convenient path.
 
 ```text
 decompose-transform-integrity (shipped core)
-├── decompose-conservation-coverage
-├── decompose-finalization-diagnostics
-├── decompose-finalization-scaling
-├── decompose-preflight-scaling
-└── decompose-authoring-expressiveness
+├── decompose-conservation-coverage ──── conservation boundary + cut-map expressiveness + refusal remedies
+└── decompose-scaling ────────────────── measure first; bound or retire each half on the numbers
 ```
 
-The members are independently deliverable, with one ordering constraint recorded in member metas: finalization
-diagnostics and finalization scaling both measure themselves against the finalization pipeline that
-`decompose-transition-record` reshapes, so they hold on that work unit. Optimizing or diagnosing a surface whose
-shape is unsettled prices the wrong thing. At that closeout each held member is re-scoped, and retirement without
-implementation is an ordinary disposition: scaling re-measures first, since much of its recorded cost sits in the
-projection work being retired, while the refusal-remedy scope of diagnostics survives any reshape and should be
-revisited first.
-
-Conservation coverage and preflight scaling carry no such edge. Authoring expressiveness carries no recorded edge
-either, but half its drafted scope — post-cut meta edits refused because the sealed projection and receipt do not
-include them — is defined by machinery the transition record retires; re-scope its draft against the surviving
-finalization surfaces before starting it. The locator gap survives regardless.
-
-Beyond that, safety and operability findings should land before performance or authoring work when they touch the
-same core surface; further dependency edges belong in member metas if implementation grounding reveals a hard
-order.
+Both members are independently deliverable and carry no dependency edges. The set was consolidated at the
+2026-08-11 residuals consolidation, after `decompose-transition-record` shipped and settled the finalization
+pipeline the former hold was waiting on (see § Retired and merged members). Safety and operability arms land
+before performance work when they touch the same core surface; further dependency edges belong in member metas if
+implementation grounding reveals a hard order.
 
 ### Shared contracts
 
@@ -85,39 +72,42 @@ rather than demonstrated.
 
 ### `decompose-conservation-coverage`
 
-_Exposes:_ a retirement-aligned conservation boundary for every origin artifact whose content would be removed.
+_Exposes:_ a retirement-aligned conservation boundary for every origin artifact whose content would be removed,
+prospective destination placement and validated external dependency edges in the authored cut map, and actionable
+refusals — differing evidence, precomposed remedies, and scoped repository gating.
 
-_Consumes:_ core inventory, allocation, retirement-delta, and receipt evidence.
+_Consumes:_ core inventory, allocation, retirement-delta, topology, scaffold, and prospective-projection
+contracts, plus projection decisions owned by `roadmap-tooling`.
 
-Conservation proof carries more weight than its current draft assumes: once transaction verification is no longer
-duplicating git's own record, this boundary is the only remaining net under a content-preserving split. Size the
-member against that role rather than against the drafted scope. The refusal-baseline alternative proceeds
-independently; the explicit-disposal-record alternative would carry an authored disposition in transition
-evidence, so coordinate that arm with `decompose-transition-record`'s record schema before adopting it — the lean
-record is the surface such a disposition would live on, and it is unsealed, so declining now costs nothing later.
+Conservation proof is the only remaining net under a content-preserving split now that transaction verification no
+longer duplicates git's own record; size the member against that role rather than the drafted scope. The
+refusal-baseline arm proceeds independently; the explicit-disposal-record alternative would carry an authored
+disposition in the transition record, which is unsealed, so coordinate with that landed schema before adopting it.
 
-### `decompose-finalization-diagnostics`
+### `decompose-scaling`
 
-_Exposes:_ locus-aware refusals, actionable remedies, evidence differences, and scoped repository gating.
+_Exposes:_ measured and bounded subprocess, concurrency, and hydration cost across the command's read-only
+preflight and terminal execute halves.
 
-_Consumes:_ core finalization verdicts plus projection decisions owned by `roadmap-tooling`.
+_Consumes:_ core preflight integrity, pinned-ref reread, canonical ordering, Git pathspec semantics, and
+fail-closed finalization behavior.
 
-### `decompose-finalization-scaling`
+Measurement precedes design: the execute-half numbers predate the transition record's projection retirement, and
+that half may retire on fresh evidence. Bounding lands only behind byte-identical, order-identical outcomes.
 
-_Exposes:_ bounded subprocess and concurrency behavior for managed-path projection and staged-path discovery.
+## Retired and merged members
 
-_Consumes:_ core canonical ordering, Git pathspec semantics, and fail-closed finalization behavior.
+Recorded dispositions per the closeout criteria, applied at the 2026-08-11 residuals consolidation:
 
-### `decompose-preflight-scaling`
-
-_Exposes:_ measured and bounded branch, locator, content-scan, and repository-hydration cost.
-
-_Consumes:_ core preflight integrity and pinned-ref reread contracts.
-
-### `decompose-authoring-expressiveness`
-
-_Exposes:_ prospective destination placement and validated external dependency edges in the authored cut map.
-
-_Consumes:_ core allocation, topology, scaffold, prospective-projection, and receipt contracts.
+- **`decompose-finalization-diagnostics`** — absorbed into `decompose-conservation-coverage`. Its hidden-locus
+  gap retired with `--finalize` (the surviving modes leave no second locus to mis-name); the surviving
+  mismatch-evidence, refusal-remedy (92 typed codes), and scoped-gating scope moved to the spine, resolving the
+  refusal-text duplication with the former authoring member.
+- **`decompose-authoring-expressiveness`** — absorbed into `decompose-conservation-coverage`. The locator and
+  external-edge gaps survive and moved to the spine; the meta-edit half retired with the sealed projection that
+  defined it.
+- **`decompose-finalization-scaling`** and **`decompose-preflight-scaling`** — merged into `decompose-scaling`.
+  One measurement harness and one Git-subprocess-fan-out concern across two halves of the same command; the
+  execute half's recorded numbers are stale against the lean record and re-measure before any design.
 
 ---
