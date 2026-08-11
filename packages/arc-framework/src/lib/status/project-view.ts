@@ -211,8 +211,8 @@ export interface ResolveProjectReadinessViewInputOptions {
   oracle?: ProjectReadinessOracleOptions;
   /** Treat this staged tree as authoritative for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
-  /** Optional exact transition suppression, orthogonal to staged-tree precedence. */
-  transitionOverlay?: TransitionOverlayCompositionInput;
+  /** Optional exact transition suppressions, orthogonal to staged-tree precedence. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** Structured freshness stamp rendered in the view header. */
@@ -580,7 +580,7 @@ function appendIndeterminateOracleWarning(
 async function resolveOracleCandidates(
   options: ProjectReadinessOracleOptions | undefined,
   prospective?: ProjectReadinessProspectiveInput & { stagedSlugs: ReadonlySet<string> },
-  transitionOverlay?: TransitionOverlayCompositionInput,
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[],
 ): Promise<{
   candidates: ProjectReadinessRecordCandidate[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
@@ -613,7 +613,8 @@ async function resolveOracleCandidates(
       errandRecordsComplete: options.errandRecordsComplete,
       parkedSlugs: options.parkedSlugs,
     });
-  const entries = prospective === undefined && transitionOverlay === undefined
+  const hasTransitionOverlays = transitionOverlays !== undefined && transitionOverlays.length > 0;
+  const entries = prospective === undefined && !hasTransitionOverlays
     ? result.entries
     : result.entries.filter((entry) =>
         entry.kind !== "work-unit"
@@ -623,12 +624,11 @@ async function resolveOracleCandidates(
             && entry.branch === prospective.currentBranch
             && prospective.stagedSlugs.has(entry.name)
           )
-          || (
-            entry.branch === transitionOverlay?.sourceBranch
-            && entry.name === transitionOverlay.origin
-          )
+          || transitionOverlays?.some(
+            (overlay) => entry.branch === overlay.sourceBranch && entry.name === overlay.origin,
+          ) === true
         ));
-  const warnings = prospective === undefined && transitionOverlay === undefined
+  const warnings = prospective === undefined && !hasTransitionOverlays
     ? result.warnings
     : result.warnings.filter((warning) => {
         const warningSlug = warning.branch === undefined ? null : branchToWorkUnitSlug(warning.branch);
@@ -640,11 +640,9 @@ async function resolveOracleCandidates(
             && warningSlug !== null
             && prospective.stagedSlugs.has(warningSlug)
           )
-          || (
-            transitionOverlay !== undefined
-            && warning.branch === transitionOverlay.sourceBranch
-            && warningSlug === transitionOverlay.origin
-          )
+          || transitionOverlays?.some(
+            (overlay) => warning.branch === overlay.sourceBranch && warningSlug === overlay.origin,
+          ) === true
         );
       });
   const composedResult = entries === result.entries && warnings === result.warnings
@@ -741,7 +739,7 @@ export async function resolveProjectReadinessComposition(
           ...options.prospective,
           stagedSlugs: new Set(tree.candidates.map((record) => record.slug)),
         },
-    options.transitionOverlay,
+    options.transitionOverlays,
   );
   const candidates = [...tree.candidates, ...localRefs.candidates];
   const rejectedRecords = [...tree.rejectedRecords, ...localRefs.rejectedRecords];

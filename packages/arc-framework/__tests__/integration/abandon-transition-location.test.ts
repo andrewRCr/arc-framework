@@ -13,6 +13,7 @@ import {
   locateAbandonTransition,
   validateGitTransitionRetirementEvidence,
 } from "../../src/lib/work-unit/git-retirement-authorization-context.js";
+import { createTeardownRetirementAuthorityStrict } from "../../src/lib/work-unit/teardown-retirement-driver.js";
 
 const branch = "feat/sample";
 const metaPath = ".arc/active/meta-sample.md";
@@ -474,3 +475,85 @@ async function execCommit(
   await repo.exec("git", ["add", "-A"]);
   await repo.exec("git", ["commit", "-m", message]);
 }
+
+describe("in-flight head refusal classification", () => {
+  async function inFlightPlanningRepo() {
+    const root = await mkdtemp(join(tmpdir(), "arc-in-flight-authority-"));
+    roots.push(root);
+    const rawExec = createExecaGitExec();
+    const exec: ReturnType<typeof createExecaGitExec> = async (cmd, args, options) => await rawExec(
+      cmd,
+      args,
+      { ...options, cwd: root },
+    );
+    await exec("git", ["init", "-b", "main"]);
+    await exec("git", ["config", "user.name", "ARC Test"]);
+    await exec("git", ["config", "user.email", "arc@example.test"]);
+    await writeFile(join(root, "README.md"), "# Base\n");
+    await exec("git", ["add", "."]);
+    await exec("git", ["commit", "-m", "base"]);
+    const baseHead = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+    await exec("git", ["checkout", "-b", "plan/sample"]);
+    await mkdir(join(root, ".arc/active"), { recursive: true });
+    await writeFile(join(root, ".arc/active/meta-sample.md"), renderMetaProjectionFile("sample", {
+      State: "Planning",
+      Branch: "plan/sample",
+      Cohort: "[none]",
+    }));
+    await writeFile(join(root, ".arc/active/draft-sample.md"), "# Draft\n");
+    await exec("git", ["add", "."]);
+    await exec("git", ["commit", "-m", "planning work"]);
+    const head = (await exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+    const readBlob = async (ref: string, path: ManagedPath): Promise<Uint8Array | null> => {
+      try {
+        const { stdout } = await exec("git", ["show", `${ref}:${path}`]);
+        return new TextEncoder().encode(stdout);
+      } catch {
+        return null;
+      }
+    };
+    return { root, exec, baseHead, head, readBlob };
+  }
+
+  it("refuses an ordinary in-flight planning head as missing evidence, not projection mismatch", async () => {
+    const repo = await inFlightPlanningRepo();
+    const authority = createTeardownRetirementAuthorityStrict(
+      repo.exec,
+      { ref: repo.baseHead, head: repo.baseHead },
+      repo.readBlob,
+    );
+
+    await expect(authority.authorize({
+      subject: { kind: "work-unit", name: "sample" },
+      branch: "plan/sample",
+      head: repo.head,
+      remote: "origin",
+      requestedMode: "abandoned",
+    })).resolves.toEqual({ status: "refused", reason: "evidence-missing" });
+  });
+
+  it("still refuses a park-shaped head that fails validation as projection mismatch", async () => {
+    const repo = await inFlightPlanningRepo();
+    await mkdir(join(repo.root, ".arc/backlog/planned/sample"), { recursive: true });
+    await repo.exec("git", ["mv", ".arc/active/meta-sample.md", ".arc/backlog/planned/sample/meta-sample.md"]);
+    await repo.exec("git", ["mv", ".arc/active/draft-sample.md", ".arc/backlog/planned/sample/draft-sample.md"]);
+    await repo.exec("git", ["commit", "-m", "park planning"]);
+    await writeFile(join(repo.root, ".arc/backlog/planned/sample/draft-sample.md"), "# Draft\n\nEdited after park.\n");
+    await repo.exec("git", ["add", "."]);
+    await repo.exec("git", ["commit", "-m", "edit after park"]);
+    const laterHead = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+    const authority = createTeardownRetirementAuthorityStrict(
+      repo.exec,
+      { ref: repo.baseHead, head: repo.baseHead },
+      repo.readBlob,
+    );
+
+    await expect(authority.authorize({
+      subject: { kind: "work-unit", name: "sample" },
+      branch: "plan/sample",
+      head: laterHead,
+      remote: "origin",
+      requestedMode: "abandoned",
+    })).resolves.toEqual({ status: "refused", reason: "projection-mismatch" });
+  });
+});

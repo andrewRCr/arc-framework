@@ -1,24 +1,24 @@
-# Metadata: decompose-preflight-scaling
+# Metadata: decompose-scaling
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
 
 - **Cohort:** `decompose-transform-integrity/decompose-core-hardening`
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-decompose-preflight-scaling.md`
+- **Design:** `draft-decompose-scaling.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Promoted into the planned decompose hardening subcohort at housekeep drain
-  (2026-07-30).
+- **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft against the shipped core; measure first, then bound.
+- **Next Action:** Run the measurement pass first — the execute-half numbers predate the transition record's
+  projection retirement and may no longer exist; bound or retire each half on the fresh evidence.
 
 - **PR URL:** [none]
 - **Completed:** [none]

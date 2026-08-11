@@ -94,6 +94,13 @@ export type OrdinaryErrandTransition =
       reason: "close";
       changeRequest: LocusChangeRequestV1;
       lifecycle: ChangeRequestLifecycleEvidence;
+      /**
+       * Caller attestation that the recorded change-request head was proven, in local git, to be
+       * an ancestor of `changeRequest.headSha`. Authorizes a close whose head moved past the
+       * recorded one on otherwise-identical coordinates; this transform is pure and cannot run
+       * that proof itself.
+       */
+      recordedHeadAncestry?: "locally-proven";
     }
   | {
       kind: "retire";
@@ -385,6 +392,8 @@ function retirementDesired(
   if (reason === "close" && "changeRequest" in request
     && (previous.state === "awaiting-merge"
       ? changeRequestsEqual(previous.changeRequest, request.changeRequest)
+        || (request.recordedHeadAncestry === "locally-proven"
+          && changeRequestsEqualExceptHead(previous.changeRequest, request.changeRequest))
       : previous.state === "open")
     && lifecycleAuthorizes(request.lifecycle, request.changeRequest, "merged")) {
     return { kind: "desired", record: null };
@@ -440,6 +449,13 @@ function changeRequestsEqual(left: LocusChangeRequestV1, right: LocusChangeReque
     && left.baseRef === right.baseRef
     && left.headRef === right.headRef
     && left.headSha === right.headSha;
+}
+
+function changeRequestsEqualExceptHead(left: LocusChangeRequestV1, right: LocusChangeRequestV1): boolean {
+  return left.repositoryRef === right.repositoryRef
+    && left.hostRef === right.hostRef
+    && left.baseRef === right.baseRef
+    && left.headRef === right.headRef;
 }
 
 function configuredCoordinatesMatch(

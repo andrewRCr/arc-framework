@@ -1017,7 +1017,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const teardown = await runArc(["teardown", "mono"], repo);
 
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(1);
-    expect(teardown.stdout + teardown.stderr).toMatch(/live branch projection does not match/iu);
+    expect(teardown.stdout + teardown.stderr).toMatch(/retirement evidence is missing/iu);
     expect(await branchExists(repo, branch)).toBe(true);
     expect(await pathExists(sessionNotes)).toBe(true);
   });
@@ -1124,7 +1124,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const result = await runArc(["teardown", "mono", "--force"], repo);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/live branch projection does not match/iu);
+    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
   });
 
@@ -1158,7 +1158,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const result = await runArc(["teardown", "mono", "--force"], worktree!);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/live branch projection does not match/iu);
+    expect(result.stdout + result.stderr).toMatch(/retirement evidence is missing/iu);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
   });

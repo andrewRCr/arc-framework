@@ -19,7 +19,7 @@ import {
   ROADMAP_RERENDER_INSTRUCTION,
   assertRoadmapRegenerated,
   renderRoadmapFromIndexResult,
-  resolveStagedTransitionOverlay,
+  resolveStagedTransitionOverlays,
   type RenderRoadmapFromIndexOptions,
 } from "../lib/status/roadmap-regeneration-assert.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
@@ -62,18 +62,18 @@ export async function runRoadmapRegenerationAssert(
   const stagedPaths = options.stagedPaths ?? await stagedRoadmapPaths(options.exec, options.cwd);
   if (!stagedPaths.includes(ROADMAP_PATH)) return pass();
 
-  const [stagedContent, transitionOverlay] = await Promise.all([
+  const [stagedContent, transitionOverlays] = await Promise.all([
     readStagedRoadmap(options.exec, options.cwd),
-    resolveStagedTransitionOverlay({ cwd: options.cwd, exec: options.exec }),
+    resolveStagedTransitionOverlays({ cwd: options.cwd, exec: options.exec }),
   ]);
   const rendered = await renderRoadmapFromIndexResult({
     cwd: options.cwd,
     exec: options.exec,
     baseBranch: options.baseBranch ?? await readBaseBranch(options.cwd),
     ...(options.renderedRef !== undefined ? { renderedRef: options.renderedRef } : {}),
-    ...(transitionOverlay === undefined
+    ...(transitionOverlays.length === 0
       ? {}
-      : { transitionOverlay: transitionOverlayCompositionInput(transitionOverlay) }),
+      : { transitionOverlays: transitionOverlays.map(transitionOverlayCompositionInput) }),
   });
 
   const verdict = assertRoadmapRegenerated({

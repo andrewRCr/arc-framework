@@ -14,7 +14,7 @@
  * @module
  */
 
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import * as p from "@clack/prompts";
@@ -144,7 +144,8 @@ import {
 } from "../lib/status/project-view.js";
 import {
   renderRoadmapFromIndexViewResult,
-  resolveStagedTransitionOverlay,
+  resolveStagedTransitionOverlays,
+  ROADMAP_PATH,
 } from "../lib/status/roadmap-regeneration-assert.js";
 import {
   assertSessionInitProbeResult,
@@ -191,6 +192,8 @@ export interface StatusCliOptions {
   local?: boolean;
   /** `--staged`: render the `--project` view's tree inputs from the git index (the pre-commit regen source). */
   staged?: boolean;
+  /** `--write`: with `--project --staged`, write the rendered view to the tracked ROADMAP atomically. */
+  write?: boolean;
   /** `true` opts a slug query into live membership; `false` skips network reads for live-default views. */
   fetch?: boolean;
   json?: boolean;
@@ -208,6 +211,7 @@ export const StatusCommandInputSchema = z.object({
   project: z.boolean().optional(),
   local: z.boolean().optional(),
   staged: z.boolean().optional(),
+  write: z.boolean().optional(),
   fetch: z.boolean().optional(),
   json: z.boolean().optional(),
   writeCompactionSeed: z.boolean().optional(),
@@ -226,6 +230,9 @@ export const StatusCommandInputSchema = z.object({
   if (value.staged === true && value.project !== true) {
     refinement.addIssue({ code: "custom", path: ["staged"], message: "Requires --project." });
   }
+  if (value.write === true && (value.staged !== true || value.json === true)) {
+    refinement.addIssue({ code: "custom", path: ["write"], message: "Requires --project --staged without --json." });
+  }
 });
 
 /** Registry contribution owned by composite status. */
@@ -242,6 +249,7 @@ export const statusCommandInputRegistration = {
     "option.local": "local",
     "option.no-fetch": "fetch",
     "option.staged": "staged",
+    "option.write": "write",
     "option.fetch": "fetch",
     "option.json": "json",
     "option.write-compaction-seed": "writeCompactionSeed",
@@ -1322,23 +1330,38 @@ export async function handleStatus(
     const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
     if (opts.staged) {
       // Render the project view from the git index — the same source the
-      // pre-commit ROADMAP regen check validates against, so
-      // `arc status --project --staged > ROADMAP` produces exactly what the
-      // hook expects (staged sweep or clean tree).
-      const transitionOverlay = await resolveStagedTransitionOverlay({ cwd, exec });
+      // pre-commit ROADMAP regen check validates against, so this render
+      // produces exactly what the hook expects (staged sweep or clean tree).
+      const transitionOverlays = await resolveStagedTransitionOverlays({ cwd, exec });
       const { result } = await renderRoadmapFromIndexViewResult({
         cwd,
         exec,
         baseBranch: resolved.settings["branch.base"],
-        ...(transitionOverlay === undefined
+        ...(transitionOverlays.length === 0
           ? {}
-          : { transitionOverlay: transitionOverlayCompositionInput(transitionOverlay) }),
+          : { transitionOverlays: transitionOverlays.map(transitionOverlayCompositionInput) }),
       });
       if (json) {
         process.stdout.write(`${JSON.stringify(result)}\n`);
         return;
       }
       writeProjectReadinessWarnings(result.warnings);
+      if (opts.write === true) {
+        // The write happens only after a successful render, via temp-then-rename in the target's
+        // own directory — a failed render or interrupted write never truncates the tracked view,
+        // which a shell redirect of this command's output did.
+        const roadmapPath = resolve(cwd, ROADMAP_PATH);
+        const temporaryPath = `${roadmapPath}.render-${process.pid}.tmp`;
+        await writeFile(temporaryPath, `${result.markdown}\n`, { flag: "wx" });
+        try {
+          await rename(temporaryPath, roadmapPath);
+        } catch (error) {
+          await rm(temporaryPath, { force: true }).catch(() => undefined);
+          throw error;
+        }
+        process.stdout.write(`Wrote ${ROADMAP_PATH}\n`);
+        return;
+      }
       process.stdout.write(`${result.markdown}\n`);
       return;
     }

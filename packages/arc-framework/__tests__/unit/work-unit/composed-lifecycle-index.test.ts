@@ -202,7 +202,7 @@ describe("resolveComposedLifecycleIndex", () => {
       cwd: root,
       fs,
       oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
-      transitionOverlay: { origin: slug, sourceBranch: branch },
+      transitionOverlays: [{ origin: slug, sourceBranch: branch }],
     });
 
     expect(result.index.has(slug)).toBe(false);
@@ -225,7 +225,7 @@ describe("resolveComposedLifecycleIndex", () => {
       cwd: root,
       fs,
       oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
-      transitionOverlay: { origin: slug, sourceBranch: "feat/other-origin" },
+      transitionOverlays: [{ origin: slug, sourceBranch: "feat/other-origin" }],
     });
 
     expect(result.index.has(slug)).toBe(true);

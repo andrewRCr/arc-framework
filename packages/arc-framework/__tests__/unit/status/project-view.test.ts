@@ -425,7 +425,7 @@ describe("composeProjectReadinessView", () => {
     }));
   });
 
-  it("suppresses only the explicitly superseded source ref after a staged rename", async () => {
+  it("suppresses only exact source refs, including multiple merge-carried transitions", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const oldSlug = "old-name";
     const oldBranch = `feat/${oldSlug}`;
@@ -455,11 +455,13 @@ describe("composeProjectReadinessView", () => {
       prospective: {
         currentBranch: newBranch,
       },
-      transitionOverlay: transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
-        origin: oldSlug,
-        sourceBranch: oldBranch,
-        planId: canonicalDigest("plan:test"),
-      })),
+      transitionOverlays: [
+        transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
+          origin: oldSlug,
+          sourceBranch: oldBranch,
+          planId: canonicalDigest("plan:test"),
+        })),
+      ],
     });
 
     expect(input.records.some((record) => record.slug === oldSlug)).toBe(false);
@@ -470,24 +472,39 @@ describe("composeProjectReadinessView", () => {
       cwd: root,
       localRefs: { exec, baseBranch: "main" },
       prospective: { currentBranch: newBranch },
-      transitionOverlay: transitionOverlayCompositionInput(createValidatedTransitionOverlay({
-        origin: oldSlug,
-        sourceBranch: oldBranch,
-      })),
+      transitionOverlays: [
+        transitionOverlayCompositionInput(createValidatedTransitionOverlay({
+          origin: oldSlug,
+          sourceBranch: oldBranch,
+        })),
+      ],
     });
     expect(validated).toEqual(input);
     expect(composeProjectReadinessView({ ...validated, renderedRef: "abc1234" }))
       .toBe(composeProjectReadinessView({ ...input, renderedRef: "abc1234" }));
 
+    const mergeCarried = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: newBranch },
+      transitionOverlays: [
+        { origin: oldSlug, sourceBranch: oldBranch },
+        { origin: sibling, sourceBranch: siblingBranch },
+      ],
+    });
+    expect(mergeCarried.records.some((record) => record.slug === oldSlug)).toBe(false);
+    expect(mergeCarried.records.some((record) => record.slug === sibling)).toBe(false);
+    expect(mergeCarried.records.some((record) => record.slug === newSlug)).toBe(true);
+
     const wrongBranch = await resolveProjectReadinessViewInput({
       cwd: root,
       localRefs: { exec, baseBranch: "main" },
-      transitionOverlay: { origin: oldSlug, sourceBranch: newBranch },
+      transitionOverlays: [{ origin: oldSlug, sourceBranch: newBranch }],
     });
     const wrongSlug = await resolveProjectReadinessViewInput({
       cwd: root,
       localRefs: { exec, baseBranch: "main" },
-      transitionOverlay: { origin: newSlug, sourceBranch: oldBranch },
+      transitionOverlays: [{ origin: newSlug, sourceBranch: oldBranch }],
     });
     expect(wrongBranch.records.some((record) => record.slug === oldSlug)).toBe(true);
     expect(wrongSlug.records.some((record) => record.slug === oldSlug)).toBe(true);
