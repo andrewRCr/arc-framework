@@ -223,16 +223,18 @@ export async function runRenameCommand(
             ...(plan.oldBranch === null
               ? {}
               : {
-                  transitionOverlay: transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
-                    origin: plan.sourceSlug,
-                    sourceBranch: plan.oldBranch,
-                    planId: canonicalDigest({
-                      kind: "rename",
+                  transitionOverlays: [
+                    transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
                       origin: plan.sourceSlug,
                       sourceBranch: plan.oldBranch,
-                      target: plan.targetSlug,
-                    }),
-                  })),
+                      planId: canonicalDigest({
+                        kind: "rename",
+                        origin: plan.sourceSlug,
+                        sourceBranch: plan.oldBranch,
+                        target: plan.targetSlug,
+                      }),
+                    })),
+                  ],
                 }),
           });
           return {

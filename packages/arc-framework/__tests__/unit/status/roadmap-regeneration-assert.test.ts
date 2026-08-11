@@ -7,7 +7,7 @@ import {
   createIndexProjectViewFs,
   renderRoadmapFromIndex,
   renderRoadmapFromIndexViewResult,
-  resolveStagedTransitionOverlay,
+  resolveStagedTransitionOverlays,
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
@@ -232,18 +232,18 @@ describe("createIndexProjectViewFs", () => {
   });
 });
 
-describe("resolveStagedTransitionOverlay", () => {
+describe("resolveStagedTransitionOverlays", () => {
   it("derives suppression authority from a path-bound decomposition transition", async () => {
     const record = transition();
 
-    await expect(resolveStagedTransitionOverlay({
+    await expect(resolveStagedTransitionOverlays({
       cwd: "/repo",
       exec: makeStagedTransitionExec(record),
-    })).resolves.toMatchObject({
+    })).resolves.toMatchObject([{
       kind: "validated",
       origin: record.origin,
       sourceBranch: "plan/retired",
-    });
+    }]);
   });
 
   it("derives direct-transition suppression from the origin meta branch at HEAD", async () => {
@@ -271,36 +271,39 @@ describe("resolveStagedTransitionOverlay", () => {
       throw new Error(`unexpected git args: ${args.join(" ")}`);
     };
 
-    await expect(resolveStagedTransitionOverlay({ cwd: "/repo", exec })).resolves.toMatchObject({
+    await expect(resolveStagedTransitionOverlays({ cwd: "/repo", exec })).resolves.toMatchObject([{
       kind: "validated",
       origin: record.origin,
       sourceBranch: "feat/retired",
-    });
+    }]);
   });
 
   it("rejects suppression authority when the staged path does not match the content origin", async () => {
     const record = transition();
     const mismatchedPath = resolveTransitionRecordRelativePath("other");
 
-    await expect(resolveStagedTransitionOverlay({
+    await expect(resolveStagedTransitionOverlays({
       cwd: "/repo",
       exec: makeStagedTransitionExec(record, mismatchedPath),
-    })).resolves.toBeUndefined();
+    })).resolves.toEqual([]);
   });
 
-  it("rejects multiple terminal transitions in one staged render", async () => {
+  it("admits every terminal transition carried by one staged merge", async () => {
     const records = [
       transition(),
       transition("other"),
     ];
 
-    await expect(resolveStagedTransitionOverlay({
+    await expect(resolveStagedTransitionOverlays({
       cwd: "/repo",
       exec: makeStagedTransitionsExec(records.map((record) => ({
         record,
         path: resolveTransitionRecordRelativePath(record.origin),
       }))),
-    })).rejects.toThrow("staged ROADMAP render found multiple terminal transitions");
+    })).resolves.toMatchObject([
+      { kind: "validated", origin: "retired", sourceBranch: "plan/retired" },
+      { kind: "validated", origin: "other", sourceBranch: "plan/other" },
+    ]);
   });
 
 });

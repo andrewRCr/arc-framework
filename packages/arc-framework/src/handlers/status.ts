@@ -144,7 +144,7 @@ import {
 } from "../lib/status/project-view.js";
 import {
   renderRoadmapFromIndexViewResult,
-  resolveStagedTransitionOverlay,
+  resolveStagedTransitionOverlays,
   ROADMAP_PATH,
 } from "../lib/status/roadmap-regeneration-assert.js";
 import {
@@ -1332,14 +1332,14 @@ export async function handleStatus(
       // Render the project view from the git index — the same source the
       // pre-commit ROADMAP regen check validates against, so this render
       // produces exactly what the hook expects (staged sweep or clean tree).
-      const transitionOverlay = await resolveStagedTransitionOverlay({ cwd, exec });
+      const transitionOverlays = await resolveStagedTransitionOverlays({ cwd, exec });
       const { result } = await renderRoadmapFromIndexViewResult({
         cwd,
         exec,
         baseBranch: resolved.settings["branch.base"],
-        ...(transitionOverlay === undefined
+        ...(transitionOverlays.length === 0
           ? {}
-          : { transitionOverlay: transitionOverlayCompositionInput(transitionOverlay) }),
+          : { transitionOverlays: transitionOverlays.map(transitionOverlayCompositionInput) }),
       });
       if (json) {
         process.stdout.write(`${JSON.stringify(result)}\n`);

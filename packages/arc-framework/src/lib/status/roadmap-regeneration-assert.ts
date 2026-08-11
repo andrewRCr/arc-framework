@@ -83,8 +83,8 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
   renderedRef?: string | ProjectReadinessRenderStamp;
   /** Optional fixed checked-out branch for tests; omitted resolves it from Git. */
   currentBranch?: string | null;
-  /** Optional explicit receipt-blind transition suppression. */
-  transitionOverlay?: TransitionOverlayCompositionInput;
+  /** Optional explicit receipt-blind transition suppressions. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** ROADMAP content plus whether its source snapshot was determinate. */
@@ -201,18 +201,18 @@ async function readHeadTransitionRecord(
 }
 
 /**
- * Resolve one terminal transition staged with the prospective ROADMAP tree.
+ * Resolve terminal transitions staged with the prospective ROADMAP tree.
  *
  * This adapter authenticates an added record's canonical origin path before granting
  * transition-overlay authority. Decomposition branches are deterministic; direct
  * transitions recover their retiring branch from the origin meta at HEAD.
  *
  * @param options - Repository root and Git executor for the staged index.
- * @returns Validated suppression authority, or `undefined` without one staged terminal transition.
+ * @returns Every validated suppression authority represented by the staged transition set.
  */
-export async function resolveStagedTransitionOverlay(
+export async function resolveStagedTransitionOverlays(
   options: IndexProjectViewFsOptions,
-): Promise<ValidatedTransitionOverlay | undefined> {
+): Promise<readonly ValidatedTransitionOverlay[]> {
   const { stdout } = await options.exec("git", [
     "diff",
     "--cached",
@@ -249,10 +249,7 @@ export async function resolveStagedTransitionOverlay(
       ? null
       : createValidatedTransitionOverlay({ origin: record.origin, sourceBranch });
   }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);
-  if (overlays.length > 1) {
-    throw new Error("staged ROADMAP render found multiple terminal transitions");
-  }
-  return overlays[0];
+  return overlays;
 }
 
 /**
@@ -293,7 +290,7 @@ export async function renderRoadmapFromIndexViewResult(
             currentBranch,
           },
         }),
-    ...(options.transitionOverlay === undefined ? {} : { transitionOverlay: options.transitionOverlay }),
+    ...(options.transitionOverlays === undefined ? {} : { transitionOverlays: options.transitionOverlays }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
     exec: options.exec,
