@@ -148,7 +148,7 @@ describe("Markdown operation contracts", () => {
       kind: "derived-readiness",
     })).toMatchObject({
       code: "markdown.derived-readiness",
-      remedy: { command: "npx arc status --project --staged > .arc/backlog/ROADMAP.md" },
+      remedy: { command: "npx arc status --project --staged --write" },
     });
     expect(createMarkdownRouteDiagnostic("format-explicit", {
       path: validateMarkdownPath(".arc/active/meta-widget.md"),
