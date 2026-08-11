@@ -21,26 +21,22 @@ Transform receipts govern individual cuts; they do not replace cohort coordinati
 decompose-transform-integrity (shipped core)
 ├── decompose-base-mobility ──────────── shipped
 ├── decompose-planning-lane ──────────── shipped
-└── decompose-transition-record ──────── replaces the receipt spine
-    ├── decompose-extraction ─────────── parked
-    ├── decompose-durable-consumers
-    ├── decompose-candidate-abandon ──── expected to be satisfied by the cut
-    └── decompose-core-hardening ─────── finalization members only
+├── decompose-transition-record ──────── shipped; replaced the receipt spine
+├── decompose-extraction ─────────────── re-validate against the lean core, then proceed
+└── decompose-core-hardening ─────────── conservation/authoring spine + scaling measurement
 ```
 
-The core, base mobility, and planning-lane admission have shipped. `decompose-transition-record` replaces the
-sealed receipt with a lean record carrying the authored dependency-edge intent, and retires the apparatus that
-accumulated around the heavier shape — including the planning-lane exception, whose sole function is to restore a
-lane classification the receipt's own storage location removes.
+The core, base mobility, planning-lane admission, and the transition record have all shipped. The record replaced
+the sealed receipt with a lean record carrying the authored dependency-edge intent and retired the apparatus that
+accumulated around the heavier shape.
 
-Members whose scope is measured against the receipt or its verification apparatus hold on that replacement:
-extraction, durable consumers, candidate abandon, and the two finalization hardening members. Each held member is
-re-scoped at the transition record's closeout, and retirement without implementation is an ordinary disposition
-there — the record removes the machinery that produced much of the residual scope, so a member whose motivating
-states no longer exist closes by retirement rather than by shipping. Conservation coverage, preflight scaling, and
-the locator half of authoring expressiveness stay independently deliverable; their coordination seams are recorded
-in `cohort-decompose-core-hardening.md`. `decomposition-doctrine` holds outside the cohort for the same reason —
-doctrine cannot codify against machinery whose shape is unsettled.
+The members formerly held on that replacement were dispositioned at the 2026-08-11 residuals consolidation per
+the dispositions recorded at the 2026-08-05 re-groom (see § Retired members below and the matching records in
+`cohort-decompose-core-hardening.md`). What remains: `decompose-extraction` re-validates its spec against the
+surviving core surfaces rather than re-deriving (it never consumed receipt authority), and
+`decompose-core-hardening` carries two members — the widened conservation/authoring spine and a merged
+measure-first scaling stub. `decomposition-doctrine` remains outside the cohort and resumes now that the
+machinery's shape is settled.
 
 Current readiness is derived from member metas and `Depends On`, not from this orientation view.
 
@@ -60,8 +56,6 @@ Current readiness is derived from member metas and `Depends On`, not from this o
 - `decompose-transition-record` owns the durable record of what became of a retired origin: transition kind,
   successors, and the authored disposition of each incoming dependency edge. It is the sole authority every
   consumer of retirement history reads, and it holds no transaction, preparation, or sealing evidence.
-- `decompose-durable-consumers` consumes finalized v3 transition authority without changing authoring,
-  finalization, or landing semantics.
 - `decompose-core-hardening` consumes the same shipped core and closes real-cut gaps without folding optional
   performance or authoring changes back into the core's already-landed authority spine.
 
@@ -139,31 +133,21 @@ _Consumes:_ the core cut map's authored allocation and incoming-edge disposition
 sealing, or transaction authority, and converts the existing receipts rather than clearing them — their authored
 dispositions are past human decisions and are not regenerable.
 
-### `decompose-durable-consumers`
+## Retired members
 
-_Exposes:_ bounded receipt enumeration, narrow historical narrative reconciliation, and live-ancestry-safe remote
-teardown.
+Recorded dispositions per the closeout criteria — each member retired against evidence, not inactivity, at the
+2026-08-11 residuals consolidation:
 
-_Consumes:_ canonical finalized receipt decoding, terminal transition resolution, integration-anchor proof, and
-receipt-backed retirement authority.
-
-Its spec and goals are written against the sealed receipt spine `decompose-transition-record` replaces. At that
-member's closeout, re-derive the spec from the surviving surfaces before task generation: narrative silence and
-remote-ancestry cleanup carry over, while batched enumeration must be re-priced against lean records rather than
-treated as settled scope.
-
-### `decompose-candidate-abandon`
-
-_Exposes:_ identity-proven candidate destruction that does not require the candidate to be intact, covering the
-stranded states an interrupted transform leaves behind.
-
-_Consumes:_ the transient-claim binding, candidate branch, and registered path as identity; it takes no receipt,
-anchor, or transition authority, and decides nothing about the semantic cut.
-
-Its scope is the stranded states the candidate and claim model produces, so it stands or falls with that model.
-The four refusal states its field evidence records are all products of the exactness gates the transition record
-retires, so the expected disposition is that the cut itself satisfies the concern — settled in that work unit's
-spec, with this member retiring at closeout if the stranded states are gone. Confirm against its own draft once
-`decompose-transition-record` settles which of those states still exist.
+- **`decompose-candidate-abandon`** — retired, fully satisfied by the shipped transition record. Its Success
+  Criterion 8 required every stranded candidate state be destroyable after the cut; the four recorded discard
+  refusal codes (`candidate-cleanup-failed`, `candidate-not-exact`, `candidate-index-changed`,
+  `candidate-path-set-changed`) are absent from source, and `--discard` itself retired with the exactness gates
+  that produced them. One operational caveat rides in `decompose-scaling`: if the execute half re-measures above
+  common command timeouts, revisit whether interrupted-execute recovery is genuinely covered.
+- **`decompose-durable-consumers`** — retired. The transition record's spec declared the deferral to its bounded
+  receipt enumeration void (records are a flat directory of small JSON files; a linear read is acceptable at
+  present scale). Its two surviving errand-sized behaviors — terminal-decomposition narrative silence and
+  absent/equal/strict-ancestor remote source-ref teardown — were routed to errand captures rather than carried as
+  a work unit.
 
 ---
