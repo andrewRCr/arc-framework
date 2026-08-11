@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "roadmap-remedy-safe-render",
+  "claimId": "fd2a399b83c7394e413e4ebd796742f3",
+  "createdAt": "2026-08-11T15:16:39.503Z",
+  "updatedAt": "2026-08-11T15:16:39.503Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "roadmap-remedy-safe-render",
+  "branch": "chore/roadmap-remedy-safe-render",
+  "origin": "inbox",
+  "originEntry": "Stop the ROADMAP re-render remedy from destroying the file it is meant to repair",
+  "originEntrySourceDigest": "sha256:9907f3c9e805e4418e2350348b8de36a825f8f973ec4fcf27993f34ae144a3f2",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
