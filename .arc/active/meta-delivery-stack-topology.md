@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-delivery-stack-topology.md`
+- **Design:** `spec-delivery-stack-topology.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design — draft captured formalization-ready
 - **Next Task:** [none]
 - **Blockers:** [none]
