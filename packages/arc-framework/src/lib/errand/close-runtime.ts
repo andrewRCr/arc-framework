@@ -107,6 +107,9 @@ export async function closeOrdinaryErrandAtRuntime(
           reason: "close",
           changeRequest: target.changeRequest,
           lifecycle,
+          ...(target.recordedHeadAncestry === undefined
+            ? {}
+            : { recordedHeadAncestry: target.recordedHeadAncestry }),
         });
       }
       const result = await transactTransientIdentities(identityIO, {
@@ -222,6 +225,13 @@ async function resolveCloseChangeRequest(
         message: "Configured repository coordinates do not match the retained change request.",
       };
     }
+    const movedHead = await resolveMovedRecordedHead(options.exec, record.branch, record.changeRequest.headSha);
+    if (movedHead !== null) {
+      const observed = await observeExactChangeRequest(options.exec, record.branch, options.base, movedHead, "merged");
+      if (observed.kind === "observed") {
+        return { kind: "resolved", changeRequest: observed.changeRequest, recordedHeadAncestry: "locally-proven" };
+      }
+    }
     return { kind: "resolved", changeRequest: record.changeRequest };
   }
   const head = await resolveOptionalCommit(options.exec, `refs/heads/${record.branch}`);
@@ -244,6 +254,29 @@ async function resolveCloseChangeRequest(
   return observed.kind === "observed"
     ? { kind: "resolved", changeRequest: observed.changeRequest }
     : { kind: "refused", reason: "change-request-unverifiable", message: observed.message };
+}
+
+/**
+ * Local tip of the errand branch when it strictly descends from the recorded change-request head.
+ *
+ * A post-leave push (a review fix) moves the change request's head past the recorded one, so the
+ * merged request is still the recorded tail only when the recorded head is an ancestor of the
+ * local tip — proven in local git, never taken from host data. Any other relation, an absent
+ * branch, or a read failure resolves to the recorded head unchanged.
+ */
+async function resolveMovedRecordedHead(
+  exec: GitExec,
+  branch: string,
+  recordedHeadSha: string,
+): Promise<string | null> {
+  const head = await resolveOptionalCommit(exec, `refs/heads/${branch}`);
+  if (head.kind !== "present" || head.oid === recordedHeadSha) return null;
+  try {
+    await exec("git", ["merge-base", "--is-ancestor", recordedHeadSha, head.oid]);
+    return head.oid;
+  } catch {
+    return null;
+  }
 }
 
 async function configuredIdentityRemote(exec: GitExec): Promise<"origin" | null> {

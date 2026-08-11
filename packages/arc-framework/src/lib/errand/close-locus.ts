@@ -28,6 +28,7 @@ export type CloseTarget =
       readonly kind: "merged";
       readonly record: OrdinaryErrandRecord;
       readonly changeRequest: LocusChangeRequestV1;
+      readonly recordedHeadAncestry?: "locally-proven";
     }
   | {
       readonly kind: "unchanged-base";
@@ -36,7 +37,7 @@ export type CloseTarget =
     };
 
 export type CloseTargetResolution =
-  | { kind: "resolved"; changeRequest: LocusChangeRequestV1 }
+  | { kind: "resolved"; changeRequest: LocusChangeRequestV1; recordedHeadAncestry?: "locally-proven" }
   | { kind: "unchanged-base"; headSha: string }
   | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
@@ -147,7 +148,14 @@ export async function closeOrdinaryErrand(
   if (resolution.kind === "error") return failure("locus.errand-close.change-request", resolution.message);
   const target: CloseTarget = resolution.kind === "unchanged-base"
     ? { kind: "unchanged-base", record, headSha: resolution.headSha }
-    : { kind: "merged", record, changeRequest: resolution.changeRequest };
+    : {
+        kind: "merged",
+        record,
+        changeRequest: resolution.changeRequest,
+        ...(resolution.recordedHeadAncestry === undefined
+          ? {}
+          : { recordedHeadAncestry: resolution.recordedHeadAncestry }),
+      };
 
   let lifecycle: ChangeRequestLifecycleEvidence | null = null;
   if (target.kind === "merged") {
