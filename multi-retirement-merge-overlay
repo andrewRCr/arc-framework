@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "multi-retirement-merge-overlay",
+  "claimId": "6c203df673ced49deff5272fa10d43fb",
+  "createdAt": "2026-08-11T16:09:23.263Z",
+  "updatedAt": "2026-08-11T16:09:23.263Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Admit multiple finalized retirement receipts in a merge commit",
+  "branch": "chore/multi-retirement-merge-overlay",
+  "origin": "inbox",
+  "originEntry": "Admit multiple finalized retirement receipts in a merge commit",
+  "originEntrySourceDigest": "sha256:6e8737cb7ed32de21d17fb9c7c891543dfedd54b38868d1e051c6b89805102ef",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
