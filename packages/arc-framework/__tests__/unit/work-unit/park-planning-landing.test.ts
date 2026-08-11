@@ -469,6 +469,21 @@ describe("committed park transition validation", () => {
     })).resolves.toMatchObject({ status: "rejected", evidence: "absent" });
   });
 
+  it("classifies a root commit as absent park evidence", async () => {
+    const repo = await planningRepo();
+    const head = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+
+    await expect(validateCommittedParkPlanningTransition({
+      cwd: repo.root,
+      exec: repo.exec,
+      readBlob: (ref, path) => readGitBlobBytes(repo.root, ref, path),
+    }, {
+      name: "sample",
+      branch: "plan/sample",
+      commit: head,
+    })).resolves.toMatchObject({ status: "rejected", evidence: "absent" });
+  });
+
   it("classifies a base-merge tip as absent park evidence", async () => {
     const repo = await planningRepo();
     await repo.exec("git", ["checkout", "-b", "side"]);
