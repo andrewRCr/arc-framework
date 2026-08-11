@@ -67,6 +67,27 @@ async function committedPark(options: { branch?: string; extraPath?: string } = 
   return { root, exec, parkHead };
 }
 
+async function planningRepo() {
+  const root = await mkdtemp(join(tmpdir(), "arc-park-transition-"));
+  roots.push(root);
+  const rawExec = createExecaGitExec();
+  const exec: GitExec = (command, args, execOptions) => rawExec(command, args, { ...execOptions, cwd: root });
+  await exec("git", ["init", "-b", "plan/sample"]);
+  await exec("git", ["config", "user.name", "ARC Test"]);
+  await exec("git", ["config", "user.email", "arc@example.test"]);
+  await mkdir(join(root, ".arc/active"), { recursive: true });
+  const meta = renderMetaProjectionFile("sample", {
+    State: "Planning",
+    Branch: "plan/sample",
+    Cohort: "[none]",
+  });
+  await writeFile(join(root, ".arc/active/meta-sample.md"), meta);
+  await writeFile(join(root, ".arc/active/draft-sample.md"), "# Draft\n");
+  await exec("git", ["add", "."]);
+  await exec("git", ["commit", "-m", "planning source"]);
+  return { root, exec };
+}
+
 function base(version: string, conflicts: readonly string[] = []): ParkLandingBaseSnapshot {
   return {
     version: canonicalDigest(version),
@@ -413,8 +434,29 @@ describe("committed park transition validation", () => {
     })).resolves.toMatchObject({ status: "rejected" });
   });
 
-  it("rejects a relocation whose meta declares another branch", async () => {
+  it("rejects a relocation whose meta declares another branch without marking evidence absent", async () => {
     const repo = await committedPark({ branch: "plan/other" });
+
+    const result = await validateCommittedParkPlanningTransition({
+      cwd: repo.root,
+      exec: repo.exec,
+      readBlob: (ref, path) => readGitBlobBytes(repo.root, ref, path),
+    }, {
+      name: "sample",
+      branch: "plan/sample",
+      commit: repo.parkHead,
+    });
+
+    expect(result).toMatchObject({ status: "rejected" });
+    expect(result).not.toHaveProperty("evidence");
+  });
+
+  it("classifies an ordinary in-flight planning head as absent park evidence", async () => {
+    const repo = await planningRepo();
+    await writeFile(join(repo.root, ".arc/active/draft-sample.md"), "# Draft\n\nMore planning.\n");
+    await repo.exec("git", ["add", "."]);
+    await repo.exec("git", ["commit", "-m", "more planning"]);
+    const head = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
 
     await expect(validateCommittedParkPlanningTransition({
       cwd: repo.root,
@@ -423,7 +465,31 @@ describe("committed park transition validation", () => {
     }, {
       name: "sample",
       branch: "plan/sample",
-      commit: repo.parkHead,
-    })).resolves.toMatchObject({ status: "rejected" });
+      commit: head,
+    })).resolves.toMatchObject({ status: "rejected", evidence: "absent" });
+  });
+
+  it("classifies a base-merge tip as absent park evidence", async () => {
+    const repo = await planningRepo();
+    await repo.exec("git", ["checkout", "-b", "side"]);
+    await writeFile(join(repo.root, "side.txt"), "side\n");
+    await repo.exec("git", ["add", "."]);
+    await repo.exec("git", ["commit", "-m", "side work"]);
+    await repo.exec("git", ["checkout", "plan/sample"]);
+    await writeFile(join(repo.root, ".arc/active/draft-sample.md"), "# Draft\n\nDiverged.\n");
+    await repo.exec("git", ["add", "."]);
+    await repo.exec("git", ["commit", "-m", "diverge"]);
+    await repo.exec("git", ["merge", "--no-edit", "side"]);
+    const head = (await repo.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
+
+    await expect(validateCommittedParkPlanningTransition({
+      cwd: repo.root,
+      exec: repo.exec,
+      readBlob: (ref, path) => readGitBlobBytes(repo.root, ref, path),
+    }, {
+      name: "sample",
+      branch: "plan/sample",
+      commit: head,
+    })).resolves.toMatchObject({ status: "rejected", evidence: "absent" });
   });
 });

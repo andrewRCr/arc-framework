@@ -317,7 +317,15 @@ export function createGitRetirementAuthorizationContext(
         return { status: "refused" as const, reason: "authority-unavailable" as const };
       }
       if (parkTransition.status === "rejected") {
-        return { status: "refused" as const, reason: "projection-mismatch" as const };
+        // An `absent` rejection means the head is structurally not a park transition — the shape of
+        // every ordinary in-flight head — so the refusal is missing evidence, not a mismatched
+        // projection. Only park-shaped-but-invalid results report `projection-mismatch`.
+        return {
+          status: "refused" as const,
+          reason: parkTransition.evidence === "absent"
+            ? ("evidence-missing" as const)
+            : ("projection-mismatch" as const),
+        };
       }
       const parkValidator = options.strict === true
         ? validateParkRetirementProofStrict
