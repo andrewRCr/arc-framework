@@ -63,8 +63,11 @@ This member does not add:
 - review groups, seam receipts, terminal assurance, or receipt projection across rewritten pull requests;
 - commit-history preservation across delivery refs when exact tree or contribution comparison suffices;
 - autonomous abandoned-stack rollback or cleanup of every possible partial provider outcome;
-- topology changes, reactive insertion modes, or live-to-landed plan conversion after binding; or
-- mixed topology segments inside one plan revision.
+- topology changes, reactive insertion modes, or live-to-landed plan conversion after binding;
+- mixed topology segments inside one plan revision; or
+- new stores, new configuration axes beyond the two renamed attention-register keys, CLI verbs beyond the § 10
+  responsibilities, or behavior changes riding either rename beyond its mechanical requirement (the re-charter's
+  third outcome and new fire-point; the register keys' new names).
 
 The cohort's hardening-admission boundary (`cohort-chunked-delivery.md`) governs findings against this work: a new
 provider capability, recovery state, identity, or proof record must address a demonstrated failure in the
@@ -192,7 +195,9 @@ opened from the retained control branch once every predecessor has landed and th
   sweep, ROADMAP regeneration, the behind-base reconcile gate, readiness, the integration-interlock, merge, and
   teardown all run exactly as they do for an unstacked work unit. Delivery adds one precondition read at entry:
   the plan's landed prefix covers every non-terminal member, no operation is active, and the base absorption
-  above has landed. It adds no second closeout ceremony and no terminal proof record.
+  above has landed. The read lives in delivery's own workflow surface (§ 10) at the handoff into integration —
+  not as an edit to `integrate-work-unit.md`, which this design leaves byte-untouched. It adds no second
+  closeout ceremony and no terminal proof record.
 - **The terminal member still binds into `DeliveryState`** as the last ordered member — exact ref (the control
   branch) and reverse lookup apply — but its landing is **not a reserved delivery operation**. The integration
   workflow's own guarded merge is the mutation authority (exact-head match, the integration interlock, and its
@@ -272,7 +277,10 @@ plan or a recorded hold-whole decision suppresses redundant downstream advisorie
   managed and update would clobber adopter overrides; and
 - test files that hard-code the old path (rename fallout, resolved mechanically at implementation).
 
-Pre-release posture: rename in place, no alias, no migration reader.
+Pre-release posture: rename in place, no alias, no migration reader. **Mechanical requirement only:** the
+re-charter changes the method's outcome set and fire-point wiring — the third outcome and the Pass-1 site — and
+nothing else; no prose improvement, restructure, or behavior change rides the rename through the touched
+workflows and copies.
 
 **Resume.** Session-init gains one probe slot over bound `DeliveryState`: delivery position (member _k_ of _n_
 landed, active operation pending or none) as one precomposed orientation line, following the existing envelope
@@ -306,7 +314,9 @@ CLI-side (the `recommended*Text` pattern), and its suppression splits by layer:
 **Rename surface** (rename in place, pre-release, no alias): config schema, validation allowlist, the
 review-chunking policy reader, the update-command template handling, `arc-config.yml`, and
 `strategy-configurability-architecture.md` — package source and `.arc/` instance both. The `review-chunking`
-method's tripwire prose updates to the new names; its boundary contract is untouched.
+method's tripwire prose updates to the new names; its boundary contract is untouched. **Mechanical requirement
+only:** across the rename surface, nothing beyond the key names changes — the advisory behavior this section
+specifies is the only behavioral delta.
 
 ### 9. Host-native stack composition — opt-in, observed-never-authoritative
 
