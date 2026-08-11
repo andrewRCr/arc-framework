@@ -1,8 +1,8 @@
 # Metadata: delivery-stack-topology
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
+| ---------- | --------- | ------------------------------ | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/delivery-stack-topology` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** `delivery-plan-record`, `delivery-slice-review-vehicle`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin draft-design
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
