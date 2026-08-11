@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/delivery-stack-topology` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
-- **Depends On:** `delivery-plan-record`, `delivery-slice-review-vehicle`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-delivery-stack-topology.md`
