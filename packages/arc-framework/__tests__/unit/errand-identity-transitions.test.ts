@@ -313,6 +313,35 @@ describe("ordinary Errand identity transitions", () => {
       lifecycle: lifecycleEvidence("merged", substitute),
     })).toMatchObject({ kind: "refused" });
 
+    // The caller's locally-proven ancestry attestation authorizes a moved head on otherwise
+    // identical coordinates — and only that: foreign coordinates or evidence bound to the stale
+    // head still refuse.
+    expect(apply(new Map([[awaiting.slug, awaiting]]), {
+      kind: "retire",
+      previous: awaiting,
+      reason: "close",
+      changeRequest: substitute,
+      lifecycle: lifecycleEvidence("merged", substitute),
+      recordedHeadAncestry: "locally-proven",
+    })).toMatchObject({ kind: "applied", value: null });
+    const foreignBranch = { ...substitute, headRef: "chore/other" };
+    expect(apply(new Map([[awaiting.slug, awaiting]]), {
+      kind: "retire",
+      previous: awaiting,
+      reason: "close",
+      changeRequest: foreignBranch,
+      lifecycle: lifecycleEvidence("merged", foreignBranch),
+      recordedHeadAncestry: "locally-proven",
+    })).toMatchObject({ kind: "refused" });
+    expect(apply(new Map([[awaiting.slug, awaiting]]), {
+      kind: "retire",
+      previous: awaiting,
+      reason: "close",
+      changeRequest: substitute,
+      lifecycle: lifecycleEvidence("merged"),
+      recordedHeadAncestry: "locally-proven",
+    })).toMatchObject({ kind: "refused" });
+
     // An Errand that merged while still open holds no change request, so the observed one stands in.
     const occupied = open({ updatedAt });
     const closeOccupied = {
