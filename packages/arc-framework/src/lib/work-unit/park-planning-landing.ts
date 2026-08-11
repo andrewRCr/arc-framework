@@ -75,6 +75,16 @@ export type ParkPlanningLandingResult =
   | { status: "landed"; commit: string; plannedPaths: readonly ManagedPath[] }
   | { status: "rejected"; reason: string };
 
+/**
+ * Committed park validation outcome. A rejection carrying `evidence: "absent"` established that the
+ * commit is structurally not a park transition at all — a merge or root commit, or a tree holding
+ * nothing of the subject's artifact group under the planned root (the shape of any ordinary in-flight
+ * head). A rejection without it is park-shaped but invalid, so the mismatch is worth surfacing.
+ */
+export type CommittedParkTransitionValidation =
+  | { status: "resolved"; transition: ParkLandingTransition }
+  | { status: "rejected"; reason: string; evidence?: "absent" };
+
 /** Low-level production boundaries for the in-repository landing adapter. */
 export interface ParkPlanningTransitionValidationDeps {
   cwd?: string;
@@ -211,10 +221,7 @@ async function readCommittedTransition(
 export async function validateCommittedParkPlanningTransition(
   deps: ParkPlanningTransitionValidationDeps,
   params: { name: string; branch: string; commit: string },
-): Promise<
-  | { status: "resolved"; transition: ParkLandingTransition }
-  | { status: "rejected"; reason: string }
-> {
+): Promise<CommittedParkTransitionValidation> {
   try {
     return await validateCommittedParkPlanningTransitionStrict(deps, params);
   } catch (err) {
@@ -229,15 +236,16 @@ export async function validateCommittedParkPlanningTransition(
 export async function validateCommittedParkPlanningTransitionStrict(
   deps: ParkPlanningTransitionValidationDeps,
   params: { name: string; branch: string; commit: string },
-): Promise<
-  | { status: "resolved"; transition: ParkLandingTransition }
-  | { status: "rejected"; reason: string }
-> {
+): Promise<CommittedParkTransitionValidation> {
   const commit = await resolveCommit(deps, params.commit);
   const parents = await readCommitParents(deps, commit);
   const [parent] = parents;
   if (parents.length !== 1 || parent === undefined) {
-    return { status: "rejected", reason: "The park transition must be a direct single-parent commit." };
+    return {
+      status: "rejected",
+      reason: "The park transition must be a direct single-parent commit.",
+      evidence: "absent",
+    };
   }
   const plannedRoot = resolveArcPath({ kind: "placement-root", tier: "planned" });
   const sourceDir = resolveArcPath({ kind: "placement-root", tier: "active" });
@@ -248,6 +256,13 @@ export async function validateCommittedParkPlanningTransitionStrict(
     readDiffOperations(deps, parent, commit),
   ]);
   const plannedCandidates = plannedRootTree.filter((entry) => matcher.test(posix.basename(entry.path)));
+  if (plannedCandidates.length === 0) {
+    return {
+      status: "rejected",
+      reason: "The transition does not contain a complete planning artifact group.",
+      evidence: "absent",
+    };
+  }
   const plannedMetas = plannedCandidates.filter(
     (entry) => posix.basename(entry.path) === `meta-${params.name}.md`,
   );
