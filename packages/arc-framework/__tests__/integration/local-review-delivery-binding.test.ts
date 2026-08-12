@@ -37,6 +37,7 @@ const meta: MetaRecord = MetaRecordSchema.parse({
   taskList: `tasks-${WORK_UNIT}.md`,
   reviewRubric: null,
   promotionReceipt: null,
+  candidateId: null,
   currentWorkflow: null,
   lastCompleted: null,
   nextTask: null,

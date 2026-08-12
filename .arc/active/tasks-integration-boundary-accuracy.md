@@ -50,40 +50,30 @@ _Design decisions:_ Candidate is a projection over typed evidence — never a fi
 boolean, or exact-head flag; lineage advances through existing `review-response` records rather than a new
 pass ledger or findings store. Full rationale in `spec-integration-boundary-accuracy.md` § E.
 
-### `[ ]` **1.1 Define Candidate attestation, currentness, and projection records**
+### `[x]` **1.1 Define Candidate attestation, currentness, and projection records**
 
 - _Goal:_ Candidate exists as a typed attestation plus verified lineage the CLI validates and advances without
   parsing session narration — surviving operational-only churn, advancing on approved review responses, and
   blocking on unexplained reviewable deltas with no refresh or repair path.
 
-- _Note:_ Capital-C Candidate (the attestation/lineage concept) is distinct from the integration workflow's
-  existing candidate-assembly vocabulary (the composed integration candidate and its tail); naming and docs keep
-  the two visibly distinct.
+    - `[x]` **1.1.a `CandidateAttestationV1` schema and managed-record projection**
+        - Added canonical Candidate attestation, subject-snapshot, managed-record serialization, and the optional
+          `Candidate` identity projection on semantic and Markdown work-unit records.
 
-    - `[ ]` **1.1.a `CandidateAttestationV1` schema and managed-record projection**
-        - `candidateId`, `workUnit`, `subjectDigest`, `baseRevision`, `attestedBy`, `attestedAt`,
-          `verificationEvidenceRef`; TypeScript-owned, extending the lifecycle-tail record family
-          (`transition-record-store.ts`, `pointer-record.ts`) and projecting into the managed WU record
-        - `subjectDigest` covers reviewable WU content while excluding the Candidate record's own projection
-          and code-owned operational-state writes
-        - Build `test-first` (one behavior at a time):
-            - the digest excludes its own projection write (no self-reference churn)
-            - an operational-only delta preserves the digest; a reviewable delta changes it
+    - `[x]` **1.1.b Lineage currentness composing `review-response` evidence**
+        - Candidate currentness now reduces approved exact old/new targets while treating operational-only head
+          movement as mechanically current.
 
-    - `[ ]` **1.1.b Lineage currentness composing `review-response` evidence**
-        - lineage root from the initial attestation; approved old-target/new-target response records advance
-          the recognized head automatically — no pass counter, source router, or second fix ledger
-        - Build `test-first` (one behavior at a time):
-            - an approved response record advances the recognized lineage head
-            - a code-owned operational-only delta preserves Candidate mechanically
+    - `[x]` **1.1.c Delta-verification evidence on response records**
+        - Response evidence binds `targeted | focused | full`, verification references, disposition identity, and
+          applying actors to the Candidate lineage.
 
-    - `[ ]` **1.1.c Delta-verification evidence on response records**
-        - the `targeted | focused | full` applicability choice and its evidence persist with the response
-          record; a reviewer or adversarial pass never selects the scope
+    - `[x]` **1.1.d Unexplained-delta blocking**
+        - Unexplained reviewable changes return their exact added, removed, and changed paths with the sole recovery
+          action of establishing a new root through full verification.
 
-    - `[ ]` **1.1.d Unexplained-delta blocking**
-        - an unexplained reviewable delta returns `blocked` with the exact delta and one action back to full
-          verification, which establishes a new lineage root rather than repairing the old one
+- _Outcome:_ Candidate is a storage-neutral typed lineage: its canonical subject excludes operational projections,
+  approved responses advance it without a second fix ledger, and unrecognized reviewable content fails closed.
 
 ### `[ ]` **1.2 Replace verification finalization with idempotent `propose`**
 

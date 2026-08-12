@@ -29,6 +29,7 @@ const meta = (overrides: Partial<MetaRecord> = {}): MetaRecord => MetaRecordSche
   taskList: "tasks-review-surface-binding.md",
   reviewRubric: null,
   promotionReceipt: null,
+  candidateId: null,
   currentWorkflow: null,
   lastCompleted: null,
   nextTask: null,

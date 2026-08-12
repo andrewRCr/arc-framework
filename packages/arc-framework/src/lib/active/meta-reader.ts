@@ -287,6 +287,15 @@ export const META_FIELDS = [
     valueClass: "identifier",
     omitWhenAbsent: true,
   },
+  {
+    name: "Candidate",
+    key: "candidateId",
+    default: "[none]",
+    group: "reference",
+    render: "bullet",
+    valueClass: "identifier",
+    omitWhenAbsent: true,
+  },
   { name: "Current Workflow", key: "currentWorkflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", key: "lastCompleted", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
@@ -528,6 +537,7 @@ export function renderMetaFile(
     taskList: null,
     reviewRubric: null,
     promotionReceipt: null,
+    candidateId: null,
     currentWorkflow: null,
     lastCompleted: null,
     nextTask: null,
@@ -551,6 +561,7 @@ export function renderMetaFile(
     "Task List": renderNullable(record.taskList),
     "Review Rubric": renderNullable(record.reviewRubric),
     "Promotion Receipt": renderNullable(record.promotionReceipt),
+    Candidate: renderNullable(record.candidateId),
     "Current Workflow": renderNullable(record.currentWorkflow),
     "Last Completed": renderNullable(record.lastCompleted),
     "Next Task": renderNullable(record.nextTask),
@@ -689,6 +700,18 @@ export function setMetaCurrentWorkflow(content: string, stage: string): string {
  */
 export function setMetaDesign(content: string, value: string): string {
   return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
+}
+
+/**
+ * Project a Candidate attestation identity into the managed work-unit record.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param candidateId - Canonical Candidate identity, or `[none]` to clear it.
+ * @returns The rewritten markdown.
+ */
+export function setMetaCandidate(content: string, candidateId: string): string {
+  const { content: reconciled } = reconcileMetaFields(content, { Candidate: candidateId });
+  return setMetaBulletFields(reconciled, { Candidate: formatValue(candidateId, "identifier") });
 }
 
 /** The finalize-group fields, in render order — written together at archive. */
@@ -833,7 +856,7 @@ export function reconcileMetaFields(
   const absent = new Set<MetaFieldName>(
     bulletFields
       .filter((f) =>
-        !("omitWhenAbsent" in f)
+        (!("omitWhenAbsent" in f) || Object.prototype.hasOwnProperty.call(overrides, f.name))
         && !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
       .map((f) => f.name as MetaFieldName),
   );
@@ -1210,6 +1233,7 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     taskList: nullableProjectionValue(projection["Task List"]),
     reviewRubric: nullableProjectionValue(projection["Review Rubric"]),
     promotionReceipt: nullableProjectionValue(projection["Promotion Receipt"]),
+    candidateId: nullableProjectionValue(projection.Candidate),
     currentWorkflow: nullableProjectionValue(projection["Current Workflow"]),
     lastCompleted: nullableProjectionValue(projection["Last Completed"]),
     nextTask: nullableProjectionValue(projection["Next Task"]),
