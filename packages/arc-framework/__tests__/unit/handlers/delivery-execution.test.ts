@@ -131,4 +131,23 @@ describe("delivery execution handler", () => {
       reason: "checkout-moved",
     });
   });
+
+  it("rejects caller-authored reconciliation evidence", async () => {
+    const execute = vi.fn();
+    const write = vi.fn();
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        observation: { outcome: "applied" },
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
 });

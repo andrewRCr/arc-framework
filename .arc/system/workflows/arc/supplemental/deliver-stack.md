@@ -75,6 +75,10 @@ before invoking them again. Resume any persisted reservation through:
 arc delivery reconcile --input - --json
 ```
 
+Supply only the plan, repository, and remote locators. The verb dispatches on the persisted operation kind and
+derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
+the request.
+
 After the exact chain exists, an operator may opt into native presentation:
 
 ```bash
@@ -166,6 +170,10 @@ effect. Approval authorizes only the displayed member/head; no other member or l
 ```bash
 arc delivery land apply --input - --json
 ```
+
+The apply request carries the prepared presentation and repository locators, not position facts. The service
+reobserves the exact selection and readiness before lock release and again before merge, then accepts only the
+matching merged request, target, and contribution.
 
 Do not advance until the effect and any remaining suffix reconciliation settle. A `retryable` result returns to
 land prepare and a new integration interlock; it never reuses approval. A blocked or ambiguous result runs the

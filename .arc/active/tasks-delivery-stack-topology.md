@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `4`
-- **Plan Digest:** `sha256:a3eb89edd10bcc4adc8ec274a79ca46791708acf7a436b4658ad640943fc695b`
+- **Plan Revision:** `5`
+- **Plan Digest:** `sha256:63428266bc700abaaf239df99e38ef2203a7dc2684ae71136e37bb9600a621fb`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -344,26 +344,14 @@ each existing reserved-operation boundary.
   only reobserved results, and leaves the operation reserved on movement. First publication adopts only one exact
   open request before falling back on absence to the leased ref path; interrupted exact ref publication is idempotent.
 
-### `[ ]` **3.R.2 Make ordinary landing and recovery observational**
+### `[x]` **3.R.2 Make ordinary landing and recovery observational**
 
 - _Goal:_ Landing and crash recovery decide from fresh Git and host facts for the persisted operation kind, never from
   reservation self-comparison or caller-authored observation JSON.
 
-- **Additional Context:** `spec-delivery-stack-topology.md` §§ 3, 4, 10;
-  `cohort-chunked-delivery.md` § V1 robustness floor.
-
-    - Reobserve the exact selection, predecessor, target, request, checks, and contribution immediately before lock
-      release and again before merge; after merge, construct the result solely from exact request and target facts.
-
-    - Replace generic caller-supplied reconciliation evidence with a dispatcher keyed by the persisted
-      `activeOperation.kind`; each existing Git/host adapter produces the typed observation used by the current pure
-      comparator and version-checked state write.
-
-    - Build `test-first` (one behavior at a time):
-        - Target, ref, request, or readiness movement after reservation or lock release refuses.
-        - Target movement without the matching merged request is never adopted as landed.
-        - Every operation kind classifies exact-before, exact-applied, mixed, ambiguous, and unavailable observations
-          without clearing a reservation on untrusted input.
+- _Outcome:_ Ordinary landing now reacquires repository-derived position, request, readiness, target, and contribution
+  facts on both sides of lock release and accepts only the exact merged effect. Recovery accepts locator inputs only,
+  dispatches from the persisted operation kind, and retains the reservation whenever evidence is unavailable or mixed.
 
 ## **Phase 4:** Suffix reconciliation and terminal handoff
 

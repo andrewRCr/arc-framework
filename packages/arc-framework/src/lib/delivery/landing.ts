@@ -55,6 +55,28 @@ export interface DeliveryLandingLockPort {
   >;
 }
 
+/** Repository-derived facts acquired at each landing mutation boundary. */
+export interface DeliveryLandingObservationPort {
+  observeSelection(): Promise<
+    | {
+        readonly status: "observed";
+        readonly facts: DeliveryPositionFactsV1;
+        readonly snapshot: DeliveryOperationSnapshotV1;
+      }
+    | { readonly status: "refused" }
+  >;
+  proveLandedContribution(input: {
+    readonly beforeTarget: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+    readonly beforeMember: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>;
+    readonly afterTarget: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+  }): Promise<{ readonly status: "accepted" } | { readonly status: "refused" }>;
+}
+
+/** Fresh operation observation selected from the persisted operation kind. */
+export interface DeliveryRecoveryObservationPort {
+  observe(): Promise<{ readonly status: "observed"; readonly value: unknown } | { readonly status: "refused" }>;
+}
+
 function memberSnapshot(state: DeliveryStateV1, deliverableId: string): DeliveryOperationSnapshotV1 | null {
   const member = state.members.find((candidate) => candidate.deliverableId === deliverableId);
   return member === undefined ? null : {
@@ -178,13 +200,12 @@ export async function prepareDeliveryLanding(input: {
 export async function applyDeliveryLanding(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
-  readonly facts: DeliveryPositionFactsV1;
   readonly approved: PreparedDeliveryLanding;
-  readonly baseRef: string;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
   readonly host: DeliveryHostPort;
   readonly readiness: DeliveryLandingReadinessPort;
   readonly lock: DeliveryLandingLockPort;
+  readonly observation: DeliveryLandingObservationPort;
 }): Promise<{ readonly status: "landed"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
   readonly status: "refused";
 }> {
@@ -198,41 +219,56 @@ export async function applyDeliveryLanding(input: {
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.approved.deliverableId);
   if (member === undefined || member.coordinates === null) return { status: "refused" };
   const stateWithoutReservation = { ...input.current.value, activeOperation: null };
-  if (assessDeliveryMemberReadiness(
-    input.plan, stateWithoutReservation, input.facts, member.deliverableId,
-  ).status !== "ready") return { status: "refused" };
-  if ((await exactOpenRequest({
-    host: input.host,
-    repository: input.approved.repository,
-    member,
-    baseRef: input.baseRef,
-  })).status !== "exact") return { status: "refused" };
-  if ((await input.readiness.assess({
-    planId: input.plan.planId,
-    deliverableId: member.deliverableId,
-    workUnitId: input.plan.workUnitId,
-    repository: input.approved.repository,
-    changeRequestId: input.approved.changeRequestId,
-    head: member.coordinates.head,
-  })).status !== "ready") return { status: "refused" };
+  const observeReady = async (): Promise<boolean> => {
+    const fresh = await input.observation.observeSelection();
+    return fresh.status === "observed"
+      && assessDeliveryMemberReadiness(
+        input.plan, stateWithoutReservation, fresh.facts, member.deliverableId,
+      ).status === "ready"
+      && checkDeliveryOperationPrecondition(input.current, fresh.snapshot).status === "ready"
+      && (await exactOpenRequest({
+        host: input.host,
+        repository: input.approved.repository,
+        member,
+        baseRef: `refs/heads/${operation.effect.baseRef}`,
+      })).status === "exact"
+      && (await input.readiness.assess({
+        planId: input.plan.planId,
+        deliverableId: member.deliverableId,
+        workUnitId: input.plan.workUnitId,
+        repository: input.approved.repository,
+        changeRequestId: input.approved.changeRequestId,
+        head: member.coordinates?.head ?? "",
+      })).status === "ready";
+  };
+  if (!(await observeReady())) return { status: "refused" };
   if (input.approved.releaseMergeLock
     && (await input.lock.release({
       repository: input.approved.repository,
       changeRequestId: input.approved.changeRequestId,
     })).status === "refused") return { status: "refused" };
-  if ((await exactOpenRequest({
-    host: input.host,
-    repository: input.approved.repository,
-    member,
-    baseRef: input.baseRef,
-  })).status !== "exact") return { status: "refused" };
-  if (checkDeliveryOperationPrecondition(input.current, operation.before).status !== "ready") {
-    return { status: "refused" };
-  }
+  if (!(await observeReady())) return { status: "refused" };
   if ((await input.host.mergeRequest(operation.effect)).status !== "submitted") return { status: "refused" };
+  const merged = member.changeRequest === null
+    ? { status: "refused" as const }
+    : await input.host.readRequest(input.approved.repository, member.changeRequest);
+  if (merged.status !== "observed" || merged.request.state !== "merged"
+    || merged.request.repository !== operation.effect.repository
+    || merged.request.headRepository !== operation.effect.repository
+    || merged.request.binding.changeRequestId !== operation.effect.changeRequestId
+    || member.ref === null || merged.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
+    || merged.request.headSha !== operation.effect.headSha
+    || merged.request.baseRef !== operation.effect.baseRef) return { status: "refused" };
   const target = await input.host.observeTarget(input.approved.repository, operation.effect.targetRef);
   if (target.status !== "observed") return { status: "refused" };
   const memberCoordinates = member.coordinates;
+  const beforeTarget = operation.before.target?.coordinates;
+  if (beforeTarget === null || beforeTarget === undefined
+    || (await input.observation.proveLandedContribution({
+      beforeTarget,
+      beforeMember: memberCoordinates,
+      afterTarget: target.coordinates,
+    })).status !== "accepted") return { status: "refused" };
   const observed: DeliveryOperationSnapshotV1 = {
     target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
     members: operation.before.members.map((entry) => ({
@@ -255,14 +291,18 @@ export async function applyDeliveryLanding(input: {
 export async function reconcileDeliveryExecution(input: {
   readonly planId: string;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
-  readonly observation: unknown;
+  readonly observation: DeliveryRecoveryObservationPort;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
   | { readonly status: "retryable"; readonly guidance: string }
   | { readonly status: "blocked"; readonly guidance: string }
 > {
-  const reconciled = reconcileDeliveryOperation(input.current, input.observation);
+  const observed = await input.observation.observe();
+  if (observed.status !== "observed") {
+    return { status: "blocked", guidance: "The reserved operation result is unavailable; retain the reservation." };
+  }
+  const reconciled = reconcileDeliveryOperation(input.current, observed.value);
   if (reconciled.status === "retry") {
     return {
       status: "retryable",

@@ -40,6 +40,7 @@ function facts(state: DeliveryStateV1): DeliveryPositionFactsV1 {
 
 function boundaries(state: DeliveryStateV1) {
   const member = state.members[0]!;
+  let merged = false;
   const observeRequest = vi.fn(async () => ({
     status: "observed" as const,
     request: {
@@ -49,11 +50,14 @@ function boundaries(state: DeliveryStateV1) {
       headRef: member.ref!.replace("refs/heads/", ""),
       headSha: member.coordinates!.head,
       baseRef: "main",
-      state: "open" as const,
+      state: merged ? "merged" as const : "open" as const,
       draft: true,
     },
   }));
-  const mergeRequest = vi.fn(async () => ({ status: "submitted" as const }));
+  const mergeRequest = vi.fn(async () => {
+    merged = true;
+    return { status: "submitted" as const };
+  });
   const host = {
     observeRequest: vi.fn(async () => ({ status: "absent" as const })),
     openRequest: vi.fn(async () => ({ status: "submitted" as const })),
@@ -69,6 +73,22 @@ function boundaries(state: DeliveryStateV1) {
     mergeRequest,
     readiness: { assess: vi.fn(async () => ({ status: "ready" as const, settledReviewState: "settled" })) },
     lock: { release: vi.fn(async () => ({ status: "not-configured" as const })) },
+    observation: {
+      observeSelection: vi.fn(async () => ({
+        status: "observed" as const,
+        facts: facts(state),
+        snapshot: {
+          target: state.target,
+          members: [{
+            deliverableId: member.deliverableId,
+            ref: member.ref,
+            changeRequest: member.changeRequest,
+            coordinates: member.coordinates,
+          }],
+        },
+      })),
+      proveLandedContribution: vi.fn(async () => ({ status: "accepted" as const })),
+    },
   };
 }
 
@@ -160,9 +180,7 @@ describe("delivery landing", () => {
     const applied = await applyDeliveryLanding({
       plan,
       current: reservedRecord,
-      facts: facts(state),
       approved: prepared.presentation,
-      baseRef: "refs/heads/main",
       stateStore: {
         publish: async (_planId, value) => ({
           status: "ok" as const,
@@ -172,6 +190,7 @@ describe("delivery landing", () => {
       host: deps.host,
       readiness: deps.readiness,
       lock: deps.lock,
+      observation: deps.observation,
     });
     expect(applied.status).toBe("landed");
     expect(deps.mergeRequest).toHaveBeenCalledOnce();
@@ -211,28 +230,83 @@ describe("delivery landing", () => {
     await expect(applyDeliveryLanding({
       plan,
       current,
-      facts: facts(state),
       approved: { ...prepared.presentation, head: "f".repeat(40) },
-      baseRef: "refs/heads/main",
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
       host: deps.host,
       readiness: deps.readiness,
       lock: deps.lock,
+      observation: deps.observation,
     })).resolves.toEqual({ status: "refused" });
     expect(deps.mergeRequest).not.toHaveBeenCalled();
 
     await expect(applyDeliveryLanding({
       plan,
       current,
-      facts: facts(state),
       approved: prepared.presentation,
-      baseRef: "refs/heads/main",
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
       host: deps.host,
       readiness: { assess: async () => ({ status: "refused" as const }) },
       lock: deps.lock,
+      observation: deps.observation,
     })).resolves.toEqual({ status: "refused" });
     expect(deps.mergeRequest).not.toHaveBeenCalled();
+  });
+
+  it("reobserves after lock release and never adopts target movement without the matching merge", async () => {
+    const { plan, state } = boundState();
+    const deps = boundaries(state);
+    let current: { revision: number; value: DeliveryStateV1 } | null = null;
+    const prepared = await prepareDeliveryLanding({
+      plan,
+      current: { revision: 7, value: state },
+      facts: facts(state),
+      selectedDeliverableId: state.members[0]!.deliverableId,
+      repository: "andrewRCr/arc-framework",
+      baseRef: "refs/heads/main",
+      targetRef: "refs/heads/main",
+      mergeStrategy: "merge",
+      releaseMergeLock: true,
+      stateStore: { publish: async (_planId, value) => {
+        current = { revision: 8, value };
+        return { status: "ok" as const, value: current };
+      } },
+      host: deps.host,
+      readiness: deps.readiness,
+    });
+    if (prepared.status !== "prepared" || current === null) throw new Error("fixture must prepare");
+    let observations = 0;
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+      host: deps.host,
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: {
+        ...deps.observation,
+        observeSelection: async () => {
+          observations += 1;
+          return observations === 1
+            ? deps.observation.observeSelection()
+            : { status: "refused" as const };
+        },
+      },
+    })).resolves.toEqual({ status: "refused" });
+    expect(deps.lock.release).toHaveBeenCalledOnce();
+    expect(deps.mergeRequest).not.toHaveBeenCalled();
+
+    const noMergedRequest = boundaries(state);
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+      host: { ...noMergedRequest.host, mergeRequest: async () => ({ status: "submitted" as const }) },
+      readiness: noMergedRequest.readiness,
+      lock: noMergedRequest.lock,
+      observation: noMergedRequest.observation,
+    })).resolves.toEqual({ status: "refused" });
   });
 
   it("retains attended authorization out of state and routes nonapplication back through prepare", async () => {
@@ -263,12 +337,45 @@ describe("delivery landing", () => {
     await expect(reconcileDeliveryExecution({
       planId: plan.planId,
       current,
-      observation: { outcome: "not-applied" },
+      observation: { observe: async () => ({ status: "observed" as const, value: { outcome: "not-applied" } }) },
       stateStore: { publish: async () => { throw new Error("must retain reservation"); } },
     })).resolves.toEqual({
       status: "retryable",
       guidance: "Prepare the exact landing again and re-fire its integration interlock.",
     });
     expect(JSON.stringify(current.value)).not.toMatch(/approval|reviewVerdict/u);
+  });
+
+  it("blocks unavailable recovery evidence and retains the reservation", async () => {
+    const { plan, state } = boundState();
+    const deps = boundaries(state);
+    let current: { revision: number; value: DeliveryStateV1 } | null = null;
+    await prepareDeliveryLanding({
+      plan,
+      current: { revision: 7, value: state },
+      facts: facts(state),
+      selectedDeliverableId: state.members[0]!.deliverableId,
+      repository: "andrewRCr/arc-framework",
+      baseRef: "refs/heads/main",
+      targetRef: "refs/heads/main",
+      mergeStrategy: "merge",
+      releaseMergeLock: false,
+      stateStore: { publish: async (_planId, value) => {
+        current = { revision: 8, value };
+        return { status: "ok" as const, value: current };
+      } },
+      host: deps.host,
+      readiness: deps.readiness,
+    });
+    if (current === null) throw new Error("fixture must reserve");
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current,
+      observation: { observe: async () => ({ status: "refused" as const }) },
+      stateStore: { publish: async () => { throw new Error("must retain reservation"); } },
+    })).resolves.toEqual({
+      status: "blocked",
+      guidance: "The reserved operation result is unavailable; retain the reservation.",
+    });
   });
 });

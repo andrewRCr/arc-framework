@@ -25,6 +25,7 @@ import {
 } from "../lib/delivery/git-eligibility.js";
 import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lifecycle-contribution.js";
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
+import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
 import {
   deleteDeliveryRemoteRef,
@@ -120,7 +121,11 @@ const PublishSchema = MaterializeSchema.extend({
   draft: z.boolean(),
 });
 const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: z.unknown() });
-const ReconcileSchema = z.strictObject({ planId: DeliveryPlanIdSchema, observation: z.unknown() });
+const ReconcileSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+});
 const PreparedLandingSchema = z.strictObject({
   operationId: z.string().min(1),
   planId: DeliveryPlanIdSchema,
@@ -146,9 +151,8 @@ const LandPrepareSchema = z.strictObject({
 });
 const LandApplySchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
-  facts: DeliveryPositionFactsV1Schema,
   approved: PreparedLandingSchema,
-  baseRef: RefSchema,
+  remote: z.string().min(1).default("origin"),
   treeRoot: z.string().min(1),
 });
 const ContributionCoordinateSchema = z.strictObject({ head: GitObjectIdSchema, tree: GitObjectIdSchema });
@@ -441,6 +445,48 @@ async function executeDeliveryCommand(
     resolveMember: (head: string) => stateStore.resolveMember({ selector: { kind: "head", objectId: head } }),
     inspectCheckout: async (path: string) => (await inspectDeliveryCandidateCheckout(exec, path))
       ?? { head: "", tree: "", trackedDirty: true },
+  };
+  const observePosition = async (
+    plan: z.infer<typeof DeliveryPlanV1Schema>,
+    current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
+    repository: string,
+    remote: string,
+  ) => {
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const refs = new Set<string>();
+    for (const member of current.value.members) if (member.ref !== null) refs.add(member.ref);
+    const operation = current.value.activeOperation;
+    for (const member of [...(operation?.before.members ?? []), ...(operation?.requested.members ?? [])]) {
+      if (member.ref !== null) refs.add(member.ref);
+    }
+    const remoteHeads: Record<string, string> = {};
+    const localCommits: Record<string, boolean> = {};
+    for (const ref of refs) {
+      const observed = await observeDeliveryRemoteRef(exec, remote, ref);
+      if (observed.status !== "observed") continue;
+      const branch = ref.replace(/^refs\/heads\//u, "");
+      remoteHeads[branch] = observed.head;
+      try {
+        await exec("git", ["fetch", "--no-write-fetch-head", remote, observed.head]);
+        localCommits[observed.head] = true;
+      } catch {
+        localCommits[observed.head] = false;
+      }
+    }
+    const observed = await observeRepositoryDeliveryPosition(plan, current.value, current.revision, {
+      exec, cwd, host, repository, remoteHeads, localCommits,
+    });
+    if (observed.status !== "observed") return observed;
+    for (const deliverableId of operation?.affectedDeliverableIds ?? []) {
+      const index = observed.facts.members.findIndex((member) => member.deliverableId === deliverableId);
+      const member = observed.facts.members[index];
+      if (member === undefined || member.coordinates === null) continue;
+      const predecessor = index === 0
+        ? observed.facts.target?.coordinates?.head
+        : observed.facts.members[index - 1]?.coordinates?.head ?? observed.facts.target?.coordinates?.head;
+      if (predecessor === undefined || member.coordinates.base !== predecessor) return { status: "refused" as const };
+    }
+    return observed;
   };
 
   if (command === "native-observe" || command === "native-link" || command === "native-unlink") {
@@ -795,6 +841,7 @@ async function executeDeliveryCommand(
       });
     }
     const apply = LandApplySchema.parse(parsed);
+    const current = stateRead.value;
     const lock = {
       release: async (input: { repository: string; changeRequestId: string }) => {
         const pullRequest = Number(input.changeRequestId);
@@ -817,21 +864,141 @@ async function executeDeliveryCommand(
     };
     return applyDeliveryLanding({
       plan,
-      current: stateRead.value,
-      facts: apply.facts,
+      current,
       approved: apply.approved,
-      baseRef: apply.baseRef,
       stateStore,
       host,
       readiness,
       lock,
+      observation: {
+        observeSelection: async () => {
+          const observed = await observePosition(plan, current, apply.approved.repository, apply.remote);
+          const member = observed.status === "observed"
+            ? observed.facts.members.find((candidate) => candidate.deliverableId === apply.approved.deliverableId)
+            : undefined;
+          return observed.status === "observed" && member !== undefined
+            ? { status: "observed" as const, facts: observed.facts, snapshot: {
+              target: observed.facts.target,
+              members: [member],
+            } }
+            : { status: "refused" as const };
+        },
+        proveLandedContribution: (coordinates) => proveGitDeliveryContribution({
+          exec: createRawGitExec(cwd),
+          before: { predecessor: coordinates.beforeTarget, member: coordinates.beforeMember },
+          after: { predecessor: coordinates.beforeTarget, member: coordinates.afterTarget },
+        }),
+      },
     });
   }
   if (command === "reconcile") {
     const parsed = ReconcileSchema.parse(request);
-    const state = await stateStore.read(parsed.planId);
-    if (state.status !== "ok" || state.value === null) return { status: "refused", reason: "state-unavailable" };
-    return reconcileDeliveryExecution({ planId: parsed.planId, current: state.value, observation: parsed.observation, stateStore });
+    const [plan, state] = await Promise.all([planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId)]);
+    if (plan.status !== "ok" || plan.value === null || state.status !== "ok" || state.value === null) {
+      return { status: "refused", reason: "state-unavailable" };
+    }
+    const currentPlan = plan.value;
+    const currentState = state.value;
+    return reconcileDeliveryExecution({
+      planId: parsed.planId,
+      current: currentState,
+      stateStore,
+      observation: {
+        observe: async () => {
+          const operation = currentState.value.activeOperation;
+          if (operation === null) return { status: "refused" as const };
+          if (operation.kind === "teardown") {
+            const before = operation.before.members[0];
+            if (before?.ref === null || before === undefined || before.changeRequest === null) {
+              return { status: "refused" as const };
+            }
+            const [ref, request, position] = await Promise.all([
+              observeDeliveryRemoteRef(exec, parsed.remote, before.ref),
+              new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, before.changeRequest),
+              observePosition(currentPlan, currentState, parsed.repository, parsed.remote),
+            ]);
+            const targetRef = operation.before.target?.ref.replace(/^refs\/heads\//u, "") ?? "";
+            return ref.status === "absent" && request.status === "observed"
+              && request.request.repository === parsed.repository
+              && request.request.headRepository === parsed.repository
+              && request.request.headRef === before.ref.replace(/^refs\/heads\//u, "")
+              && request.request.baseRef === targetRef
+              && (request.request.state === "merged" || request.request.state === "closed")
+              && position.status === "observed"
+              ? { status: "observed" as const, value: operation.requested }
+              : { status: "refused" as const };
+          }
+          if (operation.kind === "land") {
+            const beforeMember = operation.before.members[0];
+            if (beforeMember === undefined || beforeMember.changeRequest === null
+              || beforeMember.coordinates === null) return { status: "refused" as const };
+            const host = new GhDeliveryHostPort(hostedGhRunner);
+            const request = await host.readRequest(parsed.repository, beforeMember.changeRequest);
+            if (request.status !== "observed"
+              || request.request.repository !== operation.effect.repository
+              || request.request.headRepository !== operation.effect.repository
+              || request.request.binding.changeRequestId !== operation.effect.changeRequestId
+              || beforeMember.ref === null
+              || request.request.headRef !== beforeMember.ref.replace(/^refs\/heads\//u, "")
+              || request.request.headSha !== operation.effect.headSha
+              || request.request.baseRef !== operation.effect.baseRef) return { status: "refused" as const };
+            if (request.request.state === "open") {
+              const before = await observePosition(currentPlan, currentState, parsed.repository, parsed.remote);
+              return before.status === "observed"
+                && typeof before.operationObservation === "object"
+                && before.operationObservation !== null
+                && (before.operationObservation as { outcome?: unknown }).outcome === "not-applied"
+                ? { status: "observed" as const, value: { outcome: "not-applied" } }
+                : { status: "refused" as const };
+            }
+            if (request.request.state !== "merged") return { status: "refused" as const };
+            const target = await host.observeTarget(parsed.repository, operation.effect.targetRef);
+            const beforeTarget = operation.before.target?.coordinates;
+            if (target.status !== "observed" || beforeTarget === null || beforeTarget === undefined) {
+              return { status: "refused" as const };
+            }
+            try {
+              await exec("git", ["fetch", "--no-write-fetch-head", parsed.remote, target.coordinates.head]);
+            } catch {
+              return { status: "refused" as const };
+            }
+            const proof = await proveGitDeliveryContribution({
+              exec: createRawGitExec(cwd),
+              before: { predecessor: beforeTarget, member: beforeMember.coordinates },
+              after: { predecessor: beforeTarget, member: target.coordinates },
+            });
+            if (proof.status !== "accepted") return { status: "refused" as const };
+            return {
+              status: "observed" as const,
+              value: {
+                outcome: "applied",
+                observation: {
+                  kind: "land",
+                  effect: operation.effect,
+                  outcome: "applied",
+                  snapshot: {
+                    target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
+                    members: operation.before.members.map((member) => ({
+                      ...member,
+                      coordinates: member.coordinates === null ? null : {
+                        base: member.coordinates.base,
+                        head: target.coordinates.head,
+                        tree: target.coordinates.tree,
+                      },
+                    })),
+                  },
+                },
+              },
+            };
+          }
+          const observed = await observePosition(currentPlan, currentState, parsed.repository, parsed.remote);
+          if (observed.status !== "observed" || observed.operationObservation === null) {
+            return { status: "refused" as const };
+          }
+          return { status: "observed" as const, value: observed.operationObservation };
+        },
+      },
+    });
   }
   if (command === "rewrite") {
     const parsed = RewriteSchema.parse(request);
