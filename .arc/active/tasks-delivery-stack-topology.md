@@ -173,7 +173,7 @@ installation/update surface, and the decision shapes later execution and lifecyc
 _Purpose:_ Prove an operator-authored candidate chain is complete, independently coherent, lifecycle-clean, and
 identified through delivery state before any external binding can carry authority.
 
-### `[ ]` **2.1 Normalize lifecycle contributions against protected-base state** — § 6; SC 1, SC 8
+### `[x]` **2.1 Normalize lifecycle contributions against protected-base state** — § 6; SC 1, SC 8
 
 - _Goal:_ Disposable candidates and non-terminal projections carry none of this WU's active lifecycle contribution,
   without coupling delivery to today's tracked `.arc/` layout or treating a shared derived view as an owned record.
@@ -182,37 +182,20 @@ identified through delivery state before any external binding can carry authorit
   `draft-roadmap-tooling.md` § Treat branch-carried project projections as the defect; `adr-022-managed-operational-state-documents.md`
   § Decision
 
-    - `[ ]` **2.1.a Resolve repository lifecycle-contribution paths through current authorities**
-        - Introduce a narrow storage/projection port backed today by `listCurrentWuArtifactPaths`, the active meta
-          locus, and the semantic project-readiness path from `resolveArcPath`; encode neither `.arc/active` nor
-          `.arc/backlog/ROADMAP.md` in the delivery core.
-        - Treat a tracked `notes-{slug}.md` companion as a WU artifact; identity-scoped `SESSION-NOTES.md` and any
-          other non-repository materialization contribute no Git-tree path.
-        - Model the current readiness document as a shared derived projection path, not a WU-owned record. A future
-          on-demand or externally materialized `STATUS.PROJECT` view contributes no code-repository path.
-        - Build `test-first` (one behavior at a time):
-            - Current meta/spec/tasks/tracked-note companions, an additional companion, and the shared readiness
-              projection resolve through their authorities
-            - Another WU's artifacts do not enter the path set
-            - External or on-demand materialization produces no repository path
+    - `[x]` **2.1.a Resolve repository lifecycle-contribution paths through current authorities**
+        - Added a narrow resolver anchored by the active meta and `listCurrentWuArtifactPaths`; it separates the
+          semantic readiness projection from WU-owned artifacts and represents external materialization as no path.
 
-    - `[ ]` **2.1.b Compare exact candidate entry state with the protected base**
-        - Add one pure comparison over exact tree-entry state at every supplied path, shared by eligibility,
-          materialization, rewrite, and completeness normalization.
-        - Apply it to every disposable candidate, including the terminal candidate; the runtime terminal control
-          branch is outside this projection check because it has no delivery ref and intentionally carries the tail.
-        - Build `test-first` (one behavior at a time):
-            - An exclusive WU path absent on the base must remain absent
-            - A shared readiness path present on the base must retain the base entry identity
-            - Added, changed, deleted, or type/mode-changed contribution paths refuse and are all named together
-            - Unrelated files and unrelated WU records remain allowed
+    - `[x]` **2.1.b Compare exact candidate entry state with the protected base**
+        - Added one pure supplied-path comparison over absent or exact mode/type/object identity; it names all
+          mismatches in byte order and ignores unrelated repository entries.
 
-    - `[ ]` **2.1.c Revalidate immediately before every non-terminal projection push**
-        - Ship the shared comparison's revalidation entrypoint here, with unit proof that a contribution introduced
-          after eligibility is detected against fresh candidate state.
-        - The refusal-before-mutation integration proof lands with the callsites that invoke the entrypoint —
-          initial member-ref publication (Task 3.2.b/3.2.c) and suffix rewrite (Tasks 4.1/4.2) own that coverage;
-          this task owns the entrypoint contract they consume.
+    - `[x]` **2.1.c Revalidate immediately before every non-terminal projection push**
+        - Shipped a fail-closed Git revalidation entrypoint that freshly reads both refs and detects contribution
+          drift introduced after an earlier successful observation; push callsites retain their later integration proof.
+
+- _Outcome:_ Eligibility, materialization, rewrite, and completeness can now share one storage-resolved path set and
+  one exact protected-base comparison without treating the shared readiness view as an owned lifecycle record.
 
 ### `[ ]` **2.2 Validate candidate-chain gates, order, and completeness** — § 1; SC 1
 
