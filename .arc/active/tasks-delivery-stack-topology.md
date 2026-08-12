@@ -197,59 +197,28 @@ identified through delivery state before any external binding can carry authorit
 - _Outcome:_ Eligibility, materialization, rewrite, and completeness can now share one storage-resolved path set and
   one exact protected-base comparison without treating the shared readiness view as an owned lifecycle record.
 
-### `[ ]` **2.2 Validate candidate-chain gates, order, and completeness** — § 1; SC 1
+### `[x]` **2.2 Validate candidate-chain gates, order, and completeness** — § 1; SC 1
 
 - _Goal:_ Before delivery state or an external projection binds, an authored cut is accepted only when each exact
   candidate is independently green, descends from its expected predecessor, and the chain reconstructs the
   normalized control contribution exactly.
 
-    - `[ ]` **2.2.a Define the exact eligibility snapshot and ancestry contract**
-        - Add a focused delivery eligibility module over a currently valid `DeliveryPlanV1`: pin its revision/digest,
-          protected-base and control ref/head/tree coordinates, and one explicit ref/head/tree mapping per
-          `deliverableId`; branch-name segments never supply identity.
-        - Require the operator-authored `mainlineLandability` attestation already present in the canonical plan;
-          eligibility validates mechanics afterward and writes no replacement attestation.
-        - Prove the lowest candidate descends from the protected-base head and each successor from its predecessor's
-          exact head. Require every non-terminal candidate to contribute a non-empty delta and have a distinct head.
-          Return closed, member-naming refusals for missing, extra, reordered, duplicate, empty, wrong-base, or
-          unavailable facts.
-        - Build `test-first` (one behavior at a time):
-            - A complete independently-landable snapshot has one exact candidate per plan member
-            - Missing, extra, reordered, duplicate, empty, or wrong-predecessor candidates refuse with the member
-              identified
-            - A non-stack plan or invalid landability contract refuses before Git or gate work
+    - `[x]` **2.2.a Define the exact eligibility snapshot and ancestry contract**
+        - Added an ephemeral snapshot over a revalidated stack plan with exact plan/base/control/member coordinates,
+          ordered identity, ancestry, non-empty non-terminal deltas, and closed member-naming refusals.
 
-    - `[ ]` **2.2.b Run the existing project gate procedure at each pinned head**
-        - Tier split: gate execution and the red-or-unavailable-gate stop are workflow-owned through the shipped
-          `quality-gate-commands` method; the CLI eligibility verb owns mechanical validation and never receives,
-          records, or attests a gate outcome. Delivery adds no command resolver, registry, config axis,
-          gate-result input, or persisted verdict.
-        - The workflow runs the normal gates in each candidate checkout; the verb proves each candidate at its
-          exact pinned head and refuses tracked/index dirt whose passing result would describe bytes outside that
-          head — invoked around the gate run to close the before/after head bracket. Candidate checkouts are
-          disposable linked or temporary worktrees provisioned outside the operator's control locus — the venue
-          that keeps the dirt refusal meaningful; provisioning mechanics are implementation detail.
-        - Build `test-first` (one behavior at a time):
-            - Each candidate validates at its exact pinned head
-            - A moved head or tracked/index mutation refuses and names the candidate
-            - Ignored build output does not change the exact committed-tree judgment
-        - Workflow-contract coverage: a red or unavailable gate stops the procedure before any binding or
-          materialization; no CLI surface is asked to attest it.
+    - `[x]` **2.2.b Run the existing project gate procedure at each pinned head**
+        - Shipped the pre/post checkout bracket that reobserves exact head/tree and refuses tracked/index dirt while
+          excluding untracked output. Gate execution/outcome remains absent from delivery inputs and belongs to the
+          Task 5.1 workflow composition that invokes this mechanical boundary.
 
-    - `[ ]` **2.2.c Prove normalized completeness and close the observation window**
-        - Normalize the control tree by restoring Task 2.1's protected-base entry state, then compare it exactly with
-          the final candidate tree; report dropped, invented, and content/type mismatches distinctly.
-        - Reobserve every source ref and the current plan before success. Perform zero plan/state writes and leave
-          candidate refs disposable after success or failure.
-        - Before binding, resolve every non-terminal head against global delivery state; refuse any prior binding
-          except an exact retry of the same plan/member identity.
-        - Treat a standalone result as non-authorizing: Phase 3 materialization re-enters the complete eligibility
-          procedure and publishes only the exact object IDs just validated; interruption reruns eligibility.
-        - Build `test-first` (one behavior at a time):
-            - Exact normalized reconstruction passes
-            - Dropped, invented, mismatched, unavailable, or late-moved content refuses
-            - A head bound to another plan/member refuses while an exact same-member retry remains admissible
-            - Every arm performs zero plan/state writes
+    - `[x]` **2.2.c Prove normalized completeness and close the observation window**
+        - Added exact recursive-tree normalization and distinct dropped/invented/mismatched reporting, followed by
+          fresh source/plan reads and global non-terminal binding checks through read-only dependencies. The result
+          remains ephemeral and exact same-member retries are the only admitted prior binding.
+
+- _Outcome:_ Mechanical eligibility now pins and closes one exact disposable chain without accepting gate verdicts
+  or write-capable stores; later materialization must rerun it and use only the object identities just reobserved.
 
 ### `[ ]` **2.3 Recognize delivery refs without deriving authority from their names** — § 2; SC 2, SC 3
 
