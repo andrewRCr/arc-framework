@@ -1116,12 +1116,12 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     }
   });
 
-  it("carries sessionType=integration through the composite when Next Action begins with integrate-work-unit", async () => {
+  it("keeps Candidate pre-publication work in execution before submission", async () => {
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
       taskList: "`.arc/active/tasks-foo.md`",
-      nextAction: "integrate-work-unit Step 7 — push and create PR",
+      nextAction: "Candidate review pending — run pre-publication review",
     });
 
     const probes = makeSessionInitProbes(fixture);
@@ -1134,7 +1134,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
-      expect(result.active.value.sessionType).toBe("integration");
+      expect(result.active.value.sessionType).toBe("execution");
     }
   });
 
@@ -1149,7 +1149,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
       branch: "technical/beta",
       state: "Active",
       taskList: "`.arc/active/tasks-beta.md`",
-      nextAction: "integrate-work-unit Step 1 — verify completion",
+      nextAction: "Candidate review pending — run pre-publication review",
     });
 
     const probes = makeSessionInitProbes(fixture);

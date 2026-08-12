@@ -6,6 +6,7 @@ import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
   CandidateManagedRecordV1Schema,
   createCandidateAttestation,
+  createCandidateLineageAttestation,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
   parseCandidateManagedRecord,
@@ -61,6 +62,7 @@ describe("Candidate attestation", () => {
       attestation: first,
       subject: snapshot(),
       responses: [],
+      lineageAttestations: [],
     }).success).toBe(true);
   });
 
@@ -71,6 +73,7 @@ describe("Candidate attestation", () => {
       attestation: attestation(),
       subject: snapshot(),
       responses: [],
+      lineageAttestations: [],
     };
 
     expect(parseCandidateManagedRecord(serializeCandidateManagedRecord(record))).toEqual(record);
@@ -79,6 +82,27 @@ describe("Candidate attestation", () => {
 });
 
 describe("Candidate lineage currentness", () => {
+  it("records full verification over one recognized lineage head", () => {
+    const root = attestation();
+    const target = { revision: SHA_B, subject: snapshot(canonicalDigest({ source: "review-fix" })) };
+
+    expect(createCandidateLineageAttestation({
+      candidateId: root.candidateId,
+      target,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-12T13:00:00.000Z",
+      verificationEvidenceRef: "verification://example/converged",
+    })).toEqual({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      candidateId: root.candidateId,
+      target,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-12T13:00:00.000Z",
+      verificationEvidenceRef: "verification://example/converged",
+    });
+  });
+
   it("advances through an approved review response and retains verification applicability", () => {
     const root = attestation();
     const changed = snapshot(canonicalDigest({ source: "review-fix" }));
@@ -100,6 +124,7 @@ describe("Candidate lineage currentness", () => {
         attestation: root,
         subject: snapshot(),
         responses: [response],
+        lineageAttestations: [],
       },
       current: { revision: SHA_B, subject: changed },
     });
@@ -128,9 +153,42 @@ describe("Candidate lineage currentness", () => {
         attestation: root,
         subject: snapshot(),
         responses: [],
+        lineageAttestations: [],
       },
       current: { revision: SHA_C, subject: current },
     })).toMatchObject({ status: "current", recognizedRevision: SHA_C, convergenceVerification: "satisfied" });
+  });
+
+  it("lets an exact response target bridge an unrecorded operational-only revision", () => {
+    const root = attestation();
+    const changed = snapshot(canonicalDigest({ source: "review-fix-after-handoff" }));
+    const response = createCandidateReviewResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_B, subject: snapshot() },
+      newTarget: { revision: SHA_C, subject: changed },
+      dispositionId: canonicalDigest({ dispositions: 2 }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "targeted",
+      verificationEvidenceRefs: ["test://candidate/targeted"],
+      implementationChanged: true,
+    });
+
+    expect(projectCandidateCurrentness({
+      record: {
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: root,
+        subject: snapshot(),
+        responses: [response],
+        lineageAttestations: [],
+      },
+      current: { revision: SHA_C, subject: changed },
+    })).toMatchObject({
+      status: "current",
+      recognizedRevision: SHA_C,
+      convergenceVerification: "pending",
+    });
   });
 
   it("blocks an unexplained reviewable delta with its exact path delta and one recovery action", () => {
@@ -144,6 +202,7 @@ describe("Candidate lineage currentness", () => {
         attestation: root,
         subject: snapshot(),
         responses: [],
+        lineageAttestations: [],
       },
       current: { revision: SHA_B, subject: changed },
     })).toEqual({

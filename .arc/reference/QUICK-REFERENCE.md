@@ -349,6 +349,9 @@ arc park [slug] --reason <text> [--land <oid>]
 # Resume a parked WU's preserved branch (resume-work-unit.md)
 arc resume [slug] [--here]
 
+# Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
+arc propose <name> --json
+
 # Open review: Active → Integrating, marks phase entry not the merge (integrate-work-unit.md)
 arc integrate [slug] --last-completed <work> --action <next action>
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)

@@ -8,12 +8,10 @@ import {
   sortByCanonicalBytes,
 } from "../canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
-import {
-  GitObjectIdSchema,
-  ReviewCanonicalDigestSchema,
-} from "../../scripts/review-gate/core/gate-contract-v2-schema.js";
 
 const CandidateSemanticsSchema = z.literal("candidate-attestation/v1");
+const CandidateCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const CandidateGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const CandidatePathSchema = z.string().min(1).refine(
   (value) => !value.startsWith("/") && !value.includes("\\") && !value.split("/").includes(".."),
   "must be a repository-relative POSIX path",
@@ -21,43 +19,44 @@ const CandidatePathSchema = z.string().min(1).refine(
 const CandidateSubjectTreatmentSchema = z.enum(["reviewable", "operational", "candidate-projection"]);
 const CandidateSubjectEntrySchema = z.strictObject({
   path: CandidatePathSchema,
-  digest: ReviewCanonicalDigestSchema,
+  digest: CandidateCanonicalDigestSchema,
   treatment: CandidateSubjectTreatmentSchema,
 });
 export const CandidateSubjectSnapshotSchema = z.strictObject({
   entries: z.array(CandidateSubjectEntrySchema),
-  subjectDigest: ReviewCanonicalDigestSchema,
+  subjectDigest: CandidateCanonicalDigestSchema,
 });
 export type CandidateSubjectSnapshot = z.infer<typeof CandidateSubjectSnapshotSchema>;
 
 export const CandidateAttestationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: CandidateSemanticsSchema,
-  candidateId: ReviewCanonicalDigestSchema,
+  candidateId: CandidateCanonicalDigestSchema,
   workUnit: SlugSchema,
-  subjectDigest: ReviewCanonicalDigestSchema,
-  baseRevision: GitObjectIdSchema,
+  subjectDigest: CandidateCanonicalDigestSchema,
+  baseRevision: CandidateGitObjectIdSchema,
   attestedBy: z.string().trim().min(1),
   attestedAt: z.iso.datetime(),
   verificationEvidenceRef: z.string().trim().min(1),
 });
 export type CandidateAttestationV1 = z.infer<typeof CandidateAttestationV1Schema>;
 
-const CandidateLineageTargetSchema = z.strictObject({
-  revision: GitObjectIdSchema,
+export const CandidateLineageTargetSchema = z.strictObject({
+  revision: CandidateGitObjectIdSchema,
   subject: CandidateSubjectSnapshotSchema,
 });
+export type CandidateLineageTarget = z.infer<typeof CandidateLineageTargetSchema>;
 export const CandidateVerificationApplicabilitySchema = z.enum(["targeted", "focused", "full"]);
 export type CandidateVerificationApplicability = z.infer<typeof CandidateVerificationApplicabilitySchema>;
 
 export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: CandidateSemanticsSchema,
-  candidateId: ReviewCanonicalDigestSchema,
-  responseId: ReviewCanonicalDigestSchema,
+  candidateId: CandidateCanonicalDigestSchema,
+  responseId: CandidateCanonicalDigestSchema,
   oldTarget: CandidateLineageTargetSchema,
   newTarget: CandidateLineageTargetSchema,
-  dispositionId: ReviewCanonicalDigestSchema,
+  dispositionId: CandidateCanonicalDigestSchema,
   approvedBy: z.string().trim().min(1),
   appliedBy: z.string().trim().min(1),
   applicability: CandidateVerificationApplicabilitySchema,
@@ -66,12 +65,24 @@ export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
 });
 export type CandidateReviewResponseEvidenceV1 = z.infer<typeof CandidateReviewResponseEvidenceV1Schema>;
 
+export const CandidateLineageAttestationV1Schema = z.strictObject({
+  schemaVersion: z.literal(1),
+  semanticsVersion: CandidateSemanticsSchema,
+  candidateId: CandidateCanonicalDigestSchema,
+  target: CandidateLineageTargetSchema,
+  attestedBy: z.string().trim().min(1),
+  attestedAt: z.iso.datetime(),
+  verificationEvidenceRef: z.string().trim().min(1),
+});
+export type CandidateLineageAttestationV1 = z.infer<typeof CandidateLineageAttestationV1Schema>;
+
 export const CandidateManagedRecordV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: CandidateSemanticsSchema,
   attestation: CandidateAttestationV1Schema,
   subject: CandidateSubjectSnapshotSchema,
   responses: z.array(CandidateReviewResponseEvidenceV1Schema),
+  lineageAttestations: z.array(CandidateLineageAttestationV1Schema),
 }).superRefine((record, context) => {
   if (record.attestation.subjectDigest !== record.subject.subjectDigest) {
     context.addIssue({ code: "custom", path: ["subject", "subjectDigest"], message: "must match the attestation" });
@@ -79,6 +90,15 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
   for (const [index, response] of record.responses.entries()) {
     if (response.candidateId !== record.attestation.candidateId) {
       context.addIssue({ code: "custom", path: ["responses", index, "candidateId"], message: "must match the attestation" });
+    }
+  }
+  for (const [index, attestation] of record.lineageAttestations.entries()) {
+    if (attestation.candidateId !== record.attestation.candidateId) {
+      context.addIssue({
+        code: "custom",
+        path: ["lineageAttestations", index, "candidateId"],
+        message: "must match the root attestation",
+      });
     }
   }
 });
@@ -151,7 +171,7 @@ export function createCandidateAttestation(input: CreateCandidateAttestationInpu
     semanticsVersion: "candidate-attestation/v1" as const,
     workUnit: SlugSchema.parse(input.workUnit),
     subjectDigest: subject.subjectDigest,
-    baseRevision: GitObjectIdSchema.parse(input.baseRevision),
+    baseRevision: CandidateGitObjectIdSchema.parse(input.baseRevision),
     attestedBy: input.attestedBy,
     attestedAt: input.attestedAt,
     verificationEvidenceRef: input.verificationEvidenceRef,
@@ -202,6 +222,29 @@ export function createCandidateReviewResponseEvidence(
   });
 }
 
+export interface CreateCandidateLineageAttestationInput {
+  candidateId: string;
+  target: z.input<typeof CandidateLineageTargetSchema>;
+  attestedBy: string;
+  attestedAt: string;
+  verificationEvidenceRef: string;
+}
+
+/** Record full verification over one recognized Candidate lineage head. */
+export function createCandidateLineageAttestation(
+  input: CreateCandidateLineageAttestationInput,
+): CandidateLineageAttestationV1 {
+  return CandidateLineageAttestationV1Schema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1",
+    candidateId: input.candidateId,
+    target: input.target,
+    attestedBy: input.attestedBy,
+    attestedAt: input.attestedAt,
+    verificationEvidenceRef: input.verificationEvidenceRef,
+  });
+}
+
 export type CandidateCurrentnessProjection =
   | {
       status: "current";
@@ -235,8 +278,7 @@ export function projectCandidateCurrentness(input: {
   let subject = record.subject;
   let implementationChanged = false;
   for (const response of record.responses) {
-    if (response.oldTarget.revision !== revision
-      || response.oldTarget.subject.subjectDigest !== subject.subjectDigest) {
+    if (response.oldTarget.subject.subjectDigest !== subject.subjectDigest) {
       return blockedProjection(record.attestation.candidateId, revision, current, subject);
     }
     revision = response.newTarget.revision;
@@ -247,12 +289,15 @@ export function projectCandidateCurrentness(input: {
     return blockedProjection(record.attestation.candidateId, revision, current, subject);
   }
   const operationalOnlyAdvance = current.revision !== revision;
+  const convergenceSatisfied = !implementationChanged || record.lineageAttestations.some((attestation) =>
+    attestation.target.revision === revision
+    && attestation.target.subject.subjectDigest === subject.subjectDigest);
   return {
     status: "current",
     candidateId: record.attestation.candidateId,
     recognizedRevision: operationalOnlyAdvance ? current.revision : revision,
     implementationChanged,
-    convergenceVerification: implementationChanged ? "pending" : "satisfied",
+    convergenceVerification: convergenceSatisfied ? "satisfied" : "pending",
   };
 }
 

@@ -78,14 +78,12 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
-## Step 3 — Pre-align Meta File for Integration Handoff
+## Step 3 — Attest the Candidate
 
-Before marking the verification task `[x]`, run `arc finalize verify` — it writes the
-integration-handoff pointer `integrate-work-unit Step 1 — verify completion` to the active meta
-file's `**Next Action:**` through the field model (the workflow-step-pointer convention,
-[session-handoff][session-handoff] § _Workflow step pointer_). This closes the inference gap
-between verification close and integrate-entry — the session-init probe relies on this prefix
-to set `sessionType: integration`. Stage with the verification commit.
+Complete the verification task's success-criteria and completion-note edits, then stage all verified reviewable
+content. Run `arc propose {name} --json`; it attests that staged subject as a Candidate, leaves lifecycle `State`
+unchanged, and returns the typed pre-publication locus. Stage the managed record and meta projection it writes with
+the verification commit. A repeated invocation over the same subject is a no-op.
 
 ## Completion Notes
 
@@ -107,4 +105,3 @@ verification-task exception). Cover both:
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [integrate-work-unit]: integrate-work-unit.md
-[session-handoff]: ../session-lifecycle/session-handoff.md

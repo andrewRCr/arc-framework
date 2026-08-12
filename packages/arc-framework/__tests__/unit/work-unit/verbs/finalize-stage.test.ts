@@ -2,8 +2,8 @@
  * Unit tests for `runFinalizeStage` — the planning-ceremony finalize-fact write.
  *
  * Not a lifecycle transition and not a pointer write: it persists the deterministic
- * finalize facts a planning/verification ceremony produces — the resolved `Class`,
- * the derived `Task List`, and the fixed terminal `Next Action` — keyed by the
+ * finalize facts a planning ceremony produces — the resolved `Class` and the
+ * derived `Task List` / terminal `Next Action` — keyed by the
  * fire-point. The PPR-owned pointers (`Current Workflow` / `Design` / begin-sentinel)
  * stay with `set-stage` / `repoint-design`; this verb owns the complementary facts.
  */
@@ -102,43 +102,12 @@ describe("runFinalizeStage — generate-tasks finalize (terminus)", () => {
   });
 });
 
-describe("runFinalizeStage — verify finalize", () => {
-  it("writes only the fixed integration-handoff Next Action — no Class, no Task List", async () => {
-    const { ctx, classWrites, softWrites } = buildCtx();
-    const result = await runFinalizeStage(ctx, { name: "demo-wu", firePoint: "verify" });
-    expect(result).toMatchObject({
-      status: "ok",
-      metaPath: META,
-      firePoint: "verify",
-      workClass: null,
-      taskList: null,
-      nextAction: "integrate-work-unit Step 1 — verify completion",
-    });
-    expect(classWrites).toEqual([]);
-    expect(softWrites).toEqual([
-      {
-        metaPath: META,
-        updates: { "Next Action": "integrate-work-unit Step 1 — verify completion" },
-      },
-    ]);
-  });
-
-  it("rejects a Class supplied to a fire-point that takes none", async () => {
-    const { ctx, classWrites, softWrites } = buildCtx();
-    const result = await runFinalizeStage(ctx, { name: "demo-wu", firePoint: "verify", workClass: "Heavy" });
-    expect(result.status).toBe("rejected");
-    expect(classWrites).toEqual([]);
-    expect(softWrites).toEqual([]);
-  });
-});
-
 describe("runFinalizeStage — guards", () => {
-  it("rejects an unrecognized fire-point and performs no write", async () => {
+  it("rejects the former verify fire-point and performs no write", async () => {
     const { ctx, classWrites, softWrites } = buildCtx();
     const result = await runFinalizeStage(ctx, {
       name: "demo-wu",
-      firePoint: "wibble" as never,
-      workClass: "Heavy",
+      firePoint: "verify" as never,
     });
     expect(result.status).toBe("rejected");
     expect(classWrites).toEqual([]);
@@ -147,7 +116,7 @@ describe("runFinalizeStage — guards", () => {
 
   it("rejects an empty work-unit name and performs no write", async () => {
     const { ctx, classWrites, softWrites } = buildCtx();
-    const result = await runFinalizeStage(ctx, { name: "  ", firePoint: "verify" });
+    const result = await runFinalizeStage(ctx, { name: "  ", firePoint: "create-spec", workClass: "Heavy" });
     expect(result.status).toBe("rejected");
     expect(classWrites).toEqual([]);
     expect(softWrites).toEqual([]);

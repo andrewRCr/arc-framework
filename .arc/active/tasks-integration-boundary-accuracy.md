@@ -75,28 +75,26 @@ pass ledger or findings store. Full rationale in `spec-integration-boundary-accu
 - _Outcome:_ Candidate is a storage-neutral typed lineage: its canonical subject excludes operational projections,
   approved responses advance it without a second fix ledger, and unrecognized reviewable content fails closed.
 
-### `[ ]` **1.2 Replace verification finalization with idempotent `propose`**
+### `[x]` **1.2 Replace verification finalization with idempotent `propose`**
 
 - _Goal:_ `arc propose` records Candidate at the verification-finalize fire point and re-attests a converged
   lineage head, adding no interlock, commit, or user decision on either form; a repeated same-target call is a
   no-op.
 
-    - `[ ]` **1.2.a `arc propose <name> --json` verb, handler, and dispatch**
-        - extracts the `verify` member from the shared `arc finalize <fire-point>` verb (`finalize-stage.ts`
-          keeps its closed set at `create-spec | generate-tasks`): writes the integration pointer and
-          Candidate lineage root through the managed WU record, stages with the existing verification commit,
-          leaves `State: Active`, and returns the typed pre-publication locus
-        - existing pins flip with this member: `finalize-stage.test.ts` (the `verify` fire point and its
-          terminal string) and `integration/status.test.ts` (the projected `nextAction`)
+    - `[x]` **1.2.a `arc propose <name> --json` verb, handler, and dispatch**
+        - Added the typed CLI path, staged-Git subject adapter, canonical Candidate store, managed meta
+          projection, and real-CLI staging proof; `finalize` now accepts planning fire-points only.
 
-    - `[ ]` **1.2.b Converged re-attestation form**
-        - attests only the recognized current lineage head; records full verification evidence for the exact
-          converged head; rejects any unexplained delta; same-target repetition is a no-op; an unchanged tree
-          reuses the initial attestation
+    - `[x]` **1.2.b Converged re-attestation form**
+        - Recognized implementation-changing response lineages receive one exact-head full attestation;
+          same-target repetition is a no-op and unexplained reviewable changes retain the original root and block.
 
-    - `[ ]` **1.2.c Call-site and reference updates**
-        - swap the `arc finalize verify` invocation in the verification workflow and command references
-          (both copies per the two-copy discipline)
+    - `[x]` **1.2.c Call-site and reference updates**
+        - The shipped verification workflow and CLI quick reference now invoke `arc propose`, mirrored in the
+          self-hosting project copy; Candidate review remains execution work before submission.
+
+- _Outcome:_ Verification now closes on a durable, idempotent Candidate attestation instead of entering
+  integration by narrative pointer; root creation and converged re-attestation share one typed verb.
 
 ### `[ ]` **1.3 Drive pre-publication review and convergence verification**
 

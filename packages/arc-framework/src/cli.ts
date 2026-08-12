@@ -71,6 +71,7 @@ import {
   handleTeardown,
   handleSetStage,
   handleFinalizeStage,
+  handlePropose,
   handleRepointDesign,
   handleRename,
   isDecomposeMachineReadableInvocation,
@@ -86,6 +87,7 @@ import {
   type ArchiveOptions,
   type TeardownOptions,
   type DecomposeOptions,
+  type ProposeOptions,
 } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
@@ -469,12 +471,21 @@ program
   .command("finalize <fire-point>")
   .description(
     "Persist a planning ceremony's finalize facts (meta `Class` / `Task List` / `Next Action`) "
-    + "at its fire-point: create-spec | generate-tasks | verify",
+    + "at its fire-point: create-spec | generate-tasks",
   )
   .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
   .action(withInteractionContext(
     {},
     (context, firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts, context),
+  ));
+
+program
+  .command("propose <name>")
+  .description("Attest a verified work-unit Candidate while leaving lifecycle State unchanged")
+  .option("--json", "Emit the typed pre-publication locus as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, name: string, opts: ProposeOptions) => handlePropose(name, opts, context),
   ));
 
 program

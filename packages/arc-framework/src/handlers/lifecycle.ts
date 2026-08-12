@@ -32,8 +32,11 @@ import {
 } from "../lib/command-input/declaration.js";
 
 import {
+  formatValue,
   parseMetaRecord,
   readActiveMetaCandidates,
+  setMetaBulletFields,
+  setMetaCandidate,
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
@@ -123,6 +126,12 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
+import { ProposeResultSchema, runPropose } from "../lib/work-unit/verbs/propose.js";
+import { collectGitCandidateTarget } from "../lib/work-unit/git-candidate-subject.js";
+import {
+  readCandidateRecord,
+  writeCandidateRecord,
+} from "../lib/work-unit/candidate-record-store.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
@@ -470,17 +479,17 @@ export const SetStageCommandInputSchema = z.object({
   advance: z.boolean().optional(),
 }).strict();
 export const FinalizeCommandInputSchema = z.object({
-  firePoint: z.enum(["create-spec", "generate-tasks", "verify"]),
+  firePoint: z.enum(["create-spec", "generate-tasks"]),
   class: WorkClassSchema.optional(),
 }).strict().superRefine((value, refinement) => {
-  const requiresClass = value.firePoint === "create-spec" || value.firePoint === "generate-tasks";
-  if (requiresClass && value.class === undefined) {
+  if (value.class === undefined) {
     refinement.addIssue({ code: "custom", path: ["class"], message: "--class is required at this fire-point." });
   }
-  if (!requiresClass && value.class !== undefined) {
-    refinement.addIssue({ code: "custom", path: ["class"], message: "--class is not valid at verify." });
-  }
 });
+export const ProposeCommandInputSchema = z.object({
+  name: SlugSchema,
+  json: z.boolean().optional(),
+}).strict();
 export const RepointDesignCommandInputSchema = z.object({
   event: z.enum(["draft-created", "spec-finalized"]),
 }).strict();
@@ -590,6 +599,11 @@ export const lifecycleCommandInputRegistrations = [
     commandPath: "finalize",
     schema: FinalizeCommandInputSchema,
     schemaFields: { "operand.fire-point": "firePoint", "option.class": "class" },
+  },
+  {
+    commandPath: "propose",
+    schema: ProposeCommandInputSchema,
+    schemaFields: { "operand.name": "name", "option.json": "json" },
   },
   {
     commandPath: "repoint-design",
@@ -2114,15 +2128,14 @@ export async function handleSetStage(
 // ---------------------------------------------------------------------------
 
 /**
- * `arc finalize <fire-point>` — persist a planning / verification ceremony's
+ * `arc finalize <fire-point>` — persist a planning ceremony's
  * deterministic finalize facts at its fire-point: the resolved `Class`, the derived
  * `Task List`, and the fixed terminal `Next Action`, per the fire-point's contract
- * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action;
- * `verify` → Next Action). The complement of `set-stage` / `repoint-design` (which
+ * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action).
+ * The complement of `set-stage` / `repoint-design` (which
  * own the planning pointers): not a lifecycle transition. `--class` carries the
- * resolved weight, required at create-spec / generate-tasks and refused (via
- * `runFinalizeStage`) at verify. Refuses without a single resolvable active WU. Verb
- * spelling is provisional, pending idiomatic-alignment.
+ * resolved weight, required at both fire-points. Refuses without a single
+ * resolvable active WU.
  */
 export async function handleFinalizeStage(
   firePoint: string | undefined,
@@ -2170,6 +2183,85 @@ export async function handleFinalizeStage(
   lines.push(`Meta:        ${result.metaPath}`);
   p.note(lines.join("\n"), "Finalize facts written");
   p.outro("Done.");
+}
+
+// ---------------------------------------------------------------------------
+// Candidate attestation — `propose`
+// ---------------------------------------------------------------------------
+
+export interface ProposeOptions {
+  json?: boolean;
+}
+
+/** Attest the current verified work-unit subject without changing lifecycle State. */
+export async function handlePropose(
+  name: string | undefined,
+  opts: ProposeOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc propose");
+  const input = parseLifecycleCommand(ProposeCommandInputSchema, { name: name?.trim(), json: opts.json });
+  if (input === null) return;
+  const base = await resolveVerbBase(context);
+  if (base === null) return;
+  const { settings } = await buildExecutor(base);
+  const metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: input.name,
+    artifact: "meta",
+  });
+  const absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+  let metaContent: string;
+  try {
+    metaContent = await base.io.readFile(absoluteMetaPath);
+  } catch {
+    refuse(`\`arc propose\` requires an active managed record for \`${input.name}\`.`);
+    return;
+  }
+  const meta = parseMetaRecord(metaContent);
+  if (meta.state !== "Active" && meta.state !== "Integrating") {
+    refuse(`\`arc propose\` requires \`${input.name}\` to be Active or Integrating.`);
+    return;
+  }
+
+  const result = await runPropose({
+    actor: base.identity,
+    now: () => new Date().toISOString(),
+    verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
+    readRecord: (slug) => readCandidateRecord(base.cwd, slug),
+    currentTarget: (slug) => collectGitCandidateTarget({
+      cwd: base.cwd,
+      name: slug,
+      baseBranch: settings["branch.base"],
+      exec: base.io.exec,
+    }),
+    publish: async (publication) => {
+      const recordPath = await writeCandidateRecord(base.cwd, publication.name, publication.record);
+      const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
+      metaContent = setMetaBulletFields(withCandidate, {
+        "Next Action": formatValue(publication.nextAction, "narrative"),
+      });
+      await base.io.writeFile(absoluteMetaPath, metaContent);
+      await base.io.exec("git", ["add", "--", recordPath, metaPath], { cwd: base.cwd });
+      return { recordPath, metaPath };
+    },
+  }, { name: input.name });
+
+  if (input.json === true) {
+    process.stdout.write(`${JSON.stringify(ProposeResultSchema.parse(result))}\n`);
+  } else if (result.status === "blocked") {
+    p.log.error(`${result.nextAction}\n${JSON.stringify(result.delta)}`);
+  } else {
+    const lines = [
+      `Work unit: ${result.locus.workUnit}`,
+      `Candidate: ${result.locus.candidateId}`,
+      `Locus:     ${result.locus.kind}`,
+    ];
+    p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
+    p.outro("Done.");
+  }
+  if (result.status === "blocked") process.exitCode = 1;
 }
 
 // ---------------------------------------------------------------------------
