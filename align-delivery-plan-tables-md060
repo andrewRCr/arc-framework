@@ -3,20 +3,14 @@
   "slug": "align-delivery-plan-tables-md060",
   "claimId": "161e18fa864e0b70fb80b5eda79135c9",
   "createdAt": "2026-08-12T01:53:10.380Z",
-  "updatedAt": "2026-08-12T02:15:18.821Z",
+  "updatedAt": "2026-08-12T02:24:49.314Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Align the delivery-plan renderer's tables with the MD060 markdown gate",
   "branch": "chore/align-delivery-plan-tables-md060",
   "origin": "description",
   "originEntry": null,
-  "state": "awaiting-merge",
+  "state": "open",
   "savedHead": null,
-  "changeRequest": {
-    "repositoryRef": "andrewRCr/arc-framework",
-    "hostRef": "github.com",
-    "baseRef": "main",
-    "headRef": "chore/align-delivery-plan-tables-md060",
-    "headSha": "269f98b535c00c54d413a6bee744ab507a42e83f"
-  }
+  "changeRequest": null
 }
