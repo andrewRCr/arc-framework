@@ -102,6 +102,8 @@ const starter = [
   "",
   "_Not authored yet._",
   "",
+  "### `[ ]` **9.9 Task-shaped provisional member**",
+  "",
   "## **Phase 1:** Build",
   "",
   "Phase content stays byte-identical.",
@@ -109,14 +111,21 @@ const starter = [
 ].join("\n");
 
 describe("delivery task-list projection", () => {
-  it("replaces one unmarked top-level section and installs exact sentinels", () => {
+  it("replaces one unmarked locus, preserves phase bytes, and passes MD060 as a full document", async () => {
     const result = replaceDeliveryPlanSection(starter, plan());
     expect(result.status).toBe("rendered");
     if (result.status !== "rendered") throw new Error("expected rendered task list");
     expect(result.content).toContain("<!-- arc:delivery-plan:start -->\n## Delivery Plan");
     expect(result.content).toContain("<!-- arc:delivery-plan:end -->");
     expect(result.content.startsWith("# Tasks\n\nPreamble stays byte-identical.\n\n")).toBe(true);
-    expect(result.content.endsWith("## **Phase 1:** Build\n\nPhase content stays byte-identical.\n")).toBe(true);
+    const phaseBytes = "## **Phase 1:** Build\n\nPhase content stays byte-identical.\n";
+    expect(result.content.slice(result.content.indexOf("## **Phase 1:** Build"))).toBe(phaseBytes);
+    expect(result.content).not.toContain("markdownlint-disable");
+    const lintResult = await lint({
+      strings: { "tasks.md": result.content },
+      config: { default: false, MD060: { style: "aligned" } },
+    });
+    expect(lintResult["tasks.md"]).toEqual([]);
   });
 
   it("replaces only the existing sentinel range on a successor render", () => {

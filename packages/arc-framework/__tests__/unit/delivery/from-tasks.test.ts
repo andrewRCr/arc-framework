@@ -17,6 +17,12 @@ function taskList(): string {
   return [
     "# Task List: Example",
     "",
+    "## Delivery Plan",
+    "",
+    "### `[ ]` **9.9 Provisional task-shaped member**",
+    "",
+    "- _Goal:_ This plan prose is not implementation inventory.",
+    "",
     "## **Phase alpha:** First group",
     "",
     "### `[ ]` **9.4 First task**",

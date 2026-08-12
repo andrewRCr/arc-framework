@@ -19,6 +19,38 @@ describe("ParentTaskIdSchema", () => {
 });
 
 describe("scanTaskListStructure", () => {
+  it("treats a pre-phase Delivery Plan as non-executable content", () => {
+    const result = scanTaskListStructure([
+      "## Delivery Plan",
+      "",
+      "### `[ ]` **9.9 Task-shaped member prose**",
+      "",
+      "    - `[ ]` **9.9.a Task-shaped seam prose**",
+      "",
+      "| # | Tasks |",
+      "| - | ----- |",
+      "| 1 | `8.8`, `8.9` |",
+      "",
+      "```markdown",
+      "## **Phase 7:** Fenced example",
+      "```",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 Real task**",
+    ].join("\n"));
+
+    expect(result).toMatchObject({
+      status: "scanned",
+      events: [
+        { type: "section", line: 1 },
+        { type: "phase", line: 15, id: "1", title: "Build" },
+        { type: "content", line: 16, text: "" },
+        { type: "parent", line: 17, item: { id: "1.1", title: "Real task" } },
+      ],
+    });
+  });
+
   it("emits canonical phase, parent, subtask, and section events", () => {
     const result = scanTaskListStructure([
       "# Task List: Scanner",

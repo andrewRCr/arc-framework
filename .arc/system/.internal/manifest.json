@@ -95,7 +95,7 @@
     "reference/templates/arc/work-unit/template-tasks.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6acf973092473d1be909191751120715bfcdb7fce26fc500ce42cace3ae9e1cd"
+      "pristine_hash": "2bcccaba808c9385724ab3de034eb626d4800b07cfe4eb366dda60e5d84fa646"
     },
     "reference/templates/arc/work-unit/spec/template-spec-brief.md": {
       "classification": "Framework",
@@ -160,7 +160,7 @@
     "reference/strategies/arc/strategy-task-list-formatting.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "a6c041c73c4138ecbf70d650b4fdd5fd2635750a69b063cae1f6916540f010ac"
+      "pristine_hash": "f2050b4de10354aa4a76724349820bb556c395ac2f69ab140bfabdf5ad2de242"
     },
     "reference/strategies/arc/strategy-work-organization.md": {
       "classification": "Framework",
