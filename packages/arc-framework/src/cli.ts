@@ -59,6 +59,10 @@ import {
   handleDeliveryExecution,
   type DeliveryExecutionOptions,
 } from "./handlers/delivery-execution.js";
+import {
+  handleDeliveryEntryInspect,
+  type DeliveryEntryInspectOptions,
+} from "./handlers/delivery-entry.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -652,6 +656,15 @@ plan
 const delivery = program
   .command("delivery")
   .description("Author, compose, and manage delivery plans");
+
+delivery.command("entry").description("Inspect the operator-invoked delivery entry route")
+  .command("inspect").description("Read authoritative delivery intent and binding facts")
+  .option("--input <path>", "Strict attended judgment JSON path, or - for standard input")
+  .option("--json", "Emit the strict entry route as JSON")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, opts: DeliveryEntryInspectOptions) => handleDeliveryEntryInspect(opts, context),
+  ));
 
 const deliveryEligibility = delivery.command("eligibility").description("Validate one exact delivery candidate chain");
 deliveryEligibility.command("prepare").description("Pin and validate the authored candidate chain")

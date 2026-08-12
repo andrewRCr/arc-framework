@@ -205,6 +205,7 @@ describe("repository command-input inventory", () => {
       "delivery compose",
       "delivery eligibility close",
       "delivery eligibility prepare",
+      "delivery entry inspect",
       "delivery land apply",
       "delivery land prepare",
       "delivery materialize",

@@ -31,6 +31,19 @@ describe("arc delivery", () => {
   });
 
   it("registers compose and plan abandon from the built entry point", async () => {
+    const entryHelp = await runArc(["delivery", "entry", "inspect", "--help"], repository);
+    expect(entryHelp).toMatchObject({ exitCode: 0 });
+    expect(entryHelp.stdout).toContain("--input <path>");
+    await writeFile(join(repository, "invalid-entry.json"), "{}\n");
+    const invalidEntry = await runArc([
+      "delivery", "entry", "inspect", "--input", "invalid-entry.json", "--json",
+    ], repository);
+    expect(invalidEntry.exitCode).toBe(1);
+    expect(JSON.parse(invalidEntry.stdout)).toMatchObject({
+      command: "delivery entry inspect",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
     await expect(runArc(["delivery", "plan", "from-tasks", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0, stdout: expect.stringContaining("--task-list <path>") });
     const branchHelp = await runArc(["delivery", "plan", "from-branch", "--help"], repository);
@@ -107,6 +120,30 @@ describe("arc delivery", () => {
     const common = await gitCommonDir(repository);
     await expect(readdir(join(common, "arc", "delivery", "authoring")))
       .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("inspects reviewed provisional entry without creating delivery records", async () => {
+    await installTaskFixture(repository);
+    await writeFile(join(repository, "delivery-entry.json"), `${JSON.stringify({
+      boundaryDisposition: "delivery-candidate",
+      provisionalDisposition: "confirmed-reviewed",
+    })}\n`);
+    const common = await gitCommonDir(repository);
+    const deliveryNamespace = join(common, "arc", "delivery");
+    await expect(readdir(deliveryNamespace)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const inspected = await runArc([
+      "delivery", "entry", "inspect", "--input", "delivery-entry.json", "--json",
+    ], repository);
+    expect(inspected.exitCode, inspected.stderr).toBe(0);
+    expect(JSON.parse(inspected.stdout)).toMatchObject({
+      command: "delivery entry inspect",
+      status: "canonicalize-provisional",
+      nextAction: "canonicalize-provisional",
+      authoringMapId: null,
+      laterEntryCostText: expect.stringContaining("later entry"),
+    });
+    await expect(readdir(deliveryNamespace)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("accepts a coherent explicit task list before the meta pointer exists and refuses invalid loci", async () => {

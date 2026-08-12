@@ -32,14 +32,15 @@ arc delivery entry inspect --input - --json
 ```
 
 The request carries only the attended `assess-boundary-fit` disposition and, when present, confirmation that the
-provisional plan was reviewed. Dispatch the returned route:
+provisional plan was reviewed. Render `laterEntryCostText` and `recommendedActionText` verbatim when present, then
+dispatch the returned route; the workflow never parses headings, derives members, or re-decides cohesion:
 
 - `not-applicable` returns to ordinary work-unit execution.
 - `authoring-required` enters the existing inventory-schema, `from-tasks`, author-slot, and compose sequence.
 - `canonicalize-provisional` runs that same canonicalization sequence or its receipt-pinned recovery.
 - `validate-canonical` advances to eligibility.
 - `resume-bound` reads delivery position and reconciles any named active operation before continuing.
-- `refused` renders the precomposed refusal and stops.
+- `refused` stops before every eligibility or mutation verb after rendering the precomposed refusal.
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
 

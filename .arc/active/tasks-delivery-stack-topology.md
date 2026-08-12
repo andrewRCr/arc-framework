@@ -456,44 +456,25 @@ attachment points while keeping deterministic dispatch and user-facing text in t
 - _Outcome:_ Session entry now exposes durable delivery progress only at the owning control-WU locus; unavailable
   delivery evidence degrades independently and cannot change task, load-set, locus, or recommendation authority.
 
-### `[ ]` **5.3 Attach discovered entry and integration-time delivery guidance** — § 7, § 8; SC 10, SC 11
+### `[x]` **5.3 Attach discovered entry and integration-time delivery guidance** — § 7, § 8; SC 10, SC 11
 
 - _Goal:_ Late delivery entry is discoverable and honestly costed without turning planning decisions or attention
   metrics into gates.
 
-    - `[ ]` **5.3.a Add the operator-invoked discovered entry**
-        - Add one read-only delivery-entry inspection verb over authoritative plan/state/task-list facts with the
-          closed result union `not-applicable | authoring-required | canonicalize-provisional | validate-canonical |
-          resume-bound | refused` and precomposed later-entry cost/action text.
-        - Treat cohesion and candidate selection as attended boundary judgment supplied by the workflow; never infer
-          them from size, branch shape, repository content, or the presence of a provisional heading. The verb performs
-          no plan/state write or external mutation.
-        - Build `test-first` (one behavior at a time):
-            - No authored intent routes to authoring with honest later-entry cost
-            - Reviewed provisional, canonical unbound, and coherent bound loci select their exact distinct routes
-            - Malformed, ambiguous, or incoherent evidence refuses without being treated as absence
-            - Every arm performs zero plan/state and external writes
+    - `[x]` **5.3.a Add the operator-invoked discovered entry**
+        - Added `delivery entry inspect` with an attended two-field judgment input and six strict routes over passive
+          rename-aware plan, authoring, state, and exact task-list-locus reads. All text is precomposed CLI-side.
 
-    - `[ ]` **5.3.b Dispatch the discovered door through the delivery workflow**
-        - Route `authoring-required` through attended authoring, `canonicalize-provisional` through the existing strict
-          design-inventory / `from-tasks` / author-slot / compose path, `validate-canonical` through complete eligibility,
-          and `resume-bound` through delivery position/reconciliation before further execution.
-        - A provisional section becomes canonical only after the workflow confirms the prior attended delivery
-          disposition; canonicalization publishes replaceable intent and remains unbound until eligibility and the
-          first observed materialization event.
-        - Build `test-first` (one behavior at a time):
-            - Every typed route dispatches only its named existing surface
-            - Refusal stops before eligibility or mutation and renders the precomposed remedy verbatim
-            - No workflow prose parses headings, derives members, or re-decides cohesion
+    - `[x]` **5.3.b Dispatch the discovered door through the delivery workflow**
+        - Bound every route to its existing authoring, eligibility, position/reconciliation, or ordinary-WU surface;
+          refusal renders the CLI remedy and stops before eligibility or mutation without prose-side inference.
 
-    - `[ ]` **5.3.c Verify attachment ownership without duplicating it**
-        - Treat Task 1.1 as owner of generated planning entry, Task 1.3 as owner of both integration attention
-          callsites, and Task 4.3 as owner of terminal precondition/adoption; Phase 5 only connects the discovered door
-          to the delivery-owned workflow and verifies those existing attachments.
-        - Contract-test that Phase 1 attention remains advisory and outside the mutation window, while fresh-merge and
-          already-merged resume both cross Task 4.3's one total post-merge adoption call immediately before
-          `arc user close`. Assert it is the only Phase 2 addition and ordinary integration retains readiness,
-          authorization, merge, closeout, and teardown authority unchanged.
+    - `[x]` **5.3.c Verify attachment ownership without duplicating it**
+        - Added ownership contracts proving one planning provisional locus, two Phase 1 attention reads, and one total
+          Phase 2 terminal attachment before close; ordinary integration remains the sole terminal merge authority.
+
+- _Outcome:_ Late delivery entry now distinguishes absence, reviewed provisional intent, canonical unbound intent,
+  and coherent binding without writes; passive enumeration prevents even empty state namespaces from materializing.
 
 ## **Phase 6:** Optional native-stack composition
 

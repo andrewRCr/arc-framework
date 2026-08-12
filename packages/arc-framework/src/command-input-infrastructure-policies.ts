@@ -30,6 +30,7 @@ const rawGitCommandPaths = [
   "deactivate",
   "decompose",
   "delivery compose",
+  "delivery entry inspect",
   "delivery plan abandon",
   "delivery plan from-branch",
   "delivery plan from-tasks",
