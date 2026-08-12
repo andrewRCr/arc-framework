@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** `generate-tasks` Pass 1 — delivery sizing and candidate cut recorded
+- **Last Completed:** spec re-ground — merge-lock substrate, rightsizing amendments, stacked-delivery decision
 - **Next Task:** [none]
-- **Blockers:** `decompose-transform-integrity` (preferred); `chunked-delivery` is an alternate unblock
+- **Blockers:** [none] — integration (not planning or implementation) waits on `delivery-stack-topology`
 
-- **Next Action:** When either lands, recheck the delivery path from `notes-integration-boundary-accuracy.md`
+- **Next Action:** Resume `generate-tasks` from the stack-member seed in `notes-integration-boundary-accuracy.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -24,10 +24,13 @@ are truthful about the system while misleading about themselves:
 - The **`Coverage` field** in the public pull-request record reports on the review process rather than on the
   change, addressing a reader who has no model for its vocabulary.
 
-Underneath them is the substrate defect: roughly 125 lines of machine-decidable sequencing encoded as prose, which
-no surface can describe accurately because prose cannot enforce a sequence. `strategy-procedure-evolution`
-Principle 1 names this anti-pattern and illustrates it with a one-line condition; this is the same pattern at
-125-line scale.
+Underneath them is the substrate defect: the final integration step carries roughly 170 lines of machine-decidable
+sequencing encoded as prose (the errand lane's ship block roughly 230 more), which no surface can describe
+accurately because prose cannot enforce a sequence. `strategy-procedure-evolution` Principle 1 names this
+anti-pattern and illustrates it with a one-line condition; this is the same pattern at whole-step scale. And the
+substrate accretes: the merge-lock protocol contributes a re-lock obligation restated across every exit path — a
+`try/finally` written as a prose invariant the stochastic interpreter must carry — plus its release/hold dispatch
+narration.
 
 These resolve as one work unit because the fixes interlock: the verb rename is a precondition for naming the new
 verbs, the fire-point correction is what makes the rename true, and relocating the determinism is what lets the
@@ -39,7 +42,7 @@ constraints do not compose: each added imperative dilutes the attention availabl
 therefore relocation, not relaxation — loosening deterministic constraints would trade a fidelity problem for a
 correctness one.
 
-### Inventory this design is priced against (verified 2026-07-26)
+### Inventory this design is priced against (verified 2026-08-12)
 
 Every existing-surface reach claim below is counted from source, not characterized. New mechanisms are enumerated
 by owning source family after the table rather than assigned a false pre-implementation file count.
@@ -48,20 +51,21 @@ by owning source family after the table rather than assigned a false pre-impleme
 **not** double-count the `packages/arc-framework/arc/**` mirror — every `.arc/**` doc edit has exactly one packaged
 counterpart, so multiply doc counts by two for edit volume. Test files are counted separately from source.
 
-| Surface                                        | Count                   | Loci                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Coverage` prescriptions (review-record field) | 5 sites / 3 files       | `template-pull-request.md` ×3 (skeleton, section guidance, optional-sections guidance); `integrate-work-unit.md` ×1; `run-errand.md` ×1                                                                                                                                                                                                                                                                                                                                                                                                         |
-| PR-state branch sites                          | 5 sites / 2 workflows   | `integrate-work-unit.md` ×4 (resume guard + fallback, pre-create hook skip, review-entry resolve, merge skip); `run-errand.md` ×1 (pre-create enumeration + four-row table over a raw paginated query)                                                                                                                                                                                                                                                                                                                                          |
-| `pre-merge` fire instructions in `run-errand`  | 2                       | one ahead of the `## Review` composition, one after approved-head retention                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `integrate` verb-name surfaces — source        | 5 files                 | `lifecycle-transitions.ts` (the authoritative `VERBS` registry, the `integrate` transition edge, `reopen`'s `inverse`, the illegal-cell table); `verbs/dispatch.ts` (`CONTEXT_DEFAULTING_VERBS` + its kind map); `cli.ts` (registration); `handlers/lifecycle.ts`; `lib/work-unit/verbs/integrate.ts`                                                                                                                                                                                                                                           |
-| `integrate` verb-name surfaces — docs          | 5 files                 | `integrate-work-unit.md`; `reopen-work-unit.md` (names `integrate` as the verb whose field reset it inherits); `QUICK-REFERENCE`; 2 backlog drafts (`wu-lifecycle-state-model`, `roadmap-tooling`) — the last two are forward-references, not invocations                                                                                                                                                                                                                                                                                       |
-| Tests reaching the `integrate` verb/command    | 5 files                 | `verbs/integrate.test.ts`, `verbs/dispatch.test.ts`, `lifecycle-executor.test.ts`, `handlers/lifecycle-verbs.test.ts`, `command-input/repository-inventory.test.ts`                                                                                                                                                                                                                                                                                                                                                                             |
-| Tests pinning rewritten workflow prose         | 4 verified, more likely | Assertions verified line-by-line: `review-driver-lifecycle.test.ts` (`Coverage` present in both copies), `pr-open-extensions.test.ts` (`pre-merge` ordering), `review-gate-workflows.test.ts` (merge pseudocode verbatim, head-retention, sole-merge-authority, push→CI→`pre-merge` order), `integration-reconcile-workflow.test.ts` (interlock callout text). Not yet audited, but reference the rewritten workflows: `review-gate-packaging.test.ts`, `archive-staging.test.ts`, `framework-sync.test.ts`, `unit/load-set/projection.test.ts` |
-| `Integrating` fire-point record                | 1                       | the `State` table in `strategy-work-organization`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Surface                                        | Count                   | Loci                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Coverage` prescriptions (review-record field) | 5 sites / 3 files       | `template-pull-request.md` ×3 (skeleton, section guidance, optional-sections guidance); `integrate-work-unit.md` ×1; `run-errand.md` ×1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| PR-state branch sites                          | 5 sites / 2 workflows   | `integrate-work-unit.md` ×4 (resume guard + fallback, pre-create hook skip, review-entry resolve, merge skip); `run-errand.md` ×1 (pre-create enumeration + four-row table over a raw paginated query)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `pre-merge` fire instructions in `run-errand`  | 2                       | one ahead of the `## Review` composition, one after approved-head retention                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `integrate` verb-name surfaces — source        | 5 files                 | `lifecycle-transitions.ts` (the authoritative `VERBS` registry, the `integrate` transition edge, `reopen`'s `inverse`, the illegal-cell table); `verbs/dispatch.ts` (`CONTEXT_DEFAULTING_VERBS` + its kind map); `cli.ts` (registration); `handlers/lifecycle.ts`; `lib/work-unit/verbs/integrate.ts`                                                                                                                                                                                                                                                                                                                                                                                         |
+| `integrate` verb-name surfaces — docs          | 5 files                 | `integrate-work-unit.md`; `reopen-work-unit.md` (names `integrate` as the verb whose field reset it inherits); `QUICK-REFERENCE`; 2 backlog drafts (`wu-lifecycle-state-model`, `roadmap-tooling`) — the last two are forward-references, not invocations                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Tests reaching the `integrate` verb/command    | 5 files                 | `verbs/integrate.test.ts`, `verbs/dispatch.test.ts`, `lifecycle-executor.test.ts`, `handlers/lifecycle-verbs.test.ts`, `command-input/repository-inventory.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Tests pinning rewritten workflow prose         | 4 verified, more likely | Assertions verified line-by-line: `review-driver-lifecycle.test.ts` (`Coverage` present in both copies; the three `arc merge lock` invocations; `arc review readiness -`), `pr-open-extensions.test.ts` (`pre-merge` ordering, freeze-window text), `review-gate-workflows.test.ts` (merge pseudocode verbatim, head-retention, sole-merge-authority, push→CI→`pre-merge` order, errand auto-merge `--auto … --match-head-commit` shape), `integration-reconcile-workflow.test.ts` (interlock callout text). Not yet audited, but reference the rewritten workflows: `review-gate-packaging.test.ts`, `archive-staging.test.ts`, `framework-sync.test.ts`, `unit/load-set/projection.test.ts` |
+| `arc merge lock` fire sites in workflows       | 2 workflows             | `integrate-work-unit.md` (resolve at PR open, release before merge, the re-lock arms on non-merge and nonzero-merge exits); `run-errand.md` (resolve at PR open, release before the auto-merge and reviewed-lane arms, the matching re-lock arms)                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `Integrating` fire-point record                | 1                       | the `State` table in `strategy-work-organization`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 The new Candidate slice extends the managed WU/lifecycle-tail record family, verification-finalize verb family,
 review-response evidence and policy driver, and status/session-initialization projection; it adds the `propose`
-command at the lifecycle handler/dispatch boundary. Checkpoint, PR-resolution, clearance-await, base-merge,
+command at the lifecycle handler/dispatch boundary. Checkpoint, PR-resolution, checks-await, base-merge,
 review-status, and merge-method commands are new surfaces in their named command families. Task generation must
 ground the exact file inventory for those additions rather than treating this table as their implementation map.
 
@@ -84,12 +88,16 @@ Every `.arc/**` edit doubles into `packages/arc-framework/arc/**` per the two-co
    enforced rather than narrated, and the public pull-request record reports on the change rather than on the review
    process.
 4. **No agent hand-rolls a wait, a parse, or a merge-method discovery** at either integration boundary.
-5. **Determinism is relocated without deleting a logical control obligation.** Every interlock release and
-   extension seam present today survives; duplicate enactments of one seam may collapse to one fire. Every
-   relocation is enumerated and justified rather than incidental. Three changes are authorized: B6 moves the
-   work-unit `pre-merge` fire later, B6 replaces `run-errand`'s duplicate enactment with one fire at that shared
-   position, and F moves the transition's `commit-interlock` release from entry to submission. No other control
-   obligation moves or disappears.
+5. **Determinism is relocated — or deleted where enforcement already exists — without losing a logical control
+   obligation.** Every interlock release and extension seam present today survives; duplicate enactments of one
+   seam may collapse to one fire; and an obligation whose failure the host-enforced pin or an existing typed
+   reader already covers may be deleted outright, each deletion enumerated with the covering enforcement named.
+   Obligations are priced against the chartered threat — accidental agent error and single-operator concurrency,
+   plus the one observed human threat the merge lock guards — never against hostile concurrent mutation. Four
+   relocations are authorized: B6 moves the work-unit `pre-merge` fire later, B6 replaces `run-errand`'s duplicate
+   enactment with one fire at that shared position, F moves the transition's `commit-interlock` release from entry
+   to submission, and B2 absorbs the merge-lock release with re-lock as its fail-closed exit path. No other
+   control obligation moves or disappears unenumerated.
 6. **Routine operation becomes simpler, not more ceremonial.** The no-review path adds no command, commit,
    approval, or agent-decision count; source order, pass ceilings, Candidate lineage, resume selection, and
    projection-only drift are CLI-owned.
@@ -109,6 +117,15 @@ Every `.arc/**` edit doubles into `packages/arc-framework/arc/**` per the two-co
   consequence-scaled; one converged Tier 3 attests a changed implementation after review, rather than multiplying
   full verification and adversarial passes by the number of fixes.
 - **A deprecation or alias window for the renamed command.** Pre-public-release, no external callers.
+- **Repository-side CI trigger policy.** When heavy CI starts — at pull-request open, on review state, via
+  labels — is host policy owned by the repository's own workflow configuration (here, the
+  `ci-defer-heavy-reconciliation` concern). B8 makes the boundary contract honest about _awaiting_ checks
+  wherever the project chose to run them; it does not choose for the project.
+- **Errand-tail CLI surfacing and teardown drivers.** Making a left errand visible and mergeable on session-init,
+  the local-branch-ref question in `arc errand leave`, and remote-branch teardown at close are errand-lifecycle
+  code concerns routed to their own captures. Element I fixes only what the ship path's prose instructs.
+- **Narrating less of `arc teardown`.** Step 14's mechanics narration is a real verbs-over-mechanics debt, but it
+  sits outside the integration boundary's accuracy defects; the corpus-wide conversion owns it.
 
 ## Proposed Design
 
@@ -149,19 +166,30 @@ typed verdict:
 B1 treats E4's converged exact-head full attestation as a readiness prerequisite whenever the current Candidate
 lineage contains an implementation-changing review response.
 
+**B1 composes lifecycle readiness itself; the standalone forensic read shrinks.** Today the final step conjoins
+three independent readers of lifecycle truth — the status projection, the archive sweep's products, and a
+readiness verb that treats the operator's own checkout as untrusted (symlink, escape, and duplicate-artifact
+forensics). The forensic posture guards no chartered threat — the checkout is the single attended operator's own
+— so B1 reads lifecycle completeness from the status projection directly, and `arc review readiness` shrinks to
+the thin completeness read its remaining consumers (merge-lock release gating, the delivery-member vehicle, the
+local lanes) actually need. The shrink is contract-preserving for those consumers: their request and envelope
+shapes and semantics do not change, and any consumer-visible narrowing is a defect, not a cut. One reader per
+fact; the checkpoint envelope is where the facts compose.
+
 **B2. `arc integrate merge <name> --checkpoint <handle> --json`** absorbs the post-approval sequence: execute the
-approved settlement plan, recompose and compare the head against the approved value, re-read status, dispatch unlock
-and await clearance, re-read checks, revalidate the merge method, replace the review summary, read final drift, and
-perform the pinned merge. It returns `merged`, `invalidated` with a typed reason, `awaiting-clearance` (D2's
-mechanical yield), or `blocked`. It fails closed on any mismatch.
+approved settlement plan, recompose and compare the head against the approved value, re-read status, release the
+merge lock, await required checks on the exact head, revalidate the merge method, replace the review summary, read
+final drift, and perform the pinned merge. It returns `merged`, `invalidated` with a typed reason,
+`awaiting-checks` (D2's mechanical yield), or `blocked`. It fails closed on any mismatch, and every
+approval-voiding exit re-locks before returning (D2).
 
 The span is stopless, but the workflow's own declaration does not prove it: that declaration is bounded to
 final-drift-read → merge, a strict subset of what B2 absorbs. The wider span needs its own argument, and it is
 one line — every step between approval and the final drift read is a machine action over canonical state (execute
-the approved plan, recompose, compare, re-read status, dispatch unlock, await clearance, re-read checks, replace the
-summary). Settlement applies decisions the approver already authorized; replacing the stale PR summary posts text
-the checkpoint already composed. Neither decides anything. No judgment leaf, interlock release, or extension fire
-point falls inside.
+the approved plan, recompose, compare, re-read status, release the lock, await checks, replace the summary).
+Settlement applies decisions the approver already authorized; the lock release enacts the publication that
+approval scheduled; replacing the stale PR summary posts text the checkpoint already composed. Neither decides
+anything. No judgment leaf, interlock release, or extension fire point falls inside.
 
 **B3. The handoff carries the checkpoint's composition and settlement plan verbatim; nothing is rederived.** The
 merge verb must post the `## Review` record the approver previewed and execute the final dispositions and channel
@@ -176,7 +204,7 @@ routes to composition correction and a fresh checkpoint.
 - The composed record, settlement plan, and validated merge method persist **verb-side**, keyed by the handle, in
   gitignored per-WU state. They are not agent-carried values or meta-file content.
 - B2 executes the persisted plan idempotently before recomposing the head. `settled` and `already-settled` continue;
-  missing, stale, ambiguous, or actor-mismatched settlement returns `invalidated` before unlock or merge. B2 never
+  missing, stale, ambiguous, or actor-mismatched settlement returns `invalidated` before release or merge. B2 never
   rebuilds the plan from mutable threads or agent narration.
 - **No additional invalidation machinery.** Any input to the record that could change outside the approval either
   moves the head or unsettles PR state, and B2 already fails closed on both.
@@ -206,6 +234,16 @@ by that earlier composer. The checkpoint envelope therefore reserves a typed ins
 content ownership: the workflow renders any extension report as a separately labelled block after the precomposed
 machine surface. It does not splice or summarize the report. A future typed extension may opt into composer
 filtering; free-form actions remain visibly extension-owned.
+
+**B8. Required checks are awaited where they actually run — inside the merge verb — and nowhere earlier.**
+Whether a project runs CI at pull-request open or defers its heavy legs until review settles is host policy,
+owned by the repository's own workflow configuration and review-state automation (a Non-Goal here). The boundary
+contract stops assuming: no prose step treats checks as already green at the interlock — the interlock surface
+reports check state as observed — and B2's await-required-checks arm is the single place the work-unit lane waits
+on them, yielding `awaiting-checks` at its deadline. The errand lane's auto-merge arm already delegates the same
+wait to the host. A deferred-CI project therefore runs this boundary unchanged, with no added agent polling and
+no new prose; the residual cost is one checks-length wait inside B2, largely absorbed when review approval is
+what starts the deferred run.
 
 ### C. The behind-base reconcile arm becomes an orchestration path
 
@@ -264,32 +302,34 @@ different questions
 and must carry both: the errand path's **pre-create enumeration** ("does a PR exist for this head, may I create
 one") and the work-unit path's **resume-point** question ("given resolver state and PR state, which incomplete step
 do I re-enter"). It replaces all 5 inventoried branch sites and folds in the work-unit creation path's missing
-pre-create head validation, an asymmetry the shared verb settles.
+pre-create head validation, an asymmetry the shared verb settles. Resolution is host-anchored rather than
+checkout-anchored: a stale invoking checkout whose local refs cannot see a merged or renamed head still receives
+the correct disposition, which its third consumer (stub launch) specifically requires.
 
-**D2. Clearance uses provenance-checked, at-least-once dispatch rather than inferred run correlation.** The planning
-lane and reviewed-clearance lane currently write the same `arc-cleared` context, while unlock has no exact-run
-observer. A green context alone therefore proves neither which lane wrote it nor that an in-flight run belongs to
-this dispatch. The design does not fabricate that correlation.
+**D2. Lock release and the checks wait live inside the merge span, with re-lock as its fail-closed exit.** The
+repository lock is the pull request's draft state (`merge.lock: draft`), operated by the `arc merge lock` family:
+`release` already binds the exact head, gates on lifecycle readiness, and settles the flip verb-side,
+self-reverting when the head moves during settlement. What remains agent-carried is the sequencing around it —
+release, re-read checks, merge — plus a re-lock obligation restated across every exit path. B2 absorbs that span:
 
-- **Re-lock first.** `arc review unlock -` posts `arc-cleared: pending` for the exact head before every reviewed
-  dispatch. That overwrites a planning-lane success and closes the branch-protection gate before work begins.
-- **Trust provenance, not description.** A success is accepted only when host evidence binds it to the configured
-  default-branch clearance workflow, its reviewed-clearance event, repository, and exact head. A planning success
-  using the same context is never satisfying evidence. A trusted terminal failure returns `blocked /
-  clearance-failed`.
-- **Retry safely.** If no trusted success or failure exists, unlock dispatches the reviewed-clearance event. A
-  resumed B2 call repeats the re-lock and dispatch; duplicate deliveries are permitted and the workflow writer is
-  idempotent for the exact head. The contract intentionally makes no `run-in-flight` claim.
-- **Await through one command.** Unlock returns an opaque `clearanceTargetRef`.
-  `arc review clearance await --target <clearance-target-ref> --json` instantiates the provider-neutral bounded wait
-  extracted from `awaitHostedReview`. It observes `pending`, `cleared`, `failed`, and `not-required`, carries the
-  stale-head guard, and yields `awaiting-clearance` at its deadline. Re-invoking B2 is the coarse retry.
-- **Envelope members.** Unlock returns `already-cleared / none`, `relocked-dispatched / await-clearance`,
-  `no-unlock / none`, or `blocked / stop`. There is no `dispatch-skipped` or in-flight member.
-- **Two workflows enumerate unlock's typed actions in prose, and only one is absorbed.** The work-unit site is
-  inside the span B2 absorbs. `run-errand`'s reviewed lane is **not** absorbed by any verb here, and its prose reads
-  "`no-unlock / none` continues because the default-branch workflow is absent" — false once already-cleared also
-  continues. That prose edit (both copies) is in the change set.
+- **Release through the existing verb.** B2 invokes the release with its bind/gate/settle semantics unchanged.
+  Release remains lifecycle-gated and is never head-authorization — the pin is.
+- **Await required checks through one command.** The provider-neutral bounded wait extracted from
+  `awaitHostedReview` instantiates a second time as the required-checks await on the exact head. It observes
+  `pending`, `green`, `failed`, and `not-required`, carries the stale-head guard, and yields `awaiting-checks` at
+  its deadline; re-invoking B2 is the coarse retry. Under a deferred-CI policy (B8) this arm is where the
+  deferred run is absorbed.
+- **Re-lock is the invalidation exit, enforced rather than narrated.** Every B2 exit in an approval-voiding class
+  — head mismatch, settlement failure, merge-method movement, non-clean final drift, failed required checks —
+  re-locks before returning `invalidated` or `blocked`. The obligation relocates from a workflow-wide prose
+  invariant into the verb's exit path, where it is a unit test.
+- **A deadline yield does not re-lock.** `awaiting-checks` leaves the release standing: the approval already
+  authorized publication of this exact head, the required checks independently block a premature merge, and a
+  re-lock would misreport an approved candidate as unapproved while churning the host on every resume. Only exits
+  that void the approval re-lock.
+- **The errand lane keeps its one-fire shape.** Its auto-merge arm delegates the checks wait to the host and its
+  release stays a structural precondition of arming auto-merge; its re-lock rule is stated once (C7 discipline),
+  since no absorbing verb exists on that lane.
 - **The anti-polling rule is restated once, correctly.** The cost is not polling — the bounded wait polls. It is
   that a poll tick in the agent's turn loop is a full model inference over the whole conversation, where an
   in-process tick costs nothing. The shape is a coarse agent-level loop over a fine in-process one.
@@ -440,6 +480,14 @@ submission/publication is underway, with the exact next action identifying wheth
 open/reuse PR. Happy-path duration is seconds; interruption remains honest and resumable rather than being
 mislabelled as if a PR already existed.
 
+**Lock mode grades the boundary; it does not move it.** Under `merge.lock: draft` the opened pull request is
+visible but review-suppressed — a middle state between private work and released candidate — and the release that
+ends it is merge-side machinery B2 owns, fired from the integration approval, not a lifecycle transition.
+`Integrating` claims only that submission / public integration is underway, true from the publication-step head
+in every lock mode; under `merge.lock: none` the middle state collapses and nothing here changes. A finer
+audience model (private / visible-suppressed / released) is `wu-lifecycle-state-model`'s to mint on its two-axis
+vocabulary if it earns one; this design neither requires nor precludes it.
+
 ### G. `Coverage` is cut from the pull-request record
 
 The field renders as prose like "targeted verification carried prior complete coverage across the archive-only
@@ -479,6 +527,26 @@ being a paragraph the agent must remember and narrate and becomes a precondition
   treatment: that Non-Goal excludes extending B5's **precomposition** mechanism (which is work-unit-only, since the
   errand path has no checkpoint verb), not deleting an identical false statement. Leaving the errand copy alone
   would fix one surface and keep its twin — a divergence nothing would record.
+
+### I. The errand tail leaves only when the session actually ends
+
+`arc errand leave --state awaiting-merge` is a terminal exit ramp — the identity outlives a disposable checkout so
+work can pause, move machines, or stop holding a session open — never a routine mid-ship transition. The ship
+path's prose says so:
+
+- **I1. The leave step is conditional and terminal.** The default path completes in-session through the
+  integration interlock and the lane action; leave fires only when the session is ending with the tail
+  unresolved (or the work is moving machines). Its trigger clause names that session-end condition — not a
+  PR-state condition satisfiable four steps and one human stop upstream of where the step sits.
+- **I2. The unattended-merge replay is stated against the post-leave world.** Completion replays through the
+  identity's owning open/materialize driver; no step references a retained checkout that a leave has already
+  torn down.
+- **I3. Batch throughput needs no leave.** The drain does not block on merges: the auto-merge arm plus the
+  completion backstops are the pipeline, and batch doctrine runs entries sequentially in lockstep. The ship path
+  never proposes leaving as a way to start the next errand.
+
+Surfacing a left errand's mergeability on session-init is CLI work owned elsewhere (Non-Goals); this element only
+stops the workflow from manufacturing the blind leave/re-enter loop.
 
 ## Alternatives & Rationale
 
@@ -523,23 +591,37 @@ being a paragraph the agent must remember and narrate and becomes a precondition
   the tree when what was approved includes the record.
 - **Hand the composed record back through the merge verb's arguments.** Rejected — it puts a precomposed surface in
   the agent's hands between composition and posting, weakening precomposition exactly where B5 leans on it.
-- **Put the clearance wait outside the merge verb.** Rejected — unlock through merge is the span declared stopless
-  and holds the pin's most head-sensitive moment, so splitting it hands the agent a live window immediately before
-  merge. The boundary rule does not require the split, because a deadline return is a mechanical yield.
+- **Put the lock release and checks wait outside the merge verb.** Rejected — release through merge is the span
+  declared stopless and holds the pin's most head-sensitive moment, so splitting it hands the agent a live window
+  immediately before merge. The boundary rule does not require the split, because a deadline return is a
+  mechanical yield.
+- **Re-lock across a checks-deadline yield.** Rejected — it misreports an approved candidate as unapproved,
+  churns the host on every resume, and guards nothing the required checks do not already block.
+- **Gate heavy CI on the draft→ready flip (`ready_for_review`).** Rejected — under `merge.lock: draft` every
+  merge performs that flip, so the required check would re-enter flight at the exact moment the merge needs it.
+  Review-state automation that starts the deferred run at approval avoids the trap, and choosing among such
+  policies is the repository's, not this boundary's (Non-Goals; B8 owns only the honest await).
 - **Leave approved dispositions and channel settlement outside the merge handle.** Rejected — settlement is part
   of what the integration interlock authorizes, and reconstructing it from mutable threads after approval would
   sever the exact approval boundary. The checkpoint therefore persists one digest-bound plan and B2 executes it
   idempotently.
-- **Build clearance await as its own mechanism.** Rejected — `awaitHostedReview` is already the shape, and a second
-  independently-authored bounded wait would put two backoff-and-deadline implementations in one namespace.
-- **Leave clearance await to the agent** (status quo). Rejected — it contradicts the sibling step's own prohibition
+- **Build the checks await as its own mechanism.** Rejected — `awaitHostedReview` is already the shape, and a
+  second independently-authored bounded wait would put two backoff-and-deadline implementations in one namespace.
+- **Leave the checks wait to the agent** (status quo). Rejected — it contradicts the sibling step's own prohibition
   on agent polling loops, and each tick costs a full model inference.
+- **Leave the errand checkout at pull-request open as the default.** Rejected — it converts operational re-entry
+  into normal waiting against the lifecycle's own recorded guardrails, and with no settledness signal it
+  degenerates into blind repeated re-entry: the polling loop the review protocol forbids, relocated into the
+  errand lifecycle.
+- **Leave in order to pipeline a batch.** Rejected — the drain already does not block on merges (the auto-merge
+  arm plus completion backstops are the pipeline), and batch doctrine runs entries sequentially in lockstep;
+  leaving buys no throughput the lane does not already provide.
 - **Resolve the merge method from the ruleset alone, superseding `merge.strategy`.** Rejected — the setting is an
   established configuration axis with documented traceability consequences, and superseding it is neither necessary
   to fix the observed failure nor this concern's to decide.
 - **Validate the merge method inside the checkpoint verb only**, leaving the errand lane as-is. Rejected — the
-  errand lane's auto-merge arm is exactly where the observed failure occurred, and it reaches no checkpoint verb and
-  invokes no unlock, so the fix would miss its own motivating case. Duplicating the resolution into the errand step
+  errand lane's auto-merge arm is exactly where the observed failure occurred, and it reaches no checkpoint verb,
+  so the fix would miss its own motivating case. Duplicating the resolution into the errand step
   instead was also rejected: two implementations of one config-plus-ruleset read would drift. Hence D3, one verb with
   two callers.
 - **Fold `closed-unmerged` into D1's `ambiguous` stop**, matching the errand table's residual row. Rejected — a
@@ -611,12 +693,22 @@ being a paragraph the agent must remember and narrate and becomes a precondition
 ## Cross-cutting Considerations
 
 **Trust boundaries and authority.** No new authority is granted. The integration interlock remains the sole merge
-authority; `arc review unlock` is still invoked only from that interlock's approval, so `TECHNICAL-OVERVIEW`
-§ Self-Hosting Review Gate's contract holds. B2 fails closed on head mismatch, unsettled PR state, changed merge
-policy, and non-clean drift. D2 never treats the shared `arc-cleared` context alone as reviewed clearance: it
-re-locks before dispatch and accepts success only with trusted default-branch workflow provenance for the exact
-head. At-least-once retry may duplicate dispatch but cannot duplicate authority. The clearance remains a thin
-lifecycle lock and proves no provider review evidence.
+authority; the merge-lock release is still enacted only from that interlock's approval (now inside B2), so
+`TECHNICAL-OVERVIEW` § Self-Hosting Review Gate's contract holds. B2 fails closed on head mismatch, unsettled PR
+state, changed merge policy, failed required checks, and non-clean drift, re-locking on every approval-voiding
+exit. The lock is the pull request's draft state — a per-PR structural hold, never equated with a required check
+(repo-configured, fail-closed) — and merge safety is never inferred from agent-layer discipline. The lock proves
+no review evidence; it only holds the merge closed while evidence is produced.
+
+**Proportionality.** Every persistent mechanism traces to a chartered threat: B3's digest to same-head checkpoint
+ambiguity under B6's retry-safe re-fire (an agent-side failure mode this design itself creates and must close);
+E1's attestation to exact-head review authority surviving operational-only churn; D2's re-lock exits to the
+observed human host-UI merge window the lock exists to guard. Obligations layered over the host-enforced pin that
+traced only to hostile concurrent mutation — an unchartered threat — are deleted under Goal 5 rather than
+relocated: the post-approval re-validation cascade beyond one exact-head status read, the duplicate drift reads,
+and the forensic checkout posture of the readiness read (B1). At an external-authority seam the design pins what
+the host offers to pin, keeps exactness in its own validation, and discloses the residual rather than demanding
+enforcement the platform does not sell.
 
 **Storage and identity.** Candidate and checkpoint records use the managed-record/storage abstraction with
 version-checked writes; markdown is a projection, not the authority. No contract depends on the record being tracked
@@ -625,26 +717,31 @@ mode or per-artifact configuration axis.
 
 **Testing.** The relocation moves invariants from prose into code, where they become directly testable. New
 coverage: the two spine envelopes' typed verdicts and fail-closed paths; machine-surface exception filtering plus
-the separate extension block; the extracted wait primitive under both instantiations; re-lock, provenance rejection,
-trusted success/failure, and duplicate-dispatch retry; PR resolution across all six dispositions; merge-method
-validation at all three call sites; settlement-plan composition, digest binding, idempotent execution, and every
-invalidation class; Candidate projection and lineage; ordered-source reservation carried through submit;
-delta-verification routing; converged exact-head re-attestation; idempotent propose/submit; and typed session-resume
-loci. End-to-end fixtures cover the minimal no-review path, frontline review, local-first standard review,
-hosted-first standard review, interruption between submit and PR creation, a review-fix lineage advance,
-convergence-verification pending and completion, cap exhaustion, and unexplained Candidate drift.
+the separate extension block; the extracted wait primitive under both instantiations; lock release gating, re-lock
+on every approval-voiding exit, and the deadline yield that leaves the release standing; PR resolution across all
+six dispositions; merge-method validation at all three call sites; settlement-plan composition, digest binding,
+idempotent execution, and every invalidation class; Candidate projection and lineage; ordered-source reservation
+carried through submit; delta-verification routing; converged exact-head re-attestation; idempotent propose/submit;
+and typed session-resume loci. End-to-end fixtures cover the minimal no-review path, frontline review, local-first
+standard review, hosted-first standard review, interruption between submit and PR creation, a review-fix lineage
+advance, convergence-verification pending and completion, cap exhaustion, an `awaiting-checks` resume, and
+unexplained Candidate drift.
 
 **This is partly a swap, not purely a gain, and the change set must say so.** Workflow prose here is _not_ untested:
 integration tests assert the exact strings this design rewrites — the merge pseudocode block B2 absorbs, the
 approved-head retention line, "integration-interlock is the sole merge authority", the push→CI→`pre-merge` ordering,
-the interlock callout's opening text, and `Coverage`'s presence in both workflow copies. Those pins must be
-**rewritten to assert the new contracts**, not merely added to; a task list that budgets only new tests will surface
-the delta as red CI mid-implementation. The inventory prices four such files as verified with four more to audit,
-and that audit is itself a task rather than an assumption.
+the interlock callout's opening text, the three `arc merge lock` invocations, the errand auto-merge command shape,
+and `Coverage`'s presence in both workflow copies. Those pins must be **rewritten to assert the new contracts**,
+not merely added to; a task list that budgets only new tests will surface the delta as red CI mid-implementation.
+The inventory prices four such files as verified with four more to audit, and that audit is itself a task rather
+than an assumption. String pins are also the wrong long-term instrument for judgment prose — the eval harness owns
+that layer when it lands — so the rewritten pins assert typed contracts and structural facts, not paraphrasable
+sentences, wherever the new surface allows it.
 
 **Performance.** A coarse agent-level loop over a fine in-process wait replaces per-tick full-conversation
-inference. Clearance may dispatch more than once across deadline resumes, deliberately trading cheap idempotent host
-work for provenance-safe recovery. Candidate adds no happy-path command, commit, approval, or judgment count.
+inference. A resumed B2 re-runs its idempotent settlement and status reads across deadline resumes, deliberately
+trading cheap idempotent host work for exact-head-safe recovery. Candidate adds no happy-path command, commit,
+approval, or judgment count.
 Review fixes run one consequence-scaled delta verification per bounded fix increment and at most one converged
 full-suite rerun, rather than multiplying Tier 3 by pass count.
 
@@ -656,9 +753,13 @@ it, and it is invisible to a grep for the invocation string `arc integrate`. Two
 name; per the standing rename discipline, unlanded names are never forward-referenced, so those update when this
 lands rather than before.
 
-**Delivery topology.** The rename (E) and the fire-point move (F) are separable from the extraction (B–D) and land
-ahead of it, so delivery is plausibly a stack rather than a single review pass. That is a `chunked-delivery`
-question about review and merge topology, not a work-unit boundary question — the surfaces are coupled by design.
+**Delivery topology.** This work unit delivers as a stack: one concern, one spec, dependency-ordered members each
+independently landable to `main` (the delivery-plan record's `stack-to-main` projection). The rename (E) and
+fire-point move (F) land in an early member ahead of the extraction; verbs land before the workflow prose that
+consumes them; the workflow convergence lands last. The delivery plan is authored from the generated task list at
+the end of task generation; the landing machinery ships with `delivery-stack-topology` ahead of this work unit's
+first integration. The surfaces stay coupled by design — delivery topology, not work-unit boundary, absorbs the
+size.
 
 **Coordination.** `composable-workflows` — adjacent owner. This loop-style workflow takes its Level 1–2 shape: a
 bounded resident spine containing stops, with pre-publication review, response, and reconcile as typed conditional
@@ -668,16 +769,32 @@ by a workflow-authoring convention. C and E are worked instances of its procedur
 model, and A supplies the stopless extraction predicate. `stub-mint-to-launch` is a third D1 consumer.
 `wu-lifecycle-state-model` retains the general two-axis vocabulary and all non-Candidate scope.
 
-**`review-protocol-alignment` — two live couplings, not one.** The known one: it edits `integrate-work-unit.md` at
-the review-applicability step while this rewrites the final merge step — different regions, so sequence the edits
-rather than merging blind if both run concurrently. The second is on `arc review unlock` itself, and the two work
-units touch it on **different axes**: RPA's concern 5 (request-body legibility) makes unlock's _input_ surface
-discoverable via a schema-emitting flag, while D2 changes its _dispatch behavior and output envelope_. Two
-  consequences follow. If RPA's flag emits response schemas as well as request schemas, D2's new envelope members
-  must be reflected there. The surfaces minted here are flag/handle based — D1, D2 await, D3, C2, and C3 name their
-  inputs — and do not add an opaque `<file | ->` request-body command.
+**`review-protocol-alignment` — now a four-member cohort; the live coupling is its first member.**
+`review-signal-convergence` (unblocked, cohort-first) reorders `integrate-work-unit.md`'s Step 3 lane dispatch and
+Step 4 hosted-findings arm — regions this design also reaches through C, E3, and E4, so the edits are sequenced,
+never merged blind, whichever lands first. `review-activity-contracts` later re-touches the review-applicability
+step this design leaves in place as a judgment leaf; that is additive, not contested. The request-contracts member
+owns verb input legibility across the review family; the surfaces minted here are flag/handle based — D1, D2's
+await, D3, C2, and C3 name their inputs — and add no opaque `<file | ->` request-body command for it to remediate.
 
-**Forward-compat of the await parameterization.** Clearance await is the second instantiation, and two instances are
+**`review-source-authority` — one owner for the ordered reservation.** Its inbound buffer carries the same pre-PR
+hosted-source-priority defect E3/E5 fix; ownership is settled here (this work unit lands first), and its buffer
+item reduces to a pointer at the landed behavior — routed to it as a capture, not by editing its draft from this
+branch.
+
+**`operational-advisory-registers` — vocabulary consumer.** B5's exception filtering, B7's extension block, and
+E9's precomposed interaction text are register-bearing surfaces; when that work unit lands its register
+vocabulary, these compose it rather than minting a competitor.
+
+**`ci-defer-heavy-reconciliation` — the repo-side complement of B8.** It owns when heavy CI starts (label
+lifecycle, trigger selection, the commented-approval defect); B8 owns the boundary's honest await. Neither
+consumes the other's contract.
+
+**`review-orchestration-right-sizing` — downstream pruner.** The proportionality traces above are written to be
+its inputs: every mechanism this design mints carries its chartered-threat rationale, so the later right-sizing
+pass inherits reasons rather than targets.
+
+**Forward-compat of the await parameterization.** The checks await is the second instantiation, and two instances are
 thin evidence that the parameterization is right. If a third bounded wait later resists the shape, the primitive
 absorbs a variant rather than the callers bending to it.
 
@@ -697,7 +814,7 @@ requirement.
    judged from a transcript.
 3. **The posted review record and executed settlement are exactly what approval covered.** The checkpoint persists
    one digest-bound record and canonical settlement plan; merge posts the record and executes the plan
-   idempotently. Missing, stale, ambiguous, or actor-mismatched settlement invalidates before unlock or merge.
+   idempotently. Missing, stale, ambiguous, or actor-mismatched settlement invalidates before release or merge.
 4. **`propose` and `submit` name different axes without adding happy-path ceremony.** `arc propose` replaces
    `arc finalize verify`, records Candidate while leaving `State: Active`, and `arc submit` replaces the old
    transition. Under no-review configuration the path adds zero commands, commits, approvals, and agent judgments.
@@ -722,28 +839,36 @@ requirement.
 9. **`Integrating` means submission/public integration is underway.** `submit` fires at the publication-step head
    ahead of the push extension. Transitioned-but-unpushed and pushed-but-uncreated interruptions both project one
    exact resume action, without claiming a PR already exists.
-10. **No agent hand-rolls a wait, a parse, or a merge-method discovery.** Clearance await is a bounded verb call
-   resumable across its deadline through safe at-least-once dispatch; PR resolution returns a typed disposition
-   covering all six classes at all 5 inventoried sites; and no lane discovers a disallowed merge method by
-   attempting the merge.
+10. **No agent hand-rolls a wait, a parse, or a merge-method discovery.** The required-checks await is a bounded
+   verb arm resumable across its deadline; PR resolution returns a typed disposition covering all six classes at
+   all 5 inventoried sites; and no lane discovers a disallowed merge method by attempting the merge.
    B2 also rejects host-policy movement after checkpoint.
-11. **Reviewed clearance cannot be confused with planning clearance.** Unlock re-locks the exact head, dispatches
-   at least once, accepts only trusted default-branch reviewed-clearance provenance, and safely retries dispatch
-   after a deadline. No envelope claims an in-flight run it cannot correlate.
+11. **The repository lock cannot misreport approval state.** Release happens only through the verb's lifecycle
+   gate inside B2; every approval-voiding exit re-locks before returning; a checks-deadline yield leaves the
+   release standing with the required checks as the blocking authority; and no workflow-wide prose invariant
+   carries the re-lock obligation — the errand lane states its one-fire rule once.
 12. **`Coverage` is absent from the pull-request record** at all 5 inventoried sites, nothing replaces it, and the
    three non-record `Coverage` families are untouched.
 13. **The approval pin is enforced, not narrated.** No surface tells the approver their approval is conditional: the
    conditionality clause is gone from all 5 H1 loci across both workflows while the consequence disclosure remains,
    and the pin is a precondition the merge verb validates — demonstrable by a mismatched-head call returning
    `invalidated` with no prose instructing the agent to check.
-14. **Every logical control obligation survives, and each relocation is authorized.** Every interlock release
-   survives. The `pre-merge` extension seam has one enactment per path: the work-unit fire moves later and
-   `run-errand`'s duplicate fires collapse to one at the shared position. The transition's `commit-interlock`
-   release moves to the publication-step head. Any other relocation or lost obligation is a defect.
+14. **Every logical control obligation survives or names its covering enforcement, and each change is
+   authorized.** Every interlock release survives. The `pre-merge` extension seam has one enactment per path: the
+   work-unit fire moves later and `run-errand`'s duplicate fires collapse to one at the shared position. The
+   transition's `commit-interlock` release moves to the publication-step head; the merge-lock release and re-lock
+   obligation move into B2. Every Goal 5 deletion names the host pin or typed reader that covers the failure it
+   guarded. Any other relocation, deletion, or lost obligation is a defect.
 15. **Agent discovery is typed and idempotent.** Session initialization resolves Candidate/review loci without
    parsing narrative fields, including `candidate-convergence-verification-pending`; every locus carries one next
    action; repeated propose, submit, review-resume, checkpoint, and merge calls either advance or report the same
    observable resume point; every refusal names the failed invariant and one corrective command.
+16. **The errand ship path completes in-session by default.** `arc errand leave` fires only on a session-ending
+   tail: its trigger clause names session end, no step instructs leaving at pull-request open, and the
+   unattended-merge replay references no retained checkout.
+17. **The boundary is honest about check cadence.** No prose step assumes required checks are green before B2's
+   await; the interlock surface reports check state as observed; a deferred-CI project runs both lanes unchanged
+   with no added agent polling.
 
 ## Open Questions
 
