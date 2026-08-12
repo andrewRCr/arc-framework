@@ -34,6 +34,7 @@ import {
 } from "../lib/delivery/git-materialization.js";
 import {
   bindInitialDeliveryRef,
+  bindInitialDeliveryRequest,
   deriveDeliveryMaterialization,
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
@@ -671,6 +672,7 @@ async function executeDeliveryCommand(
         const derived = deriveDeliveryMaterialization(plan, snapshot);
         if (derived.status !== "derived") return derived;
         const refs = {
+          observe: async (ref: string) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
           publish: async (ref: string, head: string) => {
             const outcome = await publishDeliveryRemoteRef({ exec, remote: parsed.remote, ref, head });
             return outcome.status === "refused" ? { status: "refused" as const } : outcome;
@@ -679,8 +681,27 @@ async function executeDeliveryCommand(
         const current = await stateStore.read(plan.planId);
         if (current.status !== "ok") return { status: "refused" as const, reason: "state-unavailable" };
         if (current.value === null) {
-          const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore, refs });
-          if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
+          if (command === "publish") {
+            const publish = PublishSchema.parse(parsed);
+            const recovered = await bindInitialDeliveryRequest({
+              plan,
+              materialization: derived.value,
+              stateStore,
+              host: new GhDeliveryHostPort(hostedGhRunner),
+              repository: publish.repository,
+              draft: publish.draft,
+            });
+            if (recovered.status === "refused") {
+              return { status: "refused" as const, reason: "initial-request-refused" };
+            }
+            if (recovered.status === "absent") {
+              const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore, refs });
+              if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
+            }
+          } else {
+            const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore, refs });
+            if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
+          }
         }
         const materialized = await materializeBoundDeliveryChain({
           plan, materialization: derived.value, stateStore, refs,

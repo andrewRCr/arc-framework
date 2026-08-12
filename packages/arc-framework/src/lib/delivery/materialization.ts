@@ -3,6 +3,7 @@
 import type { DeliveryHostOpenRequest, DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
+  checkDeliveryOperationPrecondition,
   reserveDeliveryOperation,
 } from "./operation.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
@@ -82,10 +83,34 @@ export function deriveDeliveryMaterialization(
 
 /** External ref publication seam used by materialization orchestration. */
 export interface DeliveryMaterializationRefPort {
+  observe(ref: string): Promise<
+    | { readonly status: "absent" }
+    | { readonly status: "observed"; readonly head: string }
+    | { readonly status: "refused" }
+  >;
   publish(ref: string, head: string): Promise<
     | { readonly status: "published" | "adopted" }
     | { readonly status: "refused" }
   >;
+}
+
+function isExactOpenRequest(
+  request: Awaited<ReturnType<DeliveryHostPort["observeRequest"]>> & { readonly status: "observed" },
+  effect: {
+    readonly repository: string;
+    readonly headRef: string;
+    readonly headSha: string;
+    readonly baseRef: string;
+    readonly draft: boolean;
+  },
+): boolean {
+  return request.request.repository === effect.repository
+    && request.request.headRepository === effect.repository
+    && request.request.headRef === effect.headRef
+    && request.request.headSha === effect.headSha
+    && request.request.baseRef === effect.baseRef
+    && request.request.draft === effect.draft
+    && request.request.state === "open";
 }
 
 /** Bind the first uniquely observed ref event through the shipped state constructor. */
@@ -105,6 +130,10 @@ export async function bindInitialDeliveryRef(input: {
   if (existing.value !== null) return { status: "refused", reason: "state-exists" };
   const publication = await input.refs.publish(first.ref, first.head);
   if (publication.status === "refused") return { status: "refused", reason: "publication-refused" };
+  const observed = await input.refs.observe(first.ref);
+  if (observed.status !== "observed" || observed.head !== first.head) {
+    return { status: "refused", reason: "publication-refused" };
+  }
   const constructed = constructInitialDeliveryState(input.plan, {
     kind: "pushed-ref",
     deliverableId: first.deliverableId,
@@ -126,9 +155,11 @@ export async function bindInitialDeliveryRequest(input: {
   readonly host: DeliveryHostPort;
   readonly repository: string;
   readonly draft: boolean;
-}): Promise<{ readonly status: "bound"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
-  readonly status: "refused";
-}> {
+}): Promise<
+  | { readonly status: "bound"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | { readonly status: "absent" }
+  | { readonly status: "refused" }
+> {
   const first = input.materialization.members[0];
   if (first?.ref === null || first === undefined || first.requestBaseRef === null) return { status: "refused" };
   const current = await input.stateStore.read(input.plan.planId);
@@ -142,7 +173,9 @@ export async function bindInitialDeliveryRequest(input: {
     draft: input.draft,
   } as const;
   const observed = await input.host.observeRequest(effect);
+  if (observed.status === "absent") return observed;
   if (observed.status !== "observed") return { status: "refused" };
+  if (!isExactOpenRequest(observed, effect)) return { status: "refused" };
   const constructed = constructInitialDeliveryState(input.plan, {
     kind: "opened-change-request",
     deliverableId: first.deliverableId,
@@ -171,8 +204,10 @@ async function persistDeterministicStep(input: {
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly requested: DeliveryOperationSnapshotV1;
   readonly memberId: string;
-  readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
+  readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "read" | "publish">;
+  readonly observeBefore: () => Promise<boolean>;
   readonly mutate: () => Promise<{ readonly status: "applied" } | { readonly status: "refused" }>;
+  readonly observeAfter: () => Promise<DeliveryOperationSnapshotV1 | null>;
 }): Promise<{ readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
   readonly status: "refused";
 }> {
@@ -189,10 +224,20 @@ async function persistDeterministicStep(input: {
   if (reserved.status !== "reserved") return { status: "refused" };
   const reservation = await input.stateStore.publish(input.plan.planId, reserved.state, input.current.revision);
   if (reservation.status !== "ok") return { status: "refused" };
+  const fresh = await input.stateStore.read(input.plan.planId);
+  if (fresh.status !== "ok" || fresh.value === null || fresh.value.revision !== reservation.value.revision) {
+    return { status: "refused" };
+  }
+  const freshBefore = snapshot(fresh.value.value, input.memberId);
+  if (freshBefore === null
+    || checkDeliveryOperationPrecondition(fresh.value, freshBefore).status !== "ready"
+    || !(await input.observeBefore())) return { status: "refused" };
   if ((await input.mutate()).status !== "applied") return { status: "refused" };
-  const accepted = acceptDeliveryOperationResult(reservation.value, input.requested);
+  const observedAfter = await input.observeAfter();
+  if (observedAfter === null) return { status: "refused" };
+  const accepted = acceptDeliveryOperationResult(fresh.value, observedAfter);
   if (accepted.status !== "applied") return { status: "refused" };
-  const persisted = await input.stateStore.publish(input.plan.planId, accepted.state, reservation.value.revision);
+  const persisted = await input.stateStore.publish(input.plan.planId, accepted.state, fresh.value.revision);
   return persisted.status === "ok" ? { status: "applied", state: persisted.value } : { status: "refused" };
 }
 
@@ -222,7 +267,20 @@ export async function materializeBoundDeliveryChain(input: {
         ref: input.materialization.target.ref,
         coordinates: { head: input.materialization.target.head, tree: input.materialization.target.tree },
       } },
+      observeBefore: async () => {
+        const observed = await input.refs.observe(input.materialization.target.ref);
+        return observed.status === "observed" && observed.head === input.materialization.target.head;
+      },
       mutate: () => Promise.resolve({ status: "applied" }),
+      observeAfter: async () => {
+        const observed = await input.refs.observe(input.materialization.target.ref);
+        return observed.status === "observed" && observed.head === input.materialization.target.head
+          ? { ...before, target: {
+            ref: input.materialization.target.ref,
+            coordinates: { head: observed.head, tree: input.materialization.target.tree },
+          } }
+          : null;
+      },
     });
     if (targetStep.status !== "applied") return targetStep;
     current = targetStep.state;
@@ -245,9 +303,22 @@ export async function materializeBoundDeliveryChain(input: {
         target: before.target,
         members: [{ ...beforeMember, ref, coordinates: member.coordinates }],
       },
+      observeBefore: async () => {
+        const observed = await input.refs.observe(ref);
+        return observed.status === "absent" || (observed.status === "observed" && observed.head === member.head);
+      },
       mutate: async () => (await input.refs.publish(ref, member.head)).status === "refused"
         ? { status: "refused" }
         : { status: "applied" },
+      observeAfter: async () => {
+        const observed = await input.refs.observe(ref);
+        return observed.status === "observed" && observed.head === member.head
+          ? {
+            target: before.target,
+            members: [{ ...beforeMember, ref, coordinates: { ...member.coordinates, head: observed.head } }],
+          }
+          : null;
+      },
     });
     if (step.status !== "applied") return step;
     current = step.state;
@@ -296,6 +367,15 @@ export async function publishDeliveryRequests(input: {
     if (reserved.status !== "reserved") return { status: "refused" };
     const reservation = await input.stateStore.publish(input.plan.planId, reserved.state, current.revision);
     if (reservation.status !== "ok") return { status: "refused" };
+    const fresh = await input.stateStore.read(input.plan.planId);
+    if (fresh.status !== "ok" || fresh.value === null || fresh.value.revision !== reservation.value.revision) {
+      return { status: "refused" };
+    }
+    const freshBefore = snapshot(fresh.value.value, member.deliverableId);
+    if (freshBefore === null
+      || checkDeliveryOperationPrecondition(fresh.value, freshBefore).status !== "ready") {
+      return { status: "refused" };
+    }
     let observed = await input.host.observeRequest(effect);
     if (observed.status === "absent") {
       const presentation = input.presentation(member);
@@ -303,18 +383,19 @@ export async function publishDeliveryRequests(input: {
       observed = await input.host.observeRequest(effect);
     }
     if (observed.status !== "observed") return { status: "refused" };
+    if (!isExactOpenRequest(observed, effect)) return { status: "refused" };
     const observedSnapshot = {
       ...before,
       members: before.members.map((entry) => ({ ...entry, changeRequest: observed.request.binding })),
     };
-    const accepted = acceptDeliveryOperationResult(reservation.value, {
+    const accepted = acceptDeliveryOperationResult(fresh.value, {
       kind: "publish",
       effect,
       outcome: "applied",
       snapshot: observedSnapshot,
     });
     if (accepted.status !== "applied") return { status: "refused" };
-    const persisted = await input.stateStore.publish(input.plan.planId, accepted.state, reservation.value.revision);
+    const persisted = await input.stateStore.publish(input.plan.planId, accepted.state, fresh.value.revision);
     if (persisted.status !== "ok") return { status: "refused" };
     current = persisted.value;
   }

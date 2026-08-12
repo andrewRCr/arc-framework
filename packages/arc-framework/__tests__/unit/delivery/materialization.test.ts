@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   bindInitialDeliveryRef,
+  bindInitialDeliveryRequest,
   deriveDeliveryMaterialization,
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
@@ -79,7 +80,13 @@ describe("delivery materialization orchestration", () => {
     const derived = deriveDeliveryMaterialization(plan, eligible(plan));
     if (derived.status !== "derived") throw new Error("fixture must derive");
     const store = memoryStateStore();
-    const refs = { publish: async () => ({ status: "published" as const }) };
+    const refs = {
+      publish: async () => ({ status: "published" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? protectedHead : firstHead,
+      }),
+    };
     const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
     expect(bound.status).toBe("bound");
     if (bound.status !== "bound") return;
@@ -111,7 +118,13 @@ describe("delivery materialization orchestration", () => {
     const derived = deriveDeliveryMaterialization(plan, eligible(plan));
     if (derived.status !== "derived") throw new Error("fixture must derive");
     const store = memoryStateStore();
-    const refs = { publish: async () => ({ status: "adopted" as const }) };
+    const refs = {
+      publish: async () => ({ status: "adopted" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? protectedHead : firstHead,
+      }),
+    };
     await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
     await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
     const host = {
@@ -149,5 +162,127 @@ describe("delivery materialization orchestration", () => {
         changeRequestId: "401",
       });
     }
+  });
+
+  it("refuses target movement after reservation without overwriting state", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const refs = {
+      publish: async () => ({ status: "published" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? "9".repeat(40) : firstHead,
+      }),
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
+
+    await expect(materializeBoundDeliveryChain({
+      plan,
+      materialization: derived.value,
+      stateStore: store,
+      refs,
+    })).resolves.toEqual({ status: "refused" });
+    const retained = await store.read();
+    expect(retained.value?.value.target).toBeNull();
+    expect(retained.value?.value.activeOperation?.kind).toBe("materialize");
+  });
+
+  it("adopts only one exact open initial request", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const exact = {
+      binding: { providerId: "github", changeRequestId: "401" },
+      repository: "andrewRCr/arc-framework",
+      headRepository: "andrewRCr/arc-framework",
+      headRef: derived.value.members[0]!.ref!.replace("refs/heads/", ""),
+      headSha: firstHead,
+      baseRef: "main",
+      state: "open" as const,
+      draft: true,
+    };
+    const host = {
+      observeRequest: async () => ({ status: "observed" as const, request: exact }),
+      openRequest: async () => ({ status: "submitted" as const }),
+      readRequest: async () => ({ status: "absent" as const }),
+      mergeRequest: async () => ({ status: "submitted" as const }),
+      observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+    };
+    const adopted = await bindInitialDeliveryRequest({
+      plan,
+      materialization: derived.value,
+      stateStore: memoryStateStore(),
+      host,
+      repository: exact.repository,
+      draft: exact.draft,
+    });
+    expect(adopted.status).toBe("bound");
+    await expect(bindInitialDeliveryRequest({
+      plan,
+      materialization: derived.value,
+      stateStore: memoryStateStore(),
+      host: { ...host, observeRequest: async () => ({ status: "absent" as const }) },
+      repository: exact.repository,
+      draft: exact.draft,
+    })).resolves.toEqual({ status: "absent" });
+
+    for (const mismatch of [
+      { ...exact, repository: "someone/else" },
+      { ...exact, baseRef: "release" },
+      { ...exact, headSha: "8".repeat(40) },
+      { ...exact, state: "closed" as const },
+      { ...exact, draft: false },
+    ]) {
+      await expect(bindInitialDeliveryRequest({
+        plan,
+        materialization: derived.value,
+        stateStore: memoryStateStore(),
+        host: { ...host, observeRequest: async () => ({ status: "observed" as const, request: mismatch }) },
+        repository: exact.repository,
+        draft: exact.draft,
+      })).resolves.toEqual({ status: "refused" });
+    }
+  });
+
+  it("reobserves and adopts an exact first ref after state publication is interrupted", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    let record: { revision: number; value: DeliveryStateV1 } | null = null;
+    let refuseFirstStateWrite = true;
+    let remoteHead: string | null = null;
+    let mutations = 0;
+    const store = {
+      read: async () => ({ status: "ok" as const, value: record }),
+      publish: async (_planId: string, value: DeliveryStateV1, expectedRevision: number) => {
+        if (refuseFirstStateWrite) {
+          refuseFirstStateWrite = false;
+          return { status: "refused" as const, reason: "version-conflict" as const };
+        }
+        record = { revision: expectedRevision + 1, value };
+        return { status: "ok" as const, value: record };
+      },
+    };
+    const refs = {
+      observe: async () => remoteHead === null
+        ? { status: "absent" as const }
+        : { status: "observed" as const, head: remoteHead },
+      publish: async (_ref: string, head: string) => {
+        if (remoteHead === null) {
+          remoteHead = head;
+          mutations += 1;
+          return { status: "published" as const };
+        }
+        return remoteHead === head ? { status: "adopted" as const } : { status: "refused" as const };
+      },
+    };
+
+    await expect(bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs }))
+      .resolves.toEqual({ status: "refused", reason: "state-refused" });
+    const resumed = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
+    expect(resumed.status).toBe("bound");
+    expect(mutations).toBe(1);
   });
 });

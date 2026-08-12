@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `3`
-- **Plan Digest:** `sha256:5b1e2e336a0fdcac4454fd2926db3976e2e7be70a8fc205638d99c82d3c40539`
+- **Plan Revision:** `4`
+- **Plan Digest:** `sha256:a3eb89edd10bcc4adc8ec274a79ca46791708acf7a436b4658ad640943fc695b`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -335,24 +335,14 @@ exact-head review admission, one guarded landing, and interruption-safe recovery
 _Purpose:_ Complete the unlinked executor's mutation and recovery brackets with fresh repository and host facts at
 each existing reserved-operation boundary.
 
-### `[ ]` **3.R.1 Guard materialization and exact initial-request recovery**
+### `[x]` **3.R.1 Guard materialization and exact initial-request recovery**
 
 - _Goal:_ Each ref, target, and first-request effect is authorized by fresh observations around its reservation and is
   recoverable only from the exact external event the current plan permits.
 
-- **Additional Context:** `spec-delivery-stack-topology.md` §§ 2, 3, 10;
-  `cohort-chunked-delivery.md` § V1 robustness floor.
-
-    - Reobserve the relevant ref and target facts after reservation and after mutation, apply the existing operation
-      precondition to the fresh `before` snapshot, and persist only coordinates derived from the observed result.
-
-    - Route first publication through the existing initial change-request recovery before falling back to initial-ref
-      binding; require one exact open request with matching repository, head, base, SHA, and draft posture.
-
-    - Build `test-first` (one behavior at a time):
-        - Ref or target movement between reservation and mutation refuses without overwriting state.
-        - A crash after the first ref push or request open resumes without duplicating the effect.
-        - One exact initial request is adopted; foreign, duplicate, wrong-base, or otherwise mismatched requests refuse.
+- _Outcome:_ Materialization now rechecks the persisted reservation and exact remote ref around each effect, records
+  only reobserved results, and leaves the operation reserved on movement. First publication adopts only one exact
+  open request before falling back on absence to the leased ref path; interrupted exact ref publication is idempotent.
 
 ### `[ ]` **3.R.2 Make ordinary landing and recovery observational**
 
