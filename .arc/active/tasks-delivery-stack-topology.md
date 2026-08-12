@@ -266,49 +266,30 @@ exact-head review admission, one guarded landing, and interruption-safe recovery
   authority record: ambiguous host evidence retains the reservation, and delivery state still excludes review,
   authorization, gate, and capability claims.
 
-### `[ ]` **3.2 Materialize and bind the ordered member chain** — § 2, § 10; SC 2, SC 6
+### `[x]` **3.2 Materialize and bind the ordered member chain** — § 2, § 10; SC 2, SC 6
 
 - _Goal:_ One freshly validated authored cut becomes the exact predecessor-based ref/request chain, with the first
   observable event binding state immediately and every later coordinate mutation reserved.
 
-    - `[ ]` **3.2.a Derive member refs, targets, and terminal omission**
-        - Add pure materialization derivation from validated eligibility output: the lowest member targets the
-          protected base, each higher non-final member targets its predecessor, and the terminal uses the control
-          branch rather than a delivery ref.
-        - Build `test-first` (one behavior at a time):
-            - Exact plan order produces the expected `delivery/{wu-slug}/{chunkKey}` refs and bases
-            - The terminal member produces no delivery ref
-            - Ref spelling never becomes a reverse identity input
+    - `[x]` **3.2.a Derive member refs, targets, and terminal omission**
+        - Fresh eligibility snapshots now derive exact plan-ordered refs and predecessor bases while retaining explicit
+          member IDs; the terminal projects the control coordinates and no delivery ref or request target.
 
-    - `[ ]` **3.2.b Revalidate, publish the first ref by lease, and bind immediately**
-        - Rerun the complete eligibility procedure — workflow-run project gates plus the verb's mechanical and
-          lifecycle-contribution validation — then publish only the just-validated first head: absent creates, exact
-          retry adopts, and a different remote head refuses.
-        - Reobserve immediately and call `constructInitialDeliveryState`; recovery may instead adopt a uniquely
-          observed first request. The two arms establish the same plan/member identity without claiming identical
-          initially known fields.
-        - Build `test-first` (one behavior at a time):
-            - A temp bare remote proves absent create, exact retry, and mismatched-head refusal
-            - First-ref and first-request recovery each construct once and exact retry is idempotent
-            - Lifecycle, collision, or source drift refuses before the prebinding mutation (a red gate already
-              stopped the workflow upstream)
+    - `[x]` **3.2.b Revalidate, publish the first ref by lease, and bind immediately**
+        - Added exact remote absent-create/exact-adopt/collision leases and immediate first-ref state construction,
+          plus the asymmetric unique-first-request recovery arm through the same constructor.
 
-    - `[ ]` **3.2.c Reserve the protected target and remaining ref publications**
-        - After binding, use `kind: materialize` for the protected target and each remaining non-terminal ref, with
-          exact remote leases, pre-push lifecycle comparison, reobservation, versioned state application, and clear.
-        - Build `test-first` (one behavior at a time):
-            - Every derived ref/base/head enters state in plan order
-            - Exact already-applied publication adopts while wrong-head or stale-state movement blocks
-            - Partial failure leaves one recoverable reservation and never returns to the prebinding carve-out
+    - `[x]` **3.2.c Reserve the protected target and remaining ref publications**
+        - Bound target and member-coordinate transitions run plan-order through `materialize` reservations, CAS state
+          application, and exact ref publication; any failed external step leaves the persisted reservation intact.
 
-    - `[ ]` **3.2.d Publish and uniquely bind member change requests**
-        - Use `kind: publish` to open or adopt each non-terminal request through the host-assigned effect contract,
-          preserving configured draft/merge-lock posture and exact predecessor targets.
-        - Keep review vehicle admission at the later review callsite rather than encoding it as request metadata.
-        - Build `test-first` (one behavior at a time):
-            - Timeout followed by one exact host match adopts and records its handle
-            - Multiple, wrong-head, wrong-base, or cross-repository matches retain the reservation
-            - First binding, target binding, remaining refs, and requests converge on one coherent state
+    - `[x]` **3.2.d Publish and uniquely bind member change requests**
+        - Each non-terminal request now reserves its exact repository/head/base/posture effect, opens only when absent,
+          reobserves uniquely, and records the host-assigned binding without introducing review metadata.
+
+- _Outcome:_ A closed eligibility snapshot now becomes one exact predecessor chain: the first observable event binds
+  state, every later coordinate mutation uses the single reservation slot, and the terminal remains ordinary control
+  branch authority.
 
 ### `[ ]` **3.3 Prepare, apply, and recover one exact-head landing** — § 3, § 10; SC 4, SC 6
 
