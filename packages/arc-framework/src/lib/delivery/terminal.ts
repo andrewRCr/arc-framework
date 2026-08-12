@@ -138,7 +138,8 @@ export async function adoptDeliveryTerminalMerge(input: {
   const expectedHeadRef = input.retainedControlRef.replace(/^refs\/heads\//u, "");
   if (input.request.state !== "merged" || input.request.repository !== input.repository
     || input.request.headRepository !== input.repository || input.request.headRef !== expectedHeadRef
-    || input.request.headSha !== input.retainedControlHead) {
+    || input.request.headSha !== input.retainedControlHead
+    || input.request.baseRef !== current.value.target?.ref.replace(/^refs\/heads\//u, "")) {
     return { status: "blocked", reason: "request-mismatch" };
   }
   const expected = {
@@ -151,8 +152,7 @@ export async function adoptDeliveryTerminalMerge(input: {
   if (terminal.ref !== null || terminal.changeRequest !== null || terminal.coordinates !== null) {
     return { status: "blocked", reason: "terminal-conflict" };
   }
-  if (current.value.target === null
-    || canonicalize(current.value.target.coordinates) !== canonicalize(input.targetBefore)) {
+  if (canonicalize(current.value.target.coordinates) !== canonicalize(input.targetBefore)) {
     return { status: "blocked", reason: "target-mismatch" };
   }
   if ((await input.proveResidual()).status !== "accepted") {

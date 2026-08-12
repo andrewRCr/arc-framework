@@ -40,7 +40,8 @@ async function terminalProjection() {
     request: {
       binding: { providerId: "github", changeRequestId: "99" },
       repository: "owner/repo", headRepository: "owner/repo", headRef: "feat/control",
-      headSha: "c".repeat(40), baseRef: "main", state: "merged", draft: false,
+      headSha: "c".repeat(40), baseRef: state.target!.ref.replace("refs/heads/", ""),
+      state: "merged", draft: false,
     },
     targetBefore,
     targetAfter,

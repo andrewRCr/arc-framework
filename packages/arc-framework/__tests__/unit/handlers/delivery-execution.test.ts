@@ -179,4 +179,31 @@ describe("delivery execution handler", () => {
       reason: "candidate-moved",
     });
   });
+
+  it("accepts only terminal repository locators at the command boundary", async () => {
+    const prepare = vi.fn().mockResolvedValue({ status: "terminal-ready" });
+    const write = vi.fn();
+    await handleDeliveryExecution("terminal-prepare", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        repository: "andrewRCr/arc-framework",
+        remote: "origin",
+        controlRef: "refs/heads/feat/example",
+        controlCheckoutPath: "/tmp/control",
+        protectedTargetRef: "refs/heads/main",
+      })), execute: prepare, write, setExitCode: vi.fn(),
+    });
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string).status).toBe("terminal-ready");
+
+    const attach = vi.fn().mockResolvedValue({ status: "not-applicable" });
+    await handleDeliveryExecution("terminal-attach", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        repository: "andrewRCr/arc-framework",
+        remote: "origin",
+        retainedControlRef: "refs/heads/feat/example",
+        changeRequestId: "401",
+      })), execute: attach, write: vi.fn(), setExitCode: vi.fn(),
+    });
+    expect(attach).toHaveBeenCalledOnce();
+  });
 });

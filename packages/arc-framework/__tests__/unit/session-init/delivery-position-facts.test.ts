@@ -82,4 +82,28 @@ describe("session-init delivery position facts", () => {
       .resolves.toEqual({ status: "refused" });
     expect(dependencies.exec).not.toHaveBeenCalled();
   });
+
+  it("recognizes a fully torn-down nonterminal prefix while leaving the terminal unlanded", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      members: initial.members.map((member) => ({
+        deliverableId: member.deliverableId,
+        ref: null,
+        changeRequest: null,
+        coordinates: null,
+      })),
+    };
+    const result = await observeRepositoryDeliveryPosition(plan, state, 4, exactDependencies(state));
+    expect(result).toEqual({
+      status: "observed",
+      facts: {
+        target: state.target,
+        members: state.members,
+        landedDeliverableIds: [plan.members[0]!.deliverableId],
+      },
+      operationObservation: null,
+    });
+  });
 });

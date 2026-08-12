@@ -167,12 +167,17 @@ async function observeFacts(
 
   const landedDeliverableIds: string[] = [];
   let unlandedSeen = false;
+  const terminalIndex = state.members.length - 1;
+  const nonTerminalCleared = state.members.slice(0, -1).every((member) => (
+    member.ref === null && member.changeRequest === null && member.coordinates === null
+  ));
   for (const [index, member] of state.members.entries()) {
     const requestState = members[index]?.requestState ?? null;
-    const cleared = member.ref === null && member.changeRequest === null && member.coordinates === null
-      && state.members.slice(index + 1).some((candidate) => (
+    const cleared = index < terminalIndex
+      && member.ref === null && member.changeRequest === null && member.coordinates === null
+      && (nonTerminalCleared || state.members.slice(index + 1).some((candidate) => (
         candidate.ref !== null || candidate.changeRequest !== null || candidate.coordinates !== null
-      ));
+      )));
     const landed = requestState === "merged" || cleared;
     if (landed && unlandedSeen) return null;
     if (landed) landedDeliverableIds.push(member.deliverableId);

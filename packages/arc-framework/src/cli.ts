@@ -754,6 +754,17 @@ delivery.command("rematerialize").description("Reclose and rewrite one complete 
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("rematerialize", { ...opts, input }, context)
   )));
+const deliveryTerminal = delivery.command("terminal").description("Prepare and attach ordinary terminal integration");
+deliveryTerminal.command("prepare").description("Derive terminal readiness or the ordinary absorption intent")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("terminal-prepare", { ...opts, input }, context)
+  )));
+deliveryTerminal.command("attach").description("Attach an exact ordinary terminal merge to delivery state")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("terminal-attach", { ...opts, input }, context)
+  )));
 delivery.command("teardown").description("Retire one proven-landed member ref and binding")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (

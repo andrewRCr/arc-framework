@@ -65,7 +65,8 @@ describe("arc delivery", () => {
       .resolves.toMatchObject({ exitCode: 0 });
     for (const command of [
       ["eligibility", "prepare"], ["eligibility", "close"], ["materialize"], ["publish"],
-      ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"], ["teardown"],
+      ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"],
+      ["terminal", "prepare"], ["terminal", "attach"], ["teardown"],
     ]) {
       const help = await runArc(["delivery", ...command, "--help"], repository);
       expect(help.exitCode, help.stderr).toBe(0);

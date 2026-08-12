@@ -572,6 +572,10 @@ retained control identity. `attached`, `already-attached`, and `not-applicable` 
 user-workspace close or branch teardown. This call only adopts an exact terminal result through the delivery-state
 CAS: it takes no reservation, adds no authorization, and runs identically after a fresh merge or merged-PR resume.
 
+```bash
+arc delivery terminal attach --input - --json
+```
+
 Retire the per-WU user workspace subdir (filesystem op only, no git ops — contents are gitignored):
 
 ```bash

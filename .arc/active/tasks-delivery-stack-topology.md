@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `6`
-- **Plan Digest:** `sha256:d30c78e2daad8ed19c31749a5c79c07181e0e515f8eefb6e010570110d4f9397`
+- **Plan Revision:** `7`
+- **Plan Digest:** `sha256:f47e0159701a62d69427207bffb378e22c07829a0b478826b65503489eec07d8`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -438,26 +438,15 @@ orchestration without adding proof state or another integration ceremony.
   reobserves request/ref/lifecycle facts, and recomputes carried contribution before every reserved rewrite. Rewrites
   execute in plan order, with candidate movement, state drift, or proof failure stopping before the next mutation.
 
-### `[ ]` **4.R.2 Expose the existing terminal handoff through ordinary integration**
+### `[x]` **4.R.2 Expose the existing terminal handoff through ordinary integration**
 
 - _Goal:_ The terminal member reaches ordinary work-unit integration through one composed pre-handoff service and one
   total post-merge attachment, without a delivery-owned merge ceremony or terminal proof record.
 
-- **Additional Context:** `spec-delivery-stack-topology.md` §§ 5, 7, 10;
-  `cohort-chunked-delivery.md` §§ Explicit non-goals, Hardening-admission boundary.
-
-    - Extend the existing `arc delivery` execution family with a repository-derived pre-handoff command that assesses
-      absorption, performs only the existing append-only base reconcile and Tier 1 seam when required, reobserves, and
-      returns terminal readiness without accepting operator-authored plan/state assertions.
-
-    - Add the separate total post-merge attachment at ordinary integration's exact existing attachment point; derive
-      `attached`, `already-attached`, `not-applicable`, or `blocked` from current plan/state/Git/host facts.
-
-    - Build `test-first` (one behavior at a time):
-        - Ready, already-absorbed, dirty, stale, active-operation, and unreconciled-prefix pre-handoff paths close.
-        - Exact delivery merge attaches once; repeat is idempotent; an ordinary work unit is not applicable.
-        - A built-CLI unlinked lifecycle reaches terminal readiness and post-merge attachment, while blocked results
-          prevent close and teardown.
+- _Outcome:_ `terminal prepare` now derives absorption solely from current repository authorities, applies only the
+  exact append-only base reconcile, and requires the ordinary Tier 1 seam before a fresh readiness read. Ordinary
+  integration invokes one total `terminal attach` after merge; exact delivery results bind once, repeats are
+  idempotent, ordinary work units no-op, and blocked evidence stops before close or teardown.
 
 ## **Phase 5:** Lifecycle execution and orientation
 

@@ -206,7 +206,14 @@ not implement a loop.
 
 ## Terminal handoff
 
-When delivery reports the terminal member ready, delegate to the ordinary
+Before delegating, derive the repository-owned terminal handoff:
+
+```bash
+arc delivery terminal prepare --input - --json
+```
+
+`blocked` stops. `absorbed` means the command applied the exact ordinary append-only base reconcile; run Tier 1 and
+rerun the command from fresh facts. Only `terminal-ready` delegates to the ordinary
 [`integrate-work-unit.md`][integrate-work-unit] workflow. Its existing integration interlock owns the terminal merge;
 do not fire a delivery interlock. Both fresh-merge and already-merged resume converge on the workflow's single
 post-merge delivery adoption call before close or teardown. Repeated adoption is idempotent, and an ordinary work

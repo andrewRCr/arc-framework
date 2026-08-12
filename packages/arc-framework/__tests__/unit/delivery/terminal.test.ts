@@ -42,6 +42,27 @@ describe("delivery terminal handoff", () => {
     expect(assessDeliveryAbsorption({ ...base, suffixReconciled: false, absorption: "required" })).toEqual({
       status: "blocked", reason: "suffix-unreconciled",
     });
+    expect(assessDeliveryAbsorption({ ...base, absorption: "stale" })).toEqual({
+      status: "blocked", reason: "absorption-stale",
+    });
+    expect(assessDeliveryAbsorption({
+      ...base,
+      landedDeliverableIds: base.landedDeliverableIds.slice(0, -1),
+      absorption: "required",
+    })).toEqual({ status: "blocked", reason: "landed-prefix-incomplete" });
+    expect(assessDeliveryAbsorption({
+      ...base,
+      state: { ...f.state, activeOperation: {
+        operationId: "terminal-test",
+        kind: "materialize",
+        affectedDeliverableIds: [f.state.members[0]!.deliverableId],
+        stateRevision: 1,
+        boundPlanDigest: f.plan.planDigest,
+        before: { target: f.state.target, members: [f.state.members[0]!] },
+        requested: { target: f.state.target, members: [f.state.members[0]!] },
+      } },
+      absorption: "required",
+    })).toEqual({ status: "blocked", reason: "operation-active" });
   });
 
   it("performs one append-only merge and Tier 1 only for an exact ready intent", async () => {
@@ -77,7 +98,7 @@ describe("delivery terminal handoff", () => {
     const request = {
       binding: { providerId: "github", changeRequestId: "999" }, repository: "owner/repo",
       headRepository: "owner/repo", headRef: "feat/control", headSha: f.controlAfter.head,
-      baseRef: "main", state: "merged" as const, draft: false,
+      baseRef: f.state.target!.ref.replace("refs/heads/", ""), state: "merged" as const, draft: false,
     };
     const publish = vi.fn(async (_id, value, revision) => ({
       status: "ok" as const, value: { revision: revision + 1, value },
@@ -123,6 +144,11 @@ describe("delivery terminal handoff", () => {
       .resolves.toEqual({ status: "blocked", reason: "plan-unavailable" });
     await expect(adoptDeliveryTerminalMerge({
       ...common, resolution: { status: "delivery", plan: f.plan, current: { revision: 8, value: f.state } },
+    })).resolves.toEqual({ status: "blocked", reason: "request-mismatch" });
+    await expect(adoptDeliveryTerminalMerge({
+      ...common,
+      request: { ...common.request, headRef: "feat/control", baseRef: "foreign" },
+      resolution: { status: "delivery", plan: f.plan, current: { revision: 8, value: f.state } },
     })).resolves.toEqual({ status: "blocked", reason: "request-mismatch" });
   });
 });
