@@ -57,6 +57,33 @@ describe("lifecycle review driver", () => {
     expect(workflow).toContain("`Coverage`");
   });
 
+  it("keeps attention suppression with the owner of each judgment", async () => {
+    const [workUnit, errand] = await Promise.all([
+      readFile(resolve(packageArc, workflows[0] ?? ""), "utf8"),
+      readFile(resolve(packageArc, workflows[1] ?? ""), "utf8"),
+    ]);
+    for (const pair of [
+      "disabled / none",
+      "below-threshold / continue-review",
+      "scope-selected / continue-review",
+      "evidence-unavailable / continue-review",
+      "consider-chunks / select-review-scope",
+      "delivery-bound / continue-review",
+    ]) {
+      expect(workUnit).toContain(pair);
+      expect(errand).toContain(pair);
+    }
+    expect(workUnit).toContain("selected `assess-boundary-fit` outcome and its evidence basis");
+    expect(workUnit).toContain("semantically unchanged");
+    expect(workUnit).toContain("material deltas");
+    expect(workUnit).toContain("render `recommendedActionText` verbatim");
+    expect(workUnit).toContain("never also offer chunked review");
+    expect(workUnit).toContain("repeat Step 3's boundary-decision read");
+    expect(errand).toContain("An Errand has no owning work unit");
+    expect(errand).toContain("without adding delivery judgment");
+    expect(errand).toContain("follow the closed attention dispatch in Step 2");
+  });
+
   it("publishes a content-gated PR review record", async () => {
     const path = "reference/templates/arc/work-unit/template-pull-request.md";
     const [packaged, project] = await Promise.all([
