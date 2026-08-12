@@ -5,6 +5,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - assess-boundary-fit
     - assess-design-proportionality
     - test-first
     - task-audit
@@ -205,6 +206,18 @@ On approval, amend `spec-{name}.md`, discard the superseded provisional skeleton
 & Class**. Re-read the scale axis and rebuild the task list from scratch under the newly resolved level and path;
 the Class ratchet still prevents demotion. On decline, leave both artifacts unchanged and return control without
 treating the result as `proportionate`.
+
+### Assess boundary fit from concrete task-scale evidence
+
+Run [`assess-boundary-fit`][arc-methods-abf] against the provisional skeleton: this is the first concrete
+task-scale evidence and is independent of the scale/derivation depth valve. A derivation gap returns to design;
+orthogonal concerns route a complete cut-map to `decompose-work-unit`; a cohesive concern with separable delivery
+surfaces selects `stays one WU + delivery-plan candidate`.
+
+For the delivery candidate, add exactly one unmarked provisional `## Delivery Plan` locus before Phase 1. It
+records the current member/seam intent for review but does not create canonical delivery state, publish or bind a
+plan, or mutate an external projection. Rebuild or remove the locus if the skeleton changes; do not put canonical
+sentinels around provisional prose. A recorded unchanged outcome remains silent under the method's sticky posture.
 
 → **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
 discipline above) before continuing.
@@ -426,14 +439,6 @@ work unit's existing artifacts (lifecycle position first; `pm.mode` only when no
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
-**Update planning-state meta file** — only when `.arc/active/meta-{name}.md` exists with `**State:**
-Planning` (planning-branch sessions); skip otherwise (no meta exists pre-init under non-planning-branch
-flows). When it applies, persist the deterministic finalize facts — `arc finalize generate-tasks
---class <Class>` writes the resolved `**Class:**` (live from the entry read), the derived `**Task List:**`
-(`tasks-{name}.md`), and the terminal `**Next Action:**` (`Task list finalized — ready to activate`) through the
-field model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel;
-`activate` clears `Current Workflow`. The write rides this ceremony commit.
-
 The finalization boundary also carries an advisory adversarial fire-point — the audit rubric run from fresh
 context over the finished suite (the per-phase gates above audited each phase as authored; this pass attacks
 the whole):
@@ -453,15 +458,41 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
+### Canonicalize active delivery authoring
+
+Run this only for a selected delivery-plan candidate in an active Planning flow, after all grounding,
+adversarial folds, and suite coherence have settled. Incubating authoring remains provisional: keep its unmarked
+section and resolve any meta outside the active locus at a later attended delivery-authoring entry.
+
+For active authoring, obtain the generated strict contract with
+`arc delivery plan inventory schema --json`, then supply one caller-authored inventory containing the exact
+form-owned design elements and revision digests. Do not infer author-judgment elements or copy schema/hashing
+mechanics into this workflow. Create the transient map with
+`arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`,
+fill only the author slots, and run `arc delivery compose --json`.
+
+Composition publishes the canonical plan record first, then delegates the exact sentinel-owned projection bytes
+to the delivery renderer and removes transient authoring state. Review the rendered identity, coverage, seam, and
+acceptance shape as source; schema and author slots do not prescribe table layout. The canonical plan remains
+replaceable prebinding intent: it authorizes no ref, change request, state binding, or external projection mutation.
+Later candidate eligibility still owns materialization.
+
+If the task or design inventory drifted, run `arc delivery plan abandon --json` and recreate from current inputs.
+Never patch the machine-owned snapshot or publish stale authoring state.
+
+**Post-settle coherence re-read** (always-on, in-context): after renderer replacement and any adversarial folds,
+re-fire the Final suite-coherence pass over the settled task list. The final pass's folds are otherwise never
+re-attacked.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
 > await direction before the meta update and commit.
 
-Bundle the task list with the planning-state meta update (above).
-
-**Post-settle coherence re-read** (always-on, in-context): when folds landed after the Final suite-coherence
-pass — adversarial-pass findings, review amendments — re-fire that pass over the settled task list as the last
-step before the commit below. The final pass's folds are otherwise never re-attacked.
+**Update planning-state meta file** — only after approval, and only when `.arc/active/meta-{name}.md` exists with
+`**State:** Planning` (planning-branch sessions); skip otherwise. Run `arc finalize generate-tasks --class <Class>`
+to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
+model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
+clears `Current Workflow`. Bundle this write with the task list in the ceremony commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -502,6 +533,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
 [arc-methods-adp]: ../../methods/assess-design-proportionality.md
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
+[arc-methods-abf]: ../../methods/assess-boundary-fit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [task-audit]: ../../methods/task-audit.md

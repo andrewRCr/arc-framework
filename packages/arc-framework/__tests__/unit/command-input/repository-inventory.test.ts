@@ -86,6 +86,13 @@ describe("repository command-input inventory", () => {
         schemaField: "designInventory",
       }),
       expect.objectContaining({
+        identity: "delivery plan from-tasks:option.task-list",
+        acquisition: "safe-default",
+        schemaOwnership: "owned",
+        schemaField: "taskList",
+        noInput: "use-default",
+      }),
+      expect.objectContaining({
         identity: "delivery plan from-branch:option.design-inventory",
         acquisition: "handler-required",
         schemaOwnership: "owned",

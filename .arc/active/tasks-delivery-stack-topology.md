@@ -95,48 +95,16 @@ installation/update surface, and the decision shapes later execution and lifecyc
         - Added a focused workflow contract fixture proving sticky prose recording, semantic new-evidence judgment,
           unchanged-evidence silence, no machine comparator/authority, and package/installed parity.
 
-    - `[ ]` **1.1.c Add task-generation delivery-plan authoring and finalization sequencing**
-        - Add the Pass 1 fire point to `generate-tasks.template.md` and the installed `generate-tasks.md`: derivation
-          gap re-enters design, orthogonal concerns decompose, and cohesive large work authors a provisional plan.
-        - Keep the Pass 1 section unmarked; defer `from-tasks` snapshotting until Goals and grounding settle.
-        - When the delivery-candidate outcome is selected in an active Planning flow, canonicalize only after
-          grounding, adversarial folds, and suite coherence settle. An incubating work unit retains the provisional
-          section until an active delivery-authoring entry; its invariant meta remains outside the active locus.
-        - Extend `arc delivery plan from-tasks` with `--task-list <path>`, falling back to the active meta pointer when
-          omitted. Validate the explicit repo-relative path against repository containment, the active WU slug, task
-          filename, and design pointer before reading it; never let it replace active-meta identity authority.
-        - Add `registerDeliveryAuthoringSchemas` beside `DesignInventoryInputSchema` and compose it alongside, not
-          inside, `registerDeliveryDomainSchemas`, avoiding the existing `design-inventory.ts` → `schema.ts` dependency
-          cycle. Register the strict input as `delivery-design-inventory-input` in the generated kernel bundle.
-        - Expose that registered projection through `arc delivery plan inventory schema --json`, using the existing
-          delivery command envelope with `{ id, version, schema }` in its success value. The workflow consumes that
-          generated contract and the existing validator; it never copies JSON or hashing mechanics into prose and
-          never infers design elements that remain author judgment.
-        - Supply the strict caller-authored inventory, run `arc delivery plan from-tasks`, fill only author slots, and
-          run `arc delivery compose`. Composition publishes the canonical record, then delegates the exact
-          sentinel-bounded task-list projection to the delivery renderer; the schema and author slots never prescribe
-          table layout. Place the final workflow interlock after renderer replacement and the post-settle coherence
-          read; on approval, the existing finalizer writes the pointer for the shared ceremony commit.
-        - Treat the canonical plan as replaceable prebinding intent. It authorizes no ref, change-request, or state
-          binding; later candidate eligibility still decides whether materialization may begin.
-        - Define drift recovery by abandoning and recreating transient authoring state; never patch machine-owned
-          snapshot material or publish against changed task/design inventories.
-        - Build `test-first` (one behavior at a time):
-            - Pass 1 produces one unmarked provisional locus without creating canonical state
-            - Active authoring runs only after Goals settle; incubating authoring remains provisional with its meta
-              resolved outside the active locus
-            - Explicit task-list input breaks the pre-interlock pointer cycle without weakening locus validation
-            - Omitted input preserves meta-pointer behavior; absolute, escaping, wrong-WU, wrong-name, and
-              design-incoherent explicit paths refuse before transient state is written
-            - The separate authoring registrar avoids a delivery-schema cycle, the schema appears in the generated
-              artifact, and its delivery-local verb emits that exact authority without a handwritten copy
-            - Finalization supplies exact form-owned design inventory and fills only author slots
-            - Composition replaces the provisional locus through the delivery renderer and removes transient authoring
-              state; renderer layout does not alter the canonical record's plan digest or schema
-            - The rendered canonical projection satisfies MD060 without suppressions and remains readable as source
-            - The existing finalizer writes the meta pointer only after the canonical projection is reviewed
-            - Canonical publication leaves delivery unbound and performs no external projection mutation
-            - Task or design drift refuses and routes to recreate rather than stale publication
+    - `[x]` **1.1.c Add task-generation delivery-plan authoring and finalization sequencing**
+        - Added the Pass 1 boundary fire-point and unmarked provisional-plan posture to shipped and installed
+          task-generation workflows, including active/incubating routing and abandon-and-recreate drift recovery.
+        - Added validated `--task-list` authoring input with active-meta identity authority, omitted-pointer fallback,
+          repository/name/design coherence checks, and pre-write refusal coverage.
+        - Registered `delivery-design-inventory-input` through a cycle-free authoring registrar, emitted the same
+          authority from `delivery plan inventory schema`, and included it in the generated kernel artifact.
+        - Sequenced strict caller inventory, author slots, canonical composition/renderer replacement, coherence reread,
+          final review, and the existing meta finalizer while preserving prebinding/no-external-mutation boundaries.
+        - Added focused schema, handler, command-input, workflow-order, build-artifact, and E2E authoring coverage.
 
     - `[ ]` **1.1.d Make the delivery-plan section an explicit task-list format contract**
         - Document the optional pre-phase `## Delivery Plan` bootstrap locus and renderer-owned canonical projection
