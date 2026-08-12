@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — task list finalized; adversarial passes converged; canonical delivery plan
-  composed
-- **Next Task:** Task 1.1 — Re-charter the boundary-fit checkpoint and its three planning outcomes (line ~40)
+- **Last Completed:** Phase 6 — Native stack composition and lifecycle tail complete
+- **Next Task:** Task 7.1 — Complete verification (line ~548)
 - **Blockers:** [none]
 
-- **Next Action:** Begin implementation at Task 1.1 via process-task-loop
+- **Next Action:** Load `verify-work-unit.md` and complete Task 7.1 verification
 
 - **PR URL:** [none]
 - **Completed:** [none]
