@@ -1,0 +1,324 @@
+/** Unit coverage for the typed pre-publication review procedure. */
+
+import { describe, expect, it } from "vitest";
+
+import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  type CandidateManagedRecordV1,
+} from "../../../../../src/lib/work-unit/candidate-attestation.js";
+import {
+  projectCandidateDeltaVerification,
+  projectPrePublicationReview,
+  recordCandidateVerifiedResponse,
+} from "../../../../../src/scripts/review-gate/policy/pre-publication-procedure.js";
+
+const target = {
+  repository: "arc-framework/example",
+  pullRequest: null,
+  headSha: "a".repeat(40),
+};
+
+const standardReview = {
+  obligation: "required" as const,
+  reasons: ["sensitive-change-set"] as const,
+  rubricVersion: "standard-review/v1",
+  rubricDigest: `sha256:${"b".repeat(64)}`,
+  retrigger: "full-final" as const,
+  count: 1 as const,
+};
+
+function request(overrides: Record<string, unknown> = {}) {
+  return {
+    schemaVersion: 1,
+    workUnit: "example",
+    candidateId: `sha256:${"c".repeat(64)}`,
+    selfReview: "pending",
+    frontline: {
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      frontlineActive: true,
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+    },
+    standard: {
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+    },
+    candidate: { implementationChanged: false, convergenceVerification: "satisfied" },
+    ...overrides,
+  };
+}
+
+describe("projectPrePublicationReview", () => {
+  it("runs active author self-review before either configured lane", () => {
+    expect(projectPrePublicationReview(request())).toMatchObject({
+      locus: "candidate-review-pending",
+      nextAction: { kind: "run-self-review" },
+    });
+  });
+
+  it("runs frontline before standard and preserves a hosted-first reservation", () => {
+    const base = request({ selfReview: "settled" });
+    const frontline = base.frontline as Record<string, unknown>;
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...frontline,
+        attempts: [{ sourceId: "coderabbit-cli", outcome: "clean" }],
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-submit-ready",
+      policy: null,
+      reservation: {
+        reservationId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+        candidateId: `sha256:${"c".repeat(64)}`,
+        sourceId: "codex-pr",
+        target: { repository: target.repository, headSha: target.headSha },
+        obligation: standardReview,
+      },
+      nextAction: { kind: "submit-candidate" },
+    });
+  });
+
+  it("makes the inactive and exempt zero-review path a direct submit-ready projection", () => {
+    const base = request({ selfReview: "inactive" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        standardReview: {
+          ...standardReview,
+          obligation: "exempt",
+          reasons: ["auto-eligible-planning"],
+          retrigger: "none",
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-submit-ready",
+      policy: null,
+      reservation: null,
+      nextAction: { kind: "submit-candidate" },
+    });
+  });
+
+  it("resumes the reserved hosted source once a pull request exists", () => {
+    const hostedTarget = { ...target, pullRequest: 42 };
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        target: hostedTarget,
+        frontlineActive: false,
+      },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        target: hostedTarget,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: {
+        state: "ready",
+        nextAction: "hosted-request",
+        payload: { sourceId: "codex-pr" },
+      },
+      nextAction: { kind: "continue-standard-review" },
+    });
+  });
+
+  it("does not request a later hosted review after a local-first standard source is clean", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        sources: ["delegated-agent", "codex-pr"],
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-submit-ready",
+      policy: null,
+      reservation: null,
+    });
+  });
+
+  it("returns review findings as one bounded fix locus", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        attempts: [{ sourceId: "coderabbit-cli", outcome: "findings" }],
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-fix-pending",
+      policy: { state: "findings", payload: { lane: "frontline", consumedPass: true } },
+      nextAction: { kind: "respond-to-findings" },
+    });
+  });
+
+  it("requires one final convergence verification only after the review obligations settle", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: { implementationChanged: true, convergenceVerification: "pending" },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      reservation: { sourceId: "codex-pr" },
+      nextAction: {
+        kind: "run-convergence-verification",
+        command: "arc propose example --json",
+      },
+    });
+  });
+
+  it("re-enters the policy driver when an exact target changes", () => {
+    const base = request({ selfReview: "settled" });
+    const oldTarget = { ...target, headSha: "d".repeat(40) };
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        scopeSelection: { mode: "whole-target", target: oldTarget },
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "stale-target", nextAction: "select-scope" },
+      nextAction: { kind: "continue-frontline-review" },
+    });
+  });
+
+  it("preserves the policy driver's exact ceiling-override stop", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        completedPasses: 2,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: {
+        state: "approval-required",
+        nextAction: "obtain-ceiling-override",
+        payload: { consequence: { exhaustedPassCount: 2, nextPass: 3 } },
+      },
+    });
+  });
+});
+
+function subject(source: string) {
+  return createCandidateSubjectSnapshot([
+    { path: "src/example.ts", digest: canonicalDigest({ source }), treatment: "reviewable" },
+  ]);
+}
+
+function candidateRecord(): CandidateManagedRecordV1 {
+  const rootSubject = subject("root");
+  return {
+    schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1",
+    attestation: createCandidateAttestation({
+      workUnit: "example",
+      subject: rootSubject,
+      baseRevision: "a".repeat(40),
+      attestedBy: "andrew",
+      attestedAt: "2026-08-12T14:00:00.000Z",
+      verificationEvidenceRef: "verification://root",
+    }),
+    subject: rootSubject,
+    responses: [],
+    lineageAttestations: [],
+  };
+}
+
+describe("Candidate delta verification", () => {
+  it("supplies exact delta and prior evidence while the primary selects applicability", () => {
+    const record = candidateRecord();
+    const projection = projectCandidateDeltaVerification({
+      record,
+      current: { revision: "d".repeat(40), subject: subject("fixed") },
+    });
+
+    expect(projection).toMatchObject({
+      candidateId: record.attestation.candidateId,
+      delta: { added: [], removed: [], changed: ["src/example.ts"] },
+      priorEvidenceRefs: ["verification://root"],
+      allowedApplicability: ["targeted", "focused", "full"],
+    });
+    expect(recordCandidateVerifiedResponse({
+      projection,
+      dispositionId: canonicalDigest({ disposition: "approved" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      verificationEvidenceRefs: ["test://focused"],
+    })).toMatchObject({
+      candidateId: record.attestation.candidateId,
+      oldTarget: projection.oldTarget,
+      newTarget: projection.newTarget,
+      applicability: "focused",
+      implementationChanged: true,
+      verificationEvidenceRefs: ["test://focused"],
+    });
+  });
+
+  it("rejects a delta projection that does not match its exact targets", () => {
+    const record = candidateRecord();
+    const projection = projectCandidateDeltaVerification({
+      record,
+      current: { revision: "d".repeat(40), subject: subject("fixed") },
+    });
+
+    expect(() => recordCandidateVerifiedResponse({
+      projection: { ...projection, delta: { added: [], removed: [], changed: [] } },
+      dispositionId: canonicalDigest({ disposition: "approved" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "targeted",
+      verificationEvidenceRefs: ["test://targeted"],
+    })).toThrow("does not match its exact targets");
+  });
+});

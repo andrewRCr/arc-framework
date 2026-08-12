@@ -96,35 +96,35 @@ pass ledger or findings store. Full rationale in `spec-integration-boundary-accu
 - _Outcome:_ Verification now closes on a durable, idempotent Candidate attestation instead of entering
   integration by narrative pointer; root creation and converged re-attestation share one typed verb.
 
-### `[ ]` **1.3 Drive pre-publication review and convergence verification**
+### `[x]` **1.3 Drive pre-publication review and convergence verification**
 
 - _Goal:_ Pre-publication review runs as one typed conditional procedure honoring ordered-source reservation
   across binding times, review fixes receive bounded primary-owned verification, and a converged
   implementation-changing lineage reaches exactly one final Tier 3 plus re-attestation.
 
-    - `[ ]` **1.3.a Typed pre-publication procedure**
-        - runs author self-review when active, the frontline lane when configured (advisory — never satisfies
-          `standard-review`), and the standard lane before publication only when the first remaining ordered
-          standard source is local
+    - `[x]` **1.3.a Typed pre-publication procedure**
+        - Added one strict projection that sequences active self-review, advisory frontline review, standard review,
+          response, convergence verification, and submission loci with one typed next action each.
 
-    - `[ ]` **1.3.b Ordered-source reservation across binding times**
-        - a higher-ranked hosted source returns `awaiting-change-request` and may not be leapfrogged by a
-          lower-ranked local carrier merely because no pull request exists yet
+    - `[x]` **1.3.b Ordered-source reservation across binding times**
+        - The policy driver now reserves the first remaining hosted standard source before pull-request binding,
+          then resumes that source after binding without leapfrogging to a lower-ranked local carrier.
 
-    - `[ ]` **1.3.c Delta-verification applicability procedure**
-        - the CLI supplies the exact delta and prior evidence; the primary selects
-          `targeted | focused | full`; full verification and adversarial passes do not automatically re-run
-          per fix
+    - `[x]` **1.3.c Delta-verification applicability procedure**
+        - Added exact old/new subject-delta and prior-evidence projection plus primary-selected
+          `targeted | focused | full` response recording, rejecting projections inconsistent with their targets.
 
-    - `[ ]` **1.3.d Convergence verification path**
-        - after an implementation-changing lineage converges, typed status projects
-          `candidate-convergence-verification-pending`; one final Tier 3, then `arc propose` over the
-          recognized lineage
+    - `[x]` **1.3.d Convergence verification path**
+        - Settled implementation-changing lineages project exactly one convergence-verification locus and return
+          to idempotent `arc propose`; unchanged lineages proceed directly to submission readiness.
 
-    - `[ ]` **1.3.e Policy-driver integration**
-        - the existing driver (`arc review resolve`) keeps source order, safe fallback, pass counts, chunk
-          aggregation, and ceiling overrides; a changed exact target re-enters it; an exceptional pass beyond
-          the ceiling still requires the existing exact approval
+    - `[x]` **1.3.e Policy-driver integration**
+        - The procedure delegates lane resolution to `arc review resolve`'s policy driver, preserving exact-target
+          re-entry, safe fallback, chunk/pass accounting, and the existing exact ceiling-override stop.
+
+- _Outcome:_ Private review is one typed conditional procedure: frontline remains advisory, ordered hosted
+  reservations survive publication binding, and fix lineages converge through primary-owned evidence before one
+  final full attestation.
 
 ### `[ ]` **1.4 Project Candidate and review loci into status and session initialization**
 

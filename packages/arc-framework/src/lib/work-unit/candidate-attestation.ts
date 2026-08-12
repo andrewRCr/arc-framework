@@ -307,22 +307,39 @@ function blockedProjection(
   current: z.infer<typeof CandidateLineageTargetSchema>,
   recognized: CandidateSubjectSnapshot,
 ): Extract<CandidateCurrentnessProjection, { status: "blocked" }> {
-  const prior = new Map(
-    recognized.entries.filter(({ treatment }) => treatment === "reviewable").map((entry) => [entry.path, entry.digest]),
-  );
-  const next = new Map(
-    current.subject.entries.filter(({ treatment }) => treatment === "reviewable").map((entry) => [entry.path, entry.digest]),
-  );
   return {
     status: "blocked",
     candidateId,
     recognizedRevision,
     currentRevision: current.revision,
-    delta: {
-      added: [...next.keys()].filter((path) => !prior.has(path)).sort(),
-      removed: [...prior.keys()].filter((path) => !next.has(path)).sort(),
-      changed: [...next.keys()].filter((path) => prior.has(path) && prior.get(path) !== next.get(path)).sort(),
-    },
+    delta: diffCandidateSubjectSnapshots(recognized, current.subject),
     nextAction: "Run full work-unit verification to establish a new Candidate lineage root.",
   };
+}
+
+export const CandidateSubjectDeltaSchema = z.strictObject({
+  added: z.array(CandidatePathSchema),
+  removed: z.array(CandidatePathSchema),
+  changed: z.array(CandidatePathSchema),
+});
+export type CandidateSubjectDelta = z.infer<typeof CandidateSubjectDeltaSchema>;
+
+/** Compute the exact reviewable path delta between two Candidate subjects. */
+export function diffCandidateSubjectSnapshots(
+  oldSubjectInput: z.input<typeof CandidateSubjectSnapshotSchema>,
+  newSubjectInput: z.input<typeof CandidateSubjectSnapshotSchema>,
+): CandidateSubjectDelta {
+  const oldSubject = CandidateSubjectSnapshotSchema.parse(oldSubjectInput);
+  const newSubject = CandidateSubjectSnapshotSchema.parse(newSubjectInput);
+  const prior = new Map(
+    oldSubject.entries.filter(({ treatment }) => treatment === "reviewable").map((entry) => [entry.path, entry.digest]),
+  );
+  const next = new Map(
+    newSubject.entries.filter(({ treatment }) => treatment === "reviewable").map((entry) => [entry.path, entry.digest]),
+  );
+  return CandidateSubjectDeltaSchema.parse({
+    added: [...next.keys()].filter((path) => !prior.has(path)).sort(),
+    removed: [...prior.keys()].filter((path) => !next.has(path)).sort(),
+    changed: [...next.keys()].filter((path) => prior.has(path) && prior.get(path) !== next.get(path)).sort(),
+  });
 }

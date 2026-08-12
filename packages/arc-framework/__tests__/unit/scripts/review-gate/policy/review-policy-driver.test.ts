@@ -114,7 +114,29 @@ describe("resolveReviewPolicy", () => {
         scope: "whole-target",
         consumedPass: false,
         attemptedSources: [],
-        waitingSources: ["coderabbit-pr", "codex-pr"],
+        waitingSources: ["coderabbit-pr"],
+      },
+    });
+  });
+
+  it("reserves a higher-ranked hosted standard source before a local fallback", () => {
+    const prePrTarget = { ...target, pullRequest: null };
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target: prePrTarget,
+      lane: "standard",
+      standardReview,
+      sources: ["codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+    })).toMatchObject({
+      state: "awaiting-change-request",
+      nextAction: "open-change-request",
+      payload: {
+        lane: "standard",
+        waitingSources: ["codex-pr"],
+        attemptedSources: [],
       },
     });
   });

@@ -517,25 +517,34 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const diagnostics = [...sourceDiagnostics.values()].filter(
     (diagnostic): diagnostic is ReviewDiagnostic => diagnostic !== null,
   );
+  const safelyAttempted = new Set(request.attempts
+    .filter((attempt) => isSafeUnavailable(attempt.outcome))
+    .map((attempt) => attempt.sourceId));
+  const reservedHostedSource = request.lane === "standard"
+    && scope === "whole-target"
+    && request.target.pullRequest === null
+    ? request.sources.find((sourceId) =>
+        !safelyAttempted.has(sourceId)
+        && REVIEW_SOURCE_CAPABILITIES[sourceId]?.requiresPullRequest === true)
+    : undefined;
+  const firstAvailableSource = request.sources.find((sourceId) =>
+    !safelyAttempted.has(sourceId) && sourceDiagnostics.get(sourceId) === null);
+  if (reservedHostedSource !== undefined
+    && (firstAvailableSource === undefined
+      || request.sources.indexOf(reservedHostedSource) < request.sources.indexOf(firstAvailableSource))) {
+    return resolveEnvelope({
+      state: "awaiting-change-request",
+      nextAction: "open-change-request",
+      payload: {
+        lane: "standard",
+        scope: "whole-target",
+        consumedPass: false,
+        attemptedSources: request.attempts,
+        waitingSources: [reservedHostedSource],
+      },
+    }, diagnostics);
+  }
   if (ineligibleSources.length === request.sources.length) {
-    const waitingSources = request.lane === "standard"
-      && scope === "whole-target"
-      && request.target.pullRequest === null
-      ? request.sources.filter((sourceId) => REVIEW_SOURCE_CAPABILITIES[sourceId]?.requiresPullRequest === true)
-      : [];
-    if (waitingSources.length > 0) {
-      return resolveEnvelope({
-        state: "awaiting-change-request",
-        nextAction: "open-change-request",
-        payload: {
-          lane: "standard",
-          scope: "whole-target",
-          consumedPass: false,
-          attemptedSources: request.attempts,
-          waitingSources,
-        },
-      }, diagnostics);
-    }
     return resolveEnvelope({
       state: "unavailable",
       nextAction: "stop",
@@ -551,9 +560,6 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       { code: "no-eligible-source", message: "No configured review source can satisfy the selected lane and scope." },
     ]);
   }
-  const safelyAttempted = new Set(request.attempts
-    .filter((attempt) => isSafeUnavailable(attempt.outcome))
-    .map((attempt) => attempt.sourceId));
   const sourceId = request.sources.find((candidate) =>
     !ineligibleSources.includes(candidate) && !safelyAttempted.has(candidate));
   if (sourceId === undefined) {
