@@ -47,8 +47,7 @@ export type ActiveSessionInitResolution = "none" | "single" | "multiple";
  *
  * - `planning` — between work units, or no task list yet.
  * - `execution` — task list present, regular task work.
- * - `integration` — `**Next Action:**` matches an integration-lifecycle
- *   workflow (`integrate-work-unit` / `archive-work-unit`).
+ * - `integration` — lifecycle `State` is `Integrating`.
  *
  * `null` is reserved for two cases at the envelope:
  *
@@ -135,8 +134,8 @@ export interface ActiveSessionInitResult {
   taskListPath?: string | null;
   /**
    * Resolved session type for per-type loadset selection. Computed from
-   * `resolution` plus the resolved candidate's `**Task List:**` and
-   * `**Next Action:**` fields. `null` when `resolution === "multiple"`
+   * `resolution` plus the resolved candidate's lifecycle `State` and
+   * `**Task List:**` field. `null` when `resolution === "multiple"`
    * and the caller must disambiguate before computing type.
    */
   sessionType: SessionType | null;

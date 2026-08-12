@@ -783,24 +783,24 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     expect(result.sessionType).toBe("planning");
   });
 
-  it("emits sessionType=integration when Next Action begins with integrate-work-unit", async () => {
+  it("keeps sessionType=execution when Active narration begins with integrate-work-unit", async () => {
     await writeStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 3 — push and create PR",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
-    expect(result.sessionType).toBe("integration");
+    expect(result.sessionType).toBe("execution");
   });
 
-  it("emits sessionType=integration when Next Action begins with archive-work-unit", async () => {
+  it("keeps sessionType=execution when Active narration begins with archive-work-unit", async () => {
     await writeStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "archive-work-unit Step 1 — archive artifacts and retire the status file",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
-    expect(result.sessionType).toBe("integration");
+    expect(result.sessionType).toBe("execution");
   });
 
   it("emits sessionType=execution for a regular Start-Task Next Action", async () => {
@@ -858,7 +858,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       exec: defaultExec,
     });
     expect(result.resolution).toBe("single");
-    expect(result.sessionType).toBe("integration");
+    expect(result.sessionType).toBe("execution");
     expect(result.path).toBe(".arc/user/alice/active/meta-foo.md");
   });
 

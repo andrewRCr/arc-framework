@@ -139,13 +139,11 @@ pass ledger or findings store. Full rationale in `spec-integration-boundary-accu
     - `[ ]` **1.4.b Precomposed interaction text**
         - each locus carries one typed next action and precomposed interaction text where needed
 
-    - `[ ]` **1.4.c Narrative de-authority**
-        - narrative `Next Action` prefixes stop being operational authority for this boundary; consuming
-          surfaces read the projection — including the terminal string the old `verify` fire-point wrote,
-          which `propose`'s typed locus replaces
-        - the retired inference is `INTEGRATION_WORKFLOW_PREFIX` in `commands/active/status.ts` (reverse
-          mapping in `subject-meta.ts`); its pins in `session-type.test.ts`, `integration/active.test.ts`,
-          and `session-init.e2e.test.ts` flip with this member
+    - `[x]` **1.4.c Narrative de-authority**
+        - Removed `Next Action` prefix inference from active status and checkout-subject projection: lifecycle
+          `State` now owns session scheduling, so an `Active` work unit remains execution even when stale narration
+          names integration or archival workflows. Unit, integration, and session-init E2E pins now assert that
+          narrative independence.
 
 ## **Phase 2:** Submission and the publication boundary
 

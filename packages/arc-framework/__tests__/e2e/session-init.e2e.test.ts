@@ -705,7 +705,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.value?.sessionType).toBe("execution");
   });
 
-  it("emits sessionType=integration when Next Action begins with integrate-work-unit", async () => {
+  it("keeps sessionType=execution when Active narration begins with integrate-work-unit", async () => {
     await writeStatusFixture(tmpDir, "technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 7 — push and create PR",
@@ -717,7 +717,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const envelope = parseJsonEnvelope(result.stdout);
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
-    expect(envelope.active.value?.sessionType).toBe("integration");
+    expect(envelope.active.value?.sessionType).toBe("execution");
   });
 });
 

@@ -95,7 +95,7 @@ export async function projectCheckoutSubjectMeta(options: {
   }
   const sessionType = options.metaRoot.kind === "completed"
     ? "integration"
-    : inferSessionType(record.state, record.taskList, record.nextAction, record.branch);
+    : inferSessionType(record.state, record.taskList, record.branch);
   const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null

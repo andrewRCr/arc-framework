@@ -16,7 +16,7 @@
 import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
-import { readActiveMetaCandidates, stripInlineCode } from "../../lib/active/meta-reader.js";
+import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
 import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
@@ -43,13 +43,6 @@ const TASK_LIST_FULL_PATTERN = /^tasks-(.+)\.md$/;
 const TASK_LIST_PLANNING_VALUES = new Set(["[none]", "[none associated]"]);
 
 /**
- * Next-Action prefixes that signal integration phase (case-insensitive).
- * The negative lookahead rejects hyphen-extended identifiers so a stray
- * `integrate-work-unit-foo` token wouldn't false-match.
- */
-const INTEGRATION_WORKFLOW_PREFIX = /^(integrate-work-unit|archive-work-unit)\b(?!-)/i;
-
-/**
  * Branch-name pattern signaling a planning session: `plan/<name>`.
  * Used as the fallback signal when no status file is present (orphan case)
  * or its `**State:**` is unset/empty (in-flight pre-migration files). The
@@ -71,26 +64,20 @@ const PLANNING_BRANCH_PATTERN = /^plan\/.+$/;
  * - `**State:**` is unset/empty (whitespace-only) → branch-pattern fallback:
  *   `currentBranch` matches `plan/<name>` → `planning`; otherwise `null`.
  * - All other States — `Active` (codified phase, not session-type) and any
- *   unrecognized value — fall through to Task-List / Next-Action inference:
+ *   unrecognized value — fall through to Task-List inference:
  *     - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
- *     - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
  *     - Otherwise → `execution`
  *
- * **Design — State carries phase, Next-Action carries activity.** State alone
- * is decisive only for the unambiguous endpoints: `Planning` opens a WU before
- * task work; `Integrating` / `Shipped` close it after. `Active` spans the full
- * execution interior, where session-type depends on the current activity —
- * `State: Active + Next-Action: integrate-work-unit` routes to integration
- * via the Next-Action arm, because the codified phase doesn't disambiguate
- * what's happening within it. The structural fall-through doubles as
- * defensive forward-compat for unrecognized State values.
+ * State owns lifecycle scheduling. Free-form narration cannot move an Active
+ * work unit into integration; typed boundary projections carry tail-end work.
+ * The structural fall-through doubles as defensive forward-compat for
+ * unrecognized State values.
  *
  * Caller handles the `multiple` (deferred → null) case at `classifyResolution`.
  */
 export function inferSessionType(
   state: string | null,
   taskList: string | null,
-  nextAction: string | null,
   currentBranch: string | null,
 ): SessionType | null {
   if (state === "Planning") return "planning";
@@ -101,12 +88,6 @@ export function inferSessionType(
   }
   if (taskList === null || TASK_LIST_PLANNING_VALUES.has(taskList)) {
     return "planning";
-  }
-  // Strip code spans for the token match — the narrow meta reader preserves narrative
-  // backticks verbatim, so a backticked workflow pointer (`` `integrate-work-unit` ``)
-  // would otherwise miss the `^`-anchored prefix.
-  if (nextAction !== null && INTEGRATION_WORKFLOW_PREFIX.test(stripInlineCode(nextAction))) {
-    return "integration";
   }
   return "execution";
 }
@@ -289,7 +270,7 @@ function classifyResolution(
       resolution: "single",
       path: only.path,
       candidates: [],
-      sessionType: inferSessionType(only.state, only.taskList, only.nextAction, currentBranch),
+      sessionType: inferSessionType(only.state, only.taskList, currentBranch),
     };
   }
   return { resolution: "multiple", path: null, candidates: input, sessionType: null };
