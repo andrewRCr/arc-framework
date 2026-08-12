@@ -49,22 +49,22 @@ The inspection is read-only. It never treats the presence of prose as delivery j
 Prepare the complete explicit candidate chain:
 
 ```bash
-arc delivery eligibility prepare --input - --json
+arc delivery eligibility prepare - --json
 ```
 
 Bracket each candidate's ordinary project gates with the returned exact checkout/head coordinates, then close the
 same observation window:
 
 ```bash
-arc delivery eligibility close --input - --json
+arc delivery eligibility close - --json
 ```
 
 A refusal stops without materialization. An eligible result closes the workflow-owned gate bracket but is never
 mutation input. Supply the plan ID plus the same candidate refs and checkout locators to:
 
 ```bash
-arc delivery materialize --input - --json
-arc delivery publish --input - --json
+arc delivery materialize - --json
+arc delivery publish - --json
 ```
 
 These verbs resolve the current plan and lifecycle paths, rerun mechanical eligibility against the exact post-gate
@@ -72,7 +72,7 @@ checkouts, and create or adopt guarded refs and requests in plan order. After in
 before invoking them again. Resume any persisted reservation through:
 
 ```bash
-arc delivery reconcile --input - --json
+arc delivery reconcile - --json
 ```
 
 Supply only the plan, repository, and remote locators. The verb dispatches on the persisted operation kind and
@@ -82,7 +82,7 @@ the request.
 After the exact chain exists, an operator may opt into native presentation:
 
 ```bash
-arc delivery native link --input - --json
+arc delivery native link - --json
 ```
 
 The CLI receives the explicit opt-in and exact plan/state-derived member set. `linked` continues only after a fresh
@@ -91,7 +91,7 @@ path. `downgrade-required` renders `recommendedActionText` verbatim and invokes 
 stops. On the linked path, refresh presentation facts before every landing:
 
 ```bash
-arc delivery native observe --input - --json
+arc delivery native observe - --json
 ```
 
 Provider registration never selects member order and never enters the delivery plan or state.
@@ -101,14 +101,14 @@ Provider registration never selects member order and never enters the delivery p
 Immediately after the fresh native observation, select the service-owned arm:
 
 ```bash
-arc delivery native land-select --input - --json
+arc delivery native land-select - --json
 ```
 
 The selector derives the exact plan-ordered non-terminal remainder from current plan/state facts. An `unlinked` arm
 or a preceding `downgrade-required` result invokes the presentation-only degradation verb:
 
 ```bash
-arc delivery native unlink --input - --json
+arc delivery native unlink - --json
 ```
 
 Only its fresh `unlinked` result continues through the ordinary singleton path below. Every other result renders its
@@ -116,7 +116,7 @@ precomposed guidance and stops without a landing mutation. `blocked` likewise re
 stops. A `linked-single` or explicitly selected direct `linked-atomic` result advances to set-wide preparation:
 
 ```bash
-arc delivery native land-prepare --input - --json
+arc delivery native land-prepare - --json
 ```
 
 Render the returned exact member/head set and consequence verbatim, including the atomic residual race. The terminal
@@ -130,8 +130,8 @@ merge-lock reads.
 After approval, submit only the prepared effect:
 
 ```bash
-arc delivery native land-submit --input - --json
-arc delivery native land-status --input - --json
+arc delivery native land-submit - --json
+arc delivery native land-status - --json
 ```
 
 Dispatch only on the typed result. `pending` retains the reservation; after a restart, invoke `land-status` with the
@@ -146,7 +146,7 @@ new-head review admission. An applied `linked-atomic` result has no remaining no
 Read the next action from:
 
 ```bash
-arc delivery position --json
+arc delivery position - --json
 ```
 
 For a non-terminal member, run the existing review sequence with the exact delivery-member vehicle returned by the
@@ -161,14 +161,14 @@ review evidence exists. Apply `frontline-review`, then `standard-review` or `imp
 and settle findings through `review-triage` and `review-response` before preparing a landing.
 
 ```bash
-arc delivery land prepare --input - --json
+arc delivery land prepare - --json
 ```
 
 Render the prepared singleton member/head and its consequence. Fire one `integration-interlock` for exactly that
 effect. Approval authorizes only the displayed member/head; no other member or later head inherits it. After approval:
 
 ```bash
-arc delivery land apply --input - --json
+arc delivery land apply - --json
 ```
 
 The apply request carries the prepared presentation and repository locators, not position facts. The service
@@ -180,14 +180,14 @@ land prepare and a new integration interlock; it never reuses approval. A blocke
 typed reconcile route and stops when that route does not settle:
 
 ```bash
-arc delivery reconcile --input - --json
+arc delivery reconcile - --json
 ```
 
 Apply review fixes to the freshly authored suffix, run the ordinary project gates for every candidate, then invoke
 the composed rematerialization service with only the exact selected-member IDs and raw candidate locators:
 
 ```bash
-arc delivery rematerialize --input - --json
+arc delivery rematerialize - --json
 ```
 
 The service recloses suffix eligibility and recomputes carried-contribution proof before every reserved rewrite.
@@ -198,7 +198,7 @@ operator-assembled batch.
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 
 ```bash
-arc delivery teardown --input - --json
+arc delivery teardown - --json
 ```
 
 The CLI's returned `nextAction` selects the next member, reconciliation, or terminal handoff. Workflow prose does
@@ -209,7 +209,7 @@ not implement a loop.
 Before delegating, derive the repository-owned terminal handoff:
 
 ```bash
-arc delivery terminal prepare --input - --json
+arc delivery terminal prepare - --json
 ```
 
 `blocked` stops. `absorbed` means the command applied the exact ordinary append-only base reconcile; run Tier 1 and

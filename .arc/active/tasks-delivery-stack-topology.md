@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `7`
-- **Plan Digest:** `sha256:f47e0159701a62d69427207bffb378e22c07829a0b478826b65503489eec07d8`
+- **Plan Revision:** `8`
+- **Plan Digest:** `sha256:26e791d8c0730c0d2cfae87931d5f1a28a24cf70d3f3a39640a9db330c0cc401`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -547,18 +547,13 @@ attachment points while keeping deterministic dispatch and user-facing text in t
 _Purpose:_ Bind shipped delivery prose to the actual CLI grammar and prove every documented invocation through the
 built command surface.
 
-### `[ ]` **5.R.1 Make every delivery workflow invocation callable**
+### `[x]` **5.R.1 Make every delivery workflow invocation callable**
 
 - _Goal:_ Every packaged and installed delivery command reaches its typed handler with the intended stdin payload.
 
-- **Additional Context:** `spec-delivery-stack-topology.md` §§ 7, 10.
-
-    - Correct packaged and installed workflow argv to pass stdin through the CLI's positional input contract, including
-      `position`, without changing adopter-facing bare `arc` invocation style.
-
-    - Build `test-first` (one behavior at a time):
-        - Every fenced delivery invocation parses against the built CLI.
-        - Each stdin-bearing verb receives positional `-` and `position` no longer omits its required input.
+- _Outcome:_ Every delivery execution example now passes stdin as the required positional `-`, including `position`
+  and terminal attachment, while entry inspection retains its actual `--input` option. Built-CLI coverage extracts
+  and executes every documented delivery invocation, and the supported update path refreshed installation identity.
 
 ## **Phase 6:** Optional native-stack composition
 

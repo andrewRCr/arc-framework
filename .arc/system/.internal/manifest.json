@@ -590,12 +590,12 @@
     "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "1a1a87a9d75c745fd13d2fdc1931b7a5364ff2ff88986f5b0e81ade3bfad6a6b"
+      "pristine_hash": "3886df1b8714ce7ce14855bf223a116cff5ba0b0d49274b5ec99bc0c975700d1"
     },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6888db5a199aa1b682e043b8eda32c1add69761260b4c6f6b4884ee82a65c94d"
+      "pristine_hash": "f69ca53655180e21d0da22674c5680ff4ad99d8d9aebb0b9f1fee7d1408149d3"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",
@@ -647,6 +647,11 @@
       "layer": "core",
       "pristine_hash": "f9f8c2aa5e9ba49a1f01b5b631446afd21888bb7f22fe6cb9722f1cd34e181a3"
     },
+    "system/workflows/arc/supplemental/deliver-stack.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "e734de9e70a371c3874fefcea8813b7807493b444a952d6c07d5a695f555bde9"
+    },
     "system/workflows/arc/work-unit-lifecycle/activate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
@@ -670,7 +675,7 @@
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "e5cdc165a8be9752d3e64ecf4f3ed01a5cdefbe7d143f69a40673cb8da7de986"
+      "pristine_hash": "b6419cd3e6ba48be6ed2645b22620ae32c4f59dee44d5152168406adf7015cda"
     },
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",
@@ -701,11 +706,6 @@
       "classification": "Framework",
       "layer": "arc-in-git",
       "pristine_hash": "5a0ce54075e145cf2121a754b0f6d6872580e45bbb0a22d6f589363d9c0c9ed1"
-    },
-    "system/workflows/arc/supplemental/deliver-stack.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "ff41949cd4d20c4a8da71be8d294f0c8208f4c9e501a3c3672b664015e6aeec8"
     },
     "reference/PROJECT-PRD.md": {
       "classification": "Scaffolded",

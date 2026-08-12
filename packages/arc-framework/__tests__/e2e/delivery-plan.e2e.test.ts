@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import {
   ROLLING_FIELD_RUN,
   SEVEN_MEMBER_FIELD_RUN,
@@ -99,6 +99,33 @@ describe("arc delivery", () => {
         },
       },
     });
+  });
+
+  it("parses every documented delivery invocation through the built CLI", async () => {
+    const workflows = await Promise.all([
+      readFile(resolve(import.meta.dirname, "../../arc/system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+      readFile(resolve(
+        import.meta.dirname,
+        "../../arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      ), "utf8"),
+    ]);
+    const invocations = workflows.flatMap((workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? []);
+    expect(invocations.length).toBeGreaterThan(0);
+    for (const invocation of invocations) {
+      const args = invocation.split(" ").slice(1);
+      if (invocation.startsWith("arc delivery entry inspect ")) {
+        expect(invocation).toContain("--input - --json");
+      } else {
+        expect(invocation).not.toContain("--input");
+        expect(args).toContain("-");
+      }
+      const result = await runArcWithStdin(args, repository, "{}\n");
+      expect(result.stderr).not.toMatch(/unknown option|missing required argument/iu);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        status: "refused",
+        reason: "invalid-command-input",
+      });
+    }
   });
 
   it("validates design input before writing task-derived authoring state", async () => {
