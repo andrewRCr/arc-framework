@@ -68,6 +68,7 @@ import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-s
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
 import type { PartialPushMarkerSurfaceResult } from "../../lib/session-init/partial-push-marker-surface.js";
 import type { NotesCompactionSessionAdvisoryResult } from "../../lib/session-init/notes-compaction-advisory.js";
+import type { DeliveryPositionView } from "../../lib/session-init/delivery-position.js";
 import type {
   MaterializableWorkUnitDiscoveryResult,
 } from "../../lib/session-init/materializable-work-units.js";
@@ -281,6 +282,8 @@ export interface SessionInitProbeResult {
    * never applies tracked edits during session entry.
    */
   currentWuReconcile?: Probe<CurrentWuReconcileSessionResult>;
+  /** Exact owning-WU delivery orientation; null is authoritative unbound silence. */
+  deliveryPosition?: Probe<DeliveryPositionView | null>;
   /** Read-only identity-global reference facts for the single active WU. */
   userReferenceReconcile?: Probe<UserReferenceReconcileSessionResult>;
   /**
@@ -626,6 +629,8 @@ export interface SessionInitProbes {
   currentWuReconcile: (
     input: { slug: string; metaPath: string },
   ) => Promise<CurrentWuReconcileSessionResult>;
+  /** Inspect only the exact owning work unit's canonical delivery binding. */
+  deliveryPosition?: (input: { workUnitId: string }) => Promise<DeliveryPositionView | null>;
   /** Inspect permitted current-user surfaces against protection-aware base evidence. */
   userReferenceReconcile: (
     context: SessionRemoteContext,

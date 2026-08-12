@@ -626,6 +626,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
+    deliveryPosition: vi.fn(async () => null),
     userReferenceReconcile: vi.fn(cleanUserReferenceReconcile),
     roster: vi.fn(async () => rosterResult()),
     cleanupRoster: vi.fn(async () => rosterResult()),
@@ -2118,6 +2119,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "baseDistance",
       "config",
       "currentWuReconcile",
+      "deliveryPosition",
       "derivedLocusState",
       "dirty",
       "domainRules",
@@ -2190,6 +2192,59 @@ describe("runSessionInitStatus — current work-unit reconcile", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
     expect(result.currentWuReconcile).toBeUndefined();
+  });
+});
+
+describe("runSessionInitStatus — delivery position", () => {
+  it("carries a healthy owning-WU value and isolates a failed read", async () => {
+    const active = vi.fn(async () => activeSessionInit({
+      resolution: "single",
+      path: ".arc/active/meta-delivery-plan-record.md",
+      sessionType: "execution",
+    }));
+    const healthyProbes = sessionInitProbes({
+      active,
+      deliveryPosition: vi.fn(async ({ workUnitId }) => ({
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        workUnitId,
+        landedCount: 1,
+        totalCount: 2,
+        activeOperation: null,
+        line: "Delivery position: 1/2 landed; active operation: none.",
+      })),
+    });
+    const healthy = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes: healthyProbes });
+    expect(healthy.deliveryPosition).toEqual({
+      ok: true,
+      value: expect.objectContaining({ workUnitId: "delivery-plan-record", landedCount: 1 }),
+    });
+
+    const failed = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionInitProbes({
+        active,
+        deliveryPosition: vi.fn(async () => { throw new Error("delivery unavailable"); }),
+      }),
+    });
+    expect(failed.deliveryPosition).toEqual({
+      ok: false,
+      error: { kind: "runtime", message: "delivery unavailable" },
+    });
+    expect(failed.loadSet).toEqual(healthy.loadSet);
+    expect(failed.taskCursor).toEqual(healthy.taskCursor);
+    expect(failed.recommendedCombinedPrompt).toEqual(healthy.recommendedCombinedPrompt);
+  });
+
+  it("omits the slot outside an owning work-unit locus", async () => {
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionInitProbes({
+        active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      }),
+    });
+    expect(result.deliveryPosition).toBeUndefined();
   });
 });
 

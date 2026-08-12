@@ -436,47 +436,25 @@ attachment points while keeping deterministic dispatch and user-facing text in t
           rewrite, teardown, Git, host, and versioned-store services. Command and workflow contracts pin exact-head
           approval scope, retry reauthorization, terminal delegation, stdin automation, and installed byte identity.
 
-### `[ ]` **5.2 Surface bound delivery position as an independent session-init probe** — § 7; SC 9
+### `[x]` **5.2 Surface bound delivery position as an independent session-init probe** — § 7; SC 9
 
 - _Goal:_ The owning control locus receives one durable progress line while delivery-state failure degrades without
   perturbing any other session evidence.
 
-    - `[ ]` **5.2.a Derive and precompose the delivery-position view**
-        - At a resolved owning control-WU locus, enumerate current plans through `DeliveryPlanStore`, select by exact
-          `workUnitId`, require at most one match, and read its state by `planId`; do not use member reverse lookup or
-          parse the task-list projection as authority.
-        - Reuse Phase 3's bounded host-observation boundary to acquire fresh read-only delivery-position facts without
-          fetching objects, updating refs, writing state, or prompting. For clean state, reuse strict
-          `deriveDeliveryPosition`; for an active reservation, add a separate orientation projection over the same
-          kind-aware reconciliation evidence and leave the readiness function's `operation-active` refusal intact.
-        - Precompose one line from structured landed/total counts and active operation kind/identity or none.
-        - Build `test-first` (one behavior at a time):
-            - No plan or one canonical plan without state is authoritative unbound and silent
-            - Multiple current plans, dangling state, identity/digest mismatch, or unavailable observation fails only
-              this probe
-            - Bound clean and active-operation positions emit one exact line
-            - Active-operation observation accepts only the operation contract's exact recognized facts and never
-              weakens execution readiness or reconciles state
+    - `[x]` **5.2.a Derive and precompose the delivery-position view**
+        - Added an exact owning-WU plan/state reader and passive Git/host observer. Clean state uses strict position
+          derivation; active reservations orient through kind-aware in-memory reconciliation without state writes.
 
-    - `[ ]` **5.2.b Carry the slot through the status envelope**
-        - Add typed fields through status types, run composition, strict schema/presence checks, production handlers,
-          formatting, fixtures, and JSON envelope tests.
-        - Pin the public shape as an optional owning-locus `Probe<DeliveryPositionView | null>`: omit it elsewhere,
-          return `ok` + null for authoritative unbound state, return structured fields plus one non-empty precomposed
-          line for a coherent binding, and return the probe's error arm when bound evidence degrades.
-        - Build `test-first` (one behavior at a time):
-            - A healthy slot renders once
-            - A failed slot reports degradation while every unrelated probe remains deep-equal
-            - No per-member locus or role is synthesized
+    - `[x]` **5.2.b Carry the slot through the status envelope**
+        - Added the optional strict `Probe<DeliveryPositionView | null>` through status composition, schemas,
+          formatting, handlers, and compatibility goldens; slot failure remains isolated from sibling evidence.
 
-    - `[ ]` **5.2.c Dispatch the precomposed line from session-init**
-        - Update the probe-envelope reference and session-init package template/installed copy to consume the slot
-          without a second state read or prose-side coordinate derivation.
-        - Update the registered strict envelope, human formatter, session-init compatibility goldens, and package plus
-          installed workflow contracts so the JSON-carried precomposed line is the sole narration authority.
-        - Add an integration fixture with a canonical Delivery Plan section and prove `taskCursor`, derived-locus
-          cursor, load set, active/session type/workflow state, and recommendation output are unchanged by the
-          projection; failure isolation preserves every sibling slot.
+    - `[x]` **5.2.c Dispatch the precomposed line from session-init**
+        - Updated package and installed session workflows plus the probe reference to render only the CLI-owned line.
+          Integration coverage pins canonical-plan compatibility, exact presence, and unchanged session projections.
+
+- _Outcome:_ Session entry now exposes durable delivery progress only at the owning control-WU locus; unavailable
+  delivery evidence degrades independently and cannot change task, load-set, locus, or recommendation authority.
 
 ### `[ ]` **5.3 Attach discovered entry and integration-time delivery guidance** — § 7, § 8; SC 10, SC 11
 

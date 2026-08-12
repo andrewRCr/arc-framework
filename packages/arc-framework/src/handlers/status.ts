@@ -168,6 +168,14 @@ import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycl
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
+import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
+import { readDeliveryPositionView } from "../lib/session-init/delivery-position.js";
+import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
+import { resolveChangeRequestLifecycleConfiguration } from "../lib/errand/change-request-lifecycle.js";
+import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
+import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
@@ -645,6 +653,10 @@ export async function handleStatus(
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
+    const deliveryPublisher = new RepositoryGitCommonStatePublisher(exec, cwd);
+    const deliveryPlans = new RepositoryDeliveryPlanStore(deliveryPublisher, DeliveryPlanV1Codec);
+    const deliveryStates = new RepositoryDeliveryStateStore(deliveryPublisher);
+    const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
     const getRemoteContext = createSessionRemoteContextReader({
       cwd,
       exec,
@@ -982,6 +994,30 @@ export async function handleStatus(
           },
           { slug, metaPath },
         ),
+      deliveryPosition: async ({ workUnitId }) => {
+        const result = await readDeliveryPositionView(workUnitId, {
+          plans: deliveryPlans,
+          states: deliveryStates,
+          observe: async (plan, state, revision) => {
+            const resolved = await resolvedSettingsP;
+            const configuration = await resolveChangeRequestLifecycleConfiguration(
+              exec,
+              `refs/heads/${resolved.settings["branch.base"]}`,
+            );
+            return configuration === null
+              ? { status: "refused" }
+              : observeRepositoryDeliveryPosition(plan, state, revision, {
+                exec,
+                host: deliveryHost,
+                repository: configuration.repositoryRef,
+              });
+          },
+        });
+        if (result.status === "refused") {
+          throw new Error(`Delivery position is unavailable: ${result.reason}.`);
+        }
+        return result.value;
+      },
       userReferenceReconcile: async (context, { slug }) => {
         if (identity === null) throw new Error("User-reference probe requires an identity.");
         const resolved = await resolvedSettingsP;
