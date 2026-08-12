@@ -565,8 +565,12 @@ open, invoke `arc merge lock hold -` with the same target, vehicle, and tree roo
 then stop and report the merge's own failure. Nothing below this line runs on that path.
 
 **Skip the merge when the PR is already merged** — the resume path's PR-merged arm (Step 1) enters here with the
-merge already landed (attended elsewhere, or unattended on the auto-merge lane); proceed straight to `arc user
-close`.
+merge already landed (attended elsewhere, or unattended on the auto-merge lane); enter the same attachment below.
+
+Invoke the typed delivery terminal post-merge attachment exactly once with the freshly observed merged request and
+retained control identity. `attached`, `already-attached`, and `not-applicable` continue; `blocked` stops before
+user-workspace close or branch teardown. This call only adopts an exact terminal result through the delivery-state
+CAS: it takes no reservation, adds no authorization, and runs identically after a fresh merge or merged-PR resume.
 
 Retire the per-WU user workspace subdir (filesystem op only, no git ops — contents are gitignored):
 

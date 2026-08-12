@@ -360,42 +360,27 @@ control branch, and hand the residual terminal tail to ordinary work-unit integr
 - _Outcome:_ Review fixes and landed cleanup now converge through the same single-operation state authority: authored
   control-branch suffixes remain the correction source, while deletion is limited to independently proven residue.
 
-### `[ ]` **4.3 Absorb the landed base and adopt terminal work-unit integration** — § 5; SC 7, SC 8
+### `[x]` **4.3 Absorb the landed base and adopt terminal work-unit integration** — § 5; SC 7, SC 8
 
 - _Goal:_ Ordinary work-unit integration receives only the residual tail and remains the terminal merge authority.
 
-    - `[ ]` **4.3.a Derive absorption readiness and perform ordinary base reconciliation**
-        - Return `absorption-ready`, `already-absorbed`, or `blocked` from every non-terminal member landed, no active
-          operation, reconciled suffix coordinates, exact retained control ref/head, and fresh target facts.
-        - On `absorption-ready`, invoke the ordinary reversible WU base merge against the unbound control branch and
-          rerun Tier 1. This is not delivery projection mutation and takes no reservation.
-        - Build `test-first` (one behavior at a time):
-            - Each missing precondition refuses independently
-            - Already-absorbed is idempotent and absorption-ready performs one append-only merge
-            - Dirty, conflicting, or stale-base inputs stop without a delivery reservation
+    - `[x]` **4.3.a Derive absorption readiness and perform ordinary base reconciliation**
+        - A pure three-arm decision now requires the complete landed prefix, inactive operation slot, exact target and
+          retained control, clean worktree, and reconciled suffix; only its pinned ready intent invokes one ordinary
+          append-only merge followed by Tier 1, while exact absorption is an idempotent no-op.
 
-    - `[ ]` **4.3.b Derive terminal readiness and prove the residual tail**
-        - Re-read after absorption and return terminal-ready only when the exact base merge is observed and the
-          comparison exposes solely the residual contribution. Keep the terminal state member unbound throughout
-          integration preparation and refuse it from the delivery-member landing path.
-        - Build `test-first` (one behavior at a time):
-            - Landed-prefix paths disappear from the terminal diff while residual work remains
-            - Control history is never rebased or force-pushed
-            - Missing absorption, changed prefix, or unplanned contribution blocks handoff
+    - `[x]` **4.3.b Derive terminal readiness and prove the residual tail**
+        - Terminal readiness now follows only an exact absorbed decision, an unbound terminal member, and the shared
+          four-endpoint contribution proof; the existing delivery landing boundary continues to exclude the terminal.
 
-    - `[ ]` **4.3.c Adopt the observed work-unit merge without a second authorization**
-        - Add one total typed post-merge attachment immediately after ordinary integration confirms the request merged
-          and before `arc user close` or branch teardown. It is `not-applicable` for ordinary work units.
-        - Authenticate the delivery terminal from the request's exact final merged head/result plus retained
-          control-ref identity, recheck prefix/contribution, and atomically bind terminal ref/request/landed
-          coordinates. Mint no reservation, authorization, or closeout proof, and require no delivery rebinding while
-          Phase 2 advances the control head.
-        - Build `test-first` (one behavior at a time):
-            - Exact ordinary merge and already-merged resume each record once; repeated adoption is idempotent
-            - Wrong head, incomplete prefix, or unplanned contribution refuses
-            - `delivery-member` refuses the terminal while `work-unit` readiness admits it
-        - Contract-test that the attachment sits after confirmed merge and before close/teardown, while all other
-          Phase 2 behavior remains byte-equivalent.
+    - `[x]` **4.3.c Adopt the observed work-unit merge without a second authorization**
+        - One total CAS attachment authenticates the merged request, exact retained-control head/ref, complete prefix,
+          target transition, and residual contribution before binding terminal request/ref/landed coordinates once.
+          Ordinary WUs no-op; unavailable resolution blocks. Both merge and resume paths invoke it before user close
+          and teardown, with all other workflow bytes contract-pinned.
+
+- _Outcome:_ The stack now hands only an authenticated residual tail to unchanged ordinary work-unit integration;
+  delivery neither reserves the terminal merge nor adds a second approval or closeout record.
 
 ## **Phase 5:** Lifecycle execution and orientation
 
