@@ -363,7 +363,8 @@ describe("arc delivery", () => {
     await expect(readdir(authoring)).resolves.toEqual([]);
     const tasks = await readFile(join(repository, ".arc", "active", "tasks-demo.md"), "utf8");
     expect(tasks).toContain("<!-- arc:delivery-plan:start -->");
-    expect(tasks).toContain("| 1 | Implementation | `implementation` | `1.1`");
+    expect(tasks).toMatch(/\| 1\s+\| Implementation\s+\| `implementation`\s+\|/u);
+    expect(tasks).toMatch(/\| 1\s+\| `1\.1`\s+\| `detailed:deliverable-contract`\s+\|/u);
     const renderedPlan = tasks.slice(
       tasks.indexOf("<!-- arc:delivery-plan:start -->"),
       tasks.indexOf("<!-- arc:delivery-plan:end -->") + "<!-- arc:delivery-plan:end -->".length,
