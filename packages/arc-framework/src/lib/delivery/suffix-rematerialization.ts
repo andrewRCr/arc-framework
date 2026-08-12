@@ -13,6 +13,7 @@ import type {
   DeliveryPlanV1,
   DeliveryStateV1,
 } from "./schema.js";
+import type { DeliveryRevisionedRecord } from "./ports.js";
 
 /** One bound non-terminal ref that must be rewritten from the validated suffix. */
 export interface DeliverySuffixRewritePlan {
@@ -35,6 +36,30 @@ export type PrepareDeliverySuffixRematerializationResult =
         | "direct-delivery-ref"
         | "unselected-contribution-changed";
     };
+
+/** Fresh per-step acquisition and the existing reserved rewrite executor. */
+export interface DeliverySuffixRematerializationDependencies {
+  reobserve(): Promise<
+    | {
+        readonly status: "observed";
+        readonly plan: DeliveryPlanV1;
+        readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
+        readonly facts: DeliveryPositionFactsV1;
+        readonly snapshot: DeliveryEligibilitySnapshot;
+      }
+    | { readonly status: "refused" }
+  >;
+  reobserveCandidate(rewrite: DeliverySuffixRewritePlan): Promise<boolean>;
+  proveCarried(endpoints: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
+  apply(input: {
+    readonly plan: DeliveryPlanV1;
+    readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
+    readonly rewrite: DeliverySuffixRewritePlan;
+  }): Promise<
+    | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+    | { readonly status: "refused" }
+  >;
+}
 
 /**
  * Validate one already-closed, complete suffix before workflow gates authorize any rewrite reservation.
@@ -129,4 +154,52 @@ export async function prepareDeliverySuffixRematerialization(input: {
     });
   }
   return { status: "prepared", rewrites };
+}
+
+/** Reclose, reprove, and apply every non-terminal suffix rewrite in persisted order. */
+export async function executeFreshDeliverySuffixRematerialization(input: {
+  readonly selectedDeliverableIds: readonly string[];
+}, dependencies: DeliverySuffixRematerializationDependencies): Promise<
+  | { readonly status: "rematerialized"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | { readonly status: "refused"; readonly reason: string }
+> {
+  let expectedState: DeliveryRevisionedRecord<DeliveryStateV1> | null = null;
+  let rewriteOrder: readonly string[] | null = null;
+  let nextIndex = 0;
+  for (;;) {
+    const fresh = await dependencies.reobserve();
+    if (fresh.status !== "observed") return { status: "refused", reason: "observation-unavailable" };
+    if (expectedState !== null && (fresh.current.revision !== expectedState.revision
+      || canonicalize(fresh.current.value) !== canonicalize(expectedState.value))) {
+      return { status: "refused", reason: "state-moved" };
+    }
+    const prepared = await prepareDeliverySuffixRematerialization({
+      plan: fresh.plan,
+      state: fresh.current.value,
+      facts: fresh.facts,
+      eligibleSnapshot: fresh.snapshot,
+      selectedDeliverableIds: input.selectedDeliverableIds,
+      proveCarried: (endpoints) => dependencies.proveCarried(endpoints),
+    });
+    if (prepared.status !== "prepared") {
+      return { status: "refused", reason: prepared.status === "refused" ? prepared.reason : "plan-amendment" };
+    }
+    const currentOrder = prepared.rewrites.map((rewrite) => rewrite.deliverableId);
+    if (rewriteOrder === null) rewriteOrder = currentOrder;
+    else if (canonicalize(currentOrder) !== canonicalize(rewriteOrder)) {
+      return { status: "refused", reason: "suffix-moved" };
+    }
+    const deliverableId = rewriteOrder[nextIndex];
+    if (deliverableId === undefined) {
+      return { status: "rematerialized", state: expectedState ?? fresh.current };
+    }
+    const rewrite = prepared.rewrites.find((candidate) => candidate.deliverableId === deliverableId);
+    if (rewrite === undefined || !(await dependencies.reobserveCandidate(rewrite))) {
+      return { status: "refused", reason: "candidate-moved" };
+    }
+    const applied = await dependencies.apply({ plan: fresh.plan, current: fresh.current, rewrite });
+    if (applied.status !== "applied") return { status: "refused", reason: "rewrite-refused" };
+    expectedState = applied.state;
+    nextIndex += 1;
+  }
 }

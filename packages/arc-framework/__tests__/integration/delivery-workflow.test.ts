@@ -22,7 +22,8 @@ describe("packaged delivery workflow", () => {
     expect(packaged).toContain("arc delivery land prepare");
     expect(packaged).toContain("arc delivery land apply");
     expect(packaged).toContain("arc delivery reconcile");
-    expect(packaged).toContain("arc delivery rewrite");
+    expect(packaged).toContain("arc delivery rematerialize");
+    expect(packaged).not.toContain("arc delivery rewrite --input");
     expect(packaged).toContain("arc delivery teardown");
     expect(packaged).toContain("arc delivery native link");
     expect(packaged).toContain("arc delivery native observe");

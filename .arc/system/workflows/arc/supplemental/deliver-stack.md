@@ -183,12 +183,17 @@ typed reconcile route and stops when that route does not settle:
 arc delivery reconcile --input - --json
 ```
 
-Apply review fixes to the freshly authored suffix through the exact rewrite service, then repeat eligibility and
-ordinary gates before any later landing:
+Apply review fixes to the freshly authored suffix, run the ordinary project gates for every candidate, then invoke
+the composed rematerialization service with only the exact selected-member IDs and raw candidate locators:
 
 ```bash
-arc delivery rewrite --input - --json
+arc delivery rematerialize --input - --json
 ```
+
+The service recloses suffix eligibility and recomputes carried-contribution proof before every reserved rewrite.
+It executes in plan order, using each persisted result as the next predecessor; candidate movement or unselected
+contribution drift stops with the current reservation/state intact. Never invoke the low-level rewrite verb as an
+operator-assembled batch.
 
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 

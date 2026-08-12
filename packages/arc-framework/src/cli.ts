@@ -749,6 +749,11 @@ delivery.command("rewrite").description("Rewrite one reviewed suffix member by e
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("rewrite", { ...opts, input }, context)
   )));
+delivery.command("rematerialize").description("Reclose and rewrite one complete reviewed suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("rematerialize", { ...opts, input }, context)
+  )));
 delivery.command("teardown").description("Retire one proven-landed member ref and binding")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (

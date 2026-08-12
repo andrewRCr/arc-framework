@@ -17,6 +17,7 @@ import {
   closeDeliveryEligibility,
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
+  type DeliveryEligibilitySnapshot,
 } from "../lib/delivery/eligibility.js";
 import {
   compareGitNormalizedDeliveryTrees,
@@ -58,6 +59,7 @@ import {
 import {
   executeDeliverySuffixRewrite,
 } from "../lib/delivery/suffix-reconciliation.js";
+import { executeFreshDeliverySuffixRematerialization } from "../lib/delivery/suffix-rematerialization.js";
 import { teardownLandedDeliveryMember } from "../lib/delivery/teardown.js";
 import {
   degradeNativeDeliveryStack,
@@ -171,6 +173,10 @@ const RewriteSchema = z.strictObject({
   contributionMode: z.enum(["prove-equivalent", "selected-change"]),
   contribution: ContributionEndpointsSchema,
 });
+const RematerializeSchema = MaterializeSchema.extend({
+  selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  repository: z.string().min(1),
+});
 const TeardownSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   deliverableId: DeliveryCanonicalDigestSchema,
@@ -240,6 +246,7 @@ const RequestSchemas = {
   "land-prepare": LandPrepareSchema,
   "land-apply": LandApplySchema,
   reconcile: ReconcileSchema,
+  rematerialize: RematerializeSchema,
   rewrite: RewriteSchema,
   teardown: TeardownSchema,
   "native-observe": NativeObserveSchema,
@@ -262,6 +269,7 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("landed"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("position"), position: z.unknown(), nextAction: z.string().min(1) }),
   z.strictObject({ status: z.literal("applied"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({ status: z.literal("rematerialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("retryable"), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
@@ -997,6 +1005,118 @@ async function executeDeliveryCommand(
           }
           return { status: "observed" as const, value: observed.operationObservation };
         },
+      },
+    });
+  }
+  if (command === "rematerialize") {
+    const parsed = RematerializeSchema.parse(request);
+    let latestSnapshot: DeliveryEligibilitySnapshot | null = null;
+    return executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: parsed.selectedDeliverableIds,
+    }, {
+      reobserve: async () => {
+        const [planRead, stateRead] = await Promise.all([
+          planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId),
+        ]);
+        if (planRead.status !== "ok" || planRead.value === null
+          || stateRead.status !== "ok" || stateRead.value === null
+          || stateRead.value.value.activeOperation !== null) return { status: "refused" as const };
+        const position = await observePosition(planRead.value, stateRead.value, parsed.repository, parsed.remote);
+        if (position.status !== "observed") return { status: "refused" as const };
+        const landedCount = position.facts.landedDeliverableIds.length;
+        const eligible = await executeWithFreshDeliveryEligibility({
+          planId: parsed.planId,
+          protectedBaseRef: parsed.protectedBaseRef,
+          controlRef: parsed.controlRef,
+          memberOffset: landedCount,
+          candidates: parsed.candidates,
+        }, {
+          ...eligibilityDeps,
+          resolveLifecyclePaths: async (plan) => {
+            const active = await resolveActiveWu({ cwd });
+            if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
+            try {
+              const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+                readDirectory: (path) => readdir(resolve(cwd, path)),
+              }).resolve({ workUnitId: plan.workUnitId, activeMetaPath: validateManagedPath(active.path) });
+              return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+            } catch {
+              return null;
+            }
+          },
+          mutate: ({ plan, snapshot }) => Promise.resolve({ status: "observed" as const, plan, snapshot }),
+        });
+        if (eligible.status !== "observed") return { status: "refused" as const };
+        const current = await stateStore.read(parsed.planId);
+        if (current.status !== "ok" || current.value === null
+          || current.value.revision !== stateRead.value.revision) return { status: "refused" as const };
+        latestSnapshot = eligible.snapshot;
+        return {
+          status: "observed" as const,
+          plan: eligible.plan,
+          current: current.value,
+          facts: position.facts,
+          snapshot: eligible.snapshot,
+        };
+      },
+      reobserveCandidate: async (rewrite) => {
+        const candidate = parsed.candidates.find((entry) => entry.deliverableId === rewrite.deliverableId);
+        const expected = rewrite.requested.members[0]?.coordinates;
+        const observed = candidate === undefined ? null : await observeDeliveryEligibilityRef(exec, candidate.ref);
+        return expected !== null && expected !== undefined && observed !== null
+          && observed.head === expected.head && observed.tree === expected.tree;
+      },
+      proveCarried: (endpoints) => proveGitDeliveryContribution({ exec: createRawGitExec(cwd), ...endpoints }),
+      apply: async ({ plan, current, rewrite }) => {
+        const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
+        const requested = rewrite.requested.members[0];
+        const snapshot = latestSnapshot;
+        if (member?.ref === null || member?.coordinates === null || member === undefined
+          || requested?.coordinates === null || requested === undefined || snapshot === null) {
+          return { status: "refused" as const };
+        }
+        const memberRef = member.ref;
+        const memberCoordinates = member.coordinates;
+        const requestedCoordinates = requested.coordinates;
+        const predecessor = current.value.members[current.value.members.indexOf(member) - 1]?.coordinates
+          ?? current.value.target?.coordinates;
+        const snapshotIndex = snapshot.members.findIndex((entry) => entry.deliverableId === rewrite.deliverableId);
+        const afterPredecessor = snapshotIndex === 0 ? snapshot.protectedBase : snapshot.members[snapshotIndex - 1];
+        if (predecessor === null || predecessor === undefined || afterPredecessor === undefined) {
+          return { status: "refused" as const };
+        }
+        const result = await executeDeliverySuffixRewrite({
+          plan,
+          current,
+          deliverableId: rewrite.deliverableId,
+          requested: rewrite.requested,
+          contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
+          revalidateLifecycle: async () => {
+            const candidate = parsed.candidates.find((entry) => entry.deliverableId === rewrite.deliverableId);
+            if (candidate === undefined) return { status: "refused" as const };
+            const checked = await revalidateDeliveryLifecycleContribution({
+              exec,
+              protectedBaseRef: parsed.protectedBaseRef,
+              candidateRef: candidate.ref,
+              paths: snapshot.lifecyclePaths,
+            });
+            return { status: checked.status };
+          },
+          rewriteRef: (effect) => rewriteDeliveryRemoteRef({ exec, remote: parsed.remote, ...effect }),
+          observeResult: async () => {
+            const observed = await observeDeliveryRemoteRef(exec, parsed.remote, memberRef);
+            return observed.status === "observed" && observed.head === requestedCoordinates.head
+              ? rewrite.requested
+              : { target: null, members: [] };
+          },
+          proveContribution: () => proveGitDeliveryContribution({
+            exec: createRawGitExec(cwd),
+            before: { predecessor, member: memberCoordinates },
+            after: { predecessor: afterPredecessor, member: requestedCoordinates },
+          }),
+          stateStore,
+        });
+        return result.status === "applied" ? result : { status: "refused" as const };
       },
     });
   }

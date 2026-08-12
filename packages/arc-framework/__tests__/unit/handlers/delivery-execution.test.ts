@@ -150,4 +150,33 @@ describe("delivery execution handler", () => {
       reason: "invalid-command-input",
     });
   });
+
+  it("accepts raw suffix locators without serialized proof or snapshots", async () => {
+    const plan = deliveryStackPlanFixture();
+    const execute = vi.fn().mockResolvedValue({ status: "refused", reason: "candidate-moved" });
+    const write = vi.fn();
+    await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        controlRef: "refs/heads/control",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+          checkoutPath: `/tmp/candidate-${index + 1}`,
+        })),
+        selectedDeliverableIds: [plan.members[0]!.deliverableId],
+        repository: "andrewRCr/arc-framework",
+        remote: "origin",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "candidate-moved",
+    });
+  });
 });

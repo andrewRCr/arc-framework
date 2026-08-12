@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `5`
-- **Plan Digest:** `sha256:63428266bc700abaaf239df99e38ef2203a7dc2684ae71136e37bb9600a621fb`
+- **Plan Revision:** `6`
+- **Plan Digest:** `sha256:d30c78e2daad8ed19c31749a5c79c07181e0e515f8eefb6e010570110d4f9397`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -429,25 +429,14 @@ control branch, and hand the residual terminal tail to ordinary work-unit integr
 _Purpose:_ Make the existing reconciliation and terminal primitives reachable only through fresh, repository-derived
 orchestration without adding proof state or another integration ceremony.
 
-### `[ ]` **4.R.1 Bind suffix rematerialization to fresh proof**
+### `[x]` **4.R.1 Bind suffix rematerialization to fresh proof**
 
 - _Goal:_ Each suffix rewrite is derived and applied from a freshly closed suffix and recomputed contribution proof,
   with the preceding persisted result serving as the next step's only predecessor.
 
-- **Additional Context:** `spec-delivery-stack-topology.md` §§ 1, 2, 4, 6, 10;
-  `cohort-chunked-delivery.md` § Hardening-admission boundary.
-
-    - Wire one orchestration that reruns complete suffix eligibility and workflow-owned gates, derives rewrites, and
-      executes them in order through the existing reserved `rewrite` operation.
-
-    - Before every reservation, reobserve plan/state, candidate ref/head/tree, delivery remote, lifecycle paths,
-      request binding/base, and carried contribution for all dependent unselected members; selected-member changes
-      remain bounded to the invocation's exact selected ID set.
-
-    - Build `test-first` (one behavior at a time):
-        - Candidate movement after preparation refuses.
-        - Unselected contribution drift between rewrite steps refuses.
-        - One selected ID cannot authorize another member, and step two consumes step one's persisted result.
+- _Outcome:_ The new `rematerialize` path accepts only raw suffix locators and selected IDs, recloses suffix eligibility,
+  reobserves request/ref/lifecycle facts, and recomputes carried contribution before every reserved rewrite. Rewrites
+  execute in plan order, with candidate movement, state drift, or proof failure stopping before the next mutation.
 
 ### `[ ]` **4.R.2 Expose the existing terminal handoff through ordinary integration**
 
