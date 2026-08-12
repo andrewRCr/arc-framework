@@ -373,6 +373,13 @@ describe("branchToWorkUnitSlug", () => {
   it("returns null for a branch carrying no <type>/ prefix", () => {
     expect(branchToWorkUnitSlug("main")).toBeNull();
   });
+
+  it("reserves delivery branches as presentation refs rather than work-unit identities", () => {
+    expect(branchToWorkUnitSlug("delivery/example/first-member")).toBeNull();
+    expect(branchToWorkUnitSlug("feat/example")).toBe("example");
+    expect(branchToWorkUnitSlug("fix/example")).toBe("example");
+    expect(branchToWorkUnitSlug("plan/example")).toBe("example");
+  });
 });
 
 describe("isShippedWorkUnit", () => {

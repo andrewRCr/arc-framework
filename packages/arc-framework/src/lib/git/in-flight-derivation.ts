@@ -318,7 +318,9 @@ export function isEligibleInFlightBranch(
   branch: string,
   options: { baseBranch?: string | undefined; errandBranches: ReadonlySet<string> },
 ): boolean {
-  return branch !== (options.baseBranch ?? DEFAULT_BASE_BRANCH) && !options.errandBranches.has(branch);
+  return !branch.startsWith("delivery/")
+    && branch !== (options.baseBranch ?? DEFAULT_BASE_BRANCH)
+    && !options.errandBranches.has(branch);
 }
 
 /** Caller-supplied immutable remote and local facts for in-flight analysis. */
@@ -709,9 +711,10 @@ async function resolveAgreedInputs(input: {
 }): Promise<InputResolution> {
   const firstRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const firstWorktree = await resolveWorktreePathsByBranchResult(input.exec);
+  const firstEligibleRefs = filterDeliveryRefs(firstRefs.refs);
   const localFirstBranchSet = firstRefs.ok ? await resolveInFlightBranchSetFromLocalRefs({
     exec: input.exec,
-    refs: firstRefs.refs,
+    refs: firstEligibleRefs,
     remote: input.remote,
     localOnly: input.localOnly,
     timeoutMs: input.timeoutMs,
@@ -719,7 +722,7 @@ async function resolveAgreedInputs(input: {
   const expansion = await expandLiveOnlyCandidates({
     exec: input.exec,
     branchSet: localFirstBranchSet,
-    localRefs: firstRefs.refs,
+    localRefs: firstEligibleRefs,
     remote: input.remote,
     timeoutMs: input.timeoutMs,
     enabled: input.expandLiveOnly,
@@ -729,9 +732,10 @@ async function resolveAgreedInputs(input: {
 
   const secondRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const secondWorktree = await resolveWorktreePathsByBranchResult(input.exec);
+  const secondEligibleRefs = filterDeliveryRefs(secondRefs.refs);
   const secondBranchSet = withExpandedBranches(
     branchSetFromMembership({
-      refs: secondRefs.refs,
+      refs: secondEligibleRefs,
       firstBranchSet,
       localOnly: input.localOnly,
       remote: input.remote,
@@ -740,11 +744,11 @@ async function resolveAgreedInputs(input: {
     input.remote,
   );
 
-  const firstSnapshot = snapshotFor(firstBranchSet, firstWorktree.paths, firstRefs.refs, input.remote);
-  const secondSnapshot = snapshotFor(secondBranchSet, secondWorktree.paths, secondRefs.refs, input.remote);
+  const firstSnapshot = snapshotFor(firstBranchSet, firstWorktree.paths, firstEligibleRefs, input.remote);
+  const secondSnapshot = snapshotFor(secondBranchSet, secondWorktree.paths, secondEligibleRefs, input.remote);
   const comparison = mergeSnapshotComparisons(
     compareSnapshots(firstSnapshot, secondSnapshot),
-    compareLocalRefSnapshots(firstRefs.refs, secondRefs.refs, input.remote),
+    compareLocalRefSnapshots(firstEligibleRefs, secondEligibleRefs, input.remote),
     compareRefReadResults(firstRefs.ok, secondRefs.ok),
   );
   const warnings = snapshotWarnings(comparison, input.remote);
@@ -753,7 +757,7 @@ async function resolveAgreedInputs(input: {
     branchSet: firstBranchSet,
     worktreeResult: firstWorktree,
     worktreePaths: firstWorktree.paths,
-    localBranches: new Set(Object.keys(firstRefs.refs.localHeads)),
+    localBranches: new Set(Object.keys(firstEligibleRefs.localHeads)),
     localBranchesComplete: firstRefs.ok,
     snapshot: firstSnapshot,
     indeterminate: comparison.wholeResult
@@ -844,6 +848,14 @@ function branchSetFromMembership(input: {
     refs: refTipsFor(branches),
     liveRefs: input.firstBranchSet.liveRefs,
     reachable: true,
+  };
+}
+
+function filterDeliveryRefs(refs: LocalInFlightRefSnapshot): LocalInFlightRefSnapshot {
+  const eligible = ([branch]: readonly [string, string]): boolean => !branch.startsWith("delivery/");
+  return {
+    remoteTracking: Object.fromEntries(Object.entries(refs.remoteTracking).filter(eligible)),
+    localHeads: Object.fromEntries(Object.entries(refs.localHeads).filter(eligible)),
   };
 }
 

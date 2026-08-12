@@ -49,6 +49,12 @@ describe("derived cleanup classification", () => {
     };
     expect(locusOwnsBranch([unresolved], "feat/old")).toBe(false);
   });
+
+  it("does not derive work-unit ownership from a delivery presentation ref", () => {
+    const roster = [workUnitRow("example/first-member", "/wt/example")];
+
+    expect(locusOwnsBranch(roster, "delivery/example/first-member")).toBe(false);
+  });
 });
 
 function baseRow(path: string, branch: string | null) {
