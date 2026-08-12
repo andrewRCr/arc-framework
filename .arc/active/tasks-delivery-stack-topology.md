@@ -220,34 +220,25 @@ identified through delivery state before any external binding can carry authorit
 - _Outcome:_ Mechanical eligibility now pins and closes one exact disposable chain without accepting gate verdicts
   or write-capable stores; later materialization must rerun it and use only the object identities just reobserved.
 
-### `[ ]` **2.3 Recognize delivery refs without deriving authority from their names** — § 2; SC 2, SC 3
+### `[x]` **2.3 Recognize delivery refs without deriving authority from their names** — § 2; SC 2, SC 3
 
 - _Goal:_ `delivery/` refs are excluded from work-unit residue and advisory inference while exact member identity
   remains available only through delivery-state reverse lookup.
 
-    - `[ ]` **2.3.a Exclude the namespace from work-unit branch parsing**
-        - Make `branchToWorkUnitSlug` reject `delivery/` and update branch-format/type-prefix guidance in package and
-          installed copies.
-        - Build `test-first` (one behavior at a time):
-            - `delivery/example/chunk` never becomes a work-unit slug
-            - Existing `feat/`, `fix/`, and `plan/` branches remain unchanged
+    - `[x]` **2.3.a Exclude the namespace from work-unit branch parsing**
+        - Reserved `delivery/` in `branchToWorkUnitSlug` while preserving ordinary type prefixes, and documented the
+          presentation-only namespace identically in package and installed branch-format methods.
 
-    - `[ ]` **2.3.b Suppress false orphan and in-flight artifact classifications**
-        - Let the `branchToWorkUnitSlug` exclusion remove delivery refs from orphan and locus WU inference, and add the
-          same reserved-prefix exclusion at `isEligibleInFlightBranch`, the actual shared input boundary behind
-          active/status discovery and the pre-commit foreign-artifact advisory.
-        - When a consumer genuinely needs member identity, reuse `DeliveryStateStore.resolveMember` with exact ref +
-          observed head or exact head. Do not add a delivery-state read to the fast offline pre-commit hook merely to
-          suppress a recognized namespace, and never parse slug/chunk segments.
-        - Build `test-first` (one behavior at a time):
-            - A live member produces neither orphan-WU nor missing-record warnings
-            - A plausible but unbound delivery name grants no identity
-            - Exact bound ref/head resolves; ambiguous or stale binding refuses
+    - `[x]` **2.3.b Suppress false orphan and in-flight artifact classifications**
+        - Excluded the namespace at the shared in-flight boundary and parser-driven orphan/locus paths without adding
+          state reads to offline discovery; existing exact ref/head reverse lookup remains the sole identity authority.
 
-    - `[ ]` **2.3.c Pin session and status behavior around live delivery refs**
-        - Add `branchToWorkUnitSlug`, `isEligibleInFlightBranch`, locus, orphan-sweep, active/status, and pre-commit
-          advisory fixtures proving live and unbound delivery names produce no WU-residue signal, exact state lookup
-          remains the only identity source, and unrelated WU discovery is unchanged while a stack is partially landed.
+    - `[x]` **2.3.c Pin session and status behavior around live delivery refs**
+        - Added parser, in-flight, active/status, orphan, and locus fixtures proving live or cached delivery names stay
+          silent while unrelated WUs remain discoverable; reverse-lookup integration retains exact/stale/ambiguous proof.
+
+- _Outcome:_ Delivery ref names are now recognized only enough to suppress false WU residue. Any consumer needing a
+  member identity must still establish it through the existing exact delivery-state binding boundary.
 
 ## **Phase 3:** Unlinked materialization and guarded landing
 

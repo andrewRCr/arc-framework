@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   analyzeInFlightSnapshot,
   deriveInFlight,
+  isEligibleInFlightBranch,
   renderInFlightWarning,
   type InFlightWarning,
 } from "../../../src/lib/git/in-flight-derivation.js";
@@ -11,6 +12,14 @@ import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
+
+describe("isEligibleInFlightBranch", () => {
+  it("excludes delivery presentation refs while preserving unrelated work-unit branches", () => {
+    const options = { baseBranch: "main", errandBranches: new Set<string>() };
+    expect(isEligibleInFlightBranch("delivery/example/first-member", options)).toBe(false);
+    expect(isEligibleInFlightBranch("feat/unrelated", options)).toBe(true);
+  });
+});
 
 /** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Class, Priority, Depends On). */
 function metaContent(

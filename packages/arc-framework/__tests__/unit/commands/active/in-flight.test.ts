@@ -445,6 +445,20 @@ describe("runActiveInFlight", () => {
     });
   });
 
+  it("excludes live and locally cached delivery refs while retaining unrelated work units", async () => {
+    const exec = makeExec({
+      localRefs: ["delivery/x/first", "feat/x"],
+      liveBranches: ["delivery/x/first", "feat/x"],
+      metas: { "origin/feat/x:.arc/active/meta-x.md": meta() },
+    });
+
+    const result = await runActiveInFlight({ exec, identity: null, teamMode: false, localOnly: false });
+
+    expect(result.entries.map((entry) => entry.branch)).toEqual(["feat/x"]);
+    expect(result.warnings).toEqual([]);
+    expect(result.candidateExpansion).toEqual({ status: "complete", pendingBranchCount: 0 });
+  });
+
   it("prunes a dead local ref absent from live membership", async () => {
     const exec = makeExec({
       localRefs: ["feat/x", "feat/shipped"],
