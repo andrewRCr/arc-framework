@@ -94,7 +94,9 @@ obligation preserved or its deletion covered.
 - Restore the errand tail's terminal-exit semantics and check-cadence honesty — B8, I · `2-3`
 - Replace prose-string pins with typed contract and cross-lane scenario coverage — B-I · `many`
 
-Every member retains its own final verification phase pointing to `verify-work-unit.md`.
+The task list carries one terminal verification phase pointing to `verify-work-unit.md`, assigned to no member —
+the `stack-to-main` projection requires the sole verification task unassigned (`spec-delivery-plan-record.md`
+§ 2); per-member verification at landing is the landing machinery's ceremony, not task-list structure.
 
 ## Process-Shape Projection
 

@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-integration-boundary-accuracy.md`
-- **Task List:** [none]
+- **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none] — integration (not planning or implementation) waits on `delivery-stack-topology`
 
-- **Next Action:** Resume `generate-tasks` from the stack-member seed in `notes-integration-boundary-accuracy.md`
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
