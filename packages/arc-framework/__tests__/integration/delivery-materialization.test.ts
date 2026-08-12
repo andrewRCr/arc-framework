@@ -6,7 +6,10 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { publishDeliveryRemoteRef } from "../../src/lib/delivery/git-materialization.js";
+import {
+  deleteDeliveryRemoteRef,
+  publishDeliveryRemoteRef,
+} from "../../src/lib/delivery/git-materialization.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
@@ -46,5 +49,11 @@ describe("delivery materialization against a bare remote", () => {
     const second = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repository })).stdout.trim();
     await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head: second }))
       .resolves.toEqual({ status: "refused", reason: "collision" });
+    await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: second }))
+      .resolves.toEqual({ status: "refused", reason: "collision" });
+    await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: first }))
+      .resolves.toEqual({ status: "deleted" });
+    await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: first }))
+      .resolves.toEqual({ status: "adopted" });
   });
 });

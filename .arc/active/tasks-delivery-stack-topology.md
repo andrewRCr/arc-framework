@@ -338,38 +338,27 @@ control branch, and hand the residual terminal tail to ordinary work-unit integr
 - _Outcome:_ Suffix movement now has one contribution identity and one convergence path whether initiated explicitly
   or first observed at the host; ordinary delivery position remains strict outside this reconciliation boundary.
 
-### `[ ]` **4.2 Rematerialize review fixes and retire proven-landed residue** — § 4; SC 5, SC 6
+### `[x]` **4.2 Rematerialize review fixes and retire proven-landed residue** — § 4; SC 5, SC 6
 
 - _Goal:_ The control branch is the sole durable correction source, and only state-proven landed residue becomes
   disposable.
 
-    - `[ ]` **4.2.a Re-cut and validate the affected suffix from the control branch**
-        - Accept a complete freshly authored unlanded suffix from the retained control branch and run the shared
-          eligibility, lifecycle-contribution, and materialization services before reserving each rewrite. The 2.2.b
-          tier split applies: the workflow re-runs project gates on the re-cut suffix, and a red gate stops before
-          any rewrite reservation. The landed prefix is immutable; explicitly selected unlanded members may change
-          deliberately, while every other suffix member must prove carried contribution.
-        - Refuse direct delivery-ref editing. Route semantic repartition or coverage movement through
-          `classifyDeliveryPlanAmendment` before re-cut rather than treating it as a rewrite.
-        - Build `test-first` (one behavior at a time):
-            - A selected member fix plus equivalent higher suffix validates and rematerializes
-            - An accidental higher-suffix change, lifecycle contribution, or invalid completeness refuses before push
-            - Attempted repartition returns to plan amendment and the landed prefix remains exact
+    - `[x]` **4.2.a Re-cut and validate the affected suffix from the control branch**
+        - Complete closed suffix snapshots now preserve the exact landed prefix, reject delivery-ref authoring, allow
+          contribution changes only for selected unlanded members, prove every other member carried, and route any
+          proposed semantic plan change through the amendment classifier before producing rewrite requests.
 
-    - `[ ]` **4.2.b Teardown only proven-landed ref and request residue**
-        - Select a proven-landed member from plan/state plus fresh host facts, reserve deterministic `kind: teardown`,
-          compare-and-delete its exact delivery ref or adopt exact absence, and freshly observe its uniquely bound
-          request as merged/closed without mutating the provider request.
-        - Atomically clear ref, request handle, and obsolete coordinates through the accepted-state write. Reuse the
-          Phase 3 Git mutation and host-read seams; add no provider registry or landed ledger.
-        - Build `test-first` (one behavior at a time):
-            - Exact present residue deletes and exact absence adopts idempotently
-            - Wrong-head ref, open/mismatched request, unknown member, or unavailable landed proof blocks
-            - Ref absent plus unavailable/mismatched request proof retains the recoverable reservation
+    - `[x]` **4.2.b Teardown only proven-landed ref and request residue**
+        - Fresh position and request facts now select one landed nonterminal, persist a deterministic teardown, lease
+          deletion against the request's exact head or adopt absence, reobserve merged/closed identity, and clear ref,
+          request, and coordinates atomically; post-reservation refusal retains the operation for recovery.
 
-    - `[ ]` **4.2.c Prove rewrite and teardown crash recovery without new state**
-        - Exercise applied, retryable, ambiguous, and version-conflict outcomes for both kinds through the existing
-          operation contract and repository store.
+    - `[x]` **4.2.c Prove rewrite and teardown crash recovery without new state**
+        - Deterministic rewrite and teardown reservations both adopt exact application, retry exact nonapplication,
+          retain ambiguity, and rely on the existing revisioned state-store CAS for conflict isolation.
+
+- _Outcome:_ Review fixes and landed cleanup now converge through the same single-operation state authority: authored
+  control-branch suffixes remain the correction source, while deletion is limited to independently proven residue.
 
 ### `[ ]` **4.3 Absorb the landed base and adopt terminal work-unit integration** — § 5; SC 7, SC 8
 

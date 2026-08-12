@@ -18,10 +18,20 @@ export function deliveryStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1
   return buildDeliveryPlanFixture(planId, "stack-to-main");
 }
 
+/** Construct a valid independently-landable three-member stack plan. */
+export function deliveryThreeMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 3);
+}
+
 function buildDeliveryPlanFixture(
   planId: string,
   projection: "wu-integration-target" | "stack-to-main",
+  memberCount = 2,
 ): DeliveryPlanV1 {
+  const implementation = Array.from({ length: memberCount }, (_, index) => ({
+    taskId: `1.${index + 1}`,
+    semanticDigest: canonicalDigest({ goal: ["First", "Second", "Third"][index] }),
+  }));
   const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-plan/v1",
@@ -31,26 +41,21 @@ function buildDeliveryPlanFixture(
       elements: [{ elementId: "detailed:state-contract" }],
     },
     tasks: {
-      implementation: [{ taskId: "1.1" }, { taskId: "1.2" }],
+      implementation: implementation.map(({ taskId }) => ({ taskId })),
       verificationTaskId: "2.1",
     },
     entry: "from-tasks",
     projection: { kind: projection },
-    members: [{
-      chunkKey: "first",
-      title: "First member",
-      contract: "Publish the first contract.",
-      taskIds: ["1.1"],
-      designElementIds: ["detailed:state-contract"],
+    members: implementation.map(({ taskId }, index) => ({
+      chunkKey: ["first", "second", "third"][index],
+      title: `${["First", "Second", "Third"][index]} member`,
+      contract: index < 2
+        ? `Publish the ${["first", "second"][index]} contract.`
+        : "Publish the third contract.",
+      taskIds: [taskId],
+      designElementIds: index === 0 ? ["detailed:state-contract"] : [],
       mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
-    }, {
-      chunkKey: "second",
-      title: "Second member",
-      contract: "Publish the second contract.",
-      taskIds: ["1.2"],
-      designElementIds: [],
-      mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
-    }],
+    })),
     seams: [],
   });
   const design = bindDesignInventory({
@@ -62,10 +67,6 @@ function buildDeliveryPlanFixture(
     }],
   });
   if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const implementation = [
-    { taskId: "1.1", semanticDigest: canonicalDigest({ goal: "First" }) },
-    { taskId: "1.2", semanticDigest: canonicalDigest({ goal: "Second" }) },
-  ];
   const result = constructDeliveryPlanRevision({
     authoring,
     taskInventory: {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deleteDeliveryRemoteRef,
   observeDeliveryRemoteRef,
   publishDeliveryRemoteRef,
   rewriteDeliveryRemoteRef,
@@ -66,5 +67,29 @@ describe("delivery remote-ref leases", () => {
     await expect(rewriteDeliveryRemoteRef({
       exec, remote: "origin", ref, beforeHead: head, requestedHead: "b".repeat(40),
     })).resolves.toEqual({ status: "refused", reason: "collision" });
+  });
+
+  it("deletes only the exact remote head and adopts an exact absent retry", async () => {
+    let remoteHead: string | null = head;
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "ls-remote") {
+        return { stdout: remoteHead === null ? "" : `${remoteHead}\t${ref}\n` };
+      }
+      expect(args).toEqual([
+        "push", "origin", `--force-with-lease=${ref}:${head}`, `:${ref}`,
+      ]);
+      remoteHead = null;
+      return { stdout: "" };
+    };
+    await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: head }))
+      .resolves.toEqual({ status: "deleted" });
+    await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: head }))
+      .resolves.toEqual({ status: "adopted" });
+  });
+
+  it("refuses deletion when the remote head moved", async () => {
+    const exec: GitExec = async () => ({ stdout: `${"c".repeat(40)}\t${ref}\n` });
+    await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: head }))
+      .resolves.toEqual({ status: "refused", reason: "collision" });
   });
 });

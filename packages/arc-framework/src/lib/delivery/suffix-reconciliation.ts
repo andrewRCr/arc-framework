@@ -100,6 +100,8 @@ export async function executeDeliverySuffixRewrite(input: {
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly deliverableId: string;
   readonly requested: DeliveryOperationSnapshotV1;
+  /** Selected review fixes are authorized content changes, not false equivalence claims. */
+  readonly contributionMode?: "prove-equivalent" | "selected-change";
   readonly revalidateLifecycle: () => Promise<{ readonly status: "ok" | "refused" }>;
   readonly rewriteRef: (input: {
     readonly ref: string;
@@ -155,7 +157,7 @@ export async function executeDeliverySuffixRewrite(input: {
   });
   if (rewritten.status === "refused") return { status: "refused", reason: "rewrite-refused" };
   const observed = await input.observeResult();
-  if ((await input.proveContribution()).status !== "accepted") {
+  if (input.contributionMode !== "selected-change" && (await input.proveContribution()).status !== "accepted") {
     return { status: "refused", reason: "contribution-mismatch" };
   }
   const accepted = acceptDeliveryOperationResult(persistedReservation.value, observed);

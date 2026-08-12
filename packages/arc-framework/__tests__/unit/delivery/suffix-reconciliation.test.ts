@@ -186,4 +186,31 @@ describe("delivery suffix reconciliation", () => {
     expect(publish).not.toHaveBeenCalled();
     expect(rewriteRef).not.toHaveBeenCalled();
   });
+
+  it("admits an explicitly selected review fix without claiming contribution equivalence", async () => {
+    const { plan, state } = movedFixture();
+    const member = state.members[1]!;
+    const requested = {
+      target: state.target,
+      members: [{
+        ...member,
+        coordinates: { base: state.target!.coordinates!.head, head: "e".repeat(40), tree: "f".repeat(40) },
+      }],
+    };
+    const proveContribution = vi.fn(async () => ({
+      status: "refused" as const, reason: "contribution-mismatch" as const,
+    }));
+    const result = await executeDeliverySuffixRewrite({
+      plan, current: { revision: 7, value: state }, deliverableId: member.deliverableId, requested,
+      contributionMode: "selected-change",
+      revalidateLifecycle: async () => ({ status: "ok" }),
+      rewriteRef: async () => ({ status: "rewritten" }), observeResult: async () => requested,
+      proveContribution,
+      stateStore: { publish: async (_id, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+    expect(result.status).toBe("applied");
+    expect(proveContribution).not.toHaveBeenCalled();
+  });
 });
