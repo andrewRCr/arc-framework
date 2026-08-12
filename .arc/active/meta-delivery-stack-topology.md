@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 6 — Native stack composition and lifecycle tail complete
-- **Next Task:** Task 7.1 — Complete verification (line ~548)
+- **Last Completed:** Final review follow-up — executable `.R` gaps closed
+- **Next Task:** Task 7.1 — Complete verification (line ~646)
 - **Blockers:** [none]
 
 - **Next Action:** Load `verify-work-unit.md` and complete Task 7.1 verification
