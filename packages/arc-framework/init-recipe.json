@@ -70,7 +70,7 @@
     "system/.internal/harness-hooks/common/post-tool-use-recover.mjs",
     "system/.internal/harness-hooks/common/session-start-compact.mjs",
     "system/.internal/harness-hooks/common/user-prompt-recover.mjs",
-    "system/methods/assess-cohort-fit.md",
+    "system/methods/assess-boundary-fit.md",
     "system/methods/assess-design-proportionality.md",
     "system/methods/assess-draft-readiness.md",
     "system/methods/adversarial-review.md",

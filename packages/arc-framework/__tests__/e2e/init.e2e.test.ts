@@ -171,7 +171,7 @@ describe("init", () => {
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
-      "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+      "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
       "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
       "implementation-audit", "review-chunking", "self-review", "design-audit",
       "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",

@@ -270,7 +270,8 @@ describe("resolveFileList — actual recipe", () => {
       "pm.mode": "none", "tools": "", "team.mode": "false",
     });
     expect(files).toContain("system/methods/classify-work-unit.md");
-    expect(files).toContain("system/methods/assess-cohort-fit.md");
+    expect(files).toContain("system/methods/assess-boundary-fit.md");
+    expect(files).not.toContain("system/methods/assess-cohort-fit.md");
     expect(files).toContain("system/methods/assess-design-proportionality.md");
     expect(files).toContain("system/methods/assess-draft-readiness.md");
     expect(files).toContain("system/methods/adversarial-review.md");
@@ -296,7 +297,8 @@ describe("classifyFile", () => {
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
     expect(classifyFile("system/methods/assess-design-proportionality.md")).toBe("Configurable");
-    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-boundary-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Framework");
     expect(classifyFile("system/methods/assess-draft-readiness.md")).toBe("Configurable");
     expect(classifyFile("system/methods/adversarial-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
