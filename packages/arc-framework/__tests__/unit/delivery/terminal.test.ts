@@ -120,7 +120,9 @@ describe("delivery terminal handoff", () => {
     });
     expect(adopted.state.value.activeOperation).toBeNull();
     const repeat = await adoptDeliveryTerminalMerge({
-      ...input, resolution: { status: "delivery", plan: f.plan, current: adopted.state },
+      ...input,
+      resolution: { status: "delivery", plan: f.plan, current: adopted.state },
+      targetBefore: adopted.state.value.target!.coordinates!,
     });
     expect(repeat).toEqual({ status: "already-attached", state: adopted.state });
     expect(publish).toHaveBeenCalledOnce();

@@ -142,13 +142,19 @@ export async function adoptDeliveryTerminalMerge(input: {
     || input.request.baseRef !== current.value.target?.ref.replace(/^refs\/heads\//u, "")) {
     return { status: "blocked", reason: "request-mismatch" };
   }
+  const alreadyAttached = terminal.ref === input.retainedControlRef
+    && canonicalize(terminal.changeRequest) === canonicalize(input.request.binding)
+    && terminal.coordinates !== null
+    && terminal.coordinates.head === input.targetAfter.head
+    && terminal.coordinates.tree === input.targetAfter.tree
+    && canonicalize(current.value.target.coordinates) === canonicalize(input.targetAfter);
+  if (alreadyAttached) return { status: "already-attached", state: current };
   const expected = {
     deliverableId: terminal.deliverableId,
     ref: input.retainedControlRef,
     changeRequest: input.request.binding,
     coordinates: { base: input.targetBefore.head, head: input.targetAfter.head, tree: input.targetAfter.tree },
   };
-  if (canonicalize(terminal) === canonicalize(expected)) return { status: "already-attached", state: current };
   if (terminal.ref !== null || terminal.changeRequest !== null || terminal.coordinates !== null) {
     return { status: "blocked", reason: "terminal-conflict" };
   }

@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `9`
-- **Plan Digest:** `sha256:d860e95ed23c52b73c4d18f946ec0e54cbaaf7ab78078b0f0ed28e43eaf46052`
+- **Plan Revision:** `10`
+- **Plan Digest:** `sha256:77432e9bf297c6e8f883e35e10bf33576d6a058bdbb0392daf85b56aa044ba74`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -443,10 +443,14 @@ orchestration without adding proof state or another integration ceremony.
 - _Goal:_ The terminal member reaches ordinary work-unit integration through one composed pre-handoff service and one
   total post-merge attachment, without a delivery-owned merge ceremony or terminal proof record.
 
+- _Amendment:_ Project quality gates remain workflow-owned: when absorption is required, `terminal prepare` applies
+  the exact append-only base reconcile and returns `absorbed`; the delivery workflow runs Tier 1 and reruns the command
+  before accepting `terminal-ready`.
+
 - _Outcome:_ `terminal prepare` now derives absorption solely from current repository authorities, applies only the
   exact append-only base reconcile, and requires the ordinary Tier 1 seam before a fresh readiness read. Ordinary
   integration invokes one total `terminal attach` after merge; exact delivery results bind once, repeats are
-  idempotent, ordinary work units no-op, and blocked evidence stops before close or teardown.
+  idempotent through the built CLI, ordinary work units no-op, and blocked evidence stops before close or teardown.
 
 ## **Phase 5:** Lifecycle execution and orientation
 
@@ -634,8 +638,8 @@ executor as its only semantic fallback.
 
 - _Outcome:_ Native prepare and submit reobservation now share one state-bound predecessor-chain derivation, using
   the protected base only for the bottom member and each preceding selected ref above it. The exact native retry
-  envelope survives the handler boundary, and executable singleton, atomic, capability-loss, and unlink paths retain
-  the unlinked lifecycle's terminal semantics.
+  envelope survives the handler boundary; built-CLI coverage proves valid and flattened three-member prepare/submit
+  reads alongside executable singleton, atomic, capability-loss, and unlink paths.
 
 ## **Phase 7:** Verification
 
