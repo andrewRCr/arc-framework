@@ -16,6 +16,14 @@ const selfHostedHooksPath = resolve(
   packageRoot,
   "../../.arc/system/.internal/harness-hooks/codex-cli/hooks.json",
 );
+const workflowPath = resolve(
+  packageRoot,
+  "arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
+);
+const selfHostedWorkflowPath = resolve(
+  packageRoot,
+  "../../.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md",
+);
 const featuresPath = resolve(hookRoot, "codex-cli/features.config.toml");
 const markerScriptPath = resolve(hookRoot, "common/codex-recovery-marker.mjs");
 const clearScriptPath = resolve(hookRoot, "common/clear-codex-recovery-pending.mjs");
@@ -258,6 +266,25 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     ].join("\n"));
   });
 
+  it("keeps both setup paths aligned with the Codex hook recipe", () => {
+    const workflow = readFileSync(workflowPath, "utf8");
+    const setupSections = [
+      ...workflow.matchAll(
+        /^### Optional: Install Compaction Recovery Hooks\n([\s\S]*?)(?=^### )/gmu,
+      ),
+    ];
+
+    expect(readFileSync(selfHostedWorkflowPath, "utf8")).toBe(workflow);
+    expect(setupSections).toHaveLength(2);
+    for (const [, section] of setupSections) {
+      expect(section).toContain("`PreCompact(manual|auto)`");
+      expect(section).toContain("`PostToolUse`");
+      expect(section).toContain("`UserPromptSubmit`");
+      expect(section).toContain("`SessionStart(clear)`");
+      expect(section).not.toContain("PostCompact");
+    }
+  });
+
   it("defines a nonblocking PreCompact seed-write hook for manual and auto compaction", () => {
     const fragment = readJson<CodexHooksFragment>(hooksPath);
 
@@ -369,7 +396,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(clear?.commandWindows).toContain("|| exit /b 0");
   });
 
-  it("retries the PreCompact seed write after an explicitly configured stale-build repair", () => {
+  it("repairs and retries when a stale seed command exits non-zero", () => {
     withTempArcProject((root) => {
       const statePath = join(root, "build-state.json");
       const fakeArcPath = join(root, "fake-arc.mjs");
@@ -379,7 +406,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "import { readFileSync } from 'node:fs';",
         `const state = JSON.parse(readFileSync(${JSON.stringify(statePath)}, 'utf8'));`,
         "if (state.built !== true) {",
-        "  console.error('error: arc dev build is stale (src/lib/recover/audit.ts changed 1s ago; dist/cli.js built 1h ago). Refusing `arc status` against stale dist; run `npm run build`, then retry.');",
+        // The seed write is exempt from refusal, so a stale run reaches its own
+        // work and can still fail there. The hook keys on the sentence, not on
+        // the exit code, and must not assume the exemption implies success.
+        "  console.error('warn: arc dev build is stale (src/lib/recover/audit.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
+        "  console.error('error: failed to write compaction seed');",
         "  process.exit(1);",
         "}",
         `process.stdout.write(${JSON.stringify(`${JSON.stringify({
@@ -406,6 +437,104 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const marker = readJson<PendingMarker>(identityMarkerPath(root));
       expect(marker.kind).toBe("codex-compaction-recovery-pending");
       expect(marker.seedPath).toBe(".arc/user/andrew/.internal/compaction-seed.json");
+    });
+  });
+
+  it("repairs and retries when a stale seed command exits successfully", () => {
+    withTempArcProject((root) => {
+      const statePath = join(root, "build-state.json");
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      const fakeBuildPath = join(root, "fake-build.mjs");
+      writeFileSync(statePath, `${JSON.stringify({ built: false, calls: 0 })}\n`);
+      writeFileSync(fakeArcPath, [
+        "import { readFileSync, writeFileSync } from 'node:fs';",
+        `const statePath = ${JSON.stringify(statePath)};`,
+        "const state = JSON.parse(readFileSync(statePath, 'utf8'));",
+        "state.calls += 1;",
+        "writeFileSync(statePath, JSON.stringify(state));",
+        "if (state.built !== true) {",
+        "  console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
+        "}",
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew" },
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
+      ].join("\n"));
+      writeFileSync(fakeBuildPath, [
+        "import { readFileSync, writeFileSync } from 'node:fs';",
+        `const statePath = ${JSON.stringify(statePath)};`,
+        "const state = JSON.parse(readFileSync(statePath, 'utf8'));",
+        "writeFileSync(statePath, JSON.stringify({ ...state, built: true }));",
+      ].join("\n"));
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(readJson<{ built: boolean; calls: number }>(statePath)).toEqual({
+        built: true,
+        calls: 2,
+      });
+      expect(readJson<PendingMarker>(identityMarkerPath(root)).fallback).toBe(false);
+    });
+  });
+
+  it("refuses a stale successful seed when its configured build repair fails", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = writeSuccessFakeArc(root);
+      const fakeBuildPath = join(root, "fake-build.mjs");
+      writeFileSync(fakeArcPath, [
+        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
+        readFileSync(fakeArcPath, "utf8"),
+      ].join("\n"));
+      writeFileSync(fakeBuildPath, "process.exit(1);\n");
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root))).toMatchObject({
+        fallback: true,
+        reason: "stale-build repair exited 1",
+      });
+    });
+  });
+
+  it("refuses a seed retry that remains stale after a successful repair", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = writeSuccessFakeArc(root);
+      const fakeBuildPath = join(root, "fake-build.mjs");
+      writeFileSync(fakeArcPath, [
+        "console.error('warn: arc dev build is stale (src/lib/locus/process-inspector.ts changed 1s ago; dist/cli.js built 1h ago). Run `npm run build:fast` before relying on output.');",
+        readFileSync(fakeArcPath, "utf8"),
+      ].join("\n"));
+      writeFileSync(fakeBuildPath, "process.exit(0);\n");
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root))).toMatchObject({
+        fallback: true,
+        reason: "seed command remained stale after repair",
+      });
     });
   });
 

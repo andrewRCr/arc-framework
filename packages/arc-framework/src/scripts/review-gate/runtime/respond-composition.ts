@@ -1,14 +1,12 @@
 /** Production assembly for approved review dispositions. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  resolveRepositoryIdentity,
-} from "../hosts/local/git-common-state.js";
+import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import {
   LocalFrontlineOutcomeStore,
 } from "../hosts/local/frontline-outcome-store.js";
@@ -38,7 +36,7 @@ export function createRespondDependencies(input: {
     readReceipt: async (reference) => (await receipts()).readReceiptReference(reference),
     confirmTarget: (target) => prepare.confirmTarget(target),
     resolveLocalActors: async (evaluatorIdentity) => {
-      const authority = await prepare.resolveAuthority(evaluatorIdentity);
+      const { authority } = await prepare.resolveAuthority(evaluatorIdentity);
       return {
         approverIdentity: authority.authorIdentity,
         proposerIdentity: authority.runtimeIdentity,

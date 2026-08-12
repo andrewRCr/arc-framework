@@ -89,6 +89,9 @@ not as a proof-of-check marker.
 Each level maps to a path — the drafting procedure at that depth. Run the one the entry read selected; if a path
 surfaces heavier derivation than the read assumed, step up.
 
+Whatever the path produces, the scope boundary it records is what the spec inherits — author it as a handoff
+surface, not a private note.
+
 ### `low` — quick determinacy-confirm (no draft artifact)
 
 The design is determinate; there is nothing to derive. Confirm that directly: state the intent, the scope
@@ -128,7 +131,8 @@ usual.
    ambiguity rather than force a sequence: when something is underspecified or contradictory, work it through
    before moving on. Prompt material, not a questionnaire: problem and motivation; success and boundaries;
    alternatives and why; assumptions and unknowns; risks and dependencies; the minimum viable version. The
-   developer formulates _with_ the agent; the agent does not produce a finished design for sign-off.
+   developer formulates _with_ the agent; **the agent does not produce a finished design for sign-off** ·
+   `[invariant]`.
 4. **Re-synthesize** into the draft each pass, and record continuity so the next session resumes without
    re-deriving: the draft's **readiness state** (below), what is **Resolved**, the **Open** items (masked design
    decisions, unvalidated assumptions, soft scope boundaries), and the **Next** move. This matters most for
@@ -159,9 +163,10 @@ Three leans, never hard gates:
 - **Interim softcap.** When accretion makes the draft costly to _resume against_ mid-loop — each session
   re-parsing a pile of separate amendments to continue — suggest an integrating rewrite _before_ everything is
   settled, so derivation runs against a clean artifact rather than a growing pile.
-- **No detail loss.** Every consolidation, interim or final, preserves each settled decision and surviving
-  detail; self-check the rewrite against the pre-rewrite layers. A coherence rewrite must not silently drop
-  substance.
+- **No silent detail loss.** Every consolidation, interim or final, preserves each settled decision and surviving
+  detail; self-check the rewrite against the pre-rewrite layers. Dropping superseded sketch is what a
+  consolidation is _for_ — drop it deliberately and name what went, in the draft or to the developer. Substance
+  disappearing unremarked is the failure, not removal itself.
 
 A single-sitting draft is coherent by construction and clears all three criteria at once; they bite only when
 accretion is real.

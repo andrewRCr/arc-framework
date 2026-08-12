@@ -83,14 +83,23 @@ content as the cross-member sequencing the work must respect. It is also the onl
 unbounded and unmeasured.
 
 **`AGENT-BRIEF.PROJECT`'s redundancy is partial, and its carrier is contested.** Its operational content —
-repo root, the hybrid `.arc/` + `packages/` layout, the CLI package location, the quality-gate commands — is
-duplicated by `QUICK-REFERENCE` § Environment and `DEV-RULES.PROJECT` § Quality Gates. Two gaps: the
-"Development Environment: Cross-platform (Windows/WSL/Linux/Mac)" line appears nowhere else in the loaded set,
-and is operational at execution in a CLI that branches on `posix`/`win32`; and `loadset-composition` proposes
-demoting `QUICK-REFERENCE`'s environment residual, which is the carrier this redundancy claims. **The two
-demotions are mutually exclusive** — `DEV-RULES.PROJECT` § Quality Gates carries the gate commands but not the
-repo-root rule or the hybrid-layout note. Whichever lands second must re-derive its basis against what
-actually remains loaded.
+repo root, the hybrid `.arc/` + `packages/` layout, the CLI package location, the quality-gate commands — was
+duplicated by `QUICK-REFERENCE` § Environment and `DEV-RULES.PROJECT` § Quality Gates when this was measured.
+
+**The gate-command leg no longer holds** (updated 2026-07-29). `judgment-authority-model` demoted that listing out
+of `DEV-RULES.PROJECT` into `QUICK-REFERENCE` § Quality Gate Commands, which is **on-demand** — the always-loaded
+slice of that file is § Environment & Path Context alone. What stays loaded is the zero-tolerance rule, the two
+selection conditions, and four quiet-failing gate behaviors; the enumeration of gate families and their commands is
+gone from the loaded set. So the brief's gate content is no longer redundant against anything always-loaded, and
+that leg of its demotion basis must be re-derived rather than inherited. The episode is also a worked instance of
+this section's own closing instruction: a redundancy basis names a carrier, and carriers move.
+
+Two gaps stand unchanged: the "Development Environment: Cross-platform (Windows/WSL/Linux/Mac)" line appears
+nowhere else in the loaded set, and is operational at execution in a CLI that branches on `posix`/`win32`; and
+`loadset-composition` proposes demoting `QUICK-REFERENCE`'s environment residual, which is the carrier the
+surviving half of this redundancy claims. **The two demotions are mutually exclusive**, now for a narrower reason:
+§ Environment is the only always-loaded carrier of the repo-root rule and the hybrid-layout note. Whichever lands
+second must re-derive its basis against what actually remains loaded.
 
 **`STRATEGY-INDEX` is reachable but of unmeasured value.** Its trigger — `DEV-RULES.ARC` § Consult strategy
 guidance — is always loaded and names the index directly, so a demotion is safe. What is not established is

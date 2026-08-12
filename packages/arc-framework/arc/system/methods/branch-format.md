@@ -47,9 +47,9 @@ WU (discovery, draft-doc iteration, spec authoring, task generation). Rotates to
 prefixes above at activation. See `strategy-work-organization.md` § Branching for the rotation
 mechanics.
 
-The `plan/` prefix is invariant — it carries semantic coupling to ARC's `State: Planning`
-state-machine value and session-init's branch-pattern fallback. The type set above is the
-overridable surface; the planning prefix is not.
+**The `plan/` prefix is not overridable** · `[invariant]` — the type set above is the overridable
+surface, but the planning prefix carries semantic coupling to ARC's `State: Planning` state-machine
+value and session-init's branch-pattern fallback.
 
 **Branch name conventions:**
 

@@ -1,7 +1,7 @@
 /**
  * Unit tests for {@link scaffoldIntoWorktree} — the shared meta + SESSION-NOTES
  * writer for a work-unit worktree root. It never runs `git worktree add`: both
- * `start` entry paths (create-new after the `reconcile-worktree.spawn` leg, and
+ * `start` entry paths (create-new after the `reconcile-work-unit-worktree.spawn` leg, and
  * cold-start into an existing checkout) build on it. Covers the meta /
  * SESSION-NOTES scaffold, spec-input field rendering, and the `createdByArc`
  * marker gate. Git is mocked at the exec seam; the filesystem is real (temp dirs).
@@ -227,9 +227,13 @@ describe("scaffoldIntoWorktree — renderMetaProjectionFile-shaped scaffold (sin
       await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
     );
     // The renderMetaProjectionFile projection emits the whole field set — no field is absent
-    // (a marker-absent field parses back `null`), the drift `template-meta.md` could carry.
+    // except an explicitly omit-when-absent marker.
     for (const field of META_FIELDS) {
-      expect(record[field.name], `field ${field.name} present`).not.toBeNull();
+      if ("omitWhenAbsent" in field) {
+        expect(record[field.name], `field ${field.name} omitted`).toBeNull();
+      } else {
+        expect(record[field.name], `field ${field.name} present`).not.toBeNull();
+      }
     }
   });
 
@@ -256,7 +260,11 @@ describe("scaffoldIntoWorktree — renderMetaProjectionFile-shaped scaffold (sin
     // Non-planning state ⇒ Current Workflow stays the [none] sentinel (consistency by construction).
     expect(record["Current Workflow"]).toBe("[none]");
     for (const field of META_FIELDS) {
-      expect(record[field.name], `field ${field.name} present`).not.toBeNull();
+      if ("omitWhenAbsent" in field) {
+        expect(record[field.name], `field ${field.name} omitted`).toBeNull();
+      } else {
+        expect(record[field.name], `field ${field.name} present`).not.toBeNull();
+      }
     }
   });
 });

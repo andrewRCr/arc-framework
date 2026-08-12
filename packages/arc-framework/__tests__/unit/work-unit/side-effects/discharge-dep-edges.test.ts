@@ -15,16 +15,11 @@
 import { describe, it, expect } from "vitest";
 
 import { parseMetaProjectionRecord } from "../../../../src/lib/active/meta-reader.js";
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
-import { receiptId } from "../../../../src/lib/canonical/receipt-id.js";
 import { buildLifecycleIndexFromMetas } from "../../../../src/lib/work-unit/lifecycle-index.js";
-import type { RetirementReceipt } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type {
-  RetirementRecordEnumerationResult,
-} from "../../../../src/lib/work-unit/retirement-record-enumeration.js";
-import type {
-  RetirementDispositionQueryResult,
-} from "../../../../src/lib/work-unit/retirement-disposition-query.js";
+  TransitionRecordEnumerationResult,
+} from "../../../../src/lib/work-unit/transition-record-enumeration.js";
+import type { TransitionDispositionQueryResult } from "../../../../src/lib/work-unit/transition-disposition-query.js";
 import {
   dischargeDepEdges,
   planDependencyReconcile,
@@ -45,48 +40,26 @@ function meta(state: string, dependsOn?: string[]): string {
 const DEPENDENT_PATH = ".arc/active/meta-dependent.md";
 
 function queryResults(
-  results: Readonly<Record<string, RetirementDispositionQueryResult>>,
-): (input: { retiredSubject: string }) => Promise<RetirementDispositionQueryResult> {
-  return ({ retiredSubject }) => Promise.resolve(results[retiredSubject] ?? { status: "absent" });
+  results: Readonly<Record<string, TransitionDispositionQueryResult>>,
+): (input: { origin: string }) => Promise<TransitionDispositionQueryResult> {
+  return ({ origin }) => Promise.resolve(results[origin] ?? { status: "absent" });
 }
 
 function renameEnumeration(
   retiredSubject = "origin",
   targetSlug = "successor",
-): RetirementRecordEnumerationResult {
-  const subject = { kind: "work-unit", name: retiredSubject } as const;
-  const source = {
-    branch: `feat/${retiredSubject}`,
-    head: "a".repeat(40),
-    artifactDigest: canonicalDigest(`source:${retiredSubject}`),
-  };
-  const candidate: RetirementReceipt = {
-    schemaVersion: 1,
-    receiptId: receiptId({
-      schemaVersion: 1,
-      subject,
-      transition: "rename",
-      sourceBranch: source.branch,
-      sourceHead: source.head,
-    }),
-    subject,
-    transition: "rename",
-    source,
-    transitionPatchDigest: canonicalDigest(`patch:${retiredSubject}`),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: "identity-renamed",
-    result: {
-      kind: "rename",
-      targetSlug,
-      artifactDigest: canonicalDigest(`target:${targetSlug}`),
-    },
-  };
+): TransitionRecordEnumerationResult {
   return {
     status: "valid",
-    records: [{
-      id: candidate.receiptId,
-      content: "",
-      record: { kind: "receipt", value: candidate },
+    groups: [{
+      origin: retiredSubject,
+      records: [{
+        schemaVersion: 1,
+        origin: retiredSubject,
+        kind: "rename",
+        successors: [targetSlug],
+        edges: [],
+      }],
     }],
   };
 }
@@ -182,6 +155,68 @@ describe("dischargeDepEdges — live edges stay", () => {
 });
 
 describe("current-WU dependency reconcile planning", () => {
+  it("preserves recursive lean rename, abandon, replacement, and drop decisions", async () => {
+    const results: Readonly<Record<string, TransitionDispositionQueryResult>> = {
+      renamed: { status: "unique", disposition: { kind: "retarget", targetSlug: "middle" } },
+      middle: {
+        status: "unique",
+        disposition: { kind: "replace", replacementTargets: ["member"] },
+      },
+      abandoned: { status: "unique", disposition: { kind: "abandoned" } },
+      replaced: {
+        status: "unique",
+        disposition: { kind: "replace", replacementTargets: ["member"] },
+      },
+      dropped: { status: "unique", disposition: { kind: "drop", reason: "not retained" } },
+    };
+    const result = await planDependencyReconcile({
+      index: buildLifecycleIndexFromMetas([
+        { path: DEPENDENT_PATH, content: meta("Active") },
+        { path: ".arc/active/meta-member.md", content: meta("Active") },
+      ]),
+      dependentSlug: "dependent",
+      edges: ["renamed", "abandoned", "replaced", "dropped"],
+      queryDisposition: ({ origin }) => Promise.resolve(results[origin] ?? { status: "absent" }),
+    });
+
+    expect(result).toMatchObject({
+      status: "ready",
+      dependency: {
+        after: ["member"],
+        drops: [
+          { retiredSubject: "abandoned", reason: "retired work unit was abandoned" },
+          { retiredSubject: "dropped", reason: "not retained" },
+        ],
+        conflicts: [],
+      },
+    });
+    expect(result.dependency.replacements.map(({ evidence }) =>
+      evidence.map(({ subject }) => subject))).toEqual([
+      ["renamed", "middle"],
+      ["replaced"],
+    ]);
+  });
+
+  it.each([
+    [{ status: "ambiguous" }, "ambiguous-evidence"],
+    [{ status: "unmapped-dependent" }, "unmapped-dependent"],
+    [{ status: "namespace-corrupt" }, "namespace-corrupt"],
+  ] as const)("preserves the lean %s refusal", async (resolution, reason) => {
+    const result = await planDependencyReconcile({
+      index: buildLifecycleIndexFromMetas([
+        { path: DEPENDENT_PATH, content: meta("Active") },
+      ]),
+      dependentSlug: "dependent",
+      edges: ["origin"],
+      queryDisposition: async () => resolution,
+    });
+
+    expect(result).toMatchObject({
+      status: "conflict",
+      dependency: { conflicts: [{ edge: "origin", subject: "origin", reason }] },
+    });
+  });
+
   it("replaces one retired edge with its deduplicated delivering members", async () => {
     const index = buildLifecycleIndexFromMetas([
       { path: DEPENDENT_PATH, content: meta("Active", ["origin"]) },
@@ -195,7 +230,6 @@ describe("current-WU dependency reconcile planning", () => {
       edges: ["origin"],
       queryDisposition: async () => ({
         status: "unique",
-        evidenceQuality: "reachable",
         disposition: {
           kind: "replace",
           replacementTargets: ["member-b", "member-a", "member-a"],
@@ -210,7 +244,7 @@ describe("current-WU dependency reconcile planning", () => {
         replacements: [{
           retiredSubject: "origin",
           replacementTargets: ["member-a", "member-b"],
-          evidence: [{ subject: "origin", quality: "reachable" }],
+          evidence: [{ subject: "origin" }],
         }],
         conflicts: [],
       },
@@ -222,18 +256,16 @@ describe("current-WU dependency reconcile planning", () => {
       label: "authored decompose drop",
       resolution: {
         status: "unique",
-        evidenceQuality: "degraded",
         disposition: { kind: "drop", reason: "not retained" },
-      } satisfies RetirementDispositionQueryResult,
+      } satisfies TransitionDispositionQueryResult,
       reason: "not retained",
     },
     {
       label: "abandon",
       resolution: {
         status: "unique",
-        evidenceQuality: "unknown",
         disposition: { kind: "abandoned" },
-      } satisfies RetirementDispositionQueryResult,
+      } satisfies TransitionDispositionQueryResult,
       reason: "retired work unit was abandoned",
     },
   ])("drops an edge retired by $label while surfacing its reason", async ({ resolution, reason }) => {
@@ -266,12 +298,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "unknown",
           disposition: { kind: "retarget", targetSlug: "renamed-once" },
         },
         "renamed-once": {
           status: "unique",
-          evidenceQuality: "degraded",
           disposition: { kind: "retarget", targetSlug: "successor" },
         },
       }),
@@ -285,8 +315,8 @@ describe("current-WU dependency reconcile planning", () => {
           retiredSubject: "origin",
           replacementTargets: ["successor"],
           evidence: [
-            { subject: "origin", quality: "unknown" },
-            { subject: "renamed-once", quality: "degraded" },
+            { subject: "origin" },
+            { subject: "renamed-once" },
           ],
         }],
       },
@@ -304,12 +334,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "renamed" },
         },
         renamed: {
           status: "unique",
-          evidenceQuality: "tree-only",
           disposition: { kind: "replace", replacementTargets: ["member"] },
         },
       }),
@@ -322,8 +350,8 @@ describe("current-WU dependency reconcile planning", () => {
         replacements: [{
           replacementTargets: ["member"],
           evidence: [
-            { subject: "origin", quality: "reachable" },
-            { subject: "renamed", quality: "tree-only" },
+            { subject: "origin" },
+            { subject: "renamed" },
           ],
         }],
       },
@@ -340,12 +368,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "renamed" },
         },
         renamed: {
           status: "unique",
-          evidenceQuality: "unknown",
           disposition: { kind: "abandoned" },
         },
       }),
@@ -358,8 +384,8 @@ describe("current-WU dependency reconcile planning", () => {
         drops: [{
           reason: "retired work unit was abandoned",
           evidence: [
-            { subject: "origin", quality: "reachable" },
-            { subject: "renamed", quality: "unknown" },
+            { subject: "origin" },
+            { subject: "renamed" },
           ],
         }],
       },
@@ -369,8 +395,7 @@ describe("current-WU dependency reconcile planning", () => {
   it.each([
     ["missing evidence", { status: "absent" }, "missing-evidence"],
     ["ambiguous evidence", { status: "ambiguous" }, "ambiguous-evidence"],
-    ["unmapped evidence", { status: "unmapped-dependent", evidenceQuality: "degraded" }, "unmapped-dependent"],
-    ["version conflict", { status: "version-conflict" }, "version-conflict"],
+    ["unmapped evidence", { status: "unmapped-dependent" }, "unmapped-dependent"],
     ["corrupt namespace", { status: "namespace-corrupt" }, "namespace-corrupt"],
   ] as const)("refuses %s without producing a rewrite", async (_label, resolution, reason) => {
     const result = await planDependencyReconcile({
@@ -403,12 +428,10 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "renamed" },
         },
         renamed: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "origin" },
         },
       }),
@@ -440,7 +463,6 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "replace", replacementTargets: ["missing"] },
         },
       }),
@@ -463,17 +485,14 @@ describe("current-WU dependency reconcile planning", () => {
       queryDisposition: queryResults({
         origin: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "replace", replacementTargets: ["first", "second"] },
         },
         first: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "retarget", targetSlug: "final" },
         },
         second: {
           status: "unique",
-          evidenceQuality: "reachable",
           disposition: { kind: "abandoned" },
         },
       }),
@@ -511,7 +530,6 @@ describe("current-WU dependency reconcile apply", () => {
   const queryDisposition = queryResults({
     origin: {
       status: "unique",
-      evidenceQuality: "reachable",
       disposition: { kind: "retarget", targetSlug: "successor" },
     },
   });
@@ -584,7 +602,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition: () => Promise.resolve({ status: "absent" }),
-      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
       listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
       readFile: (path) => Promise.resolve(files.get(path)!),
       writeFile: () => Promise.resolve(),
@@ -619,7 +637,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition: () => Promise.resolve({ status: "absent" }),
-      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
       listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
       readFile: (path) => {
         const count = reads.get(path) ?? 0;
@@ -654,7 +672,7 @@ describe("current-WU dependency reconcile apply", () => {
       const context = {
         index,
         queryDisposition,
-        enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+        enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
         listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, specPath]),
         readFile: (path: string) => Promise.resolve(files.get(path)!),
         writeFile: (path: string, content: string) => {
@@ -728,7 +746,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition: () => Promise.resolve({ status: "absent" }),
-      enumerateRetirementRecords: () => Promise.resolve(renameEnumeration()),
+      enumerateTransitionRecords: () => Promise.resolve(renameEnumeration()),
       listArtifactPaths: () => Promise.resolve([DEPENDENT_PATH, notesPath]),
       readFile: (path) => Promise.resolve(files.get(path)!),
       writeFile: async (path) => { writes.push(path); },

@@ -13,7 +13,6 @@ import { Command, Option } from "commander";
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
-import { isHandoffCritical } from "./lib/handoff-critical.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
 import { handleInit, type InitOptions } from "./handlers/init.js";
 import { handleJoin, type JoinOptions } from "./handlers/join.js";
@@ -22,13 +21,18 @@ import {
   handleErrandCheck,
   handleErrandOpen,
   handleErrandLink,
+  handleErrandMaterialize,
+  handleErrandLeave,
   handleErrandClose,
-  handleErrandRetire,
+  handleErrandAbandon,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandLinkOptions,
+  type ErrandMaterializeOptions,
+  type ErrandLeaveOptions,
   type ErrandCloseOptions,
+  type ErrandAbandonOptions,
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
@@ -39,6 +43,16 @@ import {
   type BaseSyncOptions,
 } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
+import {
+  handleDeliveryCompose,
+  handleDeliveryPlanAbandon,
+  handleDeliveryPlanFromBranch,
+  handleDeliveryPlanFromTasks,
+  type DeliveryComposeOptions,
+  type DeliveryPlanAbandonOptions,
+  type DeliveryPlanFromBranchOptions,
+  type DeliveryPlanFromTasksOptions,
+} from "./handlers/delivery.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -59,6 +73,7 @@ import {
   handleFinalizeStage,
   handleRepointDesign,
   handleRename,
+  isDecomposeMachineReadableInvocation,
   type PromoteOptions,
   type StubOptions,
   type ParkOptions,
@@ -100,15 +115,18 @@ import {
   type ActiveInFlightCliOptions,
 } from "./handlers/active.js";
 import { handleStatus, type StatusCliOptions } from "./handlers/status.js";
+import { handleLocus } from "./handlers/locus.js";
 import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleMergeLockHold,
+  handleMergeLockRelease,
+  handleMergeLockResolve,
   handleReviewReadiness,
   handleReviewResolve,
-  handleReviewUnlock,
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
@@ -143,7 +161,6 @@ import {
   type ReleaseSetupUninstallOptions,
   type ReleaseSetupVerifyOptions,
 } from "./commands/release.js";
-import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
 import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
 
 const program = new Command();
@@ -159,10 +176,6 @@ program
 const checkCmd = program
   .command("check")
   .description("Run standalone repository checks");
-
-program
-  .command("hook-validate-decompose-record", { hidden: true })
-  .action(runDecomposeRecordValidation);
 
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
@@ -283,7 +296,10 @@ program
   .option("--priority <priority>", "Work-unit priority, e.g. `P1` (required)")
   .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
-  .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
+  .option(
+    "--cohort <path>",
+    "Enrol under <cohort> or <cohort>/<subcohort>: place the member in that planned-tier cohort path",
+  )
   .option("--class <value>", "Initial resolved Class (Light | Heavy | Novel); omitted → `[TBD]`")
   .action(withInteractionContext(
     { yes: "none" },
@@ -292,11 +308,14 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Split a work unit into a cohort of members per a structured cut-map file")
-  .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
-  .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
+  .description("Preflight, execute, or advance one decomposition")
+  .option("--preflight", "Emit one canonical read-only v3 starter map")
+  .option("--execute <cut-map>", "Stage one exact result from a canonical completed cut map")
+  .option("--advance-base <cut-map>", "Advance one committed candidate from its completed cut map")
   .action(withInteractionContext(
-    {},
+    {
+      machineReadable: isDecomposeMachineReadableInvocation,
+    },
     (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
   ));
 
@@ -424,7 +443,7 @@ program
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Compatibility spelling for receipt-backed cleanup; grants no additional authority",
+    "Compatibility spelling for evidence-backed cleanup; grants no additional authority",
   )
   .action(withInteractionContext(
     {},
@@ -471,7 +490,7 @@ program
 
 const errand = program
   .command("errand")
-  .description("Errand operations. `open` launches an errand; `check` reports in-flight overlap.");
+  .description("Open, preserve, resume, complete, or inspect an Errand lifecycle.");
 
 errand
   .command("check")
@@ -487,14 +506,14 @@ errand
 
 errand
   .command("open <slug>")
-  .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
-  .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
+  .description("Open an errand in the free primary or a provisioned transient worktree")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts, context),
   ));
 
@@ -504,38 +523,68 @@ errand
   .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
   ));
 
 errand
-  .command("close <slug>")
-  .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
-  .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
+  .command("leave <slug>")
+  .description("Preserve an Errand tail and close its local occupancy")
+  .addOption(new Option("--state <state>", "Tail state")
+    .choices(["paused", "awaiting-merge"])
+    .makeOptionMandatory())
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts, context),
+  ));
+
+errand
+  .command("materialize <slug>")
+  .description("Materialize an exact remote-only Errand generation in an ARC-owned checkout")
+  .option("--claim-id <claim-id>", "Require the selected Errand claim generation")
+  .option("--expected-head <oid>", "Require the selected retained head")
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts, context),
+  ));
+
+errand
+  .command("close <slug>")
+  .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts, context),
   ));
 
 errand
-  .command("retire <slug>")
-  .description("Retire a promoted errand's record (the renamed branch survives as the work-unit branch)")
+  .command("abandon <slug>")
+  .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
-    (context, slug: string) => handleErrandRetire(slug, context),
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts, context),
   ));
 
 errand
   .command("promote <slug>")
-  .description("Promote an errand to a work unit: rename the branch, mint the meta, retire the record")
+  .description("Promote an Errand to a receipt-backed work unit and settle its exact identity")
   .option("--name <name>", "The new work-unit name (meta filename + branch leaf); defaults to the slug")
   .option("--type <type>", "WU branch nature-type prefixing the name (default: feat)")
   .option("--floor <floor>", "Which floor the errand crossed: derivation | scale (required)")
   .option("--priority <priority>", "WU priority for the minted meta")
   .option("--class <class>", "WU Class for the minted meta")
+  .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
+  .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
   ));
 
@@ -592,6 +641,55 @@ plan
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
+  ));
+
+const delivery = program
+  .command("delivery")
+  .description("Author, compose, and manage delivery plans");
+
+delivery
+  .command("compose")
+  .description("Validate the outstanding authoring map and publish its delivery plan")
+  .option("--landed-prefix <json>", "Fresh plan-ordered landed deliverable ID JSON array")
+  .option("--json", "Emit the typed composition result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryComposeOptions) => handleDeliveryCompose(opts, context),
+  ));
+
+const deliveryPlan = delivery
+  .command("plan")
+  .description("Create or abandon transient delivery-plan authoring state");
+
+deliveryPlan
+  .command("from-tasks")
+  .description("Create a delivery authoring map from the active task list")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromTasksOptions) => handleDeliveryPlanFromTasks(opts, context),
+  ));
+
+deliveryPlan
+  .command("from-branch")
+  .description("Create a delivery authoring map from a branch contribution")
+  .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--base <commit-ish>", "Selected base line (defaults to the configured base)")
+  .option("--head <commit-ish>", "Branch head (defaults to HEAD)")
+  .option("--json", "Emit the typed authoring result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanFromBranchOptions) => handleDeliveryPlanFromBranch(opts, context),
+  ));
+
+deliveryPlan
+  .command("abandon")
+  .description("Delete the outstanding authoring map idempotently")
+  .option("--json", "Emit the typed abandonment result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryPlanAbandonOptions) => handleDeliveryPlanAbandon(opts, context),
   ));
 
 // --- Lifecycle ---
@@ -872,6 +970,7 @@ program
   .option("--local", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--no-fetch", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
+  .option("--write", "With --project --staged: write the rendered view to the tracked ROADMAP atomically")
   .addOption(
     new Option(
       "--write-compaction-seed",
@@ -888,6 +987,14 @@ program
     },
     (context, slug: string | undefined, opts: StatusCliOptions) => handleStatus(slug, opts, context),
   ));
+
+// --- Locus ---
+
+program
+  .command("locus")
+  .description("Inspect the local checkout and session locus roster")
+  .option("--json", "Emit one typed session locus envelope as JSON")
+  .action(handleLocus);
 
 // --- Recover ---
 
@@ -1062,6 +1169,37 @@ logCmd
   )
   .action(handleLogStandalone);
 
+// --- Merge ---
+
+const mergeCmd = program
+  .command("merge")
+  .description("Merge-control operations");
+
+const mergeLockCmd = mergeCmd
+  .command("lock")
+  .description("Resolve and transition the host merge lock");
+
+mergeLockCmd
+  .command("resolve")
+  .description("Resolve how a pull request should open as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockResolve(input));
+
+mergeLockCmd
+  .command("hold")
+  .description("Lock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockHold(input));
+
+mergeLockCmd
+  .command("release")
+  .description("Unlock one exact-head pull request as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action((input: string) => handleMergeLockRelease(input));
+
 // --- Review ---
 
 const reviewCmd = program
@@ -1081,13 +1219,6 @@ reviewCmd
   .option("--repository <path>", "Repository containing both exact commits")
   .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
     handleReviewPlanningLane(base, head, opts));
-
-reviewCmd
-  .command("unlock")
-  .description("Preflight and dispatch exact-head ARC clearance as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewUnlock(input));
 
 reviewCmd
   .command("resolve")
@@ -1201,27 +1332,28 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
   const distAgeText = verdict.distAge === null
     ? "dist/cli.js missing"
     : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
-  const baseMsg
-    = `arc dev build is stale (${verdict.newestSrc} changed `
-    + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
+  const staleCause = verdict.basis === "content-hash"
+    ? "source content differs from the build stamp"
+    : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
+  const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
 
-  const critical = isHandoffCritical({
-    name: actionCommand.name(),
-    parentName: actionCommand.parent?.name(),
-    opts: actionCommand.opts(),
-  });
-  if (critical) {
-    const cmdPath = formatCommandPath(actionCommand);
+  // Sole exception: the compaction-seed write. A seed produced by stale logic
+  // is revalidated when recovery reads it, so it beats no seed. The option is
+  // declared on `status` alone, so this needs no command-name test.
+  const opts: Record<string, unknown> = actionCommand.opts();
+  if (opts.writeCompactionSeed === true) {
     process.stderr.write(
-      `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
-      + "run `npm run build`, then retry.\n",
+      `warn: ${baseMsg} Run \`npm run build:fast\` before relying on output.\n`,
     );
-    process.exit(1);
+    return;
   }
 
+  const cmdPath = formatCommandPath(actionCommand);
   process.stderr.write(
-    `warn: ${baseMsg} Run \`npm run build\` before relying on output.\n`,
+    `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
+    + "run `npm run build:fast`, then retry.\n",
   );
+  process.exit(1);
 });
 
 function formatCommandPath(cmd: Command): string {

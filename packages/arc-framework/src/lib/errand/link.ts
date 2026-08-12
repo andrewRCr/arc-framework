@@ -1,66 +1,131 @@
-/**
- * `linkErrandToInbox` — attach an existing errand record to a USER-INBOX capture.
- *
- * The usual producer path records the inbox back-pointer at `arc errand open
- * --from-inbox`. This helper covers the later-realized case: an errand was
- * opened from a free description, then the operator recognizes it as satisfying
- * an existing capture. Updating the record lets the normal close/promote cleanup
- * drop that capture automatically.
- *
- * @module
- */
+/** Ordinary v3 Errand inbox-link composition. */
 
-import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
-import { readErrandRecord, writeErrandRecord, type ErrandRecord } from "./record.js";
-import type { ErrandRecordIO } from "./ref-tree.js";
+import { projectLocusIdentity, type TransientIdentityRecord } from "./identity-record.js";
+import type { IdentityTransactionOutcome } from "./identity-transaction.js";
+import {
+  ORDINARY_ERRAND_INBOX_LINK_CONFLICT_REASON,
+  type OrdinaryErrandRecord,
+  type OrdinaryErrandTransition,
+} from "./identity-transitions.js";
+import type { ErrandErrorCode } from "./result-common.js";
+import {
+  createErrandOperationResult,
+  type ErrandOperationResult,
+} from "./operation-result.js";
+import type { InspectedInboxEntry } from "../user-sync/inbox-writer.js";
+import { SlugSchema } from "../kernel/index.js";
 
-/** Operands for {@link linkErrandToInbox}. */
-export interface LinkErrandToInboxParams {
-  /** The errand slug — its logical identity and the record's tree key. */
-  slug: string;
-  /** Originating USER-INBOX entry title to drop when the errand closes or promotes. */
-  originEntry: string;
+type LinkTransition = Extract<OrdinaryErrandTransition, { kind: "link" }>;
+
+/** Exact identity and inbox evidence boundaries for one v3 late-link operation. */
+export interface LinkOrdinaryErrandDependencies {
+  readIdentity(slug: string): Promise<IdentityTransactionOutcome<TransientIdentityRecord | null>>;
+  transact(request: LinkTransition): Promise<IdentityTransactionOutcome<OrdinaryErrandRecord | null>>;
 }
 
-/** Outcome of {@link linkErrandToInbox}. */
-export type LinkErrandToInboxResult =
-  | { kind: "linked"; record: ErrandRecord; changed: boolean; push: ErrandPushOutcome }
-  | { kind: "link-conflict"; record: ErrandRecord; requestedEntry: string }
-  | { kind: "no-record"; slug: string };
+/** Complete v3 late-link request after the live inbox entry has been inspected under lock. */
+export interface LinkOrdinaryErrandOptions {
+  slug: string;
+  inbox: InspectedInboxEntry;
+  updatedAt: string;
+  dependencies: LinkOrdinaryErrandDependencies;
+}
 
-/**
- * Link an in-flight errand to an existing inbox capture.
- *
- * Resolves the record by slug — an absent record is `no-record`. Otherwise the
- * record becomes `inbox`-origin with the supplied back-pointer. Re-linking to
- * the same entry is idempotent: it skips the write but still reconciles the
- * errand ref, so a previously-unpushed record can catch up. Re-linking an
- * already-inbox-origin record to a different entry refuses, because the old
- * capture would otherwise lose its only automatic cleanup path.
- *
- * @param io - Injected git seams and identity.
- * @param params - The errand slug and inbox entry title.
- * @returns The link outcome — linked or no-record.
- */
-export async function linkErrandToInbox(
-  io: ErrandRecordIO,
-  params: LinkErrandToInboxParams,
-): Promise<LinkErrandToInboxResult> {
-  const slug = params.slug.trim();
-  if (slug === "") throw new Error("linkErrandToInbox: slug must be non-empty");
-  const originEntry = params.originEntry.trim();
-  if (originEntry === "") throw new Error("linkErrandToInbox: originEntry must be non-empty");
-
-  const record = await readErrandRecord(io, slug);
-  if (record === null) return { kind: "no-record", slug };
-  if (record.origin === "inbox" && record.originEntry !== originEntry) {
-    return { kind: "link-conflict", record, requestedEntry: originEntry };
+/** Link one exact open v3 ordinary Errand generation to one live inbox generation. */
+export async function linkOrdinaryErrand(
+  options: LinkOrdinaryErrandOptions,
+): Promise<ErrandOperationResult> {
+  const requestedSlug = options.slug.trim();
+  if (requestedSlug === "") return linkRefusal("identity-conflict", "Errand slug must be non-empty.");
+  const parsedSlug = SlugSchema.safeParse(requestedSlug);
+  if (!parsedSlug.success) return linkRefusal("identity-conflict", "Errand slug must be valid.");
+  const slug = parsedSlug.data;
+  let basis: IdentityTransactionOutcome<TransientIdentityRecord | null>;
+  try {
+    basis = await options.dependencies.readIdentity(slug);
+  } catch (error) {
+    return linkError("locus.errand-link.basis", errorMessage(error));
   }
+  if (basis.kind === "error") return linkError(`locus.errand-link.${basis.stage}`, basis.message);
+  if (basis.kind === "refused") return linkRefusal("identity-conflict", basis.reason);
+  const record = basis.value;
+  if (record === null) return linkRefusal("identity-conflict", `Errand identity '${slug}' does not exist.`);
+  if (!isOrdinaryErrand(record)) {
+    return linkRefusal("identity-conflict", `Identity '${slug}' is not a current ordinary Errand.`);
+  }
+  if (record.state !== "open") {
+    return linkRefusal("identity-conflict", `Errand '${slug}' is not open.`);
+  }
+  if (record.origin === "inbox" && (
+    record.originEntry !== options.inbox.title
+    || record.originEntrySourceDigest !== options.inbox.sourceDigest
+  )) {
+    return linkRefusal("inbox-link-conflict", `Errand '${slug}' is already linked to another inbox capture.`);
+  }
+  let outcome: IdentityTransactionOutcome<OrdinaryErrandRecord | null>;
+  try {
+    outcome = await options.dependencies.transact({
+      kind: "link",
+      previous: record,
+      originEntry: options.inbox.title,
+      originEntrySourceDigest: options.inbox.sourceDigest,
+      updatedAt: options.updatedAt,
+    });
+  } catch (error) {
+    return linkError("locus.errand-link.identity", errorMessage(error));
+  }
+  if (outcome.kind === "refused") {
+    return linkRefusal(
+      outcome.reason === ORDINARY_ERRAND_INBOX_LINK_CONFLICT_REASON
+        ? "inbox-link-conflict"
+        : "identity-conflict",
+      outcome.reason,
+    );
+  }
+  if (outcome.kind === "error") return linkError(`locus.errand-link.${outcome.stage}`, outcome.message);
+  if (outcome.value === null) return linkError("locus.errand-link.identity", "Identity transaction returned no record");
+  return createErrandOperationResult({
+    outcome: outcome.kind,
+    operation: "errand-link",
+    allocation: null,
+    subject: { kind: "errand", key: slug, claimId: outcome.value.claimId },
+    identity: projectLocusIdentity(outcome.value),
+    originEntry: outcome.value.originEntry,
+    originEntrySourceDigest: outcome.value.origin === "inbox"
+      ? outcome.value.originEntrySourceDigest
+      : null,
+    nextOffer: null,
+    recommendedPromptText: outcome.kind === "applied"
+      ? `Linked Errand '${slug}' to inbox capture '${outcome.value.originEntry}'.`
+      : `Errand '${slug}' is already linked to inbox capture '${outcome.value.originEntry}'.`,
+  });
+}
 
-  const linked: ErrandRecord = { ...record, origin: "inbox", originEntry };
-  const changed = record.origin !== "inbox" || record.originEntry !== originEntry;
-  if (changed) await writeErrandRecord(io, linked);
-  const push = await reconcileErrandPush(io);
+function linkRefusal(
+  reason: "identity-conflict" | "inbox-link-conflict",
+  message: string,
+): ErrandOperationResult {
+  return createErrandOperationResult({
+    outcome: "refused",
+    operation: "errand-link",
+    reason,
+    recommendedPromptText: message,
+  });
+}
 
-  return { kind: "linked", record: linked, changed, push };
+function linkError(code: ErrandErrorCode, message: string): ErrandOperationResult {
+  return createErrandOperationResult({
+    outcome: "error",
+    operation: "errand-link",
+    error: { code, message: message || "Errand link failed" },
+    recommendedPromptText: "Re-read the inbox and identity evidence before retrying.",
+  });
+}
+
+function isOrdinaryErrand(record: TransientIdentityRecord): record is OrdinaryErrandRecord {
+  return record.kind === "errand" && record.purpose === "errand";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

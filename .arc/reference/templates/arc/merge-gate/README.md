@@ -16,10 +16,6 @@ their own primitives; only this recipe is GitHub-specific.
 - **The `merge-ok` gate** — a _snippet_, below, NOT a drop-in file. It must be **merged into the workflow that
   runs your required CI jobs**, because GitHub `needs:` only reaches jobs in the same workflow. Dropping it in
   as a second standalone workflow would roll up nothing and leave your real CI ungated — see § Why a snippet.
-- **`arc-clearance.yml`** — an opt-in exact-head merge guard rendered by the
-  [Set Up ARC Clearance workflow][clearance-setup]. It runs the exact ARC package version recorded in the
-  installation manifest, treats pull-request content only as data, publishes planning clearance directly, and
-  publishes reviewed-head clearance through a secretless environment.
 
 ## The `merge-ok` gate (merge into your CI workflow)
 
@@ -91,6 +87,8 @@ jobs:
 Replace `<installed-arc-version>` with the exact `framework_version` from
 `.arc/system/.internal/manifest.json`. The pinned CLI classifies Git's raw change record, so rename/copy endpoints
 and type/mode changes participate and any unreadable or malformed change remains reviewed.
+The classification checkout must fetch branch refs (`fetch-depth: 0`) rather than only the pull request's commit
+history, because an exact decomposition source commit may exist only on another branch ref.
 
 Branch protection requires **only** `merge-ok`. The heavy jobs are lane-skipped on planning-only PRs; `merge-ok`
 runs unconditionally and treats a skipped job as success, so a planning PR gets a green required check without
@@ -98,11 +96,10 @@ the heavy jobs running — while a code/constitutional PR waits on them. This is
 roll-up gate and **not** a path-ignored CI workflow (a path-filtered required check never reports and stalls
 the merge at _Pending_).
 
-Without `arc-cleared`, ARC-managed PR workflows still rerun the canonical classifier over the exact base/head
-immediately before arming auto-merge and require literal `planning`; `reviewed`, command failure, or malformed
-output never arms. CODEOWNERS cannot express filename grammar or Git type/mode changes, so this classifier gate
-and the integration interlock are the procedural boundary. Installing `arc-cleared` independently adds structural
-host enforcement of the same exact decision.
+ARC-managed PR workflows still rerun the canonical classifier over the exact base/head immediately before arming
+auto-merge and require literal `planning`; `reviewed`, command failure, or malformed output never arms. CODEOWNERS
+cannot express filename grammar or Git type/mode changes, so this classifier gate and the integration interlock are
+the procedural boundary.
 
 ## CI layouts
 
@@ -128,6 +125,11 @@ gate as a snippet to merge in — rather than a droppable file — keeps that fa
    **Require review from Code Owners**. Do not require the heavy jobs directly.
 4. Enable the repository's **native auto-merge** setting.
 
+The transition-record namespace remains review-owned because its records are authoritative history. The canonical
+classifier may still return `planning` for a transition-bearing change set, keeping heavy-job selection aligned with
+the planning substrate, but code-owner approval remains required. The rest of `.arc/system/.internal/` also stays
+owned.
+
 A planning-only PR may then be armed and merge unattended once `merge-ok` is green; a reviewed-lane PR
 additionally waits on owner approval and must not be armed by ARC. The
 [Set Up the Auto-Merge Gate workflow][setup-workflow] walks through all four steps.
@@ -136,4 +138,3 @@ additionally waits on owner approval and must not be armed by ARC. The
 
 [doctrine]: ../../../strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-workflow]: ../../../../system/workflows/arc/supplemental/setup-merge-gate.md
-[clearance-setup]: ../../../../system/workflows/arc/supplemental/setup-arc-clearance.md

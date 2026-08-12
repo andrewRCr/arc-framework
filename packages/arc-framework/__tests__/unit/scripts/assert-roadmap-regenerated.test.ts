@@ -13,6 +13,7 @@ import {
   renderRoadmapFromIndex,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 function meta(slug: string, fields: { priority?: string } = {}): string {
   return [
@@ -88,11 +89,11 @@ function makeIndexExec(
     if (args[0] === "worktree") {
       if (!opts.movingRef) return { stdout: "", stderr: "" };
       return {
-        stdout: [
+        stdout: worktreePorcelainZ([
           "worktree /repo",
           "HEAD 1111111111111111111111111111111111111111",
           "branch refs/heads/feat/moving",
-        ].join("\n"),
+        ].join("\n")),
         stderr: "",
       };
     }

@@ -1,11 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 
 import {
+  analyzeOrphanBranchesSnapshot,
   OrphanBranchReportSchema,
   OrphanBranchSweepResultSchema,
   runOrphanBranchSweep,
 } from "../../../src/lib/session-init/orphan-branch-sweep.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-availability.js";
+import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
 
 const NUL = "\u0000";
 
@@ -61,6 +64,7 @@ function runSweep(
     worktreeIdentity: { kind: "primary" },
     baseBranch: "main",
     errandBranches: new Set(options.errandBranches ?? []),
+    derivedRoster: [],
     exec: buildExec(branches, options.shipped ?? []),
   });
 }
@@ -150,6 +154,7 @@ describe("runOrphanBranchSweep", () => {
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
       errandBranches: null,
+      derivedRoster: [],
       exec,
     });
 
@@ -164,6 +169,7 @@ describe("runOrphanBranchSweep", () => {
       worktreeIdentity: { kind: "linked", path: "/wt/feature" },
       baseBranch: "main",
       errandBranches: new Set(),
+      derivedRoster: [],
       exec,
     });
 
@@ -178,12 +184,46 @@ describe("runOrphanBranchSweep", () => {
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
       errandBranches: new Set(),
+      derivedRoster: [],
       exec: exec as GitExec,
     });
 
     expect(result.orphans).toEqual([]);
     const invokedSubcommands = exec.mock.calls.map((call) => (call[1] as string[])[0]);
     expect(invokedSubcommands).toEqual(["for-each-ref"]);
+  });
+
+  it("classifies surviving orphans against the supplied advertised base OID", async () => {
+    const baseOid = "3".repeat(40);
+    const exec: GitExec = async (_command, args, options) => {
+      if (args[0] === "for-each-ref") {
+        return { stdout: `feat/shipped${NUL}gone${NUL}`, stderr: "" };
+      }
+      if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+      if (args[0] === "ls-tree" && args[4] === baseOid) {
+        return { stdout: ".arc/completed/2026-q2/01_shipped/meta-shipped.md", stderr: "" };
+      }
+      if (args[0] === "cherry" && args[1] === baseOid) return { stdout: "", stderr: "" };
+      throw new Error(`tracking-ref fallback: ${args.join(" ")}`);
+    };
+
+    const result = await runOrphanBranchSweep({
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      errandBranches: new Set(),
+      derivedRoster: [],
+      exec,
+      baseEvidence: {
+        remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+        objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+        history: { kind: "complete" },
+      },
+    });
+
+    expect(result.orphans).toEqual([
+      { branch: "feat/shipped", merged: true, shippedWorkUnit: "shipped" },
+    ]);
   });
 
   it("partitions a mixed set — only reapable gone branches swept, verdicts attached", async () => {
@@ -206,12 +246,174 @@ describe("runOrphanBranchSweep", () => {
   });
 });
 
+describe("analyzeOrphanBranchesSnapshot", () => {
+  it("classifies removable and retained orphans against the exact advertised base", async () => {
+    const baseOid = "1111111111111111111111111111111111111111";
+    const exec: GitExec = async (_cmd, args, options) => {
+      if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
+      if (args[0] === "ls-tree") {
+        if (args[4] !== baseOid) throw new Error("unexpected completed-index operand");
+        return {
+          stdout: ".arc/completed/2026-q2/01_shipped/meta-shipped.md",
+          stderr: "",
+        };
+      }
+      if (args[0] === "cherry") {
+        if (args[1] !== baseOid) throw new Error("unexpected base operand");
+        return {
+          stdout: args[2] === "feat/shipped"
+            ? ""
+            : "+ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+          stderr: "",
+        };
+      }
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    const result = await analyzeOrphanBranchesSnapshot({
+      exec,
+      branches: ["feat/shipped", "fix/retained"],
+      baseBranch: "main",
+      remoteSyncEnabled: true,
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+      objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+      history: { kind: "complete" },
+    });
+
+    expect(result.orphans).toEqual([
+      { branch: "feat/shipped", merged: true, shippedWorkUnit: "shipped" },
+      { branch: "fix/retained", merged: false, shippedWorkUnit: null },
+    ]);
+  });
+
+  it.each([
+    {
+      name: "pending-fetch",
+      remoteSyncEnabled: true,
+      snapshot: {
+        kind: "available",
+        scope: "all-heads",
+        tips: { main: "1111111111111111111111111111111111111111" },
+      } as RemoteHeadSnapshotResult,
+      objectAvailability: {
+        kind: "complete",
+        commits: { "1111111111111111111111111111111111111111": false },
+      } as ObjectAvailabilityResult,
+    },
+    {
+      name: "unreachable",
+      remoteSyncEnabled: true,
+      snapshot: { kind: "unreachable", failureReason: "network" } as RemoteHeadSnapshotResult,
+      objectAvailability: { kind: "complete", commits: {} } as ObjectAvailabilityResult,
+    },
+    {
+      name: "remote-base-absent",
+      remoteSyncEnabled: true,
+      snapshot: { kind: "available", scope: "all-heads", tips: {} } as RemoteHeadSnapshotResult,
+      objectAvailability: { kind: "complete", commits: {} } as ObjectAvailabilityResult,
+    },
+    {
+      name: "not-applicable",
+      remoteSyncEnabled: false,
+      snapshot: {
+        kind: "available",
+        scope: "all-heads",
+        tips: { main: "1111111111111111111111111111111111111111" },
+      } as RemoteHeadSnapshotResult,
+      objectAvailability: {
+        kind: "complete",
+        commits: { "1111111111111111111111111111111111111111": true },
+      } as ObjectAvailabilityResult,
+    },
+  ])("does not authorize orphan cleanup for $name evidence", async ({
+    remoteSyncEnabled,
+    snapshot,
+    objectAvailability,
+  }: {
+    remoteSyncEnabled: boolean;
+    snapshot: RemoteHeadSnapshotResult;
+    objectAvailability: ObjectAvailabilityResult;
+  }) => {
+    const result = await analyzeOrphanBranchesSnapshot({
+      exec: buildExec({}, []),
+      branches: ["feat/orphan"],
+      baseBranch: "main",
+      remoteSyncEnabled,
+      snapshot,
+      objectAvailability,
+      history: { kind: "complete" },
+    });
+
+    expect(result.orphans).toEqual([{
+      branch: "feat/orphan",
+      merged: null,
+      shippedWorkUnit: null,
+      blockingReason: "evidence-unavailable",
+    }]);
+  });
+
+  it("propagates an unreadable completed index", async () => {
+    const baseOid = "1".repeat(40);
+    await expect(analyzeOrphanBranchesSnapshot({
+      exec: async () => { throw new Error("completed index failed"); },
+      branches: ["feat/orphan"], baseBranch: "main", remoteSyncEnabled: true,
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+      objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+      history: { kind: "complete" },
+    })).rejects.toThrow("completed index failed");
+  });
+
+  it("propagates malformed local graph output", async () => {
+    const baseOid = "1".repeat(40);
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "ls-tree") return { stdout: "", stderr: "" };
+      if (args[0] === "cherry") return { stdout: "+ malformed\n", stderr: "" };
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(analyzeOrphanBranchesSnapshot({
+      exec, branches: ["feat/orphan"], baseBranch: "main", remoteSyncEnabled: true,
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+      objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+      history: { kind: "complete" },
+    })).rejects.toThrow("Malformed git cherry output");
+  });
+
+  it("retains an evidence-unavailable orphan when shallow history prevents merge analysis", async () => {
+    const baseOid = "1".repeat(40);
+    await expect(analyzeOrphanBranchesSnapshot({
+      exec: buildExec({}, []), branches: ["feat/orphan"], baseBranch: "main", remoteSyncEnabled: true,
+      snapshot: { kind: "available", scope: "all-heads", tips: { main: baseOid } },
+      objectAvailability: { kind: "complete", commits: { [baseOid]: true } },
+      history: { kind: "shallow" },
+    })).resolves.toMatchObject({
+      remoteEvidence: "exact",
+      orphans: [{ branch: "feat/orphan", merged: null, blockingReason: "evidence-unavailable" }],
+    });
+  });
+});
+
 describe("OrphanBranchSweepResultSchema", () => {
+  it("accepts an evidence-unavailable orphan without cleanup authority", () => {
+    const value = {
+      remoteEvidence: "pending-fetch",
+      orphans: [{
+        branch: "feat/pending",
+        merged: null,
+        shippedWorkUnit: null,
+        blockingReason: "evidence-unavailable",
+      }],
+    } as const;
+
+    expect(OrphanBranchSweepResultSchema.parse(value)).toEqual(value);
+  });
+
   it.each([
     { branch: "feat/shipped", merged: false, shippedWorkUnit: "shipped" },
     { branch: "fix/unshipped", merged: true, shippedWorkUnit: null },
   ])("accepts shipped and unshipped orphan authority", (orphan) => {
-    expect(OrphanBranchSweepResultSchema.parse({ orphans: [orphan] })).toEqual({ orphans: [orphan] });
+    expect(OrphanBranchSweepResultSchema.parse({ remoteEvidence: "exact", orphans: [orphan] }))
+      .toEqual({ remoteEvidence: "exact", orphans: [orphan] });
   });
 
   it.each([

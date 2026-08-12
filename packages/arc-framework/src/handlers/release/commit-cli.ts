@@ -21,6 +21,10 @@ import { formatError, UserFacingError } from "../../lib/errors.js";
 import { hasEffectiveHook } from "../../lib/hook-manager.js";
 import { gitExec } from "../../lib/io-context.js";
 import {
+  formatMissingHooksPathMessage,
+  resolveHooksPathVerdict,
+} from "../../lib/git/hooks-path.js";
+import {
   createExecaGitExec,
   environmentForGitCwd,
   MAX_GIT_OUTPUT_BYTES,
@@ -129,6 +133,27 @@ export async function handleReleaseCommit(
     return;
   }
 
+  // Fail closed when core.hooksPath points at a missing directory: Git would
+  // otherwise commit with zero hooks and report success (unprovisioned worktrees).
+  try {
+    const hooksVerdict = await resolveHooksPathVerdict(cwd, async (command, args, opts) => {
+      const { stdout } = await capturedGitExec(command, [...args], { cwd: opts.cwd });
+      return { stdout };
+    });
+    if (hooksVerdict.kind === "missing") {
+      process.stderr.write(formatMissingHooksPathMessage(hooksVerdict, "arc release commit"));
+      process.exitCode = 1;
+      return;
+    }
+  } catch (cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    process.stderr.write(
+      `error: could not resolve core.hooksPath before commit: ${detail}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const settings = await resolveAllSettings({
     cwd,
     exec: gitExec,
@@ -224,7 +249,7 @@ export function createSpawnGit(context?: InteractionContext): SpawnGit {
           PAGER: "cat",
         }
       : environmentForGitCwd(cwd);
-    const result = await execa("git", invocation, {
+    const subprocess = execa("git", invocation, {
       cwd,
       env,
       extendEnv: false,
@@ -237,6 +262,14 @@ export function createSpawnGit(context?: InteractionContext): SpawnGit {
       stripFinalNewline: false,
       maxBuffer: MAX_GIT_OUTPUT_BYTES,
     });
+    // Execa normally waits for captured-stream EOF after the child exits. A hook can
+    // background a descendant that inherits those descriptors, so close ARC's read
+    // ends at the direct Git boundary instead of waiting on unrelated process lifetime.
+    subprocess.nodeChildProcess.once("exit", () => {
+      subprocess.stdout.destroy();
+      subprocess.stderr.destroy();
+    });
+    const result = await subprocess;
     if (!result.failed) return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
 
     const error = normalizeGitRejection(result, { command: "git", args: invocation });

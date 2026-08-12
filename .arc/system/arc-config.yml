@@ -84,7 +84,7 @@ commit.custom_pattern:
 #   "^#[0-9]+ .+"                                 — GitHub issue
 commit.context_pattern:
 
-# --- Merge Strategy ---
+# --- Merge ---
 
 # How branches are integrated into the base branch.
 #   merge  - Merge commits preserve branch topology (default, most traceable)
@@ -92,6 +92,14 @@ commit.context_pattern:
 #   squash - Single commit per branch (traceability shifts to PR descriptions)
 # See strategy-configurability-architecture.md § Settings with behavioral implications.
 merge.strategy: merge
+
+# Whether pull requests are held unmergeable until the work is cleared to land.
+#   draft - Pull requests open as drafts and stay unmergeable until they are released, so no one
+#           can land the work early — including you. Costs a release step before every merge, and
+#           review automation that skips drafts does not run until that release.
+#   none  - No host-side hold (default). Interlocks and harness permissions are the only guard.
+# See strategy-configurability-architecture.md § Settings with behavioral implications.
+merge.lock: draft
 
 # --- Hooks ---
 
@@ -136,8 +144,10 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/|docs/demos/
 # Strict meta-project reference patterns scanned in ALL staged code, including
 # tests. These cover patterns rare enough in legitimate fixture data that the
 # test exemption is unsafe — PRD R-codes, bare requirement / behavior numeric
-# IDs, and section-symbol citations. PROJECT-PRD lines are filtered as a known
-# false positive (real framework template filename). Pipe-separated regex.
+# IDs, and section-symbol citations. The pre-commit hook additionally filters
+# known false-positive tokens (stripped per line before re-check, not whole-line
+# drops): PROJECT-PRD (framework template filename) and quoted three-digit Git
+# --name-status R/C scores ("R100", 'C075', …). Pipe-separated regex.
 #   default: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
 hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
 

@@ -22,6 +22,11 @@ import { promisify } from "node:util";
 import { runPark, runResume, type ParkResumeFs } from "../../src/lib/work-unit/verbs/park-resume.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
+import {
+  ensureWorktreeMarkerIgnored,
+  nodeWorktreeMarkerIgnoreFs,
+  writeWorktreeOwnershipMarker,
+} from "../../src/lib/git/worktree-marker.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import {
@@ -171,10 +176,17 @@ async function setup(): Promise<Harness> {
   await writeFile(join(wuWorktree, ACTIVE_REL), activeMeta());
   await execFileAsync("git", ["add", "-A"], { cwd: wuWorktree });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "activate foo"], { cwd: wuWorktree });
+  await ensureWorktreeMarkerIgnored(wuWorktree, makeGitExec(wuWorktree), nodeWorktreeMarkerIgnoreFs);
+  await writeWorktreeOwnershipMarker(wuWorktree, {
+    createdByArc: true,
+    createdFor: { kind: "work-unit", name: SLUG },
+    spawningIdentity: IDENTITY,
+  });
 
+  const io = { ...createUserIOContext(), exec: makeGitExec(repo) };
   return {
     repo,
-    io: { ...createUserIOContext(), exec: makeGitExec(repo) },
+    io,
     locationTemplate,
     wuWorktree,
     spawned: [wuWorktree],
@@ -188,7 +200,7 @@ async function parkAndShip(h: Harness): Promise<void> {
     { executor: executorFor(h), fs: parkResumeFs(h.io) },
     { name: SLUG, reason: REASON, sourceRecord, worktreePath: h.wuWorktree, currentLocus: h.repo },
   );
-  expect(result.status).toBe("parked");
+  expect(result.status, JSON.stringify(result)).toBe("parked");
   await execFileAsync("git", ["add", "-A"], { cwd: h.repo });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "park foo"], { cwd: h.repo });
 }
@@ -229,7 +241,7 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
       { name: SLUG, reason: REASON, sourceRecord, worktreePath: h.wuWorktree, currentLocus: h.repo },
     );
 
-    expect(result.status).toBe("parked");
+    expect(result.status, JSON.stringify(result)).toBe("parked");
     // The pointer-record lands on the tracked branch, blessed `State: Active`, with the callout + reason.
     const pointer = await readFile(join(h.repo, POINTER_REL), "utf8");
     expect(pointer).toContain("Parked");
@@ -287,7 +299,7 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
     expect(await headBranch(h.repo)).toBe("main");
     expect(await pathExists(join(h.repo, POINTER_REL))).toBe(false);
 
-    // The ceremony commits the removal on the tracked branch, then re-attaches in place.
+    // The ceremony commits the removal on the tracked branch, then checks out the preserved branch in place.
     await execFileAsync("git", ["add", "-A"], { cwd: h.repo });
     await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "resume foo"], { cwd: h.repo });
     await execFileAsync("git", ["checkout", BRANCH], { cwd: h.repo });

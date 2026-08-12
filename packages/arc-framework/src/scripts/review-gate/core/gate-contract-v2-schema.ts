@@ -27,11 +27,14 @@ export type GitObjectId = z.infer<typeof GitObjectIdSchema>;
 
 export const ReviewIdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 
+export const ReviewTargetKindSchema = z.enum(["change-set", "delivery-member"]);
+export type ReviewTargetKind = z.infer<typeof ReviewTargetKindSchema>;
+
 export const ReviewTargetIdPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.target-id/v2"),
   schemaVersion: z.literal(2),
   semanticsVersion: ReviewGateV2SemanticsSchema,
-  kind: z.literal("change-set"),
+  kind: ReviewTargetKindSchema,
   repositoryId: ReviewIdentifierSchema,
   baseRef: ReviewIdentifierSchema,
   diffBaseSha: GitObjectIdSchema,

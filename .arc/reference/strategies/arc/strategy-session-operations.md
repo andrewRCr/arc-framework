@@ -94,6 +94,45 @@ Standalone probe commands (`arc user status`, `arc config status`, `arc extensio
 status`) share the same implementations and are available for debugging and CI. Session-init uses only the
 composite.
 
+#### Remote access boundary
+
+The session-init probe has a passive code-repository contract. One request reads the advertised `refs/heads/*`
+generation, inspects every distinct advertised commit in one local-only object batch, and shares that immutable
+evidence plus one history-completeness reading across remote-aware slots. It does not fetch code objects, create or
+update code refs, prune, run maintenance, or fall back to remote-tracking refs. In a linked worktree, those writes
+would target the common Git directory shared by every worktree; passive orientation needs no permission to make
+them.
+
+The public evidence arms have exact operational meanings:
+
+- `exact` — the advertised OID is locally present and every required local object or graph prerequisite is
+  complete. Only exact facts may authorize a graph relation or cleanup; every surfaced materialization candidate
+  is likewise proven from an exact present object even when the enclosing candidate set remains pending.
+- `pending-fetch` — the remote advertised an OID that is not locally present. The result carries only candidates
+  already proven from present objects plus its structured explicit-refresh remedy; it never substitutes a stale
+  tracking-ref relation.
+- `unreachable` — the advertised-head read failed with a bounded failure class. Local orientation and slots that
+  need no remote evidence continue; dependent actions remain unavailable.
+- `not-applicable` — remote sync is disabled, no remote exists, or that result does not require remote evidence.
+- Shallow history — even when both compared tips exist locally, a graph-dependent slot cannot claim an exact
+  relation until full ancestry is available. Independent snapshot-only facts remain valid.
+- Partial-clone descendants — a locally present advertised commit does not prove its tree or blobs are present.
+  Status-side reads disable lazy object fetching; a missing descendant becomes that slot's local probe error and
+  causes no pack, object, ref, or maintenance write.
+
+Acquisition belongs to an explicit operation. `arc active in-flight --json` may fetch missing advertised candidate
+objects into Git's operational fetch state before recomputing the set; `arc base sync --json`, materialization,
+pull, and sync verbs similarly own the writes their names imply. A denied explicit operation exits non-zero or
+returns typed incomplete evidence; after a successful retry, a fresh passive probe may report exact evidence for
+the objects now present.
+
+The passive code-head guarantee is deliberately narrower than every remote channel in the composite. User-notes
+transport under `refs/notes/arc/user/*` and transient Errand-record transport retain their own documented reads and
+operational temporary-ref behavior. Their calls are recorded separately and never establish code-branch evidence.
+Likewise, a harness permission prompt is one possible symptom of the Git metadata boundary, not part of ARC's
+contract: any filesystem policy that denies common-directory or object-database writes should allow the passive
+probe and gate only explicit acquisition.
+
 The same machinery underlies the session-handoff probe (`arc status --session-handoff --json`); see
 § Handoff-Interior Toggle Pattern for the handoff envelope's role in workflow consumption.
 
@@ -363,9 +402,11 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 Agent-side review methods and extensions are best-effort ergonomics. Method activation and workflow declarations
 can require an agent to run an activity, and standard review can produce evidence eligible for a review
-obligation, but none of those agent-layer controls prevents a direct host-UI merge. Only a configured required
-host-side check structurally enforces merge safety. Projects without that host control must describe review as
-procedural discipline, not a merge guarantee.
+obligation, but none of those agent-layer controls prevents a direct host-UI merge. Host-side merge controls are
+distinct from agent-layer discipline: a required status check is fail-closed repo configuration; draft-state lock
+(`merge.lock: draft`) is a per-PR structural hold whose installation is procedural. Never infer merge safety from
+agent-layer discipline alone. Projects that rely only on agent workflows must describe review as procedural
+discipline, not a merge guarantee.
 
 ---
 
@@ -864,8 +905,8 @@ field and stamps the date lives with that skill; this surface documents the gram
 **Retain flag.** The between-WUs drain normally clears every entry, but a developer may, per entry,
 **retain** a `## Errand` capture in place rather than route or flush it — to hold it privately until
 vetted, or because they intend to execute it themselves soon. Retention is **never the default and never
-agent-suggested**: it is an explicit per-entry choice at the drain's confirmation gate, set by a managed
-`_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
+agent-suggested** · `[invariant]`: it is an explicit per-entry choice at the drain's confirmation gate, set by a
+managed `_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
 same render rule `_Remind:_` follows). It is set by the drain, not by `arc-inbox` at capture. A `_Hold:_`
 entry is **triaged, not un-triaged**: it is excluded from the `inboxState.housekeepNeeded` count — so
 session-init does not re-offer housekeep for a deliberately-kept capture — while the reminder sweep still
@@ -971,6 +1012,14 @@ decides whether context pressure has arrived at a natural boundary or between bo
 natural boundary, hand off, clear the harness conversation if needed, and re-enter through
 session-init for a clean episodic baseline. Between natural boundaries, recover when available;
 otherwise hand off and re-init.
+
+**What counts as a natural boundary.** Two kinds recur, and both read off work state rather than a
+context estimate:
+
+- **Mode transitions** — design to implementation, investigation to fix, planning to execution.
+  Analysis context carried forward crowds the window without serving the new work.
+- **Structural boundaries** — phase or work unit completion, clean commit points. A fresh session
+  starts with focused context even when the current session has headroom.
 
 **The agent is the secondary safety net.** Harness-level files (e.g., `CLAUDE.md`, `AGENTS.md`)
 may define threshold-based check-in behavior — "at ~150k tokens, stop and ask." This catches

@@ -13,6 +13,7 @@ const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
 const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
+const mockIoExecInput = vi.fn();
 const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
@@ -33,10 +34,12 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 vi.mock("../../../src/lib/io-context.js", () => ({
+  createRawGitExec: () => vi.fn(),
   createUserIOContext: (...args: unknown[]) => {
     mockCreateUserIOContext(...args);
     return {
       exec: mockIoExec,
+      execInput: mockIoExecInput,
       readFile: vi.fn(async () => "meta"),
       writeFile: vi.fn(),
       mkdir: vi.fn(),
@@ -44,23 +47,34 @@ vi.mock("../../../src/lib/io-context.js", () => ({
   },
   prepareGitRefVerification: vi.fn(),
   readGitBlobBytes: vi.fn(),
+  readGitObjectBytes: vi.fn(),
 }));
 
+const mockReadConfigSettings = vi.fn();
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
-  readConfigSettings: async () => ({
+  readConfigSettings: (...args: unknown[]) => mockReadConfigSettings(...args),
+}));
+
+function configResult(protection: "full" | "partial" = "partial") {
+  return {
     settings: {
       "team.mode": "false",
       "branch.base": "main",
-      "branch.protection": "partial",
+      "branch.protection": protection,
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
     },
-  }),
-}));
+    warnings: [],
+  };
+}
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutorContext: () => ({}) }));
-vi.mock("../../../src/lib/paths.js", () => ({ getInternalTemplatePath: () => "/tpl" }));
+vi.mock("../../../src/lib/paths.js", () => ({
+  getArcTemplatePath: () => "/arc",
+  getInternalTemplatePath: () => "/tpl",
+  resolveArcRoot: () => "/repo",
+}));
 
 vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
   resolvePrimaryWorktreePath: async () => "/repos/myrepo",
@@ -95,18 +109,16 @@ vi.mock("../../../src/lib/work-unit/composed-lifecycle-index.js", () => ({
 const mockRunStub = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unknown[]) => mockRunStub(...a) }));
 
-// The `decompose` handler reads its cut-map file off `node:fs/promises` directly;
-// mock the read so the file content is test-driven (the other ops are unused — the
-// verb is mocked). `readFile` defaults to valid JSON; a test rejects it for the
-// missing-file case.
+// Lifecycle handlers read templates and other files through `node:fs/promises`.
 const mockReadFile = vi.fn(async () => "{}");
 vi.mock("node:fs/promises", () => ({
-  // The cut-map content is fixed per-test via `mockReadFile`; the path argument is
-  // not asserted, so the factory doesn't forward it.
   readFile: () => mockReadFile(),
   lstat: vi.fn(),
   writeFile: vi.fn(),
   mkdir: vi.fn(),
+  open: vi.fn(),
+  link: vi.fn(),
+  unlink: vi.fn(),
   cp: vi.fn(),
   stat: vi.fn(async () => ({ isDirectory: () => false })),
   readdir: vi.fn(),
@@ -115,24 +127,35 @@ vi.mock("node:fs/promises", () => ({
   rmdir: vi.fn(),
 }));
 
-const mockParseCutMap = vi.fn();
-vi.mock("../../../src/lib/work-unit/decompose-cut-map.js", () => ({
-  parseCutMap: (...a: unknown[]) => mockParseCutMap(...a),
+const mockRevalidateV3DecomposeExecutionPreflight = vi.fn();
+vi.mock("../../../src/lib/work-unit/decompose-v3-execution-preflight.js", () => ({
+  revalidateV3DecomposeExecutionPreflight: (...a: unknown[]) => mockRevalidateV3DecomposeExecutionPreflight(...a),
 }));
-const mockRunDecompose = vi.fn();
-const mockRunPreparedDecompose = vi.fn();
-vi.mock("../../../src/lib/work-unit/verbs/decompose.js", () => ({
-  runDecompose: (...a: unknown[]) => mockRunDecompose(...a),
-  runPreparedDecompose: (...a: unknown[]) => mockRunPreparedDecompose(...a),
+const mockResolveProjectReadinessComposition = vi.fn();
+vi.mock("../../../src/lib/status/project-view.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/status/project-view.js")>(),
+  resolveProjectReadinessComposition: (...a: unknown[]) => mockResolveProjectReadinessComposition(...a),
 }));
-const mockPrepareDecompose = vi.fn();
-const mockStagePreparedResult = vi.fn();
-const mockFinalizeDecompose = vi.fn();
-vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
-  createInRepoDecomposeRetirementDriver: () => ({
-    prepare: (...a: unknown[]) => mockPrepareDecompose(...a),
-    stagePreparedResult: (...a: unknown[]) => mockStagePreparedResult(...a),
-    finalize: (...a: unknown[]) => mockFinalizeDecompose(...a),
+
+const mockCreateGitV3DecomposePreflight = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
+  createGitV3DecomposePreflight: (...args: unknown[]) => mockCreateGitV3DecomposePreflight(...args),
+}));
+const mockExecuteGitV3DecomposeCommand = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
+  executeGitV3DecomposeCommand: (...args: unknown[]) =>
+    mockExecuteGitV3DecomposeCommand(...args),
+}));
+const mockAdvanceGitDecomposeTransitionBase = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-transition-base-advancement.js", () => ({
+  advanceGitDecomposeTransitionBase: (...args: unknown[]) =>
+    mockAdvanceGitDecomposeTransitionBase(...args),
+}));
+vi.mock("../../../src/lib/work-unit/decompose-v3-schema.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/work-unit/decompose-v3-schema.js")>(),
+  decodeV3DecomposeCutMap: () => ({
+    status: "accepted",
+    value: { machine: { source: { origin: "mono" } } },
   }),
 }));
 
@@ -170,6 +193,13 @@ vi.mock("../../../src/lib/git/remote-ref-reader.js", () => ({
 const mockDeriveInFlight = vi.fn();
 vi.mock("../../../src/lib/git/in-flight-derivation.js", () => ({
   deriveInFlight: (...a: unknown[]) => mockDeriveInFlight(...a),
+}));
+
+const mockExpandActiveInFlight = vi.fn();
+const mockRunActiveInFlightExpansion = vi.fn();
+vi.mock("../../../src/commands/active.js", () => ({
+  expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
+  runActiveInFlightExpansion: (...args: unknown[]) => mockRunActiveInFlightExpansion(...args),
 }));
 
 const mockFindMaterializableWorkUnits = vi.fn();
@@ -237,7 +267,6 @@ const okOutcome = { status: "ok", advisories: [] as string[] };
 const pendingRetirementLifecycle = {
   subject: { slug: "foo", branch: "feat/foo" },
   transition: "abandon",
-  authority: { kind: "receipt-backed", receiptId: `sha256:${"a".repeat(64)}`, authorityVersion: "version" },
   cleanup: {
     branch: { status: "pending" },
     worktree: { status: "pending" },
@@ -279,6 +308,8 @@ const cleanReconcile = {
 beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
+  mockReadFile.mockResolvedValue("{}");
+  mockReadConfigSettings.mockResolvedValue(configResult());
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockBuildLifecycleIndex.mockResolvedValue(new Map([
     ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
@@ -293,7 +324,6 @@ beforeEach(() => {
   mockLandParkPlanningTransition.mockResolvedValue({
     status: "landed",
     commit: "abc123",
-    receiptPath: ".arc/system/.internal/retirement-receipts/receipt.json",
     plannedPaths: [".arc/backlog/planned/foo/meta-foo.md"],
   });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
@@ -326,49 +356,35 @@ beforeEach(() => {
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
   mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
   mockReadFile.mockResolvedValue('{"schemaVersion":1}');
-  mockParseCutMap.mockReturnValue({
-    status: "parsed",
-    params: { origin: { slug: "mono", phase: "Planning", location: "active" }, shape: "symmetric", entries: [], internalEdges: [] },
+  mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
+    status: "current",
+    completedMap: {},
+    preflight: {},
   });
-  mockRunDecompose.mockResolvedValue({
-    status: "decomposed",
-    result: {
-      placement: {
-        kind: "cohortless",
-        cohort: null,
-        coordination: "none",
-        summary: "flat planned siblings (no cohort)",
-      },
-      members: [{ slug: "alpha" }, { slug: "beta" }],
-      repointed: [],
-      origin: "retired",
-      teardown: { slug: "mono", branch: "plan/mono" },
-    },
+  mockResolveProjectReadinessComposition.mockResolvedValue({
+    acceptedCandidates: [],
+    rejectedRecords: [],
+    records: [],
+    treeRecords: [],
+    derivationWarnings: [],
+    sourceWarnings: [],
+    indeterminate: false,
+    view: { title: "Project", records: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false },
   });
-  mockRunPreparedDecompose.mockResolvedValue({
-    status: "decomposed",
-    result: {
-      placement: {
-        kind: "cohortless",
-        cohort: null,
-        coordination: "none",
-        summary: "flat planned siblings (no cohort)",
-      },
-      members: [{ slug: "alpha" }, { slug: "beta" }],
-      repointed: [],
-      origin: "retired",
-      teardown: { slug: "mono", branch: "plan/mono" },
-    },
+  mockCreateGitV3DecomposePreflight.mockResolvedValue({
+    status: "ready",
+    preflight: { starterMap: { schemaVersion: 3, origin: "mono" } },
   });
-  mockPrepareDecompose.mockResolvedValue({
-    status: "prepared",
-    preparation: { locator: { receiptId: `sha256:${"a".repeat(64)}` } },
+  mockExecuteGitV3DecomposeCommand.mockResolvedValue({
+    status: "staged",
+    operation: { report: { destinations: ["member"] } },
   });
-  mockFinalizeDecompose.mockResolvedValue({
-    status: "recorded",
-    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
-    authorityVersion: "finalized-version",
-    lifecycle: { ...pendingRetirementLifecycle, transition: "decompose" },
+  mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
+    status: "advanced",
+    candidateBranch: "chore/decompose-mono",
+    previousBaseHead: "b".repeat(40),
+    currentBaseHead: "c".repeat(40),
+    candidateHead: "d".repeat(40),
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
@@ -377,16 +393,24 @@ beforeEach(() => {
     liveRefs: { "origin/feat/foo": "abc123" },
     reachable: true,
   });
-  mockDeriveInFlight.mockResolvedValue({
+  const completeExpansion = {
     entries: [{ kind: "work-unit", name: "foo", branch: "feat/foo", remoteOnly: true }],
+    residue: [],
     warnings: [],
     snapshot: { refs: { "origin/feat/foo": "abc123" }, worktrees: {} },
+    liveRefs: { "origin/feat/foo": "abc123" },
     reachable: true,
-  });
+    pendingBranchCount: 0,
+    remoteEvidence: "exact",
+    candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+  };
+  mockExpandActiveInFlight.mockResolvedValue(completeExpansion);
+  mockRunActiveInFlightExpansion.mockResolvedValue(completeExpansion);
   mockFindMaterializableWorkUnits.mockReturnValue({ candidates: [{ name: "foo", branch: "feat/foo" }] });
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   process.exitCode = undefined;
 });
 
@@ -402,6 +426,30 @@ describe("handleStub", () => {
       origin: "#42",
     });
   });
+
+  it("dispatches a nested cohort path", async () => {
+    await handleStub("foo", {
+      commitment: "planned",
+      priority: "P1",
+      cohort: "parent/child",
+    });
+
+    expect(mockRunStub).toHaveBeenCalledTimes(1);
+    expect(mockRunStub.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      cohort: "parent/child",
+    });
+  });
+
+  it.each(["parent/child/grandchild", "parent//child"])(
+    "rejects an invalid cohort path %s before dispatch",
+    async (cohort) => {
+      await handleStub("foo", { commitment: "planned", priority: "P1", cohort });
+
+      expect(mockRunStub).not.toHaveBeenCalled();
+      expect(mockLogError).toHaveBeenCalled();
+    },
+  );
 
   it("rejects an invalid commitment before dispatch", async () => {
     await handleStub("foo", { commitment: "bogus", priority: "P1" });
@@ -426,89 +474,131 @@ describe("handleStub", () => {
 });
 
 describe("handleDecompose", () => {
-  it("prepares before dispatching the prepared decompose mutation", async () => {
-    await handleDecompose("mono", { cutMap: "cut.json" });
+  it("exposes only the complete read-only v3 preflight", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
-    expect(mockParseCutMap).toHaveBeenCalledTimes(1);
-    expect(mockPrepareDecompose).toHaveBeenCalledTimes(1);
-    expect(mockRunPreparedDecompose).toHaveBeenCalledTimes(1);
-    expect(mockStagePreparedResult).toHaveBeenCalledTimes(1);
-    expect(mockPrepareDecompose.mock.invocationCallOrder[0]).toBeLessThan(
-      mockRunPreparedDecompose.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    await handleDecompose("mono", { preflight: true });
+
+    expect(stdoutWrite).toHaveBeenCalledWith('{"origin":"mono","schemaVersion":3}\n');
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("routes execute only through the repository operation adapter", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo", spawningIdentity: "andrew" }),
+      {
+        protection: "partial",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+      },
     );
-    const params = mockRunPreparedDecompose.mock.calls[0]?.[1];
-    expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
-    expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("Placement:  flat planned siblings (no cohort)"),
-      "Decomposed",
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"operation":{"report":{"destinations":["member"]}},"status":"staged"}\n`,
+    );
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("maps full branch protection into full candidate execution", async () => {
+    mockReadConfigSettings.mockResolvedValue(configResult("full"));
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(mockExecuteGitV3DecomposeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo", spawningIdentity: "andrew" }),
+      {
+        protection: "full",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+      },
     );
   });
 
-  it("finalizes one canonical receipt without rereading the scratch cut-map", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}`;
-    await handleDecompose("mono", { finalize: receiptId });
-
-    expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockPrepareDecompose).not.toHaveBeenCalled();
-    expect(mockFinalizeDecompose).toHaveBeenCalledWith("mono", receiptId);
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockNote).toHaveBeenCalledWith(expect.stringContaining("arc teardown mono"), "Decompose finalized");
-  });
-
-  it("does not advertise teardown when finalizing a branchless origin", async () => {
-    const receiptId = `sha256:${"a".repeat(64)}`;
-    mockFinalizeDecompose.mockResolvedValue({
-      status: "recorded",
-      receipt: { receiptId },
-      authorityVersion: "finalized-version",
-      lifecycle: { ...branchlessRetirementLifecycle, transition: "decompose" },
+  it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const remedy = "ADAPTER-ONLY: retry or clean the owned candidate";
+    mockExecuteGitV3DecomposeCommand.mockResolvedValue({
+      status: "refused",
+      stage: "occupation",
+      reason: "candidate-conflict",
+      recovery: { kind: "none" },
+      remedy,
     });
 
-    await handleDecompose("mono", { finalize: receiptId });
+    await handleDecompose("mono", { execute: "cut-map.json" });
 
-    expect(mockNote).toHaveBeenCalledWith(expect.not.stringContaining("arc teardown"), "Decompose finalized");
-  });
-
-  it("refuses a malformed cut-map before any mutation", async () => {
-    mockParseCutMap.mockReturnValue({ status: "rejected", reason: "cut-map requires an `entries` array." });
-
-    await handleDecompose("mono", { cutMap: "cut.json" });
-
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"reason":"candidate-conflict","recovery":{"kind":"none"},`
+      + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
+    );
+    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
     expect(process.exitCode).toBe(1);
   });
 
-  it("refuses a missing / unreadable cut-map file before parse or mutation", async () => {
-    mockReadFile.mockRejectedValue(new Error("ENOENT: no such file"));
+  it("routes advance-base through the full-protection repository driver", async () => {
+    mockReadConfigSettings.mockResolvedValue(configResult("full"));
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
-    await handleDecompose("mono", { cutMap: "missing.json" });
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
 
-    expect(mockParseCutMap).not.toHaveBeenCalled();
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      `{"candidateBranch":"chore/decompose-mono","candidateHead":"${"d".repeat(40)}",`
+      + `"currentBaseHead":"${"c".repeat(40)}","previousBaseHead":"${"b".repeat(40)}",`
+      + `"status":"advanced"}\n`,
+    );
+  });
+
+  it("surfaces advance-base refusals without prescribing a successor", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
+      status: "refused",
+      reason: "full-protection-required",
+    });
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"reason":"full-protection-required","status":"refused"}\n',
+    );
+    expect(stderrWrite).toHaveBeenCalledWith("full-protection-required\n");
     expect(process.exitCode).toBe(1);
   });
 
-  it("refuses when the cut-map origin disagrees with the `<origin>` argument", async () => {
-    await handleDecompose("other", { cutMap: "cut.json" });
+  it.each([
+    ["conflicting modes", { preflight: true, execute: "cut-map.json" }],
+    ["advance-base with another mode", { preflight: true, advanceBase: "cut-map.json" }],
+  ])("refuses %s before any production adapter", async (_case, options) => {
+    await handleDecompose(
+      "mono",
+      options as unknown as Parameters<typeof handleDecompose>[1],
+    );
 
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockAdvanceGitDecomposeTransitionBase).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
-  it("refuses without `--cut-map`, never dispatching", async () => {
+  it("refuses an invocation without preflight authority", async () => {
     await handleDecompose("mono", {});
 
-    expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses without an origin argument", async () => {
-    await handleDecompose(undefined, { cutMap: "cut.json" });
+    await handleDecompose(undefined, { preflight: true });
 
-    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
+    expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });
@@ -558,6 +648,19 @@ describe("handlePark", () => {
 describe("handleResume", () => {
   it("dispatches runResume with the spawn config", async () => {
     await handleResume("foo");
+    expect(mockExpandActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
+      exec: mockIoExec,
+      execInput: mockIoExecInput,
+      identity: "andrew",
+      teamMode: false,
+      baseBranch: "main",
+    }));
+    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({
+      oracle: expect.objectContaining({
+        acquisitionPolicy: "materialized-live",
+        suppliedResult: expect.objectContaining({ remoteEvidence: "exact" }),
+      }),
+    }));
     expect(mockRunResume).toHaveBeenCalledTimes(1);
     expect(mockRunResume.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
@@ -578,6 +681,11 @@ describe("handleMaterialize", () => {
   it("fetches the selected remote ref and dispatches runMaterialize with the spawn config", async () => {
     await handleMaterialize("foo");
 
+    expect(mockRunActiveInFlightExpansion).toHaveBeenCalledWith(expect.objectContaining({
+      exec: mockIoExec,
+      execInput: mockIoExecInput,
+      localOnly: false,
+    }));
     expect(mockIoExec).toHaveBeenCalledWith(
       "git",
       ["fetch", "origin", "+refs/heads/feat/foo:refs/remotes/origin/feat/foo"],

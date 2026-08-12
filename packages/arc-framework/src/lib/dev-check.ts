@@ -4,10 +4,9 @@
  * In this repo, `npx arc` resolves through the workspace symlink to
  * `packages/arc-framework/dist/cli.js`. `dist/` is gitignored, so after a
  * `git pull` or local source edit, `dist/cli.js` can lag behind `src/`.
- * Handoff-critical commands (`arc sync`, `arc user save`, `arc user push`,
- * session-init / session-handoff status probes) cannot afford to run against
- * stale dist — their output drives cross-machine state and a stale build
- * silently produces wrong answers.
+ * No command can afford to run against stale dist: a stale build silently
+ * produces wrong answers, and the ones that drive cross-machine state write
+ * those answers down.
  *
  * Staleness is scoped to the bundle's real input graph, read from the esbuild
  * metafile tsup emits: only files that actually feed `dist/cli.js` count.
@@ -21,25 +20,43 @@
  * bumped mtimes without editing content. When the stamp is missing (legacy
  * dist, or a partial build), the check falls back to the mtime comparison.
  *
- * Adopters never see the check. The dev-mode discriminator is `src/`
- * adjacency from the running `dist/cli.js`: published installs don't carry
- * `src/` (excluded from the package's `files` array), so the helper returns
- * `{ kind: "skip" }` and the CLI proceeds as normal.
+ * Neither adopters nor a run from source ever see the check. Two conditions
+ * gate it: the running entry is the built bundle (a `.js` file inside a
+ * `dist/` directory), and `src/` sits beside that directory. Published
+ * installs fail the second — they don't carry `src/`, which the package's
+ * `files` array excludes — and a source entry fails the first. Either way the
+ * helper returns `{ kind: "skip" }` and the CLI proceeds as normal.
  *
  * The pure verdict function takes injected fs primitives so tests can pin
- * each shape without touching the real filesystem. Allowlist branching
- * (handoff-critical fail-fast vs warn-only) lives at the cli.ts preAction
- * boundary.
+ * each shape without touching the real filesystem. Refusal, and the single
+ * compaction-seed exception to it, live at the cli.ts preAction boundary.
  *
  * @module
  */
 
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
 export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
+
+/**
+ * Whether the running entry is the built bundle rather than TypeScript source.
+ *
+ * The verdict compares `src/` against a `dist/` output, which means nothing
+ * when the entry is the source itself — there the check reads `src/` as its own
+ * output directory, finds no stamp, and falls back to comparing source mtimes
+ * against the entry point, a verdict that is stale by construction. Keyed on
+ * the extension and the parent directory name rather than the filename, which
+ * the build config owns.
+ *
+ * @param entryPath - Absolute path of the running CLI entry
+ * @returns `true` when the entry is a `.js` file directly inside a `dist/` directory
+ */
+export function isBuiltBundleEntry(entryPath: string): boolean {
+  return entryPath.endsWith(".js") && basename(dirname(entryPath)) === "dist";
+}
 
 /** Verdict returned by {@link checkDevBuildStaleness}. */
 export type DevCheckResult =
@@ -47,6 +64,8 @@ export type DevCheckResult =
   | { kind: "fresh" }
   | {
       kind: "stale";
+      /** Evidence that established staleness. */
+      basis: "content-hash" | "missing-dist" | "mtime";
       /** Seconds since the newest src change. */
       srcAge: number;
       /** Seconds since dist/cli.js was built. `null` when dist is missing. */
@@ -59,7 +78,9 @@ export type DevCheckResult =
 export interface DevCheckDeps {
   /**
    * Resolve the newest src/**\/*.ts file (mtime + repo-relative path), or
-   * `null` when `src/` does not exist (published-install case).
+   * `null` when either half of the dev-mode discriminator fails: the running
+   * entry is not the built bundle (source-run case), or `src/` does not exist
+   * (published-install case).
    */
   newestSrc: () => { mtimeMs: number; path: string } | null;
   /**
@@ -97,7 +118,7 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
   const srcAge = Math.max(0, Math.floor((now - newest.mtimeMs) / 1000));
 
   if (distMtimeMs === null) {
-    return { kind: "stale", srcAge, distAge: null, newestSrc: newest.path };
+    return { kind: "stale", basis: "missing-dist", srcAge, distAge: null, newestSrc: newest.path };
   }
 
   const distAge = Math.max(0, Math.floor((now - distMtimeMs) / 1000));
@@ -109,12 +130,12 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
   const stampedHash = deps.stampedInputsHash?.() ?? null;
   if (currentHash !== null && stampedHash !== null) {
     if (currentHash === stampedHash) return { kind: "fresh" };
-    return { kind: "stale", srcAge, distAge, newestSrc: newest.path };
+    return { kind: "stale", basis: "content-hash", srcAge, distAge, newestSrc: newest.path };
   }
 
   // Legacy / stamp-less fallback: mtime comparison.
   if (newest.mtimeMs > distMtimeMs) {
-    return { kind: "stale", srcAge, distAge, newestSrc: newest.path };
+    return { kind: "stale", basis: "mtime", srcAge, distAge, newestSrc: newest.path };
   }
 
   return { kind: "fresh" };
@@ -124,8 +145,8 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
  * Build production-mode dependencies for the running `dist/cli.js` location.
  *
  * Resolves the bundle input graph, `dist/cli.js` mtime, and the content-hash
- * stamp. Returns `null` for `newestSrc` when `src/` is absent (the dev-mode
- * discriminator).
+ * stamp. Returns `null` for `newestSrc` when either half of the dev-mode
+ * discriminator fails — the entry is not the built bundle, or `src/` is absent.
  */
 export function createDevCheckDeps(cliJsPath: string): DevCheckDeps {
   const distDir = dirname(cliJsPath);
@@ -133,6 +154,7 @@ export function createDevCheckDeps(cliJsPath: string): DevCheckDeps {
   const srcDir = join(pkgDir, "src");
 
   const resolveInputFiles = (): string[] | null => {
+    if (!isBuiltBundleEntry(cliJsPath)) return null;
     if (!existsSync(srcDir)) return null;
 
     // Prefer the bundle's real input graph: editing a non-bundled tree
@@ -223,8 +245,8 @@ export function hashSourceInputs(files: string[], pkgDir: string): string {
 /**
  * Newest file (mtime + repo-relative path) among `files`, or `null` when none
  * are stattable. A file that vanished or is unreadable between enumeration and
- * stat is skipped — this guard runs before every handoff-critical command, so
- * it must degrade rather than crash on a transient filesystem gap.
+ * stat is skipped — this guard runs before every command, so it must degrade
+ * rather than crash on a transient filesystem gap.
  */
 function newestFile(files: string[], pkgDir: string): { mtimeMs: number; path: string } | null {
   let newest: { mtimeMs: number; path: string } | null = null;

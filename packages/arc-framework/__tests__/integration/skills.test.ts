@@ -79,6 +79,15 @@ describe("skill generation (integration)", () => {
     await assertSkillsExist(tempDir, ".claude/skills");
   });
 
+  it("fresh init installs the arc-errand entry skill", async () => {
+    tempDir = await initWithTools(["claude"]);
+
+    expect(CANONICAL_SKILLS).toContain("arc-errand");
+    expect(
+      await readFile(join(tempDir, ".claude/skills/arc-errand/SKILL.md"), "utf-8"),
+    ).toContain("name: arc-errand");
+  });
+
   it("init with codex (no pre-existing dir) falls back to .agents/skills/", async () => {
     tempDir = await initWithTools(["codex"]);
     await assertSkillsExist(tempDir, ".agents/skills");

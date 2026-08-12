@@ -19,19 +19,13 @@ const scope: RetirementAuthorityScope = {
   resultProjection: { ref: "main", head: resultHead },
 };
 
-function missingFile(): NodeJS.ErrnoException {
-  return Object.assign(new Error("missing"), { code: "ENOENT" });
-}
-
 function context(): RetirementSnapshotContext & {
   refs: Map<string, string>;
-  record: { content: string | null };
 } {
   const refs = new Map([
     ["refs/heads/plan/sample", sourceHead],
     ["refs/heads/main", resultHead],
   ]);
-  const record = { content: null as string | null };
   const exec: GitExec = vi.fn(async (_cmd, args) => {
     if (args[0] === "rev-parse" && args[1] === "--verify") {
       const ref = args[2]?.replace(/\^\{commit\}$/u, "") ?? "";
@@ -45,20 +39,13 @@ function context(): RetirementSnapshotContext & {
   return {
     cwd: "/repo",
     exec,
-    fs: {
-      readFile: vi.fn(async () => {
-        if (record.content === null) throw missingFile();
-        return record.content;
-      }),
-    },
     readInventory: vi.fn().mockResolvedValue({ paths: [".arc/active/meta-sample.md"] }),
     refs,
-    record,
   };
 }
 
 describe("readRetirementAuthoritySnapshot", () => {
-  it("returns an absent-record snapshot with an opaque canonical compare-and-set token", async () => {
+  it("returns a record-neutral opaque compare-and-set token", async () => {
     const ctx = context();
 
     await expect(readRetirementAuthoritySnapshot(ctx, scope)).resolves.toEqual({
@@ -67,7 +54,6 @@ describe("readRetirementAuthoritySnapshot", () => {
         authorityVersion: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
         sourceRefOid: sourceHead,
         resultRefOid: resultHead,
-        recordState: "absent",
       },
     });
 
@@ -92,12 +78,6 @@ describe("revalidateRetirementAuthoritySnapshot", () => {
   it.each([
     ["source ref", (ctx: ReturnType<typeof context>) => ctx.refs.set("refs/heads/plan/sample", "d".repeat(40))],
     ["base ref", (ctx: ReturnType<typeof context>) => ctx.refs.set("refs/heads/main", "e".repeat(40))],
-    [
-      "record state",
-      (ctx: ReturnType<typeof context>) => {
-        ctx.record.content = JSON.stringify({ kind: "prepared-decompose", schemaVersion: 1 });
-      },
-    ],
     ["storage version", (ctx: ReturnType<typeof context>) => { ctx.storageVersion = 2; }],
   ] as const)("returns authority-conflict after a %s change", async (_label, mutate) => {
     const ctx = context();

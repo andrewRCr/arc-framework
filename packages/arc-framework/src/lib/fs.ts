@@ -8,7 +8,7 @@
  */
 
 import { join, dirname, basename, relative } from "node:path";
-import { readdir, stat, writeFile, rename, unlink, mkdir } from "node:fs/promises";
+import { readdir, stat, writeFile, rename, unlink, mkdir, link } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 
 /**
@@ -70,6 +70,67 @@ export async function atomicWriteJson(targetPath: string, data: unknown): Promis
 export async function exclusiveCreateFile(targetPath: string, content: string): Promise<void> {
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, content, { flag: "wx" });
+}
+
+/** Filesystem and entropy boundaries for complete create-only publication. */
+export interface AtomicCreateFileContext {
+  mkdir: (path: string, options: { recursive: true }) => Promise<string | undefined>;
+  writeFile: (path: string, content: string, options: { flag: "wx" }) => Promise<void>;
+  link: (existingPath: string, newPath: string) => Promise<void>;
+  unlink: (path: string) => Promise<void>;
+  randomId: () => string;
+}
+
+/**
+ * Build a create-only writer over explicit filesystem boundaries.
+ *
+ * @param context - Directory, write, hard-link, cleanup, and entropy boundaries
+ * @returns A writer that publishes only complete payloads without replacing an existing target
+ */
+export function createAtomicFileCreator(
+  context: AtomicCreateFileContext,
+): (targetPath: string, content: string) => Promise<void> {
+  return async (targetPath, content) => {
+    const directory = dirname(targetPath);
+    const temporaryPath = join(
+      directory,
+      `.${basename(targetPath)}.${context.randomId()}.tmp`,
+    );
+    await context.mkdir(directory, { recursive: true });
+    try {
+      await context.writeFile(temporaryPath, content, { flag: "wx" });
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) {
+        await context.unlink(temporaryPath).catch(() => undefined);
+      }
+      throw error;
+    }
+    try {
+      await context.link(temporaryPath, targetPath);
+    } finally {
+      await context.unlink(temporaryPath).catch(() => undefined);
+    }
+  };
+}
+
+const nodeAtomicCreateFile = createAtomicFileCreator({
+  mkdir,
+  writeFile: (path, content, options) => writeFile(path, content, options),
+  link,
+  unlink,
+  randomId: () => randomBytes(8).toString("hex"),
+});
+
+/**
+ * Publish a complete file generation only when the target is absent.
+ *
+ * @param targetPath - Absolute target path to create
+ * @param content - Complete UTF-8 text payload
+ * @returns A promise fulfilled after the complete payload is linked into place
+ * @throws A filesystem error, including `EEXIST` when the target is already occupied
+ */
+export async function atomicCreateFile(targetPath: string, content: string): Promise<void> {
+  await nodeAtomicCreateFile(targetPath, content);
 }
 
 /**

@@ -4,55 +4,63 @@
  * @module
  */
 
-import { access, readFile } from "node:fs/promises";
-
-import { runActiveSessionInitStatus } from "../commands/active.js";
 import { runConfigSessionInitStatus } from "../commands/config.js";
 import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import type { SessionRecoverProbes } from "../commands/status.js";
 import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import type { GitExec, GitExecInput } from "../lib/git/index.js";
+import { runPassiveWorktreeInspection } from "../lib/git/worktree-sync.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
-import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
-import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 export interface RecoverStatusProbeOptions {
   cwd: string;
   dirty: () => Promise<DirtyStateResult>;
+  exec: GitExec;
+  execInput: GitExecInput;
+  readFile: (path: string) => Promise<string>;
 }
 
 /** Build the recover-mode probe bundle, sharing settings resolution across probes. */
 export function createRecoverStatusProbes(
   options: RecoverStatusProbeOptions,
 ): SessionRecoverProbes {
-  const { cwd, dirty } = options;
-  const io = createUserIOContext();
-  const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+  const { cwd, dirty, exec, execInput, readFile } = options;
+  const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile });
+  const extensionsP = runExtensionsSessionInitStatus({ cwd });
+  // The kickoff is eager but the consumer awaits it later, so pre-attach a no-op rejection
+  // handler: a repository without `.arc/system/extensions` must degrade to a failed slot,
+  // not an unhandled rejection that kills the process before any slot is composed.
+  extensionsP.catch(() => undefined);
   return {
+    derivedLocusState: async (identity, activeExtensions) => {
+      const resolved = await resolvedSettingsP;
+      return runDerivedLocusStateProbe({
+        cwd,
+        identity,
+        baseBranch: resolved.settings["branch.base"],
+        activeExtensions,
+        exec,
+      });
+    },
     worktree: async () => {
       const resolved = await resolvedSettingsP;
       const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-      return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+      return runPassiveWorktreeInspection({
+        exec,
+        execInput,
+        remoteSyncEnabled,
+        cwd,
+      });
     },
-    worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+    worktreeIdentity: () => resolveWorktreeIdentity(exec),
     dirty,
-    extensions: () => runExtensionsSessionInitStatus({ cwd }),
+    extensions: () => extensionsP,
     config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-    active: (identity, role) => runActiveSessionInitStatus({ cwd, identity, role, exec: gitExec }),
     releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-    cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
-      cwd,
-      activeMetaPath,
-      fs: {
-        readFile: (path) => readFile(path, "utf8"),
-        pathExists: (path) => access(path).then(() => true, () => false),
-      },
-    }),
-    taskCursor: async (taskListPath) => resolveTaskListCursorFromFile({ cwd, taskListPath }),
   };
 }
 

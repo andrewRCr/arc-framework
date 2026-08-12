@@ -9,7 +9,11 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { createGitExec, createRawGitExec, gitExec } from "../lib/io-context.js";
+import {
+  createGitExec,
+  createRawGitExec,
+  gitExec,
+} from "../lib/io-context.js";
 import {
   classifyPlanningLane,
   resolveChangeSet,
@@ -51,15 +55,29 @@ import {
   evaluateReviewReadiness,
   ReviewReadinessEnvelopeSchema,
   ReviewReadinessRequestSchema,
+  type ReviewReadinessEnvelope,
   type ReviewReadinessRequest,
 } from "../scripts/review-gate/readiness.js";
 import {
-  ReviewUnlockEnvelopeSchema,
-  ReviewUnlockRequestSchema,
-  unlockReviewHead,
-  type ReviewUnlockRequest,
-} from "../scripts/review-gate/unlock.js";
-import { GhReviewUnlockPort } from "../scripts/review-gate/hosts/github/unlock.js";
+  MergeLockCommandErrorEnvelopeSchema,
+  MergeLockHoldEnvelopeSchema,
+  MergeLockReleaseEnvelopeSchema,
+  MergeLockResolveEnvelopeSchema,
+  type MergeLockCommandMode,
+} from "../scripts/review-gate/merge-lock-command-envelope.js";
+import {
+  MergeLockResolveRequestSchema,
+  MergeLockTransitionRequestSchema,
+  holdMergeLock,
+  releaseMergeLock,
+  resolveMergeLock,
+  type MergeLockPort,
+  type MergeLockResolveRequest,
+  type MergeLockTransitionRequest,
+} from "../scripts/review-gate/merge-lock.js";
+import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.js";
+import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
@@ -81,7 +99,11 @@ import {
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
-import { GhHostedReviewPort, hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
+import {
+  GhHostedReviewPort,
+  hostedGhRunner,
+  type HostedProcessRunner,
+} from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
@@ -135,7 +157,6 @@ export const ReviewCommandInputSchema = reviewCommandInputSchema();
 /** Canonical paths of the review commands sharing the JSON request-source operand. */
 const REVIEW_JSON_COMMAND_PATHS = [
   "review readiness",
-  "review unlock",
   "review resolve",
   "review chunking resolve",
   "review frontline resolve",
@@ -152,27 +173,38 @@ const REVIEW_JSON_COMMAND_PATHS = [
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
 export const ReviewPlanningLaneInputSchema = z.object({
-  base: z.string().regex(/^[a-f0-9]{40}$/u),
-  head: z.string().regex(/^[a-f0-9]{40}$/u),
+  base: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u),
+  head: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u),
   repository: z.string().trim().min(1).optional(),
-}).strict();
+}).strict().refine(({ base, head }) => base.length === head.length, {
+  message: "base and head object ids must have the same width",
+});
 
-/** Registry contributions owned by the review command adapters. */
+const reviewPlanningLaneInputRegistration = {
+  commandPath: "review planning-lane",
+  schema: ReviewPlanningLaneInputSchema,
+  schemaFields: {
+    "operand.base": "base",
+    "operand.head": "head",
+    "option.repository": "repository",
+  },
+} satisfies CommandInputRegistration;
+
+/** Canonical paths of the merge-lock commands sharing the same JSON request-source operand. */
+const MERGE_LOCK_JSON_COMMAND_PATHS = [
+  "merge lock resolve",
+  "merge lock hold",
+  "merge lock release",
+] as const;
+
+/** Registry contributions owned by the review and merge-lock command adapters. */
 export const reviewCommandInputRegistrations = [
-  ...REVIEW_JSON_COMMAND_PATHS.map((commandPath) => ({
+  ...[...REVIEW_JSON_COMMAND_PATHS, ...MERGE_LOCK_JSON_COMMAND_PATHS].map((commandPath) => ({
     commandPath,
     schema: reviewCommandInputSchema(),
     schemaFields: { "operand.input": "input" },
   })),
-  {
-    commandPath: "review planning-lane",
-    schema: ReviewPlanningLaneInputSchema,
-    schemaFields: {
-      "operand.base": "base",
-      "operand.head": "head",
-      "option.repository": "repository",
-    },
-  },
+  reviewPlanningLaneInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
 
 /** Input and interaction policies owned by the review command adapters. */
@@ -237,13 +269,20 @@ export interface ReviewPlanningLaneOptions {
 export interface ReviewPlanningLaneHandlerDependencies {
   classify(base: string, head: string, repository: string): Promise<"planning" | "reviewed">;
   write(text: string): void;
+  writeError(text: string): void;
+  setExitCode(code: number): void;
 }
 
 function defaultReviewPlanningLaneDependencies(): ReviewPlanningLaneHandlerDependencies {
   return {
-    classify: async (base, head, repository) =>
-      classifyPlanningLane(await resolveChangeSet(createRawGitExec(repository), base, head)),
+    classify: async (base, head, repository) => classifyPlanningLane(
+      await resolveChangeSet(createRawGitExec(repository), base, head),
+    ),
     write: (text) => process.stdout.write(text),
+    writeError: (text) => process.stderr.write(text),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
   };
 }
 
@@ -262,24 +301,29 @@ export async function handleReviewPlanningLane(
   overrides: Partial<ReviewPlanningLaneHandlerDependencies> = {},
 ): Promise<void> {
   const dependencies = { ...defaultReviewPlanningLaneDependencies(), ...overrides };
-  let lane: "planning" | "reviewed" = "reviewed";
   const input = ReviewPlanningLaneInputSchema.safeParse({
     base,
     head,
     ...(options.repository === undefined ? {} : { repository: options.repository }),
   });
-  if (input.success) {
-    try {
-      lane = await dependencies.classify(
-        input.data.base,
-        input.data.head,
-        input.data.repository ?? process.cwd(),
-      );
-    } catch {
-      lane = "reviewed";
-    }
+  if (!input.success) {
+    dependencies.writeError("planning-lane: invalid exact-change operands\n");
+    dependencies.setExitCode(64);
+    return;
   }
-  dependencies.write(`${lane}\n`);
+  let result: "planning" | "reviewed";
+  try {
+    result = await dependencies.classify(
+      input.data.base,
+      input.data.head,
+      input.data.repository ?? process.cwd(),
+    );
+  } catch {
+    dependencies.writeError("planning-lane classification failed\n");
+    dependencies.setExitCode(1);
+    return;
+  }
+  dependencies.write(`${result}\n`);
 }
 
 interface ReviewHandlerBoundary {
@@ -349,10 +393,29 @@ export interface ReviewReadinessHandlerDependencies {
   setExitCode(code: number): void;
 }
 
+/**
+ * Bind readiness to one repository's delivery state.
+ *
+ * The root is the composition root's own resolved root — never the request's
+ * supplied tree root, which is untrusted, and never a module-internal read of
+ * the process working directory. It is the resolved ARC root rather than the
+ * Git repository root; the Git-common publisher resolves the common directory
+ * from any path inside the repository, so binding from it is correct.
+ *
+ * @param root - Resolved root of the repository whose delivery state answers.
+ * @returns A readiness evaluation whose member arm reads that repository.
+ */
+function readinessBoundTo(
+  root: string,
+): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
+  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
+  return (request) => evaluateReviewReadiness(request, { deliveryMemberLookup });
+}
+
 function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    check: (request) => evaluateReviewReadiness(request),
+    check: (request, root) => readinessBoundTo(root)(request),
   };
 }
 
@@ -381,47 +444,133 @@ export async function handleReviewReadiness(
   });
 }
 
-export interface ReviewUnlockHandlerDependencies {
+/** Modes carried by the review-command family and by the merge-lock family that split from it. */
+type ReviewFamilyMode = ReviewCommandMode | MergeLockCommandMode;
+
+export interface MergeLockResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  unlock(request: ReviewUnlockRequest, root: string): Promise<unknown>;
+  resolve(request: MergeLockResolveRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-function defaultReviewUnlockDependencies(): ReviewUnlockHandlerDependencies {
-  return {
-    ...defaultReviewHandlerBoundary(),
-    unlock: (request) => unlockReviewHead(
-      request,
-      new GhReviewUnlockPort(hostedGhRunner, evaluateReviewReadiness),
-    ),
-  };
+export interface MergeLockTransitionHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  transition(request: MergeLockTransitionRequest, root: string): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
 }
 
 /**
- * Preflight and dispatch one exact-head clearance request as a JSON envelope.
+ * Construct the merge-lock port shared by resolve, hold, and release.
+ *
+ * @param root - Resolved root the port's readiness gate authenticates against.
+ * @param runner - Hosted process boundary; defaults to the `gh` runner.
+ * @returns A merge-lock port bound to that repository.
+ */
+export function defaultMergeLockPort(
+  root: string,
+  runner: HostedProcessRunner = hostedGhRunner,
+): MergeLockPort {
+  return new GhMergeLockPort(runner, readinessBoundTo(root), readMergeLockSetting);
+}
+
+/**
+ * Answer how a pull request about to be opened should be opened, as one JSON envelope.
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
  * @returns Resolves after stdout and exit status are assigned.
  */
-export async function handleReviewUnlock(
+export async function handleMergeLockResolve(
   source: string,
-  overrides: Partial<ReviewUnlockHandlerDependencies> = {},
+  overrides: Partial<MergeLockResolveHandlerDependencies> = {},
 ): Promise<void> {
-  const dependencies = { ...defaultReviewUnlockDependencies(), ...overrides };
+  const dependencies: MergeLockResolveHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    resolve: (request, root) => resolveMergeLock(request, defaultMergeLockPort(root)),
+    ...overrides,
+  };
   await executeReviewHandler({
-    mode: "review-unlock",
+    mode: "merge-lock-resolve",
     source,
-    requestSchema: ReviewUnlockRequestSchema,
-    resultSchema: ReviewUnlockEnvelopeSchema,
+    requestSchema: MergeLockResolveRequestSchema,
+    resultSchema: MergeLockResolveEnvelopeSchema,
+    errorSchema: MergeLockCommandErrorEnvelopeSchema,
     dependencies,
-    execute: (request, root) => dependencies.unlock(
-      ReviewUnlockRequestSchema.parse(request),
+    execute: (request, root) => dependencies.resolve(
+      MergeLockResolveRequestSchema.parse(request),
       root,
     ),
   });
+}
+
+async function handleMergeLockTransition(
+  mode: Extract<MergeLockCommandMode, "merge-lock-hold" | "merge-lock-release">,
+  resultSchema: ZodType,
+  verb: (request: MergeLockTransitionRequest, port: MergeLockPort) => Promise<unknown>,
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies>,
+): Promise<void> {
+  const dependencies: MergeLockTransitionHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    transition: (request, root) => verb(request, defaultMergeLockPort(root)),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode,
+    source,
+    requestSchema: MergeLockTransitionRequestSchema,
+    resultSchema,
+    errorSchema: MergeLockCommandErrorEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.transition(
+      MergeLockTransitionRequestSchema.parse(request),
+      root,
+    ),
+  });
+}
+
+/**
+ * Lock one live pull request and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleMergeLockHold(
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+): Promise<void> {
+  await handleMergeLockTransition(
+    "merge-lock-hold",
+    MergeLockHoldEnvelopeSchema,
+    holdMergeLock,
+    source,
+    overrides,
+  );
+}
+
+/**
+ * Unlock one live pull request and emit exactly one JSON envelope.
+ *
+ * @param source - JSON request file, or `-` for standard input.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout and exit status are assigned.
+ */
+export async function handleMergeLockRelease(
+  source: string,
+  overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+): Promise<void> {
+  await handleMergeLockTransition(
+    "merge-lock-release",
+    MergeLockReleaseEnvelopeSchema,
+    releaseMergeLock,
+    source,
+    overrides,
+  );
 }
 
 /**
@@ -488,16 +637,19 @@ function errorCode(error: unknown): string | null {
 }
 
 async function executeReviewHandler(input: {
-  mode: ReviewCommandMode;
+  mode: ReviewFamilyMode;
   source: string;
   requestSchema: ZodType;
   resultSchema: ZodType;
+  /** Error envelope owning `input.mode`; the review family's own by default. */
+  errorSchema?: ZodType;
   dependencies: ReviewHandlerBoundary;
   execute(request: unknown, root: string): Promise<unknown>;
 }): Promise<void> {
+  const errorSchema = input.errorSchema ?? ReviewCommandErrorEnvelopeSchema;
   const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
   if (!operand.success) {
-    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies);
+    emitReviewCommandError(input.mode, operand.error, "request", input.dependencies, errorSchema);
     return;
   }
 
@@ -507,7 +659,7 @@ async function executeReviewHandler(input: {
     if (resolved === null) throw new Error("Not inside an ARC project.");
     root = resolved;
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies);
+    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema);
     return;
   }
 
@@ -515,7 +667,7 @@ async function executeReviewHandler(input: {
   try {
     request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "request", input.dependencies);
+    emitReviewCommandError(input.mode, error, "request", input.dependencies, errorSchema);
     return;
   }
 
@@ -523,7 +675,7 @@ async function executeReviewHandler(input: {
   try {
     rawResult = await input.execute(request, root);
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies);
+    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema);
     return;
   }
 
@@ -531,7 +683,7 @@ async function executeReviewHandler(input: {
     const result = input.resultSchema.parse(rawResult);
     input.dependencies.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "output", input.dependencies);
+    emitReviewCommandError(input.mode, error, "output", input.dependencies, errorSchema);
   }
 }
 
@@ -579,17 +731,18 @@ function emitHostedReviewError(
   phase: ReviewHandlerErrorPhase,
   dependencies: Pick<HostedReviewHandlerBoundary, "write" | "setExitCode">,
 ): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase))}\n`);
+  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, ReviewCommandErrorEnvelopeSchema))}\n`);
   dependencies.setExitCode(1);
 }
 
 function emitReviewCommandError(
-  mode: ReviewCommandMode,
+  mode: ReviewFamilyMode,
   error: unknown,
   phase: ReviewHandlerErrorPhase,
   dependencies: Pick<ReviewHandlerBoundary, "write" | "setExitCode">,
+  errorSchema: ZodType,
 ): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase))}\n`);
+  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, errorSchema))}\n`);
   dependencies.setExitCode(1);
 }
 
@@ -777,9 +930,10 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
 }
 
 function reviewCommandError(
-  mode: ReviewCommandMode,
+  mode: ReviewFamilyMode,
   error: unknown,
   phase: ReviewHandlerErrorPhase,
+  errorSchema: ZodType,
 ) {
   const message = error instanceof Error ? error.message : String(error);
   const stableCode = errorCode(error);
@@ -799,7 +953,7 @@ function reviewCommandError(
         precondition: repositoryPrecondition(error.reason),
       }]
     : [];
-  return ReviewCommandErrorEnvelopeSchema.parse({
+  return errorSchema.parse({
     schemaVersion: 1,
     mode,
     diagnostics,

@@ -27,6 +27,12 @@ export const SCRIPTS_DIR = resolve(
 /** Absolute path to the canonical code-surface classifier script. */
 export const CLASSIFY_SCRIPT = resolve(SCRIPTS_DIR, "classify-change.sh");
 
+/** Installed host-liveness comparator used by clearance publishers. */
+export const LIVE_PAIR_SCRIPT = resolve(
+  SCRIPTS_DIR,
+  "../.arc/system/.internal/scripts/confirm-live-change-pair.sh",
+);
+
 /** Default subprocess timeout in milliseconds. */
 const DEFAULT_TIMEOUT_MS = 10_000;
 

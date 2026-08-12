@@ -20,6 +20,10 @@ import {
   TaskListCursorReaderSchema,
   TaskListCursorSchema,
 } from "../task-list/cursor.js";
+import {
+  LocusAbsolutePathSchema,
+} from "../locus/schema/index.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 
 /** Current compaction-seed envelope version. */
 export const COMPACTION_SEED_SCHEMA_VERSION = 1;
@@ -36,6 +40,12 @@ const ABSOLUTE_REPOSITORY_ROOT_SCHEMA = z.string().refine((value) =>
   ), { error: "Repository root must be absolute" });
 const SESSION_TYPE_SCHEMA = z.enum(["planning", "execution", "integration"]);
 
+/** Checkout-local recovery hint captured from the entering derived frame. */
+export const CompactionSeedLocusHintSchema = z.strictObject({
+  checkoutPath: LocusAbsolutePathSchema,
+  parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
+});
+
 const COMPACTION_SEED_FIELDS = {
   schemaVersion: z.literal(COMPACTION_SEED_SCHEMA_VERSION),
   emittedAt: z.string(),
@@ -50,6 +60,7 @@ const COMPACTION_SEED_FIELDS = {
   taskCursor: TaskListCursorSchema.nullable(),
   loadSet: LoadSetManifestSchema,
   uncommittedFiles: z.array(REPOSITORY_RELATIVE_PATH_SCHEMA),
+  locus: CompactionSeedLocusHintSchema,
 };
 
 /** Strict producer authority for schema-v1 compaction seeds. */
@@ -70,6 +81,31 @@ export type CompactionSeedSessionType = z.infer<typeof SESSION_TYPE_SCHEMA>;
 
 /** Schema-v1 compaction seed derived from its strict producer authority. */
 export type CompactionSeed = z.infer<typeof CompactionSeedSchema>;
+
+/** Exact entering-checkout and marker-parent facts retained by schema-v1 seeds. */
+export type CompactionSeedLocusHint = z.infer<typeof CompactionSeedLocusHintSchema>;
+
+/** Complete field set compared when auditing one locus-generation hint. */
+export const COMPACTION_SEED_LOCUS_HINT_FIELDS = Object.freeze(
+  Object.keys(CompactionSeedLocusHintSchema.shape) as (keyof CompactionSeedLocusHint)[],
+);
+
+type DerivedLocusProbe =
+  | { ok: true; value: DerivedLocusFrame }
+  | { ok: false; error: unknown };
+
+/** Derive exact checkout-local recovery facts from the shared entering frame. */
+export function deriveCompactionSeedLocusHint(
+  probe: DerivedLocusProbe,
+): CompactionSeedLocusHint | null {
+  if (!probe.ok || probe.value.entering.kind !== "selected") return null;
+  const row = probe.value.entering.row;
+  if (row.kind === "unresolved-checkout") return null;
+  return {
+    checkoutPath: row.checkout.path,
+    parentCheckoutPath: row.parentCheckoutPath,
+  };
+}
 
 /** Parse/validation failure for a compaction-seed JSON boundary. */
 export interface CompactionSeedSchemaError {

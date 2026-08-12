@@ -36,6 +36,7 @@ import { lt as semverLt } from "semver";
 import { atomicWriteJson } from "../lib/fs.js";
 import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
+import { configureRoadmapConflictRemedy } from "../lib/setup.js";
 import type { Recipe, Manifest } from "../lib/types.js";
 import {
   ARC_IN_GIT_CONDITION,
@@ -438,6 +439,13 @@ export async function runUpdate(
     ...skillGitignoreEntries(skillResult.targetDirs),
   ];
   await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+
+  // Refresh merge-driver wiring added after the original installation, and
+  // track the ROADMAP attribute only for arc-in-git projects.
+  await configureRoadmapConflictRemedy(
+    { cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile },
+    ic.pm_mode === "arc-in-git",
+  );
 
   // Write updated manifest and pristine store
   await ensureDir(internalDir, io.mkdir);

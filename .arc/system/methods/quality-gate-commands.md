@@ -18,10 +18,10 @@ override-active: false
 
 ## quality-gate-commands.default
 
-Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates. This is a passthrough by
-design — no universal default command set exists across projects. The method exists so the process-task-loop
-references quality gates uniformly through the method layer, and teams with non-standard setups
-(environment-specific commands, conditional logic) have a clean override path.
+Commands specified in [QUICK-REFERENCE][quick-ref] § Quality Gate Commands. This is a passthrough by design —
+no universal default command set exists across projects. The method exists so the process-task-loop references
+quality gates uniformly through the method layer, and teams with non-standard setups (environment-specific
+commands, conditional logic) have a clean override path.
 
 **`Class`-invariant.** The gate command set does not scale with a work unit's `Class` — the same gates run
 from a `light` work unit to a `novel` one. `Class` scales design-authoring ceremony (how much spec and
@@ -31,5 +31,5 @@ Invariant Discipline.
 ---
 
 [process-task-loop]: ../workflows/arc/process-task-loop.md
-[dev-rules-project]: ../../system/rules/DEV-RULES.PROJECT.md
+[quick-ref]: ../../reference/QUICK-REFERENCE.md
 [dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md

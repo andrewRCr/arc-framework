@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  handleMergeLockHold,
+  handleMergeLockRelease,
+  handleMergeLockResolve,
   handleReviewReadiness,
   handleReviewResolve,
-  handleReviewUnlock,
   handleReviewChunkingResolve,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
@@ -156,7 +158,10 @@ const hostedHandle = {
 
 describe("handleReviewPlanningLane", () => {
   it("parses the exact-change operands before invoking the classifier", async () => {
-    const classify = vi.fn().mockResolvedValue("planning");
+    const classify = async (base: string, head: string, repository: string) =>
+      base === "a".repeat(40) && head === "b".repeat(40) && repository === "/repo"
+        ? "planning" as const
+        : "reviewed" as const;
     const output: string[] = [];
 
     await handleReviewPlanningLane(
@@ -166,23 +171,69 @@ describe("handleReviewPlanningLane", () => {
       { classify, write: (text) => output.push(text) },
     );
 
-    expect(classify).toHaveBeenCalledWith("a".repeat(40), "b".repeat(40), "/repo");
     expect(output).toEqual(["planning\n"]);
   });
 
   it("fails closed without invoking the classifier when syntax-owned input is invalid", async () => {
-    const classify = vi.fn().mockResolvedValue("planning");
+    let classified = false;
+    const classify = async (): Promise<"planning"> => {
+      classified = true;
+      return "planning";
+    };
     const output: string[] = [];
+    const errors: string[] = [];
+    const exitCodes: number[] = [];
 
     await handleReviewPlanningLane(
       "not-a-sha",
       "b".repeat(40),
       {},
-      { classify, write: (text) => output.push(text) },
+      {
+        classify,
+        write: (text) => output.push(text),
+        writeError: (text) => errors.push(text),
+        setExitCode: (code) => exitCodes.push(code),
+      },
     );
 
-    expect(classify).not.toHaveBeenCalled();
+    expect(classified).toBe(false);
+    expect(output).toEqual([]);
+    expect(errors).toEqual(["planning-lane: invalid exact-change operands\n"]);
+    expect(exitCodes).toEqual([64]);
+  });
+
+  it("renders the generic reviewed verdict without receipt-specific side effects", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleReviewPlanningLane("a".repeat(40), "b".repeat(40), {}, {
+      classify: async () => "reviewed",
+      write: (text) => output.push(text),
+      writeError: (text) => errors.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
     expect(output).toEqual(["reviewed\n"]);
+    expect(errors).toEqual([]);
+    expect(exitCodes).toEqual([]);
+  });
+
+  it("does not downgrade an unexpected classifier failure", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleReviewPlanningLane("a".repeat(40), "b".repeat(40), {}, {
+      classify: vi.fn().mockRejectedValue(new Error("boom")),
+      write: (text) => output.push(text),
+      writeError: (text) => errors.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    expect(output).toEqual([]);
+    expect(errors).toEqual(["planning-lane classification failed\n"]);
+    expect(exitCodes).toEqual([1]);
   });
 });
 
@@ -242,32 +293,90 @@ describe("handleReviewReadiness", () => {
   });
 });
 
-describe("handleReviewUnlock", () => {
-  it("emits one validated unlock envelope through an injected effect port", async () => {
+describe("handleMergeLockResolve", () => {
+  it("emits one validated opening-disposition envelope through an injected effect port", async () => {
     const output: string[] = [];
-    const request = {
-      schemaVersion: 1,
-      treeRoot: "/candidate",
-      target: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        headSha: "a".repeat(40),
-      },
-      vehicle: {
-        kind: "errand",
-        slug: "demo",
-      },
-    };
 
-    await handleReviewUnlock("request.json", {
+    await handleMergeLockResolve("request.json", {
+      resolveRoot: () => "/trusted-cli",
+      readText: async () => JSON.stringify({ schemaVersion: 1, treeRoot: "/candidate" }),
+      resolve: async (parsed) => ({
+        schemaVersion: 1,
+        mode: "merge-lock-resolve",
+        diagnostics: [],
+        state: parsed.treeRoot === "/candidate" ? "locked" : "none",
+        nextAction: parsed.treeRoot === "/candidate" ? "open-locked" : "open-plain",
+        payload: {},
+      }),
+      write: (text) => output.push(text),
+      setExitCode: vi.fn(),
+    });
+
+    expect(output).toHaveLength(1);
+    expect(JSON.parse(output[0] ?? "")).toEqual({
+      schemaVersion: 1,
+      mode: "merge-lock-resolve",
+      diagnostics: [],
+      state: "locked",
+      nextAction: "open-locked",
+      payload: {},
+    });
+  });
+
+  it("emits a merge-lock error envelope rather than a review one on invalid input", async () => {
+    const output: string[] = [];
+    const setExitCode = vi.fn();
+
+    await handleMergeLockResolve("request.json", {
+      resolveRoot: () => "/trusted-cli",
+      readText: async () => JSON.stringify({ schemaVersion: 1 }),
+      write: (text) => output.push(text),
+      setExitCode,
+    });
+
+    expect(JSON.parse(output[0] ?? "")).toMatchObject({
+      mode: "merge-lock-resolve",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("merge-lock transition handlers", () => {
+  const request = {
+    schemaVersion: 1,
+    treeRoot: "/candidate",
+    target: {
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: "a".repeat(40),
+    },
+    vehicle: {
+      kind: "errand",
+      slug: "demo",
+    },
+  };
+
+  it.each([
+    ["hold", handleMergeLockHold, "merge-lock-hold", "held"],
+    ["release", handleMergeLockRelease, "merge-lock-release", "released"],
+  ] as const)("emits one validated %s envelope through an injected effect port", async (
+    _verb,
+    handler,
+    mode,
+    state,
+  ) => {
+    const output: string[] = [];
+
+    await handler("request.json", {
       resolveRoot: () => "/trusted-cli",
       readText: async () => JSON.stringify(request),
-      unlock: async (parsed) => ({
+      transition: async (parsed) => ({
         schemaVersion: 1,
-        mode: "review-unlock",
+        mode,
         diagnostics: [],
-        state: "dispatched",
-        nextAction: "await-clearance",
+        state,
+        nextAction: "proceed",
         payload: parsed.target,
       }),
       write: (text) => output.push(text),
@@ -276,14 +385,41 @@ describe("handleReviewUnlock", () => {
 
     expect(output).toHaveLength(1);
     expect(JSON.parse(output[0] ?? "")).toMatchObject({
-      mode: "review-unlock",
-      state: "dispatched",
+      mode,
+      state,
+      nextAction: "proceed",
       payload: {
         repository: "owner/repo",
         pullRequest: 42,
         headSha: "a".repeat(40),
       },
     });
+  });
+
+  it("rejects a result carrying the other verb's mode", async () => {
+    const output: string[] = [];
+    const setExitCode = vi.fn();
+
+    await handleMergeLockHold("request.json", {
+      resolveRoot: () => "/trusted-cli",
+      readText: async () => JSON.stringify(request),
+      transition: async (parsed) => ({
+        schemaVersion: 1,
+        mode: "merge-lock-release",
+        diagnostics: [],
+        state: "released",
+        nextAction: "proceed",
+        payload: parsed.target,
+      }),
+      write: (text) => output.push(text),
+      setExitCode,
+    });
+
+    expect(JSON.parse(output[0] ?? "")).toMatchObject({
+      mode: "merge-lock-hold",
+      error: { code: "unexpected-failure" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
   });
 });
 
@@ -868,7 +1004,14 @@ describe("handleReviewLocalPrepare", () => {
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
-  it("emits a typed invalid-input envelope for repository preconditions", async () => {
+  it.each([
+    ["dirty-worktree", "clean-worktree"],
+    ["non-commit-head", "commit-head"],
+    ["unresolved-base", "base-resolved"],
+  ] as const)("emits a typed invalid-input envelope for the %s precondition", async (
+    reason,
+    precondition,
+  ) => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
@@ -886,7 +1029,7 @@ describe("handleReviewLocalPrepare", () => {
         },
       }),
       prepare: async () => {
-        throw new LocalTargetDerivationError("dirty-worktree");
+        throw new LocalTargetDerivationError(reason);
       },
       write,
       setExitCode,
@@ -894,16 +1037,9 @@ describe("handleReviewLocalPrepare", () => {
 
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toEqual({
       schemaVersion: 1,
-      diagnostics: [{
-        code: "repository-precondition",
-        message: "dirty-worktree",
-        precondition: "clean-worktree",
-      }],
+      diagnostics: [{ code: "repository-precondition", message: reason, precondition }],
       mode: "review-local-prepare",
-      error: {
-        code: "invalid-input",
-        message: "dirty-worktree",
-      },
+      error: { code: "invalid-input", message: reason },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });

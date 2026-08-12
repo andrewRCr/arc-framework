@@ -22,6 +22,7 @@ describe("createFilesystemArtifactResolver", () => {
 
   it.each([
     ["tasks", "active", "tasks-example.md"],
+    ["tasks", "completed/2026-q2/22_example", "tasks-example.md"],
     ["design", "active", "spec-example.md"],
     ["design", "backlog/nested", "draft-example.md"],
     ["meta", "active", "meta-example.md"],
@@ -38,7 +39,6 @@ describe("createFilesystemArtifactResolver", () => {
 
   it.each([
     ["tasks", "backlog/tasks-example.md"],
-    ["tasks", "completed/tasks-example.md"],
     ["design", "completed/spec-example.md"],
     ["meta", "backlog/meta-example.md"],
   ] as const)("does not search misplaced %s artifact %s", async (family, relativePath) => {

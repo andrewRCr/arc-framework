@@ -16,9 +16,11 @@ and is evolving toward, and the principles that keep interim work composable wit
 near-term WUs don't accrete tracked-`.arc/` assumptions a later migration must undo.
 
 **Scope:** Storage tiering, the tracked-vs-materialized line, forward-compat principles, integration boundaries with
-external tools, self-check triggers for plan / PRD authoring. First of three sibling check-docs: this doc owns _where
+external tools, self-check triggers for plan / PRD authoring. One of four sibling check-docs: this doc owns _where
 state lives_, [`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance
-lives, and [`strategy-procedure-evolution.md`](strategy-procedure-evolution.md) owns how procedure executes.
+lives, [`strategy-procedure-evolution.md`](strategy-procedure-evolution.md) owns how procedure executes, and
+[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md) owns how ARC composes with external PM
+authorities.
 
 **Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS. This describes
 direction for ARC's own evolution — for plan / PRD authors in this repo, not for adopters configuring ARC.
@@ -222,6 +224,9 @@ This list is not exhaustive — other touchpoints surface during co-design.
   **[`strategy-procedure-evolution.md`](strategy-procedure-evolution.md)** — sibling check-docs (knowledge placement;
   procedural substrate). Their Principles 9 (projection-compatible) and 3 (verbs over mechanics) are the seams this
   doc's Principles 1, 2, and 6 compose with.
+- **[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md)** — sibling check-doc for
+  field-level authority and external-PM composition; it owns the semantic boundary this doc's canonical-storage
+  principles constrain.
 - **`draft-local-mode.md`** — Local mode, tier-2 of the materialized substrate; its backing-store
   mechanics generalize to the hosted (backend) case.
 - **`adr-020-adopt-principle-anchored-scalable-core.md`** — the derived-vs-mutated split; mutable shared state

@@ -126,6 +126,19 @@ describe("buildExecutorContext — current-WU reconcile binding", () => {
     expect(mockApplyPreparedCurrentWuReconcile).toHaveBeenCalledWith(expect.anything(), prepared);
     expect(mockPrepareCurrentWuReconcile).not.toHaveBeenCalled();
   });
+
+  it("allows identity-independent worktree reconciliation when identity is unresolved", async () => {
+    const ctx = buildCtx(null);
+
+    await expect(ctx.reconcileWorkUnitWorktree?.({
+      mutation: "spawn",
+      inPlace: true,
+      branch: "feat/foo",
+      wuName: "foo",
+      createBranch: false,
+      deferCheckout: true,
+    })).resolves.toMatchObject({ mutation: "spawn", branch: "feat/foo" });
+  });
 });
 
 describe("buildExecutorContext — withdraw-pr binding", () => {

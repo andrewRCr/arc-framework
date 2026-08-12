@@ -3,7 +3,7 @@
  *
  * The binding captures the committed source artifact group before removal or
  * relocation, limits staging to typed source/result paths plus the generated
- * readiness view, and composes in-repository snapshot/record operations behind
+ * readiness view, and composes in-repository snapshot/completion operations behind
  * the authority port.
  */
 
@@ -17,22 +17,12 @@ import {
   type ArtifactSetEntry,
   type PatchOperation,
 } from "../canonical/content-digest.js";
-import { artifactGroupDigest, receiptId } from "../canonical/receipt-id.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { resolveArcPath } from "../layout/index.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../user-sync/notes-lock.js";
-import {
-  validateReceiptMatrix,
-  type RetirementAuthorityScope,
-  type RetirementReceipt,
-} from "./retirement-authority.js";
+import type { RetirementAuthorityScope } from "./retirement-authority.js";
 import { readRetirementAuthoritySnapshot } from "./retirement-authority-snapshot.js";
-import { recordRetirementReceipt } from "./retirement-record.js";
-import {
-  resolveRetirementRecordPath,
-  resolveRetirementRecordRelativePath,
-} from "./retirement-record-store.js";
 import {
   artifactMatcher,
   renameArtifactBasename,
@@ -65,14 +55,10 @@ export interface InRepoDirectRetirementDeps {
   cwd: string;
   exec: GitExec;
   readBlob: RetirementBlobReader;
-  readFile(path: string): Promise<string>;
-  createRecord(receiptId: RetirementReceipt["receiptId"], content: string): Promise<void>;
-  removeRecord(receiptId: RetirementReceipt["receiptId"]): Promise<void>;
 }
 
 export interface DirectTransitionSourceEvidence {
   scope: RetirementAuthorityScope;
-  artifactDigest: RetirementReceipt["source"]["artifactDigest"];
   sourceArtifactPaths: readonly ManagedPath[];
   resultArtifactPaths: readonly ManagedPath[];
 }
@@ -83,7 +69,6 @@ interface CapturedDirectSource extends DirectTransitionSourceEvidence {
   additionalPaths: readonly ManagedPath[];
   transitionSourceHead: string;
   transitionSourceArtifactPaths: readonly ManagedPath[];
-  retiringProjection: RetirementReceipt["retiringProjection"];
 }
 
 interface SnapshotBinding {
@@ -94,7 +79,6 @@ interface SnapshotBinding {
 
 interface DirectTransitionConfig {
   transition: "abandon" | "park-planning" | "rename";
-  expectedLifecycle: "nonexistent" | "planned";
   label: "abandon" | "park" | "rename";
 }
 
@@ -114,11 +98,18 @@ interface DirectTransitionRetirementContext {
   }): Promise<DirectTransitionSourceEvidence>;
   stageTransition(source: DirectTransitionSourceEvidence): Promise<void>;
   rollbackTransition(source: DirectTransitionSourceEvidence): Promise<void>;
-  readTransitionPatch(source: DirectTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
-  readResultArtifactDigest(
+  completeTransition(
     source: DirectTransitionSourceEvidence,
-  ): Promise<RetirementReceipt["source"]["artifactDigest"]>;
+    expectedAuthorityVersion: string,
+    additionalStagedPaths?: readonly ManagedPath[],
+  ): Promise<DirectTransitionCompletionResult>;
+  readTransitionPatch(source: DirectTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
 }
+
+/** Result of binding one staged direct transition without creating a receipt. */
+export type DirectTransitionCompletionResult =
+  | { status: "completed-no-record"; authorityVersion: string }
+  | { status: "refused"; reason: "authority-conflict" | "authority-unavailable"; diagnostic?: string };
 
 function createInRepoDirectRetirementContext(
   deps: InRepoDirectRetirementDeps,
@@ -179,7 +170,6 @@ function createInRepoDirectRetirementContext(
         source: { branch: retirementBranch, head: retirementHead },
         resultProjection: { ref: branch, head: transitionSourceHead },
       },
-      artifactDigest: artifactGroupDigest(inventory),
       sourceArtifactPaths: paths,
       resultArtifactPaths,
       slugMap,
@@ -187,9 +177,6 @@ function createInRepoDirectRetirementContext(
       inventory,
       transitionSourceHead,
       transitionSourceArtifactPaths,
-      retiringProjection: retirementSource === undefined
-        ? { kind: "direct-transition" }
-        : { kind: "unchanged" },
     };
     captured = evidence;
     return evidence;
@@ -232,18 +219,6 @@ function createInRepoDirectRetirementContext(
     return operations;
   };
 
-  const readResultArtifactDigest = async (
-    source: DirectTransitionSourceEvidence,
-  ): Promise<RetirementReceipt["source"]["artifactDigest"]> => {
-    const bound = requireCaptured(captured, source);
-    const inventory = await Promise.all(bound.resultArtifactPaths.map(async (path): Promise<ArtifactSetEntry> => {
-      const bytes = await deps.readBlob(null, path);
-      if (bytes === null) throw new DirectTransitionConservationError(config.label, path);
-      return { path, state: "present", contentDigest: contentDigest(bytes) };
-    }));
-    return artifactGroupDigest(inventory);
-  };
-
   const authority: DirectTransitionRetirementContext["authority"] = {
     readSnapshot: async (scope) => {
       const source = requireCaptured(captured, { scope });
@@ -253,7 +228,6 @@ function createInRepoDirectRetirementContext(
         {
           cwd: deps.cwd,
           exec: deps.exec,
-          fs: { readFile: (path) => deps.readFile(path) },
           readInventory: () => Promise.resolve(source.inventory),
         },
         scope,
@@ -266,46 +240,6 @@ function createInRepoDirectRetirementContext(
         });
       }
       return result;
-    },
-    record: async (receipt, expectedAuthorityVersion) => {
-      const binding = snapshots.get(expectedAuthorityVersion);
-      if (binding === undefined || !(await receiptMatchesBinding(receipt, binding, config, readResultArtifactDigest))) {
-        return { status: "refused", reason: "authority-conflict" };
-      }
-      return await recordRetirementReceipt(
-        {
-          cwd: deps.cwd,
-          withTransaction: (operation) => withRetirementTransaction(deps, operation),
-          readAuthorityVersion: async () => {
-            const [sourceOid, resultOid, branch] = await Promise.all([
-              resolveBranchHead(deps.exec, deps.cwd, binding.scope.source.branch),
-              resolveBranchHead(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
-              getCurrentBranch(deps.exec),
-            ]);
-            return sourceOid === binding.scope.source.head
-              && resultOid === binding.scope.resultProjection.head
-              && branch === binding.scope.resultProjection.ref
-              ? binding.authorityVersion
-              : `${binding.authorityVersion}:conflict`;
-          },
-          readRecordedAuthorityVersion: async () => canonicalDigest({
-            schemaVersion: 1,
-            sourceOid: await resolveBranchHead(deps.exec, deps.cwd, binding.scope.source.branch),
-            resultOid: await resolveBranchHead(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
-            branch: await getCurrentBranch(deps.exec),
-            stagedPaths: await readStagedPaths(deps.exec, deps.cwd),
-            receipt: await deps.readFile(resolveRetirementRecordPath(deps.cwd, receipt.receiptId)),
-          }),
-          readStagedPaths: () => readStagedPaths(deps.exec, deps.cwd),
-          readTransitionPatch: () => readTransitionPatch(binding.source),
-          createRecord: (receiptId, content) => deps.createRecord(receiptId, content),
-          removeRecord: (receiptId) => deps.removeRecord(receiptId),
-          stagePaths: (paths) => stageUnstagedPaths(deps.exec, deps.cwd, paths),
-          rollbackPaths: (paths) => unstagePaths(deps.exec, deps.cwd, paths),
-        },
-        receipt,
-        expectedAuthorityVersion,
-      );
     },
   };
 
@@ -330,8 +264,51 @@ function createInRepoDirectRetirementContext(
       const bound = requireCaptured(captured, source);
       await restoreTransition(deps.exec, deps.cwd, bound);
     },
+    completeTransition: async (source, expectedAuthorityVersion, additionalStagedPaths = []) => {
+      const binding = snapshots.get(expectedAuthorityVersion);
+      if (binding === undefined || requireCaptured(captured, source) !== binding.source) {
+        return { status: "refused", reason: "authority-conflict" };
+      }
+      try {
+        return await withRetirementTransaction(deps, async () => {
+          const [sourceOid, resultOid, branch, patch, stagedPaths] = await Promise.all([
+            resolveBranchHead(deps.exec, deps.cwd, binding.scope.source.branch),
+            resolveBranchHead(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
+            getCurrentBranch(deps.exec),
+            readTransitionPatch(binding.source),
+            readStagedPaths(deps.exec, deps.cwd),
+          ]);
+          const expectedPaths = [...new Set([
+            ...patch.map((operation) => operation.path),
+            ...additionalStagedPaths,
+          ])].sort(compareUtf8);
+          const actualPaths = [...stagedPaths].sort(compareUtf8);
+          if (
+            sourceOid !== binding.scope.source.head
+            || resultOid !== binding.scope.resultProjection.head
+            || branch !== binding.scope.resultProjection.ref
+            || canonicalize(actualPaths) !== canonicalize(expectedPaths)
+          ) {
+            return { status: "refused", reason: "authority-conflict" } as const;
+          }
+          return {
+            status: "completed-no-record",
+            authorityVersion: canonicalDigest({
+              schemaVersion: 1,
+              scope: binding.scope,
+              sourceOid,
+              resultOid,
+              branch,
+              stagedPaths: actualPaths,
+              patch,
+            }),
+          } as const;
+        });
+      } catch (error) {
+        return { status: "refused", reason: "authority-unavailable", diagnostic: errorMessage(error) };
+      }
+    },
     readTransitionPatch,
-    readResultArtifactDigest,
   };
 }
 
@@ -341,7 +318,6 @@ export function createInRepoAbandonRetirementContext(
 ): AbandonRetirementContext {
   const direct = createInRepoDirectRetirementContext(deps, {
     transition: "abandon",
-    expectedLifecycle: "nonexistent",
     label: "abandon",
   });
   return {
@@ -349,6 +325,9 @@ export function createInRepoAbandonRetirementContext(
     captureSource: (params) => direct.captureSource({ ...params, resultDir: null }),
     stageTransition: (source) => direct.stageTransition(source),
     rollbackTransition: (source) => direct.rollbackTransition(source),
+    completeTransition: (source, expectedAuthorityVersion, additionalStagedPaths) =>
+      direct.completeTransition(source, expectedAuthorityVersion, additionalStagedPaths),
+    rollbackRefusedCommit: (source) => rollbackRefusedDirectCommit(direct, source, "Abandon"),
     readTransitionPatch: (source) => direct.readTransitionPatch(source),
   };
 }
@@ -359,7 +338,6 @@ export function createInRepoParkPlanningRetirementContext(
 ): ParkPlanningRetirementContext {
   const direct = createInRepoDirectRetirementContext(deps, {
     transition: "park-planning",
-    expectedLifecycle: "planned",
     label: "park",
   });
   return {
@@ -367,8 +345,8 @@ export function createInRepoParkPlanningRetirementContext(
     captureSource: (params) => direct.captureSource(params),
     stageTransition: (source) => direct.stageTransition(source),
     rollbackTransition: (source) => direct.rollbackTransition(source),
-    readTransitionPatch: (source) => direct.readTransitionPatch(source),
-    readResultArtifactDigest: (source) => direct.readResultArtifactDigest(source),
+    completeTransition: (source, expectedAuthorityVersion) =>
+      direct.completeTransition(source, expectedAuthorityVersion),
   };
 }
 
@@ -387,12 +365,13 @@ export interface RenameRetirementContext {
   rollbackTransition(source: RenameTransitionSourceEvidence): Promise<void>;
   rollbackRefusedCommit(
     source: RenameTransitionSourceEvidence,
-    receiptId: RetirementReceipt["receiptId"],
   ): Promise<RenameRollbackResult>;
-  readTransitionPatch(source: RenameTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
-  readResultArtifactDigest(
+  completeTransition(
     source: RenameTransitionSourceEvidence,
-  ): Promise<RetirementReceipt["source"]["artifactDigest"]>;
+    expectedAuthorityVersion: string,
+    additionalStagedPaths?: readonly ManagedPath[],
+  ): Promise<DirectTransitionCompletionResult>;
+  readTransitionPatch(source: RenameTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
 }
 
 /** Outcome of restoring a refused rename commit to its captured source. */
@@ -411,7 +390,6 @@ export function createInRepoRenameRetirementContext(
 ): RenameRetirementContext {
   const direct = createInRepoDirectRetirementContext(deps, {
     transition: "rename",
-    expectedLifecycle: "nonexistent",
     label: "rename",
   });
   return {
@@ -429,37 +407,28 @@ export function createInRepoRenameRetirementContext(
     },
     stageTransition: (source) => direct.stageTransition(source),
     rollbackTransition: (source) => direct.rollbackTransition(source),
-    rollbackRefusedCommit: async (source, receiptId) => {
-      const failures: string[] = [];
-      const recordPath = resolveRetirementRecordRelativePath(receiptId);
-      try {
-        await direct.rollbackTransition(source);
-      } catch (error) {
-        failures.push(`tree restore failed: ${errorMessage(error)}`);
-      }
-      try {
-        await deps.exec("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", recordPath], { cwd: deps.cwd });
-      } catch (error) {
-        failures.push(`record index cleanup failed: ${errorMessage(error)}`);
-      }
-      try {
-        await deps.removeRecord(receiptId);
-      } catch (error) {
-        failures.push(`record removal failed: ${errorMessage(error)}`);
-      }
-      if (failures.length === 0) return { status: "rolled-back" };
-
-      return {
-        status: "refused",
-        reason: "authority-unavailable",
-        diagnostic: `Rename rollback was incomplete for record ${recordPath}: ${failures.join("; ")}. `
-          + `Discard residual evidence with \`git rm -f --cached --ignore-unmatch -- ${recordPath}\` and remove `
-          + `the file before retrying.`,
-      };
-    },
+    completeTransition: (source, expectedAuthorityVersion, additionalStagedPaths) =>
+      direct.completeTransition(source, expectedAuthorityVersion, additionalStagedPaths),
+    rollbackRefusedCommit: (source) => rollbackRefusedDirectCommit(direct, source, "Rename"),
     readTransitionPatch: (source) => direct.readTransitionPatch(source),
-    readResultArtifactDigest: (source) => direct.readResultArtifactDigest(source),
   };
+}
+
+async function rollbackRefusedDirectCommit(
+  direct: DirectTransitionRetirementContext,
+  source: DirectTransitionSourceEvidence,
+  label: "Abandon" | "Rename",
+): Promise<RenameRollbackResult> {
+  try {
+    await direct.rollbackTransition(source);
+  } catch (error) {
+    return {
+      status: "refused",
+      reason: "authority-unavailable",
+      diagnostic: `${label} rollback was incomplete: tree restore failed: ${errorMessage(error)}.`,
+    };
+  }
+  return { status: "rolled-back" };
 }
 
 function requireCaptured(
@@ -474,40 +443,6 @@ function requireCaptured(
 
 function canonicalScope(scope: RetirementAuthorityScope): string {
   return canonicalize(scope);
-}
-
-async function receiptMatchesBinding(
-  receipt: RetirementReceipt,
-  binding: SnapshotBinding,
-  config: DirectTransitionConfig,
-  readResultArtifactDigest: DirectTransitionRetirementContext["readResultArtifactDigest"],
-): Promise<boolean> {
-  const resultMatches = config.transition === "abandon"
-    ? receipt.result.kind === "discard"
-    : config.transition === "park-planning"
-      ? receipt.result.kind === "relocate"
-        && receipt.result.plannedArtifactDigest === await readResultArtifactDigest(binding.source)
-      : receipt.result.kind === "rename"
-        && binding.source.slugMap !== null
-        && receipt.result.targetSlug === binding.source.slugMap.targetSlug
-        && receipt.result.artifactDigest === await readResultArtifactDigest(binding.source);
-  return receipt.transition === config.transition
-    && receipt.receiptId === receiptId({
-      schemaVersion: receipt.schemaVersion,
-      subject: receipt.subject,
-      transition: receipt.transition,
-      sourceBranch: receipt.source.branch,
-      sourceHead: receipt.source.head,
-    })
-    && receipt.source.branch === binding.scope.source.branch
-    && receipt.source.head === binding.scope.source.head
-    && receipt.source.artifactDigest === binding.source.artifactDigest
-    && receipt.retiringProjection.kind === binding.source.retiringProjection.kind
-    && validateReceiptMatrix(receipt, config.expectedLifecycle) === null
-    && resultMatches
-    && receipt.subject.kind === "work-unit"
-    && binding.scope.subject.kind === "work-unit"
-    && receipt.subject.name === binding.scope.subject.name;
 }
 
 async function resolveBranchHead(exec: GitExec, cwd: string, branch: string): Promise<string> {
@@ -552,16 +487,6 @@ async function stagePaths(exec: GitExec, cwd: string, paths: readonly string[]):
   await exec("git", ["add", "-A", "--", ...paths], { cwd });
 }
 
-async function stageUnstagedPaths(exec: GitExec, cwd: string, paths: readonly string[]): Promise<void> {
-  const alreadyStaged = new Set(await readStagedPaths(exec, cwd));
-  await stagePaths(exec, cwd, paths.filter((path) => !alreadyStaged.has(path)));
-}
-
-async function unstagePaths(exec: GitExec, cwd: string, paths: readonly string[]): Promise<void> {
-  if (paths.length === 0) return;
-  await exec("git", ["restore", "--staged", "--", ...paths], { cwd });
-}
-
 async function restoreTransition(
   exec: GitExec,
   cwd: string,
@@ -602,13 +527,17 @@ async function withRetirementTransaction<T>(
   const gitCommonDir = stdout.trim();
   if (gitCommonDir === "") throw new Error("Git did not resolve its common directory.");
   const handle = await acquireAdvisoryLock(
-    join(resolve(deps.cwd, gitCommonDir), "arc-retirement-record.lock"),
+    join(resolve(deps.cwd, gitCommonDir), "arc-direct-transition.lock"),
   );
   try {
     return await operation();
   } finally {
     await releaseAdvisoryLock(handle);
   }
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function errorMessage(error: unknown): string {

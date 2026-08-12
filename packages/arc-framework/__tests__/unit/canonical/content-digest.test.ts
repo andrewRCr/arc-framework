@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  artifactGroupDigest,
+  type ArtifactSetEntry,
   type StoredBlobReader,
   contentDigest,
   deleteOperation,
@@ -80,5 +82,20 @@ describe("content digests over stored bytes", () => {
     expect(() => patchDigest([deleteOperation(path), writeOperation(path, encode("payload"))])).toThrow(
       "duplicate patch path",
     );
+  });
+});
+
+describe("artifactGroupDigest", () => {
+  const absent: ArtifactSetEntry = { path: validateManagedPath("a.md"), state: "absent" };
+  const present: ArtifactSetEntry = {
+    path: validateManagedPath("b.md"),
+    state: "present",
+    contentDigest: contentDigest(encode("payload")),
+  };
+
+  it("is path-sorted and distinguishes different artifact groups", () => {
+    expect(artifactGroupDigest([absent, present])).toBe(artifactGroupDigest([present, absent]));
+    expect(artifactGroupDigest([absent])).not.toBe(artifactGroupDigest([present]));
+    expect(artifactGroupDigest([absent, present])).not.toBe(artifactGroupDigest([absent]));
   });
 });

@@ -39,7 +39,7 @@ import {
   renderInFlightWarning,
   type PrSource,
 } from "../git/in-flight-derivation.js";
-import { readErrandSlugByBranch } from "../errand/record.js";
+import { projectTransientInFlightRead, readTransientInFlightIndexes } from "../errand/record.js";
 
 import { buildInFlightMineSlice } from "./in-flight-mine.js";
 import {
@@ -66,6 +66,8 @@ export interface StatusUserViewResult {
 export interface RunStatusUserViewOptions {
   /** Injectable git executor. */
   exec: GitExec;
+  /** Repository checkout used to resolve repository-common candidate claims. */
+  cwd?: string;
   /** Resolved identity; `null` short-circuits (the view is identity-scoped). */
   identity: string | null;
   /** Team mode — gates oracle identity filtering. */
@@ -129,10 +131,13 @@ export async function runStatusUserView(
   // remote reachability so the unreachable path below never has to recompute it.
   const ready = await options.readReadyMine();
 
-  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const errandSlugByBranch = projectTransientInFlightRead(
+    await readTransientInFlightIndexes({ exec, identity }),
+  ).indexes.slugByBranch;
   const remoteResult = await deriveInFlight({
     exec,
     localOnly,
+    expandLiveOnly: false,
     baseBranch,
     timeoutMs,
     identity,

@@ -76,9 +76,9 @@ method consumes ([strategy-work-organization][work-org] § WU sizing standard) �
   review surfaces in one WU says _look closer_.
 - **LOC and file count are secondary heads-up signals, not thresholds:** roughly `>~few-hundred LOC`,
   `>~8–10 files`, or work that fails the "reviewable in one sitting" test says _look closer_, never _cut here_.
-- **Stack vs. cohort:** sequentially-dependent pieces deliver as a **stack** (dependency-ordered WUs, each its
-  own branch, merged in order); independent-ish pieces form a **cohort** of parallel WUs. A stack is a cohort's
-  dependency-ordered delivery mode, not one WU spread across many branches.
+- **Stack vs. cohort:** a **stack** orders deliverables by dependency; a **cohort** groups sibling WUs. A cohort may
+  order its members, and one WU's delivery plan may order several deliverables — delivery topology does not decide
+  the concern boundary.
 
 The mental model is **cohort ≈ epic, WU ≈ story** — this method fills the codified
 concern → WU-count mapping.
@@ -103,26 +103,28 @@ aren't self-describing); inter-member order, when it exists, lives in `Depends O
 
 ### Output — the cut-map
 
-The method produces either **"stays one WU"** or the **cut-map**:
+The method produces either **"stays one WU"** or the author-owned half of the v3 cut-map. The CLI supplies the
+immutable source units and dependency edges; complete only these authoring decisions:
 
-- **`parentPosition`** — `standalone`, `in-cohort`, `at-cap`, or `cohortless`;
-- **`cohort`** — required for `standalone` / `in-cohort`, omitted for `at-cap` / `cohortless`;
-- **members** — each with its legible slug;
-- **internal dependency edges** — `m_i → m_j`, authored from the cut's delivery order;
-- **deliverable boundaries** — what each member independently ships.
+- **shape** — `symmetric` or `heterogeneous`;
+- **placement** — `direct-member`, `cohort`, `subcohort`, or `at-cap`;
+- **destinations** — each exact `new-member`, `existing-home`, or `cohort-coordination` target;
+- **source allocations** — one destination and locator, or one reasoned drop, for every reported source unit;
+- **dependency dispositions** — one replacement, target set, or reasoned drop for every reported edge;
+- **internal dependency edges** — authored from the cut's delivery order.
 
-`cohortless` means flat planned siblings whose relationships live only in their dependency graph. Select it only
-when every conserved source has a destination-owned home. Ownerless shared coordination requires a cohort-backed
-placement and a `cohort-coordination` destination.
+When the result is **"stays one WU"**, carry one advisory only if the sizing read found distinct deliverables or
+independently reviewable surfaces: **"Delivery-plan candidate — keep the concern as one WU while giving its
+separable surfaces independent delivery boundaries."** The advisory is never a gate; omit it when that signal did
+not fire.
 
-**Entry kinds.** A cut-map entry defaults to a **new member** (a freshly-minted WU, above). Two further kinds
-cover the non-symmetric transform shapes — a data-shape the cut-map carries, while _when_ to use them stays this
-method's judgment:
+`direct-member` is the placement for exactly one newly minted member. Every decomposition with more than one new
+member must select `cohort`, `subcohort`, or `at-cap`, regardless of content ownership. Existing or atomic homes
+remain `existing-home` destinations, not members. Ownerless shared coordination independently requires a
+cohort-backed placement and a `cohort-coordination` destination.
 
-- **surviving-origin** — names the _retained_ origin as an entry (the extraction shape), carrying its disposition
-  (`keep-active` / `park`); the origin survives the cut rather than retiring.
-- **existing/atomic-home** — names an _existing or atomic destination_ (the heterogeneous shape): a sibling stub, a
-  `draft-design` block, or an in-place atomic edit to a standing doc, rather than a new member.
+Keeping an origin active or performing extraction is outside the core decomposition transform. The cut-map retires
+the supported origin into its declared destinations and does not model a retained origin as another destination.
 
 Producing the cut-map ends this method's job — it _decides_, it never executes the cut. `decompose-work-unit`
 consumes the cut-map and runs the transform.

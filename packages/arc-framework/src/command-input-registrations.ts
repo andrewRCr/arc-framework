@@ -24,6 +24,11 @@ import {
 import { logStandaloneInputRegistration } from "./handlers/log.js";
 import { planCheckInputRegistration, planCommandInputPolicyDeclarations } from "./handlers/plan.js";
 import {
+  deliveryCommandInputPolicyDeclarations,
+  deliveryCommandInputRegistrations,
+} from "./handlers/delivery.js";
+import { locusCommandInputRegistrations } from "./handlers/locus.js";
+import {
   wuReconcileCommandInputPolicyDeclarations,
   wuReconcileCommandInputRegistration,
 } from "./handlers/reconcile.js";
@@ -56,7 +61,6 @@ import { userSyncCommandInputPolicyDeclarations } from "./handlers/user-sync.js"
 import type { CommandInputDeclaration } from "./lib/command-input/declaration.js";
 import { viewCommandInputPolicyDeclarations, viewCommandInputRegistration } from "./handlers/view.js";
 import { remedyRoadmapConflictInputPolicyDeclarations } from "./scripts/remedy-roadmap-conflict.js";
-import { validateDecomposeRecordInputPolicyDeclarations } from "./scripts/validate-decompose-record.js";
 import type { CommandInputRegistration } from "./lib/command-input/registry.js";
 
 /** Every command-owned schema registration contributed by migrated families. */
@@ -68,7 +72,9 @@ export const commandInputRegistrations = [
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
   ...errandCommandInputRegistrations,
+  ...locusCommandInputRegistrations,
   planCheckInputRegistration,
+  ...deliveryCommandInputRegistrations,
   wuReconcileCommandInputRegistration,
   statusCommandInputRegistration,
   logStandaloneInputRegistration,
@@ -95,6 +101,7 @@ export const commandInputPolicyDeclarations = [
   ...joinCommandInputPolicyDeclarations,
   ...lifecycleCommandInputPolicyDeclarations,
   ...planCommandInputPolicyDeclarations,
+  ...deliveryCommandInputPolicyDeclarations,
   ...wuReconcileCommandInputPolicyDeclarations,
   ...recoverCommandInputPolicyDeclarations,
   ...releaseCommitInputPolicyDeclarations,
@@ -111,6 +118,5 @@ export const commandInputPolicyDeclarations = [
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,
-  ...validateDecomposeRecordInputPolicyDeclarations,
   ...infrastructureCommandInputPolicyDeclarations,
 ] as const satisfies readonly CommandInputDeclaration[];

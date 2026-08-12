@@ -27,6 +27,15 @@ artifacts.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Decide which config-catalog assertions must stay hand-maintained**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10). This schema/catalog
+  authority is the closest concrete home.
+- _Concern:_ adding one config key requires changes across bare key counts and hard-coded validator pass totals
+  that identify no missing key, alongside genuinely omission-catching ordered-catalog assertions.
+- _Approach:_ classify assertions by purpose; retain hand-maintained omission checks and derive or make
+  key-explicit only the count-shaped maintenance tax from `ARC_CONFIG_FIELDS`.
+
 ### `[ ]` **Project registered session-locus schemas into the shipped bundle**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during

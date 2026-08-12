@@ -25,6 +25,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { buildFootgunGuards } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../src/lib/work-unit/lifecycle-transitions.js";
+import type { ValidatedGraduationTransaction } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
 
 // ---------------------------------------------------------------------------
 // In-memory index fixture — one meta per slug under a chosen tier.
@@ -129,6 +130,24 @@ interface SpyOptions {
   worktreeNotice?: string;
 }
 
+const GRADUATION_TRANSACTION = {
+  kind: "validated-graduation-transaction",
+  schemaVersion: 1,
+  slug: "demo",
+  branch: "plan/demo",
+  source: { location: "planned" },
+  reconciliation: { backfilled: [], notice: null },
+  occupation: {
+    mode: "spawned",
+    operation: { kind: "spawned", worktreePath: "/wt" },
+  },
+} as unknown as ValidatedGraduationTransaction;
+
+const GRADUATION_INPUTS: TransitionInputs = {
+  class: "Novel",
+  graduationTransaction: GRADUATION_TRANSACTION,
+};
+
 /**
  * Build an {@link ExecuteTransitionContext} of spies. Side-effect handlers
  * default to recording no-ops for every id so wiring-completeness passes; pass
@@ -179,9 +198,9 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       calls.push(`leg:branch:${op.mutation}`);
       guardThrow("reconcileBranch");
     },
-    reconcileWorktree: async (op) => {
+    reconcileWorkUnitWorktree: async (op) => {
       calls.push(`leg:worktree:${op.mutation}`);
-      guardThrow("reconcileWorktree");
+      guardThrow("reconcileWorkUnitWorktree");
       if (op.mutation === "spawn") {
         return {
           mutation: "spawn",
@@ -194,6 +213,15 @@ function buildSpies(opts: SpyOptions = {}): Spies {
         return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
       }
       return { mutation: "move", from: op.from, to: op.to, locusHopped: false };
+    },
+    atomicGraduate: async () => {
+      calls.push("leg:atomicGraduate");
+      guardThrow("atomicGraduate");
+      return {
+        status: "applied",
+        worktreePath: "/wt",
+        postCreateNotice: opts.worktreeNotice ?? null,
+      };
     },
     scaffoldOrRemove: opts.withScaffoldOrRemove
       ? async (params) => {
@@ -431,20 +459,7 @@ describe("executeTransition — guard validation", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: {
-        class: "Novel",
-        toDir: ".arc/active",
-        branchOp: { mutation: "create" },
-        worktreeOp: {
-          mutation: "spawn",
-          branch: "plan/demo",
-          base: "main",
-          locationTemplate: "{repo}.{branch}",
-          repo: "repo",
-          wuName: "demo",
-          spawningIdentity: "andrew",
-        },
-      },
+      inputs: GRADUATION_INPUTS,
     });
     expect(outcome.status).toBe("ok");
   });
@@ -453,17 +468,6 @@ describe("executeTransition — guard validation", () => {
 // ---------------------------------------------------------------------------
 // Foot-gun guards (Task 3.2) plugged into the executor's guard phase.
 // ---------------------------------------------------------------------------
-
-/** The full spawn op a graduate / create-new edge needs. */
-const SPAWN_OP = {
-  mutation: "spawn" as const,
-  branch: "plan/demo",
-  base: "main",
-  locationTemplate: "{repo}.{branch}",
-  repo: "repo",
-  wuName: "demo",
-  spawningIdentity: "andrew",
-};
 
 describe("executeTransition — foot-gun guards", () => {
   it("rejects a start when worktree-occupancy fails, before any mutation", async () => {
@@ -476,7 +480,13 @@ describe("executeTransition — foot-gun guards", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: {
+        ...GRADUATION_INPUTS,
+        graduationTransaction: {
+          ...GRADUATION_TRANSACTION,
+          source: { ...GRADUATION_TRANSACTION.source, location: "provisional" },
+        },
+      },
     });
 
     expect(outcome.status).toBe("rejected");
@@ -498,14 +508,21 @@ describe("executeTransition — foot-gun guards", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: {
+        ...GRADUATION_INPUTS,
+        graduationTransaction: {
+          ...GRADUATION_TRANSACTION,
+          source: { ...GRADUATION_TRANSACTION.source, location: "provisional" },
+        },
+      },
     });
 
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
     expect(outcome.from).toEqual({ phase: "Planning", location: "provisional" });
     // It relocated the existing stub; no scaffold leg ran.
-    expect(calls.some((c) => c.startsWith("leg:artifacts:relocate:"))).toBe(true);
+    expect(calls).toContain("leg:atomicGraduate");
+    expect(calls.some((c) => c.startsWith("leg:artifacts:"))).toBe(false);
     expect(calls).not.toContain("leg:artifacts:scaffold");
   });
 });
@@ -515,9 +532,7 @@ describe("executeTransition — foot-gun guards", () => {
 // ---------------------------------------------------------------------------
 
 describe("executeTransition — encoding leg ordering & recovery", () => {
-  it("fires the worktree leg before the branch leg (the cross-leg constraint)", async () => {
-    // `start` (graduate) declares relocate + worktree spawn + branch create — the
-    // multi-leg edge that exercises the reconcileWorktree-before-reconcileBranch order.
+  it("replaces every generic start mutation with one atomic graduation leg", async () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
@@ -526,14 +541,11 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("ok");
-    const legTypes = calls.filter((c) => c.startsWith("leg:")).map((c) => c.split(":")[1]);
-    // artifacts (relocate) → worktree (spawn) → branch (create).
-    expect(legTypes).toEqual(["artifacts", "worktree", "branch"]);
-    expect(calls.indexOf("leg:worktree:spawn")).toBeLessThan(calls.indexOf("leg:branch:create"));
+    expect(calls.filter((c) => c.startsWith("leg:"))).toEqual(["leg:atomicGraduate"]);
   });
 
   it("surfaces a worktree post-create notice as an advisory", async () => {
@@ -546,7 +558,7 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("ok");
@@ -558,21 +570,20 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
-      throwOnLeg: "reconcileWorktree",
+      throwOnLeg: "atomicGraduate",
     });
 
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("encoding-failed");
     if (outcome.status !== "encoding-failed") return;
-    expect(outcome.failedLeg).toBe("reconcileWorktree");
-    expect(outcome.legsFired).toEqual(["artifacts"]); // relocate landed; worktree threw
-    expect(outcome.message).toMatch(/boom:reconcileWorktree/);
-    // No branch leg after the failed worktree leg, no side-effects, no soft write.
+    expect(outcome.failedLeg).toBe("atomicGraduate");
+    expect(outcome.legsFired).toEqual([]);
+    expect(outcome.message).toMatch(/boom:atomicGraduate/);
     expect(calls).not.toContain("leg:branch:create");
     expect(calls.some((c) => c.startsWith("side:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("soft:"))).toBe(false);
@@ -677,13 +688,13 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
-      throwOnLeg: "reconcileWorktree",
+      throwOnLeg: "atomicGraduate",
     });
 
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+      inputs: GRADUATION_INPUTS,
     });
 
     // The existing arm is unchanged: a leg throw is `encoding-failed`, not the new
@@ -1008,18 +1019,13 @@ describe("executeTransition — Branch-field encoding projection", () => {
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
-      inputs: {
-        toDir: ".arc/active",
-        branchOp: { mutation: "create" },
-        worktreeOp: spawnOp("plan/demo"),
-        class: "Novel",
-      },
+      inputs: GRADUATION_INPUTS,
     });
 
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
     expect(outcome.branchFieldWritten).toBe("plan/demo");
-    expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "plan/demo" }]);
+    expect(branchWrites).toEqual([]);
   });
 
   it("park@Planning clears the field to `[none]` (from branchOp.delete)", async () => {

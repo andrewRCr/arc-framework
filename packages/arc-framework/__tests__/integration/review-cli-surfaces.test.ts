@@ -45,11 +45,32 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.stdout).toContain("planning-lane");
     expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
     expect(reviewHelp.stdout).toContain("hosted");
-    expect(reviewHelp.stdout).toContain("unlock");
+    expect(reviewHelp.stdout).not.toContain("unlock");
     expect(hostedHelp.exitCode).toBe(0);
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
     expect(hostedHelp.stdout).toContain("settle");
+  });
+
+  it("exposes every merge-lock verb through packaged help, under lock alone", async () => {
+    const [mergeHelp, lockHelp] = await Promise.all([
+      runCli(["merge", "--help"], { cwd: fixtureRoot }),
+      runCli(["merge", "lock", "--help"], { cwd: fixtureRoot }),
+    ]);
+
+    expect(mergeHelp.exitCode).toBe(0);
+    expect(mergeHelp.stdout).toContain("lock");
+    expect(lockHelp.exitCode).toBe(0);
+    expect(lockHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
+    expect(lockHelp.stdout).toContain("hold");
+    expect(lockHelp.stdout).toContain("release");
+  });
+
+  it("no longer resolves the retired review unlock verb", async () => {
+    const result = await runCli(["review", "unlock", invalidInputPath], { cwd: fixtureRoot });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toMatch(/unknown command/iu);
   });
 
   it("classifies an exact planning change through the packaged CLI", async () => {
@@ -80,7 +101,9 @@ describe("packaged review CLI surfaces", () => {
   it.each([
     [["review", "readiness"], "review-readiness"],
     [["review", "resolve"], "review-resolve"],
-    [["review", "unlock"], "review-unlock"],
+    [["merge", "lock", "resolve"], "merge-lock-resolve"],
+    [["merge", "lock", "hold"], "merge-lock-hold"],
+    [["merge", "lock", "release"], "merge-lock-release"],
     [["review", "hosted", "request"], "review-hosted-request"],
     [["review", "hosted", "await"], "review-hosted-await"],
     [["review", "hosted", "settle"], "review-hosted-settle"],

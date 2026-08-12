@@ -47,7 +47,7 @@ function buildHarness(): Harness {
     setPhase: async () => ({ phase: "Planning" }),
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async () => {},
-    reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
+    reconcileWorkUnitWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},

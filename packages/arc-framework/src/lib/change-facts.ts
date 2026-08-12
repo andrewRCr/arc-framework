@@ -16,6 +16,30 @@ import type {
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
 
+const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_CONFIG",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_CONFIG_COUNT",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_IMPLICIT_WORK_TREE",
+  "GIT_GRAFT_FILE",
+  "GIT_INDEX_FILE",
+  "GIT_NO_REPLACE_OBJECTS",
+  "GIT_REPLACE_REF_BASE",
+  "GIT_PREFIX",
+  "GIT_SHALLOW_FILE",
+  "GIT_COMMON_DIR",
+]);
+
+function environmentForRawGit(): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
+  );
+}
+
 /** Stable union of every affected path, including both move and copy endpoints. */
 export function affectedPaths(
   changes: readonly { path: string; previousPath?: string }[],
@@ -37,7 +61,7 @@ export interface RawGitResult {
 /** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
 export type RawGitExec = (
   args: string[],
-  options?: { cwd?: string; input?: Uint8Array },
+  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only" },
 ) => Promise<RawGitResult>;
 
 const UNKNOWN: ChangeSet = { changeSet: "unknown", changes: [] };
@@ -236,8 +260,17 @@ export async function resolveChangeSet(
 export function createRawGitExec(cwd = process.cwd()): RawGitExec {
   return (args, options) =>
     new Promise((resolveResult, reject) => {
-      const child = spawn("git", args, {
-        cwd: options?.cwd ?? cwd,
+      const effectiveArgs = options?.objectAccess === "local-only"
+        ? ["--no-lazy-fetch", ...args]
+        : args;
+      const effectiveCwd = options?.cwd ?? cwd;
+      const environment = environmentForRawGit();
+      const env = options?.objectAccess === "local-only"
+        ? { ...environment, GIT_NO_LAZY_FETCH: "1" }
+        : environment;
+      const child = spawn("git", effectiveArgs, {
+        cwd: effectiveCwd,
+        env,
         stdio: ["pipe", "pipe", "pipe"],
       });
       const stdout: Buffer[] = [];
@@ -253,7 +286,14 @@ export function createRawGitExec(cwd = process.cwd()): RawGitExec {
           resolveResult({ stdout: stdoutBytes, stderr: stderrBytes });
           return;
         }
-        reject(new Error(`git diff failed with exit code ${code ?? "unknown"}`));
+        reject(Object.assign(
+          new Error(`git ${effectiveArgs[0] ?? "command"} failed with exit code ${code ?? "unknown"}`),
+          {
+            ...(code === null ? {} : { exitCode: code }),
+            stdout: stdoutBytes,
+            stderr: stderrBytes,
+          },
+        ));
       });
       child.stdin.end(options?.input);
     });
@@ -344,6 +384,7 @@ export function isPlanningArtifactPath(path: string): boolean {
   const artifactName = "(?:draft|tasks|meta|notes|cohort|research|analysis|spec)-[a-z0-9]+(?:-[a-z0-9]+)*\\.md";
   const workUnitDirectory = "[a-z0-9]+(?:-[a-z0-9]+)*";
   return path === ".arc/backlog/ROADMAP.md"
+    || new RegExp(`^\\.arc/system/\\.internal/transitions/${workUnitDirectory}\\.json$`, "u").test(path)
     || new RegExp(`^\\.arc/active/${artifactName}$`, "u").test(path)
     || new RegExp(
       `^\\.arc/backlog/(?:planned|provisional)/(?:${workUnitDirectory}/){1,2}${artifactName}$`,
@@ -532,16 +573,6 @@ async function runExecutable(args: string[]): Promise<void> {
           : parseRawDiff(await readFile(fixture));
     }
     process.stdout.write(`${classifyChangeSet(changeSet)}\n`);
-    return;
-  }
-
-  if (command === "planning-lane") {
-    const [base, head, ...rest] = operands;
-    const changeSet =
-      base === undefined || head === undefined || rest.length !== 0
-        ? UNKNOWN
-        : await resolveChangeSet(exec, base, head);
-    process.stdout.write(`${classifyPlanningLane(changeSet)}\n`);
     return;
   }
 

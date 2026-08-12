@@ -28,6 +28,7 @@ import { resolveArcPath } from "../layout/index.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
+import type { TransitionOverlayCompositionInput } from "../work-unit/transition-overlay.js";
 
 import { renderStatusTable, type StatusColumn, type StatusViewRow } from "./render.js";
 
@@ -74,6 +75,25 @@ export interface ProjectReadinessRecord extends ProjectReadinessRecordCandidate 
   source: ProjectReadinessRecordSource;
   sources: readonly ProjectReadinessRecordSource[];
   scheduling?: "parked";
+}
+
+/** One losslessly retained record candidate before slug-keyed view merging. */
+export interface ProjectReadinessAcceptedCandidate {
+  slug: string;
+  path: string;
+  lifecycleLocation: ProjectReadinessLocation;
+  record: ProjectReadinessRecord;
+}
+
+/** Why one discovered project record could not enter candidate composition. */
+export type ProjectReadinessRejectedReason = "unreadable" | "malformed" | "unsupported-lifecycle";
+
+/** Typed source evidence for one project record rejected before view merging. */
+export interface ProjectReadinessRejectedRecord {
+  slugHint: string | null;
+  path: string;
+  locus: string;
+  reason: ProjectReadinessRejectedReason;
 }
 
 /** Derivation warning facts the pure composer can elevate into the render. */
@@ -128,6 +148,10 @@ export interface ProjectReadinessViewInput {
 
 /** Shared tree + oracle record composition before render-specific warning projection. */
 export interface ProjectReadinessCompositionResult {
+  /** Ordered unmerged candidates; duplicate slugs remain distinct. */
+  acceptedCandidates: ProjectReadinessAcceptedCandidate[];
+  /** Discovered records that could not enter the ordinary merged view. */
+  rejectedRecords: ProjectReadinessRejectedRecord[];
   records: ProjectReadinessRecord[];
   /** Resolved records contributed by the current tracked tree before oracle composition. */
   treeRecords: ProjectReadinessRecord[];
@@ -136,22 +160,18 @@ export interface ProjectReadinessCompositionResult {
   indeterminate: boolean;
   /** Native oracle result retained for non-render consumers; absent on tree-only composition. */
   oracleResult: DeriveInFlightResult | null;
+  /** Ordinary merged projection retained beside the lossless evidence. */
+  view: ProjectReadinessViewInput;
 }
 
 /** Checked-out branch whose staged tree record supersedes its own at-ref candidate. */
 export interface ProjectReadinessProspectiveInput {
   currentBranch: string;
-  /** Exact retiring oracle identity suppressed after its staged replacement/removal is complete. */
-  superseded?: { slug: string; branch: string };
 }
 
-/** In-flight oracle inputs for project-readiness renders. */
-export interface ProjectReadinessOracleOptions {
+/** Shared in-flight oracle inputs for project-readiness renders. */
+interface ProjectReadinessOracleOptionsBase {
   exec: GitExec;
-  /** `true` skips the network read and renders from last-known local refs. */
-  localOnly?: boolean;
-  /** Fetch and classify live membership branches absent from local remote-tracking refs. */
-  expandLiveOnly?: boolean;
   baseBranch?: string;
   errandSlugByBranch?: ReadonlyMap<string, string>;
   /**
@@ -165,8 +185,17 @@ export interface ProjectReadinessOracleOptions {
   timeoutMs?: number;
 }
 
+/** In-flight oracle inputs with an explicit acquisition policy. */
+export type ProjectReadinessOracleOptions = ProjectReadinessOracleOptionsBase & (
+  | { acquisitionPolicy: "local"; suppliedResult?: never }
+  | { acquisitionPolicy: "passive-live"; suppliedResult?: never }
+  | { acquisitionPolicy: "materialized-live"; suppliedResult: DeriveInFlightResult }
+);
+
 /** Local-ref oracle inputs for tracked project-readiness renders. */
-export type ProjectReadinessLocalRefsOptions = Omit<ProjectReadinessOracleOptions, "localOnly">;
+export type ProjectReadinessLocalRefsOptions = ProjectReadinessOracleOptionsBase & {
+  acquisitionPolicy?: "local";
+};
 
 /** Options for the tree-backed resolver. */
 export interface ResolveProjectReadinessViewInputOptions {
@@ -182,6 +211,8 @@ export interface ResolveProjectReadinessViewInputOptions {
   oracle?: ProjectReadinessOracleOptions;
   /** Treat this staged tree as authoritative for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
+  /** Optional exact transition suppressions, orthogonal to staged-tree precedence. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** Structured freshness stamp rendered in the view header. */
@@ -308,6 +339,10 @@ function slugOf(path: string): string {
   return META_FILE_RE.exec(basename(path))?.[1] ?? basename(path);
 }
 
+function slugHintOf(path: string): string | null {
+  return META_FILE_RE.exec(basename(path))?.[1] ?? null;
+}
+
 function sourceKindFor(location: ProjectReadinessLocation): ProjectReadinessSourceKind {
   switch (location) {
     case "active":
@@ -333,31 +368,61 @@ async function readProjectMeta(
   fs: ProjectViewFs,
   location: ProjectReadinessLocation,
   path: string,
-): Promise<ProjectReadinessRecordCandidate | null> {
+): Promise<
+  | { kind: "accepted"; record: ProjectReadinessRecordCandidate }
+  | { kind: "rejected"; record: ProjectReadinessRejectedRecord }
+> {
+  let content: string;
+  try {
+    content = await fs.readFile(path);
+  } catch {
+    return {
+      kind: "rejected",
+      record: { slugHint: slugHintOf(path), path, locus: "read", reason: "unreadable" },
+    };
+  }
+
   let record;
   try {
-    record = parseMetaRecord(await fs.readFile(path));
+    record = parseMetaRecord(content);
   } catch {
-    return null;
+    return {
+      kind: "rejected",
+      record: { slugHint: slugHintOf(path), path, locus: "meta", reason: "malformed" },
+    };
   }
 
   const state = validateState(record.state);
-  if (state === "unknown") return null;
+  if (state === "unknown") {
+    return {
+      kind: "rejected",
+      record: { slugHint: slugHintOf(path), path, locus: "State", reason: "unsupported-lifecycle" },
+    };
+  }
 
   return {
-    slug: slugOf(path),
-    location,
-    state,
-    ...(record.owner !== null ? { owner: record.owner } : {}),
-    priority: validatePriority(record.priority),
-    dependsOn: record.dependsOn,
-    ...(record.cohort !== null ? { cohort: record.cohort } : {}),
-    source: sourceFor(location, path),
+    kind: "accepted",
+    record: {
+      slug: slugOf(path),
+      location,
+      state,
+      ...(record.owner !== null ? { owner: record.owner } : {}),
+      priority: validatePriority(record.priority),
+      dependsOn: record.dependsOn,
+      ...(record.cohort !== null ? { cohort: record.cohort } : {}),
+      source: sourceFor(location, path),
+    },
   };
 }
 
 /** Load lifecycle-tier metas from disk into unmerged record candidates. */
-async function loadProjectRecords(cwd: string, fs: ProjectViewFs): Promise<ProjectReadinessRecordCandidate[]> {
+async function loadProjectRecords(
+  cwd: string,
+  fs: ProjectViewFs,
+): Promise<{
+  candidates: ProjectReadinessRecordCandidate[];
+  rejectedRecords: ProjectReadinessRejectedRecord[];
+}> {
   const roots = [
     { location: "active" as const, dir: join(cwd, ".arc", "active") },
     { location: "planned" as const, dir: join(cwd, ".arc", "backlog", "planned") },
@@ -366,13 +431,15 @@ async function loadProjectRecords(cwd: string, fs: ProjectViewFs): Promise<Proje
   ];
 
   const metas: ProjectReadinessRecordCandidate[] = [];
+  const rejectedRecords: ProjectReadinessRejectedRecord[] = [];
   for (const root of roots) {
-    for (const path of await collectMetaFiles(root.dir, fs)) {
+    for (const path of (await collectMetaFiles(root.dir, fs)).sort()) {
       const meta = await readProjectMeta(fs, root.location, path);
-      if (meta !== null) metas.push(meta);
+      if (meta.kind === "accepted") metas.push(meta.record);
+      else rejectedRecords.push(meta.record);
     }
   }
-  return metas;
+  return { candidates: metas, rejectedRecords };
 }
 
 const SOURCE_PRECEDENCE: Record<ProjectReadinessLocation, number> = {
@@ -393,6 +460,20 @@ function compareCandidates(
 
 function sourcePathOf(candidate: ProjectReadinessRecordCandidate): string {
   return candidate.source?.path ?? `${candidate.location}/${candidate.slug}`;
+}
+
+function acceptedCandidateOf(candidate: ProjectReadinessRecordCandidate): ProjectReadinessAcceptedCandidate {
+  const source = candidate.source ?? sourceFor(candidate.location, undefined);
+  return {
+    slug: candidate.slug,
+    path: source.path ?? `${candidate.location}/${candidate.slug}`,
+    lifecycleLocation: candidate.location,
+    record: {
+      ...candidate,
+      source,
+      sources: [source],
+    },
+  };
 }
 
 function isParkedPointer(candidate: ProjectReadinessRecordCandidate): boolean {
@@ -499,84 +580,129 @@ function appendIndeterminateOracleWarning(
 async function resolveOracleCandidates(
   options: ProjectReadinessOracleOptions | undefined,
   prospective?: ProjectReadinessProspectiveInput & { stagedSlugs: ReadonlySet<string> },
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[],
 ): Promise<{
   candidates: ProjectReadinessRecordCandidate[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
   sourceWarnings: ProjectReadinessWarning[];
+  rejectedRecords: ProjectReadinessRejectedRecord[];
   indeterminate: boolean;
   result: DeriveInFlightResult | null;
 }> {
   if (options === undefined) {
-    return { candidates: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false, result: null };
+    return {
+      candidates: [],
+      derivationWarnings: [],
+      sourceWarnings: [],
+      rejectedRecords: [],
+      indeterminate: false,
+      result: null,
+    };
   }
-  const result = await deriveInFlight({
-    exec: options.exec,
-    localOnly: options.localOnly ?? false,
-    expandLiveOnly: options.expandLiveOnly ?? false,
-    baseBranch: options.baseBranch,
-    timeoutMs: options.timeoutMs,
-    identity: null,
-    teamMode: false,
-    errandSlugByBranch: options.errandSlugByBranch,
-    errandRecordsComplete: options.errandRecordsComplete,
-    parkedSlugs: options.parkedSlugs,
-  });
-  const entries = prospective === undefined
+  const result = options.acquisitionPolicy === "materialized-live"
+    ? options.suppliedResult
+    : await deriveInFlight({
+      exec: options.exec,
+      localOnly: options.acquisitionPolicy === "local",
+      expandLiveOnly: false,
+      baseBranch: options.baseBranch,
+      timeoutMs: options.timeoutMs,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: options.errandSlugByBranch,
+      errandRecordsComplete: options.errandRecordsComplete,
+      parkedSlugs: options.parkedSlugs,
+    });
+  const hasTransitionOverlays = transitionOverlays !== undefined && transitionOverlays.length > 0;
+  const entries = prospective === undefined && !hasTransitionOverlays
     ? result.entries
     : result.entries.filter((entry) =>
         entry.kind !== "work-unit"
         || !(
           (
-            entry.branch === prospective.currentBranch
+            prospective !== undefined
+            && entry.branch === prospective.currentBranch
             && prospective.stagedSlugs.has(entry.name)
           )
-          || (
-            entry.branch === prospective.superseded?.branch
-            && entry.name === prospective.superseded.slug
-          )
+          || transitionOverlays?.some(
+            (overlay) => entry.branch === overlay.sourceBranch && entry.name === overlay.origin,
+          ) === true
         ));
+  const warnings = prospective === undefined && !hasTransitionOverlays
+    ? result.warnings
+    : result.warnings.filter((warning) => {
+        const warningSlug = warning.branch === undefined ? null : branchToWorkUnitSlug(warning.branch);
+        return !(
+          (
+            warning.code === "branch-residue"
+            && prospective !== undefined
+            && warning.branch === prospective.currentBranch
+            && warningSlug !== null
+            && prospective.stagedSlugs.has(warningSlug)
+          )
+          || transitionOverlays?.some(
+            (overlay) => warning.branch === overlay.sourceBranch && warningSlug === overlay.origin,
+          ) === true
+        );
+      });
+  const composedResult = entries === result.entries && warnings === result.warnings
+    ? result
+    : { ...result, entries, warnings };
   const candidates = entries
     .map(inFlightEntryToCandidate)
     .filter((candidate): candidate is ProjectReadinessRecordCandidate => candidate !== null);
   const derivationWarnings: ProjectReadinessDerivationWarning[] = [];
   const sourceWarnings: ProjectReadinessWarning[] = [];
+  const rejectedRecords: ProjectReadinessRejectedRecord[] = [];
   let hasIndeterminateSourceWarning = false;
-  for (const warning of result.warnings) {
-    const warningSlug = warning.branch === undefined ? null : branchToWorkUnitSlug(warning.branch);
-    if (
-      (
-        warning.code === "branch-residue"
-        && prospective !== undefined
-        && warning.branch === prospective.currentBranch
-        && warningSlug !== null
-        && prospective.stagedSlugs.has(warningSlug)
-      )
-      || (
-        prospective?.superseded !== undefined
-        && warning.branch === prospective.superseded.branch
-        && warningSlug === prospective.superseded.slug
-      )
-    ) {
-      continue;
-    }
+  for (const warning of warnings) {
     if (warning.code === "input-snapshot-disagreement") hasIndeterminateSourceWarning = true;
     const stale = staleWarningFromInFlight(warning);
     if (stale === null) sourceWarnings.push(sourceWarningFromInFlight(warning));
     else derivationWarnings.push(stale);
+    const reason = warning.code === "meta-read-failed"
+      ? "unreadable"
+      : warning.code === "meta-malformed"
+        ? "malformed"
+        : warning.code === "state-unrecognized"
+          ? "unsupported-lifecycle"
+          : null;
+    if (reason !== null) {
+      const rawSlugHint = warning.workUnit ?? (
+        warning.branch === undefined ? null : branchToWorkUnitSlug(warning.branch)
+      );
+      const parsedSlugHint = rawSlugHint === null ? null : SlugSchema.safeParse(rawSlugHint);
+      const slugHint = parsedSlugHint?.success === true ? parsedSlugHint.data : null;
+      const metaPath = slugHint === null
+        ? "[unknown-meta]"
+        : resolveArcPath({
+            kind: "work-unit-artifact",
+            placement: { kind: "active", scope: { kind: "project" } },
+            slug: slugHint,
+            artifact: "meta",
+          });
+      rejectedRecords.push({
+        slugHint,
+        path: warning.branch === undefined ? metaPath : `${warning.branch}:${metaPath}`,
+        locus: warning.code,
+        reason,
+      });
+    }
   }
-  if (!options.localOnly && !result.reachable) {
+  if (options.acquisitionPolicy !== "local" && !result.reachable) {
     sourceWarnings.unshift({
       code: "oracle-degraded",
       rendered: "Remote unreachable; rendering project view from local refs only.",
     });
   }
-  const indeterminate = inFlightResultIndeterminate(result);
+  const indeterminate = inFlightResultIndeterminate(composedResult);
   return {
     candidates,
     derivationWarnings,
     sourceWarnings: appendIndeterminateOracleWarning(sourceWarnings, indeterminate, hasIndeterminateSourceWarning),
-    indeterminate,
-    result,
+    rejectedRecords,
+    indeterminate: indeterminate || rejectedRecords.some(({ slugHint }) => slugHint === null),
+    result: composedResult,
   };
 }
 
@@ -590,7 +716,7 @@ function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): Pro
   // `oracle` is the full live/local input contract; `localRefs` is only the tracked-render shorthand.
   if (options.oracle !== undefined) return options.oracle;
   if (options.localRefs === undefined) return undefined;
-  return { ...options.localRefs, localOnly: true };
+  return { ...options.localRefs, acquisitionPolicy: "local" };
 }
 
 /** Resolve the shared tree + oracle record set used by project rendering and lifecycle queries. */
@@ -598,27 +724,46 @@ export async function resolveProjectReadinessComposition(
   options: ResolveProjectReadinessViewInputOptions,
 ): Promise<ProjectReadinessCompositionResult> {
   const fs = options.fs ?? DEFAULT_FS;
-  const treeRecords = await loadProjectRecords(options.cwd, fs);
+  const tree = await loadProjectRecords(options.cwd, fs);
   const configuredOracle = oracleOptionsFor(options);
   const parkedSlugs = configuredOracle?.parkedSlugs ?? new Set(
-    treeRecords.filter(isParkedPointer).map((record) => record.slug),
+    tree.candidates.filter(isParkedPointer).map((record) => record.slug),
   );
   const localRefs = await resolveOracleCandidates(
-    configuredOracle === undefined ? undefined : { ...configuredOracle, parkedSlugs },
+    configuredOracle === undefined
+      ? undefined
+      : { ...configuredOracle, parkedSlugs },
     options.prospective === undefined
       ? undefined
       : {
           ...options.prospective,
-          stagedSlugs: new Set(treeRecords.map((record) => record.slug)),
+          stagedSlugs: new Set(tree.candidates.map((record) => record.slug)),
         },
+    options.transitionOverlays,
   );
+  const candidates = [...tree.candidates, ...localRefs.candidates];
+  const rejectedRecords = [...tree.rejectedRecords, ...localRefs.rejectedRecords];
+  const indeterminate = localRefs.indeterminate || rejectedRecords.some(({ slugHint }) => slugHint === null);
+  const records = mergeProjectReadinessRecords(candidates);
+  const treeRecords = mergeProjectReadinessRecords(tree.candidates);
+  const derivationWarnings = localRefs.derivationWarnings;
+  const sourceWarnings = localRefs.sourceWarnings;
   return {
-    records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),
-    treeRecords: mergeProjectReadinessRecords(treeRecords),
-    derivationWarnings: localRefs.derivationWarnings,
-    sourceWarnings: localRefs.sourceWarnings,
-    indeterminate: localRefs.indeterminate,
+    acceptedCandidates: candidates.map(acceptedCandidateOf),
+    rejectedRecords,
+    records,
+    treeRecords,
+    derivationWarnings,
+    sourceWarnings,
+    indeterminate,
     oracleResult: localRefs.result,
+    view: {
+      title: resolveTitle(options.title),
+      records,
+      derivationWarnings,
+      sourceWarnings,
+      indeterminate,
+    },
   };
 }
 
@@ -627,13 +772,7 @@ export async function resolveProjectReadinessViewInput(
   options: ResolveProjectReadinessViewInputOptions,
 ): Promise<ProjectReadinessViewInput> {
   const composition = await resolveProjectReadinessComposition(options);
-  return {
-    title: resolveTitle(options.title),
-    records: composition.records,
-    derivationWarnings: composition.derivationWarnings,
-    sourceWarnings: composition.sourceWarnings,
-    indeterminate: composition.indeterminate,
-  };
+  return composition.view;
 }
 
 function lifecycleIndexFromRecords(records: readonly ProjectReadinessRecord[]): LifecycleIndex {
@@ -791,8 +930,11 @@ function renderTier(rows: readonly StatusViewRow[], columns: readonly StatusColu
 
 function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
   const resolved = typeof stamp === "string" ? { ref: stamp } : stamp;
+  // The rendered body carries no commit ref. A ref baked into the body makes the
+  // projection a function of whichever commit the renderer observed, so two callers
+  // rendering the same state disagree, and every commit invalidates the last render.
   const lines = [
-    `**Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${resolved.ref}\`.`,
+    "**Generated from meta files — re-render at ceremony boundaries.**",
   ];
   const details: string[] = [];
   if (resolved.scope !== undefined) details.push(`Source scope: ${resolved.scope}.`);

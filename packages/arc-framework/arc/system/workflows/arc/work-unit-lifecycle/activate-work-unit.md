@@ -50,7 +50,7 @@ Otherwise, skip.
 #### PROJECT-PRD
 
 Fires only when PROJECT-PRD has been edited since the WU's PRD was approved. Soft check; rarely blocks. Surface
-any conflict with the WU's PRD; on conflict, halt and ask.
+any conflict with the WU's PRD; halt and ask on material disagreement.
 
 #### TECHNICAL-OVERVIEW
 

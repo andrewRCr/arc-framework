@@ -34,6 +34,26 @@ the substrate, which raises the stakes on getting them right here.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Carry delivery's record-port requirements into the shared storage abstraction**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` task generation.
+- _Concern:_ delivery declares adapter-neutral requirements for artifact reads/writes, version-checked reconcile,
+  named failures, assurance-chain export/import, and reverse lookup from repository plus head/ref to plan, member,
+  and owning work unit.
+- _Fold-in:_ make these conformance requirements of the Local-owned shared storage abstraction and coordinate their
+  hosted realization with `arc-backend`. In particular, no adapter may retire until its assurance chains are
+  carried forward because no live query can reconstruct them.
+
+### `[ ]` **Strengthen project identity to remain stable across clones and remote changes**
+
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` planning.
+- _Concern:_ delivery binds project identity into immutable plan identity, so the current remote-URL-first fallback
+  is too weak: forks, mirrors, moved remotes, machines, and users can disagree while referring to one project.
+- _Fold-in:_ settle whether the backing-store key and durable project identity are one value with the stronger
+  contract or distinct values. Delivery consumes a conforming value and remains buildable without minting one.
+
 ### `[ ]` **Reconsider append-only branch history after notes retirement**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during decomposition-program

@@ -6,7 +6,9 @@
  * artifact exists and reflects the current source. `ARC_E2E_SKIP_BUILD=1`
  * skips the build for callers that already built the exact tree (CI jobs run
  * `npm run build` as their own step); the spawn helpers still fail fast with
- * a "build the CLI first" error if `dist/cli.js` is missing.
+ * a "build the CLI first" error if `dist/cli.js` is missing. The integration
+ * tier imposes the same expectation through its own setup, and the variable
+ * gates both.
  */
 
 import { execSync } from "node:child_process";

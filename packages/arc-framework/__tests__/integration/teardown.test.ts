@@ -38,6 +38,8 @@ import {
   type TeardownContext,
 } from "../../src/lib/work-unit/verbs/teardown.js";
 import {
+  ensureWorktreeMarkerIgnored,
+  nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
   writeWorktreeOwnershipMarker,
 } from "../../src/lib/git/worktree-marker.js";
@@ -499,6 +501,75 @@ describe("arc teardown --branch — recordless cheap branches over real git", ()
       expect(result.branchDeleted).toBe(true);
       expect(await branchPresent(h.cloneA, branch)).toBe(false);
     } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("removes an unpublished ARC-owned decomposition candidate with staged generated changes", async () => {
+    const h = await setupMultiClone();
+    const branch = "chore/decompose-origin";
+    const parent = await mkdtemp(join(tmpdir(), "arc-decompose-candidate-teardown-"));
+    const worktree = join(parent, "candidate");
+    try {
+      await git(h.cloneA, ["worktree", "add", "-b", branch, worktree, "main"]);
+      await ensureWorktreeMarkerIgnored(worktree, execFor(worktree), nodeWorktreeMarkerIgnoreFs);
+      await writeWorktreeOwnershipMarker(worktree, {
+        createdByArc: true,
+        createdFor: { kind: "branch", ref: branch },
+        spawningIdentity: "clone-a",
+      });
+      await writeFile(join(worktree, "generated.txt"), "generated\n");
+      await git(worktree, ["add", "generated.txt"]);
+
+      const result = await runBranchTeardown(teardownCtx(h.cloneA), {
+        branch,
+        base: "main",
+        protection: "partial",
+      });
+
+      expect(result).toMatchObject({
+        status: "torn-down",
+        branch,
+        branchDeleted: true,
+        worktreeRemoved: worktree,
+      });
+      expect(await branchPresent(h.cloneA, branch)).toBe(false);
+      await expect(readFile(join(worktree, "generated.txt"))).rejects.toThrow();
+    } finally {
+      await git(h.cloneA, ["worktree", "remove", "--force", worktree]).catch(() => undefined);
+      await rm(parent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
+  it("preserves an unpublished decomposition candidate with a unique commit", async () => {
+    const h = await setupMultiClone();
+    const branch = "chore/decompose-origin";
+    const parent = await mkdtemp(join(tmpdir(), "arc-decompose-committed-candidate-"));
+    const worktree = join(parent, "candidate");
+    try {
+      await git(h.cloneA, ["worktree", "add", "-b", branch, worktree, "main"]);
+      await ensureWorktreeMarkerIgnored(worktree, execFor(worktree), nodeWorktreeMarkerIgnoreFs);
+      await writeWorktreeOwnershipMarker(worktree, {
+        createdByArc: true,
+        createdFor: { kind: "branch", ref: branch },
+        spawningIdentity: "clone-a",
+      });
+      await writeFile(join(worktree, "authored.txt"), "authored\n");
+      await git(worktree, ["add", "authored.txt"]);
+      await git(worktree, ["commit", "-m", "authored candidate"]);
+
+      await runBranchTeardown(teardownCtx(h.cloneA), {
+        branch,
+        base: "main",
+        protection: "partial",
+      });
+
+      expect(await branchPresent(h.cloneA, branch)).toBe(true);
+    } finally {
+      await git(h.cloneA, ["worktree", "remove", "--force", worktree]).catch(() => undefined);
+      await git(h.cloneA, ["branch", "-D", branch]).catch(() => undefined);
+      await rm(parent, { recursive: true, force: true });
       await h.cleanup();
     }
   });

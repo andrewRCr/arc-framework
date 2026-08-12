@@ -23,6 +23,7 @@ pm_mode=$(arc_config_get "pm.mode" "none")
 base_branch=$(arc_config_get "branch.base" "main")
 branch_protection=$(arc_config_get "branch.protection" "partial")
 arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
+tsx_loader=${ARC_TSX_LOADER:-tsx}
 
 # Exit early if hook is disabled
 if [ "$hook_enabled" = "disabled" ]; then
@@ -121,7 +122,7 @@ done
 if [ "$pm_mode" = "arc-in-git" ]; then
     roadmap_remedy_status=0
     if [ -f packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts ]; then
-        roadmap_remedy_output=$(npx tsx packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts 2>&1) || roadmap_remedy_status=$?
+        roadmap_remedy_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts 2>&1) || roadmap_remedy_status=$?
     else
         roadmap_remedy_output=$(arc hook-remedy-roadmap-conflict 2>&1) || roadmap_remedy_status=$?
     fi
@@ -275,8 +276,11 @@ fi
 # Tiered patterns:
 #   - Strict (all staged code, including tests): patterns rare enough in
 #     legitimate fixture data that test exemption is unsafe (PRD R-codes,
-#     bare R/B numeric IDs, § citations). PROJECT-PRD lines are filtered as a
-#     known false positive (real framework template filename).
+#     bare R/B numeric IDs, § citations). Known false-positive tokens are
+#     stripped per line before re-check (not whole-line drops): PROJECT-PRD
+#     (framework template filename) and quoted three-digit Git name-status
+#     scores ("R100", 'C075', …). A line with PROJECT-PRD plus a real R-ID still
+#     flags.
 #   - Broad (non-test files only): patterns that legitimately appear in test
 #     fixtures (Context-footer parsers consume "Context: tasks-foo.md (Task
 #     4.2)" strings). The test_patterns exemption preserves those.
@@ -294,8 +298,19 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
         added=$(git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' || true)
         [ -z "$added" ] && continue
 
-        # Strict patterns apply to all staged code. PROJECT-PRD lines excluded.
-        strict_refs=$(echo "$added" | grep -nE "$strict_meta_ref_patterns" | grep -v 'PROJECT-PRD' || true)
+        # Strict patterns apply to all staged code. Strip known false-positive
+        # tokens then re-check — do not drop whole lines (a PROJECT-PRD mention
+        # must not hide a co-occurring R12 / B3 / § citation). Quoted three-digit
+        # Git --name-status R/C scores ("R100", 'C075', …) are stripped the same
+        # way. sed uses only ' and " — no backticks (command substitution risk).
+        strict_refs=$(echo "$added" | grep -nE "$strict_meta_ref_patterns" | while IFS= read -r numbered; do
+            [ -z "$numbered" ] && continue
+            content=${numbered#*:}
+            cleaned=$(printf '%s\n' "$content" | sed -E -e 's/PROJECT-PRD//g' -e "s/[\"'][RC][0-9]{3}[\"']//g")
+            if printf '%s\n' "$cleaned" | grep -qE "$strict_meta_ref_patterns"; then
+                printf '%s\n' "$numbered"
+            fi
+        done || true)
 
         # Broad patterns skip test files (legitimate fixture data).
         if echo "$file" | grep -qvE "$test_patterns"; then
@@ -323,7 +338,7 @@ fi
 # ============================================================================
 # CHECK 11: Frontmatter schema validation (methods / extensions)
 # ============================================================================
-# Delegates to validate-frontmatter.ts via tsx — schema logic lives in
+# Delegates to validate-frontmatter.ts via Node's TypeScript loader — schema logic lives in
 # TypeScript where it is unit-tested; this hook is a thin invoker. Catches
 # missing or malformed frontmatter on staged files under system/methods/
 # and system/extensions/.
@@ -332,7 +347,7 @@ frontmatter_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$frontmatter_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! frontmatter_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $frontmatter_candidates 2>&1); then
+    if ! frontmatter_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-frontmatter.ts $frontmatter_candidates 2>&1); then
         echo -e "${RED}Error: Frontmatter schema validation failed:${NC}"
         echo "$frontmatter_output" | sed 's/^/   /'
         echo ""
@@ -353,7 +368,7 @@ domain_rules_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$domain_rules_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! domain_rules_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $domain_rules_candidates 2>&1); then
+    if ! domain_rules_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-frontmatter.ts $domain_rules_candidates 2>&1); then
         echo -e "${RED}Error: Domain-rules frontmatter validation failed:${NC}"
         echo "$domain_rules_output" | sed 's/^/   /'
         echo ""
@@ -398,7 +413,7 @@ neutrality_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$neutrality_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! neutrality_output=$(npx tsx packages/arc-framework/src/scripts/validate-package-neutrality.ts $neutrality_candidates 2>&1); then
+    if ! neutrality_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-package-neutrality.ts $neutrality_candidates 2>&1); then
         echo -e "${RED}Error: Package-source neutrality check failed:${NC}"
         echo "$neutrality_output" | sed 's/^/   /'
         echo ""
@@ -424,7 +439,7 @@ extension_point_candidates=$(git diff --cached --name-only --diff-filter=ACMR | 
 
 if [ -n "$extension_point_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! extension_point_output=$(npx tsx packages/arc-framework/src/scripts/validate-extension-points.ts $extension_point_candidates 2>&1); then
+    if ! extension_point_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-extension-points.ts $extension_point_candidates 2>&1); then
         echo -e "${RED}Error: Extension-point reference validation failed:${NC}"
         echo "$extension_point_output" | sed 's/^/   /'
         echo ""
@@ -446,7 +461,7 @@ meta_spec_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$meta_spec_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! meta_spec_output=$(npx tsx packages/arc-framework/src/scripts/validate-meta-spec.ts $meta_spec_candidates 2>&1); then
+    if ! meta_spec_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-meta-spec.ts $meta_spec_candidates 2>&1); then
         echo -e "${RED}Error: Meta-file validation failed:${NC}"
         echo "$meta_spec_output" | sed 's/^/   /'
         echo ""
@@ -483,7 +498,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
             echo -e "${YELLOW}Warning: ROADMAP render fields changed without re-rendering backlog/ROADMAP.md:${NC}"
             echo "$roadmap_field_changes" | sed 's/^/   /'
             echo "   Depends On / Owner / Cohort feed the ROADMAP render."
-            echo "   Re-render with: arc status --project --staged > .arc/backlog/ROADMAP.md"
+            echo "   Re-render with: arc status --project --staged --write"
             echo "   Then stage .arc/backlog/ROADMAP.md."
             echo "   (Lifecycle ceremonies regen via their own step — disregard if this is one.)"
             warnings=$((warnings + 1))
@@ -506,7 +521,7 @@ cohort_consistency_candidates=$(git diff --cached --name-only --diff-filter=ACMR
 
 if [ -n "$cohort_consistency_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! cohort_consistency_output=$(npx tsx packages/arc-framework/src/scripts/validate-cohort-consistency.ts $cohort_consistency_candidates 2>&1); then
+    if ! cohort_consistency_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/validate-cohort-consistency.ts $cohort_consistency_candidates 2>&1); then
         echo -e "${RED}Error: Cohort-consistency validation failed:${NC}"
         echo "$cohort_consistency_output" | sed 's/^/   /'
         echo ""
@@ -519,16 +534,18 @@ fi
 # CHECK 19: ROADMAP regenerated assert (arc-in-git only)
 # ============================================================================
 # Validates a staged ROADMAP as a derived artifact: staged blob versus a fresh
-# staged-index render, plus an unconditional conflict-marker scan. Mismatch
-# rejects when the render snapshot is determinate; an indeterminate snapshot
-# warns and allows. GitHub-side conflict resolution does not run local hooks;
-# the next local commit that stages ROADMAP does.
+# staged-index render, with a finalized retirement staged in the same index
+# suppressing its still-local source branch, plus an unconditional
+# conflict-marker scan. Mismatch rejects when the render snapshot is
+# determinate; an indeterminate snapshot warns and allows.
+# GitHub-side conflict resolution does not run local hooks; the next local
+# commit that stages ROADMAP does.
 if [ "$pm_mode" = "arc-in-git" ]; then
     roadmap_assert_candidate=$(git diff --cached --name-only --diff-filter=ACMR | \
         grep -E '^\.arc/backlog/ROADMAP\.md$' || true)
 
     if [ -n "$roadmap_assert_candidate" ]; then
-        if ! roadmap_assert_output=$(npx tsx packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts 2>&1); then
+        if ! roadmap_assert_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts 2>&1); then
             echo -e "${RED}Error: ROADMAP is not regenerated from sources:${NC}"
             echo "$roadmap_assert_output" | sed 's/^/   /'
             errors=$((errors + 1))
@@ -541,25 +558,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
 fi
 
 # ============================================================================
-# CHECK 20: Finalized decompose record gate
-# ============================================================================
-# A decompose commit must introduce one finalized receipt whose exact non-record
-# patch matches the staged write set. Prepared, missing, amended, and mismatched
-# records fail closed.
-decompose_record_status=0
-if [ -f packages/arc-framework/src/scripts/validate-decompose-record.ts ]; then
-    decompose_record_output=$(npx tsx packages/arc-framework/src/scripts/validate-decompose-record.ts 2>&1) || decompose_record_status=$?
-else
-    decompose_record_output=$(arc hook-validate-decompose-record 2>&1) || decompose_record_status=$?
-fi
-if [ "$decompose_record_status" -ne 0 ]; then
-    echo -e "${RED}Error: Decompose retirement record validation failed:${NC}"
-    echo "$decompose_record_output" | sed 's/^/   /'
-    errors=$((errors + 1))
-fi
-
-# ============================================================================
-# CHECK 21: Foreign-write advisory backstop
+# CHECK 20: Foreign-write advisory backstop
 # ============================================================================
 # Surfaces a staged per-WU artifact that another in-flight work unit also
 # touches — a foreign-owned write about to land on the wrong branch. Reuses the
@@ -573,7 +572,7 @@ foreign_write_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 
 if [ -n "$foreign_write_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    foreign_write_output=$(npx tsx packages/arc-framework/src/scripts/check-foreign-writes.ts $foreign_write_candidates 2>/dev/null || true)
+    foreign_write_output=$(node --import "$tsx_loader" packages/arc-framework/src/scripts/check-foreign-writes.ts $foreign_write_candidates 2>/dev/null || true)
     if [ -n "$foreign_write_output" ]; then
         echo -e "${YELLOW}Warning: In-flight artifact advisory:${NC}"
         echo "$foreign_write_output" | sed 's/^/   /'

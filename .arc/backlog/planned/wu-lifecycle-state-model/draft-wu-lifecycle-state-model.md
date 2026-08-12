@@ -16,6 +16,41 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Model draft-first review as a three-tier audience transition**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ the current propose/submit model assumes private versus public, but draft locking adds a visible,
+  review-suppressed middle state. Treat release rather than PR creation as the public transition when locked;
+  `merge.lock: none` collapses the two events naturally.
+
+### `[ ]` **Give parked work units a lifecycle contract consumed by integration gates**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ lane classification, merge-lock readiness, and teardown each mis-handle a parked WU because they infer
+  a shipped/abandoned binary despite a valid `park-planning` receipt. Define parked state on the model's axes and
+  make these gates consume it rather than infer from branch topology.
+
+### `[ ]` **Re-aim the retired locus-generation coordination pointer**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ the draft coordinates exact-generation mutation and locked cleanup with the killed
+  `locus-generation-binding` WU. Re-evaluate whether the surviving identity-ref CAS owns the concern; re-aim or
+  remove the pointer without weakening fail-closed missing/ambiguous-subject behavior.
+
+### `[ ]` **Recognize the archived-but-not-torn-down work unit as a proved terminal frame**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `session-locus-model` closeout recovery.
+- _Concern:_ the supported integration cadence archives the active meta before merge and physical teardown. An
+  interruption in that interval leaves a valid durable role whose active-subject projection is
+  `subject-unresolved`, even when a unique same-slug completed subject, exact checkout/head, and open change request
+  prove the monotonic terminal transition.
+- _Fold-in:_ extend the existing pending-teardown terminal-condition decision to cover this pre-merge interval and
+  define the state/projection authority recovery consumes. Coordinate exact-generation mutation and locked cleanup
+  with `locus-generation-binding`; keep arbitrary missing or ambiguous subjects fail-closed.
+- _Verification:_ cover archive-before-merge restart, merge-before-teardown, partial teardown, retained-control
+  finalization, and missing/ambiguous completed-subject negatives in reader, session-init, and recovery tests.
+
 ### `[ ]` **`decomposition-hardening` rename-move marker is an operational projection to re-vocabulary later**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during

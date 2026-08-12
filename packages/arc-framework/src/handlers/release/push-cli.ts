@@ -20,12 +20,12 @@ import { createGitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import {
   runPushabilityStatus,
-  runWorktreeSyncStatus,
+  runMaterializingWorktreeInspection,
 } from "../../lib/git/index.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
-import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
+import { ARC_PROJECT_ROOT_ERROR, resolveUserIdentity } from "../shared.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -90,9 +90,8 @@ export async function handleReleasePush(
     readFile: (path) => readFile(path, "utf-8"),
   });
 
-  const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
-  const remoteSyncEnabled = settings.settings["session.remote_sync"] === "enabled";
-  const worktreeSync = await runWorktreeSyncStatus({ exec, remoteSyncEnabled });
+  const worktreeSync = await runMaterializingWorktreeInspection({ exec, cwd });
+  const currentBranch = worktreeSync.branch ?? "";
 
   const result = await runReleasePush({
     cwd,

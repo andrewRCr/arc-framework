@@ -1,297 +1,172 @@
-/**
- * The errand record model and the orphan state-ref read/write primitives.
- *
- * An errand's logical identity lives in a record, not in its branch — the
- * branch is a projection of the record, never the identity oracle. The records
- * are held in a dedicated orphan state-ref, `refs/arc/user/{identity}/errands`,
- * as a tree of per-slug blobs: each entry is keyed by the errand `<slug>` and
- * holds that errand's serialized record. The ref is **records-only** — nothing
- * is materialized into the working tree (no `.arc/user/{identity}/errands/`
- * directory); records are read and written straight through git plumbing
- * (see {@link module:lib/errand/ref-tree}).
- *
- * @module
- */
+/** Transient identity indexes projected from the orphan state ref. */
 
+import { errandsRef } from "./ref-tree.js";
+import type { TransientIdentityRecord } from "./identity-record.js";
 import {
-  errandsRef,
-  readTreeEntriesDiscriminating,
-  hashBlob,
-  type ErrandRecordIO,
-  type ErrandRecordReadIO,
-} from "./ref-tree.js";
-import { writeTreeWithCasRetry } from "../user-sync/cas-retry.js";
+  readTransientIdentitySnapshot,
+  readTransientIdentitySnapshotAtRef,
+  type IdentitySnapshotDiagnostic,
+} from "./identity-snapshot.js";
 
 import type { GitExec } from "../git/exec.js";
+import { uniqueRefToken } from "../git/ref-tree.js";
+import { gitFailureText, isGitProcessError } from "../git/process-error.js";
+import { isRemoteUnavailableError } from "../user-sync/index.js";
+import type { TransientWorktreeSubject } from "../git/worktree-marker.js";
 
-/**
- * How an errand came to be — the discriminator carried uniformly by every
- * record. `description` is a free-text launch (`arc-session --errand <desc>`
- * or a warm `arc-errand`); `inbox` is a promoted `USER-INBOX` capture, which
- * additionally carries an {@link ErrandRecord.originEntry} back-pointer.
- */
-export type ErrandOrigin = "description" | "inbox";
-
-/**
- * An errand's durable identity record — minted at launch, synced as a blob in
- * the orphan state-ref, projected onto a branch. Uniform across origins: an
- * inbox-promoted errand and a free-description errand differ only in whether
- * {@link originEntry} is present.
- */
-interface ErrandRecordFields {
-  /** The errand's stable slug — its logical identity and the tree key. */
-  slug: string;
-  /** How the errand originated (and whether an inbox back-pointer is present). */
-  origin: ErrandOrigin;
-  /** Free-text statement of the errand's concern. */
-  intent: string;
-  /** The branch projecting this errand (`chore/<slug>` today; nature-typed later). */
-  branch: string;
-  /** ISO-8601 launch timestamp. */
-  createdAt: string;
-  /** Originating `USER-INBOX` entry slug — present only when `origin === "inbox"`. */
-  originEntry?: string;
+/** Exact branch indexes for transient in-flight classification and marker-generation joins. */
+export interface TransientInFlightIndexes {
+  slugByBranch: Map<string, string>;
+  expectedByBranch: Map<string, TransientWorktreeSubject>;
+  expectedBySlug: Map<string, TransientWorktreeSubject>;
+  records: TransientIdentityRecord[];
 }
 
 /**
- * Any supported errand record schema version. Version 2 records may carry the
- * branch to restore when close reaps the errand; version 1 records cannot.
- */
-export type ErrandRecord =
-  | (ErrandRecordFields & { version: 1 })
-  | (ErrandRecordFields & { version: 2; returnBranch?: string });
-
-/**
- * Serialize a record to its blob form — a normalized field order so a
- * round-trip (and a same-slug re-write) is byte-stable, which the per-slug
- * tree-merge relies on to treat identical records as idempotent.
- */
-export function serializeErrandRecord(record: ErrandRecord): string {
-  const fields: ErrandRecordFields = {
-    slug: record.slug,
-    origin: record.origin,
-    intent: record.intent,
-    branch: record.branch,
-    createdAt: record.createdAt,
-    ...(record.originEntry !== undefined ? { originEntry: record.originEntry } : {}),
-  };
-  const normalized: ErrandRecord = record.version === 2
-    ? {
-      version: 2,
-      ...fields,
-      ...(record.returnBranch !== undefined ? { returnBranch: record.returnBranch } : {}),
-    }
-    : { version: 1, ...fields };
-  return `${JSON.stringify(normalized, null, 2)}\n`;
-}
-
-/**
- * Parse a blob back into a record, or `null` when it is malformed — never
- * throws, mirroring the sync-state reader so a later schema validator can swap
- * in mechanically.
- */
-export function deserializeErrandRecord(blob: string): ErrandRecord | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(blob);
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== "object" || parsed === null) return null;
-  const record = parsed as Record<string, unknown>;
-
-  if (
-    (record.version !== 1 && record.version !== 2)
-    || !isNonEmptyString(record.slug)
-    || (record.origin !== "description" && record.origin !== "inbox")
-    || typeof record.intent !== "string"
-    || !isNonEmptyString(record.branch)
-    || !isNonEmptyString(record.createdAt)
-  ) {
-    return null;
-  }
-  // An inbox-origin record must carry its back-pointer; a description-origin one
-  // must not — enforce the discriminator's contract rather than tolerate drift.
-  if (record.origin === "inbox" && !isNonEmptyString(record.originEntry)) {
-    return null;
-  }
-  if (record.origin === "description" && record.originEntry !== undefined) {
-    return null;
-  }
-  if (record.version === 1 && record.returnBranch !== undefined) {
-    return null;
-  }
-  if (record.version === 2 && record.returnBranch !== undefined && !isNonEmptyString(record.returnBranch)) {
-    return null;
-  }
-
-  const fields: ErrandRecordFields = {
-    slug: record.slug,
-    origin: record.origin,
-    intent: record.intent,
-    branch: record.branch,
-    createdAt: record.createdAt,
-    ...(isNonEmptyString(record.originEntry) ? { originEntry: record.originEntry } : {}),
-  };
-  return record.version === 2
-    ? {
-      version: 2,
-      ...fields,
-      ...(isNonEmptyString(record.returnBranch) ? { returnBranch: record.returnBranch } : {}),
-    }
-    : { version: 1, ...fields };
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
-/**
- * Read one errand record by slug, or `null` when the ref or the slug is absent.
+ * Exact outcome of one identity-index read.
  *
- * @param io - Injected git seams and identity.
- * @param slug - The errand slug keying the record in the ref's tree.
- * @returns The parsed record, or `null` when missing or unparseable.
+ * Only `absent` and a diagnostic-free `complete` establish the identity's whole
+ * claim set — the state a caller needs before treating a branch the indexes omit
+ * as carrying no transient claim. `error` establishes nothing, and a `complete`
+ * read that dropped entries reports them rather than presenting a partial index
+ * as the whole one.
  */
-export async function readErrandRecord(
-  io: ErrandRecordReadIO,
-  slug: string,
-): Promise<ErrandRecord | null> {
-  const ref = errandsRef(io.identity);
-  let blob: string;
-  try {
-    const { stdout } = await io.exec("git", ["cat-file", "-p", `${ref}:${slug}`]);
-    blob = stdout;
-  } catch {
-    return null;
-  }
-  return deserializeErrandRecord(blob);
-}
+export type TransientInFlightRead =
+  | { kind: "absent"; indexes: TransientInFlightIndexes }
+  | {
+      kind: "complete";
+      indexes: TransientInFlightIndexes;
+      diagnostics: readonly IdentitySnapshotDiagnostic[];
+    }
+  | { kind: "error"; stage: "cleanup" | "fetch" | "tip" | "tree"; message: string };
 
 /**
- * List every errand record present in the ref, in git's tree order. An absent
- * or empty ref yields an empty array; an entry that fails to parse is skipped.
+ * Project a read into usable indexes plus whether they establish the whole claim set.
  *
- * @param io - Injected git seams and identity.
- * @returns The records held in the ref's tree.
+ * Every consumer degrades the same way — derive over what was readable — but none may
+ * treat a branch the indexes omit as claim-free unless `complete` holds. Callers reach
+ * the indexes through this projection so the unreadable arm cannot be skipped silently.
+ *
+ * @param read - Outcome of {@link readTransientInFlightIndexes}
+ * @returns Indexes to derive over, whether absence is established, and any degradation notice
  */
-export async function listErrandRecords(io: ErrandRecordReadIO): Promise<ErrandRecord[]> {
-  return (await listErrandRecordsResult(io)).records;
-}
-
-/** Result of listing errand records without collapsing read failures into absence. */
-export interface ListErrandRecordsResult {
-  /** Every record that was read and parsed successfully. */
-  records: ErrandRecord[];
-  /** True only when the tree and every listed record were read successfully. */
+export function projectTransientInFlightRead(read: TransientInFlightRead): {
+  indexes: TransientInFlightIndexes;
   complete: boolean;
-  /** Soft diagnostics naming unreadable or malformed records. */
-  warnings: string[];
-}
-
-/**
- * List errand records while distinguishing clean absence from incomplete reads.
- *
- * @param io - Injected git seams and identity.
- * @returns Successfully parsed records plus completeness and soft diagnostics.
- */
-export async function listErrandRecordsResult(io: ErrandRecordReadIO): Promise<ListErrandRecordsResult> {
-  const ref = errandsRef(io.identity);
-  const tree = await readTreeEntriesDiscriminating(io.exec, ref);
-  if (tree.kind === "absent") return { records: [], complete: true, warnings: [] };
-  if (tree.kind === "error") {
+  degraded: string | null;
+} {
+  if (read.kind === "error") {
     return {
-      records: [],
+      indexes: emptyTransientInFlightIndexes(),
       complete: false,
-      warnings: [`Errand record tree read failed: ${tree.error.message}`],
+      degraded: `Transient identity unreadable (${read.stage}): ${read.message}`,
     };
   }
-
-  const records: ErrandRecord[] = [];
-  const warnings: string[] = [];
-  for (const slug of tree.entries.keys()) {
-    let blob: string;
-    try {
-      ({ stdout: blob } = await io.exec("git", ["cat-file", "-p", `${ref}:${slug}`]));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      warnings.push(`Errand record \`${slug}\` read failed: ${message}`);
-      continue;
-    }
-    const record = deserializeErrandRecord(blob);
-    if (record === null) {
-      warnings.push(`Errand record \`${slug}\` is malformed.`);
-      continue;
-    }
-    records.push(record);
+  if (read.kind === "absent") return { indexes: read.indexes, complete: true, degraded: null };
+  if (read.diagnostics.length === 0) {
+    return { indexes: read.indexes, complete: true, degraded: null };
   }
-  return { records, complete: warnings.length === 0, warnings };
+  return {
+    indexes: read.indexes,
+    complete: false,
+    degraded: `Transient identity dropped ${read.diagnostics.length} unreadable entr`
+      + `${read.diagnostics.length === 1 ? "y" : "ies"}.`,
+  };
+}
+
+/** Indexes carrying no claims — the basis a caller degrades onto after an unreadable identity. */
+export function emptyTransientInFlightIndexes(): TransientInFlightIndexes {
+  return {
+    slugByBranch: new Map(),
+    expectedByBranch: new Map(),
+    expectedBySlug: new Map(),
+    records: [],
+  };
 }
 
 /**
- * Read the identity's errand records into a `branch → slug` index — the
- * identity oracle the session-init probes and the in-flight derivation resolve
- * errand-ness against (a branch carrying a record is an errand, branch prefix
- * notwithstanding). A `null` identity (none resolved) yields an empty index, so
- * a caller degrades to no-errands rather than branching on identity itself.
+ * Read the identity's transient records into branch and slug indexes.
  *
  * @param io - Injected read seam (`exec`) and the identity, which may be `null`.
- * @returns Branch→slug for every present record; empty when identity is absent or the ref is unborn.
+ * @returns Clean absence, an unreadable identity, or the indexes plus any dropped entries.
  */
-export async function readErrandSlugByBranch(
+export async function readTransientInFlightIndexes(
   io: { exec: GitExec; identity: string | null },
-): Promise<Map<string, string>> {
-  if (io.identity === null) return new Map();
-  const records = await listErrandRecords({ exec: io.exec, identity: io.identity });
-  return new Map(records.map((record) => [record.branch, record.slug]));
+): Promise<TransientInFlightRead> {
+  // No identity resolves no claims by definition — an established absence, not an
+  // unreadable one, so it stays distinct from a failed read of a real identity.
+  if (io.identity === null) return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
+  const snapshot = await readTransientIdentitySnapshot({ exec: io.exec, identity: io.identity });
+  return projectTransientSnapshot(snapshot);
 }
 
 /**
- * Write (create or replace) a record in the ref, keyed by its slug. Builds a
- * new tree carrying every existing entry plus this one, commits it onto the
- * ref's prior tip, and moves the ref — no working-tree file is touched.
+ * Read discovery indexes from an isolated fetched identity snapshot.
  *
- * @param io - Injected git seams (including the stdin-fed writer) and identity.
- * @param record - The record to store; `record.slug` is its tree key.
+ * The configured local identity ref is never updated. An absent remote ref falls
+ * back to the local read so unborn identities retain their established behavior.
+ *
+ * @param io - Injected Git boundary, identity, and configured remote.
+ * @returns Remote-backed indexes, local absence, or a typed operational failure.
  */
-export async function writeErrandRecord(
-  io: ErrandRecordIO,
-  record: ErrandRecord,
-): Promise<void> {
-  const blobSha = await hashBlob(io.execInput, serializeErrandRecord(record));
-  const outcome = await writeTreeWithCasRetry(
-    io,
-    errandsRef(io.identity),
-    `errand record: write ${record.slug}`,
-    (entries) => {
-      entries.set(record.slug, blobSha);
-      return entries;
-    },
+export async function readFetchedTransientInFlightIndexes(
+  io: { exec: GitExec; identity: string | null; remote: string },
+): Promise<TransientInFlightRead> {
+  if (io.identity === null) return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
+  const sourceRef = errandsRef(io.identity);
+  const snapshotRef = `refs/arc/tmp/transient-discovery/${uniqueRefToken()}`;
+  const fetchArgs = ["fetch", io.remote, `+${sourceRef}:${snapshotRef}`];
+  try {
+    await io.exec("git", fetchArgs);
+  } catch (error) {
+    const detail = gitFailureText(error);
+    const absent = isGitProcessError(error) && error.expectedOutcome === "absent-remote-ref";
+    if (absent || isRemoteUnavailableError(detail)
+      || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(detail)) {
+      return readTransientInFlightIndexes(io);
+    }
+    return { kind: "error", stage: "fetch", message: errorMessage(error) };
+  }
+
+  const snapshot = await readTransientIdentitySnapshotAtRef(
+    { exec: io.exec, identity: io.identity },
+    snapshotRef,
   );
-  if (outcome.kind === "failed") throw outcome.error;
+  const outcome = projectTransientSnapshot(snapshot);
+  try {
+    await io.exec("git", ["update-ref", "-d", snapshotRef]);
+  } catch (error) {
+    if (outcome.kind === "error") return outcome;
+    return { kind: "error", stage: "cleanup", message: errorMessage(error) };
+  }
+  return outcome;
 }
 
-/**
- * Remove a record from the ref by slug. A no-op when the slug is absent.
- * Deliberately separable from branch teardown: `close` reaps the branch around
- * it, while promotion removes the record but keeps the renamed branch.
- *
- * @param io - Injected git seams and identity.
- * @param slug - The slug to drop from the ref's tree.
- */
-export async function removeErrandRecord(io: ErrandRecordIO, slug: string): Promise<void> {
-  const ref = errandsRef(io.identity);
-  // Pre-check the no-op case so an absent slug never writes a redundant commit;
-  // the retry frame re-reads the tree, so the delete still applies to fresh state.
-  // Discriminate a genuine read failure from a legitimately absent ref — a fail-open
-  // read would treat an errored tree as empty and return success without removing an
-  // existing record.
-  const precheck = await readTreeEntriesDiscriminating(io.exec, ref);
-  if (precheck.kind === "error") throw precheck.error;
-  if (precheck.kind === "absent" || !precheck.entries.has(slug)) return;
-  const outcome = await writeTreeWithCasRetry(io, ref, `errand record: remove ${slug}`, (entries) => {
-    entries.delete(slug);
-    return entries;
-  });
-  if (outcome.kind === "failed") throw outcome.error;
+function projectTransientSnapshot(
+  snapshot: Awaited<ReturnType<typeof readTransientIdentitySnapshotAtRef>>,
+): TransientInFlightRead {
+  if (snapshot.kind === "error") {
+    return { kind: "error", stage: snapshot.stage, message: snapshot.message };
+  }
+  if (snapshot.kind === "absent") return { kind: "absent", indexes: emptyTransientInFlightIndexes() };
+
+  const indexes = emptyTransientInFlightIndexes();
+  for (const record of snapshot.records.values()) {
+    if (record.branch === null) continue;
+    indexes.slugByBranch.set(record.branch, record.slug);
+    const kind = record.kind === "groom"
+      ? "groom"
+      : record.purpose === "housekeep-routing"
+        ? "housekeep"
+        : "errand";
+    const subject = { kind, slug: record.slug, claimId: record.claimId } as TransientWorktreeSubject;
+    indexes.expectedByBranch.set(record.branch, subject);
+    indexes.expectedBySlug.set(record.slug, subject);
+  }
+  indexes.records = [...snapshot.records.values()];
+  return { kind: "complete", indexes, diagnostics: snapshot.diagnostics };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

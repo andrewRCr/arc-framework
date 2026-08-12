@@ -8,8 +8,8 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
+const tsxLoader = import.meta.resolve("tsx");
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const tsxCli = join(repositoryRoot, "node_modules/tsx/dist/cli.mjs");
 const formatTables = join(repositoryRoot, "packages/arc-framework/src/scripts/format-tables.ts");
 
 let fixtureParent: string | undefined;
@@ -57,7 +57,7 @@ describe("format:tables entry point", () => {
     const nested = join(linked, "nested");
     await mkdir(nested);
 
-    const first = await execFileAsync(process.execPath, [tsxCli, formatTables, "docs/table.md"], {
+    const first = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
       cwd: nested,
       encoding: "utf8",
     });
@@ -65,7 +65,7 @@ describe("format:tables entry point", () => {
     expect(await readFile(join(linked, "docs/table.md"), "utf8"))
       .toBe("| A  |\n| -- |\n| 表 |\n");
 
-    const second = await execFileAsync(process.execPath, [tsxCli, formatTables, "docs/table.md"], {
+    const second = await execFileAsync(process.execPath, ["--import", tsxLoader, formatTables, "docs/table.md"], {
       cwd: nested,
       encoding: "utf8",
     });

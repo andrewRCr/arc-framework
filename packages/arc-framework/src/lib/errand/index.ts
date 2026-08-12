@@ -1,6 +1,6 @@
 /**
- * Errand domain — the errand record model, the orphan state-ref read/write
- * primitives, and the per-slug tree-merge backing the errand lifecycle.
+ * Errand domain — v3 transient identities, lifecycle operations, and the
+ * orphan state-ref merge backing identity synchronization.
  *
  * @module
  */
@@ -12,17 +12,134 @@ export {
 } from "./ref-tree.js";
 
 export {
-  serializeErrandRecord,
-  deserializeErrandRecord,
-  readErrandRecord,
-  listErrandRecords,
-  listErrandRecordsResult,
-  writeErrandRecord,
-  removeErrandRecord,
-  type ErrandRecord,
-  type ErrandOrigin,
-  type ListErrandRecordsResult,
+  emptyTransientInFlightIndexes,
+  projectTransientInFlightRead,
+  readTransientInFlightIndexes,
+  readFetchedTransientInFlightIndexes,
+  type TransientInFlightIndexes,
+  type TransientInFlightRead,
 } from "./record.js";
+
+export {
+  TransientIdentityRecordV3Schema,
+  TransientIdentityRecordSchema,
+  mintClaimId,
+  serializeTransientIdentityRecord,
+  deserializeTransientIdentityRecord,
+  projectLocusIdentity,
+  type TransientIdentityRecordV3,
+  type TransientIdentityRecord,
+  type TransientIdentityDecodeResult,
+} from "./identity-record.js";
+
+export {
+  authorizeErrandTerminal,
+  type AuthorizeErrandTerminalOptions,
+  type ErrandTerminalAuthority,
+  type ErrandTerminalOperation,
+  type ErrandTerminalSubject,
+} from "./terminal-authority.js";
+
+export {
+  createErrandTerminalResult,
+  ErrandTerminalGenerationSchema,
+  ErrandTerminalOperationSchema,
+  ErrandTerminalResultSchema,
+  ErrandTerminalSubjectSchema,
+  type ErrandTerminalResult,
+} from "./terminal-result.js";
+
+export {
+  createErrandPromotionResult,
+  ErrandPromotionResultSchema,
+  type ErrandPromotionResult,
+} from "./promotion-result.js";
+
+export {
+  createErrandOperationResult,
+  ErrandOperationResultSchema,
+  ErrandOperationSchema,
+  type ErrandOperation,
+  type ErrandOperationResult,
+} from "./operation-result.js";
+
+export {
+  createTerminalOccupancyIO,
+  settleTerminalOccupancy,
+  type SettleTerminalOccupancyOptions,
+  type TerminalOccupancyIO,
+  type TerminalOccupancyInspection,
+  type TerminalOccupancySettlement,
+} from "./terminal-occupancy.js";
+
+export {
+  readTransientIdentitySnapshot,
+  readTransientIdentitySnapshotAtRef,
+  type IdentitySnapshotIO,
+  type IdentitySnapshotDiagnostic,
+  type TransientIdentitySnapshot,
+} from "./identity-snapshot.js";
+
+export {
+  reconcileIdentityObjects,
+  transactTransientIdentities,
+  type IdentityObjectReconcile,
+  type IdentityTransformDecision,
+  type IdentityTransform,
+  type IdentityTransactionParams,
+  type IdentityTransactionOutcome,
+} from "./identity-transaction.js";
+
+export {
+  ordinaryErrandTransform,
+  provePauseHead,
+  type OrdinaryErrandRecord,
+  type PauseHeadEvidence,
+  type ProvePauseHeadParams,
+  type ProvePauseHeadOutcome,
+  type AwaitMergeConfiguredCoordinates,
+  type OrdinaryErrandTransition,
+  type OrdinaryErrandTransform,
+} from "./identity-transitions.js";
+
+export {
+  groomClaimTransform,
+  groomAwaitMergeTransform,
+  groomResumeTransform,
+  groomSettleTransform,
+  rollbackGroomResumeTransform,
+  housekeepAwaitMergeTransform,
+  housekeepClaimTransform,
+  identityClaimRollbackTransform,
+  rollbackIdentityClaim,
+  pinRemoteBaseHead,
+  type GroomIdentityRecord,
+  type GroomClaimVerdict,
+  type GroomAwaitMergeRequest,
+  type GroomResumeRequest,
+  type GroomSettleRequest,
+  type SettledPartialGroomRecord,
+  type HousekeepAwaitMergeRequest,
+  type HousekeepIdentityRecord,
+  type HousekeepClaimVerdict,
+  type IdentityClaimRollbackParams,
+  type IdentityClaimRollbackOutcome,
+  type PinRemoteBaseHeadParams,
+  type PinRemoteBaseHeadOutcome,
+} from "./identity-claims.js";
+
+export {
+  createGhChangeRequestLifecyclePort,
+  evaluateChangeRequestReentry,
+  transientTailRetirementTransform,
+  type ChangeRequestLifecycleConfiguration,
+  type ChangeRequestLifecycleTruth,
+  type ChangeRequestLifecycleEvidence,
+  type ChangeRequestLifecyclePort,
+  type ChangeRequestReentryVerdict,
+  type TransientIdentityTailRecord,
+  type TransientTailRetirementRequest,
+} from "./change-request-lifecycle.js";
 
 export {
   mergeErrandTrees,
@@ -40,35 +157,65 @@ export {
 } from "./branch-type.js";
 
 export {
-  openErrand,
-  type OpenErrandParams,
-  type OpenErrandResult,
+  openOrdinaryErrand,
+  type OpenOrdinaryErrandDependencies,
+  type OpenOrdinaryErrandOptions,
 } from "./open.js";
 
 export {
-  linkErrandToInbox,
-  type LinkErrandToInboxParams,
-  type LinkErrandToInboxResult,
+  linkOrdinaryErrand,
+  type LinkOrdinaryErrandDependencies,
+  type LinkOrdinaryErrandOptions,
 } from "./link.js";
 
 export {
-  closeErrand,
-  type CloseErrandParams,
-  type CloseErrandResult,
-  type RemoteHeadCleanup,
-} from "./close.js";
+  linkOrdinaryErrandAtRuntime,
+  type LinkOrdinaryErrandRuntimeOptions,
+} from "./link-runtime.js";
 
 export {
-  retireErrand,
-  type RetireErrandParams,
-  type RetireErrandResult,
-} from "./retire.js";
+  leaveOrdinaryErrand,
+  type LeaveAuthorization,
+  type LeaveCleanupResult,
+  type LeaveOrdinaryErrandDependencies,
+  type LeaveOrdinaryErrandOptions,
+} from "./leave.js";
 
 export {
-  promoteErrand,
-  type PromoteErrandContext,
-  type PromoteErrandFs,
-  type PromoteErrandParams,
-  type PromoteErrandResult,
+  leaveOrdinaryErrandAtRuntime,
+  type LeaveOrdinaryErrandRuntimeOptions,
+} from "./leave-runtime.js";
+
+export {
+  prepareMaterializedBranch,
+  type PrepareMaterializedBranchOptions,
+  type PrepareMaterializedBranchResult,
+} from "./materialize-branch.js";
+
+export {
+  closeOrdinaryErrand,
+  type CloseInboxResult,
+  type CloseOrdinaryErrandDependencies,
+  type CloseOrdinaryErrandOptions,
+  type CloseRefCleanupResult,
+} from "./close-locus.js";
+
+export {
+  cleanupOrdinaryErrandRefs,
+  closeOrdinaryErrandAtRuntime,
+  type CloseOrdinaryErrandRuntimeOptions,
+} from "./close-runtime.js";
+
+export {
+  promoteOrdinaryErrand,
+  type PromoteOrdinaryErrandDependencies,
+  type PromoteOrdinaryErrandOptions,
+  type PromotionFrameReceipt,
+  type PromotionFrameResult,
   type PromoteFloor,
 } from "./promote.js";
+
+export {
+  promoteOrdinaryErrandAtRuntime,
+  type PromoteOrdinaryErrandRuntimeOptions,
+} from "./promote-runtime.js";

@@ -150,7 +150,7 @@ function diagnosticRemedy(options: CreateMarkdownDiagnosticOptions, path: Manage
         ? undefined
         : { command: `npm run render:framework -- ${shellQuote(validateMarkdownPath(options.remedyPath))}` };
     case "markdown.derived-readiness":
-      return { command: "npx arc status --project --staged > .arc/backlog/ROADMAP.md" };
+      return { command: "npx arc status --project --staged --write" };
     default:
       return undefined;
   }

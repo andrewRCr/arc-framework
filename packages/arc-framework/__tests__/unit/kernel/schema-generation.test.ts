@@ -19,6 +19,7 @@ import {
 import {
   registerReviewDomainSchemas,
 } from "../../../src/scripts/review-gate/core/register-review-schemas.js";
+import { registerDeliveryDomainSchemas } from "../../../src/lib/delivery/schema.js";
 
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
@@ -31,15 +32,17 @@ describe("kernel schema artifact generation", () => {
   it("projects the built-in schema map without touching disk", () => {
     expect(Object.keys(projectKernelSchemas().schemas)).toEqual([
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",
     ]);
   });
 
-  it("projects the composed review family with stable references and bytes", () => {
-    const first = registerReviewDomainSchemas(createKernelRegistry());
-    const second = registerReviewDomainSchemas(createKernelRegistry());
+  it("projects the composed production families with stable references and bytes", () => {
+    const first = registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()));
+    const second = registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()));
     const firstBundle = projectKernelSchemas(first);
 
     expect(Object.keys(firstBundle.schemas)).toEqual([
@@ -49,6 +52,12 @@ describe("kernel schema artifact generation", () => {
       "canonical-change-set",
       "change-path-fact",
       "change-path-set",
+      "delivery-deliverable-id-preimage",
+      "delivery-plan",
+      "delivery-plan-authoring-input",
+      "delivery-plan-member",
+      "delivery-plan-seam",
+      "delivery-state",
       "disposition-approval",
       "disposition-report-item",
       "disposition-set",
@@ -69,10 +78,16 @@ describe("kernel schema artifact generation", () => {
       "local-review-source",
       "local-review-source-digest-preimage",
       "local-review-state",
+      "merge-lock-command-error-envelope",
+      "merge-lock-hold-envelope",
+      "merge-lock-release-envelope",
+      "merge-lock-resolve-envelope",
       "normalized-review-finding",
       "priority",
       "project-routing-promotion",
       "proposed-disposition-set",
+      "remote-evidence",
+      "remote-failure-reason",
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",
@@ -112,7 +127,6 @@ describe("kernel schema artifact generation", () => {
       "review-suspension-state",
       "review-target",
       "review-target-id-preimage",
-      "review-unlock-envelope",
       "severity-gating-policy",
       "slug",
       "standard-review-contract",

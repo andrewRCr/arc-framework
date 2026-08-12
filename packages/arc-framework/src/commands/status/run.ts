@@ -22,6 +22,9 @@
  */
 
 import type {
+  HandoffPathSet,
+  HandoffSurfacePaths,
+  Probe,
   RunRecoverStatusOptions,
   RunSessionHandoffStatusOptions,
   RunSessionInitStatusOptions,
@@ -41,14 +44,14 @@ import type {
   WorktreeIdentity,
 } from "./types.js";
 import {
-  buildSessionSharedSlots,
+  buildSessionRemoteContextSlot,
   gatedSlot,
   safeProbe,
   SessionCompositionError,
+  SessionIdentityMissingError,
   toProbe,
   userSlot,
   type SessionResult,
-  type SessionStatusError,
 } from "./result-composition.js";
 import type { ActiveSessionInitResult } from "../active/types.js";
 import { resolveCleanArmNotesVerdict } from "../user/drift.js";
@@ -56,6 +59,7 @@ import type { UserSessionInitStatusResult } from "../user/types.js";
 import {
   inferBaseBranchSync,
   inferBaseDistance,
+  inferBranchGoneRecovery,
   inferRetiredSubdirs,
   inferSessionInitRecommendations,
   type BaseBranchSyncPullPolicy,
@@ -64,16 +68,26 @@ import {
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
+import {
+  deriveDerivedLocusSessionGuidance,
+  deriveRecoveryLocusSessionGuidance,
+} from "../../lib/locus/session-guidance.js";
+import type { DerivedLocusFrame } from "../../lib/locus/derived-reader.js";
+import {
+  deriveHandoffLocusPlan,
+  type HandoffLocusPlan,
+} from "../../lib/handoff/locus-plan.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
-import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
+import { resolveLoadSetManifest } from "../../lib/load-set/projection.js";
+import type { LoadSetManifest } from "../../lib/load-set/types.js";
+import { deriveRecoveryLocusContext } from "../../lib/recover/locus-context.js";
 import {
   fromThrowable,
   err,
+  ok,
   okAsync,
-  type ResultAsync,
 } from "../../lib/kernel/index.js";
-
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
 }
@@ -122,10 +136,17 @@ export async function runSessionInitStatus(
     import("../../lib/session-init/errand-state.js").ErrandStateResult
   >;
 
-  const shared = buildSessionSharedSlots({ identity, role, probes });
+  const userTask = userSlot(identity, (id) => probes.user(id));
+  const dirtyTask = safeProbe("dirty", () => probes.dirty());
+  const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
+  const remote = buildSessionRemoteContextSlot(probes.remoteContext);
+  const worktreeTask = remote.run("worktree", (context) => probes.worktree(context));
   const worktreeIdentityTask = safeProbe("worktreeIdentity", () => probes.worktreeIdentity());
-  const baseDistanceTask = safeProbe("baseDistance", () => probes.baseDistance());
-  const baseBranchSyncTask = safeProbe("baseBranchSync", () => probes.baseBranchSync());
+  const baseDistanceTask = remote.run("baseDistance", (context) => probes.baseDistance(context));
+  const baseBranchSyncTask = remote.run(
+    "baseBranchSync",
+    (context) => probes.baseBranchSync(context),
+  );
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
   const domainRulesTask = safeProbe("domainRules", () => probes.domainRules());
@@ -134,7 +155,7 @@ export async function runSessionInitStatus(
   // absent. `null` here means "not computed" — distinct from an empty result.
   const retiredSubdirsTask = identity === null
     ? null
-    : safeProbe("retiredSubdirs", () => probes.retiredSubdirs(identity));
+    : remote.run("retiredSubdirs", (context) => probes.retiredSubdirs(context, identity));
   // Errand-staleness sweep rides the same eager / identity-gated phase: its
   // source is identity-scoped, so it is omitted when identity is absent.
   const errandSweepTask = identity === null
@@ -157,15 +178,14 @@ export async function runSessionInitStatus(
     : safeProbe("compactionAdvisory", () => compactionAdvisoryProbe(identity));
 
   const [
-    user, worktree, dirty, active, releaseRouting,
+    user, worktree, dirty, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState, partialPushMarker, compactionAdvisory,
   ] = await Promise.all([
-    shared.user,
-    shared.worktree,
-    shared.dirty,
-    shared.active,
-    shared.releaseRouting,
+    userTask,
+    worktreeTask,
+    dirtyTask,
+    releaseRoutingTask,
     worktreeIdentityTask,
     baseDistanceTask,
     baseBranchSyncTask,
@@ -178,6 +198,14 @@ export async function runSessionInitStatus(
     partialPushMarkerTask,
     compactionAdvisoryTask,
   ]);
+
+  const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
+    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
+        identity,
+        extensions.isOk() ? extensions.value.active : [],
+      ));
+  const active = derivedLocusState.map(projectDerivedActiveSession);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
   // to "primary" (surface nothing) rather than masking the whole worktree slot.
@@ -200,7 +228,10 @@ export async function runSessionInitStatus(
   // so the common path pays nothing. `null` when not diverged or the read failed.
   const supersessionSlot =
     worktree.isOk() && worktree.value.state === "diverged" && worktree.value.branch !== null
-      ? await safeProbe("supersession", () => probes.supersession(worktree.value.branch as string))
+      ? await remote.run(
+        "supersession",
+        (context) => probes.supersession(context, worktree.value.branch as string),
+      )
       : undefined;
   const supersession = supersessionSlot?.isOk() ? supersessionSlot.value : null;
 
@@ -220,15 +251,15 @@ export async function runSessionInitStatus(
         supersession,
       } satisfies SessionInitWorktreeValue));
 
-  // Current-locus husk orientation is a linked + branchless refinement, not a
-  // new sync state. Ordinary branched resumes skip marker/archive reads. A
-  // degraded advisory probe is omitted so detached-head guidance remains the
-  // conservative fallback.
-  const currentHuskSlot =
+  // Current-locus husk/transient provenance is a linked + branchless
+  // refinement, not a new sync state. Ordinary branched resumes skip the read.
+  const currentHusk =
     worktreeIdentity.kind === "linked" && worktree.isOk() && worktree.value.branch === null
-      ? await safeProbe("currentHusk", () => probes.currentHusk(worktreeIdentity.path))
+      ? await remote.run(
+        "currentHusk",
+        (context) => probes.currentHusk(context, worktreeIdentity.path),
+      )
       : undefined;
-  const currentHusk = currentHuskSlot?.isOk() ? currentHuskSlot : undefined;
 
   // Base-distance enrichment mirrors the worktree slot's shape. Its
   // recommendation is an independent advisory (behind-base reconcile offer),
@@ -302,8 +333,8 @@ export async function runSessionInitStatus(
     && active.value.resolution === "single"
     && activeWuName !== null
     && identity !== null
-      ? await safeProbe("userReferenceReconcile", () =>
-        probes.userReferenceReconcile({ slug: activeWuName }))
+      ? await remote.run("userReferenceReconcile", (context) =>
+        probes.userReferenceReconcile(context, { slug: activeWuName }))
       : undefined;
   const notesVerdict = qualifiedUser.isOk() && qualifiedUser.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })
@@ -318,10 +349,12 @@ export async function runSessionInitStatus(
       } satisfies SessionInitUserValue));
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
-  // stage. The expensive slots below are the second: the in-flight roster and
-  // the materializable-WU oracle both express through the `gatedSlot` affordance
-  // — fire the probe only when the gate holds, omit the slot otherwise, with
-  // `safeProbe`'s "envelope never rejects" contract preserved either way. Their
+  // stage. The expensive slots below are the second: the in-flight roster fires
+  // through the `gatedSlot` affordance, and the materializable-WU oracle fires
+  // through an inline conditional over the shared remote context (`remote.run`).
+  // Both express the same fire-or-omit shape — run the probe only when the gate
+  // holds, omit the slot otherwise, with `safeProbe`'s "envelope never rejects"
+  // contract preserved either way. Their
   // gating signals (worktree state, active resolution, worktree identity) are
   // produced by sibling slots in the fan-out above, so they can only resolve in
   // a second stage. On the linked-worktree resume path both gates are false, so
@@ -352,10 +385,17 @@ export async function runSessionInitStatus(
   // roster gate (branch-gone only). It consumes the roster resolved just above,
   // so one roster computation feeds every consumer and recovery fires only when
   // the worktree is branch-gone and the roster resolved.
-  const recovery =
+  const rawRecovery =
     worktree.isOk() && worktree.value.state === "branch-gone" && roster?.isOk()
-      ? await safeProbe("recovery", () => probes.recovery(roster.value, worktree.value.branch))
+      ? await remote.run(
+        "recovery",
+        (context) => probes.recovery(context, roster.value, worktree.value.branch),
+      )
       : undefined;
+  const recovery = rawRecovery?.map((value) => inferBranchGoneRecovery(
+    value,
+    dirty.isOk() ? dirty.value : { state: "dirty", fileCount: 0 },
+  ));
 
   // Residue sweep — consumes the public roster in the primary worktree and the
   // private cleanup-only roster in a linked worktree. The private value never
@@ -363,18 +403,24 @@ export async function runSessionInitStatus(
   const sweepRoster = worktreeIdentity.kind === "primary" ? roster : cleanupRoster;
   const sweep =
     sweepRoster?.isOk()
-      ? await safeProbe("sweep", () => probes.sweep(sweepRoster.value, worktreeIdentity))
+      ? await remote.run(
+        "sweep",
+        (context) => probes.sweep(context, sweepRoster.value, worktreeIdentity),
+      )
       : undefined;
 
   // Orphan-branch sweep — local branch hygiene from primary or identity-known
   // linked sessions. It consumes no roster and performs no network operation.
   const orphanBranchSweep =
     (worktreeIdentity.kind === "primary" || identity !== null)
-      ? await safeProbe("orphanBranchSweep", () => probes.orphanBranchSweep(worktreeIdentity))
+      ? await remote.run(
+        "orphanBranchSweep",
+        (context) => probes.orphanBranchSweep(context, worktreeIdentity),
+      )
       : undefined;
   const errandState: RawErrandState | undefined =
     worktree.isOk() && active.isOk()
-      ? await safeProbe("errandState", () => probes.errandState({
+      ? await remote.run("errandState", (context) => probes.errandState(context, {
         currentBranch: worktree.value.branch,
         hasBackingMeta: active.value.resolution === "single",
         includeDiscovery: active.value.resolution === "none",
@@ -389,22 +435,23 @@ export async function runSessionInitStatus(
   // no-active-WU arm — the same bounded network slice the materialize oracle uses.
   const workUnitState =
     roster?.isOk()
-      ? await safeProbe("workUnitState", () =>
-        probes.workUnitState({
+      ? await remote.run("workUnitState", (context) =>
+        probes.workUnitState(context, {
           roster: roster.value,
           includeSharpening: active.isOk() && active.value.resolution === "none",
         }))
       : undefined;
 
   // Materializable-WU oracle slot — the discovery surface for cross-machine
-  // pickup. Expressed through the same `gatedSlot` affordance as the roster:
-  // fires the oracle's bounded network slice ONLY on the no-active-WU arm, so
-  // the resume path pays zero oracle cost.
-  const materializableWorkUnitsTask = gatedSlot(
-    active.isOk() && active.value.resolution === "none",
-    "materializableWorkUnits",
-    () => probes.materializableWorkUnits(),
-  );
+  // pickup. Declared against the shared remote context and gated inline: the
+  // oracle's bounded network slice runs ONLY on the no-active-WU arm, so the
+  // resume path pays zero oracle cost.
+  const materializableWorkUnitsTask = active.isOk() && active.value.resolution === "none"
+    ? remote.run(
+      "materializableWorkUnits",
+      (context) => probes.materializableWorkUnits(context),
+    )
+    : undefined;
   const materializableWorkUnits = materializableWorkUnitsTask === undefined
     ? undefined
     : await materializableWorkUnitsTask;
@@ -419,32 +466,35 @@ export async function runSessionInitStatus(
       ? (resolveInFlightComposition(roster.value.entries) ?? undefined)
       : undefined;
 
-  // Cohort-doc resolution — when a single active WU resolved, locate its
-  // coordinating `cohort-<leaf>.md` so context-load can read it. Probe failures
-  // propagate through loadSet because recovery must not silently drop context.
-  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
-  const cohortDocPath = cohortDoc.isOk() ? cohortDoc.value : null;
-  const loadSet = active.andThen((activeValue) => loadSetFromState({
+  const derivedContext = derivedLocusState.isOk()
+    ? derivedLocusState.value.active?.context ?? null
+    : null;
+  const cohortDocPath = derivedContext?.cohortDocPath ?? null;
+  const loadSet: SessionResult<LoadSetManifest> = derivedLocusState.isErr()
+    ? err(derivedLocusState.error)
+    : derivedLocusState.value.active !== null
+      ? ok(derivedLocusState.value.active.context.loadSet)
+      : loadSetFromState({
       identity,
-      activeWorkUnit: activeWuName,
-      metaPath: activeValue.path,
-      sessionType: activeValue.sessionType,
-      planningStage: activeValue.planningStage,
-      taskListPath: activeValue.taskListPath ?? null,
+      activeWorkUnit: null,
+      metaPath: null,
+      sessionType: null,
+      planningStage: null,
+      taskListPath: null,
       activeExtensions: extensions.isOk() ? extensions.value.active : [],
-      cohortDocPath,
-      cohortDoc,
+      cohortDocPath: null,
+      cohortDoc: ok(null),
       workingMemoryPath: workingMemoryPath ?? null,
-    }));
-  const taskListPath = active.isOk() ? (active.value.taskListPath ?? null) : null;
-  const taskCursor =
-    active.isOk() && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
-      ? await safeProbe("taskCursor", () => probes.taskCursor(taskListPath))
-      : undefined;
+    });
+  const taskCursor = derivedContext?.taskCursor === null || derivedContext === null
+    ? undefined
+    : derivedLocusState.map(() => derivedContext.taskCursor as NonNullable<typeof derivedContext.taskCursor>);
 
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
+    derivedLocusState: toProbe(derivedLocusState),
+    locusGuidance: deriveDerivedLocusSessionGuidance(toProbe(derivedLocusState)),
     user: toProbe(enrichedUser),
     worktree: toProbe(enrichedWorktree),
     baseDistance: toProbe(enrichedBaseDistance),
@@ -495,7 +545,6 @@ export async function runRecoverStatus(
   const dirtyTask = safeProbe("dirty", () => probes.dirty());
   const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const configTask = safeProbe("config", () => probes.config());
-  const activeTask = safeProbe("active", () => probes.active(identity, role));
   const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
 
   const [
@@ -504,7 +553,6 @@ export async function runRecoverStatus(
     dirty,
     extensions,
     config,
-    active,
     releaseRouting,
   ] = await Promise.all([
     worktreeTask,
@@ -512,49 +560,51 @@ export async function runRecoverStatus(
     dirtyTask,
     extensionsTask,
     configTask,
-    activeTask,
     releaseRoutingTask,
   ]);
 
-  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.isOk()
-    ? worktreeIdentitySlot.value
-    : { kind: "primary" };
-  const enrichedWorktree = worktree.map((value) => ({
-        ...value,
-        identity: worktreeIdentity,
-      } satisfies SessionRecoverWorktreeValue));
+  const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
+    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
+        identity,
+        extensions.isOk() ? extensions.value.active : [],
+      ));
 
-  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
-  const cohortDocPath = cohortDoc.isOk() ? cohortDoc.value : null;
-  const activeWuName = active.isOk() ? metaWorkUnitNameFromActive(active.value.path) : null;
-  const loadSet = active.andThen((activeValue) => loadSetFromState({
+  // Physical checkout identity remains an independent informational slot; the
+  // derived frame already selected the exact entering checkout.
+  const enrichedWorktree = worktree.andThen((value) =>
+    worktreeIdentitySlot.map((identityValue) => ({
+      ...value,
+      identity: identityValue,
+    } satisfies SessionRecoverWorktreeValue)));
+
+  const deriveContext = fromThrowable(
+    (state: DerivedLocusFrame) => deriveRecoveryLocusContext({
+      state,
       identity,
-      activeWorkUnit: activeWuName,
-      metaPath: activeValue.path,
-      sessionType: activeValue.sessionType,
-      planningStage: activeValue.planningStage,
-      taskListPath: activeValue.taskListPath ?? null,
-      activeExtensions: extensions.isOk() ? extensions.value.active : [],
-      cohortDocPath,
-      cohortDoc,
       workingMemoryPath: workingMemoryPath ?? null,
-    }));
-  const taskListPath = active.isOk() ? (active.value.taskListPath ?? null) : null;
-  const taskCursor =
-    active.isOk() && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
-      ? await safeProbe("taskCursor", () => probes.taskCursor(taskListPath))
-      : undefined;
+      activeExtensions: extensions.isOk() ? extensions.value.active : [],
+    }),
+    (cause) => new SessionCompositionError("derive-recovery-locus", "recoveryFrame", cause),
+  );
+  const recoveryContext = derivedLocusState.andThen(deriveContext);
+  const recoveryFrame = recoveryContext.map((value) => value.frame);
+  const loadSet = recoveryContext.map((value) => value.loadSet);
+  const taskCursor = recoveryContext.isOk() && recoveryContext.value.taskCursor !== null
+    ? recoveryContext.map((value) => value.taskCursor as NonNullable<typeof value.taskCursor>)
+    : undefined;
 
   return {
     mode: "recover",
     identity: buildIdentity(identity, role),
+    derivedLocusState: toProbe(derivedLocusState),
+    locusGuidance: deriveRecoveryLocusSessionGuidance(toProbe(derivedLocusState)),
+    recoveryFrame: toProbe(recoveryFrame),
     worktree: toProbe(enrichedWorktree),
     dirty: toProbe(dirty),
     extensions: toProbe(extensions),
     config: toProbe(config),
-    active: toProbe(active),
     releaseRouting: toProbe(releaseRouting),
-    ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet: toProbe(loadSet),
     ...(taskCursor !== undefined ? { taskCursor: toProbe(taskCursor) } : {}),
   };
@@ -571,15 +621,33 @@ function metaWorkUnitNameFromActive(path: string | null): string | null {
   return match?.[1] ?? null;
 }
 
-function resolveCohortDoc(
-  active: SessionResult<ActiveSessionInitResult>,
-  probe: (metaPath: string) => Promise<string | null>,
-): ResultAsync<string | null, SessionStatusError> {
-  if (!active.isOk() || active.value.resolution !== "single" || active.value.path === null) {
-    return okAsync(null);
+function projectDerivedActiveSession(frame: DerivedLocusFrame): ActiveSessionInitResult {
+  const context = frame.active?.context ?? null;
+  if (context === null) {
+    return {
+      mode: "session-init",
+      layout: "full",
+      resolution: "none",
+      path: null,
+      candidates: [],
+      sessionType: null,
+      currentWorkflow: null,
+      planningStage: null,
+      warnings: [],
+    };
   }
-  const metaPath = active.value.path;
-  return safeProbe("cohortDocPath", () => probe(metaPath));
+  return {
+    mode: "session-init",
+    layout: "full",
+    resolution: "single",
+    path: context.metaPath,
+    candidates: [],
+    taskListPath: context.taskListPath,
+    sessionType: context.sessionType,
+    currentWorkflow: context.workflow,
+    planningStage: context.stage,
+    warnings: [],
+  };
 }
 
 function loadSetFromState(options: {
@@ -612,15 +680,6 @@ function loadSetFromState(options: {
   return resolve();
 }
 
-function taskListPathIsLoadSetSafe(taskListPath: string): boolean {
-  try {
-    assertLoadSetPath(taskListPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Compose recommendations from resolved probe slots. Falls back to skip-
  * everything when any required input failed to resolve — the workflow
@@ -628,7 +687,10 @@ function taskListPathIsLoadSetSafe(taskListPath: string): boolean {
  * neutral rather than guessing.
  */
 function composeSessionInitRecommendations(slots: {
-  worktree: SessionResult<import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult>;
+  worktree: SessionResult<
+    import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult
+    | import("../../lib/git/worktree-sync.js").WorktreeSnapshotAnalysisResult
+  >;
   user: SessionResult<import("../user/types.js").UserSessionInitStatusResult>;
   dirty: SessionResult<DirtyStateResult>;
   config: SessionResult<import("../config/types.js").ConfigSessionInitResult>;
@@ -688,33 +750,55 @@ export async function runSessionHandoffStatus(
 ): Promise<SessionHandoffResult> {
   const { identity, role, probes } = options;
 
-  const shared = buildSessionSharedSlots({ identity, role, probes });
+  const userTask = userSlot(identity, (id) => probes.user(id));
+  const worktreeTask = safeProbe("worktree", () => probes.worktree());
+  const dirtyTask = safeProbe("dirty", () => probes.dirty());
+  const releaseRoutingTask = safeProbe("releaseRouting", () => probes.releaseRouting());
   const syncInterlockTask = safeProbe("syncInterlock", () => probes.syncInterlock());
   const headTask = safeProbe("head", () => probes.head());
   const pushabilityTask = safeProbe("pushability", () => probes.pushability());
   const restateCandidatesTask = safeProbe("restateCandidates", () => probes.restateCandidates());
+  const extensionsTask = safeProbe("extensions", () => probes.extensions());
   const inboxStateTask = identity === null
     ? null
     : safeProbe("inboxState", () => probes.inboxState(identity));
+  // Surface resolution stays inside the composite: rejections become pathSet
+  // probe errors rather than aborting the envelope before other slots resolve.
+  // The options union requires a resolver whenever identity is non-null, so a
+  // successful pathSet never silently nulls identity-global paths for lack of one.
+  const surfacesTask = identity === null
+    ? okAsync(null as HandoffSurfacePaths | null)
+    : safeProbe("pathSet", () => options.resolveHandoffSurfaces());
 
   const [
-    user, worktree, dirty, active, releaseRouting,
-    syncInterlock, head, pushability, restateCandidates, inboxState,
+    user, worktree, dirty, releaseRouting,
+    syncInterlock, head, pushability, restateCandidates, extensions, inboxState, surfaces,
   ] = await Promise.all([
-    shared.user,
-    shared.worktree,
-    shared.dirty,
-    shared.active,
-    shared.releaseRouting,
+    userTask,
+    worktreeTask,
+    dirtyTask,
+    releaseRoutingTask,
     syncInterlockTask,
     headTask,
     pushabilityTask,
     restateCandidatesTask,
+    extensionsTask,
     inboxStateTask,
+    surfacesTask,
   ]);
 
+  const derivedLocusState = identity === null
+    ? err(new SessionIdentityMissingError("derivedLocusState"))
+    : await safeProbe("derivedLocusState", () => probes.derivedLocusState(
+        identity,
+        extensions.isOk() ? extensions.value.active : [],
+      ));
+  const active = derivedLocusState.map(projectDerivedActiveSession);
+
   const branch = worktree.isOk() ? worktree.value.branch : null;
-  const handoffActiveWuName = active.isOk() ? metaWorkUnitNameFromActive(active.value.path) : null;
+  const handoffActiveWuName = derivedLocusState.isOk()
+    ? derivedLocusState.value.active?.subject.key ?? null
+    : null;
   const handoffNotesVerdict = user.isOk() && user.value.notesDrift
     ? resolveCleanArmNotesVerdict({ ...user.value.notesDrift, activeWuName: handoffActiveWuName })
     : null;
@@ -734,10 +818,25 @@ export async function runSessionHandoffStatus(
       unpushedN: worktree.value.ahead,
     })
     : null;
+  const deriveHandoff = fromThrowable(
+    (frame: DerivedLocusFrame) => deriveHandoffLocusPlan(frame),
+    (cause) => new SessionCompositionError("derive-handoff-locus", "handoffLocus", cause),
+  );
+  const handoffLocus: SessionResult<HandoffLocusPlan> = derivedLocusState.isErr()
+    ? err(derivedLocusState.error)
+    : deriveHandoff(derivedLocusState.value);
+
+  const pathSet = composeHandoffPathSet({
+    surfaces,
+    activeWuName: handoffActiveWuName,
+  });
 
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
+    derivedLocusState: toProbe(derivedLocusState),
+    locusGuidance: deriveDerivedLocusSessionGuidance(toProbe(derivedLocusState)),
+    handoffLocus: toProbe(handoffLocus),
     branch,
     dirty: toProbe(dirty),
     worktree: toProbe(worktree),
@@ -749,6 +848,43 @@ export async function runSessionHandoffStatus(
     restateCandidates: toProbe(restateCandidates),
     releaseRouting: toProbe(releaseRouting),
     ...(inboxState !== null ? { inboxState: toProbe(inboxState) } : {}),
+    pathSet,
     recommendedSummaryLine,
+  };
+}
+
+/**
+ * Compose the handoff pathSet probe from resolved surfaces + active WU.
+ * Surface resolution failures pass through as `ok: false`; absent surfaces
+ * (identity null only — the options union requires a resolver otherwise)
+ * yield null paths without erroring.
+ */
+function composeHandoffPathSet(options: {
+  surfaces: SessionResult<HandoffSurfacePaths | null>;
+  activeWuName: string | null;
+}): Probe<HandoffPathSet> {
+  if (!options.surfaces.isOk()) {
+    // Map surface-resolution failure into the pathSet probe without widening
+    // the success value type through toProbe's generic.
+    return {
+      ok: false,
+      error: {
+        kind: "runtime",
+        message: options.surfaces.error.message,
+      },
+    };
+  }
+  const surfaces = options.surfaces.value;
+  if (surfaces === null) {
+    return { ok: true, value: { sessionNotes: null, workingMemory: null } };
+  }
+  return {
+    ok: true,
+    value: {
+      sessionNotes: options.activeWuName !== null
+        ? surfaces.sessionNotesPath(options.activeWuName)
+        : null,
+      workingMemory: surfaces.workingMemoryPath,
+    },
   };
 }

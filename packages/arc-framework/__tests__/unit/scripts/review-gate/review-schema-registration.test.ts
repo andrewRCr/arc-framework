@@ -6,8 +6,12 @@ import { z } from "zod";
 
 import {
   SchemaError,
+  canonicalDigest,
   createKernelRegistry,
 } from "../../../../src/lib/kernel/index.js";
+import {
+  createReviewTarget,
+} from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   registerReviewDomainSchemas,
 } from "../../../../src/scripts/review-gate/core/register-review-schemas.js";
@@ -15,7 +19,14 @@ import {
   assertReviewDurableRecordInventory,
 } from "../../../../src/scripts/review-gate/core/schema-inventory.js";
 
-const kernelIdentities = ["priority", "slug", "work-class", "work-unit-state"];
+const kernelIdentities = [
+  "priority",
+  "remote-evidence",
+  "remote-failure-reason",
+  "slug",
+  "work-class",
+  "work-unit-state",
+];
 const reviewIdentities = [
   "approved-disposition-record",
   "approved-disposition-set",
@@ -43,6 +54,10 @@ const reviewIdentities = [
   "local-review-source",
   "local-review-source-digest-preimage",
   "local-review-state",
+  "merge-lock-command-error-envelope",
+  "merge-lock-hold-envelope",
+  "merge-lock-release-envelope",
+  "merge-lock-resolve-envelope",
   "standard-review-contract",
   "standard-review-obligation-projection",
   "standard-review-rubric-digest-preimage",
@@ -88,7 +103,6 @@ const reviewIdentities = [
   "review-suspension-state",
   "review-target",
   "review-target-id-preimage",
-  "review-unlock-envelope",
   "severity-gating-policy",
   "work-unit-review-assurance",
 ];
@@ -137,6 +151,54 @@ describe("review schema registration", () => {
 
     expect(() => assertReviewDurableRecordInventory(registry))
       .toThrow("review-target inventory version 2 does not match registered version 1");
+  });
+
+  it("round-trips both target kinds through the registered target schemas", () => {
+    const registry = createKernelRegistry();
+    registerReviewDomainSchemas(registry);
+    const preimageSchema = registry.get("review-target-id-preimage");
+    const targetSchema = registry.get("review-target");
+    if (preimageSchema === undefined || targetSchema === undefined) {
+      throw new Error("expected both target schemas to be registered");
+    }
+
+    for (const kind of ["change-set", "delivery-member"] as const) {
+      const target = createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind,
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: "a".repeat(40),
+        diffBaseTree: "b".repeat(40),
+        headSha: "c".repeat(40),
+        headTree: "d".repeat(40),
+      });
+      const { targetId, ...preimageFields } = target;
+      const preimage = preimageSchema.parse({
+        domain: "arc.review-gate.target-id/v2",
+        ...preimageFields,
+      });
+
+      expect(targetSchema.parse(target)).toEqual(target);
+      expect(preimage).toMatchObject({ kind });
+      expect(canonicalDigest(preimage)).toBe(targetId);
+    }
+
+    expect(targetSchema.safeParse({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-slice",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: "c".repeat(40),
+      headTree: "d".repeat(40),
+      targetId: canonicalDigest({ target: "unrecognized-kind" }),
+    }).success).toBe(false);
+    expect(registry.meta("review-target")?.version).toBe(2);
+    expect(registry.meta("review-target-id-preimage")?.version).toBe(2);
   });
 
   it("keeps review imports and vocabulary out of kernel schema modules", () => {

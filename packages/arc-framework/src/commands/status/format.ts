@@ -24,8 +24,12 @@ import {
   buildUserStatusSummary,
 } from "../user/format.js";
 
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
+import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 
 import type {
   Probe,
@@ -67,7 +71,9 @@ export function buildStatusSummary(result: StatusResult): string {
   return sections.join(`\n${SECTION_SEPARATOR}\n`);
 }
 
-function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): string {
+function buildWorktreeSessionInitSummary(
+  value: WorktreeSyncStatusResult | WorktreeSnapshotAnalysisResult,
+): string {
   switch (value.state) {
     case "clean":
       return "clean (in sync with origin)";
@@ -88,7 +94,11 @@ function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): strin
     case "branch-gone":
       return "branch gone (upstream deleted on origin)";
     case "remote-unavailable": {
-      const reason = value.failureReason ? ` (${value.failureReason})` : "";
+      if ("remoteEvidence" in value && value.remoteEvidence === "pending-fetch") {
+        return "remote object pending explicit refresh";
+      }
+      const failureReason = "failureReason" in value ? value.failureReason : undefined;
+      const reason = failureReason ? ` (${failureReason})` : "";
       return `remote unavailable${reason}`;
     }
   }
@@ -106,10 +116,28 @@ function buildReleaseRoutingSummary(value: ReleaseRoutingValue): string {
   ].join("\n");
 }
 
+function buildLocusGuidanceSummary(value: LocusSessionGuidance): string | null {
+  if (value.kind === "unavailable") return value.message;
+  const lines = [
+    value.currentFrame,
+    value.primaryAvailability,
+    value.recovery,
+    value.reconciliation,
+    ...value.identities,
+    ...value.cleanup,
+    ...value.diagnostics,
+  ].filter((line): line is string => line !== undefined);
+  return lines.length === 0 ? null : lines.join("\n");
+}
+
 /** Build the Clack summary for `arc status --session-init`. */
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
+  const locusGuidance = buildLocusGuidanceSummary(result.locusGuidance);
   const sections: string[] = [
     renderIdentity(result.identity),
+    ...(locusGuidance === null
+      ? []
+      : [`Session locus:\n${locusGuidance.split("\n").map((line) => `  ${line}`).join("\n")}`]),
     renderSlot("User", result.user, buildUserSessionInitStatusSummary),
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
     renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),

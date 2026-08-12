@@ -11,7 +11,7 @@ import {
 } from "../../src/scripts/review-gate/core/advisory-records.js";
 import {
   RepositoryGitCommonStatePublisher,
-} from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+} from "../../src/lib/git-common-state.js";
 import {
   LocalFrontlineOutcomeStore,
 } from "../../src/scripts/review-gate/hosts/local/frontline-outcome-store.js";

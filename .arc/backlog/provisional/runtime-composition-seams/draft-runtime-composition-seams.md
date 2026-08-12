@@ -11,6 +11,12 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Refresh the retired runtime seam example**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: runtime-composition-seams`), housekeep drain (2026-08-10).
+- _Concern:_ the draft cites deleted `locus/command-runtime.ts` and its process-inspector gate. Remove that example
+  and re-inventory the surviving runtime modules against the topology/marker-derived locus reader.
+
 ### `[ ]` **Bring `*-runtime.ts` modules to the composition seam their siblings already use**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).

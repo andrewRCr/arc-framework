@@ -8,12 +8,24 @@
  * @module
  */
 
-import { isAbsolute, relative, sep } from "node:path";
+import { isAbsolute, posix, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
+import { parseTransitionRecord } from "../work-unit/transition-record.js";
+import {
+  resolveTransitionRecordRelativePath,
+  TRANSITION_RECORD_NAMESPACE,
+} from "../work-unit/transition-record-store.js";
+import { readTreeEntry } from "../work-unit/git-decomposition-object-readers.js";
+import {
+  createValidatedTransitionOverlay,
+  type TransitionOverlayCompositionInput,
+  type ValidatedTransitionOverlay,
+} from "../work-unit/transition-overlay.js";
 
 import {
   composeProjectReadinessViewResult,
@@ -30,7 +42,7 @@ import { resolveProjectErrandOracleContext } from "./project-oracle-context.js";
 export const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 /** Command users can run to recreate the tracked readiness view. */
-export const ROADMAP_RERENDER_COMMAND = `arc status --project --staged > ${ROADMAP_PATH}`;
+export const ROADMAP_RERENDER_COMMAND = "arc status --project --staged --write";
 
 /** Shared remediation instruction for hook diagnostics. */
 export const ROADMAP_RERENDER_INSTRUCTION =
@@ -71,8 +83,8 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
   renderedRef?: string | ProjectReadinessRenderStamp;
   /** Optional fixed checked-out branch for tests; omitted resolves it from Git. */
   currentBranch?: string | null;
-  /** Exact retiring oracle identity suppressed by the staged transition. */
-  superseded?: { slug: string; branch: string };
+  /** Optional explicit receipt-blind transition suppressions. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** ROADMAP content plus whether its source snapshot was determinate. */
@@ -87,6 +99,14 @@ export interface RoadmapIndexViewResult {
   indeterminate: boolean;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+const TRANSITION_RECORD_PATH_RE = new RegExp(
+  `^${escapeRegExp(TRANSITION_RECORD_NAMESPACE)}/[^/]+\\.json$`,
+  "u",
+);
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
 
 class IndexDirEntry implements ProjectViewDirEntry {
@@ -164,6 +184,74 @@ export function createIndexProjectViewFs(options: IndexProjectViewFsOptions): Pr
   };
 }
 
+async function readHeadTransitionRecord(
+  options: IndexProjectViewFsOptions,
+  path: string,
+): Promise<string | null> {
+  const cwdExec: GitExec = async (command, args) => await options.exec(command, args, {
+    cwd: options.cwd,
+  });
+  const entry = await readTreeEntry(cwdExec, "HEAD", path);
+  if (entry === null) return null;
+  if (entry === false || entry.type !== "blob") {
+    throw new Error(`unable to read transition record at HEAD:${path}`);
+  }
+  const { stdout } = await options.exec("git", ["show", `HEAD:${path}`], { cwd: options.cwd });
+  return stdout;
+}
+
+/**
+ * Resolve terminal transitions staged with the prospective ROADMAP tree.
+ *
+ * This adapter authenticates an added record's canonical origin path before granting
+ * transition-overlay authority. Decomposition branches are deterministic; direct
+ * transitions recover their retiring branch from the origin meta at HEAD.
+ *
+ * @param options - Repository root and Git executor for the staged index.
+ * @returns Every validated suppression authority represented by the staged transition set.
+ */
+export async function resolveStagedTransitionOverlays(
+  options: IndexProjectViewFsOptions,
+): Promise<readonly ValidatedTransitionOverlay[]> {
+  const { stdout } = await options.exec("git", [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--diff-filter=AM",
+    "-z",
+    "--",
+    TRANSITION_RECORD_NAMESPACE,
+  ], { cwd: options.cwd });
+  const recordPaths = stdout.split("\0").filter((path) => TRANSITION_RECORD_PATH_RE.test(path));
+  const overlays = (await Promise.all(recordPaths.map(async (path) => {
+    const { stdout: content } = await options.exec("git", ["show", `:${path}`], { cwd: options.cwd });
+    const record = parseTransitionRecord(content);
+    if (record === null || path !== resolveTransitionRecordRelativePath(record.origin)) {
+      return null;
+    }
+    if (await readHeadTransitionRecord(options, path) !== null) return null;
+    if (record.kind === "decompose") {
+      return createValidatedTransitionOverlay({ origin: record.origin, sourceBranch: `plan/${record.origin}` });
+    }
+    const { stdout: paths } = await options.exec("git", [
+      "ls-tree", "-r", "--name-only", "-z", "HEAD", "--", ".arc/active", ".arc/backlog",
+    ], { cwd: options.cwd });
+    const metaPaths = paths.split("\0").filter((candidate) =>
+      posix.basename(candidate) === `meta-${record.origin}.md`);
+    if (metaPaths.length !== 1 || metaPaths[0] === undefined) return null;
+    const { stdout: metaContent } = await options.exec(
+      "git",
+      ["show", `HEAD:${metaPaths[0]}`],
+      { cwd: options.cwd },
+    );
+    const sourceBranch = parseMetaRecord(metaContent).branch;
+    return sourceBranch === null
+      ? null
+      : createValidatedTransitionOverlay({ origin: record.origin, sourceBranch });
+  }))).filter((overlay): overlay is ValidatedTransitionOverlay => overlay !== null);
+  return overlays;
+}
+
 /**
  * Render the project readiness view (structured) from staged tree inputs and
  * local refs. This is the shared index-render primitive: the pre-commit assert
@@ -190,6 +278,7 @@ export async function renderRoadmapFromIndexViewResult(
     fs,
     localRefs: {
       exec: options.exec,
+      acquisitionPolicy: "local",
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
       ...errandContext,
@@ -199,9 +288,9 @@ export async function renderRoadmapFromIndexViewResult(
       : {
           prospective: {
             currentBranch,
-            ...(options.superseded === undefined ? {} : { superseded: options.superseded }),
           },
         }),
+    ...(options.transitionOverlays === undefined ? {} : { transitionOverlays: options.transitionOverlays }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
     exec: options.exec,

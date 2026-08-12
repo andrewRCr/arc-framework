@@ -28,11 +28,16 @@ import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate
 const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
-function fixture() {
+const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
+const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
+const errandVehicle = { kind: "errand", identity: "repair-review-state" } as const;
+
+function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    kind: "change-set",
+    kind: vehicle.kind === "delivery-member" ? "delivery-member" : "change-set",
     repositoryId: "repo-1",
     baseRef: "main",
     diffBaseSha: objectId("a"),
@@ -55,7 +60,7 @@ function fixture() {
   });
   if (requirement === null) throw new Error("expected requirement");
   const authority = {
-    vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+    vehicle,
     authorIdentity: "author-1",
     evaluatorIdentity: "evaluator-1",
     attestationRuntimeKind: "arc-cli",
@@ -473,5 +478,27 @@ describe("review response command", () => {
       source: { kind: "frontline", outcomeRef },
       dispositions,
     }, deps)).rejects.toThrow("requires a findings outcome");
+  });
+
+  it.each([
+    ["delivery member", memberVehicle],
+    ["work unit", workUnitVehicle],
+    ["Errand", errandVehicle],
+  ] as const)("resolves actors for a %s operation from the evaluator identity alone", async (
+    _label,
+    vehicle,
+  ) => {
+    const records = fixture(vehicle);
+    const deps = dependencies(records);
+    const resolveLocalActors = vi.fn(deps.resolveLocalActors);
+    deps.resolveLocalActors = resolveLocalActors;
+
+    await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: { operationId: records.operation.operationId },
+    });
+    // The vehicle never reaches actor resolution, so no member selector exists to
+    // carry: approver and proposer are identical across all three operations.
+    expect(resolveLocalActors).toHaveBeenCalledWith(records.authority.evaluatorIdentity);
   });
 });

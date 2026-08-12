@@ -33,7 +33,7 @@
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-07-18);
   captured at the storage-substrate grooming (2026-07-17).
-- _Concern:_ check-docs currently exist as a convention _inside_ `strategy-*` (three sibling forward-compat
+- _Concern:_ check-docs currently exist as a convention _inside_ `strategy-*` (four sibling forward-compat
   check-docs in `strategies/project/`, each a blockquote header + self-check trigger list + principles) — it
   works, but the shape is untyped and the "strategy" family name is already slated for redesign by this WU's
   target model (both newer siblings carry the naming note). A named family (`checkdoc-*`, frontmatter `type`)
@@ -95,6 +95,31 @@
   `6cbd7aa249241a3f51256f7caa81e9361f46bc4551e6ab1531828d7dd02dc107`.
 - _Evidence:_ `internal-skill-root`, `strategy-family`, and `strategy-index-name`; corresponding
   `scan-result.json#class-*` anchors.
+
+### `[ ]` **Key `STRATEGY-INDEX`'s load on lifecycle state, per entry**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-07-28);
+  captured during `judgment-authority-model` handoff.
+- _Concern:_ The index loads in full every session, but many entries cannot apply to the session reading them
+  (planning-only vs execution-only). Per-entry keying on probe-resolved `sessionType` would drop ~25 of 61 nb
+  without wholesale demotion. Needs projection-predicate machinery; fail-open on `sessionType: null`.
+- _Fold-in:_ lifecycle-conditional entry predicates on the always-loaded index surface — distinct from and better
+  than `loadset-composition`'s wholesale-demotion lean for this file.
+
+### `[ ]` **Absorb the evergreen half of `analysis-load-set-scoping` into knowledge doctrine**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Phase 2.
+- _Concern:_ the analysis is consumed as doctrine but nothing summons it. Its durable portion is the membership /
+  disposition / depth axes, two-clause demotion precondition, unsafe-versus-pointless distinction, residual-
+  question rule, and adherence bands; repository measurements, schema-version details, and investigation
+  provenance remain instance-bound analysis.
+- _Fold-in:_ absorb the evergreen portion into `strategy-knowledge-evolution` rather than minting another
+  strategy and loading-tier debit. First settle or explicitly preserve the demotion precondition's irrelevance
+  defect: its second independent signal is unproducible for the trigger-less entries the rule is meant to judge.
+  Completing the move satisfies the corresponding `WORKING-MEMORY` removal trigger.
+
+---
 
 ## Problem / Motivation
 

@@ -38,11 +38,17 @@ import { resolveSlugPosition } from "./lifecycle-resolver.js";
 import type { LifecyclePosition, Location } from "./lifecycle-state.js";
 import type { ReconcileBranchOp } from "./mutators/reconcile-branch.js";
 import type {
-  ReconcileWorktreeOp,
-  ReconcileWorktreeResult,
-} from "./mutators/reconcile-worktree.js";
+  ReconcileWorkUnitWorktreeOp,
+  ReconcileWorkUnitWorktreeResult,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import type { RelocateArtifactsParams, RelocateArtifactsResult } from "./mutators/relocate-artifacts.js";
 import type { SetPhaseParams, SetPhaseResult } from "./mutators/set-phase.js";
+import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
+import type {
+  AtomicGraduationResult,
+  GraduationRecoveryResidue,
+} from "./atomic-graduation.js";
+import type { ValidatedGraduationTransaction } from "./validated-graduation-transaction.js";
 import {
   MARKED_ILLEGAL,
   TRANSITIONS,
@@ -67,12 +73,14 @@ import {
  * side-effect + encoding sets; Phase-4 verbs extend it as they add operands.
  */
 export interface TransitionInputs {
+  /** Sole mutation authority for a backlog `start` graduation. */
+  graduationTransaction?: ValidatedGraduationTransaction;
   /** Destination directory for a `relocate` artifacts leg (source derived from the meta path). */
   toDir?: string;
   /** The branch op for a declared `reconcile-branch` leg — its `mutation` must match the edge. */
   branchOp?: ReconcileBranchOp;
-  /** The worktree op for a declared `reconcile-worktree` leg — its `mutation` must match the edge. */
-  worktreeOp?: ReconcileWorktreeOp;
+  /** The worktree op for a declared `reconcile-work-unit-worktree` leg — its `mutation` must match the edge. */
+  worktreeOp?: ReconcileWorkUnitWorktreeOp;
   /** Values for soft fields whose disposition is `"input"` — required when the field applies. */
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
   /** The WU's resolved `Class` — the `class-resolved` guard input (`promote`). */
@@ -85,8 +93,8 @@ export interface TransitionInputs {
   prWithdrawMode?: "close" | "draft";
   /** Explicit confirmation for a destructive cascade — the `confirmation` guard input (`abandon`). */
   confirmed?: boolean;
-  /** Exact retiring ref candidate suppressed after the complete staged transition exists. */
-  supersededSource?: { slug: string; branch: string };
+  /** Plan-bound retiring ref suppression applied after the complete staged transition exists. */
+  transitionOverlay?: ProspectiveTransitionOverlay;
   /**
    * Override for the `worktree-occupancy` guard's placement test. Fresh worktree
    * spawns normally infer this from `worktreeOp.createBranch`, but remote
@@ -213,8 +221,10 @@ export interface ExecuteTransitionContext {
   relocateArtifacts: (params: RelocateArtifactsParams) => Promise<RelocateArtifactsResult>;
   /** Pre-bound `reconcile-branch` mutator. */
   reconcileBranch: (op: ReconcileBranchOp) => Promise<void>;
-  /** Pre-bound `reconcile-worktree` mutator. */
-  reconcileWorktree: (op: ReconcileWorktreeOp) => Promise<ReconcileWorktreeResult>;
+  /** Pre-bound `reconcile-work-unit-worktree` mutator. */
+  reconcileWorkUnitWorktree: (op: ReconcileWorkUnitWorktreeOp) => Promise<ReconcileWorkUnitWorktreeResult>;
+  /** Start-only atomic graduation mutator. */
+  atomicGraduate?: (transaction: ValidatedGraduationTransaction) => Promise<AtomicGraduationResult>;
   /** Runner for the `scaffold` / `remove` artifact dispositions (Phase-4). */
   scaffoldOrRemove?: ArtifactRunner;
 
@@ -306,7 +316,13 @@ export interface ExecuteTransitionContext {
 // ---------------------------------------------------------------------------
 
 /** The encoding legs, in their canonical fire order. */
-export type EncodingLeg = "setPhase" | "classField" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
+export type EncodingLeg =
+  | "atomicGraduate"
+  | "setPhase"
+  | "classField"
+  | "artifacts"
+  | "reconcileWorkUnitWorktree"
+  | "reconcileBranch";
 
 /**
  * The post-side-effect meta writes, in their fire order — the finalize block that
@@ -319,7 +335,7 @@ export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields
 
 /**
  * Canonical leg order. `setPhase` precedes `artifacts` so the meta is edited at
- * its pre-relocation path; `reconcileWorktree` precedes `reconcileBranch` so a
+ * its pre-relocation path; `reconcileWorkUnitWorktree` precedes `reconcileBranch` so a
  * worktree teardown (with its locus-hop) runs before a `git branch -D` that
  * would otherwise refuse the worktree's checked-out branch.
  */
@@ -327,7 +343,7 @@ const LEG_ORDER: readonly EncodingLeg[] = [
   "classField",
   "setPhase",
   "artifacts",
-  "reconcileWorktree",
+  "reconcileWorkUnitWorktree",
   "reconcileBranch",
 ];
 
@@ -364,6 +380,12 @@ export type TransitionOutcome =
       status: "rejected";
       stage: "lookup" | "guard" | "inputs";
       message: string;
+    }
+  | {
+      /** Atomic start application could not prove complete rollback. */
+      status: "graduation-recovery-required";
+      message: string;
+      residue: GraduationRecoveryResidue;
     }
   | {
       /**
@@ -472,7 +494,12 @@ export async function executeTransition(
 
   // 1. Build the index once (the lone fs touch) and resolve current state.
   const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
-  const position = resolveSlugPosition(index, slug);
+  const position = inputs.graduationTransaction === undefined
+    ? resolveSlugPosition(index, slug)
+    : {
+        phase: "Planning" as const,
+        location: inputs.graduationTransaction.source.location,
+      };
 
   // 2. Look up the legal edge for (verb, from); reject illegal / unknown.
   const record = selectEdge(verb, position, inputs.commitment);
@@ -502,20 +529,52 @@ export async function executeTransition(
   //    reports what landed (recoverable, never silently half-applied).
   const legsFired: EncodingLeg[] = [];
   const advisories: string[] = [];
-  for (const leg of LEG_ORDER) {
-    if (!legDeclared(record, leg, inputs)) continue;
+  let activeCtx = ctx;
+  if (inputs.graduationTransaction !== undefined) {
+    let result: AtomicGraduationResult | undefined;
     try {
-      const advisory = await fireLeg(ctx, leg, record, slug, metaPath, inputs);
-      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      result = await ctx.atomicGraduate?.(inputs.graduationTransaction);
     } catch (err) {
       return {
         status: "encoding-failed",
         legsFired,
-        failedLeg: leg,
+        failedLeg: "atomicGraduate",
         message: err instanceof Error ? err.message : String(err),
       };
     }
-    legsFired.push(leg);
+    if (result === undefined) {
+      return {
+        status: "encoding-failed",
+        legsFired,
+        failedLeg: "atomicGraduate",
+        message: "atomic graduation is unavailable.",
+      };
+    }
+    if (result.status === "rejected") {
+      return { status: "encoding-failed", legsFired, failedLeg: "atomicGraduate", message: result.reason };
+    }
+    if (result.status === "graduation-recovery-required") {
+      return { status: result.status, message: result.reason, residue: result.residue };
+    }
+    legsFired.push("atomicGraduate");
+    if (result.postCreateNotice !== null) advisories.push(result.postCreateNotice);
+    activeCtx = ctx.withCwd?.(result.worktreePath) ?? ctx;
+  } else {
+    for (const leg of LEG_ORDER) {
+      if (!legDeclared(record, leg, inputs)) continue;
+      try {
+        const advisory = await fireLeg(ctx, leg, record, slug, metaPath, inputs);
+        if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      } catch (err) {
+        return {
+          status: "encoding-failed",
+          legsFired,
+          failedLeg: leg,
+          message: err instanceof Error ? err.message : String(err),
+        };
+      }
+      legsFired.push(leg);
+    }
   }
 
   // 6. Fire declared non-ROADMAP side-effects once the encoding succeeded.
@@ -524,10 +583,10 @@ export async function executeTransition(
   const sideEffectsFired: SideEffectId[] = [];
   for (const id of record.sideEffects) {
     if (id === "reconcile-roadmap") continue;
-    const handler = ctx.sideEffects?.[id];
+    const handler = activeCtx.sideEffects?.[id];
     // Presence was validated in step 4; the guard here narrows the type.
     if (handler === undefined) continue;
-    const advisory = await handler({ cwd: ctx.cwd, slug, from: record.from, to: record.to, inputs });
+    const advisory = await handler({ cwd: activeCtx.cwd, slug, from: record.from, to: record.to, inputs });
     if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
     sideEffectsFired.push(id);
   }
@@ -544,15 +603,20 @@ export async function executeTransition(
   let failedWrite: FinalizeWrite = "branchField";
   try {
     // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
-    branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
+    branchFieldWritten = inputs.graduationTransaction?.branch
+      ?? await applyBranchField(ctx, record, metaPath, inputs);
 
     // 7.5 Clear the meta `Current Workflow` when the edge declares it stale.
     failedWrite = "currentWorkflowField";
-    currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
+    currentWorkflowCleared = inputs.graduationTransaction === undefined
+      ? await applyCurrentWorkflowField(ctx, record, metaPath, inputs)
+      : null;
 
     // 8. Apply the soft-field disposition (reset constants + supplied inputs).
     failedWrite = "softFields";
-    softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
+    softFieldsWritten = inputs.graduationTransaction === undefined
+      ? await applySoftFields(ctx, record, metaPath, inputs)
+      : [];
 
     // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
     //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
@@ -565,7 +629,7 @@ export async function executeTransition(
       inputs.persistClass !== undefined ||
       currentWorkflowCleared !== null ||
       softFieldsWritten.length > 0;
-    if (wroteMeta && metaPath !== null) {
+    if (inputs.graduationTransaction === undefined && wroteMeta && metaPath !== null) {
       await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
     }
   } catch (err) {
@@ -582,9 +646,9 @@ export async function executeTransition(
   // adapter degrades render/write failures to advisories, preserving the
   // transition's forward-recoverable boundary.
   if (record.sideEffects.includes("reconcile-roadmap")) {
-    const handler = ctx.sideEffects?.["reconcile-roadmap"];
+    const handler = activeCtx.sideEffects?.["reconcile-roadmap"];
     if (handler !== undefined) {
-      const advisory = await handler({ cwd: ctx.cwd, slug, from: record.from, to: record.to, inputs });
+      const advisory = await handler({ cwd: activeCtx.cwd, slug, from: record.from, to: record.to, inputs });
       if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
       sideEffectsFired.push("reconcile-roadmap");
     }
@@ -623,14 +687,16 @@ function lookupRejection(verb: Verb, position: LifecyclePosition | null): string
 function legDeclared(record: TransitionRecord, leg: EncodingLeg, inputs: TransitionInputs): boolean {
   const e = record.encodingUpdates;
   switch (leg) {
+    case "atomicGraduate":
+      return false;
     case "setPhase":
       return e.setPhase === true;
     case "classField":
       return inputs.persistClass !== undefined;
     case "artifacts":
       return e.artifacts !== undefined;
-    case "reconcileWorktree":
-      return e.reconcileWorktree !== undefined;
+    case "reconcileWorkUnitWorktree":
+      return e.reconcileWorkUnitWorktree !== undefined;
     case "reconcileBranch":
       return e.reconcileBranch !== undefined;
   }
@@ -646,26 +712,42 @@ function validateInputs(
   inputs: TransitionInputs,
 ): string | null {
   const e = record.encodingUpdates;
+  const atomicStart = inputs.graduationTransaction !== undefined;
+
+  if (atomicStart) {
+    if (record.verb !== "start" || e.artifacts !== "relocate") {
+      return "a graduation transaction is valid only for backlog `start`.";
+    }
+    if (ctx.atomicGraduate === undefined) return "atomic graduation is unavailable.";
+    if (inputs.toDir !== undefined
+      || inputs.branchOp !== undefined
+      || inputs.worktreeOp !== undefined
+      || inputs.persistClass !== undefined) {
+      return "atomic graduation cannot be combined with generic lifecycle mutation inputs.";
+    }
+  } else if (record.verb === "start" && e.artifacts === "relocate") {
+    return "backlog `start` requires one validated graduation transaction.";
+  }
 
   if (inputs.persistClass !== undefined && ctx.writeClassField === undefined) {
     return "Class persistence is unavailable.";
   }
-  if (e.artifacts === "relocate" && inputs.toDir === undefined) {
+  if (!atomicStart && e.artifacts === "relocate" && inputs.toDir === undefined) {
     return "this transition relocates artifacts but no `toDir` was supplied.";
   }
   if ((e.artifacts === "scaffold" || e.artifacts === "remove") && ctx.scaffoldOrRemove === undefined) {
     return `the \`${e.artifacts}\` artifact disposition has no runner wired.`;
   }
-  if (e.reconcileBranch !== undefined) {
+  if (!atomicStart && e.reconcileBranch !== undefined) {
     if (inputs.branchOp === undefined) return "this transition reconciles a branch but no `branchOp` was supplied.";
     if (inputs.branchOp.mutation !== e.reconcileBranch) {
       return `branchOp mutation \`${inputs.branchOp.mutation}\` does not match the edge's \`${e.reconcileBranch}\`.`;
     }
   }
-  if (e.reconcileWorktree !== undefined) {
+  if (!atomicStart && e.reconcileWorkUnitWorktree !== undefined) {
     if (inputs.worktreeOp === undefined) return "this transition reconciles a worktree but no `worktreeOp` was supplied.";
-    if (inputs.worktreeOp.mutation !== e.reconcileWorktree) {
-      return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorktree}\`.`;
+    if (inputs.worktreeOp.mutation !== e.reconcileWorkUnitWorktree) {
+      return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorkUnitWorktree}\`.`;
     }
   }
 
@@ -700,6 +782,8 @@ async function fireLeg(
 ): Promise<string | undefined> {
   const e = record.encodingUpdates;
   switch (leg) {
+    case "atomicGraduate":
+      throw new Error("atomic graduation is fired only through its dedicated executor path.");
     case "setPhase": {
       if (metaPath === null || record.to === null) {
         throw new Error("set-phase requires a resolved meta path and target phase.");
@@ -729,9 +813,9 @@ async function fireLeg(
       await ctx.scaffoldOrRemove?.({ disposition, slug, fromDir, toDir: inputs.toDir ?? null });
       return undefined;
     }
-    case "reconcileWorktree": {
-      if (inputs.worktreeOp === undefined) throw new Error("reconcile-worktree requires a `worktreeOp`.");
-      const result = await ctx.reconcileWorktree(inputs.worktreeOp);
+    case "reconcileWorkUnitWorktree": {
+      if (inputs.worktreeOp === undefined) throw new Error("reconcile-work-unit-worktree requires a `worktreeOp`.");
+      const result = await ctx.reconcileWorkUnitWorktree(inputs.worktreeOp);
       return result.mutation === "spawn" ? result.postCreateNotice : undefined;
     }
     case "reconcileBranch": {
@@ -765,7 +849,7 @@ function effectiveMetaPath(
  * - `reconcile-branch` `delete` → the `[none]` sentinel (`park@Planning` /
  *   `abandon` tear the branch down in place). The merge-gated `archive` ship
  *   clears the field via `clearBranchField` instead (logical-only, no git op).
- * - `reconcile-worktree` `spawn` → the spawned/attached branch — graduate cuts
+ * - `reconcile-work-unit-worktree` `spawn` → the spawned/attached branch — graduate cuts
  *   `plan/<slug>` and resume re-attaches the preserved branch here, since branch
  *   birth/attach rides the worktree leg (the co-occurring `create` branchOp is a
  *   no-op carrying no name).

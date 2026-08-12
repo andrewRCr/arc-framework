@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildErrandCheckJsonEnvelope,
   formatErrandCheckCaveats,
-  formatErrandPushDeferredWarning,
+  formatErrandCloseResult,
 } from "../../../src/handlers/errand.js";
+import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
 
 describe("formatErrandCheckCaveats", () => {
   it("renders caveat lines for skipped marked entries and indeterminate probes", () => {
@@ -66,29 +67,27 @@ describe("buildErrandCheckJsonEnvelope", () => {
   });
 });
 
-describe("formatErrandPushDeferredWarning", () => {
-  it("names every same-slug collision and gives the actual discard-side recovery", () => {
-    const warning = formatErrandPushDeferredWarning(
-      "Record-removal",
-      { kind: "conflict", slugs: ["alpha", "beta"] },
-      true,
-    );
+describe("formatErrandCloseResult", () => {
+  it("renders the same validated result as human narration and JSON", () => {
+    const result = createErrandTerminalResult({
+      outcome: "refused",
+      operation: "errand-close",
+      subject: null,
+      checkoutPath: null,
+      generation: null,
+      reason: "preservation-unproven",
+      recommendedPromptText: "The recorded head moved.",
+    });
 
-    expect(warning).toContain("alpha, beta");
-    expect(warning).toContain("arc errand close --force <slug>");
-    expect(warning).toContain("discarded side");
-    expect(warning).not.toContain("reconciles on the next `arc sync`");
-  });
-
-  it("surfaces when no sync-state record could retain the recovery marker", () => {
-    const warning = formatErrandPushDeferredWarning(
-      "Record",
-      { kind: "failed", error: new Error("offline") },
-      false,
-    );
-
-    expect(warning).toContain("recovery marker was not recorded");
-    expect(warning).toContain("retry recovery with `arc sync`");
-    expect(warning).not.toContain("it reconciles");
+    expect(formatErrandCloseResult(result, false)).toEqual({
+      stream: "stderr",
+      text: "The recorded head moved.",
+      exitCode: 1,
+    });
+    expect(formatErrandCloseResult(result, true)).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: 1,
+    });
   });
 });

@@ -19,6 +19,40 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Dispatch published remedy actions instead of reducing them to prompt text**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).
+- _Concern:_ session-init publishes structured remedies such as `argv: ["arc", "base", "sync", "--json"]`, but
+  `ChannelRecommendation` drops the executable half and workflow prose hardcodes a different command. Carry an
+  optional typed action through the recommendation/envelope contract and dispatch it as a compiled step instance.
+- _Boundary:_ the unsafe base-sync substitution was already removed; this entry owns the general typed-dispatch
+  precedent and should compose with the session-agenda design rather than mint a one-channel exception.
+
+### `[ ]` **Make focused start recon consume the concrete start preflight**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).
+- _Concern:_ `arc-session --start <slug>` can report ready while `arc start <slug>` refuses, because recon does not
+  consume the mutation path's source, artifact-tuple, destination, branch, and worktree preflight.
+- _Approach:_ compile `start=<slug>` from the same pinned, presentation-free preflight used by the concrete command;
+  consume `stub-mint-to-launch`'s shared start core if it lands first and keep judgmental capacity advice in prose.
+
+### `[ ]` **Bound session-init read groups by aggregate tool-output budget**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain
+  (2026-07-27); captured during `review-checkout-lifecycle` planning while running `arc-session`.
+- _Concern:_ session-init's prescriptive parallel context load issued nine required reads in one tool message;
+  the combined result (~21,400 tokens) exceeded the harness result cap, so required rule content was silently
+  truncated even though every individual read succeeded. A second cap surface beside the draft's existing
+  observation that `session-init.md` itself exceeds common single-read limits.
+- _Fold-in:_ make bounded aggregate output part of D3's `read` / `parallel-group` contract. The compiler should
+  partition required reads into ordered parallel groups whose estimated or declared aggregate size stays below
+  the execution surface's result budget, and define a deterministic continuation when a result reports
+  truncation. Keep membership and document depth orthogonal (`analysis-load-set-scoping`,
+  `strategy-knowledge-evolution` Principle 8, `strategy-procedure-evolution` Principle 1). Fold into existing
+  session-init growth evidence and the worked agenda's planned `parallel-group` data rather than opening another
+  mechanism. `instruction-optimization` consumes the D3 mechanism; `loadset-composition` owns membership, not
+  batching.
+
 ### `[ ]` **Replace residual activation cleanup mechanics with an owning lifecycle verb**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during the
@@ -206,6 +240,30 @@
   That concern deliberately stays inside the extract-determinism boundary and does not restructure the workflow,
   so it does not trip this WU's "before any at-scale touch of the inline-gated lifecycle workflows" graduation
   trigger.
+
+### `[ ]` **Load release-wrapper mechanics from a conditional fragment**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 3.6.e.
+- _Concern:_ always-loaded commit-control rules carry the wrapper gate/release model and class-tag routing even
+  when `arc.releaseOptedIn` is false, the project default. The release-wrapper strategy cannot own the runtime
+  mechanics because its trigger fires on the adoption decision rather than at workflow fire sites.
+- _Fold-in:_ use a fragment selected by the enabling config so wrapper mechanics are present when enabled and
+  absent otherwise. Treat this as a binding-time example for the conditional-fragment substrate, not a strategy
+  demotion.
+
+### `[ ]` **Re-run rule classification when the agenda compiler mechanizes a guarantee**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 4.6.d.
+- _Concern:_ typed `offer` and `render` steps can mechanically guarantee behavior currently protected by
+  `[invariant]` prose. Carrying the marker forward after compilation would be wrong: the mechanism supplies the
+  discharging fact and changes the rule to a default.
+- _Fold-in:_ when a step guarantee replaces procedural enforcement, re-run classification rather than migrating
+  the marker. Use `session-init/probe-envelope.md`'s force sentences as the concrete D3 case, then decide whether
+  the compiler needs a standing reclassification obligation for any prose-to-mechanism transition.
+
+---
 
 ## Problem / Motivation
 

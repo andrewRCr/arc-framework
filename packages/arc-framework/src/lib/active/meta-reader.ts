@@ -249,6 +249,8 @@ export interface MetaFieldDescriptor {
   readonly key: MetaSemanticKey;
   /** Value rendered when the caller supplies no override for this field. */
   readonly default: string;
+  /** Omit the field entirely when its semantic value is absent. */
+  readonly omitWhenAbsent?: boolean;
   /** Grouping key — bullet fields sharing a group render contiguously, blank-line separated. */
   readonly group: string;
   /** Layout: a cell in the hoisted core-block table, or a grouped bullet. */
@@ -276,6 +278,15 @@ export const META_FIELDS = [
   { name: "Design", key: "design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", key: "taskList", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Review Rubric", key: "reviewRubric", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  {
+    name: "Promotion Receipt",
+    key: "promotionReceipt",
+    default: "[none]",
+    group: "reference",
+    render: "bullet",
+    valueClass: "identifier",
+    omitWhenAbsent: true,
+  },
   { name: "Current Workflow", key: "currentWorkflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", key: "lastCompleted", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
@@ -418,9 +429,11 @@ function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): string[
   let prevGroup: string | null = null;
   for (const field of META_FIELDS) {
     if (field.render !== "bullet") continue;
+    const value = valueOf(field);
+    if ("omitWhenAbsent" in field && value === field.default) continue;
     if (prevGroup !== null && field.group !== prevGroup) lines.push("");
     const prefix = `- **${field.name}:** `;
-    const [first = "", ...rest] = renderBulletValueLines(field, valueOf(field), prefix.length);
+    const [first = "", ...rest] = renderBulletValueLines(field, value, prefix.length);
     lines.push(`${prefix}${first}`);
     for (const continuation of rest) lines.push(`  ${continuation}`);
     prevGroup = field.group;
@@ -514,6 +527,7 @@ export function renderMetaFile(
     design: [],
     taskList: null,
     reviewRubric: null,
+    promotionReceipt: null,
     currentWorkflow: null,
     lastCompleted: null,
     nextTask: null,
@@ -536,6 +550,7 @@ export function renderMetaFile(
     Design: renderIdentifierList(record.design),
     "Task List": renderNullable(record.taskList),
     "Review Rubric": renderNullable(record.reviewRubric),
+    "Promotion Receipt": renderNullable(record.promotionReceipt),
     "Current Workflow": renderNullable(record.currentWorkflow),
     "Last Completed": renderNullable(record.lastCompleted),
     "Next Task": renderNullable(record.nextTask),
@@ -817,7 +832,9 @@ export function reconcileMetaFields(
   const bulletFields = META_FIELDS.filter((f) => f.render === "bullet");
   const absent = new Set<MetaFieldName>(
     bulletFields
-      .filter((f) => !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
+      .filter((f) =>
+        !("omitWhenAbsent" in f)
+        && !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
       .map((f) => f.name as MetaFieldName),
   );
   if (absent.size === 0) return { content, backfilled: [] };
@@ -905,6 +922,9 @@ export function setMetaBulletFields(
   content: string,
   updates: Partial<Record<MetaFieldName, string>>,
 ): string {
+  if (Object.prototype.hasOwnProperty.call(updates, "Promotion Receipt")) {
+    throw new Error("Cannot set meta field: `Promotion Receipt` is immutable after initial rendering.");
+  }
   let lines = content.split("\n");
   for (const [name, value] of Object.entries(updates)) {
     lines = replaceBulletField(lines, name, value);
@@ -1189,6 +1209,7 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     design: parseIdentifierList(projection.Design),
     taskList: nullableProjectionValue(projection["Task List"]),
     reviewRubric: nullableProjectionValue(projection["Review Rubric"]),
+    promotionReceipt: nullableProjectionValue(projection["Promotion Receipt"]),
     currentWorkflow: nullableProjectionValue(projection["Current Workflow"]),
     lastCompleted: nullableProjectionValue(projection["Last Completed"]),
     nextTask: nullableProjectionValue(projection["Next Task"]),
@@ -1263,7 +1284,7 @@ const FIELD_MARKER_RE = /^[ \t>*+-]*\*\*[^*]+:\*\*/;
 function extractField(content: string, label: string): string | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const labelRe = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`);
-  const lines = content.split("\n");
+  const lines = content.split(/\r?\n/u);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line === undefined) continue;

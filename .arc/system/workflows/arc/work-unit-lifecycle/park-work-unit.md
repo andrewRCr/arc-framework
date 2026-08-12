@@ -75,8 +75,7 @@ and emits a ROADMAP regen advisory. For **park@Active** it also preserves the br
 worktree in-verb (refusing on uncommitted work). For **park@Planning** the `plan/<name>` branch + worktree teardown
 is **out-of-band** — a post-action `arc teardown --force` (Step 4 below), not an in-verb leg, since firing it on the
 verb's own staged relocate would trip the clean guard and, in-place, target the un-removable primary worktree. The
-relocate choreography is shared with [`decompose-work-unit`][decompose] § [The park-exit
-block](decompose-work-unit.md#the-park-exit-block); `park` drives it through the verb rather than re-spelling it.
+park verb owns this relocate choreography.
 
 ### 4) Ship per protection mode
 
@@ -114,6 +113,9 @@ Under full protection, push the grooming branch and open the PR:
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin chore/park-{name}`.
 
+The park PR intentionally opens plain even when `merge.lock: draft`: it lands the lifecycle transition and is not
+the work-unit integration PR the lock governs.
+
 ```bash
 gh pr create --base {base-branch} --head chore/park-{name}
 ```
@@ -138,7 +140,8 @@ arc teardown {name} --force   # un-shipped / force mode: reaps the retired plan 
 
 `--force` selects the un-shipped teardown mode: the WU is parked (not in `completed/`) and its `plan/<name>` branch
 is unmerged, so the conservation safety is the durable relocate above, not git-containment. The in-place arm
-switches the primary worktree to the base branch; a linked arm removes the worktree and locus-hops.
+switches the primary worktree to the base branch; a linked arm removes the worktree and moves the process to the base
+checkout.
 
 ---
 
@@ -153,7 +156,8 @@ on a parked unit routes to `resume`.
 - [`resume-work-unit`][resume] — the inverse; re-attaches this park@Active shelf.
 - [`init-work-unit`][init-work-unit] — the `start`-family forward edge (`backlog/planned/ → active/`); park@Planning
   reverses it.
-- [`decompose-work-unit`][decompose] — shares the single-source park-exit relocate + teardown choreography.
+- [`decompose-work-unit`][decompose] — planning-source transform sibling; unlike park, it retires the supported
+  origin into authored destinations.
 - [`deactivate-work-unit`][deactivate] — the destructive sibling (`abandon`); park is the resumable alternative.
 - [`integrate-work-unit`][integrate] — the code-shipping lifecycle exit; contrast with this resumable pause.
 

@@ -23,7 +23,9 @@ import {
   recordErrandPartialPushMarker,
   clearErrandPartialPushMarker,
 } from "../../src/lib/user-sync/index.js";
-import { writeErrandRecord, errandsRef } from "../../src/lib/errand/index.js";
+import { errandsRef } from "../../src/lib/errand/index.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
+import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 
 const IDENTITY = "andrew";
 
@@ -42,17 +44,34 @@ describe("errand-ref partial-push marker", () => {
     );
     await writeLocalSyncState(dir, io, IDENTITY, "manifest-hash", head, "save");
     // An errand ref must exist for the marker to capture its hash.
-    await writeErrandRecord(
+    const identityWrite = await transactTransientIdentities(
       { exec: io.exec, execInput: io.execInput!, identity: IDENTITY },
       {
-        version: 1,
-        slug: "an-errand",
-        origin: "description",
-        intent: "do an-errand",
-        branch: "chore/an-errand",
-        createdAt: "2026-06-19T12:00:00.000Z",
+        remote: null,
+        message: "seed an-errand",
+        transform: (basis) => ({
+          kind: "applied",
+          records: new Map([...basis, ["an-errand", TransientIdentityRecordV3Schema.parse({
+            version: 3,
+            kind: "errand",
+            slug: "an-errand",
+            claimId: "a".repeat(32),
+            purpose: "errand",
+            origin: "description",
+            originEntry: null,
+            intent: "do an-errand",
+            branch: "chore/an-errand",
+            state: "open",
+            savedHead: null,
+            changeRequest: null,
+            createdAt: "2026-06-19T12:00:00.000Z",
+            updatedAt: "2026-06-19T12:00:00.000Z",
+          })]]),
+          value: null,
+        }),
       },
     );
+    expect(identityWrite.kind).toBe("applied");
   });
 
   afterEach(async () => {

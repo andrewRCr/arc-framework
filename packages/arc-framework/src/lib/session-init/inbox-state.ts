@@ -7,9 +7,9 @@
  * from a machine-resolved count rather than an agent re-scan. "Routable" means
  * a well-formed entry that still needs routing: malformed blocks are skipped
  * (mirroring the staleness sweep skipping entries it cannot age), and so are
- * entries deliberately retained at a drain (`_Hold:_ \`true\``) — a held entry
- * is triaged, not pending, so it must not re-trigger the housekeep offer (the
- * reminder sweep surfaces it instead; see `inbox-reminders`).
+ * entries deliberately retained at a drain (`_Hold:_ \`true\``) or already
+ * bound to execution (`_Disposition:_ \`execute-bound\``). Both are triaged,
+ * not pending, and must not re-trigger the housekeep offer.
  *
  * The caller (the session-init probe) owns identity-gating and the file read;
  * this module carries no file or identity coupling of its own.
@@ -19,13 +19,18 @@
 
 import { z } from "zod";
 
-import { parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
+import {
+  hasExecuteBoundDisposition,
+  parseCrossWuEntries,
+  type EntryParse,
+} from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 /** Runtime authority for the inbox-state advisory result. */
 export const InboxStateResultSchema = z
   .object({
     routableCount: z.number().int().nonnegative(),
+    executeBoundCount: z.number().int().nonnegative(),
     housekeepNeeded: z.boolean(),
   })
   .strict()
@@ -44,7 +49,9 @@ export interface RunInboxStateOptions {
 
 /** Whether one inferred parse outcome is a routable, non-held inbox entry. */
 function isRoutableEntry(parse: EntryParse): boolean {
-  return parse.ok && !managedFlagIsTrue(parse.entry.raw, "Hold");
+  return parse.ok
+    && !managedFlagIsTrue(parse.entry.raw, "Hold")
+    && !hasExecuteBoundDisposition(parse.entry.raw);
 }
 
 /**
@@ -54,6 +61,10 @@ function isRoutableEntry(parse: EntryParse): boolean {
  * @returns The routable-entry count and the housekeep-needed flag.
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
-  const routableCount = parseCrossWuEntries(options.content, "user-inbox").filter(isRoutableEntry).length;
-  return { routableCount, housekeepNeeded: routableCount > 0 };
+  const entries = parseCrossWuEntries(options.content, "user-inbox");
+  const routableCount = entries.filter(isRoutableEntry).length;
+  const executeBoundCount = entries.filter(
+    (parse) => parse.ok && hasExecuteBoundDisposition(parse.entry.raw),
+  ).length;
+  return { routableCount, executeBoundCount, housekeepNeeded: routableCount > 0 };
 }

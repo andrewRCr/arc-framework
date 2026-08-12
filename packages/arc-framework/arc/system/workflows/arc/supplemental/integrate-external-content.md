@@ -20,7 +20,8 @@ Determine what you're working with:
 - **External file** — a file to import (shared by someone, downloaded, etc.)
 - **Link or concept** — a description, documentation page, or idea to evaluate
 
-For external files, read the content first. For links or concepts, gather enough context to classify.
+**For external files, read the content first** · `[invariant]`. For links or concepts, gather enough context to
+classify.
 
 ## Step 2: Classify the Content
 
@@ -66,7 +67,7 @@ the system.
 
 1. Identify which method in [`system/methods/`][arc-methods] this content replaces
    (e.g., `commit-format`, `self-review`, `session-state`)
-2. Read the method's **contract** — your override should satisfy the same invariant
+2. Read the method's **contract** — the invariant your override must satisfy, unchecked but not optional
 3. Adapt the content to fit the override format:
     - Populate the `## {method-name}.override` section with the new implementation
     - Toggle `override-active: true` in the method's frontmatter

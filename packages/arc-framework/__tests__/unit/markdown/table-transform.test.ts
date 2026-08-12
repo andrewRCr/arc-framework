@@ -13,7 +13,7 @@ describe("GFM table transformation", () => {
       "",
       "| Name | Value |",
       "| - | - |",
-      "| A \\| B | `x\\|y` and *z* |",
+      "| A \\| B | `x\\|y`, _z_, and **strong** |",
       "",
       "After é without final newline.",
     ].join("\r\n");
@@ -28,7 +28,7 @@ describe("GFM table transformation", () => {
     expect(output.startsWith("Before 表.\r\n\r\n")).toBe(true);
     expect(output.endsWith("\r\n\r\nAfter é without final newline.")).toBe(true);
     expect(output).toContain("A \\| B");
-    expect(output).toContain("`x\\|y` and *z*");
+    expect(output).toContain("`x\\|y`, _z_, and **strong**");
     expect(lintResults["docs/table.md"]).toEqual([]);
     expect(transformGfmTables({ path: "docs/table.md", bytes: result.bytes }).bytes).toEqual(result.bytes);
   });

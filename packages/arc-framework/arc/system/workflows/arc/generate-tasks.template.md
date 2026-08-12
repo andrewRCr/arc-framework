@@ -25,10 +25,12 @@ branch (`plan/<name>`) — verify you're still on it (created via [init-work-uni
 protection (the default), it may run directly on the base branch.
 
 Before starting, read the spec thoroughly. If the spec has pre-activation metadata (`**State:**` and/or
-`**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
-confirm with the user before proceeding — generating tasks against unresolved dependencies produces a plan that
-can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
-leave the fields in place during task generation.
+`**Related Work:**` fields), check whether dependencies are resolved. Those fields record state at authoring
+time, so resolve each named blocker against live work-unit state (`arc status <slug>`) rather than reading the
+recorded value — a shipped dependency still listed as blocking is the common case. Stop and confirm with the
+user only on a blocker that is genuinely still open — generating tasks against unresolved dependencies produces
+a plan that can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md`
+Step 4), not here — leave the fields in place during task generation.
 
 **Stage pointer** — no entry write: reaching generate-tasks always passes through `create-spec`, whose finalization
 already advanced `Current Workflow` here.

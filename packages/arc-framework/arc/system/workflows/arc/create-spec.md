@@ -93,6 +93,12 @@ silently. On `revise`, correct a wrong named mechanism, shape, or interface in t
 is already settled; when the finding exposes an unshaped or under-derived direction, fire
 [`resolve-planning-depth`][resolve-planning-depth]'s mid-stage re-entry valve and return to `draft-design`.
 
+### Scope-boundary carry-forward (all forms)
+
+The spec's boundary inherits the draft's and sharpens it; never silently drop a commitment the draft recorded.
+Where no `draft-*` exists, the inheritance arrives as the determinacy-confirm carried from `draft-design`
+rather than a draft section — carry it forward the same way.
+
 ### `brief` — intent + scope + one signal
 
 The design is determinate. Confirm three things are concrete: the intent, the scope boundary, and the one
@@ -148,8 +154,8 @@ Out of Scope — the principle catalog is the project's vision contract.
 
 On either, halt and surface the specific conflict — user direction needed before save.
 
-**On pass — cite the principle by name.** Not "checked, passes" — "checked against the _Configurability_
-principle — passes".
+**On pass — cite the principle by name** · `[invariant]`. Not "checked, passes" — "checked against the
+_Configurability_ principle — passes".
 
 ## TECHNICAL-OVERVIEW alignment check (conditional)
 
@@ -159,14 +165,18 @@ problem / scope / principles; TECHNICAL-OVERVIEW covers technical surfaces. A si
 or neither.
 
 **Halt-and-ask condition:** The spec introduces tech (component, framework, dependency, infrastructure choice)
-not in TECHNICAL-OVERVIEW. On detection, halt and surface the drift — user direction needed before save.
+genuinely new to the project. Absence from TECHNICAL-OVERVIEW is the trigger to look, not the finding — the
+common hit is a stale document describing tech the project already carries. Confirm presence against the
+project's technical surface (manifests, lockfiles, config, existing code); on confirmation, note the document's
+staleness and continue. Fail closed: anything not confirmable as already present halts and surfaces the drift —
+user direction needed before save.
 
 The companion downstream condition ("TECHNICAL-OVERVIEW edited since the spec was approved") fires at
 [`activate-work-unit.md`][activate-work-unit] and [`integrate-work-unit.md`][integrate-work-unit], not here — at
 create-spec time the spec hasn't been approved yet.
 
-**On pass — cite the section by name.** Not "checked, passes" — "checked against § 2 Architecture Components —
-passes".
+**On pass — cite the section by name** · `[invariant]`. Not "checked, passes" — "checked against § 2 Architecture
+Components — passes".
 
 ## Write and save the spec
 
@@ -190,6 +200,14 @@ When two `detailed` specs are authored as a **paired** PRD + RFC, additionally d
 entirely: the PRD's Technical Considerations and the RFC's context spine (Introduction / Goals / Non-Goals) —
 the PRD owns the shared spine, the RFC references it. A standalone `detailed` spec keeps every section; only the
 markers are stripped.
+
+**Retain the boundary carrier on emit.** Each form's boundary surface carries this contract line inside a
+section body you otherwise replace wholesale — keep it, along with the `brief` form's clause-scoping sentence
+where that form applies:
+
+```text
+_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+```
 
 **Naming:** The `{name}` descriptor in the spec filename becomes the work unit's identifier across all artifacts
 — task list (`tasks-{name}.md`), notes (`notes-{name}.md`), completion record, and branch name. Choose a
@@ -248,7 +266,7 @@ adversarial-review:
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
 > spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
 > spec — amend and re-surface until the spec is right. This approval means the spec is correct; it does **not**
-> authorize the irreversible finalize actions below.
+> authorize the irreversible finalize actions below · `[invariant]`.
 
 Once the spec is approved as correct, finalize the work unit. The remaining steps are irreversible, so they take
 a second, separate approval:

@@ -31,9 +31,10 @@ export interface PointerRecordInput {
   reason: string;
   /**
    * Render fields carried from the source meta (`Owner` / `Class` / `Priority` /
-   * `Cohort` / `Depends On` / `Origin` / `Design`). `State` and `Branch` are set
-   * by the composer and override any supplied here; the progress / directive
-   * narrative is deliberately *not* carried — it stays authoritative on the branch.
+   * `Cohort` / `Depends On` / `Origin` / `Design` / `Promotion Receipt`). `State`
+   * and `Branch` are set by the composer and override any supplied here; the
+   * progress / directive narrative is deliberately *not* carried — it stays
+   * authoritative on the branch.
    */
   renderFields: MetaRenderOverrides;
 }

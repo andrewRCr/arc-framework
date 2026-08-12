@@ -31,9 +31,15 @@ describe("repository command-input inventory", () => {
     );
   });
 
-  it("reconciles every live syntax and interaction site exactly once", () => {
+  it("reconciles every live syntax site and declared interaction use", () => {
     const syntaxCount = snapshot.source.commands.reduce(
       (count, command) => count + command.operands.length + command.options.length,
+      0,
+    );
+    const declaredInteractionCount = commandInputPolicyDeclarations.reduce(
+      (count, declaration) => count + declaration.sites.filter(
+        (site) => "interaction" in site.source && site.source.interaction !== undefined,
+      ).length,
       0,
     );
     const declaredSemanticSites = inventory.entries
@@ -41,7 +47,7 @@ describe("repository command-input inventory", () => {
       .map((entry) => entry.identity);
 
     expect(inventory.entries).toHaveLength(
-      syntaxCount + snapshot.source.interactions.length + declaredSemanticSites.length,
+      syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
       "join:semantic.identity",
@@ -72,6 +78,34 @@ describe("repository command-input inventory", () => {
         identity: "user sync:interaction.handlers-user-sync.ts-prompt-p.select-1",
         acquisition: "safe-default",
         noInput: "use-default",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-tasks:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-branch:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery compose:option.landed-prefix",
+        acquisition: "required-evidence",
+        schemaOwnership: "owned",
+        schemaField: "landedPrefix",
+      }),
+      expect.objectContaining({
+        identity: "delivery compose:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan abandon:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
       }),
     ]));
     expect(new Set(inventory.entries.map((entry) => entry.identity)).size).toBe(inventory.entries.length);
@@ -149,6 +183,44 @@ describe("repository command-input inventory", () => {
     expect(command?.action?.interactionContext).toBe(true);
   });
 
+  it("assigns the byte-preserving raw Git boundary to its command families", () => {
+    const rawGitCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-git-process-executor.ts-subprocess-execa-2")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(rawGitCommands).toEqual([
+      "abandon",
+      "activate",
+      "archive",
+      "deactivate",
+      "decompose",
+      "delivery compose",
+      "delivery plan abandon",
+      "delivery plan from-branch",
+      "delivery plan from-tasks",
+      "demote",
+      "finalize",
+      "integrate",
+      "materialize",
+      "park",
+      "promote",
+      "rename",
+      "reopen",
+      "repoint-design",
+      "resume",
+      "review chunking resolve",
+      "review planning-lane",
+      "set-stage",
+      "start",
+      "status",
+      "stub",
+      "teardown",
+      "user reconcile-references",
+      "wu reconcile",
+    ]);
+  });
+
   it("routes lifecycle and errand command boundaries through the interaction-context adapter", () => {
     const adapterCommands = new Map(snapshot.source.commands.map((command) => [
       command.path,
@@ -170,7 +242,6 @@ describe("repository command-input inventory", () => {
       "set-stage",
       "finalize",
       "repoint-design",
-      "errand retire",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);
