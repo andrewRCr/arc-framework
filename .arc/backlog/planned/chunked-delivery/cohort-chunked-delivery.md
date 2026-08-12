@@ -33,9 +33,10 @@ evidence and does not gate v1 readiness.
 - `delivery-plan-record` owns immutable authored intent, stable member identity and order, plan revisions, the task-list
   projection, and one version-checked mutable `DeliveryState`. State binds exact refs and change requests, supports
   reverse lookup from a member ref to its owning plan and work unit, and records at most one active operation.
-- `delivery-stack-topology` owns stack eligibility, guarded sequential landing to the protected base, suffix
-  reconciliation, and lifecycle-artifact exclusion. Its landing core is built projection-neutral so downstream
-  projections can reuse it. Member review admission is owned by the external `delivery-slice-review-vehicle`.
+- `delivery-stack-topology` owns stack eligibility, a complete guarded sequential landing path to the protected base,
+  one optional exact all-remaining native atomic arm, suffix reconciliation, and lifecycle-artifact exclusion. Its
+  landing core is built projection-neutral so downstream projections can reuse it. Member review admission is owned
+  by the external `delivery-slice-review-vehicle`.
 - `delivery-review-cardinality` owns no v1 contract. If field evidence activates it, it may improve review-request
   cardinality without weakening any member's existing obligation or creating delivery-authored review authority.
 
@@ -112,9 +113,10 @@ The model keeps four boundaries distinct:
 - **Delivery member:** a chunk or group of chunks with an independent pull-request or merge boundary.
 - **Phase:** task-plan organization, not a delivery identity.
 
-The cohort executes one topology: members form an ordered stack and land to the protected base one at a time. Every
-member must leave the protected base green and semantically coherent. The plan schema remains projection-neutral so a
-downstream delivery projection can consume it without expanding this cohort's closeout boundary.
+The cohort executes one topology: members form an ordered stack, and the provider-independent path lands them to the
+protected base one at a time. An opt-in native adapter may group only the exact complete remaining non-terminal set in
+one atomic direct effect after every included head independently satisfies the same guards. Every member must still be
+green and semantically coherent. The plan schema remains projection-neutral, and provider grouping never enters it.
 
 The lifecycle is deliberately direct:
 
@@ -149,10 +151,10 @@ version-checked state; and one active-operation port. No topology execution.
 
 ### `delivery-stack-topology`
 
-The v1 executable projection: human-authored landability validation, ordered member refs and pull requests, sequential
-landing and suffix reconciliation, and lifecycle-artifact exclusion, with the landing core built projection-neutral.
-Member review admission comes from the external `delivery-slice-review-vehicle`; no host-native stack API is required
-for v1.
+The v1 executable projection: human-authored landability validation, ordered member refs and pull requests, complete
+sequential landing and suffix reconciliation, lifecycle-artifact exclusion, and one optional exact all-remaining
+native atomic arm, with the landing core built projection-neutral. Member review admission comes from the external
+`delivery-slice-review-vehicle`; no host-native stack API is required for v1 correctness.
 
 ### `delivery-review-cardinality`
 

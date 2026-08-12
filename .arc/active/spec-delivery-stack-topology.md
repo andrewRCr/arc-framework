@@ -3,7 +3,7 @@
 - **Origin:** [internal]
 
 - **Purpose:** Execute a human-authored delivery stack to the protected base — validated member eligibility, ordered
-  ref and pull-request materialization, guarded one-at-a-time landing, suffix reconciliation, and lifecycle-artifact
+  ref and pull-request materialization, guarded exact-head landing, suffix reconciliation, and lifecycle-artifact
   exclusion — with the landing core built projection-neutral, member review admitted through the shipped
   delivery-member vehicle, and the routine work-unit lifecycle reaching delivery through owned attachment points.
 
@@ -26,11 +26,14 @@ operation kinds `materialize | publish | rewrite | land | teardown`. `delivery-s
 non-final member into the exact-head review lifecycle as a typed `delivery-member` vehicle, authenticated by
 delivery-state reverse lookup, and routes one named constraint back to this work unit (§ 5).
 
-This work unit is the v1 executable projection: it owns stack eligibility, materialization, guarded sequential
-landing, suffix reconciliation, lifecycle-artifact exclusion, and the routine-lifecycle attachment points — entry
+This work unit is the v1 executable projection: it owns stack eligibility, materialization, a complete guarded
+sequential landing path plus the bounded native arm, suffix reconciliation, lifecycle-artifact exclusion, and the
+routine-lifecycle attachment points — entry
 (planned and discovered), resume, and closeout — plus the shared boundary checkpoint they ride. It invokes the
-shipped state constructor and guards; it re-models none of them. `cohort-chunked-delivery.md` owns the shared v1
-robustness floor, non-goals, and hardening-admission boundary, all of which apply here unchanged.
+shipped state constructor and guard sequence. It extends the current active-operation shape in place only where an
+external host assigns the resulting change-request handle or merge coordinates: the same one-operation slot and
+version-checked state remain the entire recovery authority. `cohort-chunked-delivery.md` owns the shared v1 robustness
+floor, non-goals, and hardening-admission boundary, all of which apply here unchanged.
 
 ## Goals
 
@@ -38,12 +41,13 @@ robustness floor, non-goals, and hardening-admission boundary, all of which appl
   coherent, using disposable candidate heads — never generated compatibility caps.
 - Materialize an ordered member-ref and pull-request chain without treating provider stack metadata or branch
   names as authority.
-- Land exactly one member at a time through the existing review, merge-lock, and integration-authorization
-  machinery, each at its exact head.
+- Land one non-terminal member at a time through the complete provider-independent path, with an opt-in native arm
+  allowed to land the exact complete remaining non-terminal set atomically only after every included head satisfies
+  the same review, merge-lock, and integration-authorization requirements.
 - Reconcile the remaining suffix after each landing — including a host's recognized retarget under opt-in native
   stack linking — without rewriting the owning work unit's control branch.
-- Keep the owning work unit's active lifecycle artifacts out of every non-final member, and preserve ordinary
-  session resolution for unrelated work while a stack is partially landed.
+- Keep the owning work unit's active lifecycle contribution out of every disposable candidate, and preserve
+  ordinary session resolution for unrelated work while a stack is partially landed.
 - Resume from `DeliveryState` and the retained control locus after interruption, surfacing delivery position at
   session-init as one precomposed orientation line.
 - Reach delivery from the routine lifecycle through advisory attachment points — the re-chartered boundary
@@ -56,8 +60,9 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 This member does not add:
 
 - automatic stack discovery, boundary derivation, compatibility-cap generation, or semantic landability inference;
-- dependence on provider-native stack capability — opt-in linking of the materialized chain is in scope (§ 9),
-  while native webhook, atomic-prefix, ordered-prefix, merge-queue, and batch-merge support stays out of v1;
+- dependence on provider-native stack capability — opt-in linking and one exact all-remaining direct atomic landing
+  are in scope (§ 9), while native webhooks, arbitrary or partial ordered-prefix landing, merge queues, and
+  provider-general batch support stay out of v1;
 - a general delivery-host capability registry or parity across provider previews;
 - per-member work-unit identities, session loci, metadata records, or authoring branches;
 - review groups, seam receipts, terminal assurance, or receipt projection across rewritten pull requests;
@@ -65,13 +70,13 @@ This member does not add:
 - autonomous abandoned-stack rollback or cleanup of every possible partial provider outcome;
 - topology changes, reactive insertion modes, or live-to-landed plan conversion after binding;
 - mixed topology segments inside one plan revision; or
-- new stores, new configuration axes beyond the two renamed attention-register keys, CLI verbs beyond the § 10
+- new stores, new configuration axes beyond the two renamed changeset advisory-threshold keys, CLI verbs beyond § 10
   responsibilities, or behavior changes riding either rename beyond its mechanical requirement (the re-charter's
   third outcome and new fire-point; the register keys' new names).
 
 The cohort's hardening-admission boundary (`cohort-chunked-delivery.md`) governs findings against this work: a new
-provider capability, recovery state, identity, or proof record must address a demonstrated failure in the
-sequential stack lifecycle, and anything crossing the lines above is a scope change accepted only through a design
+provider capability, recovery state, identity, or proof record must address a demonstrated failure in the supported
+stack lifecycle, and anything crossing the lines above is a scope change accepted only through a design
 amendment — never silently promoted into a required fix.
 
 ## Proposed Design
@@ -79,18 +84,24 @@ amendment — never silently promoted into a required fix.
 ### 1. Stack eligibility — human-authored, candidate-validated
 
 The author supplies member boundaries in the delivery plan; eligibility validation proves them landable before
-anything binds. **Member content is operator-authored, CLI-validated.** The plan's `taskIds` /
+delivery state or an external projection binds. **Member content is operator-authored, mechanically validated.**
+The plan's `taskIds` /
 `designElementIds` coverage names each member's intent, but no shipped record maps a member to commits or trees —
 that mapping is the operator's cut, made with ordinary Git (cherry-pick or equivalent) from the control branch's
 content into a disposable candidate branch per member, each candidate based on its predecessor's (the lowest on
 the protected base). A member cut is never a raw cumulative prefix of the control branch, whose history
-interleaves lifecycle commits; the operator's cut selects content, and validation proves the selection. The CLI
-derives nothing; it validates the authored chain, in plan order:
+interleaves lifecycle commits; the operator's cut selects content, and validation proves the selection. The
+eligibility procedure derives no cut. It validates the authored chain in plan order:
 
-- each member passes the relevant quality gates at its own candidate head;
-- each candidate tree carries none of the owning work unit's active lifecycle records (§ 6);
-- the chain composes — the **completeness identity**: the final candidate tree equals the control branch's tree
-  minus the excluded lifecycle records, proving the cut dropped and invented nothing; and
+- the existing `quality-gate-commands` method runs the relevant project gates in each candidate checkout at its
+  exact head — workflow-executed, owning the red-or-unavailable-gate stop, while the eligibility verb validates
+  mechanics only and never receives a gate result; delivery adds no command resolver, gate registry, or copied
+  gate verdict;
+- each candidate preserves the protected-base tree state at every repository path through which the owning work
+  unit's lifecycle can contribute (§ 6);
+- the chain composes — the **completeness identity**: the final candidate tree equals the control branch tree after
+  every lifecycle-contribution path is reset to its protected-base state, proving the cut dropped and invented
+  nothing; and
 - each intermediate tree exposes a semantically coherent supported surface (a judgment the operator attests, not
   a generated inference), with any compatibility cap or temporarily dormant surface authored and understood as
   real stack cost.
@@ -99,10 +110,22 @@ An independently green but semantically incomplete member is not stack eligible.
 protected base coherent in increments, the remedy is the integration-target projection — never mixed topology and
 never splitting the concern into sibling work units merely to obtain incremental landing.
 
-Candidate construction is disposable by contract: it creates no binding, writes no state, and its refs carry no
-authority. The validation result feeds the operator's landability attestation in the plan
-(`mainlineLandability: independently-landable`, required for every `stack-to-main` member by the shipped plan
-contract); the CLI records and rechecks mechanics, the human owns the coherence judgment.
+The plan's `mainlineLandability: independently-landable` value is the operator's prospective semantic-coherence
+attestation, authored before candidate validation and required for every `stack-to-main` member by the shipped plan
+contract. Eligibility requires that attestation and validates mechanics afterward; it never rewrites the plan or
+stores a second verdict.
+
+One eligibility run pins the current plan revision/digest, protected-base and control ref/head/tree coordinates, and
+one explicit candidate ref/head/tree mapping per `deliverableId`. Git proves the lowest candidate descends from the
+protected-base head and every successor descends from its predecessor's exact head; branch-name segments grant no
+identity. Every non-terminal candidate contributes a non-empty delta from its predecessor and has a distinct head;
+before binding, each head is checked against global delivery-state reverse lookup so an existing binding refuses
+unless it is the exact same plan/member retry. The procedure verifies each candidate remains at its pinned head before
+and after the normal gate run, refuses tracked/index dirt that would make the gate result describe bytes outside that
+head, and reobserves every source ref plus the plan before returning success. Candidate construction and validation
+are disposable by contract: they create no binding, write no plan or state, and their refs carry no authority. A
+standalone result is not a persisted authorization token; materialization re-enters the complete eligibility procedure
+and publishes only the exact candidate object IDs it just validated. After interruption, eligibility reruns.
 
 ### 2. Delivery refs — a recognized presentation namespace
 
@@ -119,114 +142,176 @@ every surface that parses branch names can recognize and exclude it:
   lookup instead of surfacing a false "no record" warning.
 - **The terminal member has no delivery ref.** Its pull request opens from the retained control branch (§ 5).
 
-Materialization pushes the validated candidate heads (§ 1) as the member refs, walking the plan suffix: the
-lowest unlanded member targets the current protected base; each higher member targets its predecessor's ref.
-Pushing the first member ref (or opening the first member change request) is
-the shipped binding event — the executor observes it and invokes the delivery-state binding constructor with the
-validated current plan. Member pull requests open with base = predecessor ref (base = protected base for the
-lowest), carry the `delivery-member` vehicle identity for review admission, and open locked when `merge.lock:
-draft` is configured, exactly as work-unit pull requests do.
+Materialization re-runs the complete eligibility procedure and pushes only the exact heads it just validated. It
+walks the plan suffix: the lowest unlanded member targets the current protected base; each higher member targets its
+predecessor's ref. The first ref publication is the narrow prebinding carve-out. It uses an exact remote-ref lease:
+create when absent, adopt an exact-head retry, and refuse any different existing head. The executor immediately
+reobserves that event and invokes the shipped delivery-state constructor. Recovery may instead first observe an
+already-open first change request and bind from that event; the two entry arms establish the same plan/member identity
+without pretending their initially known ref, coordinates, and change-request fields are identical.
 
-### 3. Guarded landing — one member, one exact head, one authorization
+Once state exists, binding the protected target, publishing every remaining ref, and opening or adopting every member
+change request run through `materialize` or `publish` reservations. Each remote ref keeps the same absent-create,
+exact-retry-adopt, mismatch-refuse lease. Change requests open with base = predecessor ref (base = protected base for
+the lowest), are uniquely reobserved by repository/head/base, and preserve the configured draft/merge-lock posture.
+The later review call binds the exact request/head to the `delivery-member` vehicle; the pull request itself does not
+carry a second vehicle identity.
 
-Landing a non-terminal member _k_ runs the shipped guarded-operation contract with `kind: land` (the terminal
-member's landing is the integration workflow's own merge, adopted by observation — § 5):
+### 3. Guarded landing — one exact authorized effect
 
-1. **Derive the next landable member** from plan order plus current state — never from provider ordering or
-   branch-name inspection. A member lands only when every predecessor is landed.
-2. **Reserve** the operation with the expected plan revision, state revision, base coordinates, member head/tree,
-   and predecessor relation. A second reservation or a stale state token refuses.
-3. **Reobserve** Git, host, checks, review, and merge-lock state immediately before mutation. The member's review
-   obligation must be settled at its exact head and its integration authorization obtained — the
-   integration-interlock fires per member landing, surfacing the member's exact head, its settled review state,
-   and the landing consequence. Approval never reaches a later member. On approval the merge lock releases through
-   the existing `delivery-member` readiness path.
-4. **Mutate once:** one ordinary host merge of the member's pull request, head-matched to the exact approved head
-   (the unlinked arm; § 9 supplies the linked variant). No batch, queue, or prefix merge in v1.
-5. **Reobserve and record:** confirm the landed result matches `requested` exactly, then record the landed base
-   and current suffix coordinates with a version-checked write and clear the reservation.
+The single active-operation contract distinguishes deterministic coordinate requests from host-assigned results.
+Its member snapshots include the nullable change-request binding alongside ref and coordinates so `publish` can bind
+and `teardown` can clear that handle through the same atomic state application. `materialize`, `rewrite`, and
+`teardown` reserve exact `before` and `requested` snapshots. `publish` and `land` reserve the exact admissible inputs
+and intended effect — repository, request/base/head identity, plan/state revision, and allowed mutation — because a
+host assigns the request handle or resulting merge coordinates. Acceptance still
+requires one fresh, unique observation matching that effect and records the actual handle/coordinates before clear.
+Absent, multiple, queued, cross-repository, partial, or otherwise ambiguous results retain the reservation and refuse.
+This is an in-place pre-release change to the existing operation schema and guards, not a new state machine, store,
+ledger, or compatibility reader.
 
-A crash leaves the reservation in place; reconciliation reobserves first, adopts an exact already-applied result,
-permits retry on exact non-application, and blocks ambiguous movement for explicit remedy — the shipped contract,
-invoked not re-modeled.
+Ordinary landing of a non-terminal member _k_ uses `kind: land` in two attended stages. The opt-in native arm may
+substitute one exact all-remaining non-terminal effect under § 9; the terminal member's landing remains the integration
+workflow's own merge, adopted by observation (§ 5):
+
+1. **Prepare:** derive the next landable member from plan order plus fresh state and host facts, never provider order
+   or branch names. Require all predecessors landed, uniquely resolve its open change request, run the existing
+   `delivery-member` readiness path unconditionally, and reserve the exact admissible landing effect. The § 9 atomic
+   arm instead derives the complete remaining non-terminal set and repeats those requirements independently for
+   every included member/head before reserving one effect over the exact ordered set. Merge-lock configuration is an
+   additional transition, never a substitute for readiness. Return a typed interlock presentation naming every
+   affected member and exact head, settled review state, configured merge strategy, and consequence; prepare performs
+   no merge.
+2. **Authorize:** the workflow fires one integration interlock over that presentation. Approval applies only to the
+   named exact member/head set and is never written to delivery state.
+3. **Apply:** after approval, freshly reobserve Git, host, checks, review, target, predecessor, and operation
+   preconditions; release the configured merge lock; then perform one ordinary host merge head-matched to the exact
+   approved head using the configured `merge`, `rebase`, or `squash` strategy (the unlinked arm; § 9 supplies the
+   linked variants). Queue, arbitrary/partial prefix, cross-repository, and terminal merges are refused.
+4. **Record:** uniquely reobserve the actual protected-base result, require it to match the reserved admissible
+   effect, version-record every affected member's landed coordinates plus the current suffix, and clear the
+   reservation. The § 9 atomic arm accepts only all-applied or none-applied; partial application blocks.
+
+A crash leaves the reservation in place. Reconciliation observes first, adopts one uniquely matching applied effect,
+returns exact non-application as retryable, and blocks ambiguous movement for explicit remedy. Retrying an attended
+`land` returns to prepare and fires a new interlock; no prior approval survives interruption or non-application.
 
 ### 4. Suffix reconciliation — after every landing, before the next
 
 After member _k_ lands, the remaining suffix reconciles before member _k+1_ may land:
 
 - **Retarget:** member _k+1_'s pull request rebases to the protected base (its predecessor is gone). Under an
-  unlinked stack the executor performs the retarget as a `rewrite` operation. A host-initiated retarget is a
-  **recognized operation result** on either arm — the linked stack's automatic rebase/retarget (§ 9), and the
-  host's retargeting of open pull requests when a landed member's branch is deleted through the merge flow
-  (delete-on-merge, a configuration the teardown path already anticipates). Each is reobserved and rebound
-  through the same reconcile path with the same contribution proof, never refused as ambiguous movement.
-- **Contribution proof:** a rewritten member's rebound head must carry the same contribution. Exact tree equality
-  is the strong form (a pure retarget of an unchanged member onto the tree it was cut against); where the rewrite
-  changes parents, patch-identity over the member range (`git patch-id`-class comparison of
-  `predecessor-head..member-head` before and after) establishes equivalence. Anything neither form proves refuses
-  for explicit remedy — ambiguity is never adopted.
-- **Rebinding:** current refs, heads, trees, and review targets rebind through a version-checked state write.
-  Review applicability of the rebound head follows the existing review rules — a rebased member is a new head that
-  must be admitted again; delivery copies no verdict forward.
+  unlinked stack the executor performs the retarget as a deterministic exact `rewrite` operation. A host-initiated
+  retarget is recognized from coordinates, never trusted provider provenance: exactly the current first-unlanded
+  member may move; its stored predecessor is the freshly landed prefix member; its unique observed request/ref base
+  is the protected target; its contribution is equivalent; every other member/target coordinate remains exact; and
+  no operation is active. Delete-on-merge and native retarget are scenarios satisfying this same predicate, not
+  authority labels. After proving the observed movement, the executor persists an exact post-observation `rewrite`
+  reservation (`before` = recorded state, `requested` = observed snapshot), reobserves, and uses ordinary exact
+  reconciliation. Any movement in that window blocks. General position derivation remains strict; only this
+  reconciliation-specific read tolerates the one candidate movement.
+- **Contribution proof:** compare four immutable endpoints — before predecessor/member and after
+  predecessor/member heads and trees. Equality of the complete before/after member trees accepts without patch
+  acquisition. Otherwise an injected Git fact reader emits one canonical aggregate, whitespace-preserving patch
+  identity for each predecessor-exclusive/member-inclusive contribution. It pins the byte protocol, handles binary,
+  rename, and mode changes, and refuses unavailable, malformed, or non-linear evidence; the pure comparator requires
+  identical aggregate identities. Commit reorder or squash is immaterial when the aggregate contribution is exact.
+  Anything neither form proves refuses for explicit remedy — ambiguity is never adopted.
+- **Rebinding:** the member ref, `coordinates.base/head/tree`, and existing change-request handle rebind through one
+  accepted-state CAS write that also clears `activeOperation`; the request's current target remains fresh host
+  observation rather than a new persisted field. A CAS failure leaves the persisted reservation unchanged. Review
+  applicability of the rebound head follows the existing review rules — a rebased member is a new head that must be
+  admitted again; delivery copies no verdict forward.
 - **Review-driven fixes rematerialize:** fixes land on the retained control branch (member refs are not durable
-  authoring surfaces), then the operator re-cuts the affected members from the control branch's content — the
-  same authored-cut, CLI-validated discipline as § 1 — and the executor rebinds each as a `rewrite` operation,
-  with the contribution rules distinguishing what changed deliberately from what must have carried.
-- **Landed cleanup:** a proven-landed member's ref and pull-request residue retire through presence-guarded
-  `teardown` operations authorized by the versioned state — never inferred from branch absence or host
-  presentation.
+  authoring surfaces), then the operator supplies a complete freshly validated unlanded suffix under § 1.
+  Contributions may change only for explicitly selected unlanded members; every other suffix member must prove
+  carried contribution, and the landed prefix is immutable. A semantic repartition or coverage move routes through
+  the shipped plan amendment classifier before re-cut rather than masquerading as rewrite.
+- **Landed cleanup:** fresh plan/state/host facts select a proven-landed member. Its deterministic `teardown`
+  operation compare-and-deletes the exact delivery ref or adopts exact absence, observes the uniquely bound request
+  as merged/closed without mutating it, then atomically clears the ref, request handle, and obsolete coordinates.
+  A wrong-head ref, open/mismatched request, or unavailable proof blocks; ref absence plus unavailable request proof
+  retains the reservation for recovery. Landed status is derived from fresh host facts, not a new ledger.
 
-### 5. Terminal member — the work unit's own integration, unchanged
+### 5. Terminal member — ordinary integration authority preserved
 
-The final member is not a delivery-member vehicle. It is the owning work unit's ordinary integration pull request,
-opened from the retained control branch once every predecessor has landed and the suffix has reconciled:
+The final member is not a delivery-member vehicle. In v1 it is the owning work unit's ordinary integration pull
+request, opened from the retained control branch once every predecessor has landed and the suffix has reconciled:
 
 - **The routed two-clause constraint holds by construction** (from `spec-delivery-slice-review-vehicle.md`): the
   terminal pull request's head is the retained control branch, and the meta `Branch:` matches it — so the
   work-unit vehicle admits it under either archival cadence.
-- **Base absorption precedes the terminal pull request.** After the last non-terminal member lands and its
-  suffix reconciliation completes, the protected base — which now contains every landed member — merges
-  append-only into the control branch (an ordinary, reversible base merge; Tier 1 gates re-run). This is what
-  makes the reuse below true in practice: the merge advances the merge-base past the landed prefix, so the
-  terminal pull request's diff presents the residual work-unit tail rather than the whole stack re-presented,
-  and the integration workflow's behind-base reconcile gate reads ordinary drift instead of a guaranteed
-  substantive self-overlap with the work unit's own landed paths.
-- **The attended final tail is `integrate-work-unit.md` Phase 2, unchanged.** Completion composition, archive
+- **Base absorption precedes the terminal pull request.** A read-only decision returns `absorption-ready`,
+  `already-absorbed`, or `blocked` from the complete non-terminal landed prefix, inactive operation slot, reconciled
+  suffix, exact retained control ref, and fresh target facts. On `absorption-ready`, the delivery-owned workflow
+  invokes the ordinary reversible WU base reconcile: the protected base merges append-only into the unbound control
+  branch, then Tier 1 reruns. A second read derives `terminal-ready` only after the exact absorption is observed and
+  the comparison exposes solely the residual tail. This is ordinary WU base reconciliation, outside delivery
+  projection mutation and therefore not a fourth reservation carve-out. Dirty, stale, or conflicting inputs stop
+  before mutation or use the ordinary remedy.
+- **The attended final tail is ordinary `integrate-work-unit.md` Phase 2.** Completion composition, archive
   sweep, ROADMAP regeneration, the behind-base reconcile gate, readiness, the integration-interlock, merge, and
   teardown all run exactly as they do for an unstacked work unit. Delivery adds one precondition read at entry:
   the plan's landed prefix covers every non-terminal member, no operation is active, and the base absorption
-  above has landed. The read lives in delivery's own workflow surface (§ 10) at the handoff into integration —
-  not as an edit to `integrate-work-unit.md`, which this design leaves byte-untouched. It adds no second
-  closeout ceremony and no terminal proof record.
-- **The terminal member still binds into `DeliveryState`** as the last ordered member — exact ref (the control
-  branch) and reverse lookup apply — but its landing is **not a reserved delivery operation**. The integration
-  workflow's own guarded merge is the mutation authority (exact-head match, the integration interlock, and its
+  above has landed. The read lives in delivery's own workflow surface (§ 10) at the handoff into integration.
+  In addition to the Phase 1 attention attachments (§ 8), one typed post-merge attachment runs immediately after
+  the ordinary workflow confirms the request merged and before `arc user close` or branch teardown. It is total and
+  `not-applicable` for ordinary work units; for a delivery terminal it authenticates and records the observed result.
+  These narrow attachments add no prose-side comparison, mechanics, markup control flow, second closeout ceremony,
+  or terminal proof record; the rest of Phase 2 stays behavior-identical.
+- **The terminal member remains unbound during absorption and integration preparation.** Its landing is **not a
+  reserved delivery operation**. The integration workflow's own guarded merge is the mutation authority (exact-head
+  match, the integration interlock, and its
   no-mutation terminal window — a stronger bracket than a reservation could add, and one no reservation could
   survive: the control branch legitimately moves throughout review iteration, so any pre-taken `before`
   snapshot would be stale by contract at merge time, and a long-lived reservation would monopolize the single
-  operation slot the suffix work needs). Delivery instead **adopts the observed result** through the same
-  recognized-result reconciliation the crash path uses — a version-checked closeout write recording the landed
-  coordinates, minting no reservation and no second authorization.
+  operation slot the suffix work needs). The post-merge attachment authenticates the final head from the ordinary
+  work-unit request's exact observed merged head/result plus retained control-ref identity, rechecks prefix and
+  contribution, and **adopts the observed result** in one version-checked write that binds the terminal ref/request
+  and landed coordinates. It requires no delivery-owned rebinding while Phase 2 legitimately advances the control
+  head, mints no reservation or second authorization, and is idempotent on resume after an already-observed merge.
 - **Closeout derivation:** cohort-level closeout readiness derives from the plan, state, Git, host, and review
   authorities — the landed prefix is complete, exact trees or contributions agree, and ordinary work-unit
   verification is the completion record. Verify no unplanned contribution rode the final landing.
 
-### 6. Lifecycle-artifact exclusion — owned records, not a path blocklist
+The durable contract here is terminal **work-unit integration authority**, not the permanent existence of a terminal
+pull request or a repository-hosted lifecycle tail. Under today's in-repo storage, the terminal carries the residual
+code and finalized lifecycle contribution that ordinary integration produces. If a future materialized-storage tier
+supplies no repository paths and base absorption leaves no code-repository delta, a later executor may adopt the exact
+delivery result and run ordinary WU closeout without manufacturing an empty request. The plan/state records require no
+migration for that arm: request bindings are nullable and the terminal remains the last ordered member. V1 implements
+only the current request-backed vehicle.
 
-Every non-final member excludes the owning work unit's active lifecycle records — meta, spec, task list, notes,
-roadmap projection, and other records supplied by the storage layer. The rule is expressed over **owned records**
-resolved through the storage layer, so it becomes vacuous when those records materialize outside the code
-repository. Enforcement sites:
+### 6. Lifecycle-contribution normalization — storage-resolved, not a path blocklist
 
-- **Eligibility** (§ 1): a candidate member tree containing an owned active lifecycle record fails validation
-  with the offending paths named.
-- **Materialization and rewrite** (§ 2, § 4): the same check reruns before any member ref push, since suffix
-  content changes after validation.
+Every disposable candidate preserves the protected-base tree state at each repository path through which the owning
+work unit's lifecycle can contribute. The storage/projection boundary supplies that repository-path set; delivery
+does not encode `.arc/active`, a specific artifact inventory, or `.arc/backlog/ROADMAP.md`. Under today's in-repo
+materialization the set includes the current WU's materialized artifact companions (including a tracked
+`notes-{slug}.md` when present) and the shared project-readiness projection path. That readiness document is not an
+owned WU record: it is a derived shared view whose WU-specific contribution must not ride a member. Exact
+protected-base state handles both shapes uniformly — an exclusive WU artifact stays absent when absent on the base,
+while the shared readiness view stays present with its base entry identity.
 
-The final member carries the lifecycle tail the existing integration contract requires — that is the ordinary
-work-unit ship, not a delivery exemption. Delivery adds no per-member artifact flags, holdback state, or second
-archive mechanism. A partially landed stack therefore leaves the protected base free of active lifecycle
-artifacts, and unrelated sessions' resolution (session-init roster, sweeps, status) is unperturbed.
+This boundary follows the managed-record direction: canonical operational state becomes storage-agnostic structured
+records, and `ROADMAP` / eventual `STATUS.PROJECT` is a derived view over those records. When a record or rendered
+view materializes outside the code repository, the boundary supplies no repository path and the rule is vacuous for
+it. Delivery never parses a readiness row or treats rendered Markdown as authority.
+
+Enforcement sites:
+
+- **Eligibility** (§ 1): every disposable candidate, including the candidate representing the terminal member,
+  must match the protected-base entry state at every supplied path; all mismatching paths are named.
+- **Materialization and rewrite** (§ 2, § 4): the same comparison reruns before each non-terminal member-ref push,
+  since suffix content can change after validation.
+- **Completeness** (§ 1): the control tree is normalized by restoring protected-base state at the same paths before
+  exact comparison with the final candidate tree.
+
+The v1 runtime terminal is different from its disposable eligibility candidate: it uses the retained control branch,
+has no delivery ref, and under current in-repo storage carries the lifecycle tail the existing integration contract
+requires. Delivery adds no per-member artifact flags, holdback state, or second archive mechanism. A partially landed
+stack therefore leaves the protected base free of this WU's active lifecycle contribution, and unrelated sessions'
+resolution (session-init roster, sweeps, status) is unperturbed.
 
 ### 7. Lifecycle attachment — advisory checkpoints, owned doors
 
@@ -256,13 +341,22 @@ No new pass is added anywhere — the sizing read already counts deliverable mul
   multiplicity is a third axis it does not own.
 - **Implementation onward** — operator-invoked entry only (the discovered door); eligibility validates at entry.
   Decomposition closes at implementation start; stacked delivery stays viable until the final member lands. Later
-  entry is legal and honestly costlier — the entry surface says so.
+  entry is legal and honestly costlier — the entry surface says so. When an incubating task-generation run left a
+  reviewed provisional plan section, this attended entry canonicalizes that intent through the same `from-tasks` and
+  compose path before eligibility; it does not infer members, bind state, or mutate an external projection.
+  The door is a delivery-owned workflow over one read-only typed entry inspection:
+  `not-applicable | authoring-required | canonicalize-provisional | validate-canonical | resume-bound | refused`.
+  It precomposes the later-entry cost and next action from authoritative plan/state/task-list facts. Semantic cohesion
+  and candidate selection remain the attended boundary judgment; the inspection never derives either from size,
+  branch shape, or repository content.
 - **Integration** — the metric-keyed advisory floor (§ 8).
 
 **Advisory posture.** The method speaks only when its primary signal fires; borderline silence is the default. A
 decided outcome is sticky — "considered, holding whole" is recorded in the draft/spec decision structure, and
 later checkpoints re-raise only on a new-evidence delta, never on mere re-invocation. One voice: a bound delivery
-plan or a recorded hold-whole decision suppresses redundant downstream advisories.
+plan or a recorded hold-whole decision suppresses redundant downstream advisories. The record stays in the existing
+decision prose: it names the selected outcome and evidence basis, and the agent compares later evidence semantically.
+It is not a CLI input, fingerprint, schema, or new authority record.
 
 **Rename mechanics** (verified against the current recipe — all affected files carry dispositions):
 
@@ -284,28 +378,51 @@ workflows and copies.
 
 **Resume.** Session-init gains one probe slot over bound `DeliveryState`: delivery position (member _k_ of _n_
 landed, active operation pending or none) as one precomposed orientation line, following the existing envelope
-pattern (typed slot, `ok`/`value`, precomposed text; degraded independently on failure). Mid-delivery handoff
-resumes the owning work unit at its control locus — no per-member session loci.
+pattern. At a resolved owning control-WU locus the slot is present: authoritative absence is `ok` with a null value,
+a coherent binding carries structured counts/operation identity plus the line, and malformed, stale, ambiguous, or
+unavailable bound evidence fails only that slot. Other loci omit it. The reader finds the WU's canonical plan through
+the existing plan-store enumeration, requires at most one current match, and reads state by that plan identity. A
+bounded read-only facts adapter reuses the delivery host-observation boundary; it performs no fetch, ref update,
+state write, or prompt. Clean state may reuse strict position derivation. An active reservation instead uses a
+separate orientation projection over the same kind-aware reconciliation evidence, leaving
+`deriveDeliveryPosition`'s `operation-active` readiness refusal unchanged. Mid-delivery handoff resumes the owning
+work unit at its control locus — no per-member session loci.
 
 **Self-application.** This work unit's own `generate-tasks` pass authors a provisional delivery plan alongside its
-task list — the first consumer of the eligibility discipline it ships.
+task list — the first consumer of the eligibility discipline it ships. Pass 1 leaves that bootstrap locus unmarked.
+When the delivery-candidate outcome remains selected after content fill, grounding, and suite coherence, an active
+Planning flow uses the shipped `from-tasks` and composition path to replace it with the canonical projection. For
+this bootstrap consumer the sequence inverts pointer-first: the existing finalizer writes the meta task-list
+pointer, authoring reads it, and canonical composition plus the post-settle reread precede the single shared
+ceremony commit. Once this work unit ships, the repo-relative task-list input lets later consumers read the settled
+file before the ceremony writes its meta pointer, with the final workflow interlock following canonical rendering
+and the post-settle reread. An incubating work unit still has its invariant meta, but outside the
+active Planning locus; it retains the provisional section until an active delivery-authoring entry canonicalizes it.
+The design-inventory shape remains owned by its TypeScript schema, registered in the generated kernel bundle and
+exposed through a delivery-local schema-description verb rather than copied into workflow prose. Canonical publication
+is replaceable prebinding intent: it creates no member ref, change request, or delivery-state binding, and later
+eligibility still gates materialization.
 
-### 8. Attention register — one size signal, two remedies
+### 8. Changeset advisory thresholds — one size signal, two remedies
 
-The shipped chunking tripwires rename to attention-register keys consumed by both concerns:
+The shipped chunking thresholds rename around the shared subject and behavior consumed by both concerns:
 
-- `review.chunking_threshold_lines` → **`attention.register_lines`**
-- `review.chunking_threshold_files` → **`attention.register_files`**
+- `review.chunking_threshold_lines` → **`changeset.advisory_threshold_lines`**
+- `review.chunking_threshold_files` → **`changeset.advisory_threshold_files`**
 
-Semantics are unchanged: attention-selection tripwires that recommend considering a remedy, never draw boundaries
-or gate. The integration-time advisory reads them at candidate entry and offers one of two remedies — chunked
-review, or stacked delivery — with delivery-aware wording when a plan is bound. Chunked review is built into
-stacked delivery (`deliverable ⊂ chunk`), so the advisory never recommends both. The advisory text is precomposed
-CLI-side (the `recommended*Text` pattern), and its suppression splits by layer:
+Semantics are unchanged: independent thresholds over exact-target changeset size whose crossing raises an advisory
+signal, never draws boundaries or gates. `changeset` names the bounded base/head subject, `advisory` names why the
+threshold exists, and `lines` / `files` name the measured dimensions; attention is the derived signal rather than
+the configured quantity. The integration-time advisory reads them at candidate entry. An authoritative unbound
+result recommends chunked review; a coherent bound plan replaces that choice with delivery-continuation wording.
+Chunked review is built into stacked delivery (`deliverable ⊂ chunk`), so the advisory never recommends both.
+Starting delivery remains the operator-invoked discovered door rather than an inference from size. The advisory text
+is precomposed CLI-side (the `recommended*Text` pattern), and its suppression splits by layer:
 
-- **Typed suppression (CLI-evaluated)** — the precomposed advisory is silent when a delivery plan is bound for
-  the work unit (delivery-aware wording replaces the offer), when chunked review was already selected for the
-  current target (operation state), or when the tripwires are disabled (`0`, the shipped default).
+- **Typed suppression (CLI-evaluated)** — disabled or below-threshold tripwires and exact-target chunk selection
+  are silent. A coherent bound plan suppresses the generic choice and emits one delivery-continuation result. An
+  authoritative unbound result emits only the chunked-review remedy. Unavailable, malformed, ambiguous, or
+  incoherent delivery evidence is silent with diagnostics; it is never treated as authoritative absence.
 - **Judgment suppression (workflow-owned)** — a "considered, holding whole" decision recorded in the spec/draft
   decision structure is honored by the planning checkpoints and the operating workflow, which stay silent absent
   a new-evidence delta. It is a prose record read by the agent, deliberately not a CLI input — the CLI evaluates
@@ -314,15 +431,16 @@ CLI-side (the `recommended*Text` pattern), and its suppression splits by layer:
 **Rename surface** (rename in place, pre-release, no alias): config schema, validation allowlist, the
 review-chunking policy reader, the update-command template handling, `arc-config.yml`, and
 `strategy-configurability-architecture.md` — package source and `.arc/` instance both. The `review-chunking`
-method's tripwire prose updates to the new names; its boundary contract is untouched. **Mechanical requirement
+method's threshold prose updates to the new names; its boundary contract is untouched. **Mechanical requirement
 only:** across the rename surface, nothing beyond the key names changes — the advisory behavior this section
-specifies is the only behavioral delta.
+specifies is the only behavioral delta. Update recognizes only the new template keys; it does not alias, transfer,
+or migrate old values. Unpublished installations clear, regenerate, or manually update development config.
 
 ### 9. Host-native stack composition — opt-in, observed-never-authoritative
 
 The chain topology (each member targets its predecessor) is the same derivation model GitHub's native stacked
-pull requests read (public preview, 2026-07-30), so an ARC-materialized chain can register as a native stack
-through one linking call. Composition is opt-in and never load-bearing. The opt-in is the operator's link
+pull-request public preview reads, so an ARC-materialized chain can register as a native stack through one linking
+call. Composition is opt-in and never load-bearing. The opt-in is the operator's link
 invocation at materialization — no plan or state field records it, so both shipped record schemas are untouched.
 Each landing derives its arm from fresh host observation: a stack-registered pull request lands through the
 asynchronous stack-merge API (the legacy synchronous endpoints refuse stack members), an unregistered one through
@@ -335,13 +453,34 @@ the endpoint that enforces it:
 - **Linking registers, never authors.** ARC materializes every ref; the link call registers the existing chain as
   an externally-managed stack. Provider stack metadata remains non-authoritative — the next landable member
   always derives from plan order plus state (§ 3).
-- **Linked landing arm.** A linked landing merges the bottom member through the host's asynchronous stack-merge
-  API — still one member, one exact head, one integration authorization, head-matched. The asynchronous
-  completion is reobserved like any mutation result.
-- **Recognized retarget.** The host's automatic rebase/retarget of the next member after a linked landing is a
-  recognized operation result, reconciled through § 4's normal path with the same contribution proof.
-- **Merge-strategy constraint.** Native stack identity tracking survives merge commits and breaks under squash
-  and rebase merges; the linked arm therefore requires the merge-commit strategy, and a plan configured otherwise
+- **Linked landing arms.** The ordinary linked arm merges the bottom member through the host's asynchronous
+  stack-merge API with the same one-member authorization — a singleton pinned-head effect under the same trust
+  model as ordinary integration. One additional explicit per-invocation arm may merge the complete remaining
+  non-terminal linked set atomically, in direct-merge mode only. Exactness is ARC's authorization subject, not a
+  server payload: the complete expected remainder — order, bases, change requests, heads — derives from validated
+  plan/state plus fresh host observation, every included member independently satisfies order, exact-head
+  readiness, review, checks, and lock posture, and the observed host stack must match the expected chain exactly
+  at arm selection, at reservation, and at pre-submit reobservation. Prepare reserves one `land` effect over the
+  ordered set; one interlock names every member/head, the atomic consequence, and the residual-race disclosure
+  below. Submission pins the selected top change request's head; the host selects and atomically applies the
+  currently registered prefix, re-evaluating its protection rules for every included member. The host-assigned
+  asynchronous effect identity is version-stored in the active operation as soon as it exists and polled/reobserved
+  after restart. Adoption accepts only the exact authorized all-landed result; none-landed is retryable only under
+  a new interlock when non-submission is authoritatively established; a partial, extra, or reordered effect, or a
+  crash after submission before the identity can be persisted that cannot be resolved from fresh facts, blocks for
+  explicit remedy. The terminal work-unit vehicle is never included.
+- **Residual race — disclosed, not closed.** The public API exposes no stack-generation or full-member
+  compare-and-set token, so a lower member, head, or relationship can change between ARC's final observation and
+  the host's server-side prefix snapshot. Post-effect observation detects such a result and blocks reconciliation
+  but cannot undo an applied atomic prefix. Exposure narrows to heads that independently pass the repository's
+  protection rules and scales with that configuration (for example, stale-approval dismissal); the interlock text
+  carries this disclosure, and an operator declining the race lands sequentially — the default throughout.
+- **Recognized retarget.** After a single-member linked landing, the host's automatic rebase/retarget of the next
+  member is reconciled through § 4's post-observation exact-reservation path with the same contribution proof. An
+  all-remaining atomic result has no non-terminal suffix to retarget.
+- **Merge-strategy constraint.** The linked arms require the merge-commit strategy as v1 policy: the host contract
+  does not establish that squash or rebase break native identity tracking, but their interaction with § 4's
+  contribution proof is unverified, so widening waits on primary-source evidence. A plan configured otherwise
   composes unlinked.
 - **Degrade path.** Preview volatility is absorbed structurally: on any host regression, refusal, or capability
   absence, the executor unlinks the chain (or confirms the host already has), after which observation yields the
@@ -349,6 +488,8 @@ the endpoint that enforces it:
   registration, async merge, status reads) verify at implementation against the live surface — the design binds
   the arm's behavior, not preview endpoint signatures. Auto-merge is unsupported for native stacks, which is
   moot here: every landing is attended by design.
+- **No merge queue.** An `enqueued` result is not the atomic direct effect: a queue may split the prefix into
+  separate merge groups. It refuses or visibly downgrades to sequential unlinked delivery.
 - Cross-fork stacks are unsupported by the host and out of scope: delivery refs are same-repository projections.
 
 ### 10. Authority boundaries and command surface
@@ -358,13 +499,22 @@ the endpoint that enforces it:
   targets only where execution needs them and never copies verdicts.
 - Deterministic comparison, derivation, dispatch, and remedy selection live in typed CLI verbs; workflow prose
   invokes those verbs, renders their precomposed text, and preserves the human interlocks.
-- **Command surface:** one `arc delivery` group mapping onto the shipped operation kinds — eligibility validation
+- The shipped plan-authoring surface also carries two local, prebinding reads needed by § 7 finalization: a validated
+  repo-relative `--task-list <path>` input to `from-tasks`, and a delivery-local schema-description verb projecting
+  the registered `DesignInventoryInputSchema` from the generated kernel bundle. The option falls back to the active
+  meta pointer when omitted. Neither surface is a general schema-introspection layer, inferred design inventory,
+  external mutation, or new authority.
+- **Command surface:** one `arc delivery` group mapping onto the shipped operation kinds — read-only discovered-entry
+  inspection, eligibility validation
   (§ 1), materialization and binding (`materialize`/`publish`), landing (`land`), suffix reconciliation
   (`rewrite`), landed-ref cleanup (`teardown`), the opt-in link call (§ 9), and a position read feeding the
-  session-init slot (§ 7). Exact verb names and argv shapes are implementation detail; the boundary that is
-  design is that every coordinate-bearing external mutation the executor performs against bound state —
-  anything moving a ref, head, tree, or change-request binding — runs inside a reserved operation, and every
-  judgment stop is a workflow interlock, not a CLI prompt. Three named carve-outs, each with its own guard:
+  session-init slot (§ 7). Phase 3 supplies provider-neutral services and strict prepare/apply/reconcile result
+  envelopes; the delivery-owned workflow and argv registration compose them in § 7. Exact verb names and argv
+  shapes are implementation detail. The design boundary is that every coordinate-bearing external mutation the
+  executor performs against bound state — anything moving a ref, head, tree, or change-request binding — runs
+  inside a reserved operation, and every judgment stop is a workflow interlock, not a CLI prompt. A retryable
+  attended mutation returns to the interlock rather than persisting approval. Three named carve-outs, each with its
+  own guard:
   the pre-binding materialization pushes (no state yet exists to hold a reservation; candidate refs carry no
   authority, and the binding constructor adopts the first observed event — the shipped contract's own design);
   the § 9 link/unlink registration calls (presentation-only, no coordinate moved, re-observed fresh,
@@ -372,8 +522,17 @@ the endpoint that enforces it:
   observation — § 5).
 - **Workflow prose:** the delivery execution steps (member review admission via the vehicle, landing
   authorization, reconciliation dispatch) live in this work unit's workflow surface — the member-review callsite
-  `delivery-slice-review-vehicle` deliberately left to its consumer — composed as dispatch lines over typed verb
-  results, compatible with the composable-workflows shapes.
+  `delivery-slice-review-vehicle` deliberately left to its consumer. The workflow reuses the existing review
+  command/method sequence with the exact `{ planId, deliverableId, workUnitSlug }` delivery-member vehicle; it adds no
+  second review verb or ordinary-WU composition side effect. One integration interlock authorizes each non-terminal
+  landing effect: a singleton member/head in the unlinked arm or the complete exact remaining member/head set in the
+  optional native atomic arm. The terminal handoff delegates to ordinary integration's existing interlock and adds no
+  delivery authorization. Prose dispatches each service's own closed typed result union without a generic normalized
+  envelope, compatible with the composable-workflows shapes.
+- **Host observation:** one narrow provider-neutral boundary supplies unique change-request lookup/open/read,
+  head-matched merge, direct atomic remaining-stack submission/status, and resulting protected-target observation.
+  The GitHub adapter consumes the configured merge strategy and normalizes host-assigned results; it is not a
+  capability registry, provider workflow engine, review authority, or source of member order.
 
 ## Alternatives & Rationale
 
@@ -407,7 +566,8 @@ mechanics (gates, closure, exclusion, exactness).
 
 A second terminal ceremony (delivery verification, terminal proof, stack archive) would duplicate
 `integrate-work-unit.md` Phase 2 and mint the evidentiary chain the cohort explicitly rejects. The terminal member
-rides the existing integration workflow unchanged (§ 5); delivery contributes one precondition read.
+rides the existing Phase 2 integration authority (§ 5); delivery contributes the precondition/handoff reads and one
+total post-merge adoption attachment, not a parallel ceremony.
 
 ## Cross-cutting Considerations
 
@@ -415,15 +575,21 @@ rides the existing integration workflow unchanged (§ 5); delivery contributes o
   records are Git-common-directory state, version-checked, and independent of tracked `.arc/` paths. Member
   refs and delivery position are consequently clone-local, like the state they bind — the supported v1 path is
   one operator at the owning control locus, and a second clone resolves no member (the recorded
-  `delivery-slice-review-vehicle` consequence, inherited unchanged). The exclusion rule (§ 6) is expressed over
-  owned records so external-storage materialization makes it vacuous rather than wrong.
+  `delivery-slice-review-vehicle` consequence, inherited unchanged). The normalization rule (§ 6) asks the
+  storage/projection boundary only for code-repository paths carrying this WU's lifecycle contribution, so
+  external-storage materialization and on-demand derived views make it vacuous rather than wrong. Terminal WU
+  authority is likewise independent of storage: v1 uses the current request-backed integration vehicle, but no
+  plan/state field makes a pull request or repository lifecycle tail permanently mandatory, so a later zero-delta
+  terminal closeout composes without record migration.
 - **Procedure evolution.** New surfaces are typed verbs plus precomposed text; workflow prose dispatches on typed
-  results and owns the interlocks. No agent-interpreted control-flow markup is introduced; attachment surfaces
-  are composable-workflows-compatible by construction (§ 7).
+  results and owns the interlocks. The existing integration attention callsites gain only closed-result dispatch
+  and verbatim rendering; no agent-interpreted control-flow markup or prose-side comparison is introduced. Existing
+  workflow contract coverage gates the mechanically testable boundary without building the absent general eval
+  harness here, and generated schema authority prevents a second handwritten design-inventory contract (§ 7).
 - **Security and trust.** No local record becomes merge or review authority: every landing re-reads host, checks,
-  review, and lock state at the exact head, and the integration interlock is per member. Refs, heads, trees,
-  digests, and revisions are exact values; branch names are never trusted. Provider credentials stay outside
-  delivery records.
+  review, and lock state at every affected exact head, and the integration interlock names the exact member/head set.
+  Refs, heads, trees, digests, and revisions are exact values; branch names are never trusted. Provider credentials
+  stay outside delivery records.
 - **Performance and operability.** One active operation bounds recovery and reconciliation work; per-landing cost
   is a handful of Git/host reads around one merge. Eligibility validation (§ 1) is the expensive pass (gates per
   member) and runs pre-binding, where retry is free.
@@ -436,44 +602,57 @@ rides the existing integration workflow unchanged (§ 5); delivery contributes o
 
 ## Success Criteria
 
-1. Eligibility validation, run over operator-authored candidate heads for a planned stack, passes gates per
-   member, verifies the completeness identity, fails a member whose candidate tree carries an owned active
-   lifecycle artifact (naming the paths), and binds nothing.
+1. Eligibility validation, run over operator-authored candidate heads for a planned stack, runs the existing
+   project gates per exact member head, verifies ancestry and the normalized completeness identity, fails a member
+   whose candidate changes a supplied lifecycle-contribution path away from protected-base state (naming every
+   path), survives no ref/plan or tracked-worktree drift, and binds nothing.
 2. Materialization produces the ordered `delivery/{wu-slug}/{chunkKey}` chain (lowest member based on the
-   protected base, each higher member on its predecessor), and the first pushed ref or opened change request
-   invokes the shipped binding constructor exactly once.
+   protected base, each higher member on its predecessor), refuses empty/duplicate/colliding non-terminal heads,
+   publishes the first ref under an exact remote lease, invokes the shipped binding constructor exactly once from
+   the first observed ref or change request, and reserves every subsequent ref/request mutation.
 3. Work-unit branch parsing, the orphan-branch sweep, and the in-flight-artifact advisory each recognize the
    `delivery/` namespace and surface no false work-unit or missing-record signal for a live stack.
-4. A non-terminal member lands only through the full guarded sequence — reserve, reobserve, per-member integration-interlock
-   approval at the exact head, merge-lock release via the `delivery-member` readiness path, one head-matched
-   merge, reobserve, version-checked record — and a landing attempt for a member with an unlanded predecessor
-   refuses.
-5. After a landing, suffix reconciliation retargets the next member, proves contribution by exact tree equality
-   or patch-identity, refuses ambiguous movement, and rebinds coordinates with a version-checked write; a
-   review-driven fix on the control branch rematerializes the affected suffix rather than editing member refs.
-6. A crash mid-operation resumes through the reservation: already-applied adopts, non-applied retries, ambiguous
-   blocks — demonstrated per operation kind used by this projection.
+4. A non-terminal landing runs only through the full guarded sequence — fresh readiness, reserve, typed prepare,
+   integration-interlock approval over the exact member/head set, fresh apply-time reobservation, merge-lock release,
+   one admissible host effect, unique result observation, and version-checked record. The complete unlinked path
+   selects one member and refuses an unlanded predecessor; the § 9 atomic arm alone may select every remaining
+   non-terminal member after proving each exact head independently ready. Disabled merge locking never skips
+   readiness, and retry re-fires authorization.
+5. After a single-member landing, suffix reconciliation recognizes only the uniquely moved immediate member through
+   a post-observation exact `rewrite` reservation, proves aggregate contribution by complete tree equality or strict
+   canonical patch identity, blocks any concurrent/unrelated movement, and atomically rebinds stored coordinates; a
+   review-driven fix supplies a complete validated suffix with only explicitly selected contributions allowed to
+   change, rather than editing member refs or silently repartitioning the plan.
+6. A crash mid-operation resumes through the reservation: deterministic exact snapshots and host-assigned admissible
+   effects each adopt a unique already-applied result, return non-application as retryable, and block ambiguity —
+   demonstrated per operation kind used by this projection without persisting a verdict or approval.
 7. The terminal pull request opens from the retained control branch with the meta `Branch:` matching (the routed
-   two-clause constraint), is refused as a `delivery-member` vehicle, admits under the `work-unit` vehicle, and
-   runs `integrate-work-unit.md` Phase 2 unchanged; its entry precondition refuses while any non-terminal member
-   is unlanded, an operation is active, or the post-landing base absorption has not landed — and after
-   absorption the terminal diff presents only the residual tail.
+   two-clause constraint), is refused as a `delivery-member` vehicle, and admits under the `work-unit` vehicle. A
+   typed absorption decision authorizes the ordinary append-only base reconcile before a separate terminal-ready
+   read exposes only the residual tail. Ordinary integration remains the merge authority; immediately after it
+   observes the exact merge and before close/teardown, one total post-merge attachment atomically adopts the terminal
+   result without reservation or second authorization and is `not-applicable` for unstacked work units.
 8. A partially landed stack leaves the protected base green and free of the owning work unit's active lifecycle
-   artifacts, and an unrelated session's init/status resolution is unchanged by its existence.
+   contribution, and an unrelated session's init/status resolution is unchanged by its existence.
 9. Session-init surfaces bound delivery position as one precomposed line from the new probe slot, and the slot
    degrades independently on failure.
 10. `assess-boundary-fit` returns the three-outcome read at its three planning fire-points (including the new
     `generate-tasks` Pass 1 site), the rename is complete across method, workflows, README, recipe, the runtime
     classification registry, and both copies, and decided outcomes suppress re-advisories absent a new-evidence
     delta.
-11. The attention-register rename is complete across schema, validation, policy reader, update handling, config,
-    and strategy surfaces (both copies); the integration advisory offers exactly one remedy with delivery-aware
-    wording when a plan is bound and stays silent under every § 8 suppression state.
-12. With linking opted in, the chain registers as a native stack, a linked landing completes through the
-    asynchronous stack-merge path at the exact approved head, a host retarget reconciles as a recognized result,
-    and any host refusal degrades the remainder to the unlinked path with the downgrade surfaced; opting out
-    yields byte-identical unlinked behavior.
-13. This work unit's own task-generation pass authors a provisional delivery plan for its implementation.
+11. The changeset advisory-threshold rename is complete across schema, validation, policy reader, update handling,
+    config, and strategy surfaces (both copies); the integration advisory offers exactly one remedy with
+    delivery-aware wording when a plan is bound and stays silent under every § 8 suppression state.
+12. With linking opted in, the chain registers as a native stack and supports both one exact bottom-member landing
+    and, in direct-merge mode after set-wide exact validation and one race-disclosing interlock, one explicitly
+    authorized atomic landing of every remaining non-terminal member. The atomic arm retains its asynchronous
+    effect identity, adopts only the exact authorized all-landed result, blocks partial or unexpected effects,
+    refuses queue grouping, and never includes the terminal WU vehicle. A single-member host retarget reconciles
+    through the exact recognized-movement path; refusal visibly degrades the remainder to the complete unlinked
+    executor with equivalent delivery semantics, and opting out makes no native call.
+13. This work unit's own task-generation pass authors a provisional delivery plan for its implementation, and active
+    finalization replaces that locus with the generated-schema-backed canonical projection without binding delivery
+    state or mutating an external projection.
 14. All quality gates pass and the work unit is ready for integration.
 
 ## Open Questions
