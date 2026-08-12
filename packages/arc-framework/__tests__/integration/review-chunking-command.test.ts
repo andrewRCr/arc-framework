@@ -52,7 +52,7 @@ afterEach(async () => {
 describe("review chunking command composition", () => {
   it("short-circuits disabled configuration before Git", async () => {
     const root = await repository(
-      "review.chunking_threshold_lines: 0\nreview.chunking_threshold_files: 0\n",
+      "changeset.advisory_threshold_lines: 0\nchangeset.advisory_threshold_files: 0\n",
     );
     const head = git(root, "rev-parse", "HEAD");
     const exec = vi.fn(createRawGitExec(root));
@@ -66,7 +66,7 @@ describe("review chunking command composition", () => {
 
   it("measures binary-only and later immutable targets through the handler", async () => {
     const root = await repository(
-      "review.chunking_threshold_lines: 0\nreview.chunking_threshold_files: 1\n",
+      "changeset.advisory_threshold_lines: 0\nchangeset.advisory_threshold_files: 1\n",
     );
     const base = git(root, "rev-parse", "HEAD");
     await writeFile(join(root, "change.bin"), Buffer.from([3, 4, 5, 6]));
@@ -102,8 +102,8 @@ describe("review chunking command composition", () => {
   });
 
   it.each([
-    ["malformed config", "review.chunking_threshold_lines: -1\n", false],
-    ["missing object", "review.chunking_threshold_lines: 1\n", true],
+    ["malformed config", "changeset.advisory_threshold_lines: -1\n", false],
+    ["missing object", "changeset.advisory_threshold_lines: 1\n", true],
   ])("emits typed failure for %s", async (_name, config, missingObject) => {
     const root = await repository(config);
     const head = git(root, "rev-parse", "HEAD");

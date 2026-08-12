@@ -67,7 +67,7 @@ describe("arc review chunking resolve", () => {
     await mkdir(join(root, ".arc/system"), { recursive: true });
     await writeFile(
       join(root, ".arc/system/arc-config.yml"),
-      "review.chunking_threshold_lines: 0\nreview.chunking_threshold_files: 0\n",
+      "changeset.advisory_threshold_lines: 0\nchangeset.advisory_threshold_files: 0\n",
     );
     const inputPath = join(root, "request.json");
     await writeFile(inputPath, request());

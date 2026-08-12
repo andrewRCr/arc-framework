@@ -661,28 +661,57 @@ describe("update integration — arc-config migration", () => {
     );
   });
 
-  it("adds new review thresholds while preserving existing project values", async () => {
+  it("preserves changeset advisory threshold overrides", async () => {
+    const pristineConfig = [
+      "review.frontline_sources: []",
+      "changeset.advisory_threshold_lines: 0",
+      "changeset.advisory_threshold_files: 0",
+      "",
+    ].join("\n");
     const result = await runArcConfigUpdate(
-      "review.frontline_sources: [project-reviewer]\n",
+      [
+        "review.frontline_sources: [project-reviewer]",
+        "changeset.advisory_threshold_lines: 5000",
+        "changeset.advisory_threshold_files: 150",
+        "",
+      ].join("\n"),
       [
         "review.frontline_sources: []",
-        "",
-        "# Exact-target attention tripwires for considering contract-cohesive review chunks.",
-        "# These are not chunk-size caps or review-provider limits. Either dimension can be",
-        "# enabled independently; 0 disables that dimension (both 0 preserves whole-target review).",
-        "review.chunking_threshold_lines: 0",
-        "review.chunking_threshold_files: 0",
+        "changeset.advisory_threshold_lines: 0",
+        "changeset.advisory_threshold_files: 0",
         "",
       ].join("\n"),
       false,
-      "review.frontline_sources: []\n",
+      pristineConfig,
     );
 
     const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
     expect(result.conflicts, content).toEqual([]);
     expect(content).toContain("review.frontline_sources: [project-reviewer]");
-    expect(content).toContain("review.chunking_threshold_lines: 0");
-    expect(content).toContain("review.chunking_threshold_files: 0");
+    expect(content).toContain("changeset.advisory_threshold_lines: 5000");
+    expect(content).toContain("changeset.advisory_threshold_files: 150");
+  });
+
+  it("does not silently migrate former review-owned threshold values", async () => {
+    const formerConfig = [
+      "review.chunking_threshold_lines: 5000",
+      "review.chunking_threshold_files: 150",
+      "",
+    ].join("\n");
+    const templateConfig = [
+      "changeset.advisory_threshold_lines: 0",
+      "changeset.advisory_threshold_files: 0",
+      "",
+    ].join("\n");
+
+    const result = await runArcConfigUpdate(formerConfig, templateConfig, false, formerConfig);
+
+    expect(result.conflicts).toEqual([configPath]);
+    const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+    expect(content).toContain("review.chunking_threshold_lines: 5000");
+    expect(content).toContain("review.chunking_threshold_files: 150");
+    expect(content).toContain("changeset.advisory_threshold_lines: 0");
+    expect(content).toContain("changeset.advisory_threshold_files: 0");
   });
 
   it("migrates the last (effective) legacy entry when duplicates are present", async () => {

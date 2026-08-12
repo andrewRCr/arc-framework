@@ -204,11 +204,11 @@ review.standard_sources: []
 review.frontline_max_passes: 2
 review.standard_max_passes: 2
 
-# Exact-target attention tripwires for considering contract-cohesive review chunks.
+# Exact-target changeset-size advisory thresholds for considering contract-cohesive review chunks.
 # These are not chunk-size caps or review-provider limits. Either dimension can be
 # enabled independently; 0 disables that dimension (both 0 preserves whole-target review).
-review.chunking_threshold_lines: 0
-review.chunking_threshold_files: 0
+changeset.advisory_threshold_lines: 0
+changeset.advisory_threshold_files: 0
 
 # --- Project Management ---
 
