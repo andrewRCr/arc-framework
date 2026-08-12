@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** spec re-ground — merge-lock substrate, rightsizing amendments, stacked-delivery decision
+- **Last Completed:** task generation — task list finalized (6 stack members + verification) with delivery plan
 - **Next Task:** [none]
 - **Blockers:** [none] — integration (not planning or implementation) waits on `delivery-stack-topology`
 
