@@ -3,7 +3,6 @@
 import { canonicalize } from "../kernel/index.js";
 import type { GitExec } from "../git/exec.js";
 import { observeDeliveryEligibilityRef } from "../delivery/git-eligibility.js";
-import { observeDeliveryRemoteRef } from "../delivery/git-materialization.js";
 import type { DeliveryHostPort } from "../delivery/host.js";
 import { reconcileDeliveryOperation } from "../delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../delivery/position.js";
@@ -16,9 +15,11 @@ import type { DeliveryPositionObservation } from "./delivery-position.js";
 
 interface DeliveryPositionFactsDependencies {
   readonly exec: GitExec;
+  readonly cwd: string;
   readonly host: DeliveryHostPort;
   readonly repository: string;
-  readonly remote?: string;
+  readonly remoteHeads: Readonly<Record<string, string>>;
+  readonly localCommits: Readonly<Record<string, boolean>>;
 }
 
 type RequestState = "open" | "merged" | "closed" | null;
@@ -42,15 +43,21 @@ async function observeMember(
     return { exact: false, requestState: null };
   }
   if (member.ref !== null && member.coordinates !== null) {
-    const remote = await observeDeliveryRemoteRef(
-      dependencies.exec,
-      dependencies.remote ?? "origin",
-      member.ref,
-    );
-    if (remote.status !== "observed" || remote.head !== member.coordinates.head) {
+    const prefix = "refs/heads/";
+    if (!member.ref.startsWith(prefix)) return { exact: false, requestState: null };
+    const branch = member.ref.slice(prefix.length);
+    const remoteHead = dependencies.remoteHeads[branch];
+    if (remoteHead === undefined
+      || remoteHead !== member.coordinates.head
+      || dependencies.localCommits[remoteHead] !== true) {
       return { exact: false, requestState: null };
     }
-    const coordinates = await observeDeliveryEligibilityRef(dependencies.exec, remote.head);
+    const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+      ...options,
+      cwd: dependencies.cwd,
+      objectAccess: "local-only",
+    });
+    const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, remoteHead);
     if (coordinates === null || coordinates.tree !== member.coordinates.tree) {
       return { exact: false, requestState: null };
     }

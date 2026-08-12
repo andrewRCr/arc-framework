@@ -10,14 +10,12 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
   const trees = new Map(state.members.flatMap((member) => member.coordinates === null
     ? []
     : [[member.coordinates.head, member.coordinates.tree] as const]));
-  const exec = vi.fn(async (_command: string, args: readonly string[]) => {
-    if (args[0] === "ls-remote") {
-      const ref = args.at(-1);
-      const member = state.members.find((candidate) => candidate.ref === ref);
-      return { stdout: member?.coordinates === null || member?.coordinates === undefined
-        ? ""
-        : `${member.coordinates.head}\t${ref}\n`, stderr: "" };
-    }
+  const exec = vi.fn(async (
+    _command: string,
+    args: readonly string[],
+    options?: { cwd?: string; objectAccess?: string },
+  ) => {
+    expect(options).toMatchObject({ cwd: "/repository", objectAccess: "local-only" });
     if (args[0] === "rev-parse" && args[2]?.endsWith("^{commit}")) {
       return { stdout: `${args[2].slice(0, -"^{commit}".length)}\n`, stderr: "" };
     }
@@ -34,27 +32,54 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
     openRequest: vi.fn(),
     mergeRequest: vi.fn(),
   };
-  return { exec, host, repository: "owner/repository" };
+  return {
+    exec,
+    cwd: "/repository",
+    host,
+    repository: "owner/repository",
+    remoteHeads: Object.fromEntries(state.members.flatMap((member) => (
+      member.ref === null || member.coordinates === null
+        ? []
+        : [[member.ref.replace(/^refs\/heads\//u, ""), member.coordinates.head]]
+    ))),
+    localCommits: Object.fromEntries(state.members.flatMap((member) => (
+      member.coordinates === null ? [] : [[member.coordinates.head, true]]
+    ))),
+  };
 }
 
 describe("session-init delivery position facts", () => {
   it("reobserves exact target, ref heads, and trees without mutation", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
-    const result = await observeRepositoryDeliveryPosition(plan, state, 3, exactDependencies(state));
+    const dependencies = exactDependencies(state);
+    const result = await observeRepositoryDeliveryPosition(plan, state, 3, dependencies);
     expect(result).toEqual({
       status: "observed",
       facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
       operationObservation: null,
     });
+    expect(dependencies.exec).toHaveBeenCalled();
+    expect(dependencies.exec.mock.calls.some(([, args]) => args[0] === "ls-remote")).toBe(false);
   });
 
   it("fails closed when a remote member head is unavailable", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const dependencies = exactDependencies(state);
-    dependencies.exec.mockRejectedValueOnce(new Error("remote unavailable"));
+    dependencies.remoteHeads = {};
     await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
       .resolves.toEqual({ status: "refused" });
+    expect(dependencies.exec).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without inspecting an advertised member object that is not locally available", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const dependencies = exactDependencies(state);
+    dependencies.localCommits = {};
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
+      .resolves.toEqual({ status: "refused" });
+    expect(dependencies.exec).not.toHaveBeenCalled();
   });
 });

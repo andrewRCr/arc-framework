@@ -22,6 +22,7 @@ interface SessionEnvelope {
   worktree?: unknown;
   baseDistance?: unknown;
   baseBranchSync?: unknown;
+  deliveryPosition?: unknown;
   userReferenceReconcile?: unknown;
   materializableWorkUnits?: {
     ok: boolean;
@@ -114,13 +115,16 @@ describe("session-init E2E — real remote-access boundaries", () => {
           worktree: after.worktree,
           baseDistance: after.baseDistance,
           baseBranchSync: after.baseBranchSync,
+          deliveryPosition: after.deliveryPosition,
           userReferenceReconcile: after.userReferenceReconcile,
         }).toEqual({
           worktree: before.worktree,
           baseDistance: before.baseDistance,
           baseBranchSync: before.baseBranchSync,
+          deliveryPosition: before.deliveryPosition,
           userReferenceReconcile: before.userReferenceReconcile,
         });
+        expect(after.deliveryPosition).toEqual({ ok: true, value: null });
         expect(after.userReferenceReconcile, JSON.stringify(after.userReferenceReconcile)).toMatchObject({
           ok: true,
           value: { authority: { remoteEvidence: expect.stringMatching(/^(exact|not-applicable)$/u) } },

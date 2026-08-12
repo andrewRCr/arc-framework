@@ -2202,21 +2202,36 @@ describe("runSessionInitStatus — delivery position", () => {
       path: ".arc/active/meta-delivery-plan-record.md",
       sessionType: "execution",
     }));
+    const remoteContext = {
+      kind: "available" as const,
+      snapshot: {
+        kind: "available" as const,
+        scope: "all-heads" as const,
+        tips: { main: "a".repeat(40) },
+      },
+      objectAvailability: { kind: "complete" as const, commits: { ["a".repeat(40)]: true } },
+      history: { kind: "complete" as const },
+    };
+    const deliveryPosition = vi.fn(async (_context, { workUnitId }) => ({
+      planId: "123e4567-e89b-42d3-a456-426614174000",
+      workUnitId,
+      landedCount: 1,
+      totalCount: 2,
+      activeOperation: null,
+      line: "Delivery position: 1/2 landed; active operation: none.",
+    }));
     const healthyProbes = sessionInitProbes({
       active,
-      deliveryPosition: vi.fn(async ({ workUnitId }) => ({
-        planId: "123e4567-e89b-42d3-a456-426614174000",
-        workUnitId,
-        landedCount: 1,
-        totalCount: 2,
-        activeOperation: null,
-        line: "Delivery position: 1/2 landed; active operation: none.",
-      })),
+      remoteContext: vi.fn(async () => remoteContext),
+      deliveryPosition,
     });
     const healthy = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes: healthyProbes });
     expect(healthy.deliveryPosition).toEqual({
       ok: true,
       value: expect.objectContaining({ workUnitId: "delivery-plan-record", landedCount: 1 }),
+    });
+    expect(deliveryPosition).toHaveBeenCalledWith(remoteContext, {
+      workUnitId: "delivery-plan-record",
     });
 
     const failed = await runSessionInitStatus({

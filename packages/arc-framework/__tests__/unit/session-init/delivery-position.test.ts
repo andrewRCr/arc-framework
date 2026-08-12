@@ -8,7 +8,7 @@ describe("session-init delivery position", () => {
   it("is silent for authoritative absence and refuses ambiguous plans", async () => {
     const observe = vi.fn();
     await expect(readDeliveryPositionView("delivery-plan-record", {
-      plans: { enumerateCurrent: vi.fn().mockResolvedValue({ status: "ok", value: [] }) },
+      plans: { enumerateCurrentReadOnly: vi.fn().mockResolvedValue({ status: "ok", value: [] }) },
       states: { read: vi.fn() },
       observe,
     })).resolves.toEqual({ status: "ok", value: null });
@@ -16,7 +16,9 @@ describe("session-init delivery position", () => {
 
     const plan = deliveryStackPlanFixture();
     await expect(readDeliveryPositionView(plan.workUnitId, {
-      plans: { enumerateCurrent: vi.fn().mockResolvedValue({ status: "ok", value: [plan, plan] }) },
+      plans: {
+        enumerateCurrentReadOnly: vi.fn().mockResolvedValue({ status: "ok", value: [plan, plan] }),
+      },
       states: { read: vi.fn() },
       observe,
     })).resolves.toEqual({ status: "refused", reason: "plan-ambiguous" });
@@ -31,7 +33,7 @@ describe("session-init delivery position", () => {
       landedDeliverableIds: [plan.members[0]?.deliverableId],
     };
     const result = await readDeliveryPositionView(plan.workUnitId, {
-      plans: { enumerateCurrent: vi.fn().mockResolvedValue({ status: "ok", value: [plan] }) },
+      plans: { enumerateCurrentReadOnly: vi.fn().mockResolvedValue({ status: "ok", value: [plan] }) },
       states: { read: vi.fn().mockResolvedValue({ status: "ok", value: { revision: 3, value: state } }) },
       observe: vi.fn().mockResolvedValue({ status: "observed", facts, operationObservation: null }),
     });
@@ -65,7 +67,7 @@ describe("session-init delivery position", () => {
     const active = { ...clean, activeOperation: operation };
     const facts = { target: clean.target, members: clean.members, landedDeliverableIds: [] };
     const result = await readDeliveryPositionView(plan.workUnitId, {
-      plans: { enumerateCurrent: vi.fn().mockResolvedValue({ status: "ok", value: [plan] }) },
+      plans: { enumerateCurrentReadOnly: vi.fn().mockResolvedValue({ status: "ok", value: [plan] }) },
       states: { read: vi.fn().mockResolvedValue({ status: "ok", value: { revision: 4, value: active } }) },
       observe: vi.fn().mockResolvedValue({
         status: "observed", facts, operationObservation: operation.before,

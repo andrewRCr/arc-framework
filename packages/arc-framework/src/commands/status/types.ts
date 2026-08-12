@@ -630,7 +630,10 @@ export interface SessionInitProbes {
     input: { slug: string; metaPath: string },
   ) => Promise<CurrentWuReconcileSessionResult>;
   /** Inspect only the exact owning work unit's canonical delivery binding. */
-  deliveryPosition?: (input: { workUnitId: string }) => Promise<DeliveryPositionView | null>;
+  deliveryPosition?: (
+    context: SessionRemoteContext,
+    input: { workUnitId: string },
+  ) => Promise<DeliveryPositionView | null>;
   /** Inspect permitted current-user surfaces against protection-aware base evidence. */
   userReferenceReconcile: (
     context: SessionRemoteContext,

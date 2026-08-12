@@ -215,9 +215,10 @@ export async function runSessionInitStatus(
     ? undefined
     : deliveryPositionProbe === undefined
       ? ok(null)
-      : await safeProbe("deliveryPosition", () => deliveryPositionProbe({
-          workUnitId: owningWorkUnitId,
-        }));
+      : await remote.run(
+          "deliveryPosition",
+          (context) => deliveryPositionProbe(context, { workUnitId: owningWorkUnitId }),
+        );
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
   // to "primary" (surface nothing) rather than masking the whole worktree slot.

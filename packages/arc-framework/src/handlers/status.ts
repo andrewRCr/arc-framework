@@ -994,11 +994,19 @@ export async function handleStatus(
           },
           { slug, metaPath },
         ),
-      deliveryPosition: async ({ workUnitId }) => {
+      deliveryPosition: async (context, { workUnitId }) => {
         const result = await readDeliveryPositionView(workUnitId, {
-          plans: deliveryPlans,
+          plans: {
+            enumerateCurrentReadOnly: () => deliveryPlans.enumerateCurrentReadOnly(),
+          },
           states: deliveryStates,
           observe: async (plan, state, revision) => {
+            const prerequisites = sessionRemotePrerequisites(context);
+            if (prerequisites.kind === "not-needed"
+              || prerequisites.snapshot.kind !== "available"
+              || prerequisites.objectAvailability.kind !== "complete") {
+              return { status: "refused" };
+            }
             const resolved = await resolvedSettingsP;
             const configuration = await resolveChangeRequestLifecycleConfiguration(
               exec,
@@ -1008,8 +1016,11 @@ export async function handleStatus(
               ? { status: "refused" }
               : observeRepositoryDeliveryPosition(plan, state, revision, {
                 exec,
+                cwd,
                 host: deliveryHost,
                 repository: configuration.repositoryRef,
+                remoteHeads: prerequisites.snapshot.tips,
+                localCommits: prerequisites.objectAvailability.commits,
               });
           },
         });

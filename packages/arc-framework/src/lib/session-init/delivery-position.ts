@@ -3,7 +3,11 @@
 import { z } from "zod";
 
 import { reconcileDeliveryOperation } from "../delivery/operation.js";
-import type { DeliveryPlanStore, DeliveryStateStore } from "../delivery/ports.js";
+import type {
+  DeliveryPlanStoreFailure,
+  DeliveryStateStore,
+  DeliveryStoreResult,
+} from "../delivery/ports.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "../delivery/position.js";
 import {
   DeliveryPlanIdSchema,
@@ -43,7 +47,12 @@ export type DeliveryPositionObservation =
 
 /** Narrow dependencies that cannot publish plan or state records. */
 export interface DeliveryPositionReaderDependencies {
-  readonly plans: Pick<DeliveryPlanStore<DeliveryPlanV1>, "enumerateCurrent">;
+  readonly plans: {
+    enumerateCurrentReadOnly(): Promise<DeliveryStoreResult<
+      readonly DeliveryPlanV1[],
+      DeliveryPlanStoreFailure
+    >>;
+  };
   readonly states: Pick<DeliveryStateStore<DeliveryStateV1>, "read">;
   readonly observe: (
     plan: DeliveryPlanV1,
@@ -89,7 +98,7 @@ export async function readDeliveryPositionView(
   workUnitId: string,
   dependencies: DeliveryPositionReaderDependencies,
 ): Promise<ReadDeliveryPositionViewResult> {
-  const plans = await dependencies.plans.enumerateCurrent();
+  const plans = await dependencies.plans.enumerateCurrentReadOnly();
   if (plans.status === "refused") return { status: "refused", reason: "plan-unavailable" };
   const matches = plans.value.filter((plan) => plan.workUnitId === workUnitId);
   if (matches.length > 1) return { status: "refused", reason: "plan-ambiguous" };
