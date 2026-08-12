@@ -72,6 +72,22 @@ These verbs create or adopt the guarded refs and requests in plan order. Resume 
 arc delivery reconcile --input - --json
 ```
 
+After the exact chain exists, an operator may opt into native presentation:
+
+```bash
+arc delivery native link --input - --json
+```
+
+The CLI receives the explicit opt-in and exact plan/state-derived member set. `linked` continues only after a fresh
+exact host observation. `unlinked` makes no native call. `downgrade-required` renders `recommendedActionText`
+verbatim and enters the explicit unlink path; `refused` stops. Before every landing, refresh presentation facts:
+
+```bash
+arc delivery native observe --input - --json
+```
+
+Provider registration never selects member order and never enters the delivery plan or state.
+
 ## Review and land the current member
 
 Read the next action from:

@@ -13,6 +13,11 @@ import type {
   DeliveryPublishEffectV1,
 } from "../../../lib/delivery/schema.js";
 import type { HostedProcessRunner } from "../../review-gate/hosted/gh-process.js";
+import type {
+  DeliveryNativeStackInput,
+  DeliveryNativeStackObservation,
+  DeliveryNativeStackPort,
+} from "../../../lib/delivery/native-stack.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
@@ -78,8 +83,64 @@ function exactObservation(
 }
 
 /** GitHub observations and mutations through the existing bounded `gh` runner. */
-export class GhDeliveryHostPort implements DeliveryHostPort {
+export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort {
   constructor(private readonly runner: HostedProcessRunner) {}
+
+  async observe(input: DeliveryNativeStackInput): Promise<DeliveryNativeStackObservation> {
+    try {
+      const result = await this.runner.run([
+        "api", `repos/${input.repository}/stacks`, "-f", `pull_request=${input.members[0]?.changeRequestId ?? ""}`,
+      ]);
+      const decoded = parse(result.stdout);
+      if (!Array.isArray(decoded)) return { status: "malformed" };
+      if (decoded.length === 0) return { status: "unregistered" };
+      const matches: number[] = [];
+      const affected = new Set<string>();
+      for (const candidate of decoded) {
+        const stack = record(candidate);
+        const number = stack?.number;
+        const requests = stack?.pull_requests;
+        if (!Number.isSafeInteger(number) || !Array.isArray(requests)) return { status: "malformed" };
+        let exact = requests.length === input.members.length;
+        for (const [index, member] of input.members.entries()) {
+          const request = record(requests[index]);
+          const head = record(request?.head);
+          const base = record(request?.base);
+          const matchesMember = String(request?.number) === member.changeRequestId
+            && head?.ref === member.headRef && head.sha === member.headSha && base?.ref === member.baseRef;
+          if (!matchesMember) affected.add(member.deliverableId);
+          exact &&= matchesMember;
+        }
+        if (exact) matches.push(number as number);
+      }
+      const [matchedStack] = matches;
+      if (matches.length === 1 && matchedStack !== undefined) {
+        return { status: "registered", stackNumber: matchedStack };
+      }
+      if (matches.length > 1) return { status: "ambiguous" };
+      return affected.size > 0
+        ? { status: "partial", affectedDeliverableIds: [...affected] }
+        : { status: "unregistered" };
+    } catch (error) {
+      const status = record(error)?.httpStatus;
+      return status === 404 ? { status: "unsupported" } : { status: "unavailable" };
+    }
+  }
+
+  async link(input: DeliveryNativeStackInput): Promise<
+    { readonly status: "submitted" } | { readonly status: "refused"; readonly reason: "unsupported" | "unavailable" | "malformed" }
+  > {
+    try {
+      await this.runner.run([
+        "api", `repos/${input.repository}/stacks`, "--method", "POST",
+        ...input.members.flatMap((member) => ["-f", `pull_requests[]=${member.changeRequestId}`]),
+      ]);
+      return { status: "submitted" };
+    } catch (error) {
+      const status = record(error)?.httpStatus;
+      return { status: "refused", reason: status === 404 ? "unsupported" : "unavailable" };
+    }
+  }
 
   async observeRequest(effect: DeliveryPublishEffectV1): Promise<DeliveryHostRequestObservation> {
     try {

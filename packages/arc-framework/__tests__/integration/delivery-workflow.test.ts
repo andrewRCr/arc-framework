@@ -24,6 +24,10 @@ describe("packaged delivery workflow", () => {
     expect(packaged).toContain("arc delivery reconcile");
     expect(packaged).toContain("arc delivery rewrite");
     expect(packaged).toContain("arc delivery teardown");
+    expect(packaged).toContain("arc delivery native link");
+    expect(packaged).toContain("arc delivery native observe");
+    expect(packaged).toContain("`unlinked` makes no native call");
+    expect(packaged).toContain("never enters the delivery plan or state");
     expect(packaged).toContain("integrate-work-unit.md");
     const prepare = packaged.indexOf("arc delivery land prepare");
     const interlock = packaged.indexOf("`integration-interlock`", prepare);

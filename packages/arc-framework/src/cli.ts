@@ -687,6 +687,17 @@ delivery.command("publish").description("Open or adopt exact non-terminal change
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("publish", { ...opts, input }, context)
   )));
+const deliveryNative = delivery.command("native").description("Compose optional host-native stack presentation");
+deliveryNative.command("observe").description("Observe exact native registration without mutation")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-observe", { ...opts, input }, context)
+  )));
+deliveryNative.command("link").description("Optionally register an already-materialized exact chain")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-link", { ...opts, input }, context)
+  )));
 delivery.command("position").description("Derive the exact current delivery position")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (

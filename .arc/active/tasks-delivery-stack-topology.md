@@ -481,40 +481,26 @@ attachment points while keeping deterministic dispatch and user-facing text in t
 _Purpose:_ Add the preview host's native-stack ergonomics as a fresh-observation adapter over the complete unlinked
 executor, preserving plan/state authority and an explicit downgrade path.
 
-### `[ ]` **6.1 Observe and register an already-materialized native stack** — § 9; SC 12
+### `[x]` **6.1 Observe and register an already-materialized native stack** — § 9; SC 12
 
 - _Goal:_ Host-native presentation is added only after ARC's exact chain exists, with fresh host observation as the
   sole arm selector.
 
-- **Additional Context:** `notes-delivery-stack-topology.md` § GitHub native stacked pull requests — host-facts
-  snapshot (2026-08-11)
+    - `[x]` **6.1.a Define provider-neutral native composition facts and ports**
+        - Added closed registered, unregistered, partial/incoherent, unsupported, unavailable, malformed, and
+          ambiguous observations outside plan/state, with exact affected identities and local same-repository/chain
+          validation.
 
-    - `[ ]` **6.1.a Define provider-neutral native composition facts and ports**
-        - Model observed registered, unregistered, partial/incoherent-registration, unsupported, unavailable, and
-          malformed host outcomes outside canonical plan/state schemas; the partial and incoherent-registration
-          arms carry the exact affected member identities.
-        - Build `test-first` (one behavior at a time):
-            - Every observed arm is closed and distinguishable
-            - Partial or incoherent registration names the exact affected members
-            - Cross-repository/fork and non-chain inputs refuse
-            - No native-stack field is written to plan or delivery state
+    - `[x]` **6.1.b Implement the GitHub preview adapter from verified live signatures**
+        - Verified the public-preview REST contract and implemented raw `/stacks` observation/registration over
+          existing pull requests; the adapter never invokes `gh stack link` or exposes raw provider output.
 
-    - `[ ]` **6.1.b Implement the GitHub preview adapter from verified live signatures**
-        - Re-verify link, observation, and async-merge API shapes immediately before implementation.
-        - Register through the narrow raw Stacks API, never `gh stack link` porcelain — its convenience layer may
-          push branches, open pull requests, or correct bases, mutations outside the presentation-only carve-out.
-        - Register the already-materialized externally-managed chain without creating, reordering, or trusting refs;
-          normalize preview refusal/capability failure without exposing credentials or raw output. Command handlers
-          return closed verb-specific envelopes with precomposed safe action text; workflow prose never parses raw
-          provider output or decides cleanup.
-        - Use substituted adapter tests rather than a live preview dependency in the suite.
+    - `[x]` **6.1.c Expose opt-in link as a presentation-only carve-out**
+        - Added strict native observe/link commands: opt-out performs no host call, opt-in reobserves exact
+          registration, and partial/refused outcomes return explicit precomposed downgrade guidance without writes.
 
-    - `[ ]` **6.1.c Expose opt-in link as a presentation-only carve-out**
-        - Link only on explicit operator invocation, then reobserve; write neither plan nor delivery state.
-        - Build `test-first` (one behavior at a time):
-            - Opt-in links the exact current chain
-            - Opt-out performs no host call and leaves unlinked behavior identical
-            - Partial or refused linking returns the explicit downgrade posture
+- _Outcome:_ Native registration is now optional host presentation over an ARC-authored exact chain; fresh closed
+  observation remains the only arm input, and canonical plan/state schemas remain unchanged.
 
 ### `[ ]` **6.2 Land one linked head or the exact remaining set** — § 9; SC 12
 

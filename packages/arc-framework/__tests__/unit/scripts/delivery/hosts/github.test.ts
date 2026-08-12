@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GhDeliveryHostPort } from "../../../../../src/scripts/delivery/hosts/github.js";
+import type { DeliveryNativeStackInput } from "../../../../../src/lib/delivery/native-stack.js";
 import type { HostedProcessRunner } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 
 const repository = "andrewRCr/arc-framework";
@@ -34,6 +35,37 @@ function runner(response: unknown): HostedProcessRunner {
 }
 
 describe("GhDeliveryHostPort", () => {
+  const nativeInput: DeliveryNativeStackInput = {
+    repository,
+    members: [
+      { deliverableId: `sha256:${"1".repeat(64)}`, changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
+      { deliverableId: `sha256:${"2".repeat(64)}`, changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
+    ],
+  };
+
+  it("observes and registers only an exact existing pull-request chain through raw REST", async () => {
+    const calls: string[][] = [];
+    const nativeRunner: HostedProcessRunner = {
+      run: async (args) => {
+        calls.push(args);
+        if (args.includes("--method")) return { stdout: JSON.stringify({ number: 9 }), stderr: "" };
+        return { stdout: JSON.stringify([{ number: 9, pull_requests: [
+          { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+          { number: 402, head: { ref: "delivery/example/second", sha: "b".repeat(40) }, base: { ref: "delivery/example/first" } },
+        ] }]), stderr: "" };
+      },
+    };
+    const port = new GhDeliveryHostPort(nativeRunner);
+    await expect(port.observe(nativeInput)).resolves.toEqual({ status: "registered", stackNumber: 9 });
+    await expect(port.link(nativeInput)).resolves.toEqual({ status: "submitted" });
+    expect(calls[0]).toEqual(["api", `repos/${repository}/stacks`, "-f", "pull_request=401"]);
+    expect(calls[1]).toEqual([
+      "api", `repos/${repository}/stacks`, "--method", "POST",
+      "-f", "pull_requests[]=401", "-f", "pull_requests[]=402",
+    ]);
+    expect(calls.flat()).not.toContain("stack");
+  });
+
   it("selects exactly one request by repository, head, sha, and base", async () => {
     await expect(new GhDeliveryHostPort(runner([pull()])).observeRequest(effect())).resolves.toEqual({
       status: "observed",

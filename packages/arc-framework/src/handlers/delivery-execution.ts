@@ -48,6 +48,7 @@ import {
 } from "../lib/delivery/landing.js";
 import { executeDeliverySuffixRewrite } from "../lib/delivery/suffix-reconciliation.js";
 import { teardownLandedDeliveryMember } from "../lib/delivery/teardown.js";
+import { linkDeliveryNativeStack, observeDeliveryNativeStack } from "../lib/delivery/native-stack.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
@@ -148,6 +149,19 @@ const TeardownSchema = z.strictObject({
   protectedTargetRef: RefSchema,
   remote: z.string().min(1).default("origin"),
 });
+const NativeMemberSchema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  changeRequestId: z.string().min(1),
+  headRef: z.string().min(1),
+  headSha: GitObjectIdSchema,
+  baseRef: z.string().min(1),
+  headRepository: z.string().min(1).optional(),
+});
+const NativeObserveSchema = z.strictObject({
+  repository: z.string().min(1),
+  members: z.array(NativeMemberSchema).min(2),
+});
+const NativeLinkSchema = NativeObserveSchema.extend({ optIn: z.boolean() });
 
 const RequestSchemas = {
   "eligibility-prepare": PrepareSchema,
@@ -160,6 +174,8 @@ const RequestSchemas = {
   reconcile: ReconcileSchema,
   rewrite: RewriteSchema,
   teardown: TeardownSchema,
+  "native-observe": NativeObserveSchema,
+  "native-link": NativeLinkSchema,
 } as const;
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
@@ -177,6 +193,13 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("torn-down"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({ status: z.literal("registered"), stackNumber: z.number().int().positive() }),
+  z.strictObject({ status: z.literal("unregistered") }),
+  z.strictObject({ status: z.enum(["partial", "incoherent"]), affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema) }),
+  z.strictObject({ status: z.enum(["unsupported", "unavailable", "malformed", "ambiguous"]) }),
+  z.strictObject({ status: z.literal("linked"), stackNumber: z.number().int().positive(), recommendedActionText: z.string().min(1) }),
+  z.strictObject({ status: z.literal("unlinked"), recommendedActionText: z.string().min(1) }),
+  z.strictObject({ status: z.literal("downgrade-required"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
 ]);
@@ -232,6 +255,7 @@ export const deliveryExecutionCommandInputPolicyDeclarations = Object.keys(Reque
 function executionPath(command: DeliveryExecutionCommand): string {
   if (command.startsWith("eligibility-")) return `delivery eligibility ${command.slice("eligibility-".length)}`;
   if (command.startsWith("land-")) return `delivery land ${command.slice("land-".length)}`;
+  if (command.startsWith("native-")) return `delivery native ${command.slice("native-".length)}`;
   return `delivery ${command}`;
 }
 
@@ -344,6 +368,13 @@ async function executeDeliveryCommand(
     inspectCheckout: async (path: string) => (await inspectDeliveryCandidateCheckout(exec, path))
       ?? { head: "", tree: "", trackedDirty: true },
   };
+
+  if (command === "native-observe" || command === "native-link") {
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    return command === "native-observe"
+      ? observeDeliveryNativeStack(NativeObserveSchema.parse(request), host)
+      : linkDeliveryNativeStack(NativeLinkSchema.parse(request), host);
+  }
 
   if (command === "eligibility-prepare") {
     return prepareDeliveryEligibility(PrepareSchema.parse(request), eligibilityDeps);
