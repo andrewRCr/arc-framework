@@ -59,14 +59,17 @@ same observation window:
 arc delivery eligibility close --input - --json
 ```
 
-A refusal stops without materialization. An eligible result is ephemeral input to:
+A refusal stops without materialization. An eligible result closes the workflow-owned gate bracket but is never
+mutation input. Supply the plan ID plus the same candidate refs and checkout locators to:
 
 ```bash
 arc delivery materialize --input - --json
 arc delivery publish --input - --json
 ```
 
-These verbs create or adopt the guarded refs and requests in plan order. Resume any persisted reservation through:
+These verbs resolve the current plan and lifecycle paths, rerun mechanical eligibility against the exact post-gate
+checkouts, and create or adopt guarded refs and requests in plan order. After interruption, rerun the candidate gates
+before invoking them again. Resume any persisted reservation through:
 
 ```bash
 arc delivery reconcile --input - --json

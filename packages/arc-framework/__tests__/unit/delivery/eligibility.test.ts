@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { deliveryPlanFixture, deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import {
   closeDeliveryEligibility,
+  executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   verifyDeliveryCandidateCheckout,
   type DeliveryEligibilityDependencies,
@@ -26,7 +27,9 @@ function dependencies(): DeliveryEligibilityDependencies {
     compareNormalizedCompleteness: vi.fn(async () => ({ status: "match" as const })),
     readCurrentPlan: vi.fn(async () => deliveryStackPlanFixture()),
     resolveMember: vi.fn(async () => ({ status: "ok" as const, value: null })),
-    inspectCheckout: vi.fn(async () => ({ head: oid("b"), tree: oid("2"), trackedDirty: false })),
+    inspectCheckout: vi.fn(async (path: string) => path.endsWith("second")
+      ? { head: oid("c"), tree: oid("4"), trackedDirty: false }
+      : { head: oid("b"), tree: oid("2"), trackedDirty: false }),
   };
 }
 
@@ -112,6 +115,58 @@ describe("prepareDeliveryEligibility", () => {
 });
 
 describe("eligibility observation bracket", () => {
+  it("refuses mutation when the current lifecycle path set moves during revalidation", async () => {
+    const deps = dependencies();
+    let readCount = 0;
+    let mutated = false;
+
+    const result = await executeWithFreshDeliveryEligibility({
+      planId: deliveryStackPlanFixture().planId,
+      protectedBaseRef: "main",
+      controlRef: "control",
+      candidates: candidates().map((candidate, index) => ({
+        ...candidate,
+        checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
+      })),
+    }, {
+      ...deps,
+      resolveLifecyclePaths: async () => ++readCount === 1 ? ["meta.md"] : ["meta.md", "tasks.md"],
+      mutate: async () => {
+        mutated = true;
+        return { status: "mutated" as const };
+      },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "lifecycle-paths-moved" });
+    expect(mutated).toBe(false);
+  });
+
+  it("refuses mutation when a post-gate candidate checkout moved", async () => {
+    const deps = dependencies();
+    let mutated = false;
+    deps.inspectCheckout = vi.fn(async (path: string) => path.endsWith("first")
+      ? { head: oid("e"), tree: oid("5"), trackedDirty: false }
+      : { head: oid("c"), tree: oid("4"), trackedDirty: false });
+
+    await expect(executeWithFreshDeliveryEligibility({
+      planId: deliveryStackPlanFixture().planId,
+      protectedBaseRef: "main",
+      controlRef: "control",
+      candidates: candidates().map((candidate, index) => ({
+        ...candidate,
+        checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
+      })),
+    }, {
+      ...deps,
+      resolveLifecyclePaths: async () => [],
+      mutate: async () => {
+        mutated = true;
+        return { status: "mutated" as const };
+      },
+    })).resolves.toMatchObject({ status: "refused", reason: "checkout-moved" });
+    expect(mutated).toBe(false);
+  });
+
   it("refuses tracked or index dirt while allowing ignored output", async () => {
     const prepared = await prepareDeliveryEligibility({
       plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",

@@ -66,4 +66,69 @@ describe("delivery execution handler", () => {
     });
     expect(JSON.parse(secondWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-service-result");
   });
+
+  it("rejects a closed eligibility snapshot as materialization authority", async () => {
+    const plan = deliveryStackPlanFixture();
+    const execute = vi.fn().mockResolvedValue({ status: "materialized" });
+    const write = vi.fn();
+
+    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        plan,
+        snapshot: {
+          planId: plan.planId,
+          workUnitId: plan.workUnitId,
+          planRevision: plan.planRevision,
+          planDigest: plan.planDigest,
+          protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
+          control: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
+          members: plan.members.map((member, index) => ({
+            deliverableId: member.deliverableId,
+            ref: `refs/heads/candidate-${index + 1}`,
+            head: String(index + 5).repeat(40),
+            tree: String(index + 7).repeat(40),
+          })),
+          lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
+        },
+        remote: "origin",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery materialize",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
+  it("accepts only raw candidate refs and checkout locators for mutation", async () => {
+    const plan = deliveryStackPlanFixture();
+    const write = vi.fn();
+
+    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        controlRef: "refs/heads/control",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+          checkoutPath: `/tmp/candidate-${index + 1}`,
+        })),
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue({ status: "refused", reason: "checkout-moved" }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery materialize",
+      status: "refused",
+      reason: "checkout-moved",
+    });
+  });
 });

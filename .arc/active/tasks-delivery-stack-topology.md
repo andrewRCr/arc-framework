@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `1`
-- **Plan Digest:** `sha256:abc31452226ec7750a3d31d5833a7953ecc204232e18b1e2ac5018641386bc18`
+- **Plan Revision:** `3`
+- **Plan Digest:** `sha256:5b1e2e336a0fdcac4454fd2926db3976e2e7be70a8fc205638d99c82d3c40539`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -25,14 +25,14 @@
 
 #### Member coverage
 
-| #   | Tasks               | Design elements                  |
-| --- | ------------------- | -------------------------------- |
-| 1   | `1.1`, `1.2`, `1.3` | `rfc:§ 7`, `rfc:§ 8`             |
-| 2   | `2.1`, `2.2`, `2.3` | `rfc:§ 1`, `rfc:§ 2`, `rfc:§ 6`  |
-| 3   | `3.1`, `3.2`, `3.3` | `rfc:§ 10`, `rfc:§ 2`, `rfc:§ 3` |
-| 4   | `4.1`, `4.2`, `4.3` | `rfc:§ 4`, `rfc:§ 5`             |
-| 5   | `5.1`, `5.2`, `5.3` | `rfc:§ 10`, `rfc:§ 7`, `rfc:§ 8` |
-| 6   | `6.1`, `6.2`, `6.3` | `rfc:§ 9`                        |
+| #   | Tasks                                 | Design elements                  |
+| --- | ------------------------------------- | -------------------------------- |
+| 1   | `1.1`, `1.2`, `1.3`                   | `rfc:§ 7`, `rfc:§ 8`             |
+| 2   | `2.1`, `2.2`, `2.3`, `2.R.1`          | `rfc:§ 1`, `rfc:§ 2`, `rfc:§ 6`  |
+| 3   | `3.1`, `3.2`, `3.3`, `3.R.1`, `3.R.2` | `rfc:§ 10`, `rfc:§ 2`, `rfc:§ 3` |
+| 4   | `4.1`, `4.2`, `4.3`, `4.R.1`, `4.R.2` | `rfc:§ 4`, `rfc:§ 5`             |
+| 5   | `5.1`, `5.2`, `5.3`, `5.R.1`          | `rfc:§ 10`, `rfc:§ 7`, `rfc:§ 8` |
+| 6   | `6.1`, `6.2`, `6.3`, `6.R.1`          | `rfc:§ 9`                        |
 
 ### Named seams
 
@@ -240,6 +240,25 @@ identified through delivery state before any external binding can carry authorit
 - _Outcome:_ Delivery ref names are now recognized only enough to suppress false WU residue. Any consumer needing a
   member identity must still establish it through the existing exact delivery-state binding boundary.
 
+## **Phase 2.R:** Fresh eligibility authority
+
+_Purpose:_ Complete the eligibility member's executable contract by keeping lifecycle discovery, gate bracketing, and
+closed candidate authority inside one fresh mutation path.
+
+### `[x]` **2.R.1 Bind mutation to fresh candidate eligibility**
+
+- _Goal:_ No external mutation can rely on caller-serialized eligibility or lifecycle-path claims.
+
+- _Amendment:_ Workflow prose remains the authority that runs project gates; the standalone CLI neither receives a
+  gate verdict nor gains a gate resolver. The mutation path instead rejects serialized snapshots, resolves current
+  plan and lifecycle facts itself, and re-establishes exact post-gate checkout and mechanical eligibility immediately
+  before mutation. An interrupted workflow reruns its gate sequence.
+
+- _Outcome:_ Materialization and publication now accept only a plan ID plus candidate refs and checkout locators,
+  resolve the canonical plan and lifecycle paths, close fresh mechanical eligibility, recheck the path set, and
+  consume the in-memory snapshot without exposing it as caller authority. Workflow and tests preserve gate ownership,
+  rerun-on-interruption behavior, and refusal on snapshot replay, checkout movement, or lifecycle-path movement.
+
 ## **Phase 3:** Unlinked materialization and guarded landing
 
 _Purpose:_ Deliver the complete provider-independent execution path: ordered member refs and change requests,
@@ -311,6 +330,51 @@ exact-head review admission, one guarded landing, and interruption-safe recovery
 - _Outcome:_ Provider-independent execution now reaches one exact, attended non-terminal landing while preserving
   single-operation crash recovery; no workflow approval or review verdict becomes durable delivery state.
 
+## **Phase 3.R:** Observational execution guards
+
+_Purpose:_ Complete the unlinked executor's mutation and recovery brackets with fresh repository and host facts at
+each existing reserved-operation boundary.
+
+### `[ ]` **3.R.1 Guard materialization and exact initial-request recovery**
+
+- _Goal:_ Each ref, target, and first-request effect is authorized by fresh observations around its reservation and is
+  recoverable only from the exact external event the current plan permits.
+
+- **Additional Context:** `spec-delivery-stack-topology.md` §§ 2, 3, 10;
+  `cohort-chunked-delivery.md` § V1 robustness floor.
+
+    - Reobserve the relevant ref and target facts after reservation and after mutation, apply the existing operation
+      precondition to the fresh `before` snapshot, and persist only coordinates derived from the observed result.
+
+    - Route first publication through the existing initial change-request recovery before falling back to initial-ref
+      binding; require one exact open request with matching repository, head, base, SHA, and draft posture.
+
+    - Build `test-first` (one behavior at a time):
+        - Ref or target movement between reservation and mutation refuses without overwriting state.
+        - A crash after the first ref push or request open resumes without duplicating the effect.
+        - One exact initial request is adopted; foreign, duplicate, wrong-base, or otherwise mismatched requests refuse.
+
+### `[ ]` **3.R.2 Make ordinary landing and recovery observational**
+
+- _Goal:_ Landing and crash recovery decide from fresh Git and host facts for the persisted operation kind, never from
+  reservation self-comparison or caller-authored observation JSON.
+
+- **Additional Context:** `spec-delivery-stack-topology.md` §§ 3, 4, 10;
+  `cohort-chunked-delivery.md` § V1 robustness floor.
+
+    - Reobserve the exact selection, predecessor, target, request, checks, and contribution immediately before lock
+      release and again before merge; after merge, construct the result solely from exact request and target facts.
+
+    - Replace generic caller-supplied reconciliation evidence with a dispatcher keyed by the persisted
+      `activeOperation.kind`; each existing Git/host adapter produces the typed observation used by the current pure
+      comparator and version-checked state write.
+
+    - Build `test-first` (one behavior at a time):
+        - Target, ref, request, or readiness movement after reservation or lock release refuses.
+        - Target movement without the matching merged request is never adopted as landed.
+        - Every operation kind classifies exact-before, exact-applied, mixed, ambiguous, and unavailable observations
+          without clearing a reservation on untrusted input.
+
 ## **Phase 4:** Suffix reconciliation and terminal handoff
 
 _Purpose:_ Preserve contribution identity after each landing, rematerialize deliberate fixes from the retained
@@ -381,6 +445,52 @@ control branch, and hand the residual terminal tail to ordinary work-unit integr
 
 - _Outcome:_ The stack now hands only an authenticated residual tail to unchanged ordinary work-unit integration;
   delivery neither reserves the terminal merge nor adds a second approval or closeout record.
+
+## **Phase 4.R:** Fresh suffix and terminal composition
+
+_Purpose:_ Make the existing reconciliation and terminal primitives reachable only through fresh, repository-derived
+orchestration without adding proof state or another integration ceremony.
+
+### `[ ]` **4.R.1 Bind suffix rematerialization to fresh proof**
+
+- _Goal:_ Each suffix rewrite is derived and applied from a freshly closed suffix and recomputed contribution proof,
+  with the preceding persisted result serving as the next step's only predecessor.
+
+- **Additional Context:** `spec-delivery-stack-topology.md` §§ 1, 2, 4, 6, 10;
+  `cohort-chunked-delivery.md` § Hardening-admission boundary.
+
+    - Wire one orchestration that reruns complete suffix eligibility and workflow-owned gates, derives rewrites, and
+      executes them in order through the existing reserved `rewrite` operation.
+
+    - Before every reservation, reobserve plan/state, candidate ref/head/tree, delivery remote, lifecycle paths,
+      request binding/base, and carried contribution for all dependent unselected members; selected-member changes
+      remain bounded to the invocation's exact selected ID set.
+
+    - Build `test-first` (one behavior at a time):
+        - Candidate movement after preparation refuses.
+        - Unselected contribution drift between rewrite steps refuses.
+        - One selected ID cannot authorize another member, and step two consumes step one's persisted result.
+
+### `[ ]` **4.R.2 Expose the existing terminal handoff through ordinary integration**
+
+- _Goal:_ The terminal member reaches ordinary work-unit integration through one composed pre-handoff service and one
+  total post-merge attachment, without a delivery-owned merge ceremony or terminal proof record.
+
+- **Additional Context:** `spec-delivery-stack-topology.md` §§ 5, 7, 10;
+  `cohort-chunked-delivery.md` §§ Explicit non-goals, Hardening-admission boundary.
+
+    - Extend the existing `arc delivery` execution family with a repository-derived pre-handoff command that assesses
+      absorption, performs only the existing append-only base reconcile and Tier 1 seam when required, reobserves, and
+      returns terminal readiness without accepting operator-authored plan/state assertions.
+
+    - Add the separate total post-merge attachment at ordinary integration's exact existing attachment point; derive
+      `attached`, `already-attached`, `not-applicable`, or `blocked` from current plan/state/Git/host facts.
+
+    - Build `test-first` (one behavior at a time):
+        - Ready, already-absorbed, dirty, stale, active-operation, and unreconciled-prefix pre-handoff paths close.
+        - Exact delivery merge attaches once; repeat is idempotent; an ordinary work unit is not applicable.
+        - A built-CLI unlinked lifecycle reaches terminal readiness and post-merge attachment, while blocked results
+          prevent close and teardown.
 
 ## **Phase 5:** Lifecycle execution and orientation
 
@@ -476,6 +586,24 @@ attachment points while keeping deterministic dispatch and user-facing text in t
 - _Outcome:_ Late delivery entry now distinguishes absence, reviewed provisional intent, canonical unbound intent,
   and coherent binding without writes; passive enumeration prevents even empty state namespaces from materializing.
 
+## **Phase 5.R:** Executable workflow contract
+
+_Purpose:_ Bind shipped delivery prose to the actual CLI grammar and prove every documented invocation through the
+built command surface.
+
+### `[ ]` **5.R.1 Make every delivery workflow invocation callable**
+
+- _Goal:_ Every packaged and installed delivery command reaches its typed handler with the intended stdin payload.
+
+- **Additional Context:** `spec-delivery-stack-topology.md` §§ 7, 10.
+
+    - Correct packaged and installed workflow argv to pass stdin through the CLI's positional input contract, including
+      `position`, without changing adopter-facing bare `arc` invocation style.
+
+    - Build `test-first` (one behavior at a time):
+        - Every fenced delivery invocation parses against the built CLI.
+        - Each stdin-bearing verb receives positional `-` and `position` no longer omits its required input.
+
 ## **Phase 6:** Optional native-stack composition
 
 _Purpose:_ Add the preview host's native-stack ergonomics as a fresh-observation adapter over the complete unlinked
@@ -542,6 +670,33 @@ executor, preserving plan/state authority and an explicit downgrade path.
 
 - _Outcome:_ Native capability loss now changes only a precomposed operator advisory and host presentation; the
   exact ordinary executor and terminal projection remain the single fallback semantics, with no native state fields.
+
+## **Phase 6.R:** Native executable parity
+
+_Purpose:_ Close the native adapter's predecessor and retry-envelope gaps while preserving the complete unlinked
+executor as its only semantic fallback.
+
+### `[ ]` **6.R.1 Correct native predecessor checks and prove executable parity**
+
+- _Goal:_ Native singleton and exact all-remaining landing enforce the same per-member predecessor chain and
+  retry/recovery envelope as the complete unlinked executor.
+
+- **Additional Context:** `spec-delivery-stack-topology.md` §§ 3, 9, 10;
+  `cohort-chunked-delivery.md` § Hardening-admission boundary.
+
+    - Derive each selected request's expected base from the ordered selection—protected base for the bottom member,
+      immediately preceding selected member ref above it—and share that builder between prepare and submit
+      reobservation.
+
+    - Preserve the native `retryable` result and its `recommendedActionText` through the handler's closed result
+      schema instead of normalizing it into a refusal.
+
+    - Build `test-first` (one behavior at a time):
+        - A valid three-member predecessor chain prepares and submits; flattened, reordered, or wrong predecessors
+          refuse in both reads.
+        - None-landed reconciliation returns its exact retryable envelope without clearing authority.
+        - Built-CLI native singleton, exact atomic, capability-loss, and downgrade paths converge on the same terminal
+          semantics as the unlinked lifecycle.
 
 ## **Phase 7:** Verification
 

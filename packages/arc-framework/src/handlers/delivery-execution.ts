@@ -1,6 +1,7 @@
 /** Strict CLI composition for delivery execution services. */
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -12,13 +13,18 @@ import {
 } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { closeDeliveryEligibility, prepareDeliveryEligibility } from "../lib/delivery/eligibility.js";
+import {
+  closeDeliveryEligibility,
+  executeWithFreshDeliveryEligibility,
+  prepareDeliveryEligibility,
+} from "../lib/delivery/eligibility.js";
 import {
   compareGitNormalizedDeliveryTrees,
   inspectDeliveryCandidateCheckout,
   observeDeliveryEligibilityRef,
 } from "../lib/delivery/git-eligibility.js";
 import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lifecycle-contribution.js";
+import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
 import {
   deleteDeliveryRemoteRef,
@@ -64,6 +70,8 @@ import {
   submitReservedNativeDeliveryMerge,
 } from "../lib/delivery/native-landing.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { validateManagedPath } from "../lib/kernel/index.js";
+import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
@@ -98,9 +106,12 @@ const PrepareSchema = z.strictObject({
   lifecyclePaths: z.array(z.string().min(1)),
 });
 const CloseSchema = z.strictObject({ snapshot: EligibilitySnapshotSchema });
+const MutationCandidateSchema = CandidateSchema.extend({ checkoutPath: z.string().min(1) });
 const MaterializeSchema = z.strictObject({
-  plan: DeliveryPlanV1Schema,
-  snapshot: EligibilitySnapshotSchema,
+  planId: DeliveryPlanIdSchema,
+  protectedBaseRef: RefSchema,
+  controlRef: RefSchema,
+  candidates: z.array(MutationCandidateSchema).min(1),
   remote: z.string().min(1).default("origin"),
 });
 const PublishSchema = MaterializeSchema.extend({
@@ -639,33 +650,53 @@ async function executeDeliveryCommand(
   }
   if (command === "materialize" || command === "publish") {
     const parsed = (command === "publish" ? PublishSchema : MaterializeSchema).parse(request);
-    const derived = deriveDeliveryMaterialization(parsed.plan, parsed.snapshot);
-    if (derived.status !== "derived") return derived;
-    const refs = {
-      publish: async (ref: string, head: string) => {
-        const outcome = await publishDeliveryRemoteRef({ exec, remote: parsed.remote, ref, head });
-        return outcome.status === "refused" ? { status: "refused" as const } : outcome;
+    return executeWithFreshDeliveryEligibility(parsed, {
+      ...eligibilityDeps,
+      resolveLifecyclePaths: async (plan) => {
+        const active = await resolveActiveWu({ cwd });
+        if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
+        try {
+          const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+            readDirectory: (path) => readdir(resolve(cwd, path)),
+          }).resolve({
+            workUnitId: plan.workUnitId,
+            activeMetaPath: validateManagedPath(active.path),
+          });
+          return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+        } catch {
+          return null;
+        }
       },
-    };
-    const current = await stateStore.read(parsed.plan.planId);
-    if (current.status !== "ok") return { status: "refused", reason: "state-unavailable" };
-    if (current.value === null) {
-      const bound = await bindInitialDeliveryRef({ plan: parsed.plan, materialization: derived.value, stateStore, refs });
-      if (bound.status !== "bound") return { status: "refused", reason: bound.reason };
-    }
-    const materialized = await materializeBoundDeliveryChain({
-      plan: parsed.plan, materialization: derived.value, stateStore, refs,
-    });
-    if (materialized.status !== "materialized" || command === "materialize") return materialized;
-    const publish = PublishSchema.parse(parsed);
-    return publishDeliveryRequests({
-      plan: publish.plan,
-      materialization: derived.value,
-      stateStore,
-      host: new GhDeliveryHostPort(hostedGhRunner),
-      repository: publish.repository,
-      draft: publish.draft,
-      presentation: (member) => ({ title: member.chunkKey, body: `Delivery member ${member.deliverableId}.` }),
+      mutate: async ({ plan, snapshot }) => {
+        const derived = deriveDeliveryMaterialization(plan, snapshot);
+        if (derived.status !== "derived") return derived;
+        const refs = {
+          publish: async (ref: string, head: string) => {
+            const outcome = await publishDeliveryRemoteRef({ exec, remote: parsed.remote, ref, head });
+            return outcome.status === "refused" ? { status: "refused" as const } : outcome;
+          },
+        };
+        const current = await stateStore.read(plan.planId);
+        if (current.status !== "ok") return { status: "refused" as const, reason: "state-unavailable" };
+        if (current.value === null) {
+          const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore, refs });
+          if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
+        }
+        const materialized = await materializeBoundDeliveryChain({
+          plan, materialization: derived.value, stateStore, refs,
+        });
+        if (materialized.status !== "materialized" || command === "materialize") return materialized;
+        const publish = PublishSchema.parse(parsed);
+        return publishDeliveryRequests({
+          plan,
+          materialization: derived.value,
+          stateStore,
+          host: new GhDeliveryHostPort(hostedGhRunner),
+          repository: publish.repository,
+          draft: publish.draft,
+          presentation: (member) => ({ title: member.chunkKey, body: `Delivery member ${member.deliverableId}.` }),
+        });
+      },
     });
   }
   if (command === "position") {
