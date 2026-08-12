@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  deriveNativeDeliveryMemberChain,
   prepareNativeDeliveryLanding,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
@@ -13,7 +14,10 @@ import {
   reserveDeliveryOperation,
 } from "../../../src/lib/delivery/operation.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
-import { deliveryThreeMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 
 const plan = deliveryThreeMemberStackPlanFixture();
 const heads = plan.members.slice(0, -1).map((member, index) => ({
@@ -23,6 +27,65 @@ const heads = plan.members.slice(0, -1).map((member, index) => ({
 }));
 
 describe("native delivery landing", () => {
+  it("derives every selected member base from its exact predecessor", () => {
+    const chainPlan = deliveryFourMemberStackPlanFixture();
+    const state = deliveryStateFixture(chainPlan);
+    const bound = {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const selectedMembers = bound.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: member.changeRequest!.changeRequestId,
+      headSha: member.coordinates!.head,
+    }));
+
+    expect(deriveNativeDeliveryMemberChain({
+      state: bound,
+      selectedMembers,
+      repository: "owner/repo",
+      baseRef: "refs/heads/main",
+    })).toMatchObject({
+      status: "derived",
+      members: [
+        { headRef: "member-1", baseRef: "main" },
+        { headRef: "member-2", baseRef: "member-1" },
+        { headRef: "member-3", baseRef: "member-2" },
+      ],
+    });
+  });
+
+  it("refuses selected identities that do not match the current binding", () => {
+    const state = deliveryStateFixture(plan);
+    const member = state.members[0]!;
+    const bound = {
+      ...state,
+      members: state.members.map((candidate, index) => ({
+        ...candidate,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+
+    for (const selectedMembers of [
+      [{ deliverableId: member.deliverableId, changeRequestId: "99", headSha: member.coordinates!.head }],
+      [{ deliverableId: member.deliverableId, changeRequestId: "41", headSha: "f".repeat(40) }],
+      [
+        { deliverableId: member.deliverableId, changeRequestId: "41", headSha: member.coordinates!.head },
+        { deliverableId: member.deliverableId, changeRequestId: "41", headSha: member.coordinates!.head },
+      ],
+    ]) {
+      expect(deriveNativeDeliveryMemberChain({
+        state: bound,
+        selectedMembers,
+        repository: "owner/repo",
+        baseRef: "main",
+      })).toMatchObject({ status: "refused", reason: "member-mismatch" });
+    }
+  });
+
   it("selects linked singleton by default and exact nonterminal remainder only on explicit direct invocation", () => {
     expect(selectNativeDeliveryLandingArm({
       plan, landedPrefix: [], observation: { status: "registered", stackNumber: 3 },
@@ -85,6 +148,69 @@ describe("native delivery landing", () => {
       reason: "member-set-mismatch",
     });
     expect(stateStore.publish).not.toHaveBeenCalled();
+  });
+
+  it("reserves a valid three-member atomic chain and refuses reordered selection", async () => {
+    const chainPlan = deliveryFourMemberStackPlanFixture();
+    const state = deliveryStateFixture(chainPlan);
+    const bound = {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const selectedMembers = bound.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: member.changeRequest!.changeRequestId,
+      headSha: member.coordinates!.head,
+    }));
+    const facts = {
+      target: bound.target,
+      members: bound.members.map(({ deliverableId, ref, changeRequest, coordinates }) => ({
+        deliverableId, ref, changeRequest, coordinates,
+      })),
+      landedDeliverableIds: [],
+    };
+    const stateStore = { publish: vi.fn(async (_planId, value) => ({
+      status: "ok" as const,
+      value: { revision: 2, value },
+    })) };
+    const baseInput = {
+      plan: chainPlan,
+      current: { revision: 1, value: bound },
+      operationId: "operation-1",
+      facts,
+      repository: "owner/repo",
+      baseRef: "main",
+      targetRef: "refs/heads/main",
+    };
+
+    await expect(reserveNativeDeliveryLanding({
+      ...baseInput,
+      selection: {
+        status: "selected" as const,
+        arm: "linked-atomic" as const,
+        members: selectedMembers,
+        recommendedActionText: "prepare",
+      },
+    }, {
+      readiness: vi.fn().mockResolvedValue({ status: "ready" }),
+      stateStore,
+    })).resolves.toMatchObject({ status: "prepared", members: selectedMembers });
+
+    await expect(reserveNativeDeliveryLanding({
+      ...baseInput,
+      selection: {
+        status: "selected" as const,
+        arm: "linked-atomic" as const,
+        members: [...selectedMembers].reverse(),
+        recommendedActionText: "prepare",
+      },
+    }, {
+      readiness: vi.fn().mockResolvedValue({ status: "ready" }),
+      stateStore,
+    })).resolves.toMatchObject({ status: "blocked", reason: "member-set-mismatch" });
   });
 
   it("persists a submitted effect identity before polling and adopts only exact all-landed facts", async () => {

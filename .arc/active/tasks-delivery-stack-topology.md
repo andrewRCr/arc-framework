@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `8`
-- **Plan Digest:** `sha256:26e791d8c0730c0d2cfae87931d5f1a28a24cf70d3f3a39640a9db330c0cc401`
+- **Plan Revision:** `9`
+- **Plan Digest:** `sha256:d860e95ed23c52b73c4d18f946ec0e54cbaaf7ab78078b0f0ed28e43eaf46052`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -627,27 +627,15 @@ executor, preserving plan/state authority and an explicit downgrade path.
 _Purpose:_ Close the native adapter's predecessor and retry-envelope gaps while preserving the complete unlinked
 executor as its only semantic fallback.
 
-### `[ ]` **6.R.1 Correct native predecessor checks and prove executable parity**
+### `[x]` **6.R.1 Correct native predecessor checks and prove executable parity**
 
 - _Goal:_ Native singleton and exact all-remaining landing enforce the same per-member predecessor chain and
   retry/recovery envelope as the complete unlinked executor.
 
-- **Additional Context:** `spec-delivery-stack-topology.md` §§ 3, 9, 10;
-  `cohort-chunked-delivery.md` § Hardening-admission boundary.
-
-    - Derive each selected request's expected base from the ordered selection—protected base for the bottom member,
-      immediately preceding selected member ref above it—and share that builder between prepare and submit
-      reobservation.
-
-    - Preserve the native `retryable` result and its `recommendedActionText` through the handler's closed result
-      schema instead of normalizing it into a refusal.
-
-    - Build `test-first` (one behavior at a time):
-        - A valid three-member predecessor chain prepares and submits; flattened, reordered, or wrong predecessors
-          refuse in both reads.
-        - None-landed reconciliation returns its exact retryable envelope without clearing authority.
-        - Built-CLI native singleton, exact atomic, capability-loss, and downgrade paths converge on the same terminal
-          semantics as the unlinked lifecycle.
+- _Outcome:_ Native prepare and submit reobservation now share one state-bound predecessor-chain derivation, using
+  the protected base only for the bottom member and each preceding selected ref above it. The exact native retry
+  envelope survives the handler boundary, and executable singleton, atomic, capability-loss, and unlink paths retain
+  the unlinked lifecycle's terminal semantics.
 
 ## **Phase 7:** Verification
 

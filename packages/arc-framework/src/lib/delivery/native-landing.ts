@@ -7,7 +7,7 @@ import {
 } from "./operation.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryOperationSnapshotV1, DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
-import type { DeliveryNativeStackObservation } from "./native-stack.js";
+import type { DeliveryNativeStackMember, DeliveryNativeStackObservation } from "./native-stack.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryContributionEndpoints, DeliveryContributionProofResult } from "./contribution-proof.js";
@@ -20,6 +20,44 @@ export interface DeliveryNativeLandingMember {
   readonly deliverableId: string;
   readonly changeRequestId: string;
   readonly headSha: string;
+}
+
+export type DeriveNativeDeliveryMemberChainResult =
+  | { readonly status: "derived"; readonly members: readonly DeliveryNativeStackMember[] }
+  | { readonly status: "refused"; readonly reason: "member-unbound" | "member-mismatch" };
+
+/** Derive the exact host chain from ordered selection plus current bound state. */
+export function deriveNativeDeliveryMemberChain(input: {
+  readonly state: DeliveryStateV1;
+  readonly selectedMembers: readonly DeliveryNativeLandingMember[];
+  readonly repository: string;
+  readonly baseRef: string;
+}): DeriveNativeDeliveryMemberChainResult {
+  const members: DeliveryNativeStackMember[] = [];
+  const seen = new Set<string>();
+  for (const selected of input.selectedMembers) {
+    const matches = input.state.members.filter((member) => member.deliverableId === selected.deliverableId);
+    const bound = matches[0];
+    if (matches.length !== 1 || bound?.ref === null || bound?.ref === undefined
+      || bound.coordinates === null || bound.changeRequest === null) {
+      return { status: "refused", reason: "member-unbound" };
+    }
+    if (seen.has(selected.deliverableId)
+      || selected.changeRequestId !== bound.changeRequest.changeRequestId
+      || selected.headSha !== bound.coordinates.head) {
+      return { status: "refused", reason: "member-mismatch" };
+    }
+    seen.add(selected.deliverableId);
+    members.push({
+      deliverableId: bound.deliverableId,
+      changeRequestId: bound.changeRequest.changeRequestId,
+      headRef: bound.ref.replace(/^refs\/heads\//u, ""),
+      headSha: bound.coordinates.head,
+      baseRef: members.at(-1)?.headRef ?? input.baseRef.replace(/^refs\/heads\//u, ""),
+      headRepository: input.repository,
+    });
+  }
+  return { status: "derived", members };
 }
 
 export interface DeliveryNativeMergeRequest {

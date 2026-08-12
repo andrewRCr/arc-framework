@@ -67,6 +67,37 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(secondWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-service-result");
   });
 
+  it("preserves the native none-landed retry envelope", async () => {
+    const recommendedActionText = "Return to prepare and obtain a new interlock before retrying.";
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        request: {
+          repository: "owner/repo",
+          topChangeRequestId: "42",
+          topHeadSha: "a".repeat(40),
+          mergeAction: "direct_merge",
+          mergeMethod: "merge",
+        },
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue({ status: "retryable", recommendedActionText }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native land-status",
+      status: "retryable",
+      recommendedActionText,
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
+
   it("rejects a closed eligibility snapshot as materialization authority", async () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "materialized" });

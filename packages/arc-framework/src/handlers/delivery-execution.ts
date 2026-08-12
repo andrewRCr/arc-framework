@@ -72,6 +72,7 @@ import {
   observeDeliveryNativeStack,
 } from "../lib/delivery/native-stack.js";
 import {
+  deriveNativeDeliveryMemberChain,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
   reserveNativeDeliveryLanding,
@@ -297,6 +298,7 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("applied"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("rematerialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("retryable"), guidance: z.string().min(1) }),
+  z.strictObject({ status: z.literal("retryable"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
@@ -605,6 +607,19 @@ async function executeDeliveryCommand(
     };
     if (command === "native-land-prepare") {
       const prepare = NativePrepareSchema.parse(parsed);
+      const expectedChain = deriveNativeDeliveryMemberChain({
+        state: current.value,
+        selectedMembers: prepare.selection.members,
+        repository: prepare.repository,
+        baseRef: prepare.baseRef,
+      });
+      if (expectedChain.status === "refused") {
+        return {
+          status: "blocked",
+          reason: expectedChain.reason,
+          recommendedActionText: "Refresh the exact plan-ordered member bindings before preparing again.",
+        };
+      }
       return reserveNativeDeliveryLanding({
         plan, current, operationId: prepare.operationId, facts: prepare.facts,
         selection: prepare.selection, repository: prepare.repository, baseRef: prepare.baseRef,
@@ -612,15 +627,17 @@ async function executeDeliveryCommand(
       }, {
         readiness: async (member) => {
           const bound = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
-          if (bound?.ref === null || bound?.ref === undefined || bound.coordinates === null || bound.changeRequest === null) {
+          const expected = expectedChain.members.find((candidate) => candidate.deliverableId === member.deliverableId);
+          if (bound?.ref === null || bound?.ref === undefined || bound.coordinates === null
+            || bound.changeRequest === null || expected === undefined) {
             return { status: "refused" as const };
           }
           const observed = await host.readRequest(prepare.repository, bound.changeRequest);
           if (observed.status !== "observed" || observed.request.state !== "open"
             || observed.request.repository !== prepare.repository || observed.request.headRepository !== prepare.repository
-            || observed.request.headRef !== bound.ref.replace(/^refs\/heads\//u, "")
-            || observed.request.headSha !== bound.coordinates.head
-            || observed.request.baseRef !== prepare.baseRef.replace(/^refs\/heads\//u, "")) {
+            || observed.request.headRef !== expected.headRef
+            || observed.request.headSha !== expected.headSha
+            || observed.request.baseRef !== expected.baseRef) {
             return { status: "refused" as const };
           }
           const checked = await evaluateReviewReadiness({
@@ -642,23 +659,26 @@ async function executeDeliveryCommand(
         host, stateStore,
         reobserveSelection: async () => {
           if (operation?.kind !== "land") return { status: "refused" as const };
-          const expectedMembers = [];
-          for (const [index, entry] of operation.before.members.entries()) {
-            const member = current.value.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
-            const previous = index === 0 ? null : operation.before.members[index - 1];
-            if (member?.ref === null || member?.ref === undefined || member.coordinates === null || member.changeRequest === null) {
-              return { status: "refused" as const };
-            }
-            expectedMembers.push({
-              deliverableId: member.deliverableId,
-              changeRequestId: member.changeRequest.changeRequestId,
-              headRef: member.ref.replace(/^refs\/heads\//u, ""),
-              headSha: member.coordinates.head,
-              baseRef: previous?.ref?.replace(/^refs\/heads\//u, "") ?? operation.effect.baseRef,
-              headRepository: submit.request.repository,
+          const selectedMembers = [];
+          for (const entry of operation.before.members) {
+            if (entry.coordinates === null || entry.changeRequest === null) return { status: "refused" as const };
+            selectedMembers.push({
+              deliverableId: entry.deliverableId,
+              changeRequestId: entry.changeRequest.changeRequestId,
+              headSha: entry.coordinates.head,
             });
           }
-          const observation = await observeDeliveryNativeStack({ repository: submit.request.repository, members: expectedMembers }, host);
+          const expectedChain = deriveNativeDeliveryMemberChain({
+            state: current.value,
+            selectedMembers,
+            repository: submit.request.repository,
+            baseRef: operation.effect.baseRef,
+          });
+          if (expectedChain.status === "refused") return { status: "refused" as const };
+          const observation = await observeDeliveryNativeStack({
+            repository: submit.request.repository,
+            members: expectedChain.members,
+          }, host);
           return { status: observation.status === "registered" ? "exact" as const : "refused" as const };
         },
         revalidate: async (deliverableId, headSha) => {

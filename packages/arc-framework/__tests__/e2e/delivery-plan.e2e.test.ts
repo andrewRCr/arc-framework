@@ -1,6 +1,6 @@
 /** Built-CLI coverage for the delivery authoring command group. */
 
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,6 +12,8 @@ import {
   adjacentFieldSeams,
   type DeliveryFieldRun,
 } from "../fixtures/delivery-field-runs.js";
+import { deliveryFourMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 
 const DIGEST = `sha256:${"1".repeat(64)}`;
 
@@ -126,6 +128,136 @@ describe("arc delivery", () => {
         reason: "invalid-command-input",
       });
     }
+  });
+
+  it("selects exact native arms and degrades through the built CLI", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const nativeMembers = state.members.slice(0, -1).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: member.changeRequest!.changeRequestId,
+      headRef: member.ref!.replace(/^refs\/heads\//u, ""),
+      headSha: member.coordinates!.head,
+      baseRef: index === 0 ? "main" : state.members[index - 1]!.ref!.replace(/^refs\/heads\//u, ""),
+      headRepository: "owner/repo",
+    }));
+    const common = await gitCommonDir(repository);
+    const plans = join(common, "arc", "delivery", "plans");
+    const states = join(common, "arc", "delivery", "state");
+    await Promise.all([mkdir(plans, { recursive: true }), mkdir(states, { recursive: true })]);
+    await Promise.all([
+      writeFile(join(plans, `${plan.planId}.json`), `${JSON.stringify(plan)}\n`),
+      writeFile(join(states, `${plan.planId}.json`), `${JSON.stringify({
+        schemaVersion: 1,
+        semanticsVersion: "delivery-state-store/v1",
+        planId: plan.planId,
+        revision: 1,
+        value: state,
+      })}\n`),
+    ]);
+    const stackResponse = JSON.stringify([{
+      number: 7,
+      pull_requests: nativeMembers.map((member) => ({
+        number: Number(member.changeRequestId),
+        head: { ref: member.headRef, sha: member.headSha },
+        base: { ref: member.baseRef },
+      })),
+    }]);
+    const fakeBin = join(repository, "fake-bin");
+    const fakeGh = join(fakeBin, "gh");
+    const counter = join(repository, "fake-gh-counter");
+    await mkdir(fakeBin);
+    await writeFile(fakeGh, [
+      "#!/bin/sh",
+      "if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"unsupported\" ]; then",
+      "  echo 'HTTP 404' >&2",
+      "  exit 1",
+      "fi",
+      "if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"degrade\" ]; then",
+      "  case \"$*\" in *unstack*) printf '{}\\n'; exit 0;; esac",
+      "  if [ ! -f \"$ARC_FAKE_GH_COUNTER\" ]; then",
+      "    : > \"$ARC_FAKE_GH_COUNTER\"",
+      `    printf '%s\\n' '${stackResponse}'`,
+      "  else",
+      "    printf '[]\\n'",
+      "  fi",
+      "  exit 0",
+      "fi",
+      `printf '%s\\n' '${stackResponse}'`,
+      "",
+    ].join("\n"));
+    await chmod(fakeGh, 0o755);
+    const env = { PATH: `${fakeBin}:${process.env.PATH ?? ""}` };
+    const request = {
+      planId: plan.planId,
+      facts: {
+        target: state.target,
+        members: state.members.map(({ deliverableId, ref, changeRequest, coordinates }) => ({
+          deliverableId, ref, changeRequest, coordinates,
+        })),
+        landedDeliverableIds: [],
+      },
+      repository: "owner/repo",
+      mergeStrategy: "merge",
+      mergeAction: "direct",
+      explicitAtomic: false,
+      members: nativeMembers,
+    };
+
+    const singleton = await runArcWithStdin(
+      ["delivery", "native", "land-select", "-", "--json"],
+      repository,
+      `${JSON.stringify(request)}\n`,
+      { env },
+    );
+    expect(singleton.exitCode, singleton.stderr).toBe(0);
+    expect(JSON.parse(singleton.stdout)).toMatchObject({
+      status: "selected",
+      arm: "linked-single",
+      members: nativeMembers.slice(0, 1).map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId, changeRequestId, headSha,
+      })),
+    });
+
+    const atomic = await runArcWithStdin(
+      ["delivery", "native", "land-select", "-", "--json"],
+      repository,
+      `${JSON.stringify({ ...request, explicitAtomic: true })}\n`,
+      { env },
+    );
+    expect(atomic.exitCode, atomic.stderr).toBe(0);
+    expect(JSON.parse(atomic.stdout)).toMatchObject({
+      status: "selected",
+      arm: "linked-atomic",
+      members: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId, changeRequestId, headSha,
+      })),
+    });
+
+    const unsupported = await runArcWithStdin(
+      ["delivery", "native", "land-select", "-", "--json"],
+      repository,
+      `${JSON.stringify({ ...request, explicitAtomic: true })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "unsupported" } },
+    );
+    expect(unsupported.exitCode, unsupported.stderr).toBe(0);
+    expect(JSON.parse(unsupported.stdout)).toMatchObject({ status: "selected", arm: "unlinked" });
+
+    const degraded = await runArcWithStdin(
+      ["delivery", "native", "unlink", "-", "--json"],
+      repository,
+      `${JSON.stringify({ repository: "owner/repo", members: nativeMembers })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "degrade", ARC_FAKE_GH_COUNTER: counter } },
+    );
+    expect(degraded.exitCode, degraded.stderr).toBe(0);
+    expect(JSON.parse(degraded.stdout)).toMatchObject({ status: "unlinked" });
   });
 
   it("validates design input before writing task-derived authoring state", async () => {
