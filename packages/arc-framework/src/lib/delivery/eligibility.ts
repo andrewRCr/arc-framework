@@ -68,6 +68,7 @@ export interface DeliveryEligibilityRefusal {
     | "lifecycle-contribution"
     | "checkout-dirty"
     | "checkout-moved"
+    | "lifecycle-paths-moved"
     | "completeness-dropped"
     | "completeness-invented"
     | "completeness-mismatched"
@@ -76,6 +77,84 @@ export interface DeliveryEligibilityRefusal {
     | "plan-moved"
     | "head-already-bound";
   readonly deliverableId?: string;
+}
+
+/** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
+export interface FreshDeliveryEligibilityMutationDependencies<Result>
+extends DeliveryEligibilityDependencies {
+  resolveLifecyclePaths(plan: DeliveryPlanV1): Promise<readonly string[] | null>;
+  mutate(input: {
+    readonly plan: DeliveryPlanV1;
+    readonly snapshot: DeliveryEligibilitySnapshot;
+  }): Promise<Result>;
+}
+
+/**
+ * Consume fresh eligibility in-process without exposing it as mutation authority to the caller.
+ *
+ * @param input - Plan identity, exact refs, and disposable checkout locators
+ * @param deps - Current plan/lifecycle readers, mechanical observers, and the guarded mutation
+ * @returns The mutation result, or the first refusal before mutation begins
+ */
+export async function executeWithFreshDeliveryEligibility<Result>(input: {
+  readonly planId: string;
+  readonly protectedBaseRef: string;
+  readonly controlRef: string;
+  readonly candidates: readonly {
+    readonly deliverableId: string;
+    readonly ref: string;
+    readonly checkoutPath: string;
+  }[];
+}, deps: FreshDeliveryEligibilityMutationDependencies<Result>): Promise<Result | DeliveryEligibilityRefusal> {
+  const plan = await deps.readCurrentPlan(input.planId);
+  if (plan === null) return { status: "refused", reason: "plan-moved" };
+  const lifecyclePaths = await deps.resolveLifecyclePaths(plan);
+  if (lifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
+  const eligible = await revalidateDeliveryEligibilityForMutation({
+    ...input,
+    plan,
+    lifecyclePaths,
+  }, deps);
+  if (eligible.status !== "eligible") return eligible;
+  const currentLifecyclePaths = await deps.resolveLifecyclePaths(plan);
+  if (currentLifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
+  const normalizedCurrentPaths = [...new Set(currentLifecyclePaths)].sort(byteSort);
+  if (normalizedCurrentPaths.length !== eligible.snapshot.lifecyclePaths.length
+    || normalizedCurrentPaths.some((path, index) => path !== eligible.snapshot.lifecyclePaths[index])) {
+    return { status: "refused", reason: "lifecycle-paths-moved" };
+  }
+  return deps.mutate({ plan, snapshot: eligible.snapshot });
+}
+
+async function revalidateDeliveryEligibilityForMutation(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly protectedBaseRef: string;
+  readonly controlRef: string;
+  readonly candidates: readonly {
+    readonly deliverableId: string;
+    readonly ref: string;
+    readonly checkoutPath: string;
+  }[];
+  readonly lifecyclePaths: readonly string[];
+}, deps: DeliveryEligibilityDependencies): Promise<
+  | { readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot }
+  | DeliveryEligibilityRefusal
+> {
+  const prepared = await prepareDeliveryEligibility({
+    ...input,
+    candidates: input.candidates.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
+  }, deps);
+  if (prepared.status !== "prepared") return prepared;
+  for (const [index, candidate] of input.candidates.entries()) {
+    const checkout = await verifyDeliveryCandidateCheckout(
+      prepared.snapshot,
+      index,
+      candidate.checkoutPath,
+      deps,
+    );
+    if (checkout.status !== "exact") return checkout;
+  }
+  return closeDeliveryEligibility(prepared.snapshot, deps);
 }
 
 /** Validate and pin one complete authored candidate chain before workflow-owned gates run. */
