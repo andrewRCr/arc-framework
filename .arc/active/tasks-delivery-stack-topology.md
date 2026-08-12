@@ -387,14 +387,14 @@ control branch, and hand the residual terminal tail to ordinary work-unit integr
 _Purpose:_ Make delivery reachable and resumable through owned workflow, discovery, session-init, and integration
 attachment points while keeping deterministic dispatch and user-facing text in typed CLI surfaces.
 
-### `[ ]` **5.1 Compose the delivery workflow over typed results** — § 7, § 10; SC 4–SC 7
+### `[x]` **5.1 Compose the delivery workflow over typed results** — § 7, § 10; SC 4–SC 7
 
 - _Goal:_ Operators have one resumable attended procedure whose prose dispatches typed outcomes without acquiring
   Git, host, review, or merge authority.
 
 - **Additional Context:** `strategy-procedure-evolution.md` § Self-Check: run this before building
 
-    - `[ ]` **5.1.a Add the packaged delivery execution workflow**
+    - `[x]` **5.1.a Add the packaged delivery execution workflow**
         - Author `packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md` and its installed
           `.arc/` mirror to invoke materialize, review, land, reconcile, teardown, and terminal-handoff verbs. Add the
           package file to `init-recipe.json`, verify its default `Framework` classification and framework-sync byte
@@ -408,7 +408,7 @@ attachment points while keeping deterministic dispatch and user-facing text in t
           existing interlock and adds no delivery interlock.
         - Keep shipped workflow commands as bare `arc ...`; no repository-local invocation convention ships.
 
-    - `[ ]` **5.1.b Expose strict execution verbs over the Phase 2–4 services**
+    - `[x]` **5.1.b Expose strict execution verbs over the Phase 2–4 services**
         - Extend the `arc delivery` group, command schemas, input declarations, and infrastructure policies while
           splitting execution handling from the existing authoring-heavy `delivery.ts`.
         - Register argv over Phase 3's provider-neutral prepare/apply/reconcile envelopes; do not duplicate its host,
@@ -420,7 +420,7 @@ attachment points while keeping deterministic dispatch and user-facing text in t
             - Every coordinate mutation requires a reservation except the three specified carve-outs
             - CLI handlers never prompt for a judgment the workflow owns
 
-    - `[ ]` **5.1.c Order exact-head review, authorization, and reconciliation**
+    - `[x]` **5.1.c Order exact-head review, authorization, and reconciliation**
         - Dispatch prepare before the interlock and apply only after approval; advance to the next member only after
           the current effect and any remaining suffix reconciliation settle. A retryable landing returns to prepare
           and a new interlock rather than reusing approval.
@@ -430,6 +430,11 @@ attachment points while keeping deterministic dispatch and user-facing text in t
           already-merged resume enter exactly one adoption call; repeated resume is idempotent, an ordinary WU returns
           `not-applicable`, and no member/head outside the approved set inherits authorization. Assert no other Phase 2
           ordering or behavior changes.
+
+        - _Completed:_ shipped the Framework-owned delivery workflow and strict execution command family; production
+          composition reuses eligibility, materialization, review readiness, merge-lock, landing, reconciliation,
+          rewrite, teardown, Git, host, and versioned-store services. Command and workflow contracts pin exact-head
+          approval scope, retry reauthorization, terminal delegation, stdin automation, and installed byte identity.
 
 ### `[ ]` **5.2 Surface bound delivery position as an independent session-init probe** — § 7; SC 9
 

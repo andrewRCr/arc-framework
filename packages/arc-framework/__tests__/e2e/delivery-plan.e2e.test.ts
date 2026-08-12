@@ -50,6 +50,24 @@ describe("arc delivery", () => {
     });
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
+    for (const command of [
+      ["eligibility", "prepare"], ["eligibility", "close"], ["materialize"], ["publish"],
+      ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["teardown"],
+    ]) {
+      const help = await runArc(["delivery", ...command, "--help"], repository);
+      expect(help.exitCode, help.stderr).toBe(0);
+      expect(help.stdout).toContain("<input>");
+    }
+    await writeFile(join(repository, "invalid-execution.json"), "{}\n");
+    const invalidExecution = await runArc([
+      "delivery", "position", "invalid-execution.json", "--json",
+    ], repository);
+    expect(invalidExecution.exitCode).toBe(1);
+    expect(JSON.parse(invalidExecution.stdout)).toMatchObject({
+      command: "delivery position",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
     const inventorySchema = await runArc([
       "delivery", "plan", "inventory", "schema", "--json",
     ], repository);

@@ -670,7 +670,7 @@
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "1e861ea36c80abf02d7dbb832457ca555c6556fe35502389ee520a8d584e17da"
+      "pristine_hash": "e5cdc165a8be9752d3e64ecf4f3ed01a5cdefbe7d143f69a40673cb8da7de986"
     },
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",
@@ -701,6 +701,11 @@
       "classification": "Framework",
       "layer": "arc-in-git",
       "pristine_hash": "5a0ce54075e145cf2121a754b0f6d6872580e45bbb0a22d6f589363d9c0c9ed1"
+    },
+    "system/workflows/arc/supplemental/deliver-stack.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "ff41949cd4d20c4a8da71be8d294f0c8208f4c9e501a3c3672b664015e6aeec8"
     },
     "reference/PROJECT-PRD.md": {
       "classification": "Scaffolded",

@@ -1,0 +1,69 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
+import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+
+describe("delivery execution handler", () => {
+  it("preserves a prepared service result through the strict verb envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const snapshot = {
+      planId: plan.planId,
+      workUnitId: plan.workUnitId,
+      planRevision: plan.planRevision,
+      planDigest: plan.planDigest,
+      protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
+      control: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
+      members: plan.members.map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: `refs/heads/candidate-${index + 1}`,
+        head: String(index + 5).repeat(40),
+        tree: String(index + 7).repeat(40),
+      })),
+      lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
+    };
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const execute = vi.fn().mockResolvedValue({ status: "prepared", snapshot });
+    await handleDeliveryExecution("eligibility-prepare", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        plan,
+        protectedBaseRef: "refs/heads/main",
+        controlRef: "refs/heads/control",
+        candidates: snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
+        lifecyclePaths: snapshot.lifecyclePaths,
+      })),
+      execute,
+      write,
+      setExitCode,
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery eligibility prepare",
+      status: "prepared",
+      snapshot,
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed input before execution and invalid service output at the boundary", async () => {
+    const execute = vi.fn();
+    const firstWrite = vi.fn();
+    await handleDeliveryExecution("position", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue("{}"), execute, write: firstWrite, setExitCode: vi.fn(),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(firstWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-command-input");
+
+    const secondWrite = vi.fn();
+    await handleDeliveryExecution("position", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: "123e4567-e89b-42d3-a456-426614174000", facts: {},
+      })),
+      execute: vi.fn().mockResolvedValue({ status: "invented" }),
+      write: secondWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(secondWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-service-result");
+  });
+});

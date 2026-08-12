@@ -27,6 +27,10 @@ import {
   deliveryCommandInputPolicyDeclarations,
   deliveryCommandInputRegistrations,
 } from "./handlers/delivery.js";
+import {
+  deliveryExecutionCommandInputPolicyDeclarations,
+  deliveryExecutionCommandInputRegistrations,
+} from "./handlers/delivery-execution.js";
 import { locusCommandInputRegistrations } from "./handlers/locus.js";
 import {
   wuReconcileCommandInputPolicyDeclarations,
@@ -75,6 +79,7 @@ export const commandInputRegistrations = [
   ...locusCommandInputRegistrations,
   planCheckInputRegistration,
   ...deliveryCommandInputRegistrations,
+  ...deliveryExecutionCommandInputRegistrations,
   wuReconcileCommandInputRegistration,
   statusCommandInputRegistration,
   logStandaloneInputRegistration,
@@ -102,6 +107,7 @@ export const commandInputPolicyDeclarations = [
   ...lifecycleCommandInputPolicyDeclarations,
   ...planCommandInputPolicyDeclarations,
   ...deliveryCommandInputPolicyDeclarations,
+  ...deliveryExecutionCommandInputPolicyDeclarations,
   ...wuReconcileCommandInputPolicyDeclarations,
   ...recoverCommandInputPolicyDeclarations,
   ...releaseCommitInputPolicyDeclarations,
