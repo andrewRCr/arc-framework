@@ -479,8 +479,10 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(config).toContain("pm.mode: none");
-    expect(config).toContain("review.chunking_threshold_lines: 0");
-    expect(config).toContain("review.chunking_threshold_files: 0");
+    expect(config).toContain("changeset.advisory_threshold_lines: 0");
+    expect(config).toContain("changeset.advisory_threshold_files: 0");
+    expect(config).not.toContain("review.chunking_threshold_lines");
+    expect(config).not.toContain("review.chunking_threshold_files");
   });
 
   it("writes arc-config.yml with solo team mode defaults", async () => {

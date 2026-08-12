@@ -180,13 +180,13 @@ describe("validation-surface projection fidelity", () => {
         label: "safe-integer midrange",
         value: {
           "hooks.body_max_lines": "9000000000000000",
-          "review.chunking_threshold_lines": "9007199254740989",
+          "changeset.advisory_threshold_lines": "9007199254740989",
         },
         accepted: true,
       },
       {
         label: "unsafe integer above maximum",
-        value: { "review.chunking_threshold_lines": "9007199254740992" },
+        value: { "changeset.advisory_threshold_lines": "9007199254740992" },
         accepted: false,
       },
       {

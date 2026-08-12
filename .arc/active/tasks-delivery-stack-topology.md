@@ -114,54 +114,37 @@ installation/update surface, and the decision shapes later execution and lifecyc
         - Extended provisional/canonical cursor, scanner, inventory, renderer, and session-init fixtures; full-document
           replacement passes MD060 without suppression and preserves the exact phase suffix bytes.
 
-### `[ ]` **1.2 Rename the changeset advisory thresholds across config and policy surfaces** — § 8; SC 11
+### `[x]` **1.2 Rename the changeset advisory thresholds across config and policy surfaces** — § 8; SC 11
 
 - _Goal:_ Every current and regenerated project reads the same two changeset-size advisory thresholds under their new
   shared names while preserving disabled defaults and review-boundary behavior without retaining compatibility for
   the old keys.
 
-    - `[ ]` **1.2.a Rename schema, validation, and agent-readable config keys**
-        - Replace the two `review.chunking_threshold_*` keys with `changeset.advisory_threshold_*` in
-          `config/schema.ts`, config validation, status readers, and their typed key registries.
-        - Preserve the current layered failure contract: absence defaults to `0`; config validation rejects a
-          malformed present value; agent-facing status retains the raw-string tolerance; the review-attention
-          command returns its existing key-specific invalid-input diagnostic.
-        - Build `test-first` (one behavior at a time):
-            - Both new keys accept non-negative integers and default to `0`
-            - Missing and malformed values follow the named per-boundary postures
-            - Old keys are rejected or absent rather than treated as aliases
+    - `[x]` **1.2.a Rename schema, validation, and agent-readable config keys**
+        - Moved both unsigned-safe-integer settings into the `changeset.advisory_threshold_*` namespace across the
+          authoritative catalog and validation/status projections; absent values remain `0`, raw status remains
+          tolerant, and malformed command input retains its key-specific refusal.
+        - Added explicit catalog, validation, and status coverage proving the former keys are unknown or absent, not
+          aliases.
 
-    - `[ ]` **1.2.b Rename the policy reader without changing its boundary contract**
-        - Update the review-chunking policy reader, command composition typing, and affected fixtures to consume the
-          new keys; keep the v1 request/envelope shapes unchanged because they carry semantic `{lines, files}`
-          values rather than dotted config names.
-        - Preserve independent dimensions, `0`-disables semantics, exact-target measurement, and advisory-only
-          results.
-        - Build `test-first` (one behavior at a time):
-            - Existing below/above line and file thresholds return shape-equivalent results
-            - Each dimension remains independently disableable
-            - No boundary derivation or universal size cap is introduced
+    - `[x]` **1.2.b Rename the policy reader without changing its boundary contract**
+        - Retargeted the policy parser and command fixtures to the changeset-owned keys while preserving semantic
+          `{lines, files}` request/envelope values, independent dimensions, zero-disable behavior, exact-target
+          measurement, and advisory-only selection.
 
-    - `[ ]` **1.2.c Preserve keys and project overrides through install and update**
-        - Apply targeted edits to package and project `arc-config.yml`; never copy over project-specific values.
-        - Update `update.ts`, init/update/framework-sync fixtures, config formatting, release handlers, and status
-          snapshots that enumerate the keys.
-        - Rename template handling in place. Do not recognize, transfer, migrate, or alias old keys; unpublished
-          installations clear, regenerate, or manually update their development config under the standing posture.
-        - Refresh current installed manifest/pristine identity through the supported self-hosting path while
-          preserving the project copy's deliberately authored values.
-        - Build `test-first` (one behavior at a time):
-            - Fresh init emits only the new disabled defaults
-            - Current package/project edits preserve their independently authored values under the new names
-            - Old keys receive no update-time or runtime compatibility treatment
-            - Package/project sync retains intentional override-only differences
-            - A closed scan of shipped, runtime, config, and active test surfaces finds no old key outside explicit
-              negative fixtures; internal planning artifacts may still name the rename itself
+    - `[x]` **1.2.c Preserve keys and project overrides through install and update**
+        - Renamed package defaults to `0/0` and preserved the project instance's authored `5000/150` values through
+          targeted edits and the supported updater; refreshed installed manifest/pristine identity without aliases
+          or value transfer from former keys.
+        - Updated init, update, framework-sync, status, release, and formatting fixtures; hardened multi-conflict
+          `git merge-file` handling discovered at this Configurable-file seam.
 
-    - `[ ]` **1.2.d Rename adopter-facing documentation consumers**
-        - Update `review-chunking.md` and `strategy-configurability-architecture.md` in both copies.
-        - Name the configured values as exact-target changeset-size advisory thresholds and attention as their derived
-          signal; keep the method's chunk-boundary contract and all other prose behavior unchanged.
+    - `[x]` **1.2.d Rename adopter-facing documentation consumers**
+        - Updated both shipped and installed method/strategy copies to name exact-target changeset-size advisory
+          thresholds and their derived attention signal without changing the chunk-boundary contract.
+
+- _Outcome:_ Config, runtime, policy, install/update, and adopter guidance now share one changeset-owned vocabulary;
+  old names survive only in explicit rejection/no-migration fixtures and immutable planning history.
 
 ### `[ ]` **1.3 Select one delivery-aware attention remedy with sticky suppression** — § 8; SC 11
 

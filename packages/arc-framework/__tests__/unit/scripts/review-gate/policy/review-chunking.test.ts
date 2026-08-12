@@ -8,8 +8,8 @@ import {
 describe("parseReviewChunkingThresholds", () => {
   it("accepts normalized unsigned safe integers including zero", () => {
     expect(parseReviewChunkingThresholds({
-      "review.chunking_threshold_lines": "  \"5000\" ",
-      "review.chunking_threshold_files": "'0'",
+      "changeset.advisory_threshold_lines": "  \"5000\" ",
+      "changeset.advisory_threshold_files": "'0'",
     })).toEqual({
       kind: "valid",
       thresholds: { lines: 5000, files: 0 },
@@ -20,11 +20,11 @@ describe("parseReviewChunkingThresholds", () => {
     "rejects malformed threshold %s",
     (value) => {
       expect(parseReviewChunkingThresholds({
-        "review.chunking_threshold_lines": value,
-        "review.chunking_threshold_files": "0",
+        "changeset.advisory_threshold_lines": value,
+        "changeset.advisory_threshold_files": "0",
       })).toMatchObject({
         kind: "invalid",
-        key: "review.chunking_threshold_lines",
+        key: "changeset.advisory_threshold_lines",
       });
     },
   );

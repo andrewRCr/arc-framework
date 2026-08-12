@@ -380,7 +380,9 @@ export async function gitMergeFile(
     const error = normalizeGitRejection(err, {
       command: "git", args: ["merge-file", "-p", current, base, other],
     });
-    if (error.exitCode === 1) return { content: error.stdout, hasConflicts: true };
+    if (error.exitCode !== undefined && error.exitCode >= 1 && error.exitCode <= 127) {
+      return { content: error.stdout, hasConflicts: true };
+    }
     throw error;
   }
 }

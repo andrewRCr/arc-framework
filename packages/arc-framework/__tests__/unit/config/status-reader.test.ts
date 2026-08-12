@@ -86,8 +86,10 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   });
 
   it("includes review chunking thresholds only in the full settings set", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toContain("review.chunking_threshold_lines");
-    expect(AGENT_CONSUMABLE_KEYS).toContain("review.chunking_threshold_files");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("changeset.advisory_threshold_lines");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("changeset.advisory_threshold_files");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("review.chunking_threshold_lines");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("review.chunking_threshold_files");
   });
 });
 
@@ -114,8 +116,8 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["review.standard_sources"]).toBe("[]");
     expect(result.settings["review.frontline_max_passes"]).toBe("2");
     expect(result.settings["review.standard_max_passes"]).toBe("2");
-    expect(result.settings["review.chunking_threshold_lines"]).toBe("0");
-    expect(result.settings["review.chunking_threshold_files"]).toBe("0");
+    expect(result.settings["changeset.advisory_threshold_lines"]).toBe("0");
+    expect(result.settings["changeset.advisory_threshold_files"]).toBe("0");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
@@ -165,8 +167,8 @@ describe("readConfigSettings — user-supplied values", () => {
       "review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]",
       "review.frontline_max_passes: 3",
       "review.standard_max_passes: 4",
-      "review.chunking_threshold_lines: 5000",
-      "review.chunking_threshold_files: 150",
+      "changeset.advisory_threshold_lines: 5000",
+      "changeset.advisory_threshold_files: 150",
       "pm.mode: arc-in-git",
       "team.mode: true",
       "session.remote_sync: disabled",
@@ -193,8 +195,8 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["review.standard_sources"]).toBe("[coderabbit-pr,codex-pr,delegated-agent]");
     expect(result.settings["review.frontline_max_passes"]).toBe("3");
     expect(result.settings["review.standard_max_passes"]).toBe("4");
-    expect(result.settings["review.chunking_threshold_lines"]).toBe("5000");
-    expect(result.settings["review.chunking_threshold_files"]).toBe("150");
+    expect(result.settings["changeset.advisory_threshold_lines"]).toBe("5000");
+    expect(result.settings["changeset.advisory_threshold_files"]).toBe("150");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["user.notes_push"]).toBe("manual");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
@@ -222,6 +224,19 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.defaultsApplied).not.toContain("branch.protection");
     expect(result.defaultsApplied).toContain("branch.base");
     expect(result.defaultsApplied).toContain("commit.format");
+  });
+
+  it("ignores former review-owned keys and defaults the changeset thresholds", async () => {
+    await writeFile(fixture.configPath, [
+      "review.chunking_threshold_lines: 5000",
+      "review.chunking_threshold_files: 150",
+    ].join("\n"));
+
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["changeset.advisory_threshold_lines"]).toBe("0");
+    expect(result.settings["changeset.advisory_threshold_files"]).toBe("0");
+    expect(result.settings).not.toHaveProperty("review.chunking_threshold_lines");
+    expect(result.settings).not.toHaveProperty("review.chunking_threshold_files");
   });
 
   it("ignores hooks.* keys in the on-disk file", async () => {

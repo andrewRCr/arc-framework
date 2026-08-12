@@ -3,8 +3,8 @@
 import type { ChangeStats } from "../../../lib/change-stats.js";
 
 export const REVIEW_CHUNKING_THRESHOLD_KEYS = [
-  "review.chunking_threshold_lines",
-  "review.chunking_threshold_files",
+  "changeset.advisory_threshold_lines",
+  "changeset.advisory_threshold_files",
 ] as const;
 
 export type ReviewChunkingThresholdKey = (typeof REVIEW_CHUNKING_THRESHOLD_KEYS)[number];
@@ -74,13 +74,13 @@ export function parseReviewChunkingThresholds(
   settings: Record<ReviewChunkingThresholdKey, string>,
 ): ReviewChunkingThresholdParseResult {
   const lines = parseThreshold(
-    "review.chunking_threshold_lines",
-    settings["review.chunking_threshold_lines"],
+    "changeset.advisory_threshold_lines",
+    settings["changeset.advisory_threshold_lines"],
   );
   if (typeof lines !== "number") return lines;
   const files = parseThreshold(
-    "review.chunking_threshold_files",
-    settings["review.chunking_threshold_files"],
+    "changeset.advisory_threshold_files",
+    settings["changeset.advisory_threshold_files"],
   );
   if (typeof files !== "number") return files;
   return { kind: "valid", thresholds: { lines, files } };

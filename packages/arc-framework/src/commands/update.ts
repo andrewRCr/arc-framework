@@ -213,9 +213,9 @@ function migrateUserSyncPush(yamlContent: string): ConfigMigrationResult {
   return { content, changed: changed || content !== yamlContent, warnings };
 }
 
-function migrateReviewChunkingThresholds(yamlContent: string): ConfigMigrationResult {
-  const linesKey = "review.chunking_threshold_lines";
-  const filesKey = "review.chunking_threshold_files";
+function ensureChangesetAdvisoryThresholds(yamlContent: string): ConfigMigrationResult {
+  const linesKey = "changeset.advisory_threshold_lines";
+  const filesKey = "changeset.advisory_threshold_files";
   const lines = yamlContent.split("\n");
   const keys = new Set(lines.map((line) => parseConfigLine(line)?.key).filter(Boolean));
   if (keys.has(linesKey) && keys.has(filesKey)) {
@@ -232,7 +232,7 @@ function migrateReviewChunkingThresholds(yamlContent: string): ConfigMigrationRe
     ]
     : [
       "",
-      "# Exact-target attention tripwires for considering contract-cohesive review chunks.",
+      "# Exact-target changeset-size advisory thresholds for considering contract-cohesive review chunks.",
       "# These are not chunk-size caps or review-provider limits. Either dimension can be",
       "# enabled independently; 0 disables that dimension (both 0 preserves whole-target review).",
       `${linesKey}: 0`,
@@ -366,15 +366,15 @@ export async function runUpdate(
   let templateHasReviewChunkingThresholds = false;
   try {
     const templateConfig = await io.readFile(join(templateDir, ARC_CONFIG_TEMPLATE_PATH));
-    templateHasReviewChunkingThresholds = templateConfig.includes("review.chunking_threshold_lines:")
-      && templateConfig.includes("review.chunking_threshold_files:");
+    templateHasReviewChunkingThresholds = templateConfig.includes("changeset.advisory_threshold_lines:")
+      && templateConfig.includes("changeset.advisory_threshold_files:");
   } catch {
     // The change plan owns missing-template diagnostics.
   }
   if (templateHasReviewChunkingThresholds) {
     const pristineConfig = pristineStore[ARC_CONFIG_TEMPLATE_PATH];
     if (pristineConfig !== undefined) {
-      pristineStore[ARC_CONFIG_TEMPLATE_PATH] = migrateReviewChunkingThresholds(pristineConfig).content;
+      pristineStore[ARC_CONFIG_TEMPLATE_PATH] = ensureChangesetAdvisoryThresholds(pristineConfig).content;
     }
   }
 
@@ -397,14 +397,11 @@ export async function runUpdate(
         if (path !== arcConfigPath) return content;
 
         const notesPushMigration = migrateUserSyncPush(content);
-        const migration = templateHasReviewChunkingThresholds
-          ? migrateReviewChunkingThresholds(notesPushMigration.content)
-          : { content: notesPushMigration.content, changed: false, warnings: [] };
-        if (notesPushMigration.changed || migration.changed) {
+        if (notesPushMigration.changed) {
           migrated.add(ARC_CONFIG_TEMPLATE_PATH);
         }
-        migrationWarnings.push(...notesPushMigration.warnings, ...migration.warnings);
-        return migration.content;
+        migrationWarnings.push(...notesPushMigration.warnings);
+        return notesPushMigration.content;
       },
       writeFile: io.writeFile,
       mkdir: io.mkdir,

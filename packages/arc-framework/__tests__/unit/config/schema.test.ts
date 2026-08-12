@@ -16,6 +16,12 @@ function field(key: string) {
 }
 
 describe("ARC config field catalog", () => {
+  it("does not retain the former review-owned threshold keys", () => {
+    const keys = ARC_CONFIG_FIELDS.map(({ key }) => key);
+    expect(keys).not.toContain("review.chunking_threshold_lines");
+    expect(keys).not.toContain("review.chunking_threshold_files");
+  });
+
   it("accepts every enum and boolean token while rejecting neighboring values", () => {
     const domains: Record<string, readonly string[]> = {
       "branch.protection": ["partial", "full"],
@@ -75,7 +81,7 @@ describe("ARC config field catalog", () => {
   });
 
   it("accepts exact unsigned safe-integer domains, including all-zero strings", () => {
-    for (const key of ["review.chunking_threshold_lines", "review.chunking_threshold_files"]) {
+    for (const key of ["changeset.advisory_threshold_lines", "changeset.advisory_threshold_files"]) {
       const schema = field(key).schema;
       for (const value of [
         "0",
@@ -186,8 +192,8 @@ describe("ARC config field catalog", () => {
       "review.frontline_max_passes",
       "review.standard_max_passes",
       "review.standard_sources",
-      "review.chunking_threshold_lines",
-      "review.chunking_threshold_files",
+      "changeset.advisory_threshold_lines",
+      "changeset.advisory_threshold_files",
     ]);
 
     for (const descriptor of ARC_CONFIG_FIELDS) {
@@ -234,8 +240,8 @@ describe("ARC config field catalog", () => {
       ["review.standard_sources", "[]"],
       ["review.frontline_max_passes", "2"],
       ["review.standard_max_passes", "2"],
-      ["review.chunking_threshold_lines", "0"],
-      ["review.chunking_threshold_files", "0"],
+      ["changeset.advisory_threshold_lines", "0"],
+      ["changeset.advisory_threshold_files", "0"],
       ["pm.mode", "none"],
       ["team.mode", "false"],
       ["session.remote_sync", "enabled"],

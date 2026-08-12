@@ -23,8 +23,8 @@ const request = { schemaVersion: 1, target };
 function config(lines: string, files: string, warnings: string[] = []): ReaderResult {
   return {
     settings: {
-      "review.chunking_threshold_lines": lines,
-      "review.chunking_threshold_files": files,
+      "changeset.advisory_threshold_lines": lines,
+      "changeset.advisory_threshold_files": files,
     } as ReaderResult["settings"],
     defaultsApplied: [],
     warnings,

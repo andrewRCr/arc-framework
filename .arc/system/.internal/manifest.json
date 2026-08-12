@@ -135,7 +135,7 @@
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "eae3e016c8c2bd571c2bd662cbc80ab04a088fdfb252166c8a142e740deb8b7f"
+      "pristine_hash": "3ece93af9c0d0beb7dc5590023f6e97152a6b84e629764606c5409eb0d125646"
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
@@ -210,7 +210,7 @@
     "system/arc-config.yml": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "10dab7c7fbc5e4cac67f5016c47bf8997ea484190a017dad1e20614cefdaa272"
+      "pristine_hash": "6ded9636c185dc1f362c5e587cb58af518c22cbdee1027298de3051ac04f18c2"
     },
     "system/README.md": {
       "classification": "Framework",
@@ -410,7 +410,7 @@
     "system/methods/review-chunking.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "6a6165faf74311f4568cd3308facb5f27a04626c2a61a269322ae834a89a3f3d"
+      "pristine_hash": "ef9b2c8546ab5319d2484eb0896b90e1ed65fe7aba262bfa6a7a258bcdc8fe8f"
     },
     "system/methods/self-review.md": {
       "classification": "Configurable",
