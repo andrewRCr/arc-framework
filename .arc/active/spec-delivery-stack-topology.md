@@ -298,6 +298,12 @@ records, and `ROADMAP` / eventual `STATUS.PROJECT` is a derived view over those 
 view materializes outside the code repository, the boundary supplies no repository path and the rule is vacuous for
 it. Delivery never parses a readiness row or treats rendered Markdown as authority.
 
+The task list's canonical `Delivery Plan` section follows the same authority boundary. The validated plan record and
+its schema own intent; the renderer owns only the sentinel-bounded informative projection. That projection separates
+member identity, member coverage, and seam topology into aligned source-readable tables, renders stack landability at
+plan level, and keeps naturally wrapped seam acceptance outside table cells. Task-generation finalization reviews the
+rendered projection without moving layout ownership into authoring schemas or workflow prose.
+
 Enforcement sites:
 
 - **Eligibility** (§ 1): every disposable candidate, including the candidate representing the terminal member,

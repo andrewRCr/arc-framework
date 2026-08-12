@@ -4,35 +4,67 @@
 
 ---
 
-<!-- markdownlint-disable MD060 -->
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
 - **Plan Revision:** `1`
 - **Plan Digest:** `sha256:abc31452226ec7750a3d31d5833a7953ecc204232e18b1e2ac5018641386bc18`
 - **Projection:** `stack-to-main`
+- **Landability:** All members are `independently-landable`.
 
-| # | Member | Chunk key | Tasks | Design elements | Landability |
-|---|---|---|---|---|---|
-| 1 | Boundary and attention foundation | `boundary-attention` | `1.1`<br>`1.2`<br>`1.3` | `rfc:§ 7`<br>`rfc:§ 8` | `independently-landable` |
-| 2 | Eligibility and projection identity | `eligibility-identity` | `2.1`<br>`2.2`<br>`2.3` | `rfc:§ 1`<br>`rfc:§ 2`<br>`rfc:§ 6` | `independently-landable` |
-| 3 | Unlinked materialization and landing | `unlinked-execution` | `3.1`<br>`3.2`<br>`3.3` | `rfc:§ 10`<br>`rfc:§ 2`<br>`rfc:§ 3` | `independently-landable` |
-| 4 | Reconciliation and terminal handoff | `reconcile-terminal` | `4.1`<br>`4.2`<br>`4.3` | `rfc:§ 4`<br>`rfc:§ 5` | `independently-landable` |
-| 5 | Lifecycle execution and orientation | `lifecycle-surfaces` | `5.1`<br>`5.2`<br>`5.3` | `rfc:§ 10`<br>`rfc:§ 7`<br>`rfc:§ 8` | `independently-landable` |
-| 6 | Native stack composition and lifecycle tail | `native-stack-tail` | `6.1`<br>`6.2`<br>`6.3` | `rfc:§ 9` | `independently-landable` |
+### Members
+
+| #   | Member                                      | Chunk key              |
+| --- | ------------------------------------------- | ---------------------- |
+| 1   | Boundary and attention foundation           | `boundary-attention`   |
+| 2   | Eligibility and projection identity         | `eligibility-identity` |
+| 3   | Unlinked materialization and landing        | `unlinked-execution`   |
+| 4   | Reconciliation and terminal handoff         | `reconcile-terminal`   |
+| 5   | Lifecycle execution and orientation         | `lifecycle-surfaces`   |
+| 6   | Native stack composition and lifecycle tail | `native-stack-tail`    |
+
+#### Member coverage
+
+| #   | Tasks               | Design elements                  |
+| --- | ------------------- | -------------------------------- |
+| 1   | `1.1`, `1.2`, `1.3` | `rfc:§ 7`, `rfc:§ 8`             |
+| 2   | `2.1`, `2.2`, `2.3` | `rfc:§ 1`, `rfc:§ 2`, `rfc:§ 6`  |
+| 3   | `3.1`, `3.2`, `3.3` | `rfc:§ 10`, `rfc:§ 2`, `rfc:§ 3` |
+| 4   | `4.1`, `4.2`, `4.3` | `rfc:§ 4`, `rfc:§ 5`             |
+| 5   | `5.1`, `5.2`, `5.3` | `rfc:§ 10`, `rfc:§ 7`, `rfc:§ 8` |
+| 6   | `6.1`, `6.2`, `6.3` | `rfc:§ 9`                        |
 
 ### Named seams
 
-| Seam | Incident members | Owner | Acceptance | Design elements |
-|---|---|---|---|---|
-| Boundary decision to owned entry | 1, 5 | 5 | A sticky planning outcome reaches one typed delivery entry without a duplicate downstream advisory. | `rfc:§ 7` |
-| Eligibility to materialization | 2, 3 | 3 | Every pushed member head is one validated authored cut and carries the protected-base state at every lifecycle-contribution path. | `rfc:§ 1`<br>`rfc:§ 2`<br>`rfc:§ 6` |
-| Unlinked to linked parity | 3, 4, 6 | 6 | Native composition changes only the observed host arm; refusal returns to the complete unlinked path. | `rfc:§ 9` |
-| Landing to suffix reconciliation | 3, 4 | 4 | One exact-head landing cannot expose the next member until its contribution and bindings reconcile. | `rfc:§ 3`<br>`rfc:§ 4` |
-| Terminal closeout | 4, 5, 6 | 6 | The control branch absorbs the landed prefix and ordinary WU integration carries only the residual tail. | `rfc:§ 5` |
-| Execution to lifecycle surfaces | 3, 4, 5 | 5 | Workflow and session surfaces render typed executor state without acquiring Git, host, or review authority. | `rfc:§ 10`<br>`rfc:§ 7` |
+| #   | Seam                             | Members | Owner | Design elements                 |
+| --- | -------------------------------- | ------- | ----- | ------------------------------- |
+| 1   | Boundary decision to owned entry | 1, 5    | 5     | `rfc:§ 7`                       |
+| 2   | Eligibility to materialization   | 2, 3    | 3     | `rfc:§ 1`, `rfc:§ 2`, `rfc:§ 6` |
+| 3   | Unlinked to linked parity        | 3, 4, 6 | 6     | `rfc:§ 9`                       |
+| 4   | Landing to suffix reconciliation | 3, 4    | 4     | `rfc:§ 3`, `rfc:§ 4`            |
+| 5   | Terminal closeout                | 4, 5, 6 | 6     | `rfc:§ 5`                       |
+| 6   | Execution to lifecycle surfaces  | 3, 4, 5 | 5     | `rfc:§ 10`, `rfc:§ 7`           |
+
+#### Acceptance
+
+- **1. Boundary decision to owned entry:** A sticky planning outcome reaches one typed delivery entry without a
+  duplicate downstream advisory.
+
+- **2. Eligibility to materialization:** Every pushed member head is one validated authored cut and carries the
+  protected-base state at every lifecycle-contribution path.
+
+- **3. Unlinked to linked parity:** Native composition changes only the observed host arm; refusal returns to the
+  complete unlinked path.
+
+- **4. Landing to suffix reconciliation:** One exact-head landing cannot expose the next member until its contribution
+  and bindings reconcile.
+
+- **5. Terminal closeout:** The control branch absorbs the landed prefix and ordinary WU integration carries only the
+  residual tail.
+
+- **6. Execution to lifecycle surfaces:** Workflow and session surfaces render typed executor state without acquiring
+  Git, host, or review authority.
 <!-- arc:delivery-plan:end -->
-<!-- markdownlint-enable MD060 -->
 
 ## **Phase 1:** Boundary and attention foundation
 
@@ -94,8 +126,10 @@ installation/update surface, and the decision shapes later execution and lifecyc
           generated contract and the existing validator; it never copies JSON or hashing mechanics into prose and
           never infers design elements that remain author judgment.
         - Supply the strict caller-authored inventory, run `arc delivery plan from-tasks`, fill only author slots, and
-          run `arc delivery compose`. Place the final workflow interlock after sentinel replacement and the post-settle
-          coherence read; on approval, the existing finalizer writes the pointer for the shared ceremony commit.
+          run `arc delivery compose`. Composition publishes the canonical record, then delegates the exact
+          sentinel-bounded task-list projection to the delivery renderer; the schema and author slots never prescribe
+          table layout. Place the final workflow interlock after renderer replacement and the post-settle coherence
+          read; on approval, the existing finalizer writes the pointer for the shared ceremony commit.
         - Treat the canonical plan as replaceable prebinding intent. It authorizes no ref, change-request, or state
           binding; later candidate eligibility still decides whether materialization may begin.
         - Define drift recovery by abandoning and recreating transient authoring state; never patch machine-owned
@@ -110,14 +144,18 @@ installation/update surface, and the decision shapes later execution and lifecyc
             - The separate authoring registrar avoids a delivery-schema cycle, the schema appears in the generated
               artifact, and its delivery-local verb emits that exact authority without a handwritten copy
             - Finalization supplies exact form-owned design inventory and fills only author slots
-            - Composition replaces the provisional locus and removes transient authoring state
+            - Composition replaces the provisional locus through the delivery renderer and removes transient authoring
+              state; renderer layout does not alter the canonical record's plan digest or schema
+            - The rendered canonical projection satisfies MD060 without suppressions and remains readable as source
             - The existing finalizer writes the meta pointer only after the canonical projection is reviewed
             - Canonical publication leaves delivery unbound and performs no external projection mutation
             - Task or design drift refuses and routes to recreate rather than stale publication
 
     - `[ ]` **1.1.d Make the delivery-plan section an explicit task-list format contract**
-        - Document the optional pre-phase `## Delivery Plan` bootstrap locus and renderer-owned sentinels in
-          `template-tasks.md` and `strategy-task-list-formatting.md`, package and installed copies.
+        - Document the optional pre-phase `## Delivery Plan` bootstrap locus and renderer-owned canonical projection
+          in `template-tasks.md` and `strategy-task-list-formatting.md`, package and installed copies: exact sentinels;
+          aligned member-identity, member-coverage, and seam-topology tables; plan-level stack landability; individually
+          backticked comma-separated identifiers; and naturally wrapped seam acceptance outside the tables.
         - Keep task parsing structural: the plan section contributes no phase, task, tally, or cursor state.
         - Extend cursor, scanner, task-inventory, from-tasks, renderer, and session-init fixtures with a plan section
           before Phase 1 and a canonical replacement round trip.
@@ -125,7 +163,8 @@ installation/update surface, and the decision shapes later execution and lifecyc
             - The first executable cursor remains Task 1.1 with provisional and canonical plan sections
             - Phase/task tallies exclude realistic member rows, task-looking ids, and named seams
             - From-tasks sees only implementation phases and the final verification task
-            - Canonical publication replaces exactly one provisional locus and preserves phase bytes
+            - Canonical publication replaces exactly one provisional locus with the renderer-owned raw-readable layout,
+              passes MD060 without suppression, and preserves phase bytes
 
 ### `[ ]` **1.2 Rename the changeset advisory thresholds across config and policy surfaces** — § 8; SC 11
 
