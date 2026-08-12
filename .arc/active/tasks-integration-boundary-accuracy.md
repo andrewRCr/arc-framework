@@ -126,24 +126,29 @@ pass ledger or findings store. Full rationale in `spec-integration-boundary-accu
   reservations survive publication binding, and fix lineages converge through primary-owned evidence before one
   final full attestation.
 
-### `[ ]` **1.4 Project Candidate and review loci into status and session initialization**
+### `[x]` **1.4 Project Candidate and review loci into status and session initialization**
 
 - _Goal:_ Agent discovery at this boundary is typed and idempotent — six operational loci, each with one next
   action, with no parsing of review config, Candidate digests, pass counts, or narrative fields.
 
-    - `[ ]` **1.4.a Status and session-init locus projection**
-        - `candidate-review-pending`, `candidate-fix-pending`, `candidate-convergence-verification-pending`,
-          `candidate-submit-ready`, `publication-pending`, `hosted-review-pending`; `candidate-submit-ready`
-          may carry only the exact hosted-first deferred reservation
+    - `[x]` **1.4.a Status and session-init locus projection**
+        - Added one strict six-locus contract shared by pre-publication reduction, publication resume projection,
+          active status, checkout-derived status, and session initialization. Candidate-bearing `Active` metadata
+          enters the typed review procedure; `Integrating` metadata projects publication continuation. Deferred
+          reservations remain Candidate-bound and are rejected before private review obligations settle.
 
-    - `[ ]` **1.4.b Precomposed interaction text**
-        - each locus carries one typed next action and precomposed interaction text where needed
+    - `[x]` **1.4.b Precomposed interaction text**
+        - Every locus now carries one validated action kind, command, and non-empty interaction text; the real CLI
+          session-init envelope preserves the projection without requiring narrative reconstruction.
 
     - `[x]` **1.4.c Narrative de-authority**
         - Removed `Next Action` prefix inference from active status and checkout-subject projection: lifecycle
           `State` now owns session scheduling, so an `Active` work unit remains execution even when stale narration
           names integration or archival workflows. Unit, integration, and session-init E2E pins now assert that
           narrative independence.
+
+- _Outcome:_ Candidate/review/publication discovery is one typed six-locus projection carried through status and
+  session initialization; lifecycle scheduling and free-form session narration remain separate axes.
 
 ## **Phase 2:** Submission and the publication boundary
 

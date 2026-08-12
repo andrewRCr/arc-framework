@@ -25,6 +25,7 @@ import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.
 import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
+import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
 const CleanupRemoteEvidenceViewFields = {
@@ -509,6 +510,7 @@ export const ActiveSessionInitValueViewSchema = z
     resolution: z.enum(["none", "single", "multiple"]),
     sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
     planningStage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),
+    integrationBoundary: IntegrationBoundaryLocusSchema.nullable().optional(),
   })
   .loose();
 
@@ -759,6 +761,7 @@ const DerivedCheckoutRowViewSchema = z.object({
     taskCursor: TaskListCursorFileResultSchema.nullable(),
     cohortDocPath: LoadSetPathSchema.nullable(),
     loadSet: LoadSetManifestSchema,
+    integrationBoundary: IntegrationBoundaryLocusSchema.nullable().optional(),
   }).loose().nullable(),
   diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
 }).loose();

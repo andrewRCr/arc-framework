@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
   CandidateLineageTargetSchema,
@@ -19,7 +18,13 @@ import {
   ReviewResolveEnvelopeSchema,
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
-import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
+import {
+  createStandardReviewReservation as buildStandardReviewReservation,
+  IntegrationBoundaryLocusSchema,
+  IntegrationBoundaryNextActionSchema,
+  StandardReviewReservationV1Schema,
+  type StandardReviewReservationV1,
+} from "./integration-boundary-locus.js";
 
 const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ReviewEvidenceReferenceSchema = z.string().trim().min(1);
@@ -50,32 +55,13 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
 });
 export type PrePublicationReviewRequest = z.infer<typeof PrePublicationReviewRequestSchema>;
 
-const PrePublicationNextActionSchema = z.strictObject({
-  kind: z.enum([
-    "run-self-review",
-    "continue-frontline-review",
-    "continue-standard-review",
-    "respond-to-findings",
-    "run-convergence-verification",
-    "submit-candidate",
-  ]),
-  command: z.string().trim().min(1),
-  interactionText: z.string().trim().min(1),
-});
+const PrePublicationNextActionSchema = IntegrationBoundaryNextActionSchema.refine(
+  ({ kind }) => kind !== "continue-publication" && kind !== "continue-hosted-review",
+  "pre-publication action must remain before submission",
+);
 
-export const StandardReviewReservationV1Schema = z.strictObject({
-  schemaVersion: z.literal(1),
-  semanticsVersion: z.literal("standard-review-reservation/v1"),
-  reservationId: CandidateIdSchema,
-  candidateId: CandidateIdSchema,
-  sourceId: z.string().trim().min(1),
-  target: z.strictObject({
-    repository: z.string().trim().min(1),
-    headSha: z.string().regex(/^[a-f0-9]{40}$/u),
-  }),
-  obligation: StandardReviewObligationProjectionSchema,
-});
-export type StandardReviewReservationV1 = z.infer<typeof StandardReviewReservationV1Schema>;
+export { StandardReviewReservationV1Schema } from "./integration-boundary-locus.js";
+export type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
 export const PrePublicationReviewEnvelopeSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -91,6 +77,13 @@ export const PrePublicationReviewEnvelopeSchema = z.strictObject({
   nextAction: PrePublicationNextActionSchema,
   policy: ReviewResolveEnvelopeSchema.nullable(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+}).superRefine((value, context) => {
+  const parsed = IntegrationBoundaryLocusSchema.safeParse(value);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      context.addIssue({ code: "custom", path: issue.path, message: issue.message });
+    }
+  }
 });
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
 
@@ -310,8 +303,11 @@ function createStandardReviewReservation(
     },
     obligation: request.standard.standardReview,
   };
-  return StandardReviewReservationV1Schema.parse({
-    ...fields,
-    reservationId: canonicalDigest({ domain: "arc.standard-review.reservation/v1", ...fields }),
+  return buildStandardReviewReservation({
+    candidateId: fields.candidateId,
+    sourceId: fields.sourceId,
+    repository: fields.target.repository,
+    headSha: fields.target.headSha,
+    obligation: fields.obligation,
   });
 }

@@ -33,6 +33,10 @@ import type {
   SessionType,
   MetaFileCandidate,
 } from "./types.js";
+import {
+  projectCandidateReviewBoundary,
+  projectPublicationBoundary,
+} from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
   "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
@@ -101,7 +105,8 @@ function inferFromBranchPattern(currentBranch: string | null): SessionType | nul
 export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
-  const { layout, candidates, warnings } = await readActiveMetaCandidates(options.cwd);
+  const { layout, candidates: rawCandidates, warnings } = await readActiveMetaCandidates(options.cwd);
+  const candidates = rawCandidates.map(projectCandidateIntegrationBoundary);
   return {
     mode: "full",
     layout,
@@ -155,6 +160,7 @@ export async function runActiveSessionInitStatusInternal(
       sessionType: inferFromBranchPattern(currentBranch),
       currentWorkflow: null,
       planningStage: null,
+      integrationBoundary: null,
       warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
     }, resolved: null, candidates: [] };
   }
@@ -164,7 +170,8 @@ export async function runActiveSessionInitStatusInternal(
     readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
   ]);
-  const semantic = resolveCandidateSemantics(scan.candidates, role, identity, scan.warnings);
+  const projected = scan.candidates.map(projectCandidateIntegrationBoundary);
+  const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
   const resolved = result.resolution === "single"
     ? semantic.candidates.find((entry) => entry.candidate.path === result.path) ?? null
@@ -290,6 +297,7 @@ async function resolveSessionInit(
     ...fields,
     currentWorkflow: null,
     planningStage: null,
+    integrationBoundary: null,
     warnings,
   };
 
@@ -302,10 +310,34 @@ async function resolveSessionInit(
       if (companions !== undefined) result.companions = companions;
       result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
       result.planningStage = resolvePlanningStage(result.currentWorkflow, fields.sessionType);
+      result.integrationBoundary = only.integrationBoundary ?? null;
     }
   }
 
   return result;
+}
+
+function projectCandidateIntegrationBoundary(candidate: MetaFileCandidate): MetaFileCandidate {
+  if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
+  const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
+  const slug = match?.[1];
+  if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
+  if (candidate.state === "Integrating") {
+    return {
+      ...candidate,
+      integrationBoundary: projectPublicationBoundary({
+        workUnit: slug,
+        candidateId: candidate.candidateId,
+        state: "publication-pending",
+        reservation: null,
+      }),
+    };
+  }
+  if (candidate.state !== "Active") return candidate;
+  return {
+    ...candidate,
+    integrationBoundary: projectCandidateReviewBoundary({ workUnit: slug, candidateId: candidate.candidateId }),
+  };
 }
 
 export function resolveTaskListPath(

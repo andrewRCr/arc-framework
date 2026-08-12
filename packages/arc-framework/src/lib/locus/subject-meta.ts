@@ -20,6 +20,11 @@ import {
   type TaskListCursorFileResult,
 } from "../task-list/file-cursor.js";
 import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
+import {
+  projectCandidateReviewBoundary,
+  projectPublicationBoundary,
+  type IntegrationBoundaryLocus,
+} from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 export interface SubjectMetaIO {
   readFile(path: string): Promise<string>;
@@ -42,6 +47,7 @@ export type SubjectMetaProjection =
       taskCursor: TaskListCursorFileResult | null;
       cohortDocPath: string | null;
       loadSet: LoadSetManifest;
+      integrationBoundary?: IntegrationBoundaryLocus | null;
     };
 
 /** Select one exact subject meta and derive its workflow state with reads pinned to its checkout. */
@@ -97,6 +103,18 @@ export async function projectCheckoutSubjectMeta(options: {
     ? "integration"
     : inferSessionType(record.state, record.taskList, record.branch);
   const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
+  const integrationBoundary = record.candidateId === null
+    ? null
+    : record.state === "Integrating"
+      ? projectPublicationBoundary({
+          workUnit: options.subjectKey,
+          candidateId: record.candidateId,
+          state: "publication-pending",
+          reservation: null,
+        })
+      : record.state === "Active"
+        ? projectCandidateReviewBoundary({ workUnit: options.subjectKey, candidateId: record.candidateId })
+        : null;
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null
     ? null
@@ -136,6 +154,7 @@ export async function projectCheckoutSubjectMeta(options: {
       activeExtensions: options.activeExtensions ?? [],
       cohortDocPath,
     }),
+    integrationBoundary,
   };
 }
 

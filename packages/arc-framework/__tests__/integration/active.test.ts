@@ -43,6 +43,7 @@ function statusBody(fields: {
   nextTask?: string;
   taskList?: string;
   nextAction?: string;
+  candidateId?: string;
 }): string {
   const lines: string[] = [
     "# Metadata: fixture",
@@ -55,6 +56,7 @@ function statusBody(fields: {
     lines.push(`- **Current Workflow:** ${fields.currentWorkflow}`);
   }
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
+  if (fields.candidateId !== undefined) lines.push(`- **Candidate:** ${fields.candidateId}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.nextAction !== undefined) lines.push(`- **Next Action:** ${fields.nextAction}`);
   return lines.join("\n");
@@ -811,6 +813,33 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("execution");
+  });
+
+  it("projects a Candidate review locus independently of narrative fields", async () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "archive-work-unit Step 1",
+        candidateId,
+      }),
+    );
+
+    const full = await runActiveStatus({ cwd: fixture.root });
+    expect(full.candidates[0]?.integrationBoundary?.locus).toBe("candidate-review-pending");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.integrationBoundary).toMatchObject({
+      candidateId,
+      locus: "candidate-review-pending",
+      nextAction: {
+        kind: "run-self-review",
+        command: "arc review pre-publication foo --json",
+      },
+    });
   });
 
   it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {

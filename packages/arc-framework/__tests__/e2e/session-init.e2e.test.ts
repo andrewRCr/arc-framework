@@ -65,6 +65,11 @@ interface SessionInitEnvelope {
     value?: {
       resolution: string;
       sessionType: string | null;
+      integrationBoundary?: {
+        candidateId: string;
+        locus: string;
+        nextAction: { kind: string; command: string; interactionText: string };
+      } | null;
       path: string | null;
     };
   };
@@ -256,7 +261,7 @@ async function writeStatusFixture(
   arcRoot: string,
   category: string,
   stem: string,
-  fields: { taskList?: string; nextAction: string },
+  fields: { taskList?: string; nextAction: string; candidateId?: string },
 ): Promise<void> {
   await git(arcRoot, ["add", "-A"]);
   await git(arcRoot, ["commit", "--allow-empty", "-m", "initialize fixture"]);
@@ -273,6 +278,7 @@ async function writeStatusFixture(
   if (fields.taskList !== undefined) {
     lines.push(`- **Task List:** ${fields.taskList}`);
   }
+  if (fields.candidateId !== undefined) lines.push(`- **Candidate:** ${fields.candidateId}`);
   lines.push(`- **Next Action:** ${fields.nextAction}`);
   await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
 }
@@ -718,6 +724,27 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
     expect(envelope.active.value?.sessionType).toBe("execution");
+  });
+
+  it("carries the typed Candidate resume locus through session initialization", async () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    await writeStatusFixture(tmpDir, "technical", "foo", {
+      taskList: "`.arc/active/tasks-foo.md`",
+      nextAction: "archive-work-unit Step 1",
+      candidateId,
+    });
+
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+    const envelope = parseJsonEnvelope(result.stdout);
+    expect(envelope.active.value?.integrationBoundary).toMatchObject({
+      candidateId,
+      locus: "candidate-review-pending",
+      nextAction: {
+        kind: "run-self-review",
+        command: "arc review pre-publication foo --json",
+      },
+    });
   });
 });
 

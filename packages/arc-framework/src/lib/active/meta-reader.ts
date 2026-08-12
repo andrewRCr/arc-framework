@@ -170,6 +170,8 @@ async function parseCandidate(
     path: rel,
     filename,
     branch: parsed.branch,
+    candidateId: parsed.candidateId,
+    integrationBoundary: null,
     state: parsed.state,
     nextTask: parsed.nextTask,
     taskList: parsed.taskList,
@@ -180,6 +182,7 @@ async function parseCandidate(
 
 export interface ParsedMetaFields {
   branch: string | null;
+  candidateId: string | null;
   state: string | null;
   nextTask: string | null;
   taskList: string | null;
@@ -208,6 +211,7 @@ export function parseMetaFile(content: string): ParsedMetaFields {
   const record = parseMetaProjectionRecord(content);
   return {
     branch: record.Branch,
+    candidateId: nullableProjectionValue(record.Candidate),
     state: record.State,
     nextTask: record["Next Task"],
     taskList: record["Task List"],

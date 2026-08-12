@@ -633,6 +633,7 @@ function projectDerivedActiveSession(frame: DerivedLocusFrame): ActiveSessionIni
       sessionType: null,
       currentWorkflow: null,
       planningStage: null,
+      integrationBoundary: null,
       warnings: [],
     };
   }
@@ -646,6 +647,7 @@ function projectDerivedActiveSession(frame: DerivedLocusFrame): ActiveSessionIni
     sessionType: context.sessionType,
     currentWorkflow: context.workflow,
     planningStage: context.stage,
+    integrationBoundary: context.integrationBoundary ?? null,
     warnings: [],
   };
 }

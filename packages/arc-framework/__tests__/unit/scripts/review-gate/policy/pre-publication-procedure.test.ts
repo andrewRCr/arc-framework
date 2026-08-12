@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
 import {
+  IntegrationBoundaryLocusSchema,
+  projectPublicationBoundary,
+} from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
   type CandidateManagedRecordV1,
@@ -28,6 +32,48 @@ const standardReview = {
   retrigger: "full-final" as const,
   count: 1 as const,
 };
+
+describe("integration boundary locus", () => {
+  it("projects publication and hosted-review resume points with precomposed actions", () => {
+    expect(projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      state: "publication-pending",
+      reservation: null,
+    })).toMatchObject({
+      locus: "publication-pending",
+      nextAction: {
+        kind: "continue-publication",
+        command: "arc submit example --json",
+      },
+    });
+
+    expect(projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      state: "hosted-review-pending",
+      reservation: null,
+    })).toMatchObject({
+      locus: "hosted-review-pending",
+      nextAction: {
+        kind: "continue-hosted-review",
+        command: "arc review pre-publication example --json",
+      },
+    });
+  });
+
+  it("rejects a deferred reservation outside candidate submit readiness", () => {
+    const ready = projectPrePublicationReview(request({
+      selfReview: "settled",
+      frontline: { ...request().frontline, frontlineActive: false, sources: [] },
+    }));
+    expect(ready.reservation).not.toBeNull();
+    expect(() => IntegrationBoundaryLocusSchema.parse({
+      ...ready,
+      locus: "candidate-review-pending",
+    })).toThrow();
+  });
+});
 
 function request(overrides: Record<string, unknown> = {}) {
   return {
