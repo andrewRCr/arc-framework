@@ -512,4 +512,27 @@ describe("reconcileDeliveryOperation", () => {
       });
     }
   });
+
+  it("adopts only a matching host-assigned result and retains ambiguous publish or land reservations", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    for (const request of [
+      { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
+      { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
+    ]) {
+      const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+      expect(reserved.status).toBe("reserved");
+      if (reserved.status !== "reserved") continue;
+      const current = { revision: STATE_REVISION + 1, value: reserved.state };
+      expect(reconcileDeliveryOperation(current, { outcome: "not-applied" })).toEqual({
+        status: "retry",
+        operationId: request.operationId,
+      });
+      expect(reconcileDeliveryOperation(current, { outcome: "ambiguous" })).toEqual({
+        status: "blocked",
+        reason: "ambiguous-result",
+      });
+      expect(current.value.activeOperation).not.toBeNull();
+    }
+  });
 });

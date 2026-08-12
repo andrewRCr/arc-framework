@@ -291,41 +291,25 @@ exact-head review admission, one guarded landing, and interruption-safe recovery
   state, every later coordinate mutation uses the single reservation slot, and the terminal remains ordinary control
   branch authority.
 
-### `[ ]` **3.3 Prepare, apply, and recover one exact-head landing** — § 3, § 10; SC 4, SC 6
+### `[x]` **3.3 Prepare, apply, and recover one exact-head landing** — § 3, § 10; SC 4, SC 6
 
 - _Goal:_ No non-terminal member mutates the protected base without one exact-head authorization, and interruption
   never turns a prior approval into authority for a retry.
 
-    - `[ ]` **3.3.a Prepare the sole landable member and typed interlock result**
-        - Compose `deriveDeliveryPosition`, fresh host facts, `assessDeliveryMemberReadiness`, and
-          `reserveDeliveryOperation` to select one non-terminal member with every predecessor landed.
-        - Run delivery-member readiness unconditionally; merge locking is only an additional configured transition.
-          Return the exact member/head, settled review state, merge strategy, and consequence for the workflow
-          interlock, and perform no merge.
-        - Build `test-first` (one behavior at a time):
-            - Terminal, out-of-order, unbound, stale-plan, active-operation, and non-unique-request cases refuse
-            - Disabled merge locking still runs readiness
-            - Prepare reserves exact admissible inputs, emits one presentation, and calls no merge port
+    - `[x]` **3.3.a Prepare the sole landable member and typed interlock result**
+        - Preparation now composes exact plan position, unique open-request facts, unconditional delivery readiness,
+          and one land reservation into a transient member/head/strategy/consequence presentation without merging.
 
-    - `[ ]` **3.3.b Apply only after approval and record the unique host result**
-        - On the workflow's post-approval invocation, reobserve Git/host/check/review/target/predecessor facts, release
-          the configured lock, recheck the operation precondition, and perform one configured-strategy head-matched
-          merge.
-        - Uniquely observe the resulting protected target, accept the reserved admissible effect, version-record the
-          actual landed coordinates, and clear; the unlinked path refuses queue, batch, prefix, cross-repository, and
-          terminal effects.
-        - Build `test-first` (one behavior at a time):
-            - Approval reaches exactly one member/head and success performs one merge plus one state transition
-            - Head, review, check, lock, target, predecessor, or state drift blocks before mutation
-            - `merge`, `rebase`, and `squash` map correctly while queued or ambiguous results retain the reservation
+    - `[x]` **3.3.b Apply only after approval and record the unique host result**
+        - Apply echoes the authorized member/head identity, freshly rechecks request and readiness facts, releases an
+          optional lock, rechecks the reservation, performs one head-matched merge, and records the observed target.
 
-    - `[ ]` **3.3.c Reconcile every materialize, publish, and land crash window**
-        - Read the reservation first, freshly observe Git/host state, and return strict applied/retryable/blocked
-          envelopes with precomposed guidance; never clear on stale tokens, persistence failure, or ambiguity.
-        - Cover reservation, external mutation, result persistence, and clear boundaries against temp repositories
-          and a substituted host.
-        - Prove exact non-application retries once, attended `land` returns to prepare and re-fires the interlock, one
-          active operation remains invariant, and no verdict or approval is persisted.
+    - `[x]` **3.3.c Reconcile every materialize, publish, and land crash window**
+        - Recovery now returns closed applied/retryable/blocked guidance, retains reservations on ambiguity or CAS
+          failure, and routes attended land nonapplication back through a new prepare/interlock cycle.
+
+- _Outcome:_ Provider-independent execution now reaches one exact, attended non-terminal landing while preserving
+  single-operation crash recovery; no workflow approval or review verdict becomes durable delivery state.
 
 ## **Phase 4:** Suffix reconciliation and terminal handoff
 
