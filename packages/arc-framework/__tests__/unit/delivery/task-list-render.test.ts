@@ -24,6 +24,8 @@ function plan(options: {
   readonly oneMember?: boolean;
   readonly unicode?: boolean;
   readonly longAcceptance?: boolean;
+  readonly longSeamTitle?: boolean;
+  readonly unbrokenAcceptance?: boolean;
 } = {}): DeliveryPlanV1 {
   const firstId = digest("first-id");
   const secondId = digest("second-id");
@@ -72,8 +74,12 @@ function plan(options: {
     members,
     seams: options.oneMember === true ? [] : [{
       seamKey: "contract",
-      title: options.longAcceptance === true ? "Landing to suffix reconciliation" : "Cross-member contract",
-      acceptance: options.longAcceptance === true
+      title: options.longSeamTitle === true
+        ? Array.from({ length: 30 }, (_, index) => `boundary-${String(index + 1)}`).join(" ")
+        : options.longAcceptance === true ? "Landing to suffix reconciliation" : "Cross-member contract",
+      acceptance: options.unbrokenAcceptance === true
+        ? "x".repeat(150)
+        : options.longAcceptance === true
         ? "Every pushed member head is one validated authored cut and carries the protected-base state at every lifecycle-contribution path without introducing a second authority."
         : "Both | sides agree",
       incidentDeliverableIds: [firstId, secondId],
@@ -194,6 +200,43 @@ describe("delivery task-list projection", () => {
 
     expect(results["tasks.md"]).toEqual([]);
     expect(Math.max(...section.split("\n").map(displayWidth))).toBeLessThanOrEqual(120);
+  });
+
+  it("wraps a long breakable seam label for the Markdown gate", async () => {
+    const section = renderDeliveryPlanSection(plan({ longSeamTitle: true }));
+    const results = await lint({
+      strings: { "tasks.md": section },
+      config: {
+        default: false,
+        MD013: { line_length: 120, tables: false },
+        MD060: { style: "aligned" },
+      },
+    });
+
+    expect(results["tasks.md"]).toEqual([]);
+    expect(Math.max(...section.split("\n")
+      .filter((line) => !line.startsWith("|"))
+      .map(displayWidth))).toBeLessThanOrEqual(120);
+  });
+
+  it("preserves an indivisible acceptance token while keeping the Markdown gate green", async () => {
+    const token = "x".repeat(150);
+    const section = renderDeliveryPlanSection(plan({ unbrokenAcceptance: true }));
+    const lines = section.split("\n");
+    const tokenLine = lines.find((line) => line.includes(token));
+    const results = await lint({
+      strings: { "tasks.md": section },
+      config: {
+        default: false,
+        MD013: { line_length: 120, tables: false },
+        MD060: { style: "aligned" },
+      },
+    });
+
+    expect(results["tasks.md"]).toEqual([]);
+    expect(tokenLine).toBeDefined();
+    expect(displayWidth(tokenLine ?? "")).toBeGreaterThan(120);
+    expect(Math.max(...lines.filter((line) => line !== tokenLine).map(displayWidth))).toBeLessThanOrEqual(120);
   });
 
   it("keeps nonuniform stack landability visible instead of overstating the summary", () => {

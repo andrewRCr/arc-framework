@@ -74,13 +74,12 @@ function renderAlignedTable(headings: readonly string[], rows: readonly (readonl
 }
 
 function wrapLabeledBullet(label: string, value: string): string[] {
-  const prefix = `- **${label}:**`;
-  const words = inlineText(value).split(/\s+/u);
+  const words = inlineText(`**${label}:** ${value}`).split(/\s+/u);
   const lines: string[] = [];
-  let current = prefix;
+  let current = "-";
   for (const word of words) {
     const candidate = `${current} ${word}`;
-    if (displayWidth(candidate) > DELIVERY_PLAN_WRAP_COLUMN) {
+    if (current !== "-" && displayWidth(candidate) > DELIVERY_PLAN_WRAP_COLUMN) {
       lines.push(current);
       current = `  ${word}`;
     } else {
