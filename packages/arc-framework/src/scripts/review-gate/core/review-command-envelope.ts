@@ -175,11 +175,15 @@ const ReviewChunkingBelowThresholdPayloadSchema = z.strictObject(
   }
 });
 
-const ReviewChunkingConsiderPayloadSchema = z.strictObject({
+const ReviewChunkingTrippedPayloadShape = {
   ...ReviewChunkingMeasuredPayload,
   tripped: z.array(z.enum(["lines", "files"])).min(1),
-  advisory: z.string().trim().min(1),
-}).superRefine((payload, context) => {
+};
+
+function refineReviewChunkingTrippedPayload(
+  payload: z.infer<z.ZodObject<typeof ReviewChunkingTrippedPayloadShape>>,
+  context: z.RefinementCtx,
+): void {
   const expected = trippedReviewChunkingDimensions(payload);
   const exact = payload.tripped.length === expected.length
     && payload.tripped.every((dimension, index) => dimension === expected[index]);
@@ -190,7 +194,24 @@ const ReviewChunkingConsiderPayloadSchema = z.strictObject({
       path: ["tripped"],
     });
   }
-});
+}
+
+const ReviewChunkingSilentTrippedPayloadSchema = z.strictObject(
+  ReviewChunkingTrippedPayloadShape,
+).superRefine(refineReviewChunkingTrippedPayload);
+
+const ReviewChunkingConsiderPayloadSchema = z.strictObject({
+  ...ReviewChunkingTrippedPayloadShape,
+  remedy: z.literal("review-chunks"),
+  recommendedActionText: z.string().trim().min(1),
+}).superRefine(refineReviewChunkingTrippedPayload);
+
+const ReviewChunkingDeliveryBoundPayloadSchema = z.strictObject({
+  ...ReviewChunkingTrippedPayloadShape,
+  planId: IdentifierSchema,
+  remedy: z.literal("continue-bound-delivery"),
+  recommendedActionText: z.string().trim().min(1),
+}).superRefine(refineReviewChunkingTrippedPayload);
 
 export const ReviewChunkingResolveEnvelopeSchema = z.union([
   envelopeVariant(
@@ -210,6 +231,24 @@ export const ReviewChunkingResolveEnvelopeSchema = z.union([
     "consider-chunks",
     "select-review-scope",
     ReviewChunkingConsiderPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-chunking-resolve",
+    "scope-selected",
+    "continue-review",
+    ReviewChunkingSilentTrippedPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-chunking-resolve",
+    "evidence-unavailable",
+    "continue-review",
+    ReviewChunkingSilentTrippedPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-chunking-resolve",
+    "delivery-bound",
+    "continue-review",
+    ReviewChunkingDeliveryBoundPayloadSchema,
   ),
 ]);
 

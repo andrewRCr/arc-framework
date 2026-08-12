@@ -12,6 +12,8 @@ import {
 import {
   createReviewTarget,
 } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { ReviewChunkingResolveRequestSchema } from
+  "../../../../src/scripts/review-gate/core/review-chunking-command-schema.js";
 import {
   registerReviewDomainSchemas,
 } from "../../../../src/scripts/review-gate/core/register-review-schemas.js";
@@ -199,6 +201,31 @@ describe("review schema registration", () => {
     }).success).toBe(false);
     expect(registry.meta("review-target")?.version).toBe(2);
     expect(registry.meta("review-target-id-preimage")?.version).toBe(2);
+  });
+
+  it("keeps scope selection exact-target and work-unit identity outside the request", () => {
+    const target = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: "c".repeat(40),
+      headTree: "d".repeat(40),
+    });
+
+    expect(ReviewChunkingResolveRequestSchema.parse({
+      schemaVersion: 1,
+      target,
+      scopeSelection: { mode: "chunked", target },
+    })).toMatchObject({ scopeSelection: { mode: "chunked", target } });
+    expect(ReviewChunkingResolveRequestSchema.safeParse({
+      schemaVersion: 1,
+      target,
+      workUnitId: "delivery-stack-topology",
+    }).success).toBe(false);
   });
 
   it("keeps review imports and vocabulary out of kernel schema modules", () => {

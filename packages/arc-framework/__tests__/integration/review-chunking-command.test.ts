@@ -58,7 +58,11 @@ describe("review chunking command composition", () => {
     const exec = vi.fn(createRawGitExec(root));
     const result = await resolveReviewChunkingCommand(
       { schemaVersion: 1, target: target(root, head, head) },
-      { readSettings: () => readConfigSettings(root), exec },
+      {
+        readSettings: () => readConfigSettings(root),
+        readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
+        exec,
+      },
     );
     expect(result.state).toBe("disabled");
     expect(exec).not.toHaveBeenCalled();
@@ -80,6 +84,7 @@ describe("review chunking command composition", () => {
       readText: async () => JSON.stringify({ schemaVersion: 1, target: firstTarget }),
       resolve: (request) => resolveReviewChunkingCommand(request, {
         readSettings: () => readConfigSettings(root),
+        readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
         exec: createRawGitExec(root),
       }),
       write,
@@ -96,7 +101,11 @@ describe("review chunking command composition", () => {
     const laterHead = git(root, "rev-parse", "HEAD");
     const later = await resolveReviewChunkingCommand(
       { schemaVersion: 1, target: target(root, binaryHead, laterHead) },
-      { readSettings: () => readConfigSettings(root), exec: createRawGitExec(root) },
+      {
+        readSettings: () => readConfigSettings(root),
+        readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
+        exec: createRawGitExec(root),
+      },
     );
     expect(later).toMatchObject({ payload: { metrics: { lines: 1, files: 1 } } });
   });
@@ -124,6 +133,7 @@ describe("review chunking command composition", () => {
       readText: async () => JSON.stringify({ schemaVersion: 1, target: inputTarget }),
       resolve: (request) => resolveReviewChunkingCommand(request, {
         readSettings: () => readConfigSettings(root),
+        readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
         exec: createRawGitExec(root),
       }),
       write,

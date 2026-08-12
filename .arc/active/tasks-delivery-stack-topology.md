@@ -146,67 +146,27 @@ installation/update surface, and the decision shapes later execution and lifecyc
 - _Outcome:_ Config, runtime, policy, install/update, and adopter guidance now share one changeset-owned vocabulary;
   old names survive only in explicit rejection/no-migration fixtures and immutable planning history.
 
-### `[ ]` **1.3 Select one delivery-aware attention remedy with sticky suppression** — § 8; SC 11
+### `[x]` **1.3 Select one delivery-aware attention remedy with sticky suppression** — § 8; SC 11
 
 - _Goal:_ A tripped exact-target signal yields at most one relevant advisory, and typed or recorded prior decisions
   suppress redundant guidance at the layer that owns them.
 
-    - `[ ]` **1.3.a Derive a typed one-remedy attention result**
-        - Extend the review-attention request/result around the review-chunking command schema and policy to consume
-          a fresh delivery-binding view and the existing exact-target `scopeSelection` shape; do not add review
-          operation state.
-        - Encode the complete selector: disabled or below-threshold is silent; exact-target chunk selection is
-          silent; a coherent bound plan emits one delivery-continuation result; an authoritative unbound result
-          recommends chunked review; unavailable delivery evidence is silent with diagnostics.
-        - Pin the envelope union: preserve `disabled / none`, `below-threshold / continue-review`, and
-          `consider-chunks / select-review-scope`; add `scope-selected / continue-review`,
-          `evidence-unavailable / continue-review`, and `delivery-bound / continue-review`. Only `consider-chunks`
-          and `delivery-bound` carry one `remedy` (`review-chunks` or `continue-bound-delivery`) plus one precomposed
-          `recommendedActionText`; measured arms retain exact target, metrics, thresholds, and tripped dimensions.
-        - Keep prose-recorded hold-whole judgment outside the CLI schema and let the workflow suppress before rendering.
-        - Build `test-first` (one behavior at a time):
-            - Disabled or below-threshold metrics stay silent
-            - Selected chunking suppresses only on an exact target match; a stale selection refuses closed
-            - Bound delivery emits delivery-aware continuation wording and never recommends both mechanisms
-            - An authoritative unbound target yields the chunked-review remedy only
-            - Unavailable delivery evidence emits no remedy and preserves diagnostic context
+    - `[x]` **1.3.a Derive a typed one-remedy attention result**
+        - Extended the strict request with exact-target scope selection and the closed result union with silent
+          selected/degraded arms plus mutually exclusive chunking and bound-delivery remedies; hold-whole judgment
+          remains outside CLI state.
 
-    - `[ ]` **1.3.b Bind fresh delivery state at the review composition edge**
-        - At the existing review-command composition boundary, resolve the binding by owning work unit: enumerate
-          current plans through `DeliveryPlanStore`, select by exact `workUnitId`, require at most one match, and
-          read state by that plan identity — the same pattern the session-init position probe prescribes. When the
-          review target is a member-scoped head, additionally validate it through exact member resolution; a
-          terminal or control-branch target resolves bound through the plan scope alone. Validate work-unit, plan,
-          member, and digest coherence behind one narrow total binding reader. The `workUnitId` resolves
-          handler-side from the active locus; the registered strict request schema gains no work-unit field. An
-          invocation at a locus with no owning work unit classifies authoritative-unbound, preserving the errand
-          path's existing advisory.
-        - Compose `RepositoryDeliveryPlanStore` and `RepositoryDeliveryStateStore` through the existing Git-common
-          publisher boundary; extend or generalize the current local delivery-member lookup instead of putting
-          repository access in pure policy.
-        - Contain returned refusals and thrown I/O. Treat malformed, ambiguous, unavailable, or incoherent evidence
-          as advisory evidence loss, never as unbound state or review/integration authority.
-        - Build `test-first` (one behavior at a time):
-            - Bound, authoritative-unbound, malformed, ambiguous, incoherent, and unavailable reads select closed arms
-            - A terminal-entry control-branch target with a bound plan resolves delivery-bound, never
-              authoritative-unbound
-            - State-without-plan, plan mismatch, namespace corruption, and publisher failure remain non-gating
-            - No local delivery record copies review state or verdicts
-            - Every arm performs zero plan/state and review-operation writes
+    - `[x]` **1.3.b Bind fresh delivery state at the review composition edge**
+        - Added a total read-only binding lookup over Git-common plan/state stores, with handler-owned WU resolution,
+          exact member validation, coherent terminal-plan binding, and contained ambiguity, corruption, and I/O loss.
 
-    - `[ ]` **1.3.c Render judgment suppression in the owning workflow**
-        - At the two existing `arc review chunking resolve -` callsites in the package and installed integration
-          workflow, read the boundary method's prose decision before invoking or rendering attention, honor a recorded
-          hold-whole decision until a material evidence delta, and render CLI-composed text verbatim.
-        - Add only closed-result dispatch at those Phase 1 attention callsites: no prose-side state comparison,
-          mechanics, new agent-interpreted markup, or changes to Phase 2 integration authority and behavior.
-        - Preserve both candidate-entry and opened-target re-entry, keep the advisory non-gating and before the
-          ordinary integration mutation window, and prove package/installed workflow coherence.
-        - Update the package and installed `run-errand.md` consumers for exhaustive envelope compatibility. They retain
-          their existing review-scope behavior and add no delivery judgment; every new silent arm continues review.
-        - Cover policy/envelope schema registration, handler/store composition, workflow contracts, and end-to-end
-          disabled, selected, bound, unbound, and degraded arms while leaving ordinary `review resolve` unchanged.
-          Do not build the absent general workflow-eval harness in this work unit.
+    - `[x]` **1.3.c Render judgment suppression in the owning workflow**
+        - Integration now honors sticky boundary prose before both attention callsites and dispatches only typed pairs;
+          Errand consumers exhaust the same union without acquiring delivery judgment, with package parity and real-CLI
+          coverage for disabled, selected, bound, unbound, and degraded results.
+
+- _Outcome:_ One exact changeset signal now selects at most one CLI-composed attention remedy from fresh delivery
+  evidence, while the planning record remains the sole owner of semantic hold-whole suppression.
 
 ## **Phase 2:** Eligibility and projection identity
 
