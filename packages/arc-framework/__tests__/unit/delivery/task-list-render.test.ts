@@ -1,3 +1,4 @@
+import { lint } from "markdownlint/promise";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,6 +6,7 @@ import {
   replaceDeliveryPlanSection,
 } from "../../../src/lib/delivery/task-list-render.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { displayWidth } from "../../../src/lib/markdown/index.js";
 import {
   DeliveryPlanV1Schema,
   type DeliveryPlanV1,
@@ -20,12 +22,16 @@ function plan(options: {
   readonly projection?: "stack-to-main" | "wu-integration-target";
   readonly shared?: boolean;
   readonly oneMember?: boolean;
+  readonly unicode?: boolean;
+  readonly longAcceptance?: boolean;
 } = {}): DeliveryPlanV1 {
   const firstId = digest("first-id");
   const secondId = digest("second-id");
   const members = [{
-    chunkKey: "first",
-    title: "First member",
+    chunkKey: options.unicode === true ? "native-stack-tail" : "first",
+    title: options.unicode === true
+      ? "Native 表 stack composition and lifecycle tail 👩‍💻"
+      : "First member",
     contract: "Publish the first contract",
     taskIds: ["1.1"],
     designElementIds: ["requirements:first"],
@@ -66,11 +72,15 @@ function plan(options: {
     members,
     seams: options.oneMember === true ? [] : [{
       seamKey: "contract",
-      title: "Cross-member contract",
-      acceptance: "Both | sides agree",
+      title: options.longAcceptance === true ? "Landing to suffix reconciliation" : "Cross-member contract",
+      acceptance: options.longAcceptance === true
+        ? "Every pushed member head is one validated authored cut and carries the protected-base state at every lifecycle-contribution path without introducing a second authority."
+        : "Both | sides agree",
       incidentDeliverableIds: [firstId, secondId],
       ownerDeliverableId: secondId,
-      designElementIds: [],
+      designElementIds: options.longAcceptance === true
+        ? ["req:entry", "constraint:base", "arch:authority"]
+        : [],
       semanticFingerprint: digest("seam-fingerprint"),
     }],
     planDigest: digest("plan"),
@@ -153,16 +163,46 @@ describe("delivery task-list projection", () => {
       "- **Plan Revision:** `2`",
       `- **Plan Digest:** \`${digest("plan")}\``,
       "- **Projection:** `stack-to-main`",
-      "",
-      "| # | Member | Chunk key | Tasks | Design elements | Landability |",
     ].join("\n"));
-    expect(section).toContain("| Landability |");
+    expect(section).toContain("- **Landability:** All members are `independently-landable`.");
+    expect(section).toMatch(/\| #\s+\| Member\s+\| Chunk key\s+\|/u);
+    expect(section).toMatch(/\| #\s+\| Tasks\s+\| Design elements\s+\|/u);
     expect(section).toContain("`1.1` (shared)");
+    expect(section).toContain("`1.1` (shared), `1.2`");
+    expect(section).not.toContain("<br>");
     expect(section).not.toContain("Status");
     expect(section).not.toContain("landed (as of landing)");
     expect(section).toContain("Second \\| member");
-    expect(section).toContain("Both \\| sides agree");
-    expect(section).toContain("| Cross-member contract | 1, 2 | 2 |");
+    expect(section).toContain("Both | sides agree");
+    expect(section).toMatch(/\| 1\s+\| Cross-member contract\s+\| 1, 2\s+\| 2\s+\|/u);
+  });
+
+  it("aligns all delivery tables and wraps acceptance prose for the Markdown gate", async () => {
+    const section = renderDeliveryPlanSection(plan({
+      shared: true,
+      unicode: true,
+      longAcceptance: true,
+    }));
+    const results = await lint({
+      strings: { "tasks.md": section },
+      config: {
+        default: false,
+        MD013: { line_length: 120, tables: false },
+        MD060: { style: "aligned" },
+      },
+    });
+
+    expect(results["tasks.md"]).toEqual([]);
+    expect(Math.max(...section.split("\n").map(displayWidth))).toBeLessThanOrEqual(120);
+  });
+
+  it("keeps nonuniform stack landability visible instead of overstating the summary", () => {
+    const mixed = structuredClone(plan());
+    mixed.members[1]!.mainlineLandability = "integration-only";
+
+    expect(renderDeliveryPlanSection(mixed)).toContain(
+      "- **Landability:** 1 `independently-landable`, 2 `integration-only`.",
+    );
   });
 
   it("renders one-member plans in the same shape and omits non-stack landability", () => {
@@ -170,11 +210,13 @@ describe("delivery task-list projection", () => {
       projection: "wu-integration-target",
       oneMember: true,
     }));
-    expect(section).toContain("| # | Member | Chunk key | Tasks | Design elements |");
+    expect(section).toMatch(/\| #\s+\| Member\s+\| Chunk key\s+\|/u);
+    expect(section).toMatch(/\| #\s+\| Tasks\s+\| Design elements\s+\|/u);
     expect(section).not.toContain("Status");
     expect(section).toContain("- **Projection:** `wu-integration-target`");
     expect(section).not.toContain("Landability");
-    expect(section).toContain("| 1 | First member | `first` |");
+    expect(section).toMatch(/\| 1\s+\| First member\s+\| `first`\s+\|/u);
     expect(section).toContain("_None._");
+    expect(section).not.toContain("#### Acceptance");
   });
 });

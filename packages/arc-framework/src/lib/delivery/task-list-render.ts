@@ -4,6 +4,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
 import { atomicWriteFile } from "../fs.js";
+import { displayWidth, padToDisplayWidth } from "../markdown/display-width.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import { DeliveryPlanV1Schema, type DeliveryPlanV1 } from "./schema.js";
 
@@ -39,13 +40,67 @@ export interface DeliveryTaskListRenderer {
   render(plan: DeliveryPlanV1): Promise<DeliveryTaskListRenderResult>;
 }
 
+const DELIVERY_PLAN_WRAP_COLUMN = 120;
+
+function inlineText(value: string): string {
+  return value.replace(/\s*\r?\n\s*/gu, " ");
+}
+
 function tableCell(value: string): string {
-  return value.replaceAll("|", "\\|").replace(/\s*\r?\n\s*/gu, " ");
+  return inlineText(value).replaceAll("|", "\\|");
 }
 
 function displayList(values: readonly string[], code = false): string {
   if (values.length === 0) return "—";
-  return values.map((value) => code ? `\`${tableCell(value)}\`` : tableCell(value)).join("<br>");
+  return values.map((value) => code ? `\`${tableCell(value)}\`` : tableCell(value)).join(", ");
+}
+
+function renderAlignedTable(headings: readonly string[], rows: readonly (readonly string[])[]): string[] {
+  const widths = headings.map((heading, index) => Math.max(
+    3,
+    displayWidth(heading),
+    ...rows.map((row) => displayWidth(row[index] ?? "")),
+  ));
+  const renderRow = (cells: readonly string[]) => (
+    `| ${headings.map((_, index) => (
+      padToDisplayWidth(cells[index] ?? "", widths[index] ?? 3)
+    )).join(" | ")} |`
+  );
+  return [
+    renderRow(headings),
+    `| ${widths.map((width) => "-".repeat(width)).join(" | ")} |`,
+    ...rows.map(renderRow),
+  ];
+}
+
+function wrapLabeledBullet(label: string, value: string): string[] {
+  const prefix = `- **${label}:**`;
+  const words = inlineText(value).split(/\s+/u);
+  const lines: string[] = [];
+  let current = prefix;
+  for (const word of words) {
+    const candidate = `${current} ${word}`;
+    if (displayWidth(candidate) > DELIVERY_PLAN_WRAP_COLUMN) {
+      lines.push(current);
+      current = `  ${word}`;
+    } else {
+      current = candidate;
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
+function landabilitySummary(plan: DeliveryPlanV1): string {
+  const values = new Set(plan.members.map((member) => member.mainlineLandability));
+  if (values.size === 1) {
+    const value = values.values().next().value;
+    return `- **Landability:** All members are \`${value}\`.`;
+  }
+  if (plan.members.length === 0) return "- **Landability:** —";
+  return `- **Landability:** ${plan.members.map((member, index) => (
+    `${index + 1} \`${member.mainlineLandability}\``
+  )).join(", ")}.`;
 }
 
 /** Render the informative section directly from one validated plan record. */
@@ -59,38 +114,49 @@ export function renderDeliveryPlanSection(input: DeliveryPlanV1): string {
   const memberNumber = new Map(plan.members.map((member, index) => (
     [member.deliverableId, index + 1] as const
   )));
-  const headings = stack
-    ? ["#", "Member", "Chunk key", "Tasks", "Design elements", "Landability"]
-    : ["#", "Member", "Chunk key", "Tasks", "Design elements"];
-  const divider = headings.map(() => "---");
-  const memberRows = plan.members.map((member, index) => {
+  const memberIdentityRows = plan.members.map((member, index) => [
+    String(index + 1),
+    tableCell(member.title),
+    `\`${member.chunkKey}\``,
+  ]);
+  const memberCoverageRows = plan.members.map((member, index) => {
     const tasks = member.taskIds.length === 0
       ? "—"
       : member.taskIds.map((taskId) => (
         `\`${taskId}\`${(taskCounts.get(taskId) ?? 0) > 1 ? " (shared)" : ""}`
-      )).join("<br>");
-    const cells = [
+      )).join(", ");
+    return [
       String(index + 1),
-      tableCell(member.title),
-      `\`${member.chunkKey}\``,
       tasks,
       displayList(member.designElementIds, true),
     ];
-    if (stack) cells.push(`\`${member.mainlineLandability}\``);
-    return `| ${cells.join(" | ")} |`;
   });
+  const memberIdentityTable = renderAlignedTable(["#", "Member", "Chunk key"], memberIdentityRows);
+  const memberCoverageTable = renderAlignedTable(["#", "Tasks", "Design elements"], memberCoverageRows);
   const seamLines = plan.seams.length === 0
     ? ["_None._"]
     : [
-      "| Seam | Incident members | Owner | Acceptance | Design elements |",
-      "|---|---|---|---|---|",
-      ...plan.seams.map((seam) => {
-        const incident = seam.incidentDeliverableIds.map((id) => memberNumber.get(id) ?? "?").join(", ");
-        const owner = memberNumber.get(seam.ownerDeliverableId) ?? "?";
-        return `| ${tableCell(seam.title)} | ${incident} | ${owner} | ${tableCell(seam.acceptance)} | ${
-          displayList(seam.designElementIds, true)
-        } |`;
-      }),
+      ...renderAlignedTable(
+        ["#", "Seam", "Members", "Owner", "Design elements"],
+        plan.seams.map((seam, index) => {
+          const incident = seam.incidentDeliverableIds.map((id) => memberNumber.get(id) ?? "?").join(", ");
+          const owner = memberNumber.get(seam.ownerDeliverableId) ?? "?";
+          return [
+            String(index + 1),
+            tableCell(seam.title),
+            incident,
+            String(owner),
+            displayList(seam.designElementIds, true),
+          ];
+        }),
+      ),
+      "",
+      "#### Acceptance",
+      "",
+      ...plan.seams.flatMap((seam, index) => [
+        ...wrapLabeledBullet(`${index + 1}. ${inlineText(seam.title)}`, seam.acceptance),
+        ...index < plan.seams.length - 1 ? [""] : [],
+      ]),
     ];
 
   return [
@@ -100,10 +166,15 @@ export function renderDeliveryPlanSection(input: DeliveryPlanV1): string {
     `- **Plan Revision:** \`${plan.planRevision}\``,
     `- **Plan Digest:** \`${plan.planDigest}\``,
     `- **Projection:** \`${plan.projection.kind}\``,
+    ...stack ? [landabilitySummary(plan)] : [],
     "",
-    `| ${headings.join(" | ")} |`,
-    `|${divider.join("|")}|`,
-    ...memberRows,
+    "### Members",
+    "",
+    ...memberIdentityTable,
+    "",
+    "#### Member coverage",
+    "",
+    ...memberCoverageTable,
     "",
     "### Named seams",
     "",
