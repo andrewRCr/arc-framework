@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** task generation — task list finalized (6 stack members + verification) with delivery plan
-- **Next Task:** Begin Task 1.1 — Define Candidate attestation, currentness, and projection records
+- **Last Completed:** Phase 1 — Candidate attestation and pre-publication review (Tasks 1.1–1.4)
+- **Next Task:** Task 2.1 — Rename the lifecycle transition to `submit` and free the `integrate` namespace (line ~165)
 - **Blockers:** [none] — integration (not planning or implementation) waits on `delivery-stack-topology`
 
-- **Next Action:** Begin Task 1.1.a — CandidateAttestationV1 schema and managed-record projection
+- **Next Action:** Begin Task 2.1.a — rename the load-bearing lifecycle transition in `lifecycle-transitions.ts`
 
 - **PR URL:** [none]
 - **Completed:** [none]
