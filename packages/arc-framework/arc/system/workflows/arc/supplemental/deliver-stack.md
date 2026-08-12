@@ -88,6 +88,44 @@ arc delivery native observe --input - --json
 
 Provider registration never selects member order and never enters the delivery plan or state.
 
+## Select and execute the native landing arm
+
+Immediately after the fresh native observation, select the service-owned arm:
+
+```bash
+arc delivery native land-select --input - --json
+```
+
+The selector derives the exact plan-ordered non-terminal remainder from current plan/state facts. `unlinked`
+continues through the ordinary singleton path below. `blocked` renders `recommendedActionText` and stops. A
+`linked-single` or explicitly selected direct `linked-atomic` result advances to set-wide preparation:
+
+```bash
+arc delivery native land-prepare --input - --json
+```
+
+Render the returned exact member/head set and consequence verbatim, including the atomic residual race. The terminal
+member is never included. Every displayed head has independently passed the existing readiness, review, check, and
+merge-lock reads.
+
+> [!IMPORTANT]
+> `integration-interlock`: Stop after native landing preparation. Surface the exact authorized member/head set and
+> consequence; await approval before proceeding to the native submission.
+
+After approval, submit only the prepared effect:
+
+```bash
+arc delivery native land-submit --input - --json
+arc delivery native land-status --input - --json
+```
+
+Dispatch only on the typed result. `pending` retains the reservation; after a restart, invoke `land-status` with the
+persisted effect identity rather than submitting again. `retryable` / `none-landed` returns to preparation and a
+new interlock.
+`partial-landed`, unavailable, expired, or ambiguous results stop with the reservation intact. An applied
+`linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof, before
+new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
+
 ## Review and land the current member
 
 Read the next action from:

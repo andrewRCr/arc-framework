@@ -502,55 +502,26 @@ executor, preserving plan/state authority and an explicit downgrade path.
 - _Outcome:_ Native registration is now optional host presentation over an ARC-authored exact chain; fresh closed
   observation remains the only arm input, and canonical plan/state schemas remain unchanged.
 
-### `[ ]` **6.2 Land one linked head or the exact remaining set** — § 9; SC 12
+### `[x]` **6.2 Land one linked head or the exact remaining set** — § 9; SC 12
 
 - _Goal:_ Only the host mutation arm changes; every included exact head retains the unlinked executor's ordering,
   review, authorization, reservation, and contribution contracts.
 
-    - `[ ]` **6.2.a Select the landing arm from immediate host observation**
-        - Require a registered stack and merge-commit strategy for the linked arm; unregistered, unsupported, or
-          incompatible cases compose unlinked.
-        - Expose the all-remaining arm only on explicit invocation in direct-merge mode. Exactness is ARC's
-          authorization subject, not a server payload: derive the expected remainder from validated plan/state plus
-          fresh host observation and require the observed host stack to match it exactly at arm selection. Queue
-          mode refuses or visibly downgrades because it may split the prefix into merge groups.
-        - Build `test-first` (one behavior at a time):
-            - Registered plus merge-commit selects linked
-            - Opt-out, unregistered, unsupported, and non-merge strategies select unlinked
-            - Explicit invocation with an exactly matching observed remainder selects atomic; queue mode refuses
-            - Ambiguous observation blocks or downgrades explicitly, never guesses
+    - `[x]` **6.2.a Select the landing arm from immediate host observation**
+        - Added a strict selector that freshly observes the exact plan/state-derived remainder, defaults to linked
+          singleton, admits explicit complete direct atomic selection, and closes queue or ambiguous cases.
 
-    - `[ ]` **6.2.b Execute one asynchronous authorized effect**
-        - Preserve the single-bottom-member path — a singleton pinned-head merge under ordinary integration trust.
-          For explicit all-remaining invocation, derive the complete ordered non-terminal remainder as exactly
-          `plan.members.slice(landedPrefix.length, -1)`, independently run exact-head readiness/review/check/lock
-          validation for every member, reserve one `land` effect over that exact set, and present one interlock
-          naming every head, the atomic consequence, and the § 9 residual-race disclosure; never include the
-          terminal WU member. A partially released merge lock stops before submission with an explicit safe
-          re-hold remedy.
-        - Submit only after fresh set-wide exact reobservation, pinning the selected top change request's head.
-          Attach the host-assigned effect identity to the active operation through an idempotent version-checked
-          transition distinct from the pre-reservation `operationId`; poll/reobserve after restart, honoring `409`
-          existing-request recovery and the documented result-expiry window; add no second operation record or
-          provider registry.
-        - Build `test-first` (one behavior at a time):
-            - Default linked landing submits exactly one bottom member
-            - Atomic landing submits the selected top head only after set-wide validation and one interlock naming
-              the exact remainder
-            - Any included head/check/review/lock drift blocks before submission
-            - The effect identity survives restart; timeout/failure retains the reservation
-            - Adoption is kind-aware: all-landed adopts only after the submitted set and resulting coordinates are
-              authoritatively observed; none-landed retries only under a new interlock; partial or unexpected
-              effects block
+    - `[x]` **6.2.b Execute one asynchronous authorized effect**
+        - Added set-wide readiness, exact native reobservation, one attended reservation/interlock presentation,
+          SHA-pinned async submission, version-checked effect-identity attachment, and restart-safe polling.
 
-    - `[ ]` **6.2.c Reconcile single-member retarget and atomic crash windows**
-        - Feed the observed next-member head/target into Task 4.1's recognized-result path.
-        - Require the same tree/patch contribution proof and new-head review admission; copy no verdict.
-        - Model effect observation as a closed union — `pending`, `all-landed`, `none-landed`, `partial-landed`,
-          `unavailable`, `ambiguous`.
-        - For atomic submission, distinguish identity-persisted polling from the submission-before-persist crash
-          window; fresh all/none facts may adopt a completed effect, but unresolved none-applied state blocks rather
-          than risking duplicate submission. An atomic success has no non-terminal suffix to retarget.
+    - `[x]` **6.2.c Reconcile single-member retarget and atomic crash windows**
+        - Added closed all/none/partial/ambiguous effect reconciliation, immediate-result recovery, and singleton
+          routing through the existing contribution-proven suffix-retarget service before new-head review.
+
+- _Outcome:_ Native landing changes only the host mutation grouping: every selected non-terminal head remains
+  independently admitted and bound to one recoverable `land` operation, while terminal and review authority stay
+  outside provider-native state.
 
 ### `[ ]` **6.3 Degrade visibly to the complete unlinked executor** — § 9; SC 12
 

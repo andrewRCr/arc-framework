@@ -7,6 +7,7 @@ import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
   DeliveryLandEffectV1Schema,
+  DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
   DeliveryOperationSnapshotV1Schema,
   DeliveryPublishEffectV1Schema,
@@ -291,10 +292,48 @@ export function reserveDeliveryOperation(
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
         ? { effect: parsedRequest.data.effect }
         : {}),
+      ...(parsedRequest.data.kind === "land" ? { effectIdentity: null } : {}),
     },
   });
   if (!reserved.success) return { status: "refused", reason: "operation-invalid" };
   return { status: "reserved", state: reserved.data };
+}
+
+export type AttachDeliveryOperationEffectIdentityResult =
+  | { readonly status: "attached" | "already-attached"; readonly state: DeliveryStateV1 }
+  | { readonly status: "refused"; readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "identity-invalid" | "identity-conflict" };
+
+/** Attach one provider-assigned async identity to the existing land reservation. */
+export function attachDeliveryOperationEffectIdentity(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+  operationId: string,
+  identity: unknown,
+): AttachDeliveryOperationEffectIdentityResult {
+  const active = currentOperation(current);
+  if (active.status === "blocked") {
+    return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
+  }
+  if (active.operation.kind !== "land" || active.operation.operationId !== operationId) {
+    return { status: "refused", reason: "wrong-operation" };
+  }
+  const parsedIdentity = DeliveryHostEffectIdentityV1Schema.safeParse(identity);
+  if (!parsedIdentity.success) return { status: "refused", reason: "identity-invalid" };
+  if (active.operation.effectIdentity !== null) {
+    return canonicalize(active.operation.effectIdentity) === canonicalize(parsedIdentity.data)
+      ? { status: "already-attached", state: active.state }
+      : { status: "refused", reason: "identity-conflict" };
+  }
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...active.state,
+    activeOperation: {
+      ...active.operation,
+      stateRevision: current.revision,
+      effectIdentity: parsedIdentity.data,
+    },
+  });
+  return parsed.success
+    ? { status: "attached", state: parsed.data }
+    : { status: "refused", reason: "state-invalid" };
 }
 
 /**

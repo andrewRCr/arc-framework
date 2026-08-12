@@ -22,6 +22,7 @@ import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lif
 import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
 import {
   deleteDeliveryRemoteRef,
+  observeDeliveryRemoteRef,
   publishDeliveryRemoteRef,
   rewriteDeliveryRemoteRef,
 } from "../lib/delivery/git-materialization.js";
@@ -46,9 +47,18 @@ import {
   prepareDeliveryLanding,
   reconcileDeliveryExecution,
 } from "../lib/delivery/landing.js";
-import { executeDeliverySuffixRewrite } from "../lib/delivery/suffix-reconciliation.js";
+import {
+  executeDeliverySuffixRewrite,
+} from "../lib/delivery/suffix-reconciliation.js";
 import { teardownLandedDeliveryMember } from "../lib/delivery/teardown.js";
 import { linkDeliveryNativeStack, observeDeliveryNativeStack } from "../lib/delivery/native-stack.js";
+import {
+  reconcileLinkedNativeDeliverySuffix,
+  reconcileReservedNativeDeliveryMerge,
+  reserveNativeDeliveryLanding,
+  selectNativeDeliveryLandingArm,
+  submitReservedNativeDeliveryMerge,
+} from "../lib/delivery/native-landing.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
@@ -162,6 +172,44 @@ const NativeObserveSchema = z.strictObject({
   members: z.array(NativeMemberSchema).min(2),
 });
 const NativeLinkSchema = NativeObserveSchema.extend({ optIn: z.boolean() });
+const NativeLandingMemberSchema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  changeRequestId: z.string().min(1),
+  headSha: GitObjectIdSchema,
+});
+const NativeSelectSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  facts: DeliveryPositionFactsV1Schema,
+  repository: z.string().min(1),
+  mergeStrategy: z.enum(["merge", "rebase", "squash"]),
+  mergeAction: z.enum(["direct", "queue"]),
+  explicitAtomic: z.boolean(),
+  members: z.array(NativeMemberSchema).min(1),
+});
+const NativeSelectionSchema = z.strictObject({
+  status: z.literal("selected"),
+  arm: z.enum(["unlinked", "linked-single", "linked-atomic"]),
+  members: z.array(NativeLandingMemberSchema).min(1),
+  recommendedActionText: z.string().min(1),
+});
+const NativePrepareSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema, operationId: z.string().min(1), selection: NativeSelectionSchema,
+  facts: DeliveryPositionFactsV1Schema, repository: z.string().min(1), baseRef: z.string().min(1),
+  targetRef: RefSchema, treeRoot: z.string().min(1),
+});
+const NativeMergeRequestSchema = z.strictObject({
+  repository: z.string().min(1), topChangeRequestId: z.string().min(1), topHeadSha: GitObjectIdSchema,
+  mergeAction: z.literal("direct_merge"), mergeMethod: z.literal("merge"),
+});
+const NativeSubmitSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema, operationId: z.string().min(1), request: NativeMergeRequestSchema,
+  treeRoot: z.string().min(1),
+});
+const NativeStatusSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  request: NativeMergeRequestSchema,
+  remote: z.string().min(1).default("origin"),
+});
 
 const RequestSchemas = {
   "eligibility-prepare": PrepareSchema,
@@ -176,6 +224,10 @@ const RequestSchemas = {
   teardown: TeardownSchema,
   "native-observe": NativeObserveSchema,
   "native-link": NativeLinkSchema,
+  "native-land-select": NativeSelectSchema,
+  "native-land-prepare": NativePrepareSchema,
+  "native-land-submit": NativeSubmitSchema,
+  "native-land-status": NativeStatusSchema,
 } as const;
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
@@ -191,6 +243,7 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("applied"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("retryable"), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
+  z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("torn-down"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("registered"), stackNumber: z.number().int().positive() }),
@@ -200,6 +253,10 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("linked"), stackNumber: z.number().int().positive(), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("unlinked"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("downgrade-required"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
+  NativeSelectionSchema,
+  z.strictObject({ status: z.literal("prepared"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }), operationId: z.string().min(1), members: z.array(NativeLandingMemberSchema), consequence: z.string().min(1) }),
+  z.strictObject({ status: z.literal("pending"), effectIdentity: z.string().min(1), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({ status: z.literal("pending"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
 ]);
@@ -374,6 +431,197 @@ async function executeDeliveryCommand(
     return command === "native-observe"
       ? observeDeliveryNativeStack(NativeObserveSchema.parse(request), host)
       : linkDeliveryNativeStack(NativeLinkSchema.parse(request), host);
+  }
+  if (command === "native-land-select") {
+    const parsed = NativeSelectSchema.parse(request);
+    const [planRead, stateRead] = await Promise.all([planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId)]);
+    if (planRead.status !== "ok" || planRead.value === null || stateRead.status !== "ok" || stateRead.value === null) {
+      return { status: "blocked", reason: "delivery-unavailable", recommendedActionText: "Restore canonical delivery state before selecting a landing arm." };
+    }
+    const position = deriveDeliveryPosition(planRead.value, stateRead.value.value, parsed.facts);
+    if (position.status !== "derived") {
+      return { status: "blocked", reason: position.reason, recommendedActionText: "Refresh exact delivery position before selecting a landing arm." };
+    }
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const observation = await observeDeliveryNativeStack({ repository: parsed.repository, members: parsed.members }, host);
+    if (observation.status === "refused") {
+      return { status: "blocked", reason: observation.reason, recommendedActionText: "Repair the exact native-stack input before selecting a landing arm." };
+    }
+    return selectNativeDeliveryLandingArm({
+      plan: planRead.value,
+      landedPrefix: position.position.landedPrefix,
+      observation,
+      mergeStrategy: parsed.mergeStrategy,
+      mergeAction: parsed.mergeAction,
+      explicitAtomic: parsed.explicitAtomic,
+      members: parsed.members.map(({ deliverableId, changeRequestId, headSha }) => ({ deliverableId, changeRequestId, headSha })),
+    });
+  }
+  if (command === "native-land-prepare" || command === "native-land-submit" || command === "native-land-status") {
+    const parsed = (command === "native-land-prepare" ? NativePrepareSchema
+      : command === "native-land-submit" ? NativeSubmitSchema : NativeStatusSchema).parse(request);
+    const [planRead, stateRead] = await Promise.all([planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId)]);
+    if (planRead.status !== "ok" || planRead.value === null || stateRead.status !== "ok" || stateRead.value === null) {
+      return { status: "blocked", reason: "delivery-unavailable", recommendedActionText: "Restore canonical delivery state before continuing." };
+    }
+    const plan = planRead.value;
+    const current = stateRead.value;
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const observeNativeEffect = async (
+      repository: string,
+      operation: Extract<NonNullable<typeof current.value.activeOperation>, { kind: "land" }>,
+    ) => {
+      const target = await host.observeTarget(repository, operation.effect.targetRef);
+      if (target.status !== "observed") return { outcome: "ambiguous" as const };
+      const merged: string[] = [];
+      for (const entry of operation.before.members) {
+        const member = current.value.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
+        if (member?.changeRequest === null || member?.changeRequest === undefined || member.coordinates === null) {
+          return { outcome: "ambiguous" as const };
+        }
+        const observed = await host.readRequest(repository, member.changeRequest);
+        if (observed.status === "observed" && observed.request.state === "merged") merged.push(member.deliverableId);
+      }
+      if (merged.length === 0) return { outcome: "none-landed" as const };
+      if (merged.length !== operation.before.members.length) {
+        return { outcome: "partial-landed" as const, affectedDeliverableIds: merged };
+      }
+      return { outcome: "all-landed" as const, snapshot: {
+        target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
+        members: operation.before.members.map((entry) => ({
+          ...entry,
+          coordinates: {
+            base: entry.coordinates?.base ?? target.coordinates.head,
+            head: target.coordinates.head,
+            tree: target.coordinates.tree,
+          },
+        })),
+      } };
+    };
+    if (command === "native-land-prepare") {
+      const prepare = NativePrepareSchema.parse(parsed);
+      return reserveNativeDeliveryLanding({
+        plan, current, operationId: prepare.operationId, facts: prepare.facts,
+        selection: prepare.selection, repository: prepare.repository, baseRef: prepare.baseRef,
+        targetRef: prepare.targetRef,
+      }, {
+        readiness: async (member) => {
+          const bound = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
+          if (bound?.ref === null || bound?.ref === undefined || bound.coordinates === null || bound.changeRequest === null) {
+            return { status: "refused" as const };
+          }
+          const observed = await host.readRequest(prepare.repository, bound.changeRequest);
+          if (observed.status !== "observed" || observed.request.state !== "open"
+            || observed.request.repository !== prepare.repository || observed.request.headRepository !== prepare.repository
+            || observed.request.headRef !== bound.ref.replace(/^refs\/heads\//u, "")
+            || observed.request.headSha !== bound.coordinates.head
+            || observed.request.baseRef !== prepare.baseRef.replace(/^refs\/heads\//u, "")) {
+            return { status: "refused" as const };
+          }
+          const checked = await evaluateReviewReadiness({
+            schemaVersion: 1, treeRoot: prepare.treeRoot,
+            target: { repository: prepare.repository, pullRequest: Number(member.changeRequestId), headSha: member.headSha },
+            pullRequest: { repository: prepare.repository, number: Number(member.changeRequestId), state: "open", headBranch: "delivery", headSha: member.headSha },
+            vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId: member.deliverableId, workUnitSlug: plan.workUnitId },
+          }, { deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd }) });
+          return { status: checked.state === "ready" ? "ready" as const : "refused" as const };
+        }, stateStore,
+      });
+    }
+    if (command === "native-land-submit") {
+      const submit = NativeSubmitSchema.parse(parsed);
+      const operation = current.value.activeOperation;
+      return submitReservedNativeDeliveryMerge({
+        planId: submit.planId, current, operationId: submit.operationId, request: submit.request,
+      }, {
+        host, stateStore,
+        reobserveSelection: async () => {
+          if (operation?.kind !== "land") return { status: "refused" as const };
+          const expectedMembers = [];
+          for (const [index, entry] of operation.before.members.entries()) {
+            const member = current.value.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
+            const previous = index === 0 ? null : operation.before.members[index - 1];
+            if (member?.ref === null || member?.ref === undefined || member.coordinates === null || member.changeRequest === null) {
+              return { status: "refused" as const };
+            }
+            expectedMembers.push({
+              deliverableId: member.deliverableId,
+              changeRequestId: member.changeRequest.changeRequestId,
+              headRef: member.ref.replace(/^refs\/heads\//u, ""),
+              headSha: member.coordinates.head,
+              baseRef: previous?.ref?.replace(/^refs\/heads\//u, "") ?? operation.effect.baseRef,
+              headRepository: submit.request.repository,
+            });
+          }
+          const observation = await observeDeliveryNativeStack({ repository: submit.request.repository, members: expectedMembers }, host);
+          return { status: observation.status === "registered" ? "exact" as const : "refused" as const };
+        },
+        revalidate: async (deliverableId, headSha) => {
+          const member = current.value.members.find((candidate) => candidate.deliverableId === deliverableId);
+          if (member?.changeRequest === null || member?.changeRequest === undefined) return { status: "refused" as const };
+          const observed = await host.readRequest(submit.request.repository, member.changeRequest);
+          if (observed.status !== "observed" || observed.request.state !== "open"
+            || observed.request.repository !== submit.request.repository
+            || observed.request.headRepository !== submit.request.repository
+            || observed.request.headRef !== member.ref?.replace(/^refs\/heads\//u, "")
+            || observed.request.headSha !== headSha) return { status: "refused" as const };
+          const checked = await evaluateReviewReadiness({
+            schemaVersion: 1, treeRoot: submit.treeRoot,
+            target: { repository: submit.request.repository, pullRequest: Number(member.changeRequest.changeRequestId), headSha },
+            pullRequest: { repository: submit.request.repository, number: Number(member.changeRequest.changeRequestId), state: "open", headBranch: member.ref, headSha },
+            vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId, workUnitSlug: plan.workUnitId },
+          }, { deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd }) });
+          return { status: checked.state === "ready" ? "ready" as const : "refused" as const };
+        },
+        releaseLock: async (deliverableId) => {
+          const member = current.value.members.find((candidate) => candidate.deliverableId === deliverableId);
+          const changeRequestId = Number(member?.changeRequest?.changeRequestId);
+          if (!Number.isSafeInteger(changeRequestId) || changeRequestId <= 0) return { status: "refused" as const };
+          const released = await releaseMergeLock({
+            schemaVersion: 1, treeRoot: submit.treeRoot,
+            target: { repository: submit.request.repository, pullRequest: changeRequestId, headSha: member?.coordinates?.head ?? "" },
+            vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId, workUnitSlug: plan.workUnitId },
+          }, defaultMergeLockPort(cwd));
+          return { status: released.state === "blocked" ? "refused" as const : released.state === "released" ? "released" as const : "not-configured" as const };
+        },
+        observeEffect: async () => operation?.kind === "land"
+          ? observeNativeEffect(submit.request.repository, operation)
+          : { outcome: "ambiguous" as const },
+      });
+    }
+    const status = NativeStatusSchema.parse(parsed);
+    const operation = current.value.activeOperation;
+    if (operation === null || operation.kind !== "land") {
+      return { status: "blocked", reason: "effect-identity-missing", recommendedActionText: "Restore the persisted native land reservation before polling." };
+    }
+    const nativeResult = await reconcileReservedNativeDeliveryMerge({ planId: status.planId, current, request: status.request }, {
+      host, stateStore,
+      observeEffect: () => observeNativeEffect(status.request.repository, operation),
+    });
+    if (nativeResult.status !== "applied") return nativeResult;
+    const rawExec = createRawGitExec(cwd);
+    return reconcileLinkedNativeDeliverySuffix({
+      plan,
+      before: current,
+      landed: nativeResult.state,
+      repository: status.request.repository,
+      protectedTargetRef: operation.effect.targetRef,
+    }, {
+      observeRequest: (binding) => host.readRequest(status.request.repository, binding),
+      observeRef: async (ref) => {
+        const remoteRef = await observeDeliveryRemoteRef(exec, status.remote, ref);
+        if (remoteRef.status !== "observed") return null;
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", status.remote, remoteRef.head]);
+        } catch {
+          return null;
+        }
+        const observed = await observeDeliveryEligibilityRef(exec, remoteRef.head);
+        return observed?.head === remoteRef.head ? observed : null;
+      },
+      proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
+      stateStore,
+    });
   }
 
   if (command === "eligibility-prepare") {

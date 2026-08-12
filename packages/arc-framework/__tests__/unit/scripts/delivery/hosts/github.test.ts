@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { GhDeliveryHostPort } from "../../../../../src/scripts/delivery/hosts/github.js";
 import type { DeliveryNativeStackInput } from "../../../../../src/lib/delivery/native-stack.js";
+import { HostedProcessError } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import type { HostedProcessRunner } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 
 const repository = "andrewRCr/arc-framework";
@@ -64,6 +65,53 @@ describe("GhDeliveryHostPort", () => {
       "-f", "pull_requests[]=401", "-f", "pull_requests[]=402",
     ]);
     expect(calls.flat()).not.toContain("stack");
+  });
+
+  it("normalizes SHA-pinned asynchronous merge submission, 409 adoption, and polling", async () => {
+    const request = {
+      repository, topChangeRequestId: "402", topHeadSha: "b".repeat(40),
+      mergeAction: "direct_merge", mergeMethod: "merge",
+    } as const;
+    const calls: string[][] = [];
+    const asyncRunner: HostedProcessRunner = { run: async (args) => {
+      calls.push(args);
+      return { stdout: JSON.stringify({ status: "pending", details: {
+        uuid: "effect-7", expected_head_sha: request.topHeadSha,
+        merge_method: "merge", merge_action: "direct_merge",
+      } }), stderr: "" };
+    } };
+    const port = new GhDeliveryHostPort(asyncRunner);
+    await expect(port.submitNativeMerge(request)).resolves.toEqual({ status: "submitted", effectIdentity: "effect-7" });
+    await expect(port.observeNativeMerge({ ...request, effectIdentity: "effect-7" }))
+      .resolves.toEqual({ status: "pending" });
+    expect(calls[0]).toContain(`sha=${request.topHeadSha}`);
+
+    const existing: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(JSON.stringify({ status: "pending", details: {
+        uuid: "effect-8", expected_head_sha: request.topHeadSha,
+        merge_method: "merge", merge_action: "direct_merge",
+      } }), "", 1, 409);
+    } };
+    await expect(new GhDeliveryHostPort(existing).submitNativeMerge(request))
+      .resolves.toEqual({ status: "existing", effectIdentity: "effect-8" });
+    const conflicting: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(JSON.stringify({ status: "pending", details: {
+        uuid: "effect-9", expected_head_sha: "c".repeat(40),
+        merge_method: "squash", merge_action: "direct_merge",
+      } }), "", 1, 409);
+    } };
+    await expect(new GhDeliveryHostPort(conflicting).submitNativeMerge(request))
+      .resolves.toEqual({ status: "refused", reason: "malformed" });
+
+    const movedPending: HostedProcessRunner = { run: async () => ({ stdout: JSON.stringify({
+      status: "pending",
+      details: {
+        uuid: "effect-7", expected_head_sha: "c".repeat(40),
+        merge_method: "merge", merge_action: "direct_merge",
+      },
+    }), stderr: "" }) };
+    await expect(new GhDeliveryHostPort(movedPending).observeNativeMerge({ ...request, effectIdentity: "effect-7" }))
+      .resolves.toEqual({ status: "refused", reason: "malformed" });
   });
 
   it("selects exactly one request by repository, head, sha, and base", async () => {

@@ -12,12 +12,18 @@ import type {
   DeliveryLandEffectV1,
   DeliveryPublishEffectV1,
 } from "../../../lib/delivery/schema.js";
-import type { HostedProcessRunner } from "../../review-gate/hosted/gh-process.js";
+import { HostedProcessError, type HostedProcessRunner } from "../../review-gate/hosted/gh-process.js";
 import type {
   DeliveryNativeStackInput,
   DeliveryNativeStackObservation,
   DeliveryNativeStackPort,
 } from "../../../lib/delivery/native-stack.js";
+import type {
+  DeliveryNativeMergeHostPort,
+  DeliveryNativeMergeObservation,
+  DeliveryNativeMergeRequest,
+  DeliveryNativeMergeSubmission,
+} from "../../../lib/delivery/native-landing.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
@@ -83,7 +89,7 @@ function exactObservation(
 }
 
 /** GitHub observations and mutations through the existing bounded `gh` runner. */
-export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort {
+export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort, DeliveryNativeMergeHostPort {
   constructor(private readonly runner: HostedProcessRunner) {}
 
   async observe(input: DeliveryNativeStackInput): Promise<DeliveryNativeStackObservation> {
@@ -139,6 +145,66 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
     } catch (error) {
       const status = record(error)?.httpStatus;
       return { status: "refused", reason: status === 404 ? "unsupported" : "unavailable" };
+    }
+  }
+
+  async submitNativeMerge(input: DeliveryNativeMergeRequest): Promise<DeliveryNativeMergeSubmission> {
+    const normalize = (text: string, existing: boolean): DeliveryNativeMergeSubmission => {
+      const response = record(parse(text));
+      const status = response?.status;
+      const details = record(response?.details);
+      if (status === "merged") return { status: "merged" };
+      if (status === "enqueued") return { status: "enqueued" };
+      if (status !== "pending" || typeof details?.uuid !== "string" || details.uuid === "") {
+        return { status: "refused", reason: "malformed" };
+      }
+      if (details.expected_head_sha !== input.topHeadSha
+        || details.merge_method !== input.mergeMethod || details.merge_action !== input.mergeAction) {
+        return { status: "refused", reason: "malformed" };
+      }
+      return { status: existing ? "existing" : "submitted", effectIdentity: details.uuid };
+    };
+    try {
+      const result = await this.runner.run([
+        "api", `repos/${input.repository}/pulls/${input.topChangeRequestId}/merge-async`,
+        "--method", "PUT", "-f", `sha=${input.topHeadSha}`,
+        "-f", `merge_method=${input.mergeMethod}`, "-f", `merge_action=${input.mergeAction}`,
+      ]);
+      return normalize(result.stdout, false);
+    } catch (error) {
+      if (error instanceof HostedProcessError && error.httpStatus === 409) return normalize(error.message, true);
+      if (error instanceof HostedProcessError && error.httpStatus === 404) {
+        return { status: "refused", reason: "unsupported" };
+      }
+      return { status: "refused", reason: "unavailable" };
+    }
+  }
+
+  async observeNativeMerge(
+    input: DeliveryNativeMergeRequest & { readonly effectIdentity: string },
+  ): Promise<DeliveryNativeMergeObservation> {
+    try {
+      const result = await this.runner.run([
+        "api", `repos/${input.repository}/pulls/${input.topChangeRequestId}/merge-async/${input.effectIdentity}`,
+      ]);
+      const response = record(parse(result.stdout));
+      const status = response?.status;
+      if (status === "pending") {
+        const details = record(response?.details);
+        return details?.uuid === input.effectIdentity
+          && details.expected_head_sha === input.topHeadSha
+          && details.merge_method === input.mergeMethod
+          && details.merge_action === input.mergeAction
+          ? { status }
+          : { status: "refused", reason: "malformed" };
+      }
+      return status === "merged" || status === "enqueued" || status === "failed"
+        ? { status }
+        : { status: "refused", reason: "malformed" };
+    } catch (error) {
+      return error instanceof HostedProcessError && error.httpStatus === 404
+        ? { status: "refused", reason: "expired" }
+        : { status: "refused", reason: "unavailable" };
     }
   }
 

@@ -216,6 +216,12 @@ export const DeliveryLandEffectV1Schema = z.strictObject({
 });
 export type DeliveryLandEffectV1 = z.infer<typeof DeliveryLandEffectV1Schema>;
 
+export const DeliveryHostEffectIdentityV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  effectId: DeliveryOpaqueIdSchema,
+});
+export type DeliveryHostEffectIdentityV1 = z.infer<typeof DeliveryHostEffectIdentityV1Schema>;
+
 /** One crash-recoverable reservation for an external delivery mutation. */
 export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   DeliveryOperationCommonV1Schema.extend({
@@ -234,6 +240,7 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("land"),
     effect: DeliveryLandEffectV1Schema,
+    effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),
   }),
 ]);
 export type DeliveryActiveOperationV1 = z.infer<typeof DeliveryActiveOperationV1Schema>;

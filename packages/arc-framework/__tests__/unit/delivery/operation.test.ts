@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptDeliveryOperationResult,
+  attachDeliveryOperationEffectIdentity,
   checkDeliveryOperationPrecondition,
   reconcileDeliveryOperation,
   reserveDeliveryOperation,
@@ -271,6 +272,24 @@ describe("reserveDeliveryOperation", () => {
 });
 
 describe("delivery operation pre- and post-mutation comparison", () => {
+  it("attaches one async host identity idempotently and advances the operation revision guard", () => {
+    const { current, request } = reservedRecord();
+    const land = { ...current.value.activeOperation!, kind: "land" as const, effect: landEffect(), effectIdentity: null };
+    const record = { ...current, value: { ...current.value, activeOperation: land } };
+    const identity = { providerId: "github", effectId: "merge-request-uuid" };
+    const attached = attachDeliveryOperationEffectIdentity(record, request.operationId, identity);
+    expect(attached.status).toBe("attached");
+    if (attached.status !== "attached") return;
+    expect(attached.state.activeOperation).toMatchObject({ effectIdentity: identity, stateRevision: current.revision });
+    const published = { revision: current.revision + 1, value: attached.state };
+    expect(attachDeliveryOperationEffectIdentity(published, request.operationId, identity))
+      .toEqual({ status: "already-attached", state: attached.state });
+    expect(attachDeliveryOperationEffectIdentity(published, request.operationId, {
+      providerId: "github", effectId: "different",
+    })).toEqual({ status: "refused", reason: "identity-conflict" });
+    expect(checkDeliveryOperationPrecondition(published, request.before)).toMatchObject({ status: "ready" });
+  });
+
   it("is ready only when fresh pre-mutation facts equal the exact source snapshot", () => {
     const { current, request } = reservedRecord();
     expect(checkDeliveryOperationPrecondition(current, request.before)).toEqual({
