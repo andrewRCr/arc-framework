@@ -18,7 +18,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Active`   | delivery-stack-topology       | P1       | andrew | —          | chunked-delivery          |
 | `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment |
 | `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                         |
-| `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                         |
+| `Active`   | integration-boundary-accuracy | P1       | andrew | —          | —                         |
 | `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                         |
 | `Planning` | stub-mint-to-launch           | P1       | andrew | —          | —                         |
 
