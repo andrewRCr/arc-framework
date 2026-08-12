@@ -316,56 +316,27 @@ exact-head review admission, one guarded landing, and interruption-safe recovery
 _Purpose:_ Preserve contribution identity after each landing, rematerialize deliberate fixes from the retained
 control branch, and hand the residual terminal tail to ordinary work-unit integration without a second authority.
 
-### `[ ]` **4.1 Prove retargeted contributions and rebind suffix coordinates** — § 4; SC 5
+### `[x]` **4.1 Prove retargeted contributions and rebind suffix coordinates** — § 4; SC 5
 
 - _Goal:_ The authored contribution remains the only adoptable identity while parent-changing rewrites advance exact
   delivery bindings safely.
 
 - **Additional Context:** `notes-delivery-stack-topology.md` § Contribution-proof mechanics
 
-    - `[ ]` **4.1.a Acquire and compare exact contribution facts**
-        - Pin the four immutable endpoints: before/after predecessor and member heads/trees. Split injected Git fact
-          acquisition from a pure comparator: complete member-tree equality accepts first; otherwise emit and compare
-          one canonical aggregate, whitespace-preserving patch identity for each predecessor-exclusive/member-inclusive
-          contribution.
-        - Specify a strict byte protocol/parser across repository object formats; include binary, rename, and mode
-          changes and refuse unavailable, malformed, or non-linear evidence. Commit reorder/squash is immaterial when
-          the aggregate contribution remains exact.
-        - Build `test-first` (one behavior at a time):
-            - Exact trees accept without invoking patch acquisition
-            - Changed-parent equivalent aggregate contributions accept, including binary/mode/rename cases
-            - Whitespace-only, added, dropped, malformed, missing-object, or non-linear evidence refuses closed
-            - Strict parsing accepts SHA-1 and SHA-256 object widths and rejects truncated output
-        - Add unit coverage plus real temp-repository fixtures for changed-parent/rebased heads.
+    - `[x]` **4.1.a Acquire and compare exact contribution facts**
+        - A strict byte-framed SHA-1/SHA-256 protocol now compares complete member trees first, then exact binary,
+          mode, rename, and whitespace-preserving aggregate Git patches across four verified linear endpoints.
 
-    - `[ ]` **4.1.b Plan explicit and host-initiated suffix retargets from fresh facts**
-        - Keep `rewrite` deterministic and exact. For executor-requested movement, reserve before mutation normally.
-          For already-observed host movement, first prove one coordinate-defined candidate: exactly the current
-          first-unlanded member; stored predecessor just landed; unique request/ref base equals the protected target;
-          contribution is equivalent; every other member/target coordinate is exact; and no operation is active.
-        - After proof, CAS-persist a post-observation exact `rewrite` reservation whose `before` is recorded state and
-          `requested` is the observed snapshot, then reobserve and use ordinary reconciliation. Add a
-          reconciliation-specific position read for this one tolerated movement; do not weaken
-          `deriveDeliveryPosition` or trust delete-on-merge/native provenance labels.
-        - Before the executor-requested retarget push, invoke Task 2.1.c's lifecycle-contribution revalidation
-          entrypoint; the host-initiated recognition arm performs no ARC push and is exempt.
-        - Build `test-first` (one behavior at a time):
-            - Only the immediate suffix member can retarget
-            - A retarget push carrying a fresh lifecycle contribution refuses before mutation
-            - Explicit and uniquely observed movement converge on deterministic exact reconciliation
-            - Movement between recognition, reservation, and reobservation blocks
-            - Request/ref disagreement, a second moved member, stale state, or an active operation blocks
+    - `[x]` **4.1.b Plan explicit and host-initiated suffix retargets from fresh facts**
+        - A separate recognition read tolerates only the moved immediate suffix member; exact request/base facts and
+          equivalent contribution post-reserve host movement, while explicit rewrites revalidate lifecycle paths.
 
-    - `[ ]` **4.1.c Reserve, prove, and version-rebind current coordinates**
-        - Execute `kind: rewrite`, reobserve, prove contribution, and publish one accepted-state CAS update containing
-          the current ref, `coordinates.base/head/tree`, retained request handle, and `activeOperation: null`.
-          Request target remains fresh host observation rather than a new state field; CAS failure leaves the
-          persisted reservation unchanged.
-        - Leave the rebound head's review applicability to existing readiness; copy no verdict or clearance.
-        - Build `test-first` (one behavior at a time):
-            - Applied adopts, non-applied retries, and ambiguous retains the reservation
-            - A version conflict cannot overwrite newer bindings
-            - Rebinding creates no delivery-owned review evidence
+    - `[x]` **4.1.c Reserve, prove, and version-rebind current coordinates**
+        - Exact old-head leases and deterministic `rewrite` reservations converge through reobservation and CAS,
+          retaining the request handle and reservation on ambiguity or version conflict without copying review state.
+
+- _Outcome:_ Suffix movement now has one contribution identity and one convergence path whether initiated explicitly
+  or first observed at the host; ordinary delivery position remains strict outside this reconciliation boundary.
 
 ### `[ ]` **4.2 Rematerialize review fixes and retire proven-landed residue** — § 4; SC 5, SC 6
 

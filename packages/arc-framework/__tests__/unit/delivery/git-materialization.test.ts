@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   observeDeliveryRemoteRef,
   publishDeliveryRemoteRef,
+  rewriteDeliveryRemoteRef,
 } from "../../../src/lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -37,5 +38,33 @@ describe("delivery remote-ref leases", () => {
     const unavailable: GitExec = async () => { throw new Error("offline"); };
     await expect(observeDeliveryRemoteRef(unavailable, "origin", ref))
       .resolves.toEqual({ status: "refused", reason: "unavailable" });
+  });
+
+  it("rewrites only from the exact stored head and adopts an exact applied retry", async () => {
+    const next = "b".repeat(40);
+    let remoteHead = head;
+    const pushes: string[][] = [];
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "ls-remote") return { stdout: `${remoteHead}\t${ref}\n` };
+      pushes.push(args);
+      remoteHead = next;
+      return { stdout: "" };
+    };
+    await expect(rewriteDeliveryRemoteRef({
+      exec, remote: "origin", ref, beforeHead: head, requestedHead: next,
+    })).resolves.toEqual({ status: "rewritten" });
+    expect(pushes).toEqual([[
+      "push", "origin", `${next}:${ref}`, `--force-with-lease=${ref}:${head}`,
+    ]]);
+    await expect(rewriteDeliveryRemoteRef({
+      exec, remote: "origin", ref, beforeHead: head, requestedHead: next,
+    })).resolves.toEqual({ status: "adopted" });
+  });
+
+  it("refuses a rewrite when the live head matches neither source nor result", async () => {
+    const exec: GitExec = async () => ({ stdout: `${"c".repeat(40)}\t${ref}\n` });
+    await expect(rewriteDeliveryRemoteRef({
+      exec, remote: "origin", ref, beforeHead: head, requestedHead: "b".repeat(40),
+    })).resolves.toEqual({ status: "refused", reason: "collision" });
   });
 });

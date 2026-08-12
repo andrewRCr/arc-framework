@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   assessDeliveryMemberReadiness,
   deriveDeliveryPosition,
+  recognizeDeliverySuffixRetarget,
   type DeliveryPositionFactsV1,
 } from "../../../src/lib/delivery/position.js";
 import { deriveDeliveryPlanDigest } from "../../../src/lib/delivery/plan.js";
@@ -238,5 +239,73 @@ describe("assessDeliveryMemberReadiness", () => {
     });
     expect(assessDeliveryMemberReadiness(plan, active, positionFacts(active), selectedId))
       .toEqual({ status: "blocked", reason: "operation-active" });
+  });
+});
+
+describe("recognizeDeliverySuffixRetarget", () => {
+  it("tolerates only the moved first-unlanded member after a landed predecessor", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const targetHead = state.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const [landed, candidate] = state.members;
+    const moved = positionFacts(state, [landed!.deliverableId]);
+    moved.members[1] = {
+      ...moved.members[1]!,
+      coordinates: {
+        base: targetHead,
+        head: "e".repeat(40),
+        tree: "f".repeat(40),
+      },
+    };
+
+    expect(deriveDeliveryPosition(plan, state, moved)).toEqual({
+      status: "refused",
+      reason: "coordinates-moved",
+    });
+    expect(recognizeDeliverySuffixRetarget(plan, state, moved)).toMatchObject({
+      status: "recognized",
+      deliverableId: candidate!.deliverableId,
+      before: { members: [{ coordinates: candidate!.coordinates }] },
+      requested: { members: [{ coordinates: moved.members[1]!.coordinates }] },
+    });
+  });
+
+  it("refuses target drift, a second moved member, no landed predecessor, or an active operation", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const targetHead = state.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const facts = positionFacts(state, [state.members[0]!.deliverableId]);
+    facts.members[1] = {
+      ...facts.members[1]!,
+      coordinates: { base: targetHead, head: "e".repeat(40), tree: "f".repeat(40) },
+    };
+    expect(recognizeDeliverySuffixRetarget(plan, state, {
+      ...facts,
+      target: { ...facts.target!, coordinates: { ...facts.target!.coordinates, tree: "9".repeat(40) } },
+    })).toMatchObject({ status: "refused" });
+    expect(recognizeDeliverySuffixRetarget(plan, state, {
+      ...facts,
+      members: facts.members.map((member, index) => index === 0 ? {
+        ...member,
+        coordinates: { ...member.coordinates!, tree: "8".repeat(40) },
+      } : member),
+    })).toMatchObject({ status: "refused" });
+    expect(recognizeDeliverySuffixRetarget(plan, state, positionFacts(state))).toMatchObject({ status: "refused" });
+    const before = { target: state.target, members: [facts.members[1]!] };
+    const active = DeliveryStateV1Schema.parse({
+      ...state,
+      activeOperation: {
+        operationId: "rewrite",
+        kind: "rewrite",
+        affectedDeliverableIds: [state.members[1]!.deliverableId],
+        stateRevision: 1,
+        boundPlanDigest: plan.planDigest,
+        before,
+        requested: before,
+      },
+    });
+    expect(recognizeDeliverySuffixRetarget(plan, active, facts)).toMatchObject({ status: "refused" });
   });
 });
