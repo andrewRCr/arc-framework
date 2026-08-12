@@ -71,7 +71,7 @@
 _Purpose:_ Establish the renamed planning, changeset-threshold, and attention vocabulary, its complete
 installation/update surface, and the decision shapes later execution and lifecycle consumers can rely on.
 
-### `[ ]` **1.1 Re-charter the boundary-fit checkpoint and its three planning outcomes** — § 7; SC 10
+### `[x]` **1.1 Re-charter the boundary-fit checkpoint and its three planning outcomes** — § 7; SC 10
 
 - _Goal:_ Planning checkpoints produce one durable split, hold, or delivery disposition, and later invocations
   reopen the judgment only when the evidence changed.
@@ -106,20 +106,13 @@ installation/update surface, and the decision shapes later execution and lifecyc
           final review, and the existing meta finalizer while preserving prebinding/no-external-mutation boundaries.
         - Added focused schema, handler, command-input, workflow-order, build-artifact, and E2E authoring coverage.
 
-    - `[ ]` **1.1.d Make the delivery-plan section an explicit task-list format contract**
-        - Document the optional pre-phase `## Delivery Plan` bootstrap locus and renderer-owned canonical projection
-          in `template-tasks.md` and `strategy-task-list-formatting.md`, package and installed copies: exact sentinels;
-          aligned member-identity, member-coverage, and seam-topology tables; plan-level stack landability; individually
-          backticked comma-separated identifiers; and naturally wrapped seam acceptance outside the tables.
-        - Keep task parsing structural: the plan section contributes no phase, task, tally, or cursor state.
-        - Extend cursor, scanner, task-inventory, from-tasks, renderer, and session-init fixtures with a plan section
-          before Phase 1 and a canonical replacement round trip.
-        - Build `test-first` (one behavior at a time):
-            - The first executable cursor remains Task 1.1 with provisional and canonical plan sections
-            - Phase/task tallies exclude realistic member rows, task-looking ids, and named seams
-            - From-tasks sees only implementation phases and the final verification task
-            - Canonical publication replaces exactly one provisional locus with the renderer-owned raw-readable layout,
-              passes MD060 without suppression, and preserves phase bytes
+    - `[x]` **1.1.d Make the delivery-plan section an explicit task-list format contract**
+        - Documented the optional pre-phase provisional locus and renderer-owned canonical sentinel/table/acceptance
+          topology in package and installed task-list template/strategy surfaces.
+        - Made the scanner treat the entire Delivery Plan locus as structurally opaque, including fenced examples, so
+          cursors, tallies, descriptor inventory, and from-tasks see implementation phases only.
+        - Extended provisional/canonical cursor, scanner, inventory, renderer, and session-init fixtures; full-document
+          replacement passes MD060 without suppression and preserves the exact phase suffix bytes.
 
 ### `[ ]` **1.2 Rename the changeset advisory thresholds across config and policy surfaces** — § 8; SC 11
 

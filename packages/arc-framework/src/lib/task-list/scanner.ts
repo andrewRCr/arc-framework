@@ -49,6 +49,7 @@ const SUBTASK_RE =
 const TASK_HEADING_PREFIX_RE = /^#{1,6}\s+`?\[[ x~]\]/u;
 const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
+const DELIVERY_PLAN_HEADING_RE = /^##\s+Delivery Plan\s*$/u;
 const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+(?<id>[^:]+):\*\*\s+(?<title>.+?)\s*$/u;
 const TASK_BODY_RE = /^(?<id>\S+)\s+(?<title>.+?)\s*$/u;
 const TASK_ID_PREFIX_RE = /^\d+(?:\.[0-9A-Za-z]+)+(?:\s+|$)/u;
@@ -69,9 +70,24 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
   const events: TaskListStructureEvent[] = [];
   let hasCurrentParent = false;
   let openFence: OpenFence | null = null;
+  let inDeliveryPlan = false;
 
   for (const [index, line] of content.split(/\r?\n/u).entries()) {
     const lineNumber = index + 1;
+
+    if (inDeliveryPlan) {
+      if (openFence !== null) {
+        if (isClosingFence(line, openFence)) openFence = null;
+        continue;
+      }
+      const deliveryFence = parseOpeningFence(line);
+      if (deliveryFence !== null) {
+        openFence = deliveryFence;
+        continue;
+      }
+      if (!SECTION_HEADING_RE.test(line)) continue;
+      inDeliveryPlan = false;
+    }
 
     if (openFence !== null) {
       if (isClosingFence(line, openFence)) openFence = null;
@@ -82,6 +98,13 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
     if (openingFence !== null) {
       openFence = openingFence;
       events.push({ type: "fence", line: lineNumber });
+      continue;
+    }
+
+    if (DELIVERY_PLAN_HEADING_RE.test(line)) {
+      events.push({ type: "section", line: lineNumber });
+      hasCurrentParent = false;
+      inDeliveryPlan = true;
       continue;
     }
 

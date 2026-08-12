@@ -34,6 +34,16 @@ See [`template-tasks.md`][template-tasks] for skeletons.
   Headers][work-org-wu-headers] for the full chain rationale and Spec field generalizability
 - Horizontal rule (`---`) separates header from tasks
 
+An optional top-level `## Delivery Plan` may appear after that rule and before Phase 1. An unmarked section is
+provisional planning prose; canonical publication owns the exact sentinel-bounded replacement. Its renderer-owned
+shape is metadata plus plan-level stack landability, aligned member-identity and member-coverage tables, aligned
+named-seam topology, and naturally wrapped acceptance bullets outside tables. Identifiers are individually
+backticked and comma-separated. Empty seams render `_None._` and omit acceptance.
+
+This projection is informative, not part of the executable task grammar. Structural readers ignore the entire
+locus: it contributes no phase, task, subtask, tally, cursor, or delivery task-inventory state. Renderer replacement
+preserves the surrounding task-list bytes, including every phase.
+
 Success Criteria section at the bottom; optional sections (Architecture Patterns, Current State,
 Testing Strategy) only when the work needs them.
 
