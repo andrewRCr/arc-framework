@@ -145,6 +145,26 @@ describe("repository delivery state store", () => {
     })).resolves.toEqual({ status: "ok", value: null });
   });
 
+  it("persists observed request binding and teardown without changing reverse-lookup authority", async () => {
+    const records = await stateStore();
+    const published = state({ changeRequestId: "401" });
+    await records.store.publish(PLAN_ID, published, 0);
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: { revision: 1, value: published },
+    });
+
+    const tornDown = state({ changeRequestId: undefined, ref: null });
+    await records.store.publish(PLAN_ID, tornDown, 1);
+    await expect(records.store.resolveMember({
+      selector: { kind: "head", objectId: HEAD },
+    })).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: { revision: 2, value: tornDown },
+    });
+  });
+
   it("detects global ambiguity even when an owning-unit pointer names one match", async () => {
     const records = await stateStore();
     const first = state();

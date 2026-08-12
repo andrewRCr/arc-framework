@@ -245,40 +245,26 @@ identified through delivery state before any external binding can carry authorit
 _Purpose:_ Deliver the complete provider-independent execution path: ordered member refs and change requests,
 exact-head review admission, one guarded landing, and interruption-safe recovery through the shipped state contracts.
 
-### `[ ]` **3.1 Extend guarded effects and host observation** — § 3, § 10; SC 4, SC 6
+### `[x]` **3.1 Extend guarded effects and host observation** — § 3, § 10; SC 4, SC 6
 
 - _Goal:_ The single shipped operation slot can reconcile exact Git mutations and host-assigned request/merge
   results without adding a second recovery or authority model.
 
-    - `[ ]` **3.1.a Make operation acceptance kind-aware in place**
-        - Extend `DeliveryOperationSnapshotV1`, reservation, acceptance, application, and reconciliation in place.
-          Member snapshots include nullable change-request binding alongside ref and coordinates: deterministic
-          `materialize`, `rewrite`, and `teardown` effects retain exact requested snapshots, while `publish` and
-          `land` pin exact admissible inputs/effects and record one uniquely observed actual result.
-        - Add no store, ledger, approval field, compatibility reader, migration, or configuration axis; unpublished
-          development state is cleared or regenerated.
-        - Build `test-first` (one behavior at a time):
-            - Exact deterministic results still require byte-equivalent requested coordinates
-            - One admissible host-assigned handle/result records actual coordinates
-            - Absent, multiple, foreign, queued, or otherwise ambiguous results retain the reservation
-            - Teardown can atomically clear ref, request handle, and obsolete coordinates
+    - `[x]` **3.1.a Make operation acceptance kind-aware in place**
+        - Operation snapshots now carry nullable request bindings. Deterministic effects remain byte-exact, while
+          strict publish/land effects accept only their matching typed host observation and apply its actual result.
 
-    - `[ ]` **3.1.b Define the narrow delivery-host observation boundary**
-        - Add provider-neutral operations for unique request lookup/open/read, head-matched merge, and resulting
-          protected-target observation; implement GitHub through the existing bounded `gh` process pattern.
-        - Consume the configured `merge`, `rebase`, or `squash` strategy and make the baseline boundary refuse queue,
-          batch, cross-repository, multiple-match, malformed, or unavailable results. Do not add a capability registry
-          or ordering authority; Phase 6 supplies the separately verified native direct adapter.
-        - Build `test-first` (one behavior at a time):
-            - Repository/head/base identity selects exactly one request
-            - Configured strategies map exactly and unknown host behavior refuses closed
-            - Host-assigned handles and resulting target coordinates normalize without guessing
+    - `[x]` **3.1.b Define the narrow delivery-host observation boundary**
+        - Added a provider-neutral request/merge/target port and a bounded GitHub adapter that uniquely matches exact
+          repository/head/base facts, maps all three merge strategies, and refuses malformed or unavailable evidence.
 
-    - `[ ]` **3.1.c Preserve exact state and reverse-lookup invariants**
-        - Update state application and repository-store fixtures so an accepted `publish` records the observed request
-          binding, an accepted `land` records actual landed coordinates, and an accepted deterministic teardown clears
-          its exact member bindings while all other member bindings remain stable.
-        - Prove no review verdict, authorization, gate result, or provider capability enters `DeliveryStateV1`.
+    - `[x]` **3.1.c Preserve exact state and reverse-lookup invariants**
+        - Accepted request and landed-coordinate results round-trip through the existing state store; teardown clears
+          exact bindings without disturbing other members, and reverse lookup remains ref/head based.
+
+- _Outcome:_ The existing single reservation slot now covers deterministic and host-assigned effects without a new
+  authority record: ambiguous host evidence retains the reservation, and delivery state still excludes review,
+  authorization, gate, and capability claims.
 
 ### `[ ]` **3.2 Materialize and bind the ordered member chain** — § 2, § 10; SC 2, SC 6
 

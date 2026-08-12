@@ -28,6 +28,7 @@ function stateSnapshot(
       return {
         deliverableId: deliverableId as DeliveryStateV1["members"][number]["deliverableId"],
         ref: member?.ref ?? null,
+        changeRequest: member?.changeRequest ?? null,
         coordinates: member?.coordinates ?? null,
       };
     }),
@@ -36,8 +37,12 @@ function stateSnapshot(
 
 function operationRequest(
   state: DeliveryStateV1,
-  overrides: Partial<DeliveryOperationReservationRequestV1> = {},
-): DeliveryOperationReservationRequestV1 {
+  overrides: Partial<Omit<Extract<DeliveryOperationReservationRequestV1, {
+    kind: "materialize" | "rewrite" | "teardown";
+  }>, "kind">> & { kind?: "materialize" | "rewrite" | "teardown" } = {},
+): Extract<DeliveryOperationReservationRequestV1, {
+  kind: "materialize" | "rewrite" | "teardown";
+}> {
   const affectedDeliverableIds = [state.members[0]!.deliverableId];
   const before = stateSnapshot(state, affectedDeliverableIds);
   return {
@@ -58,6 +63,29 @@ function operationRequest(
     },
     ...overrides,
   };
+}
+
+function publishEffect() {
+  return {
+    providerId: "github",
+    repository: "andrewRCr/arc-framework",
+    headRef: "delivery/delivery-plan-record/first",
+    headSha: "4".repeat(40),
+    baseRef: "main",
+    draft: true,
+  } as const;
+}
+
+function landEffect() {
+  return {
+    providerId: "github",
+    repository: "andrewRCr/arc-framework",
+    changeRequestId: "pull/401",
+    headSha: "4".repeat(40),
+    baseRef: "main",
+    targetRef: "refs/heads/main",
+    strategy: "merge",
+  } as const;
 }
 
 function reservedRecord() {
@@ -110,7 +138,7 @@ describe("reserveDeliveryOperation", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
 
-    for (const kind of ["materialize", "publish", "rewrite", "land", "teardown"] as const) {
+    for (const kind of ["materialize", "rewrite", "teardown"] as const) {
       const request = operationRequest(state, { kind });
       expect(reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request)).toEqual({
         status: "reserved",
@@ -127,6 +155,22 @@ describe("reserveDeliveryOperation", () => {
           },
         },
       });
+    }
+
+    for (const request of [
+      { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
+      { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
+    ]) {
+      const result = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+      expect(result.status).toBe("reserved");
+      if (result.status === "reserved") {
+        expect(result.state.activeOperation).toMatchObject({
+          kind: request.kind,
+          effect: request.effect,
+          stateRevision: STATE_REVISION,
+          boundPlanDigest: plan.planDigest,
+        });
+      }
     }
   });
 
@@ -278,6 +322,127 @@ describe("delivery operation pre- and post-mutation comparison", () => {
     })).toEqual({ status: "blocked", reason: "requested-mismatch" });
   });
 
+  it("records one uniquely observed publish handle without relaxing exact coordinates", () => {
+    const { plan, current, request } = reservedRecord();
+    const publishRequest = {
+      ...request,
+      kind: "publish" as const,
+      effect: publishEffect(),
+      requested: {
+        ...request.requested,
+        members: request.requested.members.map((member) => ({ ...member, changeRequest: null })),
+      },
+    };
+    const reserved = reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: deliveryStateFixture(plan) },
+      plan,
+      publishRequest,
+    );
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const published = { revision: STATE_REVISION + 1, value: reserved.state };
+    const observed = {
+      ...publishRequest.requested,
+      members: publishRequest.requested.members.map((member) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: "pull/401" },
+      })),
+    };
+
+    const applied = acceptDeliveryOperationResult(published, {
+      kind: "publish",
+      effect: publishRequest.effect,
+      outcome: "applied",
+      snapshot: observed,
+    });
+    expect(applied.status).toBe("applied");
+    if (applied.status === "applied") {
+      expect(applied.state.members[0]!.changeRequest).toEqual(observed.members[0]!.changeRequest);
+    }
+    expect(acceptDeliveryOperationResult(published, {
+      kind: "publish",
+      effect: publishRequest.effect,
+      outcome: "applied",
+      snapshot: {
+        ...observed,
+        members: observed.members.map((member) => ({
+          ...member,
+          coordinates: { ...member.coordinates!, head: "f".repeat(40) },
+        })),
+      },
+    })).toEqual({ status: "blocked", reason: "requested-mismatch" });
+    expect(current.value.activeOperation).not.toBeNull();
+  });
+
+  it("records host-assigned landed coordinates and teardown clears every member binding", () => {
+    const { plan, request } = reservedRecord();
+    const state = deliveryStateFixture(plan);
+    const landRequest = {
+      ...operationRequest(state, {
+      requested: stateSnapshot(state, request.affectedDeliverableIds),
+      }),
+      kind: "land" as const,
+      effect: landEffect(),
+    };
+    const reservedLand = reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      landRequest,
+    );
+    expect(reservedLand.status).toBe("reserved");
+    if (reservedLand.status !== "reserved") return;
+    const landedObservation = {
+      target: {
+        ref: state.target!.ref,
+        coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+      },
+      members: landRequest.requested.members.map((member) => ({
+        ...member,
+        coordinates: { base: "1".repeat(40), head: "d".repeat(40), tree: "e".repeat(40) },
+      })),
+    };
+    const landed = acceptDeliveryOperationResult(
+      { revision: STATE_REVISION + 1, value: reservedLand.state },
+      { kind: "land", effect: landRequest.effect, outcome: "applied", snapshot: landedObservation },
+    );
+    expect(landed.status).toBe("applied");
+    if (landed.status !== "applied") return;
+    expect(landed.state.target).toEqual(landedObservation.target);
+    expect(landed.state.members[0]!.coordinates).toEqual(landedObservation.members[0]!.coordinates);
+
+    const teardownBefore = stateSnapshot(landed.state, request.affectedDeliverableIds);
+    const teardownRequest = operationRequest(landed.state, {
+      kind: "teardown",
+      expectedStateRevision: STATE_REVISION + 2,
+      before: teardownBefore,
+      requested: {
+        target: teardownBefore.target,
+        members: teardownBefore.members.map((member) => ({
+          ...member,
+          ref: null,
+          changeRequest: null,
+          coordinates: null,
+        })),
+      },
+    });
+    const reservedTeardown = reserveDeliveryOperation(
+      { revision: STATE_REVISION + 2, value: landed.state },
+      plan,
+      teardownRequest,
+    );
+    expect(reservedTeardown.status).toBe("reserved");
+    if (reservedTeardown.status !== "reserved") return;
+    const tornDown = acceptDeliveryOperationResult(
+      { revision: STATE_REVISION + 3, value: reservedTeardown.state },
+      teardownRequest.requested,
+    );
+    expect(tornDown.status).toBe("applied");
+    if (tornDown.status === "applied") {
+      expect(tornDown.state.members[0]).toMatchObject({ ref: null, changeRequest: null, coordinates: null });
+      expect(tornDown.state.members[1]).toEqual(landed.state.members[1]);
+    }
+  });
+
   it("blocks a missing or stale reservation before comparing observations", () => {
     const { current, request } = reservedRecord();
     expect(checkDeliveryOperationPrecondition(
@@ -328,7 +493,7 @@ describe("reconcileDeliveryOperation", () => {
       ...request.requested,
       members: [
         ...request.requested.members,
-        { deliverableId: unknown, ref: null, coordinates: null },
+        { deliverableId: unknown, ref: null, changeRequest: null, coordinates: null },
       ],
     };
     const reordered = { ...request.requested, members: [...request.requested.members].reverse() };
