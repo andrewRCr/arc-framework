@@ -523,39 +523,25 @@ executor, preserving plan/state authority and an explicit downgrade path.
   independently admitted and bound to one recoverable `land` operation, while terminal and review authority stay
   outside provider-native state.
 
-### `[ ]` **6.3 Degrade visibly to the complete unlinked executor** — § 9; SC 12
+### `[x]` **6.3 Degrade visibly to the complete unlinked executor** — § 9; SC 12
 
 - _Goal:_ Preview loss changes only operator-visible composition status, never the complete sequential delivery
   semantics.
 
-    - `[ ]` **6.3.a Unlink or confirm unlinked, then reobserve**
-        - On capability regression or refusal, remove presentation linkage when possible and derive the next arm
-          only from a fresh host read. The unlink result is a closed union: only fresh authoritative `unregistered`
-          composes the unlinked executor; `still-linked`, `partial`, `unavailable`, `malformed`, and `ambiguous`
-          stop without a landing mutation.
-        - Build `test-first` (one behavior at a time):
-            - Successful unlink and already-unlinked state converge
-            - Link disappearance is recognized without state mutation
-            - Every non-`unregistered` unlink outcome stops without a landing mutation
-            - Unlink refusal blocks with one explicit remedy
+    - `[x]` **6.3.a Unlink or confirm unlinked, then reobserve**
+        - Added a presentation-only unlink port and GitHub adapter whose closed service admits sequential execution
+          only after a fresh authoritative `unregistered` read; refusal, ambiguity, and stale linkage stop safely.
 
-    - `[ ]` **6.3.b Prove differential parity with the complete unlinked executor**
-        - Run opt-out and mid-stack downgrade fixtures through the same materialize/land/reconcile/terminal services.
-        - For opt-out before any native effect, assert identical refs, targets, reservations, state revisions,
-          review admissions, and terminal handoff; only the downgrade advisory may differ.
-        - After linked activity, compare the remainder's command/service trace and a semantic final projection —
-          never raw operation IDs, change-request IDs, CAS revisions, intermediate object IDs, or review-admission
-          history.
-        - Compare an atomic all-remaining success with sequential landing at the final protected tree/state outcome;
-          only the provider operation grouping and interlock cardinality may differ.
+    - `[x]` **6.3.b Prove differential parity with the complete unlinked executor**
+        - Added differential fixtures proving host-silent opt-out, ordered downgrade into the existing ordinary
+          singleton commands, terminal exclusion, and equivalent semantic terminal state across delivery arms.
 
-    - `[ ]` **6.3.c Exercise the substituted-host lifecycle end to end**
-        - Cover the separated scenarios: opt-out sequential baseline; linked singleton plus recognized retarget;
-          direct atomic success; atomic refusal then successful unlink and sequential remainder; capability
-          regression/already-unlinked; queue refusal; and unlink refusal/unavailable stop — each through terminal
-          adoption.
-        - Assert exact host-call order, exact-head-set authorization, no provider-order authority, terminal
-          exclusion, and no unexpected native calls.
+    - `[x]` **6.3.c Exercise the substituted-host lifecycle end to end**
+        - Covered opt-out, singleton, direct atomic, queue downgrade, capability disappearance, exact unlink order,
+          refusal/unavailability, terminal adoption, and provider-order exclusion with substituted-host fixtures.
+
+- _Outcome:_ Native capability loss now changes only a precomposed operator advisory and host presentation; the
+  exact ordinary executor and terminal projection remain the single fallback semantics, with no native state fields.
 
 ## **Phase 7:** Verification
 

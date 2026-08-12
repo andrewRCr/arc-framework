@@ -17,6 +17,7 @@ import type {
   DeliveryNativeStackInput,
   DeliveryNativeStackObservation,
   DeliveryNativeStackPort,
+  DeliveryNativeStackUnlinkPort,
 } from "../../../lib/delivery/native-stack.js";
 import type {
   DeliveryNativeMergeHostPort,
@@ -89,7 +90,8 @@ function exactObservation(
 }
 
 /** GitHub observations and mutations through the existing bounded `gh` runner. */
-export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort, DeliveryNativeMergeHostPort {
+export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort,
+  DeliveryNativeStackUnlinkPort, DeliveryNativeMergeHostPort {
   constructor(private readonly runner: HostedProcessRunner) {}
 
   async observe(input: DeliveryNativeStackInput): Promise<DeliveryNativeStackObservation> {
@@ -145,6 +147,21 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
     } catch (error) {
       const status = record(error)?.httpStatus;
       return { status: "refused", reason: status === 404 ? "unsupported" : "unavailable" };
+    }
+  }
+
+  async unlink(input: DeliveryNativeStackInput & { readonly stackNumber: number }): Promise<
+    { readonly status: "submitted" | "already-unlinked" }
+    | { readonly status: "refused"; readonly reason: "unsupported" | "unavailable" | "malformed" }
+  > {
+    try {
+      await this.runner.run([
+        "api", `repos/${input.repository}/stacks/${input.stackNumber}/unstack`, "--method", "POST",
+      ]);
+      return { status: "submitted" };
+    } catch (error) {
+      if (error instanceof HostedProcessError && error.httpStatus === 404) return { status: "already-unlinked" };
+      return { status: "refused", reason: "unavailable" };
     }
   }
 

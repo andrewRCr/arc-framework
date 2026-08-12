@@ -34,7 +34,7 @@ describe("native delivery landing", () => {
     })).toMatchObject({ status: "selected", arm: "linked-atomic", members: heads });
   });
 
-  it("composes unlinked for opt-out/capability/strategy and blocks queue or ambiguous atomic selection", () => {
+  it("composes the unlinked degradation arm for opt-out, capability, strategy, or queue refusal", () => {
     for (const input of [
       { observation: { status: "unregistered" as const }, mergeStrategy: "merge" as const },
       { observation: { status: "unsupported" as const }, mergeStrategy: "merge" as const },
@@ -46,7 +46,7 @@ describe("native delivery landing", () => {
     expect(selectNativeDeliveryLandingArm({
       plan, landedPrefix: [], observation: { status: "registered", stackNumber: 3 },
       mergeStrategy: "merge", mergeAction: "queue", explicitAtomic: true, members: heads,
-    })).toMatchObject({ status: "blocked", reason: "queue-not-atomic" });
+    })).toMatchObject({ status: "selected", arm: "unlinked" });
   });
 
   it("requires every selected head independently ready and names the exact set and residual race", async () => {

@@ -698,6 +698,11 @@ deliveryNative.command("link").description("Optionally register an already-mater
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("native-link", { ...opts, input }, context)
   )));
+deliveryNative.command("unlink").description("Remove native presentation before sequential delivery")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-unlink", { ...opts, input }, context)
+  )));
 deliveryNative.command("land-select").description("Select the native or unlinked landing arm from fresh facts")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (

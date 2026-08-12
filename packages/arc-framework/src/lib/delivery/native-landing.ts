@@ -88,7 +88,10 @@ export function selectNativeDeliveryLandingArm(input: {
     return { status: "selected", arm: "linked-single", members: [first], recommendedActionText: "Prepare one exact bottom-member asynchronous landing." };
   }
   if (input.mergeAction === "queue") {
-    return { status: "blocked", reason: "queue-not-atomic", recommendedActionText: "Unlink or select sequential delivery; merge queues may split the remaining prefix." };
+    return {
+      status: "selected", arm: "unlinked", members: [first],
+      recommendedActionText: "Unlink and continue sequentially; merge queues may split the remaining prefix.",
+    };
   }
   return { status: "selected", arm: "linked-atomic", members: input.members, recommendedActionText: "Prepare the exact complete non-terminal remainder for one attended atomic effect." };
 }

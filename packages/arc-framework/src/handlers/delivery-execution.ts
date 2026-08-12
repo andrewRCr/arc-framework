@@ -51,7 +51,11 @@ import {
   executeDeliverySuffixRewrite,
 } from "../lib/delivery/suffix-reconciliation.js";
 import { teardownLandedDeliveryMember } from "../lib/delivery/teardown.js";
-import { linkDeliveryNativeStack, observeDeliveryNativeStack } from "../lib/delivery/native-stack.js";
+import {
+  degradeNativeDeliveryStack,
+  linkDeliveryNativeStack,
+  observeDeliveryNativeStack,
+} from "../lib/delivery/native-stack.js";
 import {
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
@@ -224,6 +228,7 @@ const RequestSchemas = {
   teardown: TeardownSchema,
   "native-observe": NativeObserveSchema,
   "native-link": NativeLinkSchema,
+  "native-unlink": NativeObserveSchema,
   "native-land-select": NativeSelectSchema,
   "native-land-prepare": NativePrepareSchema,
   "native-land-submit": NativeSubmitSchema,
@@ -426,11 +431,13 @@ async function executeDeliveryCommand(
       ?? { head: "", tree: "", trackedDirty: true },
   };
 
-  if (command === "native-observe" || command === "native-link") {
+  if (command === "native-observe" || command === "native-link" || command === "native-unlink") {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     return command === "native-observe"
       ? observeDeliveryNativeStack(NativeObserveSchema.parse(request), host)
-      : linkDeliveryNativeStack(NativeLinkSchema.parse(request), host);
+      : command === "native-link"
+        ? linkDeliveryNativeStack(NativeLinkSchema.parse(request), host)
+        : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
   }
   if (command === "native-land-select") {
     const parsed = NativeSelectSchema.parse(request);

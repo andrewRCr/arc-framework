@@ -67,6 +67,26 @@ describe("GhDeliveryHostPort", () => {
     expect(calls.flat()).not.toContain("stack");
   });
 
+  it("submits native presentation unlink through the exact stack endpoint and closes failures", async () => {
+    const calls: string[][] = [];
+    const unlinkRunner: HostedProcessRunner = { run: async (args) => {
+      calls.push(args);
+      return { stdout: JSON.stringify({ status: "unstacked" }), stderr: "" };
+    } };
+    await expect(new GhDeliveryHostPort(unlinkRunner).unlink({ ...nativeInput, stackNumber: 9 }))
+      .resolves.toEqual({ status: "submitted" });
+    expect(calls).toEqual([["api", `repos/${repository}/stacks/9/unstack`, "--method", "POST"]]);
+
+    const absent: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("not found", "", 1, 404);
+    } };
+    await expect(new GhDeliveryHostPort(absent).unlink({ ...nativeInput, stackNumber: 9 }))
+      .resolves.toEqual({ status: "already-unlinked" });
+    const unavailable: HostedProcessRunner = { run: async () => { throw new Error("offline"); } };
+    await expect(new GhDeliveryHostPort(unavailable).unlink({ ...nativeInput, stackNumber: 9 }))
+      .resolves.toEqual({ status: "refused", reason: "unavailable" });
+  });
+
   it("normalizes SHA-pinned asynchronous merge submission, 409 adoption, and polling", async () => {
     const request = {
       repository, topChangeRequestId: "402", topHeadSha: "b".repeat(40),

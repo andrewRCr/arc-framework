@@ -27,6 +27,14 @@ export interface DeliveryNativeStackPort {
   >;
 }
 
+export interface DeliveryNativeStackUnlinkPort {
+  observe(input: DeliveryNativeStackInput): Promise<DeliveryNativeStackObservation>;
+  unlink(input: DeliveryNativeStackInput & { readonly stackNumber: number }): Promise<
+    { readonly status: "submitted" | "already-unlinked" }
+    | { readonly status: "refused"; readonly reason: "unsupported" | "unavailable" | "malformed" }
+  >;
+}
+
 export type DeliveryNativeStackReadResult = DeliveryNativeStackObservation
   | { readonly status: "refused"; readonly reason: "foreign-repository" | "non-chain" | "invalid-input" };
 
@@ -95,4 +103,46 @@ export async function linkDeliveryNativeStack(
   return observed.status === "registered"
     ? { status: "linked", stackNumber: observed.stackNumber, recommendedActionText: "Continue with fresh native-stack observation before each landing." }
     : { status: "downgrade-required", reason: observed.status, recommendedActionText: "Linking was not authoritatively confirmed; unlink or continue only after a fresh unregistered observation." };
+}
+
+export type DeliveryNativeStackDegradationResult =
+  | { readonly status: "unlinked"; readonly recommendedActionText: string }
+  | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
+
+/** Remove presentation linkage and admit sequential execution only after a fresh unregistered read. */
+export async function degradeNativeDeliveryStack(
+  input: DeliveryNativeStackInput,
+  port: DeliveryNativeStackUnlinkPort,
+): Promise<DeliveryNativeStackDegradationResult> {
+  const initial = await observeDeliveryNativeStack(input, port);
+  if (initial.status === "refused") {
+    return {
+      status: "blocked", reason: initial.reason,
+      recommendedActionText: "Correct the exact chain before attempting native-stack degradation.",
+    };
+  }
+  if (initial.status === "unregistered") {
+    return { status: "unlinked", recommendedActionText: "Native presentation is absent; continue through the complete sequential unlinked executor." };
+  }
+  if (initial.status !== "registered") {
+    return {
+      status: "blocked", reason: initial.status,
+      recommendedActionText: "Restore authoritative native-stack observation before any landing mutation.",
+    };
+  }
+  const mutation = await port.unlink({ ...input, stackNumber: initial.stackNumber });
+  const observed = await observeDeliveryNativeStack(input, port);
+  if (observed.status === "unregistered") {
+    return { status: "unlinked", recommendedActionText: "Native presentation is removed; continue through the complete sequential unlinked executor." };
+  }
+  if (mutation.status === "refused") {
+    return {
+      status: "blocked", reason: `unlink-${mutation.reason}`,
+      recommendedActionText: "Retry unlink when the host is available; do not land while native linkage remains authoritative.",
+    };
+  }
+  return {
+    status: "blocked", reason: observed.status,
+    recommendedActionText: "Native unlink was not authoritatively confirmed; stop before any landing mutation.",
+  };
 }

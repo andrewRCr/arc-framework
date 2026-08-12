@@ -79,8 +79,9 @@ arc delivery native link --input - --json
 ```
 
 The CLI receives the explicit opt-in and exact plan/state-derived member set. `linked` continues only after a fresh
-exact host observation. `unlinked` makes no native call. `downgrade-required` renders `recommendedActionText`
-verbatim and enters the explicit unlink path; `refused` stops. Before every landing, refresh presentation facts:
+exact host observation. An opt-out `unlinked` result makes zero native host calls and enters the ordinary singleton
+path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the explicit unlink verb; `refused`
+stops. On the linked path, refresh presentation facts before every landing:
 
 ```bash
 arc delivery native observe --input - --json
@@ -96,9 +97,16 @@ Immediately after the fresh native observation, select the service-owned arm:
 arc delivery native land-select --input - --json
 ```
 
-The selector derives the exact plan-ordered non-terminal remainder from current plan/state facts. `unlinked`
-continues through the ordinary singleton path below. `blocked` renders `recommendedActionText` and stops. A
-`linked-single` or explicitly selected direct `linked-atomic` result advances to set-wide preparation:
+The selector derives the exact plan-ordered non-terminal remainder from current plan/state facts. An `unlinked` arm
+or a preceding `downgrade-required` result invokes the presentation-only degradation verb:
+
+```bash
+arc delivery native unlink --input - --json
+```
+
+Only its fresh `unlinked` result continues through the ordinary singleton path below. Every other result renders its
+precomposed guidance and stops without a landing mutation. `blocked` likewise renders `recommendedActionText` and
+stops. A `linked-single` or explicitly selected direct `linked-atomic` result advances to set-wide preparation:
 
 ```bash
 arc delivery native land-prepare --input - --json

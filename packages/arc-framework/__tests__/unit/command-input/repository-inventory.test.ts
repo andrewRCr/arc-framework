@@ -215,6 +215,7 @@ describe("repository command-input inventory", () => {
       "delivery native land-submit",
       "delivery native link",
       "delivery native observe",
+      "delivery native unlink",
       "delivery plan abandon",
       "delivery plan from-branch",
       "delivery plan from-tasks",

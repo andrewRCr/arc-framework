@@ -43,6 +43,7 @@ const rawGitCommandPaths = [
   "delivery native land-status",
   "delivery native land-submit",
   "delivery native observe",
+  "delivery native unlink",
   "delivery publish",
   "delivery position",
   "delivery land prepare",

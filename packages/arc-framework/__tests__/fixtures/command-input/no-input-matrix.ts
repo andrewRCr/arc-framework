@@ -35,6 +35,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "delivery native land-submit", args: ["delivery", "native", "land-submit", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery native link", args: ["delivery", "native", "link", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery native observe", args: ["delivery", "native", "observe", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native unlink", args: ["delivery", "native", "unlink", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery plan abandon", args: ["delivery", "plan", "abandon", "--json"], expected: { exitCode: 1 } },
   { commandPath: "delivery plan from-branch", args: ["delivery", "plan", "from-branch", "--json"], expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery plan from-tasks", args: ["delivery", "plan", "from-tasks", "--json"], expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  degradeNativeDeliveryStack,
   linkDeliveryNativeStack,
   observeDeliveryNativeStack,
 } from "../../../src/lib/delivery/native-stack.js";
@@ -54,5 +55,59 @@ describe("native delivery stack", () => {
     const link = vi.fn().mockResolvedValue({ status: "submitted" });
     await expect(linkDeliveryNativeStack({ repository: "o/r", members, optIn: true }, { observe, link }))
       .resolves.toMatchObject({ status: "downgrade-required", reason: "partial" });
+  });
+
+  it("converges successful unlink and already-unlinked observations through a fresh read", async () => {
+    const observe = vi.fn()
+      .mockResolvedValueOnce({ status: "registered", stackNumber: 7 })
+      .mockResolvedValueOnce({ status: "unregistered" });
+    const unlink = vi.fn().mockResolvedValue({ status: "submitted" });
+    await expect(degradeNativeDeliveryStack({ repository: "o/r", members }, { observe, unlink }))
+      .resolves.toMatchObject({ status: "unlinked" });
+
+    observe.mockReset();
+    unlink.mockReset();
+    observe.mockResolvedValue({ status: "unregistered" });
+    await expect(degradeNativeDeliveryStack({ repository: "o/r", members }, { observe, unlink }))
+      .resolves.toMatchObject({ status: "unlinked" });
+    expect(unlink).not.toHaveBeenCalled();
+
+    observe.mockReset();
+    unlink.mockReset();
+    observe.mockResolvedValueOnce({ status: "registered", stackNumber: 7 })
+      .mockResolvedValueOnce({ status: "unregistered" });
+    unlink.mockResolvedValue({ status: "refused", reason: "unavailable" });
+    await expect(degradeNativeDeliveryStack({ repository: "o/r", members }, { observe, unlink }))
+      .resolves.toMatchObject({ status: "unlinked" });
+  });
+
+  it("blocks every non-unregistered final observation and preserves one explicit unlink remedy", async () => {
+    const finalObservations = [
+      { status: "registered", stackNumber: 7 },
+      { status: "partial", affectedDeliverableIds: [members[0].deliverableId] },
+      { status: "unavailable" },
+      { status: "malformed" },
+      { status: "ambiguous" },
+    ] as const;
+    for (const final of finalObservations) {
+      const observe = vi.fn()
+        .mockResolvedValueOnce({ status: "registered", stackNumber: 7 })
+        .mockResolvedValueOnce(final);
+      const unlink = vi.fn().mockResolvedValue({ status: "submitted" });
+      await expect(degradeNativeDeliveryStack({ repository: "o/r", members }, { observe, unlink }))
+        .resolves.toMatchObject({ status: "blocked", reason: final.status });
+    }
+
+    const observe = vi.fn()
+      .mockResolvedValueOnce({ status: "registered", stackNumber: 7 })
+      .mockResolvedValueOnce({ status: "registered", stackNumber: 7 });
+    const unlink = vi.fn().mockResolvedValue({ status: "refused", reason: "unavailable" });
+    await expect(degradeNativeDeliveryStack({ repository: "o/r", members }, { observe, unlink }))
+      .resolves.toEqual({
+        status: "blocked",
+        reason: "unlink-unavailable",
+        recommendedActionText: "Retry unlink when the host is available; do not land while native linkage remains authoritative.",
+      });
+    expect(observe).toHaveBeenCalledTimes(2);
   });
 });
