@@ -10,6 +10,18 @@ const defaultPlanId = "123e4567-e89b-42d3-a456-426614174000";
 
 /** Construct a valid two-member plan for delivery-state and operation tests. */
 export function deliveryPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "wu-integration-target");
+}
+
+/** Construct a valid independently-landable two-member stack plan. */
+export function deliveryStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main");
+}
+
+function buildDeliveryPlanFixture(
+  planId: string,
+  projection: "wu-integration-target" | "stack-to-main",
+): DeliveryPlanV1 {
   const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-plan/v1",
@@ -23,21 +35,21 @@ export function deliveryPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
       verificationTaskId: "2.1",
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: projection },
     members: [{
       chunkKey: "first",
       title: "First member",
       contract: "Publish the first contract.",
       taskIds: ["1.1"],
       designElementIds: ["detailed:state-contract"],
-      mainlineLandability: "integration-only",
+      mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
     }, {
       chunkKey: "second",
       title: "Second member",
       contract: "Publish the second contract.",
       taskIds: ["1.2"],
       designElementIds: [],
-      mainlineLandability: "integration-only",
+      mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
     }],
     seams: [],
   });

@@ -48,6 +48,42 @@ export function compareDeliveryLifecycleContribution(_input: {
     : { status: "mismatch", mismatchedPaths };
 }
 
+/** Exact normalized completeness comparison for a final disposable candidate tree. */
+export function compareNormalizedDeliveryTree(input: {
+  readonly protectedBase: DeliveryLifecycleTreeState;
+  readonly control: DeliveryLifecycleTreeState;
+  readonly finalCandidate: DeliveryLifecycleTreeState;
+  readonly lifecyclePaths: readonly string[];
+}):
+  | { readonly status: "match" }
+  | {
+      readonly status: "mismatch";
+      readonly droppedPaths: readonly string[];
+      readonly inventedPaths: readonly string[];
+      readonly mismatchedPaths: readonly string[];
+    } {
+  const expected = new Map(input.control);
+  for (const path of input.lifecyclePaths) {
+    const baseEntry = input.protectedBase.get(path);
+    if (baseEntry == null) expected.delete(path);
+    else expected.set(path, baseEntry);
+  }
+  const droppedPaths: string[] = [];
+  const inventedPaths: string[] = [];
+  const mismatchedPaths: string[] = [];
+  const paths = [...new Set([...expected.keys(), ...input.finalCandidate.keys()])].sort(byteSort);
+  for (const path of paths) {
+    const expectedEntry = expected.get(path);
+    const actualEntry = input.finalCandidate.get(path);
+    if (expectedEntry === undefined && actualEntry !== undefined) inventedPaths.push(path);
+    else if (expectedEntry !== undefined && actualEntry === undefined) droppedPaths.push(path);
+    else if (!sameEntry(expectedEntry, actualEntry)) mismatchedPaths.push(path);
+  }
+  return droppedPaths.length === 0 && inventedPaths.length === 0 && mismatchedPaths.length === 0
+    ? { status: "match" }
+    : { status: "mismatch", droppedPaths, inventedPaths, mismatchedPaths };
+}
+
 function sameEntry(
   left: DeliveryLifecycleTreeEntry | null | undefined,
   right: DeliveryLifecycleTreeEntry | null | undefined,

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { validateManagedPath } from "../../../src/lib/kernel/index.js";
 import {
   compareDeliveryLifecycleContribution,
+  compareNormalizedDeliveryTree,
   CurrentDeliveryLifecycleContributionPathSource,
 } from "../../../src/lib/delivery/lifecycle-contribution.js";
 
@@ -49,6 +50,37 @@ describe("CurrentDeliveryLifecycleContributionPathSource", () => {
     })).resolves.toEqual({
       workUnitArtifacts: [".arc/active/meta-example.md"],
       sharedProjections: [],
+    });
+  });
+});
+
+describe("compareNormalizedDeliveryTree", () => {
+  it("reports dropped, invented, and mismatched entries distinctly after lifecycle normalization", () => {
+    const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
+    const protectedBase = new Map([["lifecycle.md", blob("base")]]);
+    const control = new Map([
+      ["kept.md", blob("same")],
+      ["dropped.md", blob("drop")],
+      ["mismatched.md", blob("expected")],
+      ["lifecycle.md", blob("control")],
+    ]);
+    const finalCandidate = new Map([
+      ["kept.md", blob("same")],
+      ["invented.md", blob("invent")],
+      ["mismatched.md", blob("actual")],
+      ["lifecycle.md", blob("base")],
+    ]);
+
+    expect(compareNormalizedDeliveryTree({
+      protectedBase,
+      control,
+      finalCandidate,
+      lifecyclePaths: ["lifecycle.md"],
+    })).toEqual({
+      status: "mismatch",
+      droppedPaths: ["dropped.md"],
+      inventedPaths: ["invented.md"],
+      mismatchedPaths: ["mismatched.md"],
     });
   });
 });
