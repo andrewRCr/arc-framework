@@ -352,6 +352,11 @@
       "layer": "core",
       "pristine_hash": "87a20b42619a2a5cc00487ebb4e285b71c3aa5d82a6c3a82277758ab4bb4c3d2"
     },
+    "system/methods/assess-boundary-fit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "fe90f4e0e84109405ee3cd7c8869c4dadd6b883f8f7c90d92f2144b38ffdc257"
+    },
     "system/methods/assess-design-proportionality.md": {
       "classification": "Configurable",
       "layer": "core",
@@ -545,12 +550,12 @@
     "system/workflows/arc/create-spec.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f2db8290e22fabf00b01b5a9bd4903afb3cfc578b9d2e2bd28d9cd3cbd061483"
+      "pristine_hash": "26f0a3c2ade9bfeeaea02a1fe211cb373c48da3476e65bec1d4c6faec48007df"
     },
     "system/workflows/arc/generate-tasks.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "d1d5634214756e157a56119a68132ceb57be9fdcf30cd89deb63d8ea26c40594"
+      "pristine_hash": "3a3dcf3a6b6cf49c96e30d048f87bd764c438f8c263dbe340dd30f0fa062d154"
     },
     "system/workflows/arc/process-task-loop.md": {
       "classification": "Framework",
@@ -560,7 +565,7 @@
     "system/workflows/arc/draft-design.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f33a7e1aebe15bc6edc66f4c2b3c58fcb6ae1d14009a0ae4649152587d65a62e"
+      "pristine_hash": "c13fb615dbeb29de267ac922e1f4209970ea73922cd1698a84f43030e13d969e"
     },
     "system/workflows/arc/initial-setup/01_verify-and-configure.md": {
       "classification": "Framework",
@@ -696,11 +701,6 @@
       "classification": "Framework",
       "layer": "arc-in-git",
       "pristine_hash": "5a0ce54075e145cf2121a754b0f6d6872580e45bbb0a22d6f589363d9c0c9ed1"
-    },
-    "system/methods/assess-boundary-fit.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "fe90f4e0e84109405ee3cd7c8869c4dadd6b883f8f7c90d92f2144b38ffdc257"
     },
     "reference/PROJECT-PRD.md": {
       "classification": "Scaffolded",

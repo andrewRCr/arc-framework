@@ -2,7 +2,12 @@
 
 import { z } from "zod";
 
-import { assertCanonicalDigest, SlugSchema, type CanonicalDigest } from "../kernel/index.js";
+import {
+  assertCanonicalDigest,
+  SlugSchema,
+  type CanonicalDigest,
+  type KernelRegistry,
+} from "../kernel/index.js";
 import {
   DeliveryArtifactBasenameSchema,
   DeliveryCanonicalDigestSchema,
@@ -57,6 +62,19 @@ export const DesignInventoryInputSchema = z.strictObject({
   }
 });
 export type DesignInventoryInput = z.infer<typeof DesignInventoryInputSchema>;
+
+export const DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID = "delivery-design-inventory-input";
+export const DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_VERSION = 1;
+
+/** Compose delivery authoring-input schemas beside the canonical delivery domain. */
+export function registerDeliveryAuthoringSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(DesignInventoryInputSchema, {
+    id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
+    version: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_VERSION,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}
 
 /** One source artifact bound to its exact authored revision. */
 export interface BoundDesignArtifact {

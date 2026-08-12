@@ -20,6 +20,7 @@ import {
   registerReviewDomainSchemas,
 } from "../../../src/scripts/review-gate/core/register-review-schemas.js";
 import { registerDeliveryDomainSchemas } from "../../../src/lib/delivery/schema.js";
+import { registerDeliveryAuthoringSchemas } from "../../../src/lib/delivery/design-inventory.js";
 
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
@@ -41,8 +42,12 @@ describe("kernel schema artifact generation", () => {
   });
 
   it("projects the composed production families with stable references and bytes", () => {
-    const first = registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()));
-    const second = registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()));
+    const first = registerDeliveryAuthoringSchemas(
+      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
+    );
+    const second = registerDeliveryAuthoringSchemas(
+      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
+    );
     const firstBundle = projectKernelSchemas(first);
 
     expect(Object.keys(firstBundle.schemas)).toEqual([
@@ -53,6 +58,7 @@ describe("kernel schema artifact generation", () => {
       "change-path-fact",
       "change-path-set",
       "delivery-deliverable-id-preimage",
+      "delivery-design-inventory-input",
       "delivery-plan",
       "delivery-plan-authoring-input",
       "delivery-plan-member",
