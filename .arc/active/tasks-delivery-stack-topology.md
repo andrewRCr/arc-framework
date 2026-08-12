@@ -79,34 +79,21 @@ installation/update surface, and the decision shapes later execution and lifecyc
 - _Note:_ The task-generation fire point also owns the supported provisional-to-canonical `Delivery Plan`
   lifecycle this work unit is exercising.
 
-    - `[ ]` **1.1.a Rename and re-contract the boundary method**
-        - Rename `assess-cohort-fit.md` to `assess-boundary-fit.md` in package source and the installed project
-          copy, including frontmatter and override/default anchors.
-        - Re-contract the method body in both copies: the three-outcome Contract (stays-one-WU, cut-map,
-          stays-one-WU-plus-delivery-candidate), the corrected When-note (the depth valve routes scale and
-          derivation only; concern multiplicity is a third axis it does not own), and the sticky decided-outcome
-          posture with new-evidence-delta re-raise.
-        - Update `init-recipe.json`, `CONFIGURABLE_FILES` in `classification.ts`, the methods README,
-          `strategy-work-organization.md`, `STRATEGY-INDEX.md`, and hard-coded init/update/decomposition tests.
-        - Refresh installed manifest membership through the supported self-hosting update path; prove the old path
-          is absent, the new path remains Configurable, its pristine identity matches package source, and project
-          overrides survive.
-        - Preserve Configurable classification, adopter overrides, and pre-release no-alias behavior.
+    - `[x]` **1.1.a Rename and re-contract the boundary method**
+        - Renamed the Configurable method to `assess-boundary-fit.md` across package, installed, recipe,
+          classification, strategy, index, README, manifest, and test surfaces with no old-path alias.
+        - Promoted hold, cut-map, and delivery-plan candidate to explicit sticky outcomes; corrected task-generation
+          coverage to treat concern multiplicity independently from the scale/derivation depth valve.
+        - Fresh init/update coverage preserves project overrides, pristine package identity, and the existing v3
+          decomposition doctrine under the renamed method.
 
-    - `[ ]` **1.1.b Wire the three outcomes into design authoring**
-        - Update `draft-design.md` and `create-spec.md` in both shipped and installed copies so the method returns
-          stays-one-WU, cut-map, or stays-one-WU-plus-delivery-candidate.
-        - Add one outcome/owner/action table: hold records the decision and stays silent, cut-map routes to
-          decomposition, and delivery-candidate makes the current authoring stage slice-aware without publishing
-          or binding delivery state.
-        - Record the selected outcome and its evidence basis in the existing draft/spec decision prose. The agent
-          compares later evidence semantically and re-raises only on a material delta; no CLI parser, fingerprint,
-          schema, or new decision record is introduced.
-        - Build `test-first` (one behavior at a time):
-            - Each outcome dispatches to its sole owner
-            - Workflow contract fixtures require the prose record, semantic-delta judgment, and silence on unchanged
-              evidence without claiming a deterministic comparator or CLI input
-            - Rename, init, update, and Configurable classification preserve the method contract
+    - `[x]` **1.1.b Wire the three outcomes into design authoring**
+        - Declared `assess-boundary-fit` at both design-authoring fire-points and dispatched each exact outcome
+          through an aligned outcome/owner/action table in shipped and installed workflow copies.
+        - Kept hold and delivery-candidate work in the current authoring stage, routed cut-maps solely to
+          `decompose-work-unit`, and excluded delivery publication or binding from slice-aware authoring.
+        - Added a focused workflow contract fixture proving sticky prose recording, semantic new-evidence judgment,
+          unchanged-evidence silence, no machine comparator/authority, and package/installed parity.
 
     - `[ ]` **1.1.c Add task-generation delivery-plan authoring and finalization sequencing**
         - Add the Pass 1 fire point to `generate-tasks.template.md` and the installed `generate-tasks.md`: derivation

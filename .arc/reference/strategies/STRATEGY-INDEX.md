@@ -51,7 +51,7 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
 - `arc/strategy-work-organization.md`
     - ALWAYS load when the routine path does not settle it — the `Class` model's worked examples, the
       Errand-versus-work-unit boundary, branch protection modes, spec-flow invariants, cohort nesting; the
-      `classify-work-unit` / `assess-cohort-fit` methods and the work-unit lifecycle workflows cover routine
+      `classify-work-unit` / `assess-boundary-fit` methods and the work-unit lifecycle workflows cover routine
       classification, branch, and archival calls.
 
 ## Project Strategies

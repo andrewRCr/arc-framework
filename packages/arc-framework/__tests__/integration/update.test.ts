@@ -110,6 +110,31 @@ describe("update integration — baseline (real recipe)", () => {
     });
   });
 
+  it("preserves assess-boundary-fit overrides as Configurable content", async () => {
+    const methodPath = "system/methods/assess-boundary-fit.md";
+    const installedPath = join(tempDir, ".arc", methodPath);
+    const customized = (await readFile(installedPath, "utf-8"))
+      .replace("override-active: false", "override-active: true")
+      .replace("[No override configured]", "Use the project boundary policy.");
+    await writeFile(installedPath, customized, "utf-8");
+
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: realTemplateDir,
+      recipe: await loadRecipe(),
+    });
+
+    expect(result.conflicts).toEqual([]);
+    expect(await readFile(installedPath, "utf-8")).toBe(customized);
+    expect(await fileExists(join(tempDir, ".arc", "system/methods/assess-cohort-fit.md"))).toBe(false);
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files[methodPath]?.classification).toBe("Configurable");
+    expect(manifest.files[methodPath]?.pristine_hash).toBe(
+      sha256(await readFile(join(realTemplateDir, methodPath), "utf-8")),
+    );
+  });
+
   it("restores executable permissions on installed hooks", async () => {
     const hook = join(tempDir, ".arc/system/.internal/githooks/commit-msg");
     const hooksReadme = join(tempDir, ".arc/system/.internal/githooks/README.md");
@@ -158,7 +183,7 @@ describe("update integration — baseline (real recipe)", () => {
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
-        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+        "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
