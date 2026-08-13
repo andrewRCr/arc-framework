@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "fix-materialize-backlog-record",
+  "claimId": "e5617d5ad4f746bd47ecdb35f8617fa1",
+  "createdAt": "2026-08-13T14:34:37.223Z",
+  "updatedAt": "2026-08-13T14:34:37.223Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Fix cross-machine work-unit materialization when the local base contains the normal backlog record; preserve storage-evolution compatibility and add regression coverage.",
+  "branch": "chore/fix-materialize-backlog-record",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
