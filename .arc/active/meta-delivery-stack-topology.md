@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.1 — Complete verification (15/15 success criteria met, Tier 3 green)
+- **Last Completed:** Published delivery members 1–5 and registered GitHub stack 503 (state revision 69)
 - **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** integrate-work-unit Step 1 — resume stacked delivery at `read-position-and-reconcile` before review
 
 - **PR URL:** [none]
 - **Completed:** [none]
