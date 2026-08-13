@@ -187,19 +187,29 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow.slice(partialProtection)).not.toContain("arc review frontline resolve -");
   });
 
-  it("fails closed across every Errand PR lookup state", async () => {
+  it("dispatches every Errand PR state through the exact-head resolver", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
       "utf8",
     );
-    for (const state of [
-      "No match", "One open match", "One merged match at the current head", "Closed-unmerged",
-      "multiple/conflicting matches", "lookup error", "incomplete enumeration",
-    ]) expect(workflow).toContain(state);
-    expect(workflow).toContain("--paginate --slurp");
-    expect(workflow).toContain("state=all&base={base-branch}&head={owner}:{branch}");
-    expect(workflow).toContain("git ls-remote --heads origin");
-    expect(workflow).toContain("proposedChangeRequest.headSha");
+    const resolution = workflow.slice(
+      workflow.indexOf("3. **Resolve the Errand PR**"),
+      workflow.indexOf("4. **Enter the open PR.**"),
+    );
+    expect(resolution).toContain(
+      "arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json",
+    );
+    for (const disposition of [
+      "`none / create-change-request`",
+      "`open / reuse-change-request`",
+      "`merged-at-head / complete`",
+      "`closed-unmerged / reopen-change-request`",
+      "`merged-stale-head / reconcile-head`",
+      "`ambiguous | blocked / stop`",
+    ]) expect(resolution).toContain(disposition);
+    expect(resolution).not.toContain("gh api");
+    expect(resolution).not.toContain("--paginate --slurp");
+    expect(resolution).not.toContain("git ls-remote --heads origin");
   });
 
   it("keeps WU and Errand hook ordering symmetric", async () => {
@@ -211,7 +221,7 @@ describe("PR-open lifecycle extensions", () => {
       const proposedChangeRequest = workflow.indexOf("proposedChangeRequest");
       const prCreate = workflow.indexOf("gh pr create");
       const openedChangeRequest = workflow.indexOf("openedChangeRequest =", prCreate);
-      const preMerge = workflow.indexOf("pre-merge", openedChangeRequest);
+      const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", openedChangeRequest);
       const integrationInterlock = workflow.indexOf("`integration-interlock`", openedChangeRequest);
       expect([proposedChangeRequest, prCreate, openedChangeRequest, preMerge, integrationInterlock]
         .every((index) => index >= 0)).toBe(true);
@@ -222,7 +232,7 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("uses one workflow-wide WU push contract and retains final pre-merge settlement", async () => {
+  it("uses one workflow-wide WU push contract and one final pre-merge fire", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
@@ -230,8 +240,11 @@ describe("PR-open lifecycle extensions", () => {
 
     expect(workflow.match(/#pre-push-review/gu)).toHaveLength(1);
     expect(workflow).toContain("Before every agent-managed push in this workflow");
-    expect(workflow.indexOf("fire `pre-merge` when active"))
-      .toBeLessThan(workflow.indexOf("`integration-interlock`", workflow.indexOf("fire `pre-merge` when active")));
+    const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`");
+    const interlock = workflow.indexOf("`integration-interlock`", preMerge);
+    expect(preMerge).toBeGreaterThan(-1);
+    expect(interlock).toBeGreaterThan(preMerge);
+    expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
   });
 
   it("keeps self-review author-side and provider-neutral", async () => {

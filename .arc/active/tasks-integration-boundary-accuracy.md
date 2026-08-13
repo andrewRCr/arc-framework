@@ -544,68 +544,59 @@ now enforce are deleted; the bias-guarding invariants that remain are stated onc
         - Reduced the bias guards to one statement each for non-carried clearance, non-authoritative advisory
           receipts, and sole integration-interlock merge authority.
 
-### `[ ]` **6.5 Converge the errand lane: seam placement, record cut, pin disclosure, lane arms**
+### `[x]` **6.5 Converge the errand lane: seam placement, record cut, pin disclosure, lane arms**
 
 - _Goal:_ The errand ship path composes the shared primitives — typed PR resolution, pre-armed merge-method
   validation, one seam fire — while keeping its one-fire lock shape and losing the same narration defects as
   the work-unit lane.
 
-    - `[ ]` **6.5.a Typed lane arms**
-        - the pre-create enumeration and four-row table over a raw paginated query route through the
-          change-request resolver; the merge-method resolver runs before arming auto-merge (the observed
-          failure's exact site); auto-merge keeps delegating the checks wait to the host
-        - `pr-open-extensions.test.ts` pins the enumeration table and query string verbatim; those assertions
-          rewrite with this change (Task 6.7.b)
+    - `[x]` **6.5.a Typed lane arms**
+        - Routed every pre-create disposition through the exact-head change-request resolver, validated the merge
+          method before lock release, and left required-check waiting with the host.
 
-    - `[ ]` **6.5.b Single seam fire at the shared position**
-        - the two `pre-merge` fire instructions collapse to one at the shared position
+    - `[x]` **6.5.b Single seam fire at the shared position**
+        - Collapsed Errand settlement to one rendered `pre-merge` extension report between final-head readiness and
+          the integration interlock; the extension contract now names both lanes.
 
-    - `[ ]` **6.5.c Narration cuts and the one-fire rule**
-        - the two errand approval-conditionality loci go, disclosure stays; the re-lock rule is stated once
-          (no absorbing verb exists on this lane); record composition is verified `Coverage`-free
+    - `[x]` **6.5.c Narration cuts and the one-fire rule**
+        - Removed both approval-conditionality restatements, retained the authorization disclosure, stated one
+          shared re-lock rule, and constrained the review record to `Local`, `Hosted PR`, and `Triage`.
 
-### `[ ]` **6.6 Restore the errand tail's terminal-exit semantics and check-cadence honesty**
+### `[x]` **6.6 Restore the errand tail's terminal-exit semantics and check-cadence honesty**
 
 - _Goal:_ The ship path completes in-session by default — `leave` is a terminal exit ramp for a session-ending
   tail, never a routine mid-ship transition or a blind re-entry loop.
 
-    - `[ ]` **6.6.a Terminal, conditional leave**
-        - the trigger clause names the session-end condition (or moving machines), not a PR-state condition
-          satisfiable upstream; no step proposes leaving at pull-request open or to start the next errand
-          (the auto-merge arm plus completion backstops are the batch pipeline)
+    - `[x]` **6.6.a Terminal, conditional leave**
+        - Restricted `leave` to a session-ending unresolved tail or a machine move; an open PR, pending checks or
+          review, and starting another Errand no longer trigger teardown.
 
-    - `[ ]` **6.6.b Post-leave replay**
-        - completion replays through the identity's owning open/materialize driver; no step references a
-          checkout the leave tore down
+    - `[x]` **6.6.b Post-leave replay**
+        - Routed post-leave completion through the identity's owning open or materialize driver and removed the
+          torn-down checkout as a replay surface.
 
-    - `[ ]` **6.6.c Check-cadence honesty on the errand arms**
-        - no errand step treats checks as green before the host's own wait; a deferred-CI project runs the
-          lane unchanged
+    - `[x]` **6.6.c Check-cadence honesty on the errand arms**
+        - Reports required checks as observed while native auto-merge and reviewed-lane host enforcement own the
+          wait; no Errand step assumes an early green state.
 
-### `[ ]` **6.7 Replace prose-string pins with typed contract and cross-lane scenario coverage**
+### `[x]` **6.7 Replace prose-string pins with typed contract and cross-lane scenario coverage**
 
 - _Goal:_ The tests that pinned the rewritten prose assert the new typed contracts and structural facts — not
   paraphrasable sentences — and the end-to-end scenarios cover both lanes' new shapes.
 
-    - `[ ]` **6.7.a Audit the four not-yet-audited pin files**
-        - `review-gate-packaging.test.ts`, `archive-staging.test.ts`, `framework-sync.test.ts`,
-          `unit/load-set/projection.test.ts` — the audit is a task, not an assumption; unpinned assertions
-          surface as red CI mid-implementation otherwise
+    - `[x]` **6.7.a Audit the four not-yet-audited pin files**
+        - Audited `review-gate-packaging.test.ts`, `archive-staging.test.ts`, `framework-sync.test.ts`, and
+          `unit/load-set/projection.test.ts`; their package, fixture, parity, and load-set contracts remain valid.
 
-    - `[ ]` **6.7.b Converge the pin files on typed contracts**
-        - the pins earlier members' changes reach ride those members (Task 2.4 — the work-unit ordering test;
-          Task 5.4 — `Coverage` presence); this pass rewrites the remainder in
-          `review-driver-lifecycle.test.ts`, `pr-open-extensions.test.ts`
-          (errand enumeration table, seam-fire ordering), `review-gate-workflows.test.ts`, and
-          `integration-reconcile-workflow.test.ts` — readiness and merge-lock invocation strings, merge
-          pseudocode, callout text — to assert typed envelopes and structural facts, not paraphrasable
-          sentences
+    - `[x]` **6.7.b Converge the pin files on typed contracts**
+        - Recast `review-driver-lifecycle.test.ts`, `pr-open-extensions.test.ts`,
+          `review-gate-workflows.test.ts`, and `integration-reconcile-workflow.test.ts` around typed
+          dispositions, exact-head command ordering, extension placement, and lock counts.
 
-    - `[ ]` **6.7.c End-to-end scenario fixtures**
-        - minimal no-review path; frontline review; local-first standard review; hosted-first standard
-          review; interruption between submit and PR creation; a review-fix lineage advance;
-          convergence-verification pending and completion; cap exhaustion; an `awaiting-checks` resume;
-          unexplained Candidate drift
+    - `[x]` **6.7.c End-to-end scenario fixtures**
+        - Covered no-review, frontline, local-first, hosted-first, submit interruption, review-fix lineage,
+          convergence pending/completion, cap exhaustion, awaiting-checks resume, and unexplained Candidate drift;
+          added explicit converged-submit and same-checkpoint resume cases.
 
 ## **Phase 7:** Verification
 

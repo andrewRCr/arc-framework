@@ -256,6 +256,26 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
+  it("submits a converged implementation-changing lineage after full verification", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: { implementationChanged: true, convergenceVerification: "satisfied" },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-submit-ready",
+      reservation: { sourceId: "codex-pr" },
+      nextAction: { kind: "submit-candidate" },
+    });
+  });
+
   it("re-enters the policy driver when an exact target changes", () => {
     const base = request({ selfReview: "settled" });
     const oldTarget = { ...target, headSha: "d".repeat(40) };

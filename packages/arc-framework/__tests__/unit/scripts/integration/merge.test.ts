@@ -155,22 +155,42 @@ describe("integration merge", () => {
     expect(state.merged).toBe(false);
   });
 
-  it("leaves the release standing when required checks reach their deadline", async () => {
+  it("resumes the same checkpoint after required checks reach their deadline", async () => {
     const { value, state } = dependencies();
-    value.awaitChecks = async () => ({
-      schemaVersion: 1,
-      mode: "review-checks-await",
-      repository: "owner/repo",
-      pullRequest: 42,
-      headSha: oid("c"),
-      state: "pending",
-      nextAction: "await",
-      checks: [{ name: "test", state: "pending" }],
-      elapsedMs: 600_000,
-    });
+    let attempts = 0;
+    value.awaitChecks = async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        return {
+          schemaVersion: 1,
+          mode: "review-checks-await",
+          repository: "owner/repo",
+          pullRequest: 42,
+          headSha: oid("c"),
+          state: "pending",
+          nextAction: "await",
+          checks: [{ name: "test", state: "pending" }],
+          elapsedMs: 600_000,
+        };
+      }
+      return {
+        schemaVersion: 1,
+        mode: "review-checks-await",
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: oid("c"),
+        state: "not-required",
+        nextAction: "complete",
+        checks: [],
+      };
+    };
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({ state: "awaiting-checks" });
     expect(state.held).toBe(false);
     expect(state.merged).toBe(false);
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({ state: "merged" });
+    expect(state.held).toBe(false);
+    expect(state.merged).toBe(true);
   });
 });

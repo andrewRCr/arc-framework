@@ -351,14 +351,19 @@ describe("trusted review-gate workflows", () => {
     expect(full).toMatch(/targeted verification[\s\S]*focused[\s\S]*complete review/u);
     expect(full).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
     expect(full).toMatch(/never infer[\s\S]*absent or\s+malformed WU state/iu);
-    expect(full).toContain("retain `openedChangeRequest.headSha` as `{approved-head-sha}`");
+    expect(full).toMatch(/retain\s+`openedChangeRequest\.headSha` as `\{approved-head-sha\}`/iu);
 
-    const preMerge = full.lastIndexOf("`#pre-merge`");
+    const preMerge = full.lastIndexOf("**Extension report** · `#pre-merge`");
     const interlock = full.lastIndexOf("`integration-interlock`");
     const autoMerge = full.lastIndexOf("gh pr merge <pr-number>");
+    const reviewRecord = full.slice(full.indexOf("content-gated `## Review` record"), preMerge);
     expect(preMerge).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(autoMerge);
-    expect(full).toMatch(/after approval[\s\S]*recompose[\s\S]*re-read PR status[\s\S]*base drift/u);
+    expect(full.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
+    expect(reviewRecord).toContain("`Local`, `Hosted PR`, and `Triage`");
+    expect(reviewRecord).not.toContain("`Coverage`");
+    expect(full).not.toContain("authorizes the lane action only if");
+    expect(full).not.toMatch(/changed head[\s\S]*invalidates approval/iu);
     expect(full).toContain("--match-head-commit {approved-head-sha}");
 
     const partial = sectionBetween(packaged, "### Ship — partial protection", "### Complete");
@@ -403,20 +408,37 @@ describe("trusted review-gate workflows", () => {
       "3. **Resolve the Errand PR**",
       "4. **Enter the open PR.**",
     );
-    expect(prResolution).toMatch(/one merged match at the current head[\s\S]*skip review\/merge[\s\S]*Complete cleanup/iu);
+    expect(prResolution).toContain("arc review change-request resolve --head-ref");
+    expect(prResolution).toMatch(/`merged-at-head \/ complete`[\s\S]*Complete/u);
+    expect(prResolution).toContain("`closed-unmerged / reopen-change-request`");
 
-    const lanes = sectionBetween(packaged, "6. Land per lane:", "### Ship — partial protection");
+    const lanes = sectionBetween(packaged, "6. Land per lane:", "7. **Leave");
     expect(lanes).toMatch(/Auto-merge-lane[\s\S]*--auto <merge-flag>[\s\S]*--match-head-commit/iu);
     expect(lanes).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
     expect(lanes).toMatch(/only literal `planning`[\s\S]*arm(?:ing)?[\s\S]*auto-merge/iu);
-    expect(lanes).toMatch(/Reviewed-lane[\s\S]*owner review[\s\S]*head change restarts Step 4/iu);
+    const method = lanes.indexOf("arc review merge-method resolve --json");
+    const release = lanes.indexOf("arc merge lock release -", method);
+    const arm = lanes.indexOf("gh pr merge <pr-number> --auto", release);
+    expect(method).toBeGreaterThan(-1);
+    expect(release).toBeGreaterThan(method);
+    expect(arm).toBeGreaterThan(release);
+    expect(lanes.match(/arc merge lock hold -/gu)).toHaveLength(1);
+    expect(lanes).not.toContain("arc review checks await");
 
     const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(
       /arc errand close <slug> --json[\s\S]*finalizes the exact v3 identity tail[\s\S]*reaps refs[\s\S]*drops only its origin capture/iu,
     );
     expect(complete).toMatch(/nextOffer[\s\S]*exact file-ordered execute-bound sibling[\s\S]*Never scan the inbox/iu);
-    expect(complete).toMatch(/Unattended merge[\s\S]*finalize pass[\s\S]*Exact replay is idempotent/iu);
+    expect(complete).toContain("**Post-leave merge.**");
+    expect(complete).toContain("identity's owning open or materialize driver");
+    expect(complete).toContain("Exact replay is");
+
+    const leave = sectionBetween(packaged, "7. **Leave", "### Ship — partial protection");
+    expect(packaged.match(/arc errand leave <slug>/gu)).toHaveLength(1);
+    expect(lanes).not.toContain("arc errand leave <slug>");
+    expect(leave).toMatch(/session is ending[\s\S]*moving machines/iu);
+    expect(leave).toMatch(/Do not leave[\s\S]*change request is open[\s\S]*start the next Errand/iu);
   });
 
   it("keeps auto-merge arming on canonical classification", async () => {
