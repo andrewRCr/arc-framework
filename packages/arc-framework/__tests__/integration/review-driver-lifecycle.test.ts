@@ -35,6 +35,7 @@ describe("lifecycle review driver", () => {
     expect(packaged).toContain("changed `fixTarget`");
     expect(packaged).toContain("`coverage: incremental`");
     expect(packaged).toContain("`effectiveCoverage: complete`");
+    expect(packaged).not.toContain("`Coverage`");
     expect(packaged).toMatch(
       /never invoke `hosted settle`, post a reply or\s+compensating\s+summary\s+comment/u,
     );
@@ -54,7 +55,7 @@ describe("lifecycle review driver", () => {
     expect(workflow).toContain("Approve (or redirect)?");
     expect(workflow).toMatch(/runtime-owned bindings/i);
     expect(workflow).toContain("no-action record-only");
-    expect(workflow).toContain("`Coverage`");
+    expect(workflow).not.toContain("`Coverage`");
   });
 
   it("publishes a content-gated PR review record", async () => {
@@ -68,7 +69,7 @@ describe("lifecycle review driver", () => {
     expect(packaged).toContain("**Local:**");
     expect(packaged).toContain("**Hosted PR:**");
     expect(packaged).toContain("**Triage:**");
-    expect(packaged).toContain("**Coverage:**");
+    expect(packaged).not.toContain("**Coverage:**");
     expect(packaged.replaceAll("\n> ", " ")).toContain(
       "Omit the whole section when no review ran",
     );

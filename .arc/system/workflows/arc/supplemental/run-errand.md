@@ -310,8 +310,7 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Compose the final `openedChangeRequest` and fire `pre-merge`.
    Compose and preview the content-gated `## Review` record from the settled review cycle: `Local`, `Hosted PR`,
-   `Triage`, and, when prior complete coverage carried across a narrow delta, `Coverage`. Omit the whole section
-   when no review ran; omit `Coverage` when every reported pass ran on the final head.
+   and `Triage`. Omit the whole section when no review ran.
 
    Then retain `openedChangeRequest.headSha` as `{approved-head-sha}`. No review-authored commit or push may occur
    after this stable checkpoint.

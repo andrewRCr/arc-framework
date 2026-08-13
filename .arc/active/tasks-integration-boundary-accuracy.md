@@ -462,24 +462,18 @@ field-scoped deletion, not gated on the Phase 6 rewrite.
         - Every approval-voiding exit compensates through the existing hold verb before returning; a failed hold
           becomes `blocked`, while a checks deadline returns `awaiting-checks` with the approved release standing.
 
-### `[ ]` **5.4 Post the checkpointed review record without `Coverage`**
+### `[x]` **5.4 Post the checkpointed review record without `Coverage`**
 
 - _Goal:_ The posted record is byte-for-byte what the approver previewed, and `Coverage` is gone from the
   pull-request record everywhere it was prescribed — a pure deletion with nothing replacing it.
-
-- _Note:_ `review-driver-lifecycle.test.ts` asserts the field's presence in both workflow copies; those
-  assertions flip to absence with this member.
 
     - `[x]` **5.4.a Post the persisted record**
         - The merge verb replaces the pull request's top-level Review section with the checkpointed bytes and never
           recomposes the record inside the post-approval span.
 
-    - `[ ]` **5.4.b Field-scoped `Coverage` cut at all five inventoried sites**
-        - the PR template's three sites and one site in each integration workflow (both copies per the
-          two-copy discipline); field-scoped, not string-scoped — the `standard-review` rubric dimension, the
-          task-list validation property, and the test-coverage expectations are untouched
-        - the `effectiveCoverage` envelope field (both workflows' review-upgrade arms and the hosted-await
-          tests) is a separate identifier and survives untouched
+    - `[x]` **5.4.b Field-scoped `Coverage` cut at all five inventoried sites**
+        - Removed the PR-record field and its authoring guidance from the template, work-unit integration lane,
+          and errand lane in both framework copies; `effectiveCoverage` and unrelated coverage contracts remain.
 
 ## **Phase 6:** Workflow convergence
 

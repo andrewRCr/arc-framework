@@ -487,9 +487,8 @@ not excerpts alone.
 
 Compose and preview the final content-gated `## Review` record. Report `Local` and `Hosted PR` activity by
 human-readable product/model and count, using `None` for an empty category. Report `Triage` with the GitHub identity
-approving the final disposition set and distinct material-finding counts by final disposition. When prior complete
-coverage carried across a later narrow delta, add `Coverage` with the targeted verification and delta character;
-omit `Coverage` when every reported pass ran on this head. Omit the whole section when no review ran.
+approving the final disposition set and distinct material-finding counts by final disposition. Omit the whole section
+when no review ran.
 
 No `gh pr merge`, auto-merge enablement, or queued merge may occur before these products exist and the final
 integration-interlock fires. The integration-interlock is the sole merge authority.
