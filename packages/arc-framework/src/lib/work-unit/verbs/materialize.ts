@@ -124,15 +124,16 @@ export async function runMaterialize(
   // placement check reads only the entering checkout. Keep backlog/storage
   // projection entirely outside materialize authority.
   const emptyIndex: LifecycleIndex = new Map();
-  const guardResult = await occupancy({
-    index: emptyIndex,
-    slug: name,
-    position: null,
-    inputs,
-  });
-  if (!guardResult.ok) return { status: "rejected", reason: guardResult.message };
 
   try {
+    const guardResult = await occupancy({
+      index: emptyIndex,
+      slug: name,
+      position: null,
+      inputs,
+    });
+    if (!guardResult.ok) return { status: "rejected", reason: guardResult.message };
+
     const placement = await ctx.reconcileWorkUnitWorktree(worktreeOp);
     if (placement.mutation !== "spawn") {
       return { status: "rejected", reason: "materialize placement returned an unexpected operation." };

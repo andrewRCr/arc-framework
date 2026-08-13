@@ -745,6 +745,19 @@ describe("handleMaterialize", () => {
     );
   });
 
+  it("stops the spinner and reports a materialize rejection", async () => {
+    mockRunMaterialize.mockResolvedValueOnce({
+      status: "rejected",
+      reason: "occupancy probe failed",
+    });
+
+    await handleMaterialize("foo", { here: true });
+
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Materialize failed.");
+    expect(mockLogError).toHaveBeenCalledWith("occupancy probe failed");
+    expect(process.exitCode).toBe(1);
+  });
+
   it("propagates forbidden subprocess interaction to the network boundary", async () => {
     const subprocess = {
       terminalPrompts: "forbidden" as const,

@@ -177,6 +177,25 @@ describe("runMaterialize", () => {
     expect(worktreeOps).toEqual([]);
   });
 
+  it("returns a rejection when the occupancy guard throws", async () => {
+    const { ctx, worktreeOps } = buildCtx();
+    const result = await runMaterialize({
+      ...ctx,
+      guardValidators: {
+        "worktree-occupancy": async () => {
+          throw new Error("occupancy probe failed");
+        },
+      },
+    }, {
+      name: "foo",
+      branch: "feat/foo",
+      inPlace: true,
+    });
+
+    expect(result).toEqual({ status: "rejected", reason: "occupancy probe failed" });
+    expect(worktreeOps).toEqual([]);
+  });
+
   it("spawns from the remote branch without enforcing current-checkout occupancy", async () => {
     const { ctx, calls, worktreeOps } = buildCtx({ activeCandidates: [candidate({})] });
 
