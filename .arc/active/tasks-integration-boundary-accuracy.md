@@ -487,17 +487,13 @@ shared `pre-merge` seam position lands here with both lanes and the extension co
 between a `ready` checkpoint and the interlock stop, one enactment per path. Prose invariants that the verbs
 now enforce are deleted; the bias-guarding invariants that remain are stated once each.
 
-### `[ ]` **6.1 Merge the base only against the checkpointed revision**
+### `[x]` **6.1 Merge the base only against the checkpointed revision**
 
 - _Goal:_ The reconcile arm's refresh-compare-merge span is one verb call with no narrated git mechanics.
 
-    - `[ ]` **6.1.a `arc base merge --expected-base <oid> --json`**
-        - refresh, compare the base identifier, merge append-only; returns `merged`, `skipped-clean`,
-          `base-moved`, or `conflict`
-        - Build `test-first` (one behavior at a time):
-            - a moved base identifier returns `base-moved` without merging
-            - the merge is append-only (no rewrite of published commits)
-            - `conflict` returns without partial merge state
+    - `[x]` **6.1.a `arc base merge --expected-base <oid> --json`**
+        - Added the typed CLI procedure and production Git adapter: it refreshes and pins the configured base,
+          skips contained revisions, merges append-only, and aborts conflicts back to the exact clean pre-merge state.
 
 ### `[ ]` **6.2 Resolve exact-target review status after head-changing reconciliation**
 

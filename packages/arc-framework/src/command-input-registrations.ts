@@ -9,7 +9,7 @@ import {
 import { extensionsCommandInputPolicyDeclarations } from "./commands/extensions.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
-import { baseCommandInputPolicyDeclarations } from "./handlers/base.js";
+import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
   checkCommitMessageInputPolicyDeclarations,
   checkCommitMessageInputRegistration,
@@ -90,6 +90,7 @@ export const commandInputRegistrations = [
   releaseSetupVerifyInputRegistration,
   ...reviewCommandInputRegistrations,
   ...integrationCommandInputRegistrations,
+  ...baseCommandInputRegistrations,
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Command-owned policy declarations composed without reinterpreting their domain semantics. */

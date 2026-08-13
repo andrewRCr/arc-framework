@@ -38,8 +38,10 @@ import {
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import {
   handleBaseDrift,
+  handleBaseMerge,
   handleBaseSync,
   type BaseDriftOptions,
+  type BaseMergeOptions,
   type BaseSyncOptions,
 } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
@@ -675,6 +677,16 @@ baseCmd
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, opts: BaseDriftOptions) => handleBaseDrift(opts, context),
+  ));
+
+baseCmd
+  .command("merge")
+  .description("Merge one checkpointed base revision append-only")
+  .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
+  .requiredOption("--json", "Emit the typed merge outcome as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: BaseMergeOptions) => handleBaseMerge(opts, context),
   ));
 
 baseCmd

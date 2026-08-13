@@ -13,7 +13,14 @@ import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
 import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
+import { createBaseMergePort } from "../scripts/base/merge-composition.js";
+import {
+  BaseMergeInputSchema,
+  mergeExpectedBase,
+  type BaseMergeResult,
+} from "../scripts/base/merge.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 /** Options for `arc base sync`. */
@@ -28,6 +35,14 @@ export interface BaseDriftOptions {
   json?: boolean;
 }
 
+/** Options for `arc base merge`. */
+export interface BaseMergeOptions {
+  /** Exact freshly observed base revision the merge is allowed to append. */
+  expectedBase: string;
+  /** Emit the typed merge outcome as JSON. */
+  json?: boolean;
+}
+
 const baseJsonPolicy = declareCliOptionSite("json", {
   acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
   automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
@@ -37,8 +52,59 @@ const baseJsonPolicy = declareCliOptionSite("json", {
 /** Machine-output policies owned by the base command adapters. */
 export const baseCommandInputPolicyDeclarations = [
   { commandPath: "base drift", aliases: [], sites: [baseJsonPolicy] },
+  { commandPath: "base merge", aliases: [], sites: [baseJsonPolicy] },
   { commandPath: "base sync", aliases: [], sites: [baseJsonPolicy] },
 ] satisfies readonly CommandInputDeclaration[];
+
+/** Command-owned schema registrations for base operations. */
+export const baseCommandInputRegistrations = [{
+  commandPath: "base merge",
+  schema: BaseMergeInputSchema,
+  schemaFields: { "option.expected-base": "expectedBase" },
+}] as const satisfies readonly CommandInputRegistration[];
+
+export interface BaseMergeHandlerDependencies {
+  merge(cwd: string, expectedBase: string): Promise<BaseMergeResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Run the exact-base append-only merge procedure. */
+export async function handleBaseMerge(
+  options: BaseMergeOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<BaseMergeHandlerDependencies> = {},
+): Promise<void> {
+  const cwd = requireArcProjectRoot();
+  if (cwd === null) return;
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: BaseMergeHandlerDependencies = {
+    merge: async (root, expectedBase) => {
+      const { settings } = await readConfigSettings(root);
+      return mergeExpectedBase(
+        { expectedBase },
+        createBaseMergePort({ cwd: root, baseBranch: settings["branch.base"], exec }),
+      );
+    },
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = BaseMergeInputSchema.safeParse({ expectedBase: options.expectedBase });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "base-merge",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail: parsed.error.issues.map(({ message }) => message).join("; "),
+    })}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  dependencies.write(`${JSON.stringify(await dependencies.merge(cwd, parsed.data.expectedBase))}\n`);
+}
 
 /** Run the authoritative shared base-drift analyzer. */
 export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: InteractionContext): Promise<void> {
