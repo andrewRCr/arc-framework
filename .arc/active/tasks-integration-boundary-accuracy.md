@@ -162,33 +162,32 @@ before `checkpoint` and `merge` mint under it. The fire position lands at the pu
 the push extension — the one placement costing one commit, one push, no recomposition (placement table in
 `spec-integration-boundary-accuracy.md` § F).
 
-### `[ ]` **2.1 Rename the lifecycle transition to `submit` and free the `integrate` namespace**
+### `[x]` **2.1 Rename the lifecycle transition to `submit` and free the `integrate` namespace**
 
 - _Goal:_ The scheduling verb is named for the act it performs, `integrate` survives only as the namespace for
   the later phase procedures, and no inventoried source, doc, or test surface still names the old verb.
 
-    - `[ ]` **2.1.a `lifecycle-transitions.ts` — the load-bearing rename**
-        - the `VERBS` registry (the `Verb` type derives from it), the `integrate` transition edge, `reopen`'s
-          `inverse`, and the illegal-cell table; invisible to a grep for the invocation string
-        - `integrate` is declared a composite verb alongside `decompose`; the renamed edge keeps that
-          declaration shape
+    - `[x]` **2.1.a `lifecycle-transitions.ts` — the load-bearing rename**
+        - Renamed the typed verb, transition edge, `reopen` inverse, illegal-cell table, and composite declaration
+          from `integrate` to `submit`.
 
-    - `[ ]` **2.1.b Remaining source surfaces**
-        - `verbs/dispatch.ts` (`CONTEXT_DEFAULTING_VERBS` + kind map), `cli.ts` registration,
-          `handlers/lifecycle.ts`, `lib/work-unit/verbs/integrate.ts`
+    - `[x]` **2.1.b Remaining source surfaces**
+        - Renamed dispatch, CLI registration, handler, command-input policy, and the verb module/API to `submit`.
 
-    - `[ ]` **2.1.c Bare `arc integrate` error stub**
-        - errors with a pointer to `arc submit`; subcommand listing composes in as `checkpoint` and `merge`
-          land in later members
+    - `[x]` **2.1.c Bare `arc integrate` error stub**
+        - Reserved `arc integrate` as a procedure namespace with an `arc submit` redirect and composed subcommand
+          listing.
 
-    - `[ ]` **2.1.d Doc surface sweep**
-        - invocation and name references in the integration and reopen workflows and command references (both
-          copies); the two backlog drafts update now that the name lands (unlanded names are never
-          forward-referenced)
+    - `[x]` **2.1.d Doc surface sweep**
+        - Updated the integration/reopen workflows, command references, and the two named backlog drafts; mirrored
+          framework files remain aligned across package and project copies.
 
-    - `[ ]` **2.1.e Verb-name test updates**
-        - `verbs/integrate.test.ts`, `verbs/dispatch.test.ts`, `lifecycle-executor.test.ts`,
-          `handlers/lifecycle-verbs.test.ts`, `command-input/repository-inventory.test.ts`
+    - `[x]` **2.1.e Verb-name test updates**
+        - Renamed the verb suite and updated dispatch, executor, handler, command-inventory, no-input, and bare
+          namespace regression coverage.
+
+- _Outcome:_ `submit` now owns the lifecycle transition end to end while bare `integrate` is reserved for the
+  later checkpoint/merge procedure namespace, with no compatibility alias.
 
 ### `[ ]` **2.2 Enforce Candidate-aware, reservation-preserving submission**
 

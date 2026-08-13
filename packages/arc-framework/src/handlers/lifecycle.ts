@@ -1,7 +1,7 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
  * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` /
- * `integrate` / `reopen` / `abandon`).
+ * `submit` / `reopen` / `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -114,7 +114,7 @@ import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
 } from "../lib/work-unit/transition-record-store.js";
-import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
+import { runSubmit } from "../lib/work-unit/verbs/submit.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
@@ -439,7 +439,7 @@ export const ActivateCommandInputSchema = z.object({
   task: z.string().trim().min(1),
   action: z.string().trim().min(1),
 }).strict();
-export const IntegrateCommandInputSchema = z.object({
+export const SubmitCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   lastCompleted: z.string().trim().min(1),
   action: z.string().trim().min(1),
@@ -560,8 +560,8 @@ export const lifecycleCommandInputRegistrations = [
   },
   { commandPath: "deactivate", schema: DeactivateCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
   {
-    commandPath: "integrate",
-    schema: IntegrateCommandInputSchema,
+    commandPath: "submit",
+    schema: SubmitCommandInputSchema,
     schemaFields: {
       "operand.slug": "slug",
       "option.last-completed": "lastCompleted",
@@ -1582,42 +1582,42 @@ export async function handleMaterialize(
 }
 
 // ---------------------------------------------------------------------------
-// Phase move (review entry) — `integrate`
+// Phase move (publication entry) — `submit`
 // ---------------------------------------------------------------------------
 
-/** Options for `arc integrate`. */
-export interface IntegrateOptions {
+/** Options for `arc submit`. */
+export interface SubmitOptions {
   lastCompleted?: string;
   action?: string;
   allowAdvisories?: boolean;
 }
 
 /**
- * `arc integrate [slug]` — open review on an `Active` WU (Active → Integrating),
- * defaulting to the current WU. Marks phase entry, not the merge — the
+ * `arc submit [slug]` — schedule publication for an `Active` WU (Active → Integrating),
+ * defaulting to the current WU. Marks publication entry, not the merge — the
  * integration-interlock owns merge approval. Refuses without the orientation inputs
  * (`--last-completed` / `--action`); both feed the edge's `input` soft fields and
  * are never fabricated. A non-`Active` source falls to the table's illegal-edge
  * rejection.
  */
-export async function handleIntegrate(
+export async function handleSubmit(
   slug: string | undefined,
-  opts: IntegrateOptions,
+  opts: SubmitOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc integrate");
-  const input = parseLifecycleCommand(IntegrateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  p.intro("arc submit");
+  const input = parseLifecycleCommand(SubmitCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("integrate", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("submit", input.slug, base.cwd);
   if (target === null) return;
 
   const { lastCompleted, action } = input;
 
   const { executor } = await buildExecutor(base);
-  const result = await runIntegrate(executor, {
+  const result = await runSubmit(executor, {
     name: target,
     lastCompleted,
     nextAction: action,

@@ -56,7 +56,7 @@ arc reopen {name} --keep-pr  # convert the PR to a draft instead
 ```
 
 The executor fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
-`**Next Action:**` pointer (`**Next Task:**` stays `[none]` from `integrate`), and fires the `withdraw-pr`
+`**Next Action:**` pointer (`**Next Task:**` stays `[none]` from `submit`), and fires the `withdraw-pr`
 side-effect — `gh pr close` (default) or `gh pr ready --undo` (`--keep-pr`). `{name}` defaults to the current
 worktree's WU.
 
@@ -110,7 +110,7 @@ Active task work resumes. When the rework is complete and the WU is ready to shi
 
 ## Related workflows
 
-- [`integrate-work-unit.md`][integrate] — the inverse; Active → Integrating (open review).
+- [`integrate-work-unit.md`][integrate] — the `submit` inverse; Active → Integrating (schedule publication).
 - [`deactivate-work-unit.md`](deactivate-work-unit.md) — the other phase-axis reversal; Active → Planning (own-file
   precedent).
 - Backing out **merged** work has no reopen path: open a new origin-linked follow-up WU (its `**Origin:**` records the

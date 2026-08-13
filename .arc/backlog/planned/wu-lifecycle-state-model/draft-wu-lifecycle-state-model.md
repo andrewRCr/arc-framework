@@ -468,12 +468,11 @@
 - _Related — a live inconsistency the tail state would resolve:_ `integrate-work-unit` Step 1 states that
   "the `Integrating` state covers PR open through review-response," but fires the transition at Step 1 while the
   pull request opens at Step 3, with the local self-review preflight in between. So a work unit is `Integrating`
-  through a window where nothing is public. `review-protocol-alignment` concern 9 proposes moving that fire point
-  to the PR-open boundary and renaming the command to `arc submit` — deliberately minting **no** state and not
-  re-keying `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
+  through a window where nothing is public. The lifecycle command is now `arc submit`; its owning boundary work
+  moves that fire point to the publication-step head while deliberately minting **no** state and not re-keying
+  `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
   change shrinks `Integrating` to the public phase, which is the carve-out a `Candidate` state would make anyway,
   so the two compose rather than collide.
 
-- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the naming of the
-  `arc integrate` verb, which turned out to be misnamed because it names a phase's content rather than a
-  scheduling act, unlike every sibling transition verb.
+- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the scheduling
+  verb now named `arc submit`, distinct from the `arc integrate` procedure namespace.

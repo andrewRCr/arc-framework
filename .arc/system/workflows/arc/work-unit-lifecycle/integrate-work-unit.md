@@ -64,13 +64,13 @@ Compose the integration inputs (judgment — never fabricated):
 - next action — the integration pointer (`open the PR`)
 
 ```bash
-arc integrate {name} --last-completed "{last completed}" --action "{next action}"
+arc submit {name} --last-completed "{last completed}" --action "{next action}"
 ```
 
-The executor fires the full `integrate` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
+The executor fires the full `submit` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
 / `**Next Action:**`, resets `**Next Task:** [none]`, regenerates `backlog/ROADMAP.md` so the In Flight table's
 `State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
-worktree's WU. The `Integrating` state covers PR open through review-response.
+worktree's WU. The `Integrating` state covers submission and public integration through review-response.
 
 An advisory-only reconcile stops before the transition and surfaces every reference. Edit and rerun, or obtain
 explicit user direction to retain all surfaced advisories and rerun the same command with `--allow-advisories`.
@@ -83,7 +83,7 @@ Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before com
 > Discipline, meta-file commit shape):
 
 ```text
-chore(arc): integrate {name}
+chore(arc): submit {name}
 
 - Flip State: Active → Integrating
 

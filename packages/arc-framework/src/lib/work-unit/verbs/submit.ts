@@ -1,10 +1,9 @@
 /**
- * The `integrate` verb — open review on an `Active` WU (`Active → Integrating`).
+ * The `submit` verb — schedule publication for an `Active` WU (`Active → Integrating`).
  *
- * `integrate` is the forward half of the `integrate` ⊥ `reopen` phase-axis pair: it
- * marks a WU's **entry into review**, not the merge — the integration-interlock owns
- * merge approval, and the description disambiguates that effect exactly as `reopen`
- * does for its withdrawal. A `set-phase`-only move — `Active → Integrating`, no
+ * `submit` is the forward half of the `submit` ⊥ `reopen` phase-axis pair: it
+ * marks the start of publication, not the merge — the integration-interlock owns
+ * merge approval. A `set-phase`-only move — `Active → Integrating`, no
  * location move and no branch rotation (the working branch already carries its
  * `<type>/` prefix from `activate`) — that fires the render + `user-workspace`
  * side-effects and sets the integration orientation from caller inputs.
@@ -35,8 +34,8 @@ import type {
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 
-/** The orientation inputs an `integrate` supplies. */
-export interface IntegrateParams {
+/** The orientation inputs a `submit` supplies. */
+export interface SubmitParams {
   /** Target WU name (the CLI defaults this to the current Active WU). */
   name: string;
   /** The work being submitted for review — the `Last Completed` `input` the edge requires. */
@@ -47,11 +46,11 @@ export interface IntegrateParams {
   allowAdvisories?: boolean;
 }
 
-/** The outcome of an `integrate` attempt, including reconcile stops before phase mutation. */
-export type IntegrateResult =
+/** The outcome of a `submit` attempt, including reconcile stops before phase mutation. */
+export type SubmitResult =
   | { status: "rejected"; reason: string }
   | {
-      status: "integrated";
+      status: "submitted";
       outcome: TransitionOutcome;
       metaPath: string;
       reconcile: Extract<CurrentWuReconcileResult, { status: "clean" | "pending" | "applied" }>;
@@ -70,7 +69,7 @@ export type IntegrateResult =
     };
 
 /**
- * Run `integrate`: flip the WU's phase `Active → Integrating` and set the
+ * Run `submit`: flip the WU's phase `Active → Integrating` and set the
  * integration orientation soft fields. Rejects when the source is not an `Active`
  * WU (the table's illegal-edge lookup).
  *
@@ -78,14 +77,14 @@ export type IntegrateResult =
  * @param params - The target WU and the integration orientation inputs.
  * @returns A pre-transition reconcile stop, a rejection, or the integrating meta path.
  */
-export async function runIntegrate(
+export async function runSubmit(
   ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
-  params: IntegrateParams,
-): Promise<IntegrateResult> {
+  params: SubmitParams,
+): Promise<SubmitResult> {
   const { name, lastCompleted, nextAction, allowAdvisories } = params;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
-    return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to integrate.` };
+    return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
   }
   const metaPath = resolveArcPath({
     kind: "work-unit-artifact",
@@ -95,16 +94,16 @@ export async function runIntegrate(
   });
   try {
     if (parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath))).state !== "Active") {
-      return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to integrate.` };
+      return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
     }
   } catch {
-    return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to integrate.` };
+    return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
   }
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
   if (reconcile.status === "conflict") {
     return {
       status: "rejected",
-      reason: `Cannot integrate \`${name}\`: current-WU reconcile refused (${reconcile.reason}).`,
+      reason: `Cannot submit \`${name}\`: current-WU reconcile refused (${reconcile.reason}).`,
     };
   }
   const applied = await ctx.currentWuReconcile.apply(reconcile.prepared);
@@ -112,8 +111,8 @@ export async function runIntegrate(
     return {
       status: "reconcile-failed",
       reason:
-        `Integration preflight for \`${name}\` became stale before mutation (${applied.reason}). `
-        + `Rerun \`arc integrate\` after reconciling the current branch.`,
+        `Submission preflight for \`${name}\` became stale before mutation (${applied.reason}). `
+        + `Rerun \`arc submit\` after reconciling the current branch.`,
       metaPath,
       reconcile: applied,
     };
@@ -123,7 +122,7 @@ export async function runIntegrate(
     return {
       status: "reconcile-pending",
       reason:
-        `Cannot integrate \`${name}\`: current-WU reconcile has `
+        `Cannot submit \`${name}\`: current-WU reconcile has `
         + `${advisories.length} advisory reference(s) requiring review.`,
       metaPath,
       reconcile: applied,
@@ -131,14 +130,14 @@ export async function runIntegrate(
   }
 
   const outcome = await executeTransition(ctx, {
-    verb: "integrate",
+    verb: "submit",
     slug: name,
     inputs: { softFields: { lastCompleted, nextAction } },
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
   return {
-    status: "integrated",
+    status: "submitted",
     outcome,
     metaPath,
     reconcile: applied,

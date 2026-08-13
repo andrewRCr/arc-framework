@@ -35,7 +35,7 @@ const rawGitCommandPaths = [
   "delivery plan from-tasks",
   "demote",
   "finalize",
-  "integrate",
+  "submit",
   "materialize",
   "park",
   "promote",

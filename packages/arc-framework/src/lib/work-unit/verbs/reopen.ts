@@ -1,7 +1,7 @@
 /**
  * The `reopen` verb — withdraw an `Integrating` WU back to `Active`.
  *
- * `reopen` is the genuinely-missing inverse of `integrate`: it pulls a WU out of
+ * `reopen` is the inverse of `submit`: it pulls a WU out of
  * review for more work. A `set-phase`-only move — `Integrating → Active`, no
  * location move and no branch rotation (the working branch already carries its
  * `<type>/` prefix from `activate`) — that fires the `withdraw-pr` side-effect to

@@ -26,4 +26,13 @@ describe("runCli", () => {
     expect(result.stdout).toContain("upgrade the local-default query");
     expect(result.stdout).toMatch(/skip the live-default network\s+read/u);
   });
+
+  it("reserves bare integrate for procedures and points publication scheduling to submit", async () => {
+    const result = await runCli(["integrate"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("`arc integrate` is a procedure namespace");
+    expect(result.stderr).toContain("use `arc submit` to schedule publication");
+    expect(result.stderr).toContain("Available subcommands:");
+  });
 });

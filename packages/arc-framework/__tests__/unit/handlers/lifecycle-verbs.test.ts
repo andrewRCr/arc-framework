@@ -221,9 +221,9 @@ vi.mock("../../../src/lib/work-unit/verbs/abandon.js", () => ({
   planAbandon: (...a: unknown[]) => mockPlanAbandon(...a),
 }));
 
-const mockRunIntegrate = vi.fn();
-vi.mock("../../../src/lib/work-unit/verbs/integrate.js", () => ({
-  runIntegrate: (...a: unknown[]) => mockRunIntegrate(...a),
+const mockRunSubmit = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/submit.js", () => ({
+  runSubmit: (...a: unknown[]) => mockRunSubmit(...a),
 }));
 
 const mockRunReopen = vi.fn();
@@ -258,7 +258,7 @@ const {
   handleMaterialize,
   handleActivate,
   handleDeactivate,
-  handleIntegrate,
+  handleSubmit,
   handleAbandon,
   handleReopen,
 } = await import("../../../src/handlers/lifecycle.js");
@@ -346,8 +346,8 @@ beforeEach(() => {
   });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
-  mockRunIntegrate.mockResolvedValue({
-    status: "integrated",
+  mockRunSubmit.mockResolvedValue({
+    status: "submitted",
     outcome: okOutcome,
     metaPath: ".arc/active/meta-foo.md",
     reconcile: cleanReconcile,
@@ -829,11 +829,11 @@ describe("handleAbandon", () => {
   });
 });
 
-describe("handleIntegrate", () => {
-  it("dispatches runIntegrate, forwarding the orientation inputs", async () => {
-    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
-    expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
-    expect(mockRunIntegrate.mock.calls[0]?.[1]).toEqual({
+describe("handleSubmit", () => {
+  it("dispatches runSubmit, forwarding the orientation inputs", async () => {
+    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    expect(mockRunSubmit).toHaveBeenCalledTimes(1);
+    expect(mockRunSubmit.mock.calls[0]?.[1]).toEqual({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
@@ -841,12 +841,12 @@ describe("handleIntegrate", () => {
   });
 
   it("forwards explicit advisory-retention authority", async () => {
-    await handleIntegrate("foo", {
+    await handleSubmit("foo", {
       lastCompleted: "Phase 7 — verification",
       action: "open the PR",
       allowAdvisories: true,
     });
-    expect(mockRunIntegrate.mock.calls[0]?.[1]).toEqual({
+    expect(mockRunSubmit.mock.calls[0]?.[1]).toEqual({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
@@ -855,22 +855,22 @@ describe("handleIntegrate", () => {
   });
 
   it("refuses without the orientation inputs and never dispatches", async () => {
-    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification" });
-    expect(mockRunIntegrate).not.toHaveBeenCalled();
+    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification" });
+    expect(mockRunSubmit).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("defaults a bare invocation to the current worktree's WU", async () => {
-    await handleIntegrate(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
-    expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
-    expect(mockRunIntegrate.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
+    await handleSubmit(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    expect(mockRunSubmit).toHaveBeenCalledTimes(1);
+    expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
   });
 
   it("surfaces every pending reconcile advisory and refuses phase entry", async () => {
-    mockRunIntegrate.mockResolvedValueOnce({
+    mockRunSubmit.mockResolvedValueOnce({
       status: "reconcile-pending",
-      reason: "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      reason: "Cannot submit `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
       metaPath: ".arc/active/meta-foo.md",
       reconcile: {
         status: "pending",
@@ -912,7 +912,7 @@ describe("handleIntegrate", () => {
       },
     });
 
-    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
 
     expect(mockLogInfo.mock.calls.map(([message]) => message)).toEqual([
       "Reconcile advisory: .arc/active/spec-foo.md:12 — narrative reference to `retired-alpha`; "
@@ -921,7 +921,7 @@ describe("handleIntegrate", () => {
         + "remove-or-retarget. Context: `notes-retired-beta.md`",
     ]);
     expect(mockLogError).toHaveBeenCalledWith(
-      "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      "Cannot submit `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
     );
     expect(process.exitCode).toBe(1);
     expect(mockNote).not.toHaveBeenCalled();

@@ -1,7 +1,7 @@
 /**
- * Unit tests for the `integrate` verb — the forward phase move opening review.
+ * Unit tests for the `submit` verb — the forward phase move opening review.
  *
- * `integrate` flips an `Active` WU to `Integrating`: a `set-phase`-only move (no
+ * `submit` flips an `Active` WU to `Integrating`: a `set-phase`-only move (no
  * location move, no branch rotation — the working branch already carries its
  * `<type>/` prefix from `activate`) that marks phase entry, not the merge (the
  * integration-interlock owns merge approval). The verb forwards the two judgment
@@ -23,7 +23,7 @@ import type {
   CurrentWuReconcileHost,
   PreparedCurrentWuReconcile,
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
-import { runIntegrate, type IntegrateParams } from "../../../../src/lib/work-unit/verbs/integrate.js";
+import { runSubmit, type SubmitParams } from "../../../../src/lib/work-unit/verbs/submit.js";
 
 const CWD = "/repo";
 
@@ -138,18 +138,18 @@ function buildCtx(metas: MetaSpec[]): Harness {
 
 const ACTIVE: MetaSpec = { slug: "foo", state: "Active", branch: "feat/foo" };
 
-const BASE: IntegrateParams = { name: "foo", lastCompleted: "Phase 7 — verification", nextAction: "open the PR" };
+const BASE: SubmitParams = { name: "foo", lastCompleted: "Phase 7 — verification", nextAction: "open the PR" };
 
-describe("runIntegrate — the set-phase-only move", () => {
+describe("runSubmit — the set-phase-only move", () => {
   it("flips Active to Integrating with no location move and no branch rotation", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
-    const result = await runIntegrate(ctx, BASE);
+    const result = await runSubmit(ctx, BASE);
 
-    expect(result.status).toBe("integrated");
-    if (result.status !== "integrated") return;
+    expect(result.status).toBe("submitted");
+    if (result.status !== "submitted") return;
     if (result.outcome.status === "ok") {
-      expect(result.outcome.verb).toBe("integrate");
+      expect(result.outcome.verb).toBe("submit");
       expect(result.outcome.from).toEqual({ phase: "Active", location: "active" });
       expect(result.outcome.to).toEqual({ phase: "Integrating", location: "active" });
     }
@@ -164,7 +164,7 @@ describe("runIntegrate — the set-phase-only move", () => {
   it("writes the supplied Last Completed and Next Action, clearing Next Task", async () => {
     const { ctx, softWrites } = buildCtx([ACTIVE]);
 
-    await runIntegrate(ctx, BASE);
+    await runSubmit(ctx, BASE);
 
     // Phase entry sets the integration orientation from caller inputs; `Next Task`
     // resets to `[none]` (the active task list is closed), `Blockers` is left.
@@ -201,7 +201,7 @@ describe("runIntegrate — the set-phase-only move", () => {
       reason: "namespace-corrupt",
     });
 
-    const result = await runIntegrate(ctx, BASE);
+    const result = await runSubmit(ctx, BASE);
 
     expect(result.status).toBe("rejected");
     expect(calls).not.toContain("setPhase:Integrating");
@@ -215,7 +215,7 @@ describe("runIntegrate — the set-phase-only move", () => {
       reason: "stale-content",
     });
 
-    const result = await runIntegrate(ctx, BASE);
+    const result = await runSubmit(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "reconcile-failed",
@@ -247,7 +247,7 @@ describe("runIntegrate — the set-phase-only move", () => {
     ctx.currentWuReconcile.prepare = async () => ({ status: "pending", prepared });
     ctx.currentWuReconcile.apply = async () => ({ status: "pending", prepared });
 
-    const result = await runIntegrate(ctx, BASE);
+    const result = await runSubmit(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "reconcile-pending",
@@ -283,10 +283,10 @@ describe("runIntegrate — the set-phase-only move", () => {
     ctx.currentWuReconcile.prepare = async () => ({ status: "pending", prepared });
     ctx.currentWuReconcile.apply = async () => ({ status: "pending", prepared });
 
-    const result = await runIntegrate(ctx, { ...BASE, allowAdvisories: true });
+    const result = await runSubmit(ctx, { ...BASE, allowAdvisories: true });
 
     expect(result).toMatchObject({
-      status: "integrated",
+      status: "submitted",
       reconcile: {
         status: "pending",
         prepared: { plan: { advisories: [{ subject: "retired-subject" }] } },
@@ -323,7 +323,7 @@ describe("runIntegrate — the set-phase-only move", () => {
       stagedPaths: [".arc/active/meta-foo.md"],
     });
 
-    const result = await runIntegrate(ctx, BASE);
+    const result = await runSubmit(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "reconcile-pending",
@@ -343,21 +343,21 @@ describe("runIntegrate — the set-phase-only move", () => {
       stagedPaths: [".arc/active/meta-foo.md"],
     });
 
-    const result = await runIntegrate(ctx, BASE);
+    const result = await runSubmit(ctx, BASE);
 
     expect(result).toMatchObject({
-      status: "integrated",
+      status: "submitted",
       reconcile: { status: "applied", stagedPaths: [".arc/active/meta-foo.md"] },
     });
     expect(calls).toContain("setPhase:Integrating");
   });
 });
 
-describe("runIntegrate — the illegal-edge lookup", () => {
+describe("runSubmit — the illegal-edge lookup", () => {
   it("rejects integrating a WU that is not Active", async () => {
     const { ctx, calls } = buildCtx([{ slug: "foo", state: "Integrating", branch: "feat/foo" }]);
 
-    const result = await runIntegrate(ctx, BASE);
+    const result = await runSubmit(ctx, BASE);
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -368,7 +368,7 @@ describe("runIntegrate — the illegal-edge lookup", () => {
   it("rejects an invalid work-unit name without mutation", async () => {
     const { ctx, calls, softWrites } = buildCtx([ACTIVE]);
 
-    const result = await runIntegrate(ctx, { ...BASE, name: "../foo" });
+    const result = await runSubmit(ctx, { ...BASE, name: "../foo" });
 
     expect(result.status).toBe("rejected");
     expect(calls).toEqual([]);

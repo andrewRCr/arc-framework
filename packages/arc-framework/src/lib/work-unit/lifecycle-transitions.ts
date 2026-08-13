@@ -31,7 +31,7 @@ import type { LifecyclePosition, Location, Phase } from "./lifecycle-state.js";
 /**
  * The work-unit lifecycle verbs — the fully inverse-paired edge set.
  *
- * Phase-axis: `activate` ⊥ `deactivate`, `reopen` ⊥ `integrate`. Location-axis:
+ * Phase-axis: `activate` ⊥ `deactivate`, `reopen` ⊥ `submit`. Location-axis:
  * `park` ⊥ `resume`, `promote` ⊥ `demote`. Forward / terminal / destructive:
  * `stub` ⊥ `abandon`, `decompose`, `archive`, and `materialize` (irreversible).
  * `start` is the state-dispatching entry verb (the inverse of `park` at its
@@ -48,7 +48,7 @@ export const VERBS = [
   "activate",
   "deactivate",
   "reopen",
-  "integrate",
+  "submit",
   "promote",
   "demote",
   "stub",
@@ -353,7 +353,7 @@ function withRender(...extra: SideEffectId[]): SideEffectId[] {
  * guards, encoding mutators, side-effects, and soft-field dispositions,
  * replacing the rules previously restated per workflow.
  *
- * Composite verbs (`integrate`, `decompose`) appear as edges declaring their
+ * Composite verbs (`submit`, `decompose`) appear as edges declaring their
  * encoding; their judgment halves stay in the owning workflows
  * (`integrate-work-unit`; `decompose-matrix` owns `decompose`'s full
  * parent-position matrix and refines its target/encoding). `start` is the
@@ -364,7 +364,7 @@ function withRender(...extra: SideEffectId[]): SideEffectId[] {
  * worktree-touching edges per the satellite's open/close set.
  */
 export const TRANSITIONS: readonly TransitionRecord[] = [
-  // -- Phase axis: activate / deactivate, integrate / reopen --
+  // -- Phase axis: activate / deactivate, submit / reopen --
   {
     verb: "activate",
     from: PLANNING,
@@ -386,7 +386,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
   {
-    verb: "integrate",
+    verb: "submit",
     from: ACTIVE,
     to: INTEGRATING,
     inverse: "reopen",
@@ -399,12 +399,12 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     verb: "reopen",
     from: INTEGRATING,
     to: ACTIVE,
-    inverse: "integrate",
+    inverse: "submit",
     guards: ["pr-unmerged"],
     encodingUpdates: { setPhase: true },
     sideEffects: withRender("withdraw-pr"),
     // Withdrawal back to Active clears the now-stale integration `Next Action`
-    // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `integrate`.
+    // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `submit`.
     softFields: { nextTask: "leave", nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
 
@@ -712,9 +712,9 @@ export const MARKED_ILLEGAL: readonly IllegalCell[] = [
     "deactivate undoes a premature activation; only an `active` WU qualifies",
   ),
   ...illegalCells(
-    "integrate",
+    "submit",
     [PROVISIONAL, PLANNED, PLANNING, INTEGRATING, PARKED, SHIPPED],
-    "integrate opens review on an active WU; only an `active` WU qualifies",
+    "submit schedules publication for an active WU; only an `active` WU qualifies",
   ),
   ...illegalCells(
     "reopen",

@@ -64,7 +64,7 @@ import {
   handleMaterialize,
   handleActivate,
   handleDeactivate,
-  handleIntegrate,
+  handleSubmit,
   handleReopen,
   handleAbandon,
   handleArchive,
@@ -81,7 +81,7 @@ import {
   type ResumeOptions,
   type MaterializeOptions,
   type ActivateOptions,
-  type IntegrateOptions,
+  type SubmitOptions,
   type ReopenOptions,
   type AbandonOptions,
   type ArchiveOptions,
@@ -400,15 +400,30 @@ program
   ));
 
 program
-  .command("integrate [slug]")
-  .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
+  .command("submit [slug]")
+  .description("Schedule publication for an Active work unit: Active → Integrating (defaults to the current WU)")
   .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
   .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
   .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
+    (context, slug: string | undefined, opts: SubmitOptions) => handleSubmit(slug, opts, context),
   ));
+
+const integrateCmd = program
+  .command("integrate")
+  .description("Run integration checkpoint and merge procedures");
+
+integrateCmd.action(() => {
+  console.error("error: `arc integrate` is a procedure namespace; use `arc submit` to schedule publication.");
+  const subcommands = integrateCmd.commands.map((command) => `arc integrate ${command.name()}`);
+  console.error(
+    subcommands.length > 0
+      ? `Available subcommands: ${subcommands.join(", ")}.`
+      : "Available subcommands: none yet.",
+  );
+  process.exitCode = 1;
+});
 
 program
   .command("reopen [slug]")
