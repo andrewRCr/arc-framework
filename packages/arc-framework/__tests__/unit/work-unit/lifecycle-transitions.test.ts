@@ -56,10 +56,6 @@ function deriveExpectedMutators(
   from: LifecyclePosition | null,
   to: LifecyclePosition | null,
 ): MutatorSpec {
-  if (verb === "materialize") {
-    return { reconcileWorkUnitWorktree: "spawn" };
-  }
-
   const ef = expectedEncoding(from);
   const et = expectedEncoding(to);
   const spec: MutatorSpec = {};

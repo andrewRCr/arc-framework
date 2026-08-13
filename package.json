@@ -30,6 +30,7 @@
     "test:arc-contracts": "npm run test:arc-contracts -w packages/arc-framework",
     "test:e2e": "npm run test:e2e -w packages/arc-framework",
     "test:portability": "npm run test:portability -w packages/arc-framework",
+    "test:portability:macos": "npm run test:portability:macos -w packages/arc-framework",
     "typecheck": "npm run typecheck -w packages/arc-framework",
     "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
     "typecheck:all": "npm run typecheck:all -w packages/arc-framework",

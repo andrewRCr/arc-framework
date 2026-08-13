@@ -164,6 +164,7 @@ describe("arc delivery", () => {
     ]);
     const stackResponse = JSON.stringify([{
       number: 7,
+      base: { ref: nativeMembers[0]!.baseRef },
       pull_requests: nativeMembers.map((member) => ({
         number: Number(member.changeRequestId),
         head: { ref: member.headRef, sha: member.headSha },
@@ -172,6 +173,7 @@ describe("arc delivery", () => {
     }]);
     const flattenedStackResponse = JSON.stringify([{
       number: 7,
+      base: { ref: nativeMembers[0]!.baseRef },
       pull_requests: nativeMembers.map((member) => ({
         number: Number(member.changeRequestId),
         head: { ref: member.headRef, sha: member.headSha },

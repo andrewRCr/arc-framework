@@ -14,6 +14,7 @@ import {
   removeGitBackedDir,
   runArcAnchored,
   runArcNoTty,
+  unwrapPresentationOutput,
 } from "./helpers.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 
@@ -337,8 +338,9 @@ describe("arc rename", () => {
     expect(renamed.stdout).toContain("move deferred");
     expect(renamed.stdout).toContain("Follow-up:");
     expect(renamed.stdout).toContain("`git worktree move");
-    expect(renamed.stdout).toContain(oldWorktree);
-    expect(renamed.stdout).toContain(newWorktree);
+    const unwrappedOutput = unwrapPresentationOutput(renamed.stdout);
+    expect(unwrappedOutput).toContain(oldWorktree);
+    expect(unwrappedOutput).toContain(newWorktree);
     expect(renamed.stdout).not.toContain("process relocated");
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);

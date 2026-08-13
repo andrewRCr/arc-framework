@@ -108,7 +108,8 @@ export type ReconcileDeliveryOperationResult =
     readonly reason: CompareDeliveryOperationFailure | "ambiguous-result";
   };
 
-type CurrentOperationResult =
+/** Result of validating the state-owned active operation against its published revision. */
+export type ValidateDeliveryActiveOperationResult =
   | {
     readonly status: "valid";
     readonly state: DeliveryStateV1;
@@ -145,9 +146,15 @@ function followsPlanOrder(plan: DeliveryPlanV1, deliverableIds: readonly string[
   return true;
 }
 
-function currentOperation(
+/**
+ * Validate the one active operation carried by a published state revision.
+ *
+ * @param current - Published delivery state and its store-owned revision.
+ * @returns The validated operation and state, or a closed comparison failure.
+ */
+export function validateDeliveryActiveOperation(
   current: DeliveryRevisionedRecord<DeliveryStateV1>,
-): CurrentOperationResult {
+): ValidateDeliveryActiveOperationResult {
   const parsedState = DeliveryStateV1Schema.safeParse(current.value);
   if (!parsedState.success || !Number.isSafeInteger(current.revision) || current.revision <= 0) {
     return { status: "blocked", reason: "state-invalid" };
@@ -309,7 +316,7 @@ export function attachDeliveryOperationEffectIdentity(
   operationId: string,
   identity: unknown,
 ): AttachDeliveryOperationEffectIdentityResult {
-  const active = currentOperation(current);
+  const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") {
     return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
   }
@@ -347,7 +354,7 @@ export function checkDeliveryOperationPrecondition(
   current: DeliveryRevisionedRecord<DeliveryStateV1>,
   observed: unknown,
 ): CheckDeliveryOperationPreconditionResult {
-  const active = currentOperation(current);
+  const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
   const parsedObserved = DeliveryOperationSnapshotV1Schema.safeParse(observed);
   if (!parsedObserved.success) return { status: "blocked", reason: "observed-facts-invalid" };
@@ -368,7 +375,7 @@ export function acceptDeliveryOperationResult(
   current: DeliveryRevisionedRecord<DeliveryStateV1>,
   observed: unknown,
 ): AcceptDeliveryOperationResult {
-  const active = currentOperation(current);
+  const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
   const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
   const parsedHost = hostAssigned ? DeliveryHostAssignedObservationV1Schema.safeParse(observed) : null;
@@ -401,7 +408,7 @@ export function reconcileDeliveryOperation(
   current: DeliveryRevisionedRecord<DeliveryStateV1>,
   observed: unknown,
 ): ReconcileDeliveryOperationResult {
-  const active = currentOperation(current);
+  const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
   const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
   if (hostAssigned) {
@@ -429,7 +436,7 @@ export function reconcileDeliveryOperation(
 }
 
 function acceptHostReconciliation(
-  active: Extract<CurrentOperationResult, { readonly status: "valid" }>,
+  active: Extract<ValidateDeliveryActiveOperationResult, { readonly status: "valid" }>,
   observed: z.infer<typeof DeliveryHostAssignedObservationV1Schema>,
 ): ReconcileDeliveryOperationResult {
   if ((active.operation.kind !== "publish" && active.operation.kind !== "land")

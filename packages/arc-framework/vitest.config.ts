@@ -26,6 +26,14 @@ if (process.platform === "win32") {
   process.env.TMPDIR = canonicalTempRoot;
 }
 
+// Test repositories must not inherit developer-machine Git configuration. A
+// long-lived workstation can carry `arc.identity` globally even when a fixture
+// intentionally omits the local key, while hosted runners usually cannot expose
+// that leak. Keep every project on the same hermetic system/global baseline;
+// fixtures install the local values they exercise explicitly.
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
+
 // Vitest sizes its worker pool from `availableParallelism() - 1`, which assumes the run
 // owns the machine. That assumption fails everywhere this graph actually runs: CI schedules
 // several jobs of it at once, and developer machines run parallel agent sessions whose
@@ -84,6 +92,7 @@ export default defineConfig({
           root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
           globalSetup: ["__tests__/integration/global-setup.ts"],
+          testTimeout: 30_000,
           passWithNoTests: true,
         },
       },

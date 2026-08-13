@@ -54,8 +54,12 @@ describe("GhDeliveryHostPort", () => {
         }
         if (args.includes("POST")) return { stdout: JSON.stringify({ number: 9 }), stderr: "" };
         return { stdout: JSON.stringify([{ number: 9, base: { ref: "main" }, pull_requests: [
-          { number: 401, head: { ref: "delivery/example/first", sha: headSha } },
-          { number: 402, head: { ref: "delivery/example/second", sha: "b".repeat(40) } },
+          { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+          {
+            number: 402,
+            head: { ref: "delivery/example/second", sha: "b".repeat(40) },
+            base: { ref: "delivery/example/first" },
+          },
         ] }]), stderr: "" };
       },
     };

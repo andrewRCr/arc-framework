@@ -123,8 +123,10 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
         for (const [index, member] of input.members.entries()) {
           const request = record(requests[index]);
           const head = record(request?.head);
+          const requestBase = record(request?.base);
           const matchesMember = String(request?.number) === member.changeRequestId
-            && head?.ref === member.headRef && head.sha === member.headSha;
+            && head?.ref === member.headRef && head.sha === member.headSha
+            && requestBase?.ref === member.baseRef;
           if (!matchesMember) affected.add(member.deliverableId);
           exact &&= matchesMember;
         }

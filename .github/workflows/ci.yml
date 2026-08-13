@@ -469,6 +469,10 @@ jobs:
     - run: npm run test:portability
       env:
         ARC_E2E_SKIP_BUILD: '1'
+    - if: ${{ runner.os == 'macOS' }}
+      run: npm run test:portability:macos
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
 
   ci_ok:
     name: ci-ok
