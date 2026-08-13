@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "restore-macos-test-hermeticity",
+  "claimId": "ee4571ab4c085af4d8837bce3c2438b2",
+  "createdAt": "2026-08-13T15:03:03.986Z",
+  "updatedAt": "2026-08-13T15:03:03.986Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Restore macOS local full-suite reliability and make cross-platform CI exercise the affected harness and fixture boundaries.",
+  "branch": "chore/restore-macos-test-hermeticity",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
