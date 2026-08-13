@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { canonicalize } from "../kernel/index.js";
+import { validateDeliveryActiveOperation } from "./operation.js";
 import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
@@ -41,6 +42,10 @@ export function buildDeliveryTransferBundle(input: {
   }
   const state = validateDeliveryStateAgainstPlan(input.state.value, plan.plan);
   if (state.status !== "valid") return { status: "refused", reason: state.reason };
+  if (state.state.activeOperation !== null
+    && validateDeliveryActiveOperation({ revision: input.state.revision, value: state.state }).status !== "valid") {
+    return { status: "refused", reason: "active-operation-invalid" };
+  }
   return {
     status: "ready",
     bundle: {
