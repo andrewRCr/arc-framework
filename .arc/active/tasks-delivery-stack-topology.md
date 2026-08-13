@@ -643,36 +643,55 @@ executor as its only semantic fallback.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ full Tier 3 run whole, twice (before and after verification-driven fixes) — Markdown lint, the
+  three ARC contract checks, TS lint, shell lint, both type checks, 9665 tests (1 env-gated skip), build — all
+  passed at CI parity.
+- _Success criteria:_ 15 criteria: 15 met, 3 carrying deviation notes (lifecycle-path naming fixed during
+  verification; namespace exclusion via prefix filter; request-base retarget observation-admitted, never
+  executor-mutated). Fresh-session criteria validation served as the adversarial verify pass; it surfaced the
+  path-naming gap plus an unspecified publish `draft` source, both corrected here with two new pinning tests
+  (`empty-candidate` refusal, three-member predecessor-ref request base). Residual coverage notes:
+  binary/rename/mode contribution proof tested at flag level only; no direct `queue-not-atomic` submission
+  assertion; `materialize`-kind reconcile covered indirectly; no composed partial-stack cross-session isolation
+  test; ADR-024 and several backlog drafts still name `assess-cohort-fit` (out-of-scope surfaces).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Candidate validation proves every authored member green, lifecycle-clean, ordered, and complete before any
+- `[x]` Candidate validation proves every authored member green, lifecycle-clean, ordered, and complete before any
   canonical binding or external authority is created.
-- `[ ]` Materialization builds the exact predecessor-targeted `delivery/` chain and binds the first observed external
+    - **Deviation:** verification found the mismatching lifecycle-path list computed but dropped before the
+      eligibility refusal surface; fixed during verification — the refusal now carries `paths`.
+- `[x]` Materialization builds the exact predecessor-targeted `delivery/` chain and binds the first observed external
   event once.
-- `[ ]` Work-unit parsing, orphan cleanup, and pre-commit advisories never misclassify a live delivery ref.
-- `[ ]` Every non-terminal landing is exact-head reviewed, authorized over its exact member set, merge-locked,
+- `[x]` Work-unit parsing, orphan cleanup, and pre-commit advisories never misclassify a live delivery ref.
+    - **Deviation:** implemented as a `delivery/` namespace filter at each surface rather than per-ref
+      delivery-state reverse lookup; no false signal is possible, and stale-ref cleanup remains `teardown`-owned.
+- `[x]` Every non-terminal landing is exact-head reviewed, authorized over its exact member set, merge-locked,
   reobserved, and version-recorded; only the native direct atomic arm may group the complete remaining set.
-- `[ ]` Suffix reconciliation accepts only tree- or patch-equivalent movement and rematerializes intentional fixes
+- `[x]` Suffix reconciliation accepts only tree- or patch-equivalent movement and rematerializes intentional fixes
   from the retained control branch.
-- `[ ]` Every used reserved operation resumes as already-applied, safely retryable, or blocked on ambiguity without
+    - **Deviation:** the executor never mutates a change request's base ref; it performs only the exact ref
+      `rewrite`, and the base move (host delete-on-merge, native retarget, or manual host retarget) is admitted
+      solely through the recognized-movement predicate before rebinding.
+- `[x]` Every used reserved operation resumes as already-applied, safely retryable, or blocked on ambiguity without
   duplicating mutation.
-- `[ ]` Terminal entry requires the complete landed prefix and absorbed base, uses the control branch and work-unit
+- `[x]` Terminal entry requires the complete landed prefix and absorbed base, uses the control branch and work-unit
   vehicle, and adds only the total post-merge adoption attachment before ordinary close/teardown.
-- `[ ]` A partially landed stack leaves the protected base free of this WU's active lifecycle contribution and
+- `[x]` A partially landed stack leaves the protected base free of this WU's active lifecycle contribution and
   leaves unrelated session/status resolution unchanged.
-- `[ ]` Session-init renders one independently degradable delivery-position line for bound control loci.
-- `[ ]` `assess-boundary-fit` and all three planning fire points install, update, and suppress decided outcomes
+- `[x]` Session-init renders one independently degradable delivery-position line for bound control loci.
+- `[x]` `assess-boundary-fit` and all three planning fire points install, update, and suppress decided outcomes
   coherently, including the supported provisional-to-canonical task-list plan lifecycle.
-- `[ ]` The changeset advisory-threshold rename is complete and every target receives at most one non-gating,
+- `[x]` The changeset advisory-threshold rename is complete and every target receives at most one non-gating,
   delivery-aware remedy.
-- `[ ]` Native linking remains optional, exact-head, merge-commit-only, supports only single-bottom or explicitly
+- `[x]` Native linking remains optional, exact-head, merge-commit-only, supports only single-bottom or explicitly
   authorized all-remaining direct atomic landing with the residual race disclosed at the interlock, and visibly
   degrades to the complete unlinked executor with equivalent delivery semantics.
-- `[ ]` This task list carried a reviewed provisional self-delivery cut, and its own finalization replaced that
+- `[x]` This task list carried a reviewed provisional self-delivery cut, and its own finalization replaced that
   locus with the canonical sentinel-wrapped plan without perturbing task parsing.
-- `[ ]` All quality gates pass (tests, linting, type checking, and build).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking, and build).
+- `[x]` Ready for integration.
