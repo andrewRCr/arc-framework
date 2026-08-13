@@ -1,7 +1,7 @@
 /** Real CLI ordinary-Errand lifecycle and promotion coverage. */
 
 import { execFile } from "node:child_process";
-import { chmod, copyFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -39,8 +39,7 @@ async function createBareRemote(repository: string): Promise<string> {
 async function createCodexHarness(): Promise<{ directory: string; executable: string }> {
   const directory = await mkdtemp(join(tmpdir(), "arc-locus-promotion-codex-"));
   const executable = join(directory, "codex");
-  await copyFile("/bin/bash", executable);
-  await chmod(executable, 0o755);
+  await symlink("/bin/bash", executable);
   return { directory, executable };
 }
 
