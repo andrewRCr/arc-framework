@@ -3,6 +3,7 @@
 import { canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import { classifyDeliveryPlanAmendment, type DeliveryPlanAmendmentResult } from "./amendment.js";
 import type {
+  DeliveryContributionCoordinate,
   DeliveryContributionEndpoints,
   DeliveryContributionProofResult,
 } from "./contribution-proof.js";
@@ -50,6 +51,7 @@ export interface DeliverySuffixRematerializationDependencies {
     | { readonly status: "refused" }
   >;
   reobserveCandidate(rewrite: DeliverySuffixRewritePlan): Promise<boolean>;
+  resolveCoordinate(head: string): Promise<DeliveryContributionCoordinate | null>;
   proveCarried(endpoints: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
   apply(input: {
     readonly plan: DeliveryPlanV1;
@@ -72,6 +74,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
   readonly facts: DeliveryPositionFactsV1;
   readonly eligibleSnapshot: DeliveryEligibilitySnapshot;
   readonly selectedDeliverableIds: readonly string[];
+  resolveCoordinate(head: string): Promise<DeliveryContributionCoordinate | null>;
   proveCarried(endpoints: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
 }): Promise<PrepareDeliverySuffixRematerializationResult> {
   const position = deriveDeliveryPosition(input.plan, input.state, input.facts);
@@ -118,12 +121,13 @@ export async function prepareDeliverySuffixRematerialization(input: {
     if (selected.has(candidate.deliverableId)) continue;
     const stateIndex = landedCount + suffixIndex;
     const stored = input.state.members[stateIndex];
-    const beforePredecessor = suffixIndex === 0
-      ? input.state.target.coordinates
-      : input.state.members[stateIndex - 1]?.coordinates;
+    const beforePredecessor = stored?.coordinates === null || stored?.coordinates === undefined
+      ? null
+      : await input.resolveCoordinate(stored.coordinates.base);
     const afterPredecessor = suffixIndex === 0 ? snapshot.protectedBase : snapshot.members[suffixIndex - 1];
     if (stored?.coordinates === null || stored?.coordinates === undefined
-      || beforePredecessor === null || beforePredecessor === undefined || afterPredecessor === undefined
+      || beforePredecessor === null || afterPredecessor === undefined
+      || beforePredecessor.head !== stored.coordinates.base
       || (await input.proveCarried({
         before: { predecessor: beforePredecessor, member: stored.coordinates },
         after: { predecessor: afterPredecessor, member: candidate },
@@ -179,6 +183,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       facts: fresh.facts,
       eligibleSnapshot: fresh.snapshot,
       selectedDeliverableIds: input.selectedDeliverableIds,
+      resolveCoordinate: (head) => dependencies.resolveCoordinate(head),
       proveCarried: (endpoints) => dependencies.proveCarried(endpoints),
     });
     if (prepared.status !== "prepared") {

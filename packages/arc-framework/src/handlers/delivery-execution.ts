@@ -1164,6 +1164,7 @@ async function executeDeliveryCommand(
         return expected !== null && expected !== undefined && observed !== null
           && observed.head === expected.head && observed.tree === expected.tree;
       },
+      resolveCoordinate: (head) => observeDeliveryEligibilityRef(exec, head),
       proveCarried: (endpoints) => proveGitDeliveryContribution({ exec: createRawGitExec(cwd), ...endpoints }),
       apply: async ({ plan, current, rewrite }) => {
         const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
@@ -1176,11 +1177,10 @@ async function executeDeliveryCommand(
         const memberRef = member.ref;
         const memberCoordinates = member.coordinates;
         const requestedCoordinates = requested.coordinates;
-        const predecessor = current.value.members[current.value.members.indexOf(member) - 1]?.coordinates
-          ?? current.value.target?.coordinates;
+        const predecessor = await observeDeliveryEligibilityRef(exec, memberCoordinates.base);
         const snapshotIndex = snapshot.members.findIndex((entry) => entry.deliverableId === rewrite.deliverableId);
         const afterPredecessor = snapshotIndex === 0 ? snapshot.protectedBase : snapshot.members[snapshotIndex - 1];
-        if (predecessor === null || predecessor === undefined || afterPredecessor === undefined) {
+        if (predecessor === null || predecessor.head !== memberCoordinates.base || afterPredecessor === undefined) {
           return { status: "refused" as const };
         }
         const result = await executeDeliverySuffixRewrite({
