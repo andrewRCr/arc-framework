@@ -155,6 +155,12 @@ import {
   type ChecksAwaitResult,
 } from "../scripts/review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
+import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
+import {
+  resolveReviewStatus,
+  ReviewStatusTargetInputSchema,
+  type ReviewStatusResult,
+} from "../scripts/review-gate/status.js";
 
 /**
  * Build the request-source operand schema owned by one review command.
@@ -236,6 +242,14 @@ const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
   },
 };
 
+export const ReviewStatusCliInputSchema = z.strictObject({ target: z.string().trim().min(1) });
+
+const reviewStatusInputRegistration: CommandInputRegistration = {
+  commandPath: "review status",
+  schema: ReviewStatusCliInputSchema,
+  schemaFields: { "option.target": "target" },
+};
+
 /** Registry contributions owned by the review and merge-lock command adapters. */
 export const reviewCommandInputRegistrations = [
   ...[...REVIEW_JSON_COMMAND_PATHS, ...MERGE_LOCK_JSON_COMMAND_PATHS].map((commandPath) => ({
@@ -246,6 +260,7 @@ export const reviewCommandInputRegistrations = [
   reviewPlanningLaneInputRegistration,
   reviewChangeRequestInputRegistration,
   reviewChecksAwaitInputRegistration,
+  reviewStatusInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
 
 export interface ReviewChangeRequestResolveOptions {
@@ -326,6 +341,54 @@ export interface ReviewChecksAwaitOptions {
   timeoutMs: string;
   pollIntervalMs: string;
   json?: boolean;
+}
+
+export interface ReviewStatusOptions {
+  target: string;
+  json?: boolean;
+}
+
+export interface ReviewStatusHandlerDependencies {
+  resolve(cwd: string, input: z.infer<typeof ReviewStatusTargetInputSchema>): Promise<ReviewStatusResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Resolve review, check, and base state for one opaque exact-target reference. */
+export async function handleReviewStatus(
+  options: ReviewStatusOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewStatusHandlerDependencies> = {},
+): Promise<void> {
+  const cwd = resolveArcRoot();
+  if (cwd === null) return;
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: ReviewStatusHandlerDependencies = {
+    resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec })),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(options.target) as unknown;
+  } catch {
+    decoded = null;
+  }
+  const parsed = ReviewStatusTargetInputSchema.safeParse({ target: decoded });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-status",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail: parsed.error.issues.map(({ message }) => message).join("; "),
+    })}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  dependencies.write(`${JSON.stringify(await dependencies.resolve(cwd, parsed.data))}\n`);
 }
 
 export interface ReviewChecksAwaitHandlerDependencies {

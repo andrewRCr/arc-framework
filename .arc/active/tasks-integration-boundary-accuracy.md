@@ -495,18 +495,14 @@ now enforce are deleted; the bias-guarding invariants that remain are stated onc
         - Added the typed CLI procedure and production Git adapter: it refreshes and pins the configured base,
           skips contained revisions, merges append-only, and aborts conflicts back to the exact clean pre-merge state.
 
-### `[ ]` **6.2 Resolve exact-target review status after head-changing reconciliation**
+### `[x]` **6.2 Resolve exact-target review status after head-changing reconciliation**
 
 - _Goal:_ The post-reconcile conjunction — checks, routed obligation, base position — is one typed answer the
   workflow follows, and a stale target reference is rejected rather than silently re-resolved.
 
-    - `[ ]` **6.2.a `arc review status --target <target-ref> --json`**
-        - consumes the opaque reference from the change-request resolver (repository, head ref, exact head);
-          returns required-check status, routed review obligation, current base OID, and one of `settled`,
-          `review-required`, `checks-pending`, `base-moved`, `blocked`
-        - Build `test-first` (one behavior at a time):
-            - a stale reference is rejected (the workflow re-runs the resolver after a head-changing push)
-            - each outcome carries its typed next action
+    - `[x]` **6.2.a `arc review status --target <target-ref> --json`**
+        - Added the exact-target status command over the resolver's `targetRef`; it rejects stale heads and returns
+          required checks, routed reservation state, current base identity, and a typed action for every outcome.
 
 ### `[ ]` **6.3 Converge the work-unit lane: checkpoint-to-merge spine, interlock surface, pin disclosure**
 

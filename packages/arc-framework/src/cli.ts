@@ -150,12 +150,14 @@ import {
   handleReviewChangeRequestResolve,
   handleReviewMergeMethodResolve,
   handleReviewChecksAwait,
+  handleReviewStatus,
   handleReviewReduce,
   handleReviewRespond,
   type ReviewPlanningLaneOptions,
   type ReviewChangeRequestResolveOptions,
   type ReviewMergeMethodResolveOptions,
   type ReviewChecksAwaitOptions,
+  type ReviewStatusOptions,
 } from "./handlers/review.js";
 import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
@@ -1287,6 +1289,16 @@ reviewCmd
   .requiredOption("--head-sha <oid>", "Exact 40-hex proposed head")
   .requiredOption("--json", "Emit a typed JSON result")
   .action((options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options));
+
+reviewCmd
+  .command("status")
+  .description("Resolve exact-target review, check, and base status")
+  .requiredOption("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, options: ReviewStatusOptions) => handleReviewStatus(options, context),
+  ));
 
 reviewCmd
   .command("merge-method")

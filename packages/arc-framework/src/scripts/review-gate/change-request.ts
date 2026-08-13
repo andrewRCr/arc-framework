@@ -30,10 +30,17 @@ export const ChangeRequestResolveInputSchema = z.object({
   headSha: z.string().regex(/^[0-9a-f]{40}$/u),
 }).strict();
 
+export const ChangeRequestTargetRefSchema = z.strictObject({
+  repository: z.string().trim().min(1),
+  headRef: z.string().trim().min(1),
+  headSha: z.string().regex(/^[0-9a-f]{40}$/u),
+});
+export type ChangeRequestTargetRef = z.infer<typeof ChangeRequestTargetRefSchema>;
+
 interface ChangeRequestResultBase {
   schemaVersion: 1;
   mode: "review-change-request-resolve";
-  targetRef: { repository: string; headRef: string; headSha: string };
+  targetRef: ChangeRequestTargetRef;
 }
 
 export type ChangeRequestResolveResult = ChangeRequestResultBase & (
@@ -81,7 +88,7 @@ export async function resolveChangeRequest(
   port: ChangeRequestResolutionPort,
 ): Promise<ChangeRequestResolveResult> {
   const repository = await port.resolveRepository();
-  const targetRef = { repository, ...input };
+  const targetRef = ChangeRequestTargetRefSchema.parse({ repository, ...input });
   try {
     const refs = await port.readHeadRef(input.headRef);
     const visibleRefs = [refs.local, refs.remote].filter((oid): oid is string => oid !== null);
