@@ -41,6 +41,7 @@ import {
   describeDeliveryMemberPresentation,
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
+  resolveDeliveryMemberPresentations,
 } from "../lib/delivery/materialization.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { DeliveryPositionFactsV1Schema, deriveDeliveryPosition } from "../lib/delivery/position.js";
@@ -130,6 +131,15 @@ const MaterializeSchema = z.strictObject({
 const PublishSchema = MaterializeSchema.extend({
   repository: z.string().min(1),
   draft: z.boolean(),
+  presentations: z.array(z.strictObject({
+    deliverableId: DeliveryCanonicalDigestSchema,
+    summary: z.string().trim().min(1),
+    changes: z.array(z.strictObject({
+      topic: z.string().trim().min(1).regex(/^[^\r\n]+$/u),
+      description: z.string().trim().min(1),
+    })).min(1).optional(),
+    designReference: z.string().trim().min(1).regex(/^[^\r\n]+$/u).optional(),
+  })),
 });
 const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: z.unknown() });
 const ReconcileSchema = z.strictObject({
@@ -799,6 +809,10 @@ async function executeDeliveryCommand(
       mutate: async ({ plan, snapshot }) => {
         const derived = deriveDeliveryMaterialization(plan, snapshot);
         if (derived.status !== "derived") return derived;
+        const reviewerPresentations = command === "publish"
+          ? resolveDeliveryMemberPresentations(plan, PublishSchema.parse(parsed).presentations)
+          : null;
+        if (reviewerPresentations?.status === "refused") return reviewerPresentations;
         const refs = {
           observe: async (ref: string) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
           publish: async (ref: string, head: string) => {
@@ -843,7 +857,11 @@ async function executeDeliveryCommand(
           host: new GhDeliveryHostPort(hostedGhRunner),
           repository: publish.repository,
           draft: publish.draft,
-          presentation: (member) => describeDeliveryMemberPresentation(plan, member),
+          presentation: (member) => {
+            const authored = reviewerPresentations?.value.get(member.deliverableId);
+            if (authored === undefined) throw new Error("validated delivery presentation coverage was lost");
+            return describeDeliveryMemberPresentation(plan, member, authored);
+          },
         });
       },
     });

@@ -163,6 +163,52 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("requires structured reviewer presentation when publishing delivery members", async () => {
+    const plan = deliveryStackPlanFixture();
+    const baseRequest = {
+      planId: plan.planId,
+      protectedBaseRef: "refs/heads/main",
+      controlRef: "refs/heads/control",
+      candidates: plan.members.map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: `refs/heads/candidate-${index + 1}`,
+        checkoutPath: `/tmp/candidate-${index + 1}`,
+      })),
+      repository: "andrewRCr/arc-framework",
+      draft: true,
+      remote: "origin",
+    };
+    const rejected = vi.fn();
+    const rejectedWrite = vi.fn();
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(baseRequest)),
+      execute: rejected,
+      write: rejectedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(rejected).not.toHaveBeenCalled();
+    expect(JSON.parse(rejectedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+
+    const accepted = vi.fn().mockResolvedValue({ status: "refused", reason: "checkout-moved" });
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        ...baseRequest,
+        presentations: plan.members.slice(0, -1).map((member) => ({
+          deliverableId: member.deliverableId,
+          summary: `Review ${member.title}.`,
+          changes: [{ topic: "Boundary", description: "Adds the concrete reviewer-facing change." }],
+        })),
+      })),
+      execute: accepted,
+      write: vi.fn(),
+      setExitCode: vi.fn(),
+    });
+    expect(accepted).toHaveBeenCalledOnce();
+  });
+
   it("rejects caller-authored reconciliation evidence", async () => {
     const execute = vi.fn();
     const write = vi.fn();

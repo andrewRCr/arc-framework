@@ -37,6 +37,38 @@ export interface DeliveryMaterializationPlan {
   readonly members: readonly DeliveryMaterializationMember[];
 }
 
+/** Reviewer-authored context for one non-terminal delivery request. */
+export interface DeliveryMemberReviewerPresentation {
+  readonly deliverableId: string;
+  readonly summary: string;
+  readonly changes?: readonly {
+    readonly topic: string;
+    readonly description: string;
+  }[];
+  readonly designReference?: string;
+}
+
+/** Validate exact authored presentation coverage without granting caller order authority. */
+export function resolveDeliveryMemberPresentations(
+  plan: DeliveryPlanV1,
+  presentations: readonly DeliveryMemberReviewerPresentation[],
+): { readonly status: "resolved"; readonly value: ReadonlyMap<string, DeliveryMemberReviewerPresentation> } | {
+  readonly status: "refused";
+  readonly reason: "presentation-mismatch";
+} {
+  const expected = new Set(plan.members.slice(0, -1).map((member) => member.deliverableId));
+  const byDeliverableId = new Map<string, DeliveryMemberReviewerPresentation>();
+  for (const presentation of presentations) {
+    if (!expected.has(presentation.deliverableId) || byDeliverableId.has(presentation.deliverableId)) {
+      return { status: "refused", reason: "presentation-mismatch" };
+    }
+    byDeliverableId.set(presentation.deliverableId, presentation);
+  }
+  return byDeliverableId.size === expected.size
+    ? { status: "resolved", value: byDeliverableId }
+    : { status: "refused", reason: "presentation-mismatch" };
+}
+
 /** Derive exact refs and predecessor bases; the terminal remains on the control branch. */
 export function deriveDeliveryMaterialization(
   plan: DeliveryPlanV1,
@@ -85,26 +117,36 @@ export function deriveDeliveryMaterialization(
 export function describeDeliveryMemberPresentation(
   plan: DeliveryPlanV1,
   member: Pick<DeliveryMaterializationMember, "deliverableId" | "chunkKey">,
+  presentation: DeliveryMemberReviewerPresentation,
 ): Pick<DeliveryHostOpenRequest, "title" | "body"> {
   const index = plan.members.findIndex((planned) => planned.deliverableId === member.deliverableId);
   const planned = index >= 0 ? plan.members[index] : undefined;
-  if (planned === undefined) {
-    return { title: member.chunkKey, body: `Delivery member ${member.deliverableId}.` };
+  if (planned === undefined || index === plan.members.length - 1) {
+    throw new Error(`delivery member ${member.deliverableId} is outside the delivery plan presentation set`);
+  }
+  if (presentation.deliverableId !== member.deliverableId) {
+    throw new Error(`delivery member ${member.deliverableId} has mismatched reviewer presentation`);
   }
   const position = `${index + 1}/${plan.members.length}`;
-  return {
-    title: `${plan.workUnitId} [${position}]: ${planned.title}`,
-    body: [
-      `**Delivery:** \`${plan.workUnitId}\` — member ${index + 1} of ${plan.members.length}`,
-      "",
-      "## Summary",
-      "",
-      `${planned.title} is delivered as one independently reviewable layer of the planned stack.`,
+  const body: string[] = [];
+  if (presentation.designReference !== undefined) {
+    const design = /^https?:\/\//u.test(presentation.designReference)
+      ? presentation.designReference
+      : `\`${presentation.designReference}\``;
+    body.push(`**Design:** ${design}`, "");
+  }
+  body.push("## Summary", "", presentation.summary);
+  if (presentation.changes !== undefined && presentation.changes.length > 0) {
+    body.push(
       "",
       "## Changes",
       "",
-      `- _${planned.title}_ — ${planned.contract}`,
-    ].join("\n"),
+      presentation.changes.map((change) => `- _${change.topic}_ — ${change.description}`).join("\n\n"),
+    );
+  }
+  return {
+    title: `${plan.workUnitId} [${position}]: ${planned.title}`,
+    body: body.join("\n"),
   };
 }
 

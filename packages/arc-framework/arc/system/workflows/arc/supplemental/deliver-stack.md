@@ -75,8 +75,28 @@ arc delivery publish - --json
 These verbs resolve the current plan and lifecycle paths, rerun mechanical eligibility against the exact post-gate
 checkouts, and create or adopt guarded refs and requests in plan order. Set the publish input's `draft` flag from the
 configured `merge.lock` posture (`draft` ⇒ `true`) so every non-terminal request opens under the configured hold; the
-landing sequence releases that lock only after readiness. After interruption, rerun the candidate gates
-before invoking them again. Resume any persisted reservation through:
+landing sequence releases that lock only after readiness.
+
+Before `publish`, load the delivery-member variant of [`template-pull-request.md`][template-pull-request] and author
+one `presentations` entry for every non-terminal deliverable ID:
+
+```json
+{
+  "presentations": [{
+    "deliverableId": "{canonical deliverable ID}",
+    "summary": "{reviewer-facing purpose and outcome}",
+    "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }],
+    "designReference": "{accessible filename or URL}"
+  }]
+}
+```
+
+`summary` is required; `changes` and `designReference` are content-gated. The verb requires exact non-terminal
+coverage before mutation, derives titles from the canonical plan, and uses authored presentation only when creating
+a missing request. An exact existing request is adopted unchanged.
+
+After interruption, rerun the candidate gates before invoking the mutation verbs again. Resume any persisted
+reservation through:
 
 ```bash
 arc delivery reconcile - --json
@@ -227,3 +247,4 @@ post-merge delivery adoption call before close or teardown. Repeated adoption is
 unit returns `not-applicable`.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
+[template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md

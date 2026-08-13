@@ -84,30 +84,40 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 ## Delivery-Member Variant
 
 A non-terminal member of a planned delivery stack is a review and merge boundary inside one work unit, not a
-second work unit. Its candidate intentionally excludes the owning work unit's lifecycle artifacts, so the ordinary
-`Design` field would point at content absent from the member diff. Use the member form below instead:
+second work unit. Use the member form below:
 
 ```text
 {work-unit-slug} [{position}/{total}]: {member title}
 ```
 
-The position is stack-review metadata; commit-format rules continue to govern the commits that land. Compose the
-body from canonical plan fields:
+The position is stack-review metadata; commit-format rules continue to govern the commits that land. The title
+already supplies delivery identity, position, and member scope. Do not add a `Delivery` field that repeats them.
+
+The body uses the ordinary template's reviewer-facing roles, with content scoped to this member:
 
 ```markdown
-**Delivery:** `{work-unit-slug}` — member {position} of {total}
+**Design:** `{filename}` or {URL} <!-- optional; see below -->
 
 ## Summary
 
-{Member title} is delivered as one independently reviewable layer of the planned stack.
+{One short paragraph naming this member's purpose and outcome. Do not restate the title or merely say that this is
+one layer of a stack.}
 
 ## Changes
 
-- _{Member title}_ — {Member contract}
+- _{Concrete topic}_ — {Specific output delivered by this member}
+
+- _{Another concrete topic}_ — {Description}
 ```
 
-`Test Plan`, `Review`, `Out of Scope`, and `Follow-Up Work` retain their ordinary content gates. The terminal member
-uses the ordinary work-unit template because it carries the lifecycle artifacts and closes the work unit.
+`Changes` remains recommended rather than required when the Summary fully carries a small member. `Test Plan`,
+`Review`, `Out of Scope`, and `Follow-Up Work` retain their ordinary content gates. The terminal member uses the
+ordinary work-unit template because it carries the lifecycle artifacts and closes the work unit.
+
+Design is content-gated for delivery members. Include `Design` only when the intended reviewers can resolve the
+reference from the code repository, an accessible URL, or the configured ARC backing store. The design need not be
+present in this member's diff. Omit the field when it would point GitHub-only or public reviewers at unavailable
+content; work-unit identity in the title is correlation, not a substitute for an accessible design reference.
 
 ## Optional Sections
 
@@ -144,8 +154,9 @@ uses the ordinary work-unit template because it carries the lifecycle artifacts 
 
 ## Section Guidance
 
-**Spec — required.** Mirrors the WU's meta-file `**Design:**` field exactly. Single value, not
-a list — the Spec field abstracts over the WU's authoritative scope source.
+**Design — required for ordinary work-unit PRs; content-gated for delivery members.** Mirrors the WU's meta-file
+`**Design:**` field exactly when included. Single value, not a list — the field abstracts over the WU's
+authoritative scope source. The delivery-member accessibility rule above governs whether that variant includes it.
 
 - **In-repo artifact** — backtick-wrapped filename, no path: `` `spec-{name}.md` ``,
   `` `tasks-{name}.md` ``. Filename-only follows
