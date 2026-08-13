@@ -38,6 +38,39 @@ describe("CurrentDeliveryLifecycleContributionPathSource", () => {
     });
   });
 
+  it("retains predecessor-locus artifacts from the protected base", async () => {
+    const source = new CurrentDeliveryLifecycleContributionPathSource({
+      readDirectory: async () => ["meta-example.md", "spec-example.md", "tasks-example.md"],
+      readArtifactsAtRef: async (ref) => ref === "refs/heads/main"
+        ? [
+            validateManagedPath(".arc/backlog/planned/cohort/example/draft-example.md"),
+            validateManagedPath(".arc/backlog/planned/cohort/example/meta-example.md"),
+          ]
+        : [
+            validateManagedPath(".arc/active/meta-example.md"),
+            validateManagedPath(".arc/active/spec-example.md"),
+            validateManagedPath(".arc/active/tasks-example.md"),
+          ],
+      projectReadinessPath: validateManagedPath(".arc/backlog/ROADMAP.md"),
+    });
+
+    await expect(source.resolve({
+      workUnitId: "example",
+      activeMetaPath: validateManagedPath(".arc/active/meta-example.md"),
+      protectedBaseRef: "refs/heads/main",
+      controlRef: "refs/heads/feat/example",
+    })).resolves.toEqual({
+      workUnitArtifacts: [
+        ".arc/active/meta-example.md",
+        ".arc/active/spec-example.md",
+        ".arc/active/tasks-example.md",
+        ".arc/backlog/planned/cohort/example/draft-example.md",
+        ".arc/backlog/planned/cohort/example/meta-example.md",
+      ],
+      sharedProjections: [".arc/backlog/ROADMAP.md"],
+    });
+  });
+
   it("omits projections materialized outside the code repository", async () => {
     const source = new CurrentDeliveryLifecycleContributionPathSource({
       readDirectory: async () => ["meta-example.md"],

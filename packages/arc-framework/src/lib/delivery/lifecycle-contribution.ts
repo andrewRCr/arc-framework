@@ -15,6 +15,8 @@ export interface DeliveryLifecycleContributionPathSource {
   resolve(input: {
     readonly workUnitId: string;
     readonly activeMetaPath: ManagedPath;
+    readonly protectedBaseRef?: string;
+    readonly controlRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths>;
 }
 
@@ -101,23 +103,41 @@ export class CurrentDeliveryLifecycleContributionPathSource
 implements DeliveryLifecycleContributionPathSource {
   constructor(private readonly input: {
     readonly readDirectory: (path: string) => Promise<readonly string[]>;
+    readonly readArtifactsAtRef?: (
+      ref: string,
+      workUnitId: string,
+    ) => Promise<readonly ManagedPath[]>;
     readonly projectReadinessPath?: ManagedPath | null;
   }) {}
 
   async resolve(input: {
     readonly workUnitId: string;
     readonly activeMetaPath: ManagedPath;
+    readonly protectedBaseRef?: string;
+    readonly controlRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths> {
-    const workUnitArtifacts = await listCurrentWuArtifactPaths(
+    const currentArtifacts = await listCurrentWuArtifactPaths(
       input.workUnitId,
       input.activeMetaPath,
       this.input.readDirectory,
     );
+    const refArtifacts = this.input.readArtifactsAtRef !== undefined
+      && input.protectedBaseRef !== undefined
+      && input.controlRef !== undefined
+      ? await Promise.all([
+          this.input.readArtifactsAtRef(input.protectedBaseRef, input.workUnitId),
+          this.input.readArtifactsAtRef(input.controlRef, input.workUnitId),
+        ])
+      : [[], []] as const;
+    const workUnitArtifacts = [...new Set([
+      ...currentArtifacts.map(validateManagedPath),
+      ...refArtifacts.flat(),
+    ])].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
     const projectReadinessPath = this.input.projectReadinessPath === undefined
       ? resolveArcPath({ kind: "project-document", document: "roadmap" })
       : this.input.projectReadinessPath;
     return {
-      workUnitArtifacts: workUnitArtifacts.map(validateManagedPath),
+      workUnitArtifacts,
       sharedProjections: projectReadinessPath === null ? [] : [projectReadinessPath],
     };
   }
