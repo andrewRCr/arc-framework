@@ -1,6 +1,11 @@
 /** Bounded passive wait contract for hosted pull-request reviews. */
 
 import { z } from "zod";
+import {
+  boundedWait,
+  type BoundedWaitAttempt,
+  type BoundedWaitClock,
+} from "../bounded-wait.js";
 
 import {
   HostedRequestHandleSchema,
@@ -62,10 +67,7 @@ export const HostedAwaitEnvelopeSchema = z.strictObject({
 });
 export type HostedAwaitEnvelope = z.infer<typeof HostedAwaitEnvelopeSchema>;
 
-export interface HostedAwaitClock {
-  now(): number;
-  sleep(milliseconds: number): Promise<void>;
-}
+export type HostedAwaitClock = BoundedWaitClock;
 
 export interface HostedReviewObserver {
   id: HostedProviderId;
@@ -135,15 +137,6 @@ function base(handle: HostedRequestHandle): HostedAwaitBase {
   return { schemaVersion: 1, mode: "review-hosted-await", handle };
 }
 
-function nextDelay(attempt: number, intervalMs: number, remainingMs: number): number {
-  const exponent = Math.min(attempt, 4);
-  return Math.min(intervalMs * (2 ** exponent), remainingMs);
-}
-
-function isDeadlineAbort(error: unknown): boolean {
-  return error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name);
-}
-
 /** Observe one already-requested review until it completes or the bounded call expires. */
 export async function awaitHostedReview(
   input: unknown,
@@ -162,98 +155,67 @@ export async function awaitHostedReview(
     };
   }
 
-  const startedAt = dependencies.clock.now();
-  let attempt = 0;
-  for (;;) {
-    const elapsedMs = dependencies.clock.now() - startedAt;
-    const remainingMs = request.timeoutMs - elapsedMs;
-    if (remainingMs <= 0) {
-      return { ...base(request.handle), state: "pending", nextAction: "await", elapsedMs };
-    }
-
-    const signal = AbortSignal.timeout(remainingMs);
-    let actualHeadSha: string;
-    try {
-      actualHeadSha = await observer.readHead(request.handle, { signal });
-    } catch (error) {
-      if (isDeadlineAbort(error)) {
-        return {
+  return boundedWait<HostedAwaitResult>({
+    timeoutMs: request.timeoutMs,
+    pollIntervalMs: request.pollIntervalMs,
+    clock: dependencies.clock,
+    deadline: (elapsedMs): HostedAwaitResult => ({
+      ...base(request.handle),
+      state: "pending",
+      nextAction: "await",
+      elapsedMs,
+    }),
+    attempt: async ({ signal }): Promise<BoundedWaitAttempt<HostedAwaitResult>> => {
+      const actualHeadSha = await observer.readHead(request.handle, { signal });
+      if (actualHeadSha !== request.handle.target.headSha) {
+        return { kind: "return", value: {
           ...base(request.handle),
-          state: "pending",
-          nextAction: "await",
-          elapsedMs: dependencies.clock.now() - startedAt,
-        };
+          state: "stale-target",
+          nextAction: "stop",
+          expectedHeadSha: request.handle.target.headSha,
+          actualHeadSha,
+        } } as const;
       }
-      throw error;
-    }
-    if (actualHeadSha !== request.handle.target.headSha) {
-      return {
-        ...base(request.handle),
-        state: "stale-target",
-        nextAction: "stop",
-        expectedHeadSha: request.handle.target.headSha,
-        actualHeadSha,
-      };
-    }
 
-    let rawObservation: unknown;
-    try {
-      rawObservation = await observer.observe(request.handle, { signal });
-    } catch (error) {
-      if (isDeadlineAbort(error)) {
-        return {
+      const rawObservation = await observer.observe(request.handle, { signal });
+      const parsed = HostedObservationSchema.safeParse(rawObservation);
+      if (!parsed.success) {
+        return { kind: "return", value: {
           ...base(request.handle),
-          state: "pending",
-          nextAction: "await",
-          elapsedMs: dependencies.clock.now() - startedAt,
-        };
+          state: "malformed-output",
+          nextAction: "stop",
+          reason: parsed.error.message,
+        } } as const;
       }
-      throw error;
-    }
-    const parsed = HostedObservationSchema.safeParse(rawObservation);
-    if (!parsed.success) {
-      return {
-        ...base(request.handle),
-        state: "malformed-output",
-        nextAction: "stop",
-        reason: parsed.error.message,
-      };
-    }
-    const observation = parsed.data;
-    if (observation.kind === "clean") {
-      return { ...base(request.handle), state: "clean", nextAction: "complete", reviewUrl: observation.reviewUrl };
-    }
-    if (observation.kind === "findings") {
-      return {
-        ...base(request.handle),
-        state: "findings",
-        nextAction: "triage",
-        reviewUrl: observation.reviewUrl,
-        findings: observation.findings,
-      };
-    }
-    if (observation.kind === "rate-limited" || observation.kind === "transient-unavailable") {
-      return { ...base(request.handle), state: observation.kind, nextAction: "try-next-source" };
-    }
-    if (observation.kind === "terminal-failure") {
-      return {
-        ...base(request.handle),
-        state: "terminal-failure",
-        nextAction: "stop",
-        reason: observation.reason,
-      };
-    }
-
-    const afterReadRemaining = request.timeoutMs - (dependencies.clock.now() - startedAt);
-    if (afterReadRemaining <= 0) {
-      return {
-        ...base(request.handle),
-        state: "pending",
-        nextAction: "await",
-        elapsedMs: dependencies.clock.now() - startedAt,
-      };
-    }
-    await dependencies.clock.sleep(nextDelay(attempt, request.pollIntervalMs, afterReadRemaining));
-    attempt += 1;
-  }
+      const observation = parsed.data;
+      if (observation.kind === "clean") {
+        return { kind: "return", value: {
+          ...base(request.handle), state: "clean", nextAction: "complete", reviewUrl: observation.reviewUrl,
+        } } as const;
+      }
+      if (observation.kind === "findings") {
+        return { kind: "return", value: {
+          ...base(request.handle),
+          state: "findings",
+          nextAction: "triage",
+          reviewUrl: observation.reviewUrl,
+          findings: observation.findings,
+        } } as const;
+      }
+      if (observation.kind === "rate-limited" || observation.kind === "transient-unavailable") {
+        return { kind: "return", value: {
+          ...base(request.handle), state: observation.kind, nextAction: "try-next-source",
+        } } as const;
+      }
+      if (observation.kind === "terminal-failure") {
+        return { kind: "return", value: {
+          ...base(request.handle),
+          state: "terminal-failure",
+          nextAction: "stop",
+          reason: observation.reason,
+        } } as const;
+      }
+      return { kind: "continue" } as const;
+    },
+  });
 }

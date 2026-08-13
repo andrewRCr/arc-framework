@@ -300,19 +300,21 @@ Stack member `integration-review-primitives`; independently landable. Spec eleme
 - _Outcome:_ The errand, checkpoint, and merge lanes can share one fail-closed merge-method decision and compare
   its live policy identity across resolutions.
 
-### `[ ]` **3.3 Extract the provider-neutral bounded wait primitive**
+### `[x]` **3.3 Extract the provider-neutral bounded wait primitive**
 
 - _Goal:_ One backoff-and-deadline wait implementation exists in the namespace, shared by the hosted-review
   await and the required-checks await.
 
-    - `[ ]` **3.3.a Extract from `awaitHostedReview`**
-        - source lives at `src/scripts/review-gate/hosted/await.ts`
-        - module placement and how much envelope vocabulary becomes shared schema are tactical calls
-          (spec § Open Questions); if a third wait later resists the shape, the primitive absorbs a variant
+    - `[x]` **3.3.a Extract from `awaitHostedReview`**
+        - Added `bounded-wait.ts` for deadline enforcement, exponential backoff, bounded abort handling, and a
+          generic attempt/deadline result seam; provider-specific schemas remain with their instantiations.
 
-    - `[ ]` **3.3.b Re-instantiate the hosted-review await on the primitive**
-        - contract-preserving: existing envelope shapes, backoff, and deadline semantics unchanged; existing
-          tests stay green
+    - `[x]` **3.3.b Re-instantiate the hosted-review await on the primitive**
+        - `awaitHostedReview` now maps its existing observations and envelopes through the shared loop without
+          changing stale-head, terminal, backoff, abort, or deadline behavior.
+
+- _Outcome:_ Hosted review and required checks now share one provider-neutral timing mechanism while retaining
+  independent observation and envelope vocabulary.
 
 ### `[ ]` **3.4 Instantiate the required-checks await on the exact head**
 
