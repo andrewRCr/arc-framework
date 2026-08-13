@@ -361,20 +361,22 @@ projection directly and the standalone readiness verb shrinks to what its remain
   reconcile evidence, while a clean exact head reaches approval only through lifecycle, Candidate, host, and
   merge-policy facts bound into the ready envelope.
 
-### `[ ]` **4.2 Shrink `arc review readiness` contract-preservingly for its remaining consumers**
+### `[x]` **4.2 Shrink `arc review readiness` contract-preservingly for its remaining consumers**
 
 - _Goal:_ The readiness verb is the thin completeness read its remaining consumers need — the forensic
   checkout posture (symlink, escape, duplicate-artifact) guards no chartered threat and is deleted.
 
-    - `[ ]` **4.2.a Remove the forensic posture**
-        - the checkout is the single attended operator's own; deletion is authorized under Goal 5 with the
-          covering reading named (implementation: `scripts/review-gate/readiness.ts`)
-        - `readiness.test.ts`'s forensic assertions (`symlinked-root`, `escaping-artifact`,
-          `duplicate-artifact`) delete with the posture they pin
+    - `[x]` **4.2.a Remove the forensic posture**
+        - Readiness now follows ordinary operator-owned filesystem links, omits containment probes, and selects the
+          latest completed archive without treating older copies as hostile ambiguity.
 
-    - `[ ]` **4.2.b Consumer contract preservation**
-        - merge-lock release gating, the delivery-member vehicle, and the local lanes keep their request and
-          envelope shapes and semantics; any consumer-visible narrowing is a defect — contract tests prove it
+    - `[x]` **4.2.b Consumer contract preservation**
+        - The strict request and envelope schemas remain unchanged, as do merge-lock release gating,
+          delivery-member authentication, and local-lane handler behavior.
+
+- _Outcome:_ Readiness is now a lifecycle-completeness reader over the attended checkout, retaining every
+  consumer-facing identity, cadence, delivery, and failure contract while dropping the unchartered filesystem
+  threat model.
 
 ### `[ ]` **4.3 Persist digest-bound approval composition and settlement plans**
 

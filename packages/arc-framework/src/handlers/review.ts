@@ -543,8 +543,8 @@ export interface ReviewReadinessHandlerDependencies {
  * Bind readiness to one repository's delivery state.
  *
  * The root is the composition root's own resolved root — never the request's
- * supplied tree root, which is untrusted, and never a module-internal read of
- * the process working directory. It is the resolved ARC root rather than the
+ * supplied lifecycle-product root, and never a module-internal read of the
+ * process working directory. It is the resolved ARC root rather than the
  * Git repository root; the Git-common publisher resolves the common directory
  * from any path inside the repository, so binding from it is correct.
  *
