@@ -656,6 +656,10 @@ executor as its only semantic fallback.
   binary/rename/mode contribution proof tested at flag level only; no direct `queue-not-atomic` submission
   assertion; `materialize`-kind reconcile covered indirectly; no composed partial-stack cross-session isolation
   test; ADR-024 and several backlog drafts still name `assess-cohort-fit` (out-of-scope surfaces).
+- _Integration dogfood:_ Candidate authoring exposed two same-concern gaps. Lifecycle normalization now unions the
+  current artifact group with the owning WU's protected-base and control-tree artifact loci, so activation-time moves
+  cannot leak predecessor planning artifacts into a partial stack. The execution workflow now keeps disposable cuts
+  under private non-branch refs with detached gate worktrees, avoiding false WU/cleanup signals in sibling sessions.
 
 ---
 

@@ -1,7 +1,7 @@
 /** Strict CLI composition for delivery execution services. */
 
 import { readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { posix, resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -84,7 +84,9 @@ import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
+import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { releaseMergeLock } from "../scripts/review-gate/merge-lock.js";
 import { evaluateReviewReadiness } from "../scripts/review-gate/readiness.js";
@@ -445,6 +447,22 @@ function emit(deps: DeliveryExecutionHandlerDependencies, command: DeliveryExecu
   if (result.status === "refused" || result.status === "blocked") deps.setExitCode(1);
 }
 
+async function readLifecycleArtifactsAtRef(
+  exec: GitExec,
+  ref: string,
+  workUnitId: string,
+): Promise<readonly ReturnType<typeof validateManagedPath>[]> {
+  const { stdout } = await exec("git", [
+    "ls-tree", "--full-tree", "-r", "-z", "--name-only", ref, "--",
+    ".arc/active", ".arc/backlog/planned", ".arc/backlog/provisional", ".arc/completed",
+  ]);
+  const matcher = artifactMatcher(workUnitId);
+  return stdout.split("\0")
+    .filter((path) => path !== "" && posix.basename(path) !== `cohort-${workUnitId}.md`
+      && matcher.test(posix.basename(path)))
+    .map(validateManagedPath);
+}
+
 async function executeDeliveryCommand(
   command: DeliveryExecutionCommand,
   request: unknown,
@@ -766,9 +784,12 @@ async function executeDeliveryCommand(
         try {
           const paths = await new CurrentDeliveryLifecycleContributionPathSource({
             readDirectory: (path) => readdir(resolve(cwd, path)),
+            readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
           }).resolve({
             workUnitId: plan.workUnitId,
             activeMetaPath: validateManagedPath(active.path),
+            protectedBaseRef: parsed.protectedBaseRef,
+            controlRef: parsed.controlRef,
           });
           return [...paths.workUnitArtifacts, ...paths.sharedProjections];
         } catch {
@@ -1091,7 +1112,13 @@ async function executeDeliveryCommand(
             try {
               const paths = await new CurrentDeliveryLifecycleContributionPathSource({
                 readDirectory: (path) => readdir(resolve(cwd, path)),
-              }).resolve({ workUnitId: plan.workUnitId, activeMetaPath: validateManagedPath(active.path) });
+                readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
+              }).resolve({
+                workUnitId: plan.workUnitId,
+                activeMetaPath: validateManagedPath(active.path),
+                protectedBaseRef: parsed.protectedBaseRef,
+                controlRef: parsed.controlRef,
+              });
               return [...paths.workUnitArtifacts, ...paths.sharedProjections];
             } catch {
               return null;
