@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "delivery-state-transfer-bridge",
+  "claimId": "6b6437515f3287076308741b2c5ec185",
+  "createdAt": "2026-08-13T18:13:23.644Z",
+  "updatedAt": "2026-08-13T18:13:23.644Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add a lossless exact export/import bridge for machine-local delivery plan and state records so a materialized work unit can resume across machines before the backing-store substrate ships.",
+  "branch": "chore/delivery-state-transfer-bridge",
+  "origin": "inbox",
+  "originEntry": "Add a lossless delivery-state transfer bridge",
+  "originEntrySourceDigest": "sha256:3010a3ebba163ce23ba3acb9bd7178856bf919b3903132958390d0dd654d780e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
