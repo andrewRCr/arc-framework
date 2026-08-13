@@ -1,20 +1,18 @@
 /**
  * Cross-machine WU materialize.
  *
- * A materialized work unit has no local lifecycle record before the transition:
- * the remote branch carries its authoritative `active/` meta. The command layer
- * fetches that branch first, then this verb supplies only the worktree placement
- * operands to the lifecycle executor.
+ * The remote branch carries the authoritative active work-unit artifacts. The
+ * command layer proves that branch is remote-only on this machine and fetches it;
+ * this operation then places it in a checkout without changing lifecycle state.
  *
  * @module
  */
 
 import {
-  executeTransition,
   type ExecuteTransitionContext,
   type TransitionInputs,
-  type TransitionOutcome,
 } from "../lifecycle-executor.js";
+import type { LifecycleIndex } from "../lifecycle-index.js";
 import { isSlugSafe } from "../slug.js";
 
 /** Default spawned materialize — create a local branch from `origin/<branch>` in a fresh worktree. */
@@ -57,11 +55,14 @@ export type MaterializeResult =
   | { status: "rejected"; reason: string }
   | {
       status: "materialized";
-      outcome: TransitionOutcome;
       /** The materialized branch. */
       branch: string;
       /** Whether the materialize landed in the current checkout. */
       inPlace: boolean;
+      /** Exact checkout allocated for the fetched branch. */
+      worktreePath: string;
+      /** Provisioning notices surfaced by the placement primitive. */
+      advisories: string[];
     };
 
 /** Remote-tracking branch ref used as the base for a fresh materialize spawn. */
@@ -71,16 +72,17 @@ function remoteBranch(branch: string): string {
 
 /**
  * Run materialize: place a fetched remote-only WU branch either in this checkout
- * (`--here`) or in a fresh worktree. The executor's source index remains local:
- * a local record for the slug means this is not a remote-only pickup and the
- * `materialize@null` edge will reject.
+ * (`--here`) or in a fresh worktree. Candidate discovery already established the
+ * cross-machine fact: no local branch or worktree exists for the fetched remote
+ * branch. A backlog record on the local base is expected and does not participate
+ * in placement authority.
  *
  * @param ctx - The executor seams.
  * @param params - The target WU and branch placement mode.
  * @returns A rejection, or the materialized branch.
  */
 export async function runMaterialize(
-  ctx: ExecuteTransitionContext,
+  ctx: Pick<ExecuteTransitionContext, "guardValidators" | "reconcileWorkUnitWorktree">,
   params: MaterializeParams,
 ): Promise<MaterializeResult> {
   const { name, branch } = params;
@@ -94,26 +96,59 @@ export async function runMaterialize(
     return { status: "rejected", reason: "`materialize` requires a remote branch." };
   }
 
+  const worktreeOp: NonNullable<TransitionInputs["worktreeOp"]> = params.inPlace
+    ? { mutation: "spawn", inPlace: true, branch, wuName: name, createBranch: false }
+    : {
+        mutation: "spawn",
+        branch,
+        createBranch: true,
+        base: remoteBranch(branch),
+        locationTemplate: params.locationTemplate,
+        repo: params.repo,
+        wuName: name,
+        spawningIdentity: params.spawningIdentity,
+        postCreateScript: params.postCreateScript,
+        primaryWorktreePath: params.primaryWorktreePath,
+        registeredHarnessDirs: params.registeredHarnessDirs,
+      };
   const inputs: TransitionInputs = {
-    worktreeOp: params.inPlace
-      ? { mutation: "spawn", inPlace: true, branch, wuName: name, createBranch: false }
-      : {
-          mutation: "spawn",
-          branch,
-          createBranch: true,
-          base: remoteBranch(branch),
-          locationTemplate: params.locationTemplate,
-          repo: params.repo,
-          wuName: name,
-          spawningIdentity: params.spawningIdentity,
-          postCreateScript: params.postCreateScript,
-          primaryWorktreePath: params.primaryWorktreePath,
-          registeredHarnessDirs: params.registeredHarnessDirs,
-        },
+    worktreeOp,
     materializesCurrentCheckout: params.inPlace === true,
   };
 
-  const outcome = await executeTransition(ctx, { verb: "materialize", slug: name, inputs });
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "materialized", outcome, branch, inPlace: params.inPlace === true };
+  const occupancy = ctx.guardValidators?.["worktree-occupancy"];
+  if (occupancy === undefined) {
+    return { status: "rejected", reason: "guard `worktree-occupancy` is not wired." };
+  }
+  // The occupancy guard's shared lifecycle signature carries an index, but this
+  // placement check reads only the entering checkout. Keep backlog/storage
+  // projection entirely outside materialize authority.
+  const emptyIndex: LifecycleIndex = new Map();
+
+  try {
+    const guardResult = await occupancy({
+      index: emptyIndex,
+      slug: name,
+      position: null,
+      inputs,
+    });
+    if (!guardResult.ok) return { status: "rejected", reason: guardResult.message };
+
+    const placement = await ctx.reconcileWorkUnitWorktree(worktreeOp);
+    if (placement.mutation !== "spawn") {
+      return { status: "rejected", reason: "materialize placement returned an unexpected operation." };
+    }
+    return {
+      status: "materialized",
+      branch,
+      inPlace: params.inPlace === true,
+      worktreePath: placement.worktreePath,
+      advisories: placement.postCreateNotice === undefined ? [] : [placement.postCreateNotice],
+    };
+  } catch (err) {
+    return {
+      status: "rejected",
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
