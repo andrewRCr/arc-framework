@@ -12,16 +12,34 @@ import {
   type IntegrationCheckpointResult,
 } from "../scripts/integration/checkpoint.js";
 import { createIntegrationCheckpointDependencies } from "../scripts/integration/checkpoint-composition.js";
+import { createIntegrationMergeDependencies } from "../scripts/integration/merge-composition.js";
+import {
+  mergeIntegration,
+  type IntegrationMergeResult,
+} from "../scripts/integration/merge.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export const IntegrationCheckpointCommandInputSchema = z.strictObject({
   name: IntegrationCheckpointRequestSchema.shape.workUnit,
 });
 
+export const IntegrationMergeCommandInputSchema = z.strictObject({
+  name: IntegrationCheckpointRequestSchema.shape.workUnit,
+  checkpoint: z.string().regex(
+    /^checkpoint-v1:(?:[0-9a-f]{40}|[0-9a-f]{64}):sha256:[0-9a-f]{64}$/u,
+  ),
+});
+
 const integrationCheckpointInputRegistration = {
   commandPath: "integrate checkpoint",
   schema: IntegrationCheckpointCommandInputSchema,
   schemaFields: { "operand.name": "name" },
+} satisfies CommandInputRegistration;
+
+const integrationMergeInputRegistration = {
+  commandPath: "integrate merge",
+  schema: IntegrationMergeCommandInputSchema,
+  schemaFields: { "operand.name": "name", "option.checkpoint": "checkpoint" },
 } satisfies CommandInputRegistration;
 
 const integrationCheckpointJsonPolicy = declareCliOptionSite("json", {
@@ -33,9 +51,19 @@ const integrationCheckpointJsonPolicy = declareCliOptionSite("json", {
   subprocess: "none",
 });
 
+const integrationMergeJsonPolicy = declareCliOptionSite("json", {
+  acquisition: "machine-mode",
+  schemaOwnership: "none",
+  cancellation: "not-applicable",
+  automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+  mutationBoundary: "output selection",
+  subprocess: "none",
+});
+
 /** Command-input schema registrations owned by integration procedures. */
 export const integrationCommandInputRegistrations = [
   integrationCheckpointInputRegistration,
+  integrationMergeInputRegistration,
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Command-input policy declarations owned by integration procedures. */
@@ -43,14 +71,29 @@ export const integrationCommandInputPolicyDeclarations = [{
   commandPath: "integrate checkpoint",
   aliases: [],
   sites: [integrationCheckpointJsonPolicy],
+}, {
+  commandPath: "integrate merge",
+  aliases: [],
+  sites: [integrationMergeJsonPolicy],
 }] as const satisfies readonly CommandInputDeclaration[];
 
 export interface IntegrationCheckpointOptions {
   json?: boolean;
 }
 
+export interface IntegrationMergeOptions {
+  checkpoint: string;
+  json?: boolean;
+}
+
 export interface IntegrationCheckpointHandlerDependencies {
   checkpoint(cwd: string, workUnit: string): Promise<IntegrationCheckpointResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+export interface IntegrationMergeHandlerDependencies {
+  merge(cwd: string, workUnit: string, checkpoint: string): Promise<IntegrationMergeResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -89,4 +132,44 @@ export async function handleIntegrationCheckpoint(
     return;
   }
   dependencies.write(`${JSON.stringify(await dependencies.checkpoint(cwd, parsed.data.name))}\n`);
+}
+
+/** Run the exact-checkpoint post-approval integration merge. */
+export async function handleIntegrationMerge(
+  name: string,
+  options: IntegrationMergeOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<IntegrationMergeHandlerDependencies> = {},
+): Promise<void> {
+  const cwd = requireArcProjectRoot();
+  if (cwd === null) return;
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: IntegrationMergeHandlerDependencies = {
+    merge: (root, workUnit, checkpoint) => mergeIntegration(
+      { schemaVersion: 1, workUnit, checkpointHandle: checkpoint },
+      createIntegrationMergeDependencies({ cwd: root, exec, workUnit }),
+    ),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = IntegrationMergeCommandInputSchema.safeParse({ name, checkpoint: options.checkpoint });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "integrate-merge",
+      workUnit: name,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "operation-failed",
+      payload: { detail: parsed.error.issues.map(({ message }) => message).join("; ") },
+    })}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  dependencies.write(`${JSON.stringify(await dependencies.merge(
+    cwd,
+    parsed.data.name,
+    parsed.data.checkpoint,
+  ))}\n`);
 }

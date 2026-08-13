@@ -125,7 +125,9 @@ import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
   handleIntegrationCheckpoint,
+  handleIntegrationMerge,
   type IntegrationCheckpointOptions,
+  type IntegrationMergeOptions,
 } from "./handlers/integration.js";
 import {
   handleMergeLockHold,
@@ -444,6 +446,17 @@ integrateCmd
     { machineReadable: (opts) => opts.json === true },
     (context, name: string, opts: IntegrationCheckpointOptions) =>
       handleIntegrationCheckpoint(name, opts, context),
+  ));
+
+integrateCmd
+  .command("merge <name>")
+  .description("Execute one approved integration checkpoint and merge its exact head")
+  .requiredOption("--checkpoint <handle>", "Opaque checkpoint handle returned by integrate checkpoint")
+  .option("--json", "Emit the typed merge verdict as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, name: string, opts: IntegrationMergeOptions) =>
+      handleIntegrationMerge(name, opts, context),
   ));
 
 program

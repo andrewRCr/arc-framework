@@ -439,38 +439,28 @@ field-scoped deletion, not gated on the Phase 6 rewrite.
           replay accepts already-settled actions, and missing, stale, ambiguous, or actor-mismatched evidence
           invalidates before any later action runs.
 
-### `[ ]` **5.2 Release the lock, await required checks, revalidate policy and drift, merge pinned**
+### `[x]` **5.2 Release the lock, await required checks, revalidate policy and drift, merge pinned**
 
 - _Goal:_ The post-approval span runs as one fail-closed verb: the pin is a precondition the verb validates —
   a mismatched head returns `invalidated` with no prose instructing anyone to check.
 
-    - `[ ]` **5.2.a `arc integrate merge <name> --checkpoint <handle> --json` and its verdicts**
-        - `merged`, `invalidated` (typed reason), `awaiting-checks`, `blocked`
+    - `[x]` **5.2.a `arc integrate merge <name> --checkpoint <handle> --json` and its verdicts**
+        - Added the registered CLI surface and strict `merged`, typed `invalidated`, `awaiting-checks`, and
+          `blocked` envelopes.
 
-    - `[ ]` **5.2.b The absorbed span**
-        - execute the persisted plan (5.1) → recompose and compare the head against the approved value →
-          re-read status → release through `arc merge lock` (bind/gate/settle semantics unchanged; release is
-          never head-authorization — the pin is) → await required checks on the exact head (the Phase 3
-          await; the single place the work-unit lane waits) → revalidate the merge method and require
-          equality with the checkpointed method → replace the review summary with the persisted record → read
-          final drift → perform the pinned merge
-        - Build `test-first` (one behavior at a time):
-            - a head not equal to the approved value returns `invalidated` before release
-            - post-checkpoint policy movement returns `invalidated`, never a silent substitution
-            - failed required checks invalidate; `not-required` proceeds
+    - `[x]` **5.2.b The absorbed span**
+        - Executes the persisted plan, validates the exact current head and lifecycle, releases through the existing
+          lock verb, awaits exact-head checks, rejects merge-policy movement, posts the persisted record, reads
+          authoritative final drift, and invokes the host's head-pinned merge.
 
-### `[ ]` **5.3 Re-lock on every approval-voiding exit; leave a deadline yield released**
+### `[x]` **5.3 Re-lock on every approval-voiding exit; leave a deadline yield released**
 
 - _Goal:_ The repository lock cannot misreport approval state — enforcement lives in the verb's exit paths,
   and the workflow-wide prose invariant it replaces can be deleted in Phase 6.
 
-    - `[ ]` **5.3.a Re-lock exits**
-        - head mismatch, settlement failure, merge-method movement, non-clean final drift, failed required
-          checks — each re-locks (`arc merge lock hold`) before returning `invalidated` or `blocked`
-        - Build `test-first` (one behavior at a time):
-            - every approval-voiding exit class re-locks before returning
-            - `awaiting-checks` leaves the release standing (the checks are the blocking authority;
-              re-invoking the verb is the coarse retry)
+    - `[x]` **5.3.a Re-lock exits**
+        - Every approval-voiding exit compensates through the existing hold verb before returning; a failed hold
+          becomes `blocked`, while a checks deadline returns `awaiting-checks` with the approved release standing.
 
 ### `[ ]` **5.4 Post the checkpointed review record without `Coverage`**
 
@@ -480,9 +470,9 @@ field-scoped deletion, not gated on the Phase 6 rewrite.
 - _Note:_ `review-driver-lifecycle.test.ts` asserts the field's presence in both workflow copies; those
   assertions flip to absence with this member.
 
-    - `[ ]` **5.4.a Post the persisted record**
-        - the merge verb posts the checkpoint's composed record; recomposition inside the merge span is the
-          rejected alternative — divergence from the previewed record is the defect
+    - `[x]` **5.4.a Post the persisted record**
+        - The merge verb replaces the pull request's top-level Review section with the checkpointed bytes and never
+          recomposes the record inside the post-approval span.
 
     - `[ ]` **5.4.b Field-scoped `Coverage` cut at all five inventoried sites**
         - the PR template's three sites and one site in each integration workflow (both copies per the
