@@ -53,9 +53,9 @@ describe("GhDeliveryHostPort", () => {
           throw new HostedProcessError("request defaulted to POST", "", 1, 422);
         }
         if (args.includes("POST")) return { stdout: JSON.stringify({ number: 9 }), stderr: "" };
-        return { stdout: JSON.stringify([{ number: 9, pull_requests: [
-          { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
-          { number: 402, head: { ref: "delivery/example/second", sha: "b".repeat(40) }, base: { ref: "delivery/example/first" } },
+        return { stdout: JSON.stringify([{ number: 9, base: { ref: "main" }, pull_requests: [
+          { number: 401, head: { ref: "delivery/example/first", sha: headSha } },
+          { number: 402, head: { ref: "delivery/example/second", sha: "b".repeat(40) } },
         ] }]), stderr: "" };
       },
     };
@@ -67,9 +67,18 @@ describe("GhDeliveryHostPort", () => {
     ]);
     expect(calls[1]).toEqual([
       "api", `repos/${repository}/stacks`, "--method", "POST",
-      "-f", "pull_requests[]=401", "-f", "pull_requests[]=402",
+      "-F", "pull_requests[]=401", "-F", "pull_requests[]=402",
     ]);
     expect(calls.flat()).not.toContain("stack");
+  });
+
+  it("classifies rejected native stack payloads as malformed", async () => {
+    const rejected: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("validation failed", "", 1, 422);
+    } };
+
+    await expect(new GhDeliveryHostPort(rejected).link(nativeInput))
+      .resolves.toEqual({ status: "refused", reason: "malformed" });
   });
 
   it("submits native presentation unlink through the exact stack endpoint and closes failures", async () => {

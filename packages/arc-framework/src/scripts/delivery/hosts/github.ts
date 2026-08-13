@@ -111,15 +111,20 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
       for (const candidate of decoded) {
         const stack = record(candidate);
         const number = stack?.number;
+        const base = record(stack?.base);
         const requests = stack?.pull_requests;
-        if (!Number.isSafeInteger(number) || !Array.isArray(requests)) return { status: "malformed" };
-        let exact = requests.length === input.members.length;
+        if (!Number.isSafeInteger(number) || typeof base?.ref !== "string" || base.ref === ""
+          || !Array.isArray(requests)) return { status: "malformed" };
+        const firstMember = input.members[0];
+        let exact = requests.length === input.members.length && base.ref === firstMember?.baseRef;
+        if (base.ref !== firstMember?.baseRef && firstMember !== undefined) {
+          affected.add(firstMember.deliverableId);
+        }
         for (const [index, member] of input.members.entries()) {
           const request = record(requests[index]);
           const head = record(request?.head);
-          const base = record(request?.base);
           const matchesMember = String(request?.number) === member.changeRequestId
-            && head?.ref === member.headRef && head.sha === member.headSha && base?.ref === member.baseRef;
+            && head?.ref === member.headRef && head.sha === member.headSha;
           if (!matchesMember) affected.add(member.deliverableId);
           exact &&= matchesMember;
         }
@@ -145,12 +150,15 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
     try {
       await this.runner.run([
         "api", `repos/${input.repository}/stacks`, "--method", "POST",
-        ...input.members.flatMap((member) => ["-f", `pull_requests[]=${member.changeRequestId}`]),
+        ...input.members.flatMap((member) => ["-F", `pull_requests[]=${member.changeRequestId}`]),
       ]);
       return { status: "submitted" };
     } catch (error) {
-      const status = record(error)?.httpStatus;
-      return { status: "refused", reason: status === 404 ? "unsupported" : "unavailable" };
+      const status = error instanceof HostedProcessError ? error.httpStatus : record(error)?.httpStatus;
+      return {
+        status: "refused",
+        reason: status === 404 ? "unsupported" : status === 422 ? "malformed" : "unavailable",
+      };
     }
   }
 
