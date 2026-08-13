@@ -134,6 +134,29 @@ describe("repository delivery plan store", () => {
     )).resolves.toEqual({ status: "refused", reason: "record-malformed" });
   });
 
+  it("restores a self-valid exact current plan without predecessor history", async () => {
+    const records = await planStore();
+    const predecessorAwareCodec = {
+      ...planCodec,
+      isValidSuccessor: (current: PlanValue | null, proposed: PlanValue) => current === null
+        ? proposed.body === "first"
+        : proposed.body === `${current.body}-successor`,
+    };
+    const store = new RepositoryDeliveryPlanStore(records.publisher, predecessorAwareCodec);
+    const later = plan(PLAN_ID_1, "later");
+
+    await expect(store.restoreExact(PLAN_ID_1, later)).resolves.toEqual({
+      status: "ok",
+      value: { currentDigest: planCodec.digest(later) },
+    });
+    await expect(store.restoreExact(PLAN_ID_1, later)).resolves.toEqual({
+      status: "ok",
+      value: { currentDigest: planCodec.digest(later) },
+    });
+    await expect(store.restoreExact(PLAN_ID_1, plan(PLAN_ID_1, "different")))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+  });
+
   it("allows only one concurrent successor under the namespace lock", async () => {
     const records = await planStore({
       writeFile: async (path, content) => {

@@ -184,6 +184,18 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     return { status: "ok" as const, value: this.current === null ? [] : [this.current] };
   }
 
+  async restoreExact(planId: string, plan: DeliveryPlanV1) {
+    const current = this.current;
+    if (current !== null && (current.planId !== planId || current.planDigest !== plan.planDigest)) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = plan;
+    return {
+      status: "ok" as const,
+      value: { currentDigest: plan.planDigest as CanonicalDigest },
+    };
+  }
+
   async publishCurrent(
     _planId: string,
     plan: DeliveryPlanV1,
