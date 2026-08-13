@@ -405,8 +405,9 @@ program
   .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
   .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
   .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
+  .option("--json", "Emit the typed publication-resume boundary as JSON")
   .action(withInteractionContext(
-    {},
+    { machineReadable: (opts) => opts.json === true },
     (context, slug: string | undefined, opts: SubmitOptions) => handleSubmit(slug, opts, context),
   ));
 

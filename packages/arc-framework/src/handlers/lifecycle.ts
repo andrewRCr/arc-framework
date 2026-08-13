@@ -132,6 +132,11 @@ import {
   readCandidateRecord,
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
+import { projectCandidateCurrentness } from "../lib/work-unit/candidate-attestation.js";
+import {
+  readSubmissionBoundary,
+  writeSubmissionBoundary,
+} from "../lib/work-unit/submission-boundary-store.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
@@ -444,6 +449,7 @@ export const SubmitCommandInputSchema = z.object({
   lastCompleted: z.string().trim().min(1),
   action: z.string().trim().min(1),
   allowAdvisories: z.boolean().optional(),
+  json: z.boolean().optional(),
 }).strict();
 export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({ keepPr: z.boolean().optional() });
 export const ArchiveCommandInputSchema = z.object({
@@ -567,6 +573,7 @@ export const lifecycleCommandInputRegistrations = [
       "option.last-completed": "lastCompleted",
       "option.action": "action",
       "option.allow-advisories": "allowAdvisories",
+      "option.json": "json",
     },
   },
   {
@@ -1590,6 +1597,7 @@ export interface SubmitOptions {
   lastCompleted?: string;
   action?: string;
   allowAdvisories?: boolean;
+  json?: boolean;
 }
 
 /**
@@ -1605,7 +1613,7 @@ export async function handleSubmit(
   opts: SubmitOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc submit");
+  if (opts.json !== true) p.intro("arc submit");
   const input = parseLifecycleCommand(SubmitCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
   if (input === null) return;
   const base = await resolveVerbBase(context);
@@ -1616,15 +1624,46 @@ export async function handleSubmit(
 
   const { lastCompleted, action } = input;
 
-  const { executor } = await buildExecutor(base);
+  const { executor, settings } = await buildExecutor(base);
+  const record = await readCandidateRecord(base.cwd, target);
+  if (record === null) {
+    refuse(`Cannot submit \`${target}\`: no managed Candidate record exists.`);
+    return;
+  }
+  const current = await collectGitCandidateTarget({
+    cwd: base.cwd,
+    name: target,
+    baseBranch: settings["branch.base"],
+    exec: base.io.exec,
+  });
+  const currentness = projectCandidateCurrentness({ record, current });
+  const boundary = await readSubmissionBoundary(base.cwd, target);
+  if (boundary === null) {
+    refuse(`Cannot submit \`${target}\`: no durable pre-publication boundary exists.`);
+    return;
+  }
   const result = await runSubmit(executor, {
     name: target,
     lastCompleted,
     nextAction: action,
+    candidateId: record.attestation.candidateId,
+    candidateCurrent: currentness.status === "current" && currentness.convergenceVerification === "satisfied",
+    boundary,
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   });
   if (result.status === "rejected") {
     refuse(result.reason);
+    return;
+  }
+  if (result.status === "unchanged") {
+    if (input.json === true) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } else {
+      p.note(
+        `Work unit: ${target}\nLocus:     ${result.boundary.locus}\nNext:      ${result.boundary.nextAction.command}`,
+        "Submission unchanged",
+      );
+    }
     return;
   }
   if (result.status === "reconcile-failed") {
@@ -1650,6 +1689,12 @@ export async function handleSubmit(
         + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
       );
     }
+  }
+  const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary);
+  await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+  if (input.json === true) {
+    process.stdout.write(`${JSON.stringify({ status: result.status, boundary: result.boundary })}\n`);
+    return;
   }
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }

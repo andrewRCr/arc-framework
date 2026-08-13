@@ -226,6 +226,26 @@ vi.mock("../../../src/lib/work-unit/verbs/submit.js", () => ({
   runSubmit: (...a: unknown[]) => mockRunSubmit(...a),
 }));
 
+const mockReadCandidateRecord = vi.fn();
+vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
+  readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
+  writeCandidateRecord: vi.fn(),
+}));
+const mockCollectGitCandidateTarget = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-candidate-subject.js", () => ({
+  collectGitCandidateTarget: (...a: unknown[]) => mockCollectGitCandidateTarget(...a),
+}));
+const mockProjectCandidateCurrentness = vi.fn();
+vi.mock("../../../src/lib/work-unit/candidate-attestation.js", () => ({
+  projectCandidateCurrentness: (...a: unknown[]) => mockProjectCandidateCurrentness(...a),
+}));
+const mockReadSubmissionBoundary = vi.fn();
+const mockWriteSubmissionBoundary = vi.fn();
+vi.mock("../../../src/lib/work-unit/submission-boundary-store.js", () => ({
+  readSubmissionBoundary: (...a: unknown[]) => mockReadSubmissionBoundary(...a),
+  writeSubmissionBoundary: (...a: unknown[]) => mockWriteSubmissionBoundary(...a),
+}));
+
 const mockRunReopen = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/reopen.js", () => ({
   runReopen: (...a: unknown[]) => mockRunReopen(...a),
@@ -346,11 +366,32 @@ beforeEach(() => {
   });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
+  const candidateId = `sha256:${"a".repeat(64)}`;
+  const boundary = {
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit: "foo",
+    candidateId,
+    locus: "candidate-submit-ready",
+    nextAction: {
+      kind: "submit-candidate",
+      command: "arc submit foo --json",
+      interactionText: "Submit the current Candidate.",
+    },
+    policy: null,
+    reservation: null,
+  };
+  mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
+  mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
+  mockProjectCandidateCurrentness.mockReturnValue({ status: "current", convergenceVerification: "satisfied" });
+  mockReadSubmissionBoundary.mockResolvedValue(boundary);
+  mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
   mockRunSubmit.mockResolvedValue({
     status: "submitted",
     outcome: okOutcome,
     metaPath: ".arc/active/meta-foo.md",
     reconcile: cleanReconcile,
+    boundary: { ...boundary, mode: "integration-boundary", locus: "publication-pending" },
   });
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
@@ -833,11 +874,41 @@ describe("handleSubmit", () => {
   it("dispatches runSubmit, forwarding the orientation inputs", async () => {
     await handleSubmit("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
     expect(mockRunSubmit).toHaveBeenCalledTimes(1);
-    expect(mockRunSubmit.mock.calls[0]?.[1]).toEqual({
+    expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
     });
+  });
+
+  it("reports the unchanged durable publication resume point as JSON", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const boundary = await mockReadSubmissionBoundary();
+    const publicationBoundary = {
+      ...boundary,
+      mode: "integration-boundary",
+      locus: "publication-pending",
+      nextAction: {
+        kind: "continue-publication",
+        command: "arc submit foo --json",
+        interactionText: "Continue publication from the typed submission resume point.",
+      },
+    };
+    mockRunSubmit.mockResolvedValueOnce({
+      status: "unchanged",
+      boundary: publicationBoundary,
+    });
+
+    await handleSubmit("foo", {
+      lastCompleted: "Phase 7 — verification",
+      action: "open the PR",
+      json: true,
+    });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${JSON.stringify({
+      status: "unchanged",
+      boundary: publicationBoundary,
+    })}\n`);
   });
 
   it("forwards explicit advisory-retention authority", async () => {
@@ -846,7 +917,7 @@ describe("handleSubmit", () => {
       action: "open the PR",
       allowAdvisories: true,
     });
-    expect(mockRunSubmit.mock.calls[0]?.[1]).toEqual({
+    expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",

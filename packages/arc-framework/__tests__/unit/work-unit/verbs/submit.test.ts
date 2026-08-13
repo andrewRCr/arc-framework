@@ -23,7 +23,14 @@ import type {
   CurrentWuReconcileHost,
   PreparedCurrentWuReconcile,
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
-import { runSubmit, type SubmitParams } from "../../../../src/lib/work-unit/verbs/submit.js";
+import {
+  authorizeSubmission,
+  runSubmit,
+  type SubmitParams,
+} from "../../../../src/lib/work-unit/verbs/submit.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { createStandardReviewReservation } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CWD = "/repo";
 
@@ -31,6 +38,7 @@ interface MetaSpec {
   slug: string;
   state: string;
   branch?: string;
+  candidateId?: string;
 }
 
 /** Build an injectable index fs over a fixed set of `active/` metas. */
@@ -48,6 +56,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "feat/foo"}\` | \`Novel\` | \`P1\` |\n\n` +
+        `- **Candidate:** \`${meta.candidateId ?? `sha256:${"a".repeat(64)}`}\`\n` +
         `- **Last Completed:** [none]\n- **Next Task:** continue.\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
@@ -138,7 +147,90 @@ function buildCtx(metas: MetaSpec[]): Harness {
 
 const ACTIVE: MetaSpec = { slug: "foo", state: "Active", branch: "feat/foo" };
 
-const BASE: SubmitParams = { name: "foo", lastCompleted: "Phase 7 — verification", nextAction: "open the PR" };
+const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
+const WORK_UNIT = SlugSchema.parse("foo");
+const BASE: SubmitParams = {
+  name: "foo",
+  lastCompleted: "Phase 7 — verification",
+  nextAction: "open the PR",
+  candidateId: CANDIDATE_ID,
+  candidateCurrent: true,
+  boundary: {
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit: WORK_UNIT,
+    candidateId: CANDIDATE_ID,
+    locus: "candidate-submit-ready",
+    nextAction: {
+      kind: "submit-candidate",
+      command: "arc submit foo --json",
+      interactionText: "Submit the current Candidate for publication.",
+    },
+    policy: null,
+    reservation: null,
+  },
+};
+
+describe("authorizeSubmission", () => {
+  it("refuses an open non-reserved pre-publication obligation", () => {
+    expect(authorizeSubmission({
+      expectedCandidateId: `sha256:${"a".repeat(64)}`,
+      boundary: {
+        schemaVersion: 1,
+        mode: "pre-publication-review",
+        workUnit: WORK_UNIT,
+        candidateId: `sha256:${"a".repeat(64)}`,
+        locus: "candidate-review-pending",
+        nextAction: {
+          kind: "continue-standard-review",
+          command: "arc review pre-publication foo --json",
+          interactionText: "Continue the open standard-review obligation.",
+        },
+        policy: null,
+        reservation: null,
+      },
+    })).toEqual({
+      status: "refused",
+      reason: "Candidate pre-publication obligations remain open (candidate-review-pending).",
+    });
+  });
+
+  it("carries the exact hosted-first reservation without settling or erasing it", () => {
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const reservation = createStandardReviewReservation({
+      candidateId,
+      sourceId: "codex-pr",
+      repository: "arc-framework/example",
+      headSha: "b".repeat(40),
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"c".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+
+    expect(authorizeSubmission({
+      expectedCandidateId: candidateId,
+      boundary: {
+        schemaVersion: 1,
+        mode: "pre-publication-review",
+        workUnit: WORK_UNIT,
+        candidateId,
+        locus: "candidate-submit-ready",
+        nextAction: {
+          kind: "submit-candidate",
+          command: "arc submit foo --json",
+          interactionText: "Submit the current Candidate for publication.",
+        },
+        policy: null,
+        reservation,
+      },
+    })).toEqual({ status: "authorized", reservation });
+  });
+});
 
 describe("runSubmit — the set-phase-only move", () => {
   it("flips Active to Integrating with no location move and no branch rotation", async () => {
@@ -159,6 +251,51 @@ describe("runSubmit — the set-phase-only move", () => {
     expect(calls.indexOf("reconcile:apply")).toBeLessThan(calls.indexOf("setPhase:Integrating"));
     // No location move and no branch rotation — the working branch already carries its prefix.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
+  });
+
+  it("refuses a Candidate lineage that is no longer current", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+
+    const result = await runSubmit(ctx, { ...BASE, candidateCurrent: false });
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "Cannot submit `foo`: the Candidate lineage is not current.",
+    });
+    expect(calls).not.toContain("reconcile:prepare");
+    expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);
+  });
+
+  it("carries a hosted-first reservation into the publication resume boundary", async () => {
+    const { ctx } = buildCtx([ACTIVE]);
+    const reservation = createStandardReviewReservation({
+      candidateId: CANDIDATE_ID,
+      sourceId: "codex-pr",
+      repository: "arc-framework/example",
+      headSha: "b".repeat(40),
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"c".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+
+    const result = await runSubmit(ctx, {
+      ...BASE,
+      boundary: { ...BASE.boundary, reservation },
+    });
+
+    expect(result).toMatchObject({
+      status: "submitted",
+      boundary: {
+        mode: "integration-boundary",
+        locus: "publication-pending",
+        reservation,
+      },
+    });
   });
 
   it("writes the supplied Last Completed and Next Action, clearing Next Task", async () => {
@@ -354,14 +491,22 @@ describe("runSubmit — the set-phase-only move", () => {
 });
 
 describe("runSubmit — the illegal-edge lookup", () => {
-  it("rejects integrating a WU that is not Active", async () => {
+  it("reports the durable publication resume point when submission already ran", async () => {
     const { ctx, calls } = buildCtx([{ slug: "foo", state: "Integrating", branch: "feat/foo" }]);
+    const publicationBoundary = {
+      ...BASE.boundary,
+      mode: "integration-boundary" as const,
+      locus: "publication-pending" as const,
+      nextAction: {
+        kind: "continue-publication" as const,
+        command: "arc submit foo --json",
+        interactionText: "Continue publication from the typed submission resume point.",
+      },
+    };
 
-    const result = await runSubmit(ctx, BASE);
+    const result = await runSubmit(ctx, { ...BASE, boundary: publicationBoundary });
 
-    expect(result.status).toBe("rejected");
-    if (result.status !== "rejected") return;
-    // Rejected at lookup before any mutation.
+    expect(result).toEqual({ status: "unchanged", boundary: publicationBoundary });
     expect(calls.some((c) => c.startsWith("setPhase:"))).toBe(false);
   });
 

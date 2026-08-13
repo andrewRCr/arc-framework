@@ -189,26 +189,28 @@ the push extension — the one placement costing one commit, one push, no recomp
 - _Outcome:_ `submit` now owns the lifecycle transition end to end while bare `integrate` is reserved for the
   later checkpoint/merge procedure namespace, with no compatibility alias.
 
-### `[ ]` **2.2 Enforce Candidate-aware, reservation-preserving submission**
+### `[x]` **2.2 Enforce Candidate-aware, reservation-preserving submission**
 
 - _Goal:_ `arc submit` schedules publication only over a current Candidate lineage with every configured
   pre-publication obligation settled or typed no-op — carrying the exact hosted-first deferred reservation as
   the sole exception, never reporting it settled.
 
-    - `[ ]` **2.2.a Submission eligibility**
-        - requires current Candidate lineage; the one exception: a hosted-first standard obligation at
-          `awaiting-change-request` / `open-change-request` is submit-eligible when its durable obligation
-          reference is carried across pull-request creation
-        - Build `test-first` (one behavior at a time):
-            - an open non-reserved obligation refuses submission
-            - the carried reservation is never reported settled or no-op
+    - `[x]` **2.2.a Submission eligibility**
+        - Submission now requires the managed Candidate identity, a current fully converged lineage, and the typed
+          `candidate-submit-ready` locus; every other open locus refuses before reconcile or phase mutation. The
+          exact hosted-first reservation remains present rather than being classified as settled or no-op.
 
-    - `[ ]` **2.2.b Transition effects**
-        - fires `Active → Integrating`, writes the publication resume pointer plus any carried reservation,
-          stages the existing transition commit and ROADMAP projection
+    - `[x]` **2.2.b Transition effects**
+        - `Active → Integrating` now projects and durably stores the publication resume boundary, carrying any
+          reservation unchanged; the boundary file joins the transition's staged meta and ROADMAP effects.
 
-    - `[ ]` **2.2.c Idempotent repetition**
-        - a repeated `submit` reports the observable publication resume point
+    - `[x]` **2.2.c Idempotent repetition**
+        - Repeating `submit` from `Integrating` returns the durable publication or hosted-review locus and its one
+          next action without replaying lifecycle mutation.
+
+- _Outcome:_ Submission is now an exact Candidate gate and durable publication handoff: open private obligations
+  fail closed, the hosted-first reservation survives the phase transition, and interrupted publication has an
+  idempotent machine-readable resume point.
 
 ### `[ ]` **2.3 Move the transition to the publication-step head and preserve exact resume loci**
 

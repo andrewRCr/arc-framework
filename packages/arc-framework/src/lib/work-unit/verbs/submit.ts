@@ -33,6 +33,34 @@ import type {
 } from "../side-effects/discharge-dep-edges.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
+import {
+  IntegrationBoundaryLocusSchema,
+  projectPublicationBoundary,
+  type IntegrationBoundaryLocus,
+  type StandardReviewReservationV1,
+} from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
+
+export type SubmissionAuthorization =
+  | { status: "authorized"; reservation: StandardReviewReservationV1 | null }
+  | { status: "refused"; reason: string };
+
+/** Admit only the exact current Candidate's settled-or-reserved pre-publication boundary. */
+export function authorizeSubmission(input: {
+  expectedCandidateId: string;
+  boundary: IntegrationBoundaryLocus;
+}): SubmissionAuthorization {
+  const boundary = IntegrationBoundaryLocusSchema.parse(input.boundary);
+  if (boundary.candidateId !== input.expectedCandidateId) {
+    return { status: "refused", reason: "Submission boundary does not match the current Candidate." };
+  }
+  if (boundary.locus !== "candidate-submit-ready") {
+    return {
+      status: "refused",
+      reason: `Candidate pre-publication obligations remain open (${boundary.locus}).`,
+    };
+  }
+  return { status: "authorized", reservation: boundary.reservation };
+}
 
 /** The orientation inputs a `submit` supplies. */
 export interface SubmitParams {
@@ -42,6 +70,12 @@ export interface SubmitParams {
   lastCompleted: string;
   /** The integration pointer (e.g. "open the PR") — the `Next Action` `input` the edge requires. */
   nextAction: string;
+  /** Exact current Candidate identity read from its managed record. */
+  candidateId: string;
+  /** Whether the managed Candidate lineage still matches the current reviewable subject. */
+  candidateCurrent: boolean;
+  /** Durable pre-publication boundary reduced from review evidence. */
+  boundary: IntegrationBoundaryLocus;
   /** Explicit authority to retain advisory-only reconcile findings while entering review. */
   allowAdvisories?: boolean;
 }
@@ -49,11 +83,13 @@ export interface SubmitParams {
 /** The outcome of a `submit` attempt, including reconcile stops before phase mutation. */
 export type SubmitResult =
   | { status: "rejected"; reason: string }
+  | { status: "unchanged"; boundary: IntegrationBoundaryLocus }
   | {
       status: "submitted";
       outcome: TransitionOutcome;
       metaPath: string;
       reconcile: Extract<CurrentWuReconcileResult, { status: "clean" | "pending" | "applied" }>;
+      boundary: IntegrationBoundaryLocus;
     }
   | {
       status: "reconcile-pending";
@@ -81,7 +117,7 @@ export async function runSubmit(
   ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
   params: SubmitParams,
 ): Promise<SubmitResult> {
-  const { name, lastCompleted, nextAction, allowAdvisories } = params;
+  const { name, lastCompleted, nextAction, candidateId, candidateCurrent, boundary, allowAdvisories } = params;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
     return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
@@ -93,11 +129,28 @@ export async function runSubmit(
     artifact: "meta",
   });
   try {
-    if (parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath))).state !== "Active") {
+    const meta = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
+    if (meta.state === "Integrating"
+      && (boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending")
+      && meta.candidateId === candidateId
+      && boundary.candidateId === candidateId) {
+      return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
+    }
+    if (meta.state !== "Active") {
       return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
+    }
+    if (meta.candidateId === null || meta.candidateId !== candidateId) {
+      return { status: "rejected", reason: `Cannot submit \`${name}\`: the current Candidate identity is absent or stale.` };
     }
   } catch {
     return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
+  }
+  if (!candidateCurrent) {
+    return { status: "rejected", reason: `Cannot submit \`${name}\`: the Candidate lineage is not current.` };
+  }
+  const authorization = authorizeSubmission({ expectedCandidateId: candidateId, boundary });
+  if (authorization.status === "refused") {
+    return { status: "rejected", reason: `Cannot submit \`${name}\`: ${authorization.reason}` };
   }
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
   if (reconcile.status === "conflict") {
@@ -136,10 +189,17 @@ export async function runSubmit(
   });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  const publicationBoundary = projectPublicationBoundary({
+    workUnit: name,
+    candidateId,
+    state: "publication-pending",
+    reservation: authorization.reservation,
+  });
   return {
     status: "submitted",
     outcome,
     metaPath,
     reconcile: applied,
+    boundary: publicationBoundary,
   };
 }

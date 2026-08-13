@@ -59,6 +59,7 @@ export const IntegrationBoundaryLocusSchema = z.strictObject({
   if (value.reservation !== null
     && value.locus !== "candidate-submit-ready"
     && value.locus !== "candidate-convergence-verification-pending"
+    && value.locus !== "publication-pending"
     && value.locus !== "hosted-review-pending") {
     context.addIssue({
       code: "custom",
