@@ -8,7 +8,7 @@ import {
   publishDeliveryRequests,
 } from "../../../src/lib/delivery/materialization.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
-import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
+import { deliveryPlanFixture, deliveryThreeMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 
 const protectedHead = "1".repeat(40);
 const protectedTree = "2".repeat(40);
@@ -71,6 +71,41 @@ describe("deriveDeliveryMaterialization", () => {
     ]);
     expect(deriveDeliveryMaterialization(plan, { ...eligible(plan), planDigest: "sha256:" + "0".repeat(64) }))
       .toEqual({ status: "refused", reason: "snapshot-mismatch" });
+  });
+
+  it("bases each higher non-terminal request on its predecessor's delivery ref", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const secondHead = "7".repeat(40);
+    const secondTree = "8".repeat(40);
+    const snapshot = {
+      ...eligible(plan),
+      members: plan.members.map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: `refs/heads/candidate-${index + 1}`,
+        head: [firstHead, secondHead, controlHead][index]!,
+        tree: [firstTree, secondTree, controlTree][index]!,
+      })),
+    };
+    const result = deriveDeliveryMaterialization(plan, snapshot);
+    expect(result.status).toBe("derived");
+    if (result.status !== "derived") return;
+    expect(result.value.members).toEqual([
+      expect.objectContaining({
+        ref: `refs/heads/delivery/${plan.workUnitId}/${plan.members[0]!.chunkKey}`,
+        requestBaseRef: "refs/heads/main",
+        coordinates: { base: protectedHead, head: firstHead, tree: firstTree },
+      }),
+      expect.objectContaining({
+        ref: `refs/heads/delivery/${plan.workUnitId}/${plan.members[1]!.chunkKey}`,
+        requestBaseRef: `refs/heads/delivery/${plan.workUnitId}/${plan.members[0]!.chunkKey}`,
+        coordinates: { base: firstHead, head: secondHead, tree: secondTree },
+      }),
+      expect.objectContaining({
+        ref: null,
+        requestBaseRef: null,
+        coordinates: { base: secondHead, head: controlHead, tree: controlTree },
+      }),
+    ]);
   });
 });
 

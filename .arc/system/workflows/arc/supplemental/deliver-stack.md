@@ -68,7 +68,9 @@ arc delivery publish - --json
 ```
 
 These verbs resolve the current plan and lifecycle paths, rerun mechanical eligibility against the exact post-gate
-checkouts, and create or adopt guarded refs and requests in plan order. After interruption, rerun the candidate gates
+checkouts, and create or adopt guarded refs and requests in plan order. Set the publish input's `draft` flag from the
+configured `merge.lock` posture (`draft` ⇒ `true`) so every non-terminal request opens under the configured hold; the
+landing sequence releases that lock only after readiness. After interruption, rerun the candidate gates
 before invoking them again. Resume any persisted reservation through:
 
 ```bash

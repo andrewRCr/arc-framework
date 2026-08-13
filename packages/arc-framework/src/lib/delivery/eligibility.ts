@@ -35,7 +35,7 @@ export interface DeliveryEligibilityDependencies {
     readonly protectedBaseRef: string;
     readonly candidateRef: string;
     readonly paths: readonly string[];
-  }): Promise<{ readonly status: "ok" } | { readonly status: "refused" }>;
+  }): Promise<{ readonly status: "ok" } | { readonly status: "refused"; readonly paths: readonly string[] }>;
   compareNormalizedCompleteness(input: {
     readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
     readonly control: DeliveryEligibilityCoordinates & { readonly ref: string };
@@ -77,6 +77,8 @@ export interface DeliveryEligibilityRefusal {
     | "plan-moved"
     | "head-already-bound";
   readonly deliverableId?: string;
+  /** Every mismatching lifecycle-contribution path; present only for `lifecycle-contribution` refusals. */
+  readonly paths?: readonly string[];
 }
 
 /** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
@@ -223,7 +225,12 @@ export async function prepareDeliveryEligibility(input: {
       paths: input.lifecyclePaths,
     });
     if (lifecycle.status !== "ok") {
-      return { status: "refused", reason: "lifecycle-contribution", deliverableId: candidate.deliverableId };
+      return {
+        status: "refused",
+        reason: "lifecycle-contribution",
+        deliverableId: candidate.deliverableId,
+        paths: lifecycle.paths,
+      };
     }
     members.push({ ...candidate, ...coordinates });
   }
