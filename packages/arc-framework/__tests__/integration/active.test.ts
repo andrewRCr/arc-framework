@@ -18,6 +18,10 @@ import {
   runActiveSessionInitStatusInternal,
   runActiveStatus,
 } from "../../src/commands/active.js";
+import {
+  createStandardReviewReservation,
+  projectPublicationBoundary,
+} from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { stubGitExec } from "../helpers/integration.js";
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
@@ -840,6 +844,47 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
         command: "arc review pre-publication foo --json",
       },
     });
+  });
+
+  it("preserves the durable publication reservation in the session-init resume locus", async () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Integrating",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+      }),
+    );
+    const reservation = createStandardReviewReservation({
+      candidateId,
+      sourceId: "codex-pr",
+      repository: "arc-framework/example",
+      headSha: "b".repeat(40),
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const boundary = projectPublicationBoundary({
+      workUnit: "foo",
+      candidateId,
+      state: "publication-pending",
+      reservation,
+    });
+    const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
+    await mkdir(boundaryDir, { recursive: true });
+    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(boundary));
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+
+    expect(result.integrationBoundary).toEqual(boundary);
   });
 
   it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {

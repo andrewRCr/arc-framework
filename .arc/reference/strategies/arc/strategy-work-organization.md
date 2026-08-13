@@ -502,7 +502,7 @@ The four values below trace the WU lifecycle; the workflow that sets each is lis
 | ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `Planning`    | [init-work-unit][init-work-unit]                  | Spec and task list being authored; task execution not yet begun               |
 | `Active`      | [activate-work-unit][activate-work-unit] Step 4   | Task execution underway (the common case)                                     |
-| `Integrating` | [integrate-work-unit][integrate-work-unit] Step 1 | Tasks complete; the WU is open for review and integration, stable until merge |
+| `Integrating` | [integrate-work-unit][integrate-work-unit] Step 3 | Submission/public integration underway; stable until merge                    |
 | `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
 
 ### Readiness ladder

@@ -11,8 +11,11 @@ import {
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
-export interface SubmissionBoundaryStoreFs {
+export interface SubmissionBoundaryReader {
   readFile(path: string): Promise<string>;
+}
+
+export interface SubmissionBoundaryStoreFs extends SubmissionBoundaryReader {
   writeFile(path: string, content: string): Promise<void>;
 }
 
@@ -30,7 +33,7 @@ export function resolveSubmissionBoundaryPath(name: string): string {
 export async function readSubmissionBoundary(
   cwd: string,
   name: string,
-  fs: SubmissionBoundaryStoreFs = nodeFs,
+  fs: SubmissionBoundaryReader = nodeFs,
 ): Promise<IntegrationBoundaryLocus | null> {
   try {
     const value = JSON.parse(await fs.readFile(join(cwd, resolveSubmissionBoundaryPath(name)))) as unknown;

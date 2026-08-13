@@ -20,6 +20,7 @@ import {
   type TaskListCursorFileResult,
 } from "../task-list/file-cursor.js";
 import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
+import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
 import {
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
@@ -103,18 +104,28 @@ export async function projectCheckoutSubjectMeta(options: {
     ? "integration"
     : inferSessionType(record.state, record.taskList, record.branch);
   const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
-  const integrationBoundary = record.candidateId === null
-    ? null
-    : record.state === "Integrating"
-      ? projectPublicationBoundary({
+  let integrationBoundary: IntegrationBoundaryLocus | null = null;
+  if (record.candidateId !== null && record.state === "Integrating") {
+    const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
+      readFile: (path) => options.io.readFile(path),
+    });
+    integrationBoundary = stored !== null
+      && stored.candidateId === record.candidateId
+      && stored.workUnit === options.subjectKey
+      && (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending")
+      ? stored
+      : projectPublicationBoundary({
           workUnit: options.subjectKey,
           candidateId: record.candidateId,
           state: "publication-pending",
           reservation: null,
-        })
-      : record.state === "Active"
-        ? projectCandidateReviewBoundary({ workUnit: options.subjectKey, candidateId: record.candidateId })
-        : null;
+        });
+  } else if (record.candidateId !== null && record.state === "Active") {
+    integrationBoundary = projectCandidateReviewBoundary({
+      workUnit: options.subjectKey,
+      candidateId: record.candidateId,
+    });
+  }
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null
     ? null

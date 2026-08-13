@@ -78,6 +78,30 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).toContain("`post-pr-open` → review iteration");
   });
 
+  it("submits at the publication-step head before the push review and push release", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const workflow = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+        "utf8",
+      );
+      const publicationStep = workflow.indexOf("### 3) Open the PR");
+      const submit = workflow.indexOf("arc submit {name}", publicationStep);
+      const commitInterlock = workflow.indexOf("`commit-interlock`", submit);
+      const pushExtension = workflow.indexOf("#pre-push-review", commitInterlock);
+      const pushInterlock = workflow.indexOf("`push-interlock`", pushExtension);
+      const push = workflow.indexOf("Push the WU branch upstream", pushInterlock);
+
+      expect([publicationStep, submit, commitInterlock, pushExtension, pushInterlock, push]
+        .every((index) => index >= 0)).toBe(true);
+      expect(publicationStep).toBeLessThan(submit);
+      expect(submit).toBeLessThan(commitInterlock);
+      expect(commitInterlock).toBeLessThan(pushExtension);
+      expect(pushExtension).toBeLessThan(pushInterlock);
+      expect(pushInterlock).toBeLessThan(push);
+      expect(workflow).toContain("Step 3, from the idempotent **push** action");
+    }
+  });
+
   it("runs routed frontline review after the final WU push and before PR creation", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),

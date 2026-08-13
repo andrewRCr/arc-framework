@@ -33,6 +33,7 @@ import type {
   SessionType,
   MetaFileCandidate,
 } from "./types.js";
+import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import {
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
@@ -106,7 +107,8 @@ export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
   const { layout, candidates: rawCandidates, warnings } = await readActiveMetaCandidates(options.cwd);
-  const candidates = rawCandidates.map(projectCandidateIntegrationBoundary);
+  const candidates = await Promise.all(rawCandidates.map((candidate) =>
+    projectCandidateIntegrationBoundary(options.cwd, candidate)));
   return {
     mode: "full",
     layout,
@@ -170,7 +172,8 @@ export async function runActiveSessionInitStatusInternal(
     readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
   ]);
-  const projected = scan.candidates.map(projectCandidateIntegrationBoundary);
+  const projected = await Promise.all(scan.candidates.map((candidate) =>
+    projectCandidateIntegrationBoundary(options.cwd, candidate)));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
   const resolved = result.resolution === "single"
@@ -317,12 +320,22 @@ async function resolveSessionInit(
   return result;
 }
 
-function projectCandidateIntegrationBoundary(candidate: MetaFileCandidate): MetaFileCandidate {
+async function projectCandidateIntegrationBoundary(
+  cwd: string,
+  candidate: MetaFileCandidate,
+): Promise<MetaFileCandidate> {
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
   if (candidate.state === "Integrating") {
+    const stored = await readSubmissionBoundary(cwd, slug);
+    if (stored !== null
+      && stored.candidateId === candidate.candidateId
+      && stored.workUnit === slug
+      && (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending")) {
+      return { ...candidate, integrationBoundary: stored };
+    }
     return {
       ...candidate,
       integrationBoundary: projectPublicationBoundary({

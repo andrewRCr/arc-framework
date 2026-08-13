@@ -9,6 +9,10 @@ import {
   projectCheckoutSubjectMeta,
   type SubjectMetaIO,
 } from "../../../src/lib/locus/subject-meta.js";
+import {
+  createStandardReviewReservation,
+  projectPublicationBoundary,
+} from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
 
@@ -56,6 +60,7 @@ function fixture() {
     [cohortDocPath, "# Cohort\n"],
   ]);
   return {
+    files,
     options: {
       cwd,
       subjectKey: "demo",
@@ -93,6 +98,57 @@ describe("checkout subject active-extension seam", () => {
     expect(result.kind === "resolved" ? result.loadSet.entries : []).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ path: expect.stringContaining("extensions/") }),
     ]));
+  });
+
+  it("projects the exact durable publication boundary on integration resume", async () => {
+    const { options, files } = fixture();
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** [none]
+- **Next Action:** stale narrative
+`;
+    const reservation = createStandardReviewReservation({
+      candidateId,
+      sourceId: "codex-pr",
+      repository: "arc-framework/example",
+      headSha: "b".repeat(40),
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"c".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const boundary = projectPublicationBoundary({
+      workUnit: "demo",
+      candidateId,
+      state: "publication-pending",
+      reservation,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`, JSON.stringify(boundary));
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") expect(result.integrationBoundary).toEqual(boundary);
   });
 
   it("makes omission output-identical to an explicit empty extension list", async () => {

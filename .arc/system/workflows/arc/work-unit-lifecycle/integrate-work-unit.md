@@ -58,38 +58,6 @@ Verify the integration context:
 - Currently on the WU branch (per [`branch-format`][branch-format])
 - `active/meta-{name}.md` exists and shows `**State:** Active`
 
-Compose the integration inputs (judgment — never fabricated):
-
-- last completed — the WU's final completed work (the last `[x]` task / phase in `tasks-{name}.md`)
-- next action — the integration pointer (`open the PR`)
-
-```bash
-arc submit {name} --last-completed "{last completed}" --action "{next action}"
-```
-
-The executor fires the full `submit` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
-/ `**Next Action:**`, resets `**Next Task:** [none]`, regenerates `backlog/ROADMAP.md` so the In Flight table's
-`State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
-worktree's WU. The `Integrating` state covers submission and public integration through review-response.
-
-An advisory-only reconcile stops before the transition and surfaces every reference. Edit and rerun, or obtain
-explicit user direction to retain all surfaced advisories and rerun the same command with `--allow-advisories`.
-The flag does not accept conflicts or stale mechanical edits.
-
-Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
-> Discipline, meta-file commit shape):
-
-```text
-chore(arc): submit {name}
-
-- Flip State: Active → Integrating
-
-Context: meta-{name}.md (integration)
-```
-
 Proceed to Step 2.
 
 #### Resume entry — resolver state `integrating | shipped` (re-entry guard)
@@ -109,7 +77,7 @@ deadline that should trigger human re-entry.
 
 | Resolver and PR state                         | Demonstrably already ran             | Resume at                                                          |
 | --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------ |
-| `integrating`; no PR open                     | transition                           | Step 2 (local preflight → creation path)                           |
+| `integrating`; no PR open                     | transition                           | Step 3, from the idempotent **push** action                        |
 | `integrating`; PR open, not merged            | transition, PR open                  | Step 4 (`post-pr-open` → review iteration), then candidate tail    |
 | `shipped` in `completed`; PR open, not merged | transition, PR open, candidate sweep | Step 13 (validate products, then final settlement)                 |
 | PR already merged                             | transition, PR open, merge           | Verify Phase 2 products; when complete, resume at the Step 13 tail |
@@ -138,7 +106,33 @@ When inactive, proceed directly to Step 3.
 
 ### 3) Open the PR
 
-Push the WU branch upstream.
+Compose the submission inputs (judgment — never fabricated):
+
+- last completed — the WU's final completed work (the last `[x]` task / phase in `tasks-{name}.md`)
+- next action — the publication pointer (`push and open the PR`)
+
+```bash
+arc submit {name} --last-completed "{last completed}" --action "{next action}" --json
+```
+
+The executor fires `Active → Integrating`, writes the composed orientation, regenerates ROADMAP, and stages the
+publication boundary with any carried reservation. An advisory-only reconcile stops before the transition and
+surfaces every reference. Edit and rerun, or obtain explicit direction to retain all surfaced advisories and rerun
+with `--allow-advisories`; the flag does not accept conflicts or stale mechanical edits.
+
+Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
+> Discipline, meta-file commit shape):
+
+```text
+chore(arc): submit {name}
+
+- Flip State: Active → Integrating
+
+Context: meta-{name}.md (integration)
+```
 
 **Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow, if the
 extension appears in the active-extensions list, load and execute its `.actions`. Halt-on-fail surfaces an
@@ -146,6 +140,9 @@ actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
+
+**Push the WU branch upstream.** Re-entry from the no-PR resume row starts here; pushing an unchanged branch is
+idempotent, so both transitioned-but-unpushed and pushed-but-uncreated interruptions use this same resume action.
 
 From the pushed branch, compose the immutable policy target
 `{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.

@@ -212,7 +212,7 @@ the push extension — the one placement costing one commit, one push, no recomp
   fail closed, the hosted-first reservation survives the phase transition, and interrupted publication has an
   idempotent machine-readable resume point.
 
-### `[ ]` **2.3 Move the transition to the publication-step head and preserve exact resume loci**
+### `[x]` **2.3 Move the transition to the publication-step head and preserve exact resume loci**
 
 - _Goal:_ `Integrating` truthfully means submission is underway from the moment it is set: the transition
   commit rides the same push it schedules, and both interruption shapes project one exact resume action.
@@ -221,22 +221,24 @@ the push extension — the one placement costing one commit, one push, no recomp
   `pr-open-extensions.test.ts`'s work-unit ordering test (its push-before-frontline ordering inverts under
   Task 2.4); the file's errand pins (the enumeration table, the seam-fire ordering) belong to Phase 6.
 
-    - `[ ]` **2.3.a Fire position (F1)**
-        - `submit` fires at the head of the publication step (Step 3, Open the PR), before the step's
-          push-review extension contract — the extension must review the tree actually pushed; the step
-          head's three consecutive stops keep their order
+    - `[x]` **2.3.a Fire position (F1)**
+        - `submit` now fires at the head of Step 3 before the push-review extension and push release, so its
+          transition commit is part of the one reviewed and published tree.
 
-    - `[ ]` **2.3.b Composed next-action value (F2)**
-        - written by the transition, so it moves with it
+    - `[x]` **2.3.b Composed next-action value (F2)**
+        - Submission input composition moved with the transition and records the publication action to push and
+          open the pull request.
 
-    - `[ ]` **2.3.c Resume row (F3)**
-        - the Step 1 resume table's `integrating` / no-PR-open row covers transitioned-but-unpushed and
-          pushed-but-uncreated; its resume point is the publication step from the push (idempotent), never PR
-          creation directly
+    - `[x]` **2.3.c Resume row (F3)**
+        - The `integrating` / no-PR row resumes Step 3 at its idempotent push action; session-init and checkout
+          recovery preserve the exact durable publication boundary and hosted reservation.
 
-    - `[ ]` **2.3.d Fire-point record (F4)**
-        - `strategy-work-organization`'s `State` table entry for `Integrating` updates from Step 1 to the
-          publication step (both copies)
+    - `[x]` **2.3.d Fire-point record (F4)**
+        - Both shipped and self-hosting State tables now set `Integrating` at publication Step 3 and define it as
+          submission/public integration underway.
+
+- _Outcome:_ The transition commit, push review, and push release now form one ordered publication boundary, while
+  both interruption shapes resume at the same idempotent push with the Candidate-bound reservation intact.
 
 ### `[ ]` **2.4 Converge the publication-boundary prose on the propose/submit interval**
 
