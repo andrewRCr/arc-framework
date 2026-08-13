@@ -43,6 +43,7 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.exitCode).toBe(0);
     expect(reviewHelp.stdout).toContain("readiness");
     expect(reviewHelp.stdout).toContain("planning-lane");
+    expect(reviewHelp.stdout).toContain("change-request");
     expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
     expect(reviewHelp.stdout).toContain("hosted");
     expect(reviewHelp.stdout).not.toContain("unlock");
@@ -50,6 +51,28 @@ describe("packaged review CLI surfaces", () => {
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
     expect(hostedHelp.stdout).toContain("settle");
+  });
+
+  it("rejects a malformed exact head before change-request lookup", async () => {
+    const result = await runCli([
+      "review",
+      "change-request",
+      "resolve",
+      "--head-ref",
+      "feat/example",
+      "--head-sha",
+      "not-an-oid",
+      "--json",
+    ], { cwd: fixtureRoot });
+
+    expect(result.exitCode).toBe(64);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+    });
   });
 
   it("exposes every merge-lock verb through packaged help, under lock alone", async () => {

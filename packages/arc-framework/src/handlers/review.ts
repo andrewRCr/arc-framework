@@ -136,6 +136,13 @@ import {
   ReduceRequestSchema,
   reduceReviewCommand,
 } from "../scripts/review-gate/runtime/reduce-command.js";
+import {
+  ChangeRequestResolveInputSchema,
+  resolveChangeRequest,
+  type ChangeRequestResolveInput,
+  type ChangeRequestResolveResult,
+} from "../scripts/review-gate/change-request.js";
+import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
 
 /**
  * Build the request-source operand schema owned by one review command.
@@ -205,7 +212,56 @@ export const reviewCommandInputRegistrations = [
     schemaFields: { "operand.input": "input" },
   })),
   reviewPlanningLaneInputRegistration,
+  {
+    commandPath: "review change-request resolve",
+    schema: ChangeRequestResolveInputSchema,
+    schemaFields: { "option.head-ref": "headRef", "option.head-sha": "headSha" },
+  },
 ] satisfies readonly CommandInputRegistration[];
+
+export interface ReviewChangeRequestResolveOptions {
+  headRef: string;
+  headSha: string;
+  json?: boolean;
+}
+
+export interface ReviewChangeRequestResolveHandlerDependencies {
+  resolve(input: ChangeRequestResolveInput, cwd: string): Promise<ChangeRequestResolveResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Resolve one exact head's host-anchored change-request disposition. */
+export async function handleReviewChangeRequestResolve(
+  options: ReviewChangeRequestResolveOptions,
+  overrides: Partial<ReviewChangeRequestResolveHandlerDependencies> = {},
+): Promise<void> {
+  const exec = createGitExec();
+  const dependencies: ReviewChangeRequestResolveHandlerDependencies = {
+    resolve: (input, cwd) => resolveChangeRequest(input, createGhChangeRequestResolutionPort(exec, cwd)),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = ChangeRequestResolveInputSchema.safeParse({
+    headRef: options.headRef,
+    headSha: options.headSha,
+  });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail: parsed.error.issues.map((issue) => issue.message).join("; "),
+    })}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  const result = await dependencies.resolve(parsed.data, process.cwd());
+  dependencies.write(`${JSON.stringify(result)}\n`);
+}
 
 /** Input and interaction policies owned by the review command adapters. */
 export const reviewCommandInputPolicyDeclarations = [

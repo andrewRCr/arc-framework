@@ -265,27 +265,24 @@ change-request disposition, merge-method validation, the extracted bounded-wait 
 required-checks await. Verbs land before the prose that consumes them; workflow call sites convert in Phase 6.
 Stack member `integration-review-primitives`; independently landable. Spec elements: B4, B8, D1–D3.
 
-### `[ ]` **3.1 Resolve exact-head change-request disposition and next action, host-anchored**
+### `[x]` **3.1 Resolve exact-head change-request disposition and next action, host-anchored**
 
 - _Goal:_ One typed disposition answers the pre-create, resume-point, and stub-launch questions for any head —
   correct even from a stale checkout — so no lane hand-parses PR state again.
 
-    - `[ ]` **3.1.a Verb and input validation**
-        - `arc review change-request resolve --head-ref <branch> --head-sha <oid> --json`; derives the
-          repository from the current checkout, validates the 40-hex head against local and remote refs
+    - `[x]` **3.1.a Verb and input validation**
+        - Added `arc review change-request resolve --head-ref <branch> --head-sha <oid> --json`, with strict
+          40-hex input validation and local/live-remote ref comparison from the derived origin repository.
 
-    - `[ ]` **3.1.b Six typed dispositions plus `targetRef` and `nextAction`**
-        - `none`, `open`, `merged-at-head`, `merged-stale-head`, `closed-unmerged`, `ambiguous` (carrying
-          every candidate); `closed-unmerged` is its own member — a single closed PR is an unambiguous match
-          and may be legitimately re-openable
-        - Build `test-first` (one behavior at a time):
-            - each disposition class returns its typed next action
-            - `ambiguous` carries every candidate; `closed-unmerged` never folds into it
-            - a lookup or host failure returns a typed stop, never `none`
+    - `[x]` **3.1.b Six typed dispositions plus `targetRef` and `nextAction`**
+        - The resolver returns `none`, `open`, `merged-at-head`, `merged-stale-head`, `closed-unmerged`, or
+          `ambiguous` with complete candidates, plus a typed target and next action; lookup failures stop typed.
 
-    - `[ ]` **3.1.c Host-anchored resolution**
-        - a stale invoking checkout whose local refs cannot see a merged or renamed head still receives the
-          correct disposition (the stub-launch consumer requires this)
+    - `[x]` **3.1.c Host-anchored resolution**
+        - A SHA fallback query resolves merged or renamed heads after both invoking-checkout refs disappear.
+
+- _Outcome:_ One GitHub-backed resolver now answers creation, reuse, completion, reconcile, reopen, and stop
+  decisions without treating the invoking checkout's ref freshness as host truth.
 
 ### `[ ]` **3.2 Resolve the configured merge method against live repository policy**
 

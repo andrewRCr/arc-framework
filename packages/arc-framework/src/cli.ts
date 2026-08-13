@@ -139,9 +139,11 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewChangeRequestResolve,
   handleReviewReduce,
   handleReviewRespond,
   type ReviewPlanningLaneOptions,
+  type ReviewChangeRequestResolveOptions,
 } from "./handlers/review.js";
 import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
@@ -1232,6 +1234,16 @@ mergeLockCmd
 const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
+
+reviewCmd
+  .command("change-request")
+  .description("Exact-head change-request operations")
+  .command("resolve")
+  .description("Resolve the host disposition for one exact head")
+  .requiredOption("--head-ref <branch>", "Proposed branch name")
+  .requiredOption("--head-sha <oid>", "Exact 40-hex proposed head")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action((options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options));
 
 reviewCmd
   .command("readiness")
