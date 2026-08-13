@@ -105,11 +105,31 @@ describe("prepareDeliveryEligibility", () => {
     });
 
     const lifecycleDeps = dependencies();
-    lifecycleDeps.revalidateLifecycleContribution = vi.fn(async () => ({ status: "refused" as const }));
+    lifecycleDeps.revalidateLifecycleContribution = vi.fn(async () => (
+      { status: "refused" as const, paths: ["meta.md", "notes.md"] as const }
+    ));
     await expect(prepareDeliveryEligibility({
-      plan, protectedBaseRef: "main", controlRef: "control", candidates: candidates(), lifecyclePaths: ["meta.md"],
+      plan, protectedBaseRef: "main", controlRef: "control", candidates: candidates(),
+      lifecyclePaths: ["meta.md", "notes.md"],
     }, lifecycleDeps)).resolves.toEqual({
       status: "refused", reason: "lifecycle-contribution", deliverableId: plan.members[0]!.deliverableId,
+      paths: ["meta.md", "notes.md"],
+    });
+  });
+
+  it("refuses an empty non-terminal candidate by exact head or tree identity", async () => {
+    const plan = deliveryStackPlanFixture();
+    const deps = dependencies();
+    deps.observeRef = vi.fn(async (ref: string) => new Map([
+      ["main", { head: oid("a"), tree: oid("1") }],
+      ["control", { head: oid("d"), tree: oid("4") }],
+      ["candidate/first", { head: oid("a"), tree: oid("1") }],
+      ["candidate/second", { head: oid("c"), tree: oid("4") }],
+    ]).get(ref) ?? null);
+    await expect(prepareDeliveryEligibility({
+      plan, protectedBaseRef: "main", controlRef: "control", candidates: candidates(), lifecyclePaths: [],
+    }, deps)).resolves.toEqual({
+      status: "refused", reason: "empty-candidate", deliverableId: plan.members[0]!.deliverableId,
     });
   });
 });
