@@ -81,7 +81,35 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 - **Coverage:** {targeted verification and narrow delta character when complete review coverage carried forward}
 ```
 
-### Optional Sections
+## Delivery-Member Variant
+
+A non-terminal member of a planned delivery stack is a review and merge boundary inside one work unit, not a
+second work unit. Its candidate intentionally excludes the owning work unit's lifecycle artifacts, so the ordinary
+`Design` field would point at content absent from the member diff. Use the member form below instead:
+
+```text
+{work-unit-slug} [{position}/{total}]: {member title}
+```
+
+The position is stack-review metadata; commit-format rules continue to govern the commits that land. Compose the
+body from canonical plan fields:
+
+```markdown
+**Delivery:** `{work-unit-slug}` — member {position} of {total}
+
+## Summary
+
+{Member title} is delivered as one independently reviewable layer of the planned stack.
+
+## Changes
+
+- _{Member title}_ — {Member contract}
+```
+
+`Test Plan`, `Review`, `Out of Scope`, and `Follow-Up Work` retain their ordinary content gates. The terminal member
+uses the ordinary work-unit template because it carries the lifecycle artifacts and closes the work unit.
+
+## Optional Sections
 
 > **Review** — Add after final review settlement when any review ran. Attribute local and hosted-PR activity
 > separately, identify the GitHub user who approved the final dispositions, and summarize distinct material

@@ -94,7 +94,17 @@ export function describeDeliveryMemberPresentation(
   const position = `${index + 1}/${plan.members.length}`;
   return {
     title: `${plan.workUnitId} [${position}]: ${planned.title}`,
-    body: `${planned.contract}\n\nDelivery member ${position} for \`${plan.workUnitId}\`.`,
+    body: [
+      `**Delivery:** \`${plan.workUnitId}\` — member ${index + 1} of ${plan.members.length}`,
+      "",
+      "## Summary",
+      "",
+      `${planned.title} is delivered as one independently reviewable layer of the planned stack.`,
+      "",
+      "## Changes",
+      "",
+      `- _${planned.title}_ — ${planned.contract}`,
+    ].join("\n"),
   };
 }
 

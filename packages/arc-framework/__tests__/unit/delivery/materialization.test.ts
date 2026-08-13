@@ -117,7 +117,17 @@ describe("describeDeliveryMemberPresentation", () => {
     expect(describeDeliveryMemberPresentation(plan, { deliverableId: second.deliverableId, chunkKey: second.chunkKey }))
       .toEqual({
         title: `${plan.workUnitId} [2/3]: ${second.title}`,
-        body: `${second.contract}\n\nDelivery member 2/3 for \`${plan.workUnitId}\`.`,
+        body: [
+          `**Delivery:** \`${plan.workUnitId}\` — member 2 of 3`,
+          "",
+          "## Summary",
+          "",
+          `${second.title} is delivered as one independently reviewable layer of the planned stack.`,
+          "",
+          "## Changes",
+          "",
+          `- _${second.title}_ — ${second.contract}`,
+        ].join("\n"),
       });
   });
 
