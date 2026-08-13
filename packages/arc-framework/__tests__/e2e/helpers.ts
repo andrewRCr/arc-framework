@@ -15,6 +15,71 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 
 const execFileAsync = promisify(execFile);
 
+interface PseudoTerminalOptions {
+  cwd: string;
+  timeout: number;
+  env: NodeJS.ProcessEnv;
+}
+
+/** Run one argv-safe command under the host's native `script` utility. */
+async function runInPseudoTerminal(
+  command: readonly string[],
+  options: PseudoTerminalOptions,
+): Promise<{ stdout: string; stderr: string }> {
+  if (process.platform === "darwin") return runBsdPseudoTerminal(command, options);
+  const args = ["-qec", command.map(shellEscape).join(" "), "/dev/null"];
+  return execFileAsync("script", args, { ...options, encoding: "utf8" });
+}
+
+/** BSD `script` requires non-socket stdin, which `execFile` cannot provide. */
+function runBsdPseudoTerminal(
+  command: readonly string[],
+  options: PseudoTerminalOptions,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolveResult, rejectResult) => {
+    const child = spawn("script", ["-q", "/dev/null", ...command], {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let timedOut = false;
+    let settled = false;
+    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, options.timeout);
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      rejectResult(error);
+    });
+    child.on("close", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const result = {
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      };
+      if (code === 0) {
+        resolveResult(result);
+        return;
+      }
+      rejectResult(Object.assign(new Error(`script exited with ${code ?? signal ?? "unknown status"}`), {
+        code: timedOut ? "ETIMEDOUT" : (code ?? 1),
+        killed: timedOut,
+        signal,
+        ...result,
+      }));
+    });
+  });
+}
+
 /** Result of a CLI invocation. */
 export interface RunResult {
   stdout: string;
@@ -127,9 +192,8 @@ export async function runArcAnchored(
   const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
   const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
   try {
-    const { stdout, stderr } = await execFileAsync(
-      "script",
-      ["-qec", `bash --noprofile --norc -ic ${shellEscape(interactiveCommand)}`, "/dev/null"],
+    const { stdout, stderr } = await runInPseudoTerminal(
+      ["bash", "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${interactiveCommand}`],
       { cwd, timeout, env },
     );
     return { stdout: normalizeAnchoredOutput(stdout), stderr, exitCode: 0 };
@@ -182,9 +246,8 @@ export async function runArcAnchoredSequence(
   });
   const command = `${commands.join(" && ")}; command_status=$?; exit $command_status`;
   try {
-    const { stdout, stderr } = await execFileAsync(
-      "script",
-      ["-qec", `${shellEscape(anchorShell)} --noprofile --norc -ic ${shellEscape(command)}`, "/dev/null"],
+    const { stdout, stderr } = await runInPseudoTerminal(
+      [anchorShell, "--noprofile", "--norc", "-ic", `stty cols 500 rows 40; ${command}`],
       { cwd, timeout, env },
     );
     const normalized = normalizeAnchoredOutput(stdout);
@@ -253,9 +316,8 @@ export async function runArcWithStdoutPipe(
   const env = { ...process.env, NO_COLOR: "1", ...options?.env };
   try {
     const pipeline = `${buildScriptCommand(args, false)} | cat`;
-    const { stdout, stderr } = await execFileAsync(
-      "script",
-      ["-qec", `bash -o pipefail -c ${shellEscape(pipeline)}`, "/dev/null"],
+    const { stdout, stderr } = await runInPseudoTerminal(
+      ["bash", "-o", "pipefail", "-c", `stty cols 500 rows 40; ${pipeline}`],
       { cwd, timeout, env },
     );
     return { stdout, stderr, exitCode: 0 };
@@ -331,10 +393,19 @@ function shellEscape(value: string): string {
 }
 
 function normalizeAnchoredOutput(value: string): string {
-  const lines = value.replaceAll("\r", "").split("\n");
+  const lines = value
+    .replaceAll("\r", "")
+    .replaceAll("^D\b\b", "")
+    .replaceAll("\u0004\b\b", "")
+    .split("\n");
   const lastContent = lines.at(-1) === "" ? lines.length - 2 : lines.length - 1;
   if (lines[lastContent] === "exit") lines.splice(lastContent, 1);
   return lines.join("\n");
+}
+
+/** Join clack box continuations so assertions inspect logical values independent of terminal width. */
+export function unwrapPresentationOutput(value: string): string {
+  return value.replace(/\s*│\n│\s*/gu, "");
 }
 
 function parseJsonLines(value: string): unknown[] {
