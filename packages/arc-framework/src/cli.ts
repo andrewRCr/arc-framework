@@ -124,6 +124,10 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleIntegrationCheckpoint,
+  type IntegrationCheckpointOptions,
+} from "./handlers/integration.js";
+import {
   handleMergeLockHold,
   handleMergeLockRelease,
   handleMergeLockResolve,
@@ -431,6 +435,16 @@ integrateCmd.action(() => {
   );
   process.exitCode = 1;
 });
+
+integrateCmd
+  .command("checkpoint <name>")
+  .description("Compose one typed integration-readiness verdict")
+  .option("--json", "Emit the typed checkpoint verdict as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, name: string, opts: IntegrationCheckpointOptions) =>
+      handleIntegrationCheckpoint(name, opts, context),
+  ));
 
 program
   .command("reopen [slug]")

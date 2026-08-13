@@ -340,26 +340,26 @@ _Design decisions:_ One reader per fact — the checkpoint reads lifecycle compl
 projection directly and the standalone readiness verb shrinks to what its remaining consumers need. The
 `pre-merge` seam's shared fire position is workflow prose and lands with lane convergence (Phase 6).
 
-### `[ ]` **4.1 Build the typed integration checkpoint and readiness verdicts, folding lifecycle readiness**
+### `[x]` **4.1 Build the typed integration checkpoint and readiness verdicts, folding lifecycle readiness**
 
 - _Goal:_ The entire pre-stop sequence is one typed verdict, and a `ready` envelope carries everything the
   approver decides on — nothing rederived downstream, nothing forensic re-examined.
 
-    - `[ ]` **4.1.a `arc integrate checkpoint <name> --json` and its three verdicts**
-        - `ready`, `reconcile` (carrying the drift verdict and validated safety facts — the reconcile arm's
-          span 1), `blocked` (typed reason)
-        - Build `test-first` (one behavior at a time):
-            - each verdict class carries its typed payload
-            - behind-base state returns `reconcile` with the validated facts, not a prose instruction
+    - `[x]` **4.1.a `arc integrate checkpoint <name> --json` and its three verdicts**
+        - Added the public checkpoint subcommand and strict `ready`, `reconcile`, and reason-discriminated
+          `blocked` envelopes; safe behind-base results retain the authoritative drift and host-cross-checked facts.
 
-    - `[ ]` **4.1.b `ready` envelope composition**
-        - approved head, checkpoint handle, candidate-tail diff reference, requirement and status summary,
-          merge method validated through the Phase 3 resolver, and the composed review record
+    - `[x]` **4.1.b `ready` envelope composition**
+        - The exact Candidate head now binds a provisional opaque handle, candidate-tail reference, requirement and
+          status summaries, the live-policy-validated merge method, and the content-gated review record.
 
-    - `[ ]` **4.1.c Lifecycle-readiness fold and the convergence gate**
-        - reads lifecycle completeness from the status projection (no conjoined independent readers); blocks
-          readiness when the current implementation-changing lineage head lacks the converged full
-          attestation
+    - `[x]` **4.1.c Lifecycle-readiness fold and the convergence gate**
+        - Checkpoint composition reads the canonical lifecycle query directly for the configured cadence and rejects
+          any current implementation-changing Candidate lineage whose convergence attestation remains pending.
+
+- _Outcome:_ The pre-approval span now reduces to one machine-owned verdict: safe drift returns its complete
+  reconcile evidence, while a clean exact head reaches approval only through lifecycle, Candidate, host, and
+  merge-policy facts bound into the ready envelope.
 
 ### `[ ]` **4.2 Shrink `arc review readiness` contract-preservingly for its remaining consumers**
 
