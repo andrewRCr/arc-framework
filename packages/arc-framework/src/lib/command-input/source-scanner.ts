@@ -193,10 +193,13 @@ function parseOption(
   path: string,
 ): DiscoveredOption | undefined {
   const method = methodCall(call);
-  if (method === undefined || (method.name !== "option" && method.name !== "addOption")) return undefined;
+  if (
+    method === undefined
+    || (method.name !== "option" && method.name !== "requiredOption" && method.name !== "addOption")
+  ) return undefined;
   let flags: string | undefined;
   let decorators: readonly ts.CallExpression[] = [];
-  if (method.name === "option") {
+  if (method.name === "option" || method.name === "requiredOption") {
     flags = stringValue(call.arguments[0]);
   } else {
     const optionExpression = call.arguments[0];

@@ -216,6 +216,26 @@ const MERGE_LOCK_JSON_COMMAND_PATHS = [
   "merge lock release",
 ] as const;
 
+const reviewChangeRequestInputRegistration: CommandInputRegistration = {
+  commandPath: "review change-request resolve",
+  schema: ChangeRequestResolveInputSchema,
+  schemaFields: {
+    "option.head-ref": "headRef",
+    "option.head-sha": "headSha",
+  },
+};
+
+const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
+  commandPath: "review checks await",
+  schema: ChecksAwaitInputSchema,
+  schemaFields: {
+    "option.pull-request": "pullRequest",
+    "option.head-sha": "headSha",
+    "option.timeout-ms": "timeoutMs",
+    "option.poll-interval-ms": "pollIntervalMs",
+  },
+};
+
 /** Registry contributions owned by the review and merge-lock command adapters. */
 export const reviewCommandInputRegistrations = [
   ...[...REVIEW_JSON_COMMAND_PATHS, ...MERGE_LOCK_JSON_COMMAND_PATHS].map((commandPath) => ({
@@ -224,11 +244,8 @@ export const reviewCommandInputRegistrations = [
     schemaFields: { "operand.input": "input" },
   })),
   reviewPlanningLaneInputRegistration,
-  {
-    commandPath: "review change-request resolve",
-    schema: ChangeRequestResolveInputSchema,
-    schemaFields: { "option.head-ref": "headRef", "option.head-sha": "headSha" },
-  },
+  reviewChangeRequestInputRegistration,
+  reviewChecksAwaitInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
 
 export interface ReviewChangeRequestResolveOptions {

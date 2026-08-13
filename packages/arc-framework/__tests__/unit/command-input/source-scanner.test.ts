@@ -58,6 +58,7 @@ describe("command-input source scanner", () => {
           .argument("[args...]", "opaque")
           .allowUnknownOption(true)
           .addOption(new Option("--mode <mode>").choices(["one", "two"]).default("one").conflicts("json"))
+          .requiredOption("--target <ref>", "required target")
           .option("--json", "machine output")
           .action(async (args) => { await handleSend({ args }); });
       `,
@@ -76,6 +77,7 @@ describe("command-input source scanner", () => {
           defaultValue: "one",
           conflicts: ["json"],
         },
+        { flags: "--target <ref>", valueName: "ref", required: true },
         { flags: "--json", valueName: null, required: false },
       ],
       action: { symbol: "handleSend" },
