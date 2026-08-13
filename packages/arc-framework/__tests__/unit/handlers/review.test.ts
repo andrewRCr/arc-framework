@@ -17,6 +17,7 @@ import {
   handleReviewLocalResume,
   handleReviewPlanningLane,
   handleReviewMergeMethodResolve,
+  handleReviewChecksAwait,
   handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
@@ -123,6 +124,29 @@ describe("handleReviewMergeMethodResolve", () => {
       state: "validated",
       nextAction: "use-method",
       method: "squash",
+    });
+  });
+});
+
+describe("handleReviewChecksAwait", () => {
+  it("validates CLI flags before invoking the await", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const awaitChecks = vi.fn();
+    await handleReviewChecksAwait({
+      pullRequest: "42",
+      headSha: "not-an-oid",
+      timeoutMs: "2000",
+      pollIntervalMs: "500",
+      json: true,
+    }, { awaitChecks, write, setExitCode });
+
+    expect(awaitChecks).not.toHaveBeenCalled();
+    expect(setExitCode).toHaveBeenCalledWith(64);
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
     });
   });
 });

@@ -316,18 +316,18 @@ Stack member `integration-review-primitives`; independently landable. Spec eleme
 - _Outcome:_ Hosted review and required checks now share one provider-neutral timing mechanism while retaining
   independent observation and envelope vocabulary.
 
-### `[ ]` **3.4 Instantiate the required-checks await on the exact head**
+### `[x]` **3.4 Instantiate the required-checks await on the exact head**
 
 - _Goal:_ Required-check state on an exact head is observable through one bounded call that yields at its
   deadline instead of requiring an agent polling loop.
 
-    - `[ ]` **3.4.a Checks await instantiation**
-        - `arc review checks await --json` — review-family sibling of `arc review hosted await`; observes
-          `pending`, `green`, `failed`, and `not-required`; carries the stale-head guard; yields at its
-          deadline (the caller resolves a deadline yield by re-invoking the same call unchanged)
-        - Build `test-first` (one behavior at a time):
-            - each observed state returns typed; a moved head trips the stale-head guard
-            - the deadline yield is distinguishable from failure
+    - `[x]` **3.4.a Checks await instantiation**
+        - Added `arc review checks await --pull-request <number> --head-sha <oid> --json`, with configurable
+          bounded-wait flags, typed `pending` / `green` / `failed` / `not-required` results, and a per-poll
+          stale-head guard. Deadline `pending / await` is distinct from `failed / stop`.
+
+- _Outcome:_ Required GitHub checks are now one bounded exact-head observation rather than an agent polling loop,
+  and reuse the same deadline and backoff implementation as hosted review.
 
 ## **Phase 4:** Integration checkpoint composition
 

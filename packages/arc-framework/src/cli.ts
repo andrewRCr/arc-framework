@@ -141,11 +141,13 @@ import {
   handleReviewPlanningLane,
   handleReviewChangeRequestResolve,
   handleReviewMergeMethodResolve,
+  handleReviewChecksAwait,
   handleReviewReduce,
   handleReviewRespond,
   type ReviewPlanningLaneOptions,
   type ReviewChangeRequestResolveOptions,
   type ReviewMergeMethodResolveOptions,
+  type ReviewChecksAwaitOptions,
 } from "./handlers/review.js";
 import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
@@ -1254,6 +1256,18 @@ reviewCmd
   .description("Validate the configured method against live repository policy")
   .requiredOption("--json", "Emit a typed JSON result")
   .action((options: ReviewMergeMethodResolveOptions) => handleReviewMergeMethodResolve(options));
+
+reviewCmd
+  .command("checks")
+  .description("Required status-check operations")
+  .command("await")
+  .description("Await required checks on one exact pull-request head")
+  .requiredOption("--pull-request <number>", "Pull-request number")
+  .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
+  .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
+  .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action((options: ReviewChecksAwaitOptions) => handleReviewChecksAwait(options));
 
 reviewCmd
   .command("readiness")

@@ -149,6 +149,12 @@ import {
   type MergeMethodResolveResult,
 } from "../scripts/review-gate/merge-method.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
+import {
+  ChecksAwaitInputSchema,
+  awaitRequiredChecks,
+  type ChecksAwaitResult,
+} from "../scripts/review-gate/checks-await.js";
+import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
 
 /**
  * Build the request-source operand schema owned by one review command.
@@ -295,6 +301,56 @@ export async function handleReviewMergeMethodResolve(
   };
   const configuredMethod = await dependencies.readConfiguredMethod(process.cwd());
   dependencies.write(`${JSON.stringify(await dependencies.resolve(configuredMethod))}\n`);
+}
+
+export interface ReviewChecksAwaitOptions {
+  pullRequest: string;
+  headSha: string;
+  timeoutMs: string;
+  pollIntervalMs: string;
+  json?: boolean;
+}
+
+export interface ReviewChecksAwaitHandlerDependencies {
+  awaitChecks(input: z.infer<typeof ChecksAwaitInputSchema>): Promise<ChecksAwaitResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Await required checks on one exact pull-request head. */
+export async function handleReviewChecksAwait(
+  options: ReviewChecksAwaitOptions,
+  overrides: Partial<ReviewChecksAwaitHandlerDependencies> = {},
+): Promise<void> {
+  const port = createGhRequiredChecksPort(hostedGhRunner);
+  const dependencies: ReviewChecksAwaitHandlerDependencies = {
+    awaitChecks: (input) => awaitRequiredChecks(input, {
+      port,
+      clock: { now: () => Date.now(), sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)) },
+    }),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = ChecksAwaitInputSchema.safeParse({
+    pullRequest: Number(options.pullRequest),
+    headSha: options.headSha,
+    timeoutMs: Number(options.timeoutMs),
+    pollIntervalMs: Number(options.pollIntervalMs),
+  });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail: parsed.error.issues.map((issue) => issue.message).join("; "),
+    })}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  dependencies.write(`${JSON.stringify(await dependencies.awaitChecks(parsed.data))}\n`);
 }
 
 /** Input and interaction policies owned by the review command adapters. */

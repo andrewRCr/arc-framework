@@ -15,7 +15,10 @@ import type { HostedArtifact, HostedTarget } from "./request.js";
 import type { HostedSettlementReply } from "./settle.js";
 
 export interface HostedProcessRunner {
-  run(args: string[], options?: { signal?: AbortSignal }): Promise<{ stdout: string; stderr: string }>;
+  run(
+    args: string[],
+    options?: { signal?: AbortSignal; allowFailure?: boolean },
+  ): Promise<{ stdout: string; stderr: string }>;
 }
 
 export class HostedProcessError extends Error {
@@ -49,6 +52,7 @@ export const hostedGhRunner: HostedProcessRunner = {
       const result = await execa("gh", args, {
         stdin: "ignore",
         timeout: 60_000,
+        reject: options?.allowFailure !== true,
         ...(options?.signal === undefined ? {} : { cancelSignal: options.signal }),
       });
       return { stdout: result.stdout, stderr: result.stderr };
