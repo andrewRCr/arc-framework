@@ -10,6 +10,10 @@ import {
   settlementDispositionIds,
   type CanonicalSettlementPlan,
 } from "./settlement-plan.js";
+import {
+  CheckpointInterlockSurfaceSchema,
+  composeCheckpointInterlockSurface,
+} from "./interlock-surface.js";
 
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -198,6 +202,7 @@ export const IntegrationCheckpointResultSchema = z.union([
         /^checkpoint-v1:(?:[0-9a-f]{40}|[0-9a-f]{64}):sha256:[0-9a-f]{64}$/u,
       ),
       mergeMethod: ValidatedMergeMethodSchema,
+      interlockSurface: CheckpointInterlockSurfaceSchema,
     }),
   }),
   z.strictObject({
@@ -381,11 +386,76 @@ export async function checkpointIntegration(
       settlementPlan,
       mergeMethod,
     });
+    const checks = composition.statusSummary.requiredChecks;
+    const interlockSurface = composeCheckpointInterlockSurface({
+      approvedHead: composition.approvedHead,
+      repository: composition.statusSummary.changeRequest.repository,
+      pullRequest: composition.statusSummary.changeRequest.pullRequest,
+      method: mergeMethod.method,
+      signals: [
+        {
+          kind: "base-drift",
+          label: "Base drift",
+          clean: true,
+          evidence: "The authoritative drift read is clean.",
+        },
+        {
+          kind: "candidate",
+          label: "Candidate",
+          clean: true,
+          evidence: `Candidate ${candidate.candidateId} is current and converged at ${composition.approvedHead}.`,
+        },
+        {
+          kind: "lifecycle",
+          label: "Lifecycle",
+          clean: true,
+          evidence: `Lifecycle is complete at ${composition.statusSummary.lifecycle.state}.`,
+        },
+        {
+          kind: "change-request",
+          label: "Change request",
+          clean: true,
+          evidence: "The change request is open on the exact approved head.",
+        },
+        {
+          kind: "requirements",
+          label: "Requirements",
+          clean: true,
+          evidence: "Every checkpoint requirement is satisfied.",
+        },
+        {
+          kind: "required-checks",
+          label: "Required checks",
+          clean: checks === "green" || checks === "not-required",
+          evidence: `Required-check state is ${checks} on the exact approved head.`,
+        },
+        {
+          kind: "merge-method",
+          label: "Merge method",
+          clean: true,
+          evidence: `${mergeMethod.method} is allowed by policy ${mergeMethod.policyFingerprint}.`,
+        },
+        {
+          kind: "review-record",
+          label: "Review record",
+          clean: composition.reviewRecord.dispositionIds.length === 0,
+          evidence: composition.reviewRecord.dispositionIds.length === 0
+            ? "No approved dispositions require settlement."
+            : `${composition.reviewRecord.dispositionIds.length} approved disposition set(s) require settlement.`,
+        },
+        {
+          kind: "checkpoint",
+          label: "Checkpoint",
+          clean: true,
+          evidence: `The approved composition is persisted as ${checkpointHandle}.`,
+        },
+      ],
+    });
     return IntegrationCheckpointResultSchema.parse({
       ...base,
       state: "ready",
       nextAction: "request-approval",
-      payload: { ...composition, checkpointHandle, mergeMethod },
+      payload: { ...composition, checkpointHandle, mergeMethod, interlockSurface },
     });
   } catch (error) {
     return IntegrationCheckpointResultSchema.parse({

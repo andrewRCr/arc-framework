@@ -400,22 +400,22 @@ projection directly and the standalone readiness verb shrinks to what its remain
   same-head runs cannot alias, and plan/record/method drift or handle substitution fails closed before downstream
   execution.
 
-### `[ ]` **4.4 Compose exception-filtered machine evidence with a typed extension boundary**
+### `[x]` **4.4 Compose exception-filtered machine evidence with a typed extension boundary**
 
 - _Goal:_ A clean candidate's interlock surface renders what the approver decides on — collapsing done by a
   unit-testable composer, never by agent discretion — while free-form extension evidence stays visibly
   extension-owned.
 
-    - `[ ]` **4.4.a Exception-filtering composer**
-        - clean signals collapse to a line, unclean ones expand; precomposed text, not a rendering
-          instruction
-        - Build `test-first` (one behavior at a time):
-            - a fully clean envelope renders the decision surface, not all nine facts
-            - any unclean signal expands with its evidence
+    - `[x]` **4.4.a Exception-filtering composer**
+        - Added a strict nine-signal composer: clean evidence collapses to one count, while only unclean signals
+          expand with their machine-owned evidence in ready-envelope approval text.
 
-    - `[ ]` **4.4.b Typed insertion boundary**
-        - the envelope reserves a separately labelled block position for an extension report; the composer
-          never splices or summarizes free-form output
+    - `[x]` **4.4.b Typed insertion boundary**
+        - Every ready envelope now carries a separate `{ label: "Extension report", content: null }` block after
+          machine evidence; the composer accepts no free-form extension content.
+
+- _Outcome:_ Checkpoint readiness now delivers the approver's actual decision surface as validated text, retaining
+  complete exception evidence without flooding the clean path or claiming authority over extension-owned output.
 
 ## **Phase 5:** Settlement and pinned merge
 

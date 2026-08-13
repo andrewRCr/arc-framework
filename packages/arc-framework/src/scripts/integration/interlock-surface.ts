@@ -1,0 +1,70 @@
+/** Precomposed, exception-filtered machine evidence for integration approval. */
+
+import { z } from "zod";
+
+const SignalKindSchema = z.enum([
+  "base-drift",
+  "candidate",
+  "lifecycle",
+  "change-request",
+  "requirements",
+  "required-checks",
+  "merge-method",
+  "review-record",
+  "checkpoint",
+]);
+
+export const CheckpointMachineSignalSchema = z.strictObject({
+  kind: SignalKindSchema,
+  label: z.string().trim().min(1),
+  clean: z.boolean(),
+  evidence: z.string().trim().min(1),
+});
+export type CheckpointMachineSignal = z.infer<typeof CheckpointMachineSignalSchema>;
+
+const CheckpointMachineSignalsSchema = z.array(CheckpointMachineSignalSchema).length(9).superRefine(
+  (signals, context) => {
+    const kinds = signals.map(({ kind }) => kind);
+    if (new Set(kinds).size !== SignalKindSchema.options.length) {
+      context.addIssue({ code: "custom", message: "machine signals must contain every signal kind exactly once" });
+    }
+  },
+);
+
+export const CheckpointInterlockSurfaceSchema = z.strictObject({
+  machineEvidence: z.strictObject({
+    state: z.enum(["clean", "exceptions"]),
+    text: z.string().min(1),
+  }),
+  extensionReport: z.strictObject({
+    label: z.literal("Extension report"),
+    content: z.null(),
+  }),
+});
+export type CheckpointInterlockSurface = z.infer<typeof CheckpointInterlockSurfaceSchema>;
+
+/** Collapse clean signals and expand only machine-computed exceptions into approval text. */
+export function composeCheckpointInterlockSurface(input: {
+  approvedHead: string;
+  repository: string;
+  pullRequest: number;
+  method: "merge" | "rebase" | "squash";
+  signals: readonly CheckpointMachineSignal[];
+}): CheckpointInterlockSurface {
+  const signals = CheckpointMachineSignalsSchema.parse(input.signals);
+  const exceptions = signals.filter(({ clean }) => !clean);
+  const decision = `Approve merge of ${input.approvedHead} via ${input.method} for `
+    + `${input.repository}#${input.pullRequest}.`;
+  const text = exceptions.length === 0
+    ? `${decision}\nMachine evidence: ${signals.length} checks clean.`
+    : `${decision}\nMachine evidence exceptions:\n${exceptions
+      .map(({ label, evidence }) => `- ${label}: ${evidence}`)
+      .join("\n")}`;
+  return CheckpointInterlockSurfaceSchema.parse({
+    machineEvidence: {
+      state: exceptions.length === 0 ? "clean" : "exceptions",
+      text,
+    },
+    extensionReport: { label: "Extension report", content: null },
+  });
+}

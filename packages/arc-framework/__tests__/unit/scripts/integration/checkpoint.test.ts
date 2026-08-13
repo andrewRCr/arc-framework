@@ -173,6 +173,13 @@ describe("integration checkpoint", () => {
             policyFingerprint: digest("d"),
           },
           reviewRecord: { markdown: null, dispositionIds: [] },
+          interlockSurface: {
+            machineEvidence: {
+              state: "clean",
+              text: expect.stringContaining("Machine evidence: 9 checks clean."),
+            },
+            extensionReport: { label: "Extension report", content: null },
+          },
         },
       });
   });
