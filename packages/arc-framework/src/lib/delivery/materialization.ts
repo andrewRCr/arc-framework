@@ -81,6 +81,23 @@ export function deriveDeliveryMaterialization(
   };
 }
 
+/** Compose one non-terminal member's change-request presentation from its plan position. */
+export function describeDeliveryMemberPresentation(
+  plan: DeliveryPlanV1,
+  member: Pick<DeliveryMaterializationMember, "deliverableId" | "chunkKey">,
+): Pick<DeliveryHostOpenRequest, "title" | "body"> {
+  const index = plan.members.findIndex((planned) => planned.deliverableId === member.deliverableId);
+  const planned = index >= 0 ? plan.members[index] : undefined;
+  if (planned === undefined) {
+    return { title: member.chunkKey, body: `Delivery member ${member.deliverableId}.` };
+  }
+  const position = `${index + 1}/${plan.members.length}`;
+  return {
+    title: `${plan.workUnitId} [${position}]: ${planned.title}`,
+    body: `${planned.contract}\n\nDelivery member ${position} for \`${plan.workUnitId}\`.`,
+  };
+}
+
 /** External ref publication seam used by materialization orchestration. */
 export interface DeliveryMaterializationRefPort {
   observe(ref: string): Promise<

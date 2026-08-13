@@ -38,6 +38,7 @@ import {
   bindInitialDeliveryRef,
   bindInitialDeliveryRequest,
   deriveDeliveryMaterialization,
+  describeDeliveryMemberPresentation,
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
 } from "../lib/delivery/materialization.js";
@@ -821,7 +822,7 @@ async function executeDeliveryCommand(
           host: new GhDeliveryHostPort(hostedGhRunner),
           repository: publish.repository,
           draft: publish.draft,
-          presentation: (member) => ({ title: member.chunkKey, body: `Delivery member ${member.deliverableId}.` }),
+          presentation: (member) => describeDeliveryMemberPresentation(plan, member),
         });
       },
     });

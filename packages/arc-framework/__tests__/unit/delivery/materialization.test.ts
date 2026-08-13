@@ -4,6 +4,7 @@ import {
   bindInitialDeliveryRef,
   bindInitialDeliveryRequest,
   deriveDeliveryMaterialization,
+  describeDeliveryMemberPresentation,
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
 } from "../../../src/lib/delivery/materialization.js";
@@ -106,6 +107,24 @@ describe("deriveDeliveryMaterialization", () => {
         coordinates: { base: secondHead, head: controlHead, tree: controlTree },
       }),
     ]);
+  });
+});
+
+describe("describeDeliveryMemberPresentation", () => {
+  it("titles each member with the work unit slug, stack position, and planned title", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const second = plan.members[1]!;
+    expect(describeDeliveryMemberPresentation(plan, { deliverableId: second.deliverableId, chunkKey: second.chunkKey }))
+      .toEqual({
+        title: `${plan.workUnitId} [2/3]: ${second.title}`,
+        body: `${second.contract}\n\nDelivery member 2/3 for \`${plan.workUnitId}\`.`,
+      });
+  });
+
+  it("falls back to the chunk key for a member outside the plan", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    expect(describeDeliveryMemberPresentation(plan, { deliverableId: "missing", chunkKey: "orphan" }))
+      .toEqual({ title: "orphan", body: "Delivery member missing." });
   });
 });
 
