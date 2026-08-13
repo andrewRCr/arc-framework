@@ -43,19 +43,23 @@ describe("lifecycle review driver", () => {
     expect(packaged).not.toContain("coordinate-pr-review");
   });
 
-  it("combines WU convergence, exact-head release, and truthful review disclosure", async () => {
+  it("combines WU convergence, exact-head status, and checkpointed merge disclosure", async () => {
     const workflow = await readFile(
       resolve(packageArc, workflows[0] ?? ""),
       "utf8",
     );
-    expect(workflow).toContain("arc review readiness -");
+    expect(workflow).toContain("arc review change-request resolve --head-ref");
+    expect(workflow).toContain("arc review status --target '{targetRef}' --json");
     expect(workflow).toContain("arc merge lock resolve -");
-    expect(workflow).toContain("arc merge lock release -");
-    expect(workflow).toContain("arc merge lock hold -");
+    expect(workflow).toContain("arc integrate checkpoint {name} --json");
+    expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
     expect(workflow).toContain("Approve (or redirect)?");
     expect(workflow).toMatch(/runtime-owned bindings/i);
     expect(workflow).toContain("no-action record-only");
     expect(workflow).not.toContain("`Coverage`");
+    expect(workflow).not.toContain("arc review readiness -");
+    expect(workflow).not.toContain("arc merge lock release -");
+    expect(workflow).not.toContain("arc merge lock hold -");
   });
 
   it("publishes a content-gated PR review record", async () => {

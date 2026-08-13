@@ -504,51 +504,45 @@ now enforce are deleted; the bias-guarding invariants that remain are stated onc
         - Added the exact-target status command over the resolver's `targetRef`; it rejects stale heads and returns
           required checks, routed reservation state, current base identity, and a typed action for every outcome.
 
-### `[ ]` **6.3 Converge the work-unit lane: checkpoint-to-merge spine, interlock surface, pin disclosure**
+### `[x]` **6.3 Converge the work-unit lane: checkpoint-to-merge spine, interlock surface, pin disclosure**
 
 - _Goal:_ The final integration step reads as cadence — checkpoint, one human stop, merge — with its residual
   length a function of its stop inventory, the approval pin enforced rather than narrated, and check state
   reported as observed.
 
-    - `[ ]` **6.3.a Pre-stop span**
-        - replace Step 13's pre-approval prose with the checkpoint call; render the precomposed interlock
-          surface
-          and the separately labelled extension block; fire the `pre-merge` seam between a `ready` checkpoint
-          and the interlock (the extension contract's position statement updates with this)
+    - `[x]` **6.3.a Pre-stop span**
+        - Replaced the pre-approval mechanics with the checkpoint call, verbatim machine evidence, and a separately
+          labelled extension report fired once between `ready` and the interlock; updated the extension contract.
 
-    - `[ ]` **6.3.b Post-approval span**
-        - replace the post-approval prose with the merge call; delete the three work-unit
-          approval-conditionality loci while keeping the consequence disclosure (what approval does —
-          applies dispositions, ends review, authorizes merge); no prose step assumes checks are green
+    - `[x]` **6.3.b Post-approval span**
+        - Replaced the post-approval cascade with the checkpointed merge call, retained the approval-consequence
+          disclosure, removed all three conditionality loci, and left required-check waiting to the typed verb.
 
-    - `[ ]` **6.3.c Resolver consumption at resume and creation**
-        - the resume table's PR-state rows and the creation path's missing pre-create head validation route
-          through the change-request resolver, including the row the old table lacked for a closed-unmerged
-          head
+    - `[x]` **6.3.c Resolver consumption at resume and creation**
+        - Routed resume and pre-create validation through the exact-head change-request resolver, including
+          `closed-unmerged`, merged-at-head, stale-head, ambiguity, and blocked dispositions.
 
-    - `[ ]` **6.3.d Self-validation deletions**
-        - prose confirming that owned verbs returned well-formed envelopes is deleted — a malformed envelope
-          is the verb's defect
+    - `[x]` **6.3.d Self-validation deletions**
+        - Removed workflow-side envelope-shape validation for the owned checkpoint, base-merge, review-status,
+          reconcile, and merge procedures.
 
-### `[ ]` **6.4 Recast the work-unit reconcile arm as thin orchestration**
+### `[x]` **6.4 Recast the work-unit reconcile arm as thin orchestration**
 
 - _Goal:_ The arm is orchestration over typed procedures holding exactly its seven stops — the judgment leaf,
   the direction leaf, three interlock releases, and two extension fire points — and nothing deterministic
   between them.
 
-    - `[ ]` **6.4.a Rewire the spans**
-        - span 1 arrives as the checkpoint's `reconcile` verdict; span 2 becomes the base-merge verb; span 5
-          becomes the review-status verb with resolver re-run after any head-changing push; span 6's dispatch
-          keeps its typed verb with the envelope-validation prose deleted and the retain-advisories direction
-          leaf immediately after
+    - `[x]` **6.4.a Rewire the spans**
+        - Rewired the reconcile verdict through typed base merge, fresh change-request resolution and review status
+          after head-changing pushes, and the existing WU reconcile dispatch with its direction leaf adjacent.
 
-    - `[ ]` **6.4.b Preserve every stop**
-        - the review-applicability judgment leaf, the retain-advisories direction leaf, the commit and push
-          interlock releases, and both push extension fire points survive in order
+    - `[x]` **6.4.b Preserve every stop**
+        - Preserved the review-applicability judgment, retain-advisories direction, one commit and two push
+          interlock releases, and both push-extension fire points in their required order.
 
-    - `[ ]` **6.4.c State the surviving invariants once**
-        - clearance never carries; advisory receipts are not merge authority; the interlock is the sole merge
-          authority — one statement each, replacing the six-or-seven-fold restatements
+    - `[x]` **6.4.c State the surviving invariants once**
+        - Reduced the bias guards to one statement each for non-carried clearance, non-authoritative advisory
+          receipts, and sole integration-interlock merge authority.
 
 ### `[ ]` **6.5 Converge the errand lane: seam placement, record cut, pin disclosure, lane arms**
 

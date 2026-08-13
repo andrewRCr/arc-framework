@@ -257,7 +257,7 @@ describe("trusted review-gate workflows", () => {
     expect(candidate).not.toContain("proceed to commit + sweep + push");
   });
 
-  it("keeps composition public and surfaces the complete candidate tail", async () => {
+  it("keeps composition public and delegates final evidence rendering to the checkpoint", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
@@ -288,9 +288,10 @@ describe("trusted review-gate workflows", () => {
       "### 13) Behind-base reconcile gate and merge",
       "### 14) Post-merge worktree cleanup",
     );
-    expect(finalGate).toMatch(/exact candidate-tail diff[\s\S]*not excerpts alone/u);
-    expect(finalGate).toMatch(/task and notes cleanup[\s\S]*composition[\s\S]*cohort closeout/u);
-    expect(finalGate).toMatch(/archive moves[\s\S]*readiness regeneration[\s\S]*reconcile commits/u);
+    expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
+    expect(finalGate).toContain("**Extension report** · `#pre-merge`");
+    expect(finalGate).toMatch(/checkpointed dispositions[\s\S]*channel settlement[\s\S]*ends review/u);
+    expect(finalGate).not.toContain("exact candidate-tail diff");
   });
 
   it("routes frontline and local review through the public advisory command surface", async () => {
@@ -450,7 +451,7 @@ describe("trusted review-gate workflows", () => {
     expect(documents.strategy).toMatch(/never infer merge safety from agent-layer discipline alone/iu);
   });
 
-  it("uses one late authoritative base-reconcile mutation site", async () => {
+  it("uses typed procedures for the late authoritative base-reconcile mutation site", async () => {
     const [packageIntegration, instanceIntegration] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
@@ -467,33 +468,21 @@ describe("trusted review-gate workflows", () => {
     );
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
-    expect(gate).toContain("candidate's final mutation site");
-    expect(gate).toMatch(/`unavailable`[\s\S]*`skipped`[\s\S]*(?:malformed|unrecognized)[\s\S]*stop/u);
-    expect(gate).toMatch(/typed[\s\S]*empty[\s\S]*substantivePaths/u);
-    expect(gate).toMatch(/base conflict[\s\S]*analyzer\/host disagreement/u);
-    expect(gate).toContain("review applicability judgment");
-    expect(gate).toMatch(/targeted verification[\s\S]*focused or\s+complete review/u);
-    expect(gate).toMatch(/push[\s\S]*CI and routing[\s\S]*`pre-merge`/u);
-    expect(gate).toMatch(/base moves again[\s\S]*same Step 13/u);
-    expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
-    expect(gate).toContain("git merge --no-edit {baseOid}");
-    expect(gate).toContain(
-      "result = arc base drift --json\n"
-      + "if <result is authoritative clean>:\n"
-      + "    gh pr merge {pr-number} --merge --match-head-commit {approved-head-sha}",
-    );
-    expect(gate).toMatch(/retain\s+`openedChangeRequest\.headSha` as `\{approved-head-sha\}`/iu);
-    expect(gate).not.toContain("arc base drift --json\ngit merge");
-    expect(gate).not.toContain("arc base drift --json\ngh pr merge");
-    const approval = gate.indexOf("Approve (or redirect)?");
-    const refreshedPr = gate.indexOf("re-read PR status", approval);
-    const finalDrift = gate.lastIndexOf("result = arc base drift --json");
-    expect(approval).toBeLessThan(refreshedPr);
-    expect(refreshedPr).toBeLessThan(finalDrift);
-    expect(gate.indexOf("git merge --no-edit {baseOid}")).toBeLessThan(
-      gate.indexOf("run Tier 1 quality gates"),
-    );
-    expect(finalDrift).toBeLessThan(gate.lastIndexOf("gh pr merge {pr-number}"));
+    const checkpoint = gate.indexOf("arc integrate checkpoint {name} --json");
+    const baseMerge = gate.indexOf("arc base merge --expected-base {payload.safety.baseOid} --json");
+    const status = gate.indexOf("arc review status --target '{targetRef}' --json");
+    const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
+    const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
+    expect(checkpoint).toBeGreaterThan(-1);
+    expect(baseMerge).toBeGreaterThan(checkpoint);
+    expect(status).toBeGreaterThan(baseMerge);
+    expect(reconcile).toBeGreaterThan(status);
+    expect(merge).toBeGreaterThan(reconcile);
+    expect(gate).toContain("`base-moved / rerun-checkpoint`");
+    expect(gate).toContain("review applicability");
+    expect(gate).toMatch(/targeted, focused, or full review/u);
+    expect(gate).not.toContain("git merge --no-edit");
+    expect(gate).not.toContain("gh pr merge");
   });
 
   it("keeps early drift advisory separate from final authoritative reconciliation", async () => {
@@ -512,10 +501,11 @@ describe("trusted review-gate workflows", () => {
     const advisory = packageIntegration.indexOf("Before spending a hosted pass");
     const finalGate = packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge");
     expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
-    expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBeGreaterThan(finalGate);
+    expect(packageIntegration.indexOf("arc base merge --expected-base", finalGate)).toBeGreaterThan(finalGate);
+    expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
   });
 
-  it("preserves lifecycle readiness through an exact-head merge window", async () => {
+  it("preserves checkpoint readiness through an exact-head merge window", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
@@ -524,27 +514,18 @@ describe("trusted review-gate workflows", () => {
       "### 13) Behind-base reconcile gate and merge",
       "### 14) Post-merge worktree cleanup",
     );
-    expect(gate).toContain("arc status {name} --json");
-    expect(gate).toMatch(/`with-integration`[\s\S]*`shipped`[\s\S]*`completed`/u);
-    expect(gate).toMatch(/`manual`[\s\S]*`integrating`/u);
-    expect(gate).toMatch(/Completion Notes[\s\S]*applicable Release Notes/u);
-    expect(gate).toMatch(/No `gh pr merge`[\s\S]*auto-merge enablement[\s\S]*queued merge/u);
-    expect(gate).toContain("integration-interlock is the sole merge authority");
-    expect(gate).toMatch(/candidate mutation[\s\S]*invalidates[\s\S]*checkpoint/u);
+    expect(gate).toContain("payload.interlockSurface.machineEvidence.text");
+    expect(gate).toContain("The integration interlock is the sole merge authority");
+    expect(gate).toContain("No commit or push may occur after `ready`");
+    expect(gate).not.toContain("head mutation returns to the checkpoint");
 
-    const lifecycleReady = gate.indexOf("arc status {name} --json");
-    const preMerge = gate.indexOf("Fire `pre-merge`");
+    const lifecycleReady = gate.indexOf("payload.interlockSurface.machineEvidence.text");
+    const preMerge = gate.indexOf("**Extension report** · `#pre-merge`");
     const approval = gate.indexOf("Approve (or redirect)?");
-    const refreshedHead = gate.indexOf("Immediately after approval", approval);
-    const refreshedPr = gate.indexOf("re-read PR status", approval);
-    const finalDrift = gate.lastIndexOf("result = arc base drift --json");
-    const merge = gate.lastIndexOf("gh pr merge {pr-number}");
+    const merge = gate.lastIndexOf("arc integrate merge {name} --checkpoint");
     expect(lifecycleReady).toBeLessThan(preMerge);
     expect(preMerge).toBeLessThan(approval);
-    expect(approval).toBeLessThan(refreshedHead);
-    expect(refreshedHead).toBeLessThan(refreshedPr);
-    expect(refreshedPr).toBeLessThan(finalDrift);
-    expect(finalDrift).toBeLessThan(merge);
+    expect(approval).toBeLessThan(merge);
   });
 
   it("resumes swept candidates and refires after append-only corrections", async () => {
@@ -552,9 +533,21 @@ describe("trusted review-gate workflows", () => {
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
     const resume = sectionBetween(packaged, "#### Resume entry", "### 2) Pre-publication review");
-    expect(resume).toMatch(/resolver `state: shipped`[\s\S]*open[\s\S]*not merged[\s\S]*Step 13/iu);
-    expect(resume).toMatch(/PR already merged[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
+    expect(resume).toMatch(/`shipped` in `completed`; `open`[\s\S]*Step 13/u);
+    expect(resume).toMatch(/`merged-at-head`[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
+    expect(resume).toContain("`closed-unmerged`");
+    expect(resume).toContain("`merged-stale-head`, `ambiguous`, or `blocked`");
     expect(resume).toContain("first incomplete candidate-tail step");
+
+    const creation = sectionBetween(packaged, "### 3) Open the PR", "### 4) Review iteration");
+    const resolver = creation.indexOf("arc review change-request resolve --head-ref");
+    const proposedTarget = creation.indexOf("proposedChangeRequest =");
+    const create = creation.indexOf("gh pr create --base");
+    expect(resolver).toBeGreaterThan(-1);
+    expect(proposedTarget).toBeGreaterThan(resolver);
+    expect(create).toBeGreaterThan(proposedTarget);
+    expect(creation).toContain("`closed-unmerged /\nreopen-change-request`");
+    expect(creation).toContain("pre-create exact-head validation");
 
     const gate = sectionBetween(
       packaged,
@@ -563,22 +556,24 @@ describe("trusted review-gate workflows", () => {
     );
     expect(gate).toContain("requested composition correction");
     expect(gate).toMatch(/Append[\s\S]*never amend/u);
-    expect(gate).toMatch(/rerun affected gates and routing[\s\S]*push[\s\S]*refire the integration-interlock/u);
-    expect(gate).toMatch(/post-composition failure[\s\S]*unmerged[\s\S]*first\s+incomplete candidate-tail step/u);
-    expect(gate).toMatch(/headSha[\s\S]*differs[\s\S]*invalidate the approval/u);
+    expect(gate).toMatch(/rerun affected gates and routing[\s\S]*push[\s\S]*rebuild the checkpoint/u);
+    expect(gate).toContain("`invalidated / checkpoint` returns to the checkpoint");
+    expect(gate).not.toContain("Any candidate mutation or review action invalidates the checkpoint");
+    expect(gate).not.toContain("authorizes merge only if");
+    expect(gate).not.toContain("If its `headSha` differs");
   });
 
   it("dominates every work-unit lifecycle merge command with products and a final interlock", async () => {
     const directory = resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle");
     const requiredProduct = new Map([
-      ["integrate-work-unit.md", "arc status {name} --json"],
+      ["integrate-work-unit.md", "arc integrate checkpoint {name} --json"],
       ["park-work-unit.md", "arc park"],
       ["resume-work-unit.md", "arc resume"],
     ]);
     let commandCount = 0;
     for (const name of (await readdir(directory)).filter((entry) => entry.endsWith(".md"))) {
       const workflow = await readRepositoryFile(`packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/${name}`);
-      for (const command of workflow.matchAll(/^\s*gh pr merge[^\n]*/gmu)) {
+      for (const command of workflow.matchAll(/^\s*(?:gh pr merge|arc integrate merge)[^\n]*/gmu)) {
         commandCount += 1;
         const prefix = workflow.slice(0, command.index);
         const product = requiredProduct.get(name);

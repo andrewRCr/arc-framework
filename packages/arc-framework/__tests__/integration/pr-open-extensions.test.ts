@@ -58,7 +58,7 @@ describe("PR-open lifecycle extensions", () => {
     expect(classification).toContain('"system/extensions/pre-merge.md"');
   });
 
-  it("places work-unit hooks on create, re-entry, and the stable final head", async () => {
+  it("places work-unit hooks on create, re-entry, and the ready checkpoint", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
@@ -67,14 +67,22 @@ describe("PR-open lifecycle extensions", () => {
     const preOpen = workflow.indexOf("Immediately before creation");
     const create = workflow.indexOf("gh pr create");
     const postOpen = workflow.indexOf("compose `openedChangeRequest");
-    const finalHead = workflow.indexOf("At the zero-behind final head");
-    const mergeInterlock = workflow.indexOf("`integration-interlock`", finalHead);
+    const checkpoint = workflow.indexOf("arc integrate checkpoint {name} --json");
+    const finalHead = workflow.indexOf("payload.interlockSurface.machineEvidence.text", checkpoint);
+    const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", finalHead);
+    const mergeInterlock = workflow.indexOf("`integration-interlock`", preMerge);
+    const merge = workflow.indexOf("arc integrate merge {name} --checkpoint", mergeInterlock);
     expect(push).toBeLessThan(preOpen);
     expect(preOpen).toBeLessThan(create);
     expect(create).toBeLessThan(postOpen);
+    expect(checkpoint).toBeLessThan(finalHead);
+    expect(finalHead).toBeLessThan(preMerge);
+    expect(preMerge).toBeLessThan(mergeInterlock);
     expect(finalHead).toBeLessThan(mergeInterlock);
-    expect(workflow.slice(finalHead, mergeInterlock)).toContain("No lifecycle- or review-authored commit or push");
-    expect(workflow).toContain("PR open, not merged");
+    expect(mergeInterlock).toBeLessThan(merge);
+    expect(workflow.slice(finalHead, mergeInterlock)).toContain("No commit or push may occur after `ready`");
+    expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
+    expect(workflow).toContain("`integrating`; `open`");
     expect(workflow).toContain("`post-pr-open` → review iteration");
   });
 

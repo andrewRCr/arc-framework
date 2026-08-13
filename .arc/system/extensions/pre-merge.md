@@ -7,11 +7,11 @@ active: false
 # Extension: pre-merge
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
-> - **Fires:** After `review-response` processing completes, before the merge action
+> - **Fires:** After an integration checkpoint returns `ready`, before the integration interlock
 >
 > - **Contract:** Sequential execution with halt-on-fail. Every action is read-only, idempotent, or retry-safe because
->   final-head settlement may repeat. Fire after review settlement and after any lifecycle- or review-authored head
->   update. No commit or push may occur between the settled checkpoint and merge authorization.
+>   final-head settlement may repeat. Fire once per ready checkpoint, between its rendered evidence and the
+>   integration-interlock stop. No commit or push may occur after the checkpoint becomes ready.
 
 ## pre-merge.actions
 
