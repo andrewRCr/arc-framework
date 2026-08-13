@@ -9,7 +9,6 @@ import {
   type ApprovedDispositionRecord,
 } from "../core/advisory-records.js";
 import {
-  ApprovedDispositionSetSchema,
   type DispositionReportItem,
   type ProposedDispositionSet,
   type ApprovedDispositionSet,
@@ -35,7 +34,11 @@ import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
 import { projectReviewResponse } from "../core/response-plan.js";
-import type { ReviewResponseInput } from "../core/response-plan-schema.js";
+import {
+  ReviewResponseSettlementRequestSchema,
+  ReviewResponseSettlementSourceSchema,
+  type ReviewResponseInput,
+} from "../core/response-plan-schema.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
 import {
   projectFrontlineResponse,
@@ -44,11 +47,6 @@ import {
   projectFrontlineFollowUpAdvice,
 } from "../policy/frontline-follow-up.js";
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
-
-const RespondSourceSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("attested-local"), receiptRef: z.string().trim().min(1) }),
-  z.strictObject({ kind: z.literal("frontline"), outcomeRef: z.string().trim().min(1) }),
-]);
 
 const AuthorDispositionSchema = z.strictObject({
   findingId: z.string().trim().min(1).max(512),
@@ -71,11 +69,7 @@ const RespondProposalRequestSchema = z.strictObject({
   }),
 });
 
-const RespondApprovedRequestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  source: RespondSourceSchema,
-  dispositions: ApprovedDispositionSetSchema,
-});
+const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema;
 
 export const RespondRequestSchema = z.union([
   RespondProposalRequestSchema,
@@ -122,6 +116,8 @@ interface ResolvedResponseSource {
   actors: ResponseActors;
   frontlineOutcome?: FrontlineExecutionOutcome;
 }
+
+type RespondSource = z.infer<typeof ReviewResponseSettlementSourceSchema>;
 
 function parseSourceReference(
   reference: string,
@@ -218,7 +214,7 @@ function prepareDispositionProposal(
 }
 
 async function resolveLocalSource(
-  request: z.infer<typeof RespondSourceSchema> & { kind: "attested-local" },
+  request: RespondSource & { kind: "attested-local" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
   const reference = parseSourceReference(request.receiptRef, "attested-local");
@@ -264,7 +260,7 @@ async function resolveLocalSource(
 }
 
 async function resolveFrontlineSource(
-  request: z.infer<typeof RespondSourceSchema> & { kind: "frontline" },
+  request: RespondSource & { kind: "frontline" },
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
   const reference = parseSourceReference(request.outcomeRef, "frontline");

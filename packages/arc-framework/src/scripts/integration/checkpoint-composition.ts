@@ -1,11 +1,11 @@
 /** Production composition for the typed integration checkpoint. */
 
-import { randomUUID } from "node:crypto";
-
 import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
-import { getCurrentBranch, type GitExec } from "../../lib/git/index.js";
+import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
   projectCandidateCurrentness,
@@ -28,10 +28,13 @@ import {
   CheckpointReadyCompositionSchema,
   IntegrationLifecycleSummarySchema,
   ReconcileHostFactSchema,
+  ValidatedMergeMethodSchema,
   type IntegrationCheckpointDependencies,
   type IntegrationLifecycleSummary,
   type ReconcileHostFact,
 } from "./checkpoint.js";
+import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
+import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 
 interface CachedCandidate {
   record: CandidateManagedRecordV1;
@@ -156,6 +159,11 @@ export function createIntegrationCheckpointDependencies(input: {
     return settingsPromise;
   };
   const candidates = new Map<string, Promise<CachedCandidate | null>>();
+  let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
+  const identity = () => {
+    identityPromise ??= resolveIdentity({ exec: input.exec });
+    return identityPromise;
+  };
   const candidate = (workUnit: string): Promise<CachedCandidate | null> => {
     let value = candidates.get(workUnit);
     if (value === undefined) {
@@ -268,6 +276,23 @@ export function createIntegrationCheckpointDependencies(input: {
         reviewRecord: { markdown: null, dispositionIds },
       });
     },
-    createHandle: () => Promise.resolve(`checkpoint-v1:${randomUUID()}`),
+    composeSettlementPlan: () => Promise.resolve(composeCanonicalSettlementPlan([])),
+    createHandle: async ({ workUnit, approvedHead, settlementPlan, reviewRecord, mergeMethod }) => {
+      const resolvedIdentity = await identity();
+      if (resolvedIdentity === null) {
+        throw new Error("An ARC identity is required to persist the integration checkpoint.");
+      }
+      const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity: resolvedIdentity });
+      return persistIntegrationCheckpointComposition(
+        surfaces.workUnitRoot(SlugSchema.parse(workUnit)),
+        {
+          workUnit,
+          approvedHead,
+          settlementPlan,
+          reviewRecord,
+          mergeMethod: ValidatedMergeMethodSchema.parse(mergeMethod),
+        },
+      );
+    },
   };
 }

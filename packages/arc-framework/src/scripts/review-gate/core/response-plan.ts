@@ -5,11 +5,37 @@ import { createFixAuthorization } from "./fix-authorization.js";
 import {
   ReviewResponseInputSchema,
   ReviewResponsePlanSchema,
+  ReviewResponseSettlementActionSchema,
+  ReviewResponseSettlementRequestSchema,
   type ReviewResponseCapability,
   type ReviewResponseInput,
   type ReviewResponsePlan,
+  type ReviewResponseSettlementAction,
+  type ReviewResponseSettlementRequest,
   type ReviewResponseState,
 } from "./response-plan-schema.js";
+
+/** Compose the exact approved local/frontline settlement action consumed by `review respond`. */
+export function composeReviewResponseSettlementAction(input: {
+  originTarget: ReviewResponseSettlementAction["originTarget"];
+  fixTarget: ReviewResponseSettlementAction["fixTarget"];
+  request: ReviewResponseSettlementRequest;
+}): ReviewResponseSettlementAction {
+  const request = ReviewResponseSettlementRequestSchema.parse(input.request);
+  const dispositions = request.dispositions;
+  return ReviewResponseSettlementActionSchema.parse({
+    channel: "review-response",
+    dispositionId: dispositions.dispositionSet.dispositionSetId,
+    originTarget: input.originTarget,
+    fixTarget: input.fixTarget,
+    actors: {
+      approverIdentity: dispositions.approval.approvedBy,
+      proposerIdentity: dispositions.dispositionSet.proposedBy,
+    },
+    findingIds: dispositions.dispositionSet.findings.map(({ findingId }) => findingId).sort(),
+    request,
+  });
+}
 
 function plan(
   input: ReviewResponseInput,

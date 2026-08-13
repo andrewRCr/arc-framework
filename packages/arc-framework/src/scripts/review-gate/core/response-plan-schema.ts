@@ -62,6 +62,61 @@ export const ReviewResponsePlanSchema = z.strictObject({
 });
 export type ReviewResponsePlan = z.infer<typeof ReviewResponsePlanSchema>;
 
+export const ReviewResponseSettlementSourceSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("attested-local"), receiptRef: z.string().trim().min(1) }),
+  z.strictObject({ kind: z.literal("frontline"), outcomeRef: z.string().trim().min(1) }),
+]);
+
+export const ReviewResponseSettlementRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  source: ReviewResponseSettlementSourceSchema,
+  dispositions: ApprovedDispositionSetSchema,
+});
+export type ReviewResponseSettlementRequest = z.infer<typeof ReviewResponseSettlementRequestSchema>;
+
+export const ReviewResponseSettlementActionSchema = z.strictObject({
+  channel: z.literal("review-response"),
+  dispositionId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  originTarget: ReviewTargetSchema,
+  fixTarget: ReviewTargetSchema.nullable(),
+  actors: z.strictObject({
+    approverIdentity: z.string().trim().min(1),
+    proposerIdentity: z.string().trim().min(1),
+  }),
+  findingIds: z.array(z.string().trim().min(1)).min(1),
+  request: ReviewResponseSettlementRequestSchema,
+}).superRefine((action, context) => {
+  const dispositions = action.request.dispositions;
+  const set = dispositions.dispositionSet;
+  const expectedFindingIds = set.findings.map(({ findingId }) => findingId).sort();
+  if (action.dispositionId !== set.dispositionSetId) {
+    context.addIssue({ code: "custom", path: ["dispositionId"], message: "must bind the approved disposition set" });
+  }
+  if (action.originTarget.targetId !== set.targetId) {
+    context.addIssue({ code: "custom", path: ["originTarget"], message: "must bind the disposition target" });
+  }
+  if (
+    action.actors.approverIdentity !== dispositions.approval.approvedBy
+    || action.actors.proposerIdentity !== set.proposedBy
+  ) {
+    context.addIssue({ code: "custom", path: ["actors"], message: "must bind the disposition actors" });
+  }
+  if (JSON.stringify(action.findingIds) !== JSON.stringify(expectedFindingIds)) {
+    context.addIssue({ code: "custom", path: ["findingIds"], message: "must bind every disposition finding" });
+  }
+  const hasFix = set.findings.some(({ disposition }) => disposition === "fix");
+  if (hasFix !== (action.fixTarget !== null)) {
+    context.addIssue({ code: "custom", path: ["fixTarget"], message: "must identify the exact fix target when fixes exist" });
+  }
+  if (action.fixTarget !== null && (
+    action.fixTarget.repositoryId !== action.originTarget.repositoryId
+    || action.fixTarget.targetId === action.originTarget.targetId
+  )) {
+    context.addIssue({ code: "custom", path: ["fixTarget"], message: "must be a changed target in the originating repository" });
+  }
+});
+export type ReviewResponseSettlementAction = z.infer<typeof ReviewResponseSettlementActionSchema>;
+
 /** Register deterministic response-planning records with the review domain. */
 export function registerReviewResponseSchemas(registry: KernelRegistry): KernelRegistry {
   registry.register(ReviewResponseInputSchema, {

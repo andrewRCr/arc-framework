@@ -5,6 +5,11 @@ import { z } from "zod";
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import {
+  CanonicalSettlementPlanSchema,
+  settlementDispositionIds,
+  type CanonicalSettlementPlan,
+} from "./settlement-plan.js";
 
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -97,7 +102,7 @@ export const CheckpointReadyCompositionSchema = z.strictObject({
 });
 export type CheckpointReadyComposition = z.infer<typeof CheckpointReadyCompositionSchema>;
 
-const ValidatedMergeMethodSchema = z.strictObject({
+export const ValidatedMergeMethodSchema = z.strictObject({
   schemaVersion: z.literal(1),
   mode: z.literal("review-merge-method-resolve"),
   repository: z.string().min(1),
@@ -107,6 +112,7 @@ const ValidatedMergeMethodSchema = z.strictObject({
   allowedMethods: z.array(z.enum(["merge", "rebase", "squash"])),
   policyFingerprint: DigestSchema,
 });
+export type ValidatedMergeMethod = z.infer<typeof ValidatedMergeMethodSchema>;
 
 const BlockedMergeMethodSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -188,7 +194,9 @@ export const IntegrationCheckpointResultSchema = z.union([
     state: z.literal("ready"),
     nextAction: z.literal("request-approval"),
     payload: CheckpointReadyCompositionSchema.extend({
-      checkpointHandle: z.string().min(1),
+      checkpointHandle: z.string().regex(
+        /^checkpoint-v1:(?:[0-9a-f]{40}|[0-9a-f]{64}):sha256:[0-9a-f]{64}$/u,
+      ),
       mergeMethod: ValidatedMergeMethodSchema,
     }),
   }),
@@ -216,7 +224,13 @@ export interface IntegrationCheckpointDependencies {
     lifecycle: IntegrationLifecycleSummary;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
   }): Promise<CheckpointReadyComposition>;
+  composeSettlementPlan(input: {
+    workUnit: string;
+    composition: CheckpointReadyComposition;
+  }): Promise<CanonicalSettlementPlan>;
   createHandle(input: CheckpointReadyComposition & {
+    workUnit: string;
+    settlementPlan: CanonicalSettlementPlan;
     mergeMethod: Extract<MergeMethodResolveResult, { state: "validated" }>;
   }): Promise<string>;
 }
@@ -351,7 +365,22 @@ export async function checkpointIntegration(
     ) {
       throw new Error("ready composition does not bind the exact satisfied Candidate head");
     }
-    const checkpointHandle = await dependencies.createHandle({ ...composition, mergeMethod });
+    const settlementPlan = CanonicalSettlementPlanSchema.parse(await dependencies.composeSettlementPlan({
+      workUnit: request.workUnit,
+      composition,
+    }));
+    if (
+      settlementDispositionIds(settlementPlan).join("\0")
+      !== [...new Set(composition.reviewRecord.dispositionIds)].sort().join("\0")
+    ) {
+      throw new Error("settlement plan does not match the composed review record dispositions");
+    }
+    const checkpointHandle = await dependencies.createHandle({
+      workUnit: request.workUnit,
+      ...composition,
+      settlementPlan,
+      mergeMethod,
+    });
     return IntegrationCheckpointResultSchema.parse({
       ...base,
       state: "ready",

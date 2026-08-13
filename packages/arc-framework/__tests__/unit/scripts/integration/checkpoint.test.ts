@@ -6,6 +6,7 @@ import {
   checkpointIntegration,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
+import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -77,7 +78,8 @@ function dependencies(): IntegrationCheckpointDependencies {
       },
       reviewRecord: { markdown: null, dispositionIds: [] },
     }),
-    createHandle: async () => "checkpoint:test",
+    composeSettlementPlan: async () => composeCanonicalSettlementPlan([]),
+    createHandle: async () => `checkpoint-v1:${oid("c")}:${digest("e")}`,
   };
 }
 
@@ -158,7 +160,7 @@ describe("integration checkpoint", () => {
         nextAction: "request-approval",
         payload: {
           approvedHead: oid("c"),
-          checkpointHandle: "checkpoint:test",
+          checkpointHandle: `checkpoint-v1:${oid("c")}:${digest("e")}`,
           candidateTailDiff: { fromRevision: oid("a"), throughRevision: oid("c") },
           requirementSummary: { conclusion: "satisfied" },
           statusSummary: {

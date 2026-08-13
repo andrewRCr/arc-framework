@@ -378,28 +378,27 @@ projection directly and the standalone readiness verb shrinks to what its remain
   consumer-facing identity, cadence, delivery, and failure contract while dropping the unchartered filesystem
   threat model.
 
-### `[ ]` **4.3 Persist digest-bound approval composition and settlement plans**
+### `[x]` **4.3 Persist digest-bound approval composition and settlement plans**
 
 - _Goal:_ The merge verb can execute exactly what approval covered without any agent-carried value: record,
   plan, and method persist verb-side, keyed by a handle that distinguishes two checkpoint runs at the same
   head.
 
-    - `[ ]` **4.3.a Canonical settlement plan**
-        - binds the exact originating and fix targets, actor, finding and thread identities, dispositions,
-          and reply content needed by the existing settlement APIs (`arc review hosted settle`,
-          `arc review respond` — `response-plan-schema.ts` / `response-plan.ts`)
+    - `[x]` **4.3.a Canonical settlement plan**
+        - Added one canonical cross-channel plan whose actions reuse the hosted-settle and review-respond request
+          schemas while binding origin/fix targets, actors, finding/thread identities, dispositions, and replies.
 
-    - `[ ]` **4.3.b Digest-bound handle**
-        - the approved head plus a digest over the plan, the composed review record, and the validated merge
-          method — the head alone cannot distinguish same-head checkpoint runs
-        - Build `test-first` (one behavior at a time):
-            - two checkpoint runs at the same head yield distinct handles
-            - a handle validates only its own persisted composition
+    - `[x]` **4.3.b Digest-bound handle**
+        - The handle carries the approved head plus a run-distinct canonical digest over checkpoint identity,
+          settlement plan, composed review record, and validated merge method; retrieval recomputes every binding.
 
-    - `[ ]` **4.3.c Verb-side persistence and retrieval**
-        - gitignored per-WU state keyed by the handle (storage locus and encoding are tactical —
-          spec § Open Questions); a retrieval surface the merge verb consumes; not agent-carried, not
-          meta-file content
+    - `[x]` **4.3.c Verb-side persistence and retrieval**
+        - Checkpoint composition now creates immutable canonical JSON records under the work unit's dot-prefixed
+          user workspace, with a typed handle-keyed reader for the merge verb.
+
+- _Outcome:_ Approval state now crosses the human stop as one immutable, locally persisted composition: repeated
+  same-head runs cannot alias, and plan/record/method drift or handle substitution fails closed before downstream
+  execution.
 
 ### `[ ]` **4.4 Compose exception-filtered machine evidence with a typed extension boundary**
 
