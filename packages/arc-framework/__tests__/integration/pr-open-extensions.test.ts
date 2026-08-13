@@ -102,22 +102,26 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("runs routed frontline review after the final WU push and before PR creation", async () => {
+  it("settles routed pre-publication lanes before submit and the final WU push", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
     );
+    const prePublication = workflow.indexOf("### 2) Pre-publication review");
+    const resolveFrontline = workflow.indexOf("arc review frontline resolve -", prePublication);
+    const submit = workflow.indexOf("arc submit {name}", resolveFrontline);
     const push = workflow.indexOf("Push the WU branch upstream");
-    const resolveFrontline = workflow.indexOf("arc review frontline resolve -", push);
     const preOpen = workflow.indexOf("Immediately before creation", resolveFrontline);
     const create = workflow.indexOf("gh pr create", preOpen);
 
-    expect([push, resolveFrontline, preOpen, create].every((index) => index >= 0)).toBe(true);
-    expect(push).toBeLessThan(resolveFrontline);
-    expect(resolveFrontline).toBeLessThan(preOpen);
+    expect([prePublication, resolveFrontline, submit, push, preOpen, create]
+      .every((index) => index >= 0)).toBe(true);
+    expect(prePublication).toBeLessThan(resolveFrontline);
+    expect(resolveFrontline).toBeLessThan(submit);
+    expect(submit).toBeLessThan(push);
     expect(preOpen).toBeLessThan(create);
 
-    const frontlineCycle = workflow.slice(resolveFrontline, preOpen);
+    const frontlineCycle = workflow.slice(resolveFrontline, submit);
     expect(frontlineCycle).toContain("review-response");
     expect(frontlineCycle).toMatch(/(?:recompose|produce)\s+(?:the\s+exact|a new)\s+target/u);
     expect(frontlineCycle).toContain("arc review frontline run -");
@@ -127,6 +131,22 @@ describe("PR-open lifecycle extensions", () => {
     expect(frontlineCycle).toContain("public typed actions");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 gates");
+  });
+
+  it("resumes post-PR hosted review from the carried reservation without rerouting sources", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      "utf8",
+    );
+    const openedChangeRequest = workflow.indexOf("compose `openedChangeRequest");
+    const reservation = workflow.indexOf("integrationBoundary.reservation", openedChangeRequest);
+    const hostedRequest = workflow.indexOf("arc review hosted request -", reservation);
+
+    expect([openedChangeRequest, reservation, hostedRequest].every((index) => index >= 0)).toBe(true);
+    expect(openedChangeRequest).toBeLessThan(reservation);
+    expect(reservation).toBeLessThan(hostedRequest);
+    expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review chunking resolve -");
+    expect(workflow.slice(reservation, hostedRequest)).toContain("reserved `sourceId`");
   });
 
   it("runs the same frontline cycle only for full-protection Errand publication", async () => {

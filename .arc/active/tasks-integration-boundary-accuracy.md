@@ -240,24 +240,23 @@ the push extension — the one placement costing one commit, one push, no recomp
 - _Outcome:_ The transition commit, push review, and push release now form one ordered publication boundary, while
   both interruption shapes resume at the same idempotent push with the Candidate-bound reservation intact.
 
-### `[ ]` **2.4 Converge the publication-boundary prose on the propose/submit interval**
+### `[x]` **2.4 Converge the publication-boundary prose on the propose/submit interval**
 
 - _Goal:_ No workflow step instructs a pre-publication review lane after `submit` fires: the lanes run under
   `Active` in the propose/submit interval, and the post-PR arm resumes the carried reservation instead of
   re-deriving it.
 
-    - `[ ]` **2.4.a Relocate Step 3's lane dispatch**
-        - the frontline-then-pre-PR-standard dispatch block moves to a pre-publication step within
-          `integrate-work-unit.md`, ahead of the publication step — the containment pins require the
-          local-lane command surface to stay in this workflow — driven by the Phase 1 typed procedure and
-          completing before `submit` fires at the step head, so `submit`'s refusal on open non-reserved
-          obligations is consistent with every review-configured path (both copies)
-        - the work-unit ordering test in `pr-open-extensions.test.ts` ("after the final WU push and before PR
-          creation") rewrites to the relocated order with this change
+    - `[x]` **2.4.a Relocate Step 3's lane dispatch**
+        - The frontline-first and pre-PR standard dispatch now runs in Step 2 under `Active`, reduces to the typed
+          `candidate-submit-ready` boundary, and precedes both `submit` and push in both workflow copies. The
+          containment test now pins that order and retains the local-lane command surface in the workflow.
 
-    - `[ ]` **2.4.b Re-key Step 4's hosted-findings arm to the carried reservation**
-        - review iteration resumes the reserved hosted source `submit` carried across PR creation; the arm
-          reads the reservation, never re-derives source order (both copies)
+    - `[x]` **2.4.b Re-key Step 4's hosted-findings arm to the carried reservation**
+        - Post-PR review now reads `integrationBoundary.reservation`, binds the opened target to its Candidate and
+          reserved source, and requests that provider directly without rerunning chunking or source ordering.
+
+- _Outcome:_ Private review now lives wholly in the propose/submit interval, while the only standard-review work
+  permitted after publication is the exact hosted-first obligation reserved before the pull request existed.
 
 ## **Phase 3:** Integration review primitives
 

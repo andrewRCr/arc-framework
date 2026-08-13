@@ -95,14 +95,55 @@ not that composition or archival ran. If a required product is absent, preserve 
 invoke `arc user close` or `arc teardown`. Land the missing products through a lifecycle-only repair change request,
 then re-enter this guard after it merges.
 
-### 2) Local diff preflight
+### 2) Pre-publication review
 
 If the [`self-review` method][self-review] is effectively active:
 
 1. Execute the [`self-review` method][self-review] against the local aggregate diff vs the base branch.
    Classify findings per the [`review-triage` method][review-triage]; commit fixes per the
    [`commit-footer` method][commit-footer].
-When inactive, proceed directly to Step 3.
+When inactive, continue with the typed pre-publication procedure.
+
+From the local Candidate branch, compose the immutable policy target
+`{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
+For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
+whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
+`arc review resolve -`. The chunking recommendation informs this bounded scope judgment — apply the
+[`review-chunking` method][review-chunking] to make it; the workflow never recomputes thresholds.
+
+Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
+`nextAction` pair:
+
+- `skipped | no-op | pass-complete / none` — the lane is complete at this boundary.
+- `awaiting-change-request / open-change-request` — retain the exact hosted-first reservation and complete the
+  pre-publication procedure at `candidate-submit-ready`.
+- `ready / run-frontline` — invoke `arc review frontline resolve -`, then
+  `arc review frontline run -` with the exact driver selection.
+- `ready / local-prepare` — invoke `arc review local prepare -`.
+- `findings / respond` — enter the disposition protocol below.
+- `approval-required / obtain-ceiling-override` — surface the returned exact one-pass consequence and
+  `Approve (or redirect)?`; only exact approval returns that override to the next identical target/lane call.
+- `chunk-pending / continue-chunks` — continue the selected local chunk series without consuming the pass.
+- `stale-target / select-scope` — recompose the target and rerun chunking before resolving again.
+- `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
+
+Dispatch frontline and local operations only through their public typed actions. Local preparation receives the
+evaluator identity and routing facts; the evaluator submits status, result, findings, and run identity to
+`arc review local attest -`. Runtime-owned bindings for repository, target/tree, source, rubric, and guidance are
+injected from the immutable operation. Any supplied compatibility binding must match exactly. Resume with
+`arc review local resume -`; reduce with `arc review reduce -`; submit approved disposition state with
+`arc review respond -`. A command error envelope, including `invalid-input`, carries no dispatchable state.
+
+For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present reviewer
+severity, ARC re-grade, source locus, and a discrete `Recommended disposition:` line. Approval is required before
+any finding-driven fix, durable deferral, channel settlement, or other mutation/commitment. A complete no-action
+record-only set may remain proposed for the final combined gate. Approved fixes run Tier 1 gates (commands per the
+[`quality-gate-commands` method][arc-methods-qg]), commit atomically, and produce a new target locally; apply Step 4's
+review applicability judgment rather than carrying clearance or merge authority.
+
+Never treat advisory receipts, outcomes, reductions, scope recommendations, or disposition proposals as merge
+authority. Proceed to Step 3 only from the typed `candidate-submit-ready` locus; its durable boundary carries any
+hosted-first reservation into publication without classifying that obligation as settled or no-op.
 
 ### 3) Open the PR
 
@@ -144,45 +185,6 @@ actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
 **Push the WU branch upstream.** Re-entry from the no-PR resume row starts here; pushing an unchanged branch is
 idempotent, so both transitioned-but-unpushed and pushed-but-uncreated interruptions use this same resume action.
 
-From the pushed branch, compose the immutable policy target
-`{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
-For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
-whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
-`arc review resolve -`. The chunking recommendation informs this bounded scope judgment — apply the
-[`review-chunking` method][review-chunking] to make it; the workflow never recomputes thresholds.
-
-Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
-`nextAction` pair:
-
-- `skipped | no-op | pass-complete / none` — the lane is complete at this boundary.
-- `awaiting-change-request / open-change-request` — retain the standard-lane progress and continue to PR creation.
-- `ready / run-frontline` — invoke `arc review frontline resolve -`, then
-  `arc review frontline run -` with the exact driver selection.
-- `ready / local-prepare` — invoke `arc review local prepare -`.
-- `findings / respond` — enter the disposition protocol below.
-- `approval-required / obtain-ceiling-override` — surface the returned exact one-pass consequence and
-  `Approve (or redirect)?`; only exact approval returns that override to the next identical target/lane call.
-- `chunk-pending / continue-chunks` — continue the selected local chunk series without consuming the pass.
-- `stale-target / select-scope` — recompose the target and rerun chunking before resolving again.
-- `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
-
-Dispatch frontline and local operations only through their public typed actions. Local preparation receives the
-evaluator identity and routing facts; the evaluator submits status, result, findings, and run identity to
-`arc review local attest -`. Runtime-owned bindings for repository, target/tree, source, rubric, and guidance are
-injected from the immutable operation. Any supplied compatibility binding must match exactly. Resume with
-`arc review local resume -`; reduce with `arc review reduce -`; submit approved disposition state with
-`arc review respond -`. A command error envelope, including `invalid-input`, carries no dispatchable state.
-
-For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present reviewer
-severity, ARC re-grade, source locus, and a discrete `Recommended disposition:` line. Approval is required before
-any finding-driven fix, durable deferral, channel settlement, or other mutation/commitment. A complete no-action
-record-only set may remain proposed for the final combined gate. Approved fixes run Tier 1 gates (commands per the
-[quality-gate-commands method][arc-methods-qg]), commit atomically, push through the workflow contract, and produce
-a new target; apply Step 4's review applicability judgment rather than carrying clearance or merge authority.
-
-Never treat advisory receipts, outcomes, reductions, scope recommendations, or disposition proposals as merge
-authority.
-
 Immediately before creation, compose
 `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }` from the pushed branch. If `pre-pr-open`
 is active, execute its numbered `.actions` in authored order. Halt before later actions on failure. A failed
@@ -220,9 +222,11 @@ reviewing first would waste the pass; use an append-only merge, rerun Tier 1 gat
 without a permission stop. A conflict, material interaction, or uncertain product decision stops. This advisory
 never replaces Step 13's authoritative final drift read.
 
-For the opened target, rerun `arc review chunking resolve -` and invoke `arc review resolve -` for any incomplete
-lane. Follow the Step 3 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the selected
-provider, exact opened target, and `coverage: complete`:
+Read `integrationBoundary.reservation` from the typed status projection. A null reservation means the standard lane
+already settled or was a typed no-op before submission; do not invent a post-PR obligation. A carried reservation
+must match the current Candidate and supplies the reserved `sourceId` and exact obligation. Bind the open pull
+request to that reservation without rerunning chunking or source ordering, then invoke `arc review hosted request -`
+with the reserved provider, exact opened target, and `coverage: complete`:
 
 - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use the bounded
   wait again when it returns `pending / await`; do not build an agent polling loop.

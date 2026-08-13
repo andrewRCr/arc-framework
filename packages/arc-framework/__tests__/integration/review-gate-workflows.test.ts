@@ -551,7 +551,7 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const resume = sectionBetween(packaged, "#### Resume entry", "### 2) Local diff preflight");
+    const resume = sectionBetween(packaged, "#### Resume entry", "### 2) Pre-publication review");
     expect(resume).toMatch(/resolver `state: shipped`[\s\S]*open[\s\S]*not merged[\s\S]*Step 13/iu);
     expect(resume).toMatch(/PR already merged[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
     expect(resume).toContain("first incomplete candidate-tail step");
@@ -620,7 +620,7 @@ describe("trusted review-gate workflows", () => {
     const resumeEntry = sectionBetween(
       packageIntegration,
       "#### Resume entry",
-      "### 2) Local diff preflight",
+      "### 2) Pre-publication review",
     );
     expect(resumeEntry).toContain("A merged PR proves only that the merge ran");
     expect(resumeEntry).toContain("Completion Notes");
