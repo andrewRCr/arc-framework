@@ -70,6 +70,34 @@ function state(options: {
 }
 
 describe("repository delivery state store", () => {
+  it("restores an exact revision only into an absent or identical record", async () => {
+    const records = await stateStore();
+    const imported = { revision: 69, value: state() };
+
+    await expect(records.store.restoreExact(PLAN_ID, imported)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+    await expect(records.store.restoreExact(PLAN_ID, imported)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+
+    const conflict = { revision: 68, value: imported.value };
+    await expect(records.store.restoreExact(PLAN_ID, conflict)).resolves.toEqual({
+      status: "refused",
+      reason: "version-conflict",
+    });
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+  });
+
   it("publishes state by expected revision and treats an equal replay as idempotent", async () => {
     const records = await stateStore();
     const first = state();

@@ -196,6 +196,52 @@ async function publishRevisionedRecord<T>(
   );
 }
 
+async function restoreExactRevisionedRecord<T>(
+  publisher: GitCommonStatePublisher,
+  location: GitCommonStateLocation,
+  semanticsVersion: string,
+  codec: DeliveryPayloadCodec<T>,
+  planId: string,
+  record: DeliveryRevisionedRecord<T>,
+): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<T>, RevisionStoreFailure>> {
+  const addressedPlanId = normalizePlanId(planId);
+  if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+  if (!Number.isSafeInteger(record.revision) || record.revision <= 0) {
+    return { status: "refused", reason: "record-malformed" };
+  }
+  const proposed = codec.decode(record.value);
+  if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
+  if (codec.planId(proposed.value) !== addressedPlanId) {
+    return { status: "refused", reason: "identity-mismatch" };
+  }
+  const restored = { revision: record.revision, value: proposed.value };
+  return publisher.update<DeliveryStoreResult<DeliveryRevisionedRecord<T>, RevisionStoreFailure>>(
+    location,
+    planRecordName(addressedPlanId),
+    (raw) => {
+      if (raw !== null) {
+        const current = decodeRevisionedRecord(raw, addressedPlanId, semanticsVersion, codec);
+        if (current.status === "refused") return { kind: "keep", result: current };
+        return canonicalize(current.value) === canonicalize(restored)
+          ? { kind: "keep", result: { status: "ok", value: current.value } }
+          : { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+      }
+      const envelope: RevisionedEnvelope<T> = {
+        schemaVersion: 1,
+        semanticsVersion,
+        planId: addressedPlanId,
+        revision: restored.revision,
+        value: restored.value,
+      };
+      return {
+        kind: "write",
+        content: serialize(envelope),
+        result: { status: "ok", value: restored },
+      };
+    },
+  );
+}
+
 /** Repository-common immutable-current plan adapter. */
 export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPlan> {
   constructor(
@@ -292,6 +338,24 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
 /** Repository-common revision-checked delivery-state adapter. */
 export class RepositoryDeliveryStateStore implements DeliveryStateStore<DeliveryStateV1> {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
+
+  /** Restore one exact generation without overwriting different local state. */
+  async restoreExact(
+    planId: string,
+    record: DeliveryRevisionedRecord<DeliveryStateV1>,
+  ): Promise<DeliveryStoreResult<
+    DeliveryRevisionedRecord<DeliveryStateV1>,
+    DeliveryStateStoreFailure
+  >> {
+    return restoreExactRevisionedRecord(
+      this.publisher,
+      STATE_LOCATION,
+      STATE_SEMANTICS,
+      DeliveryStateV1Codec,
+      planId,
+      record,
+    );
+  }
 
   async read(
     planId: string,

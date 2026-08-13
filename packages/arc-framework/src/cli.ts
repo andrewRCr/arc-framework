@@ -53,6 +53,12 @@ import {
   type DeliveryPlanFromBranchOptions,
   type DeliveryPlanFromTasksOptions,
 } from "./handlers/delivery.js";
+import {
+  handleDeliveryTransferExport,
+  handleDeliveryTransferImport,
+  type DeliveryTransferExportOptions,
+  type DeliveryTransferImportOptions,
+} from "./handlers/delivery-transfer.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -690,6 +696,30 @@ deliveryPlan
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, opts: DeliveryPlanAbandonOptions) => handleDeliveryPlanAbandon(opts, context),
+  ));
+
+const deliveryTransfer = delivery
+  .command("transfer")
+  .description("Transfer exact delivery plan and state records between clones");
+
+deliveryTransfer
+  .command("export")
+  .description("Export the active work unit's exact delivery plan and state")
+  .option("--output <path>", "Write the transfer bundle to a new file")
+  .option("--json", "Emit the typed export result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryTransferExportOptions) => handleDeliveryTransferExport(opts, context),
+  ));
+
+deliveryTransfer
+  .command("import")
+  .description("Import an exact delivery plan and state for the active work unit")
+  .option("--input <path>", "Read the transfer bundle from a file")
+  .option("--json", "Emit the typed import result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: DeliveryTransferImportOptions) => handleDeliveryTransferImport(opts, context),
   ));
 
 // --- Lifecycle ---
