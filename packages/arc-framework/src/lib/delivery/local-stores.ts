@@ -259,6 +259,39 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
     return decodeRecord(raw, addressedPlanId, this.codec);
   }
 
+  /** Restore one self-valid exact current plan without requiring its predecessor history. */
+  async restoreExact(
+    planId: string,
+    plan: TPlan,
+  ): Promise<DeliveryStoreResult<{ readonly currentDigest: CanonicalDigest }, DeliveryPlanStoreFailure>> {
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    const proposed = this.codec.decode(plan);
+    if (proposed.status === "refused") return { status: "refused", reason: "record-malformed" };
+    if (this.codec.planId(proposed.value) !== addressedPlanId) {
+      return { status: "refused", reason: "identity-mismatch" };
+    }
+    const content = serialize(proposed.value);
+    const proposedDigest = this.codec.digest(proposed.value);
+    return this.publisher.update<DeliveryStoreResult<
+      { readonly currentDigest: CanonicalDigest },
+      DeliveryPlanStoreFailure
+    >>(PLAN_LOCATION, planRecordName(addressedPlanId), (raw) => {
+      if (raw === null) {
+        return {
+          kind: "write",
+          content,
+          result: { status: "ok", value: { currentDigest: proposedDigest } },
+        };
+      }
+      const current = decodeRecord(raw, addressedPlanId, this.codec);
+      if (current.status === "refused") return { kind: "keep", result: current };
+      return canonicalize(current.value) === canonicalize(proposed.value)
+        ? { kind: "keep", result: { status: "ok", value: { currentDigest: proposedDigest } } }
+        : { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+    });
+  }
+
   async publishCurrent(
     planId: string,
     plan: TPlan,

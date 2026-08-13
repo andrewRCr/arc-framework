@@ -17,6 +17,7 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
+  resolveForwardDeliverySubject,
 } from "../lib/delivery/plan-resolution.js";
 import type { DeliveryPlanV1 } from "../lib/delivery/schema.js";
 import {
@@ -182,6 +183,42 @@ export async function handleDeliveryTransferImport(
     });
     return;
   }
+  const bundleSubject = await resolveForwardDeliverySubject({
+    records: [bundle.data.plan],
+    currentWorkUnitId: context.workUnitId,
+    recordWorkUnitId: (plan) => plan.workUnitId,
+    authority: context.authority,
+    transitionSource: context.transitionSource,
+  });
+  if (bundleSubject.status === "indeterminate") {
+    emit("delivery transfer import", parsed.data.json === true, {
+      status: "refused",
+      reason: bundleSubject.reason,
+    });
+    return;
+  }
+  const currentSubjectPlan = await resolveExistingDeliveryPlan<DeliveryPlanV1>({
+    planStore: context.planStore,
+    currentWorkUnitId: context.workUnitId,
+    planWorkUnitId: (plan) => plan.workUnitId,
+    authority: context.authority,
+    transitionSource: context.transitionSource,
+  });
+  if (currentSubjectPlan.status === "indeterminate") {
+    emit("delivery transfer import", parsed.data.json === true, {
+      status: "refused",
+      reason: currentSubjectPlan.reason,
+    });
+    return;
+  }
+  if (currentSubjectPlan.status === "match"
+    && currentSubjectPlan.plan.planId !== bundle.data.plan.planId) {
+    emit("delivery transfer import", parsed.data.json === true, {
+      status: "refused",
+      reason: "destination-conflict",
+    });
+    return;
+  }
   const currentPlan = await context.planStore.readCurrent(bundle.data.plan.planId);
   const currentState = await context.stateStore.read(bundle.data.plan.planId);
   if (currentPlan.status === "refused" || currentState.status === "refused") {
@@ -191,7 +228,7 @@ export async function handleDeliveryTransferImport(
   }
   const admission = classifyDeliveryTransferImport({
     bundle: bundle.data,
-    currentWorkUnitId: context.workUnitId,
+    subjectMatches: bundleSubject.status === "match",
     currentPlan: currentPlan.value,
     currentState: currentState.value,
   });
@@ -199,23 +236,19 @@ export async function handleDeliveryTransferImport(
     emit("delivery transfer import", parsed.data.json === true, admission);
     return;
   }
-  // State-first leaves only an inert, idempotently retryable orphan if the process stops
-  // before the plan becomes discoverable; publishing the plan first would expose an incomplete delivery.
-  if (admission.writeState) {
-    const restored = await context.stateStore.restoreExact(bundle.data.plan.planId, bundle.data.state);
+  // Plan-first keeps state-member lookup free of transferred records until the plan is safely restorable.
+  // An interruption before state restoration leaves an idempotently retryable incomplete plan.
+  if (admission.writePlan) {
+    const restored = await context.planStore.restoreExact(bundle.data.plan.planId, bundle.data.plan);
     if (restored.status === "refused") {
       emit("delivery transfer import", parsed.data.json === true, restored);
       return;
     }
   }
-  if (admission.writePlan) {
-    const published = await context.planStore.publishCurrent(
-      bundle.data.plan.planId,
-      bundle.data.plan,
-      null,
-    );
-    if (published.status === "refused") {
-      emit("delivery transfer import", parsed.data.json === true, published);
+  if (admission.writeState) {
+    const restored = await context.stateStore.restoreExact(bundle.data.plan.planId, bundle.data.state);
+    if (restored.status === "refused") {
+      emit("delivery transfer import", parsed.data.json === true, restored);
       return;
     }
   }

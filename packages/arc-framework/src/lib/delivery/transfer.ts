@@ -63,13 +63,13 @@ export type ClassifyDeliveryTransferImportResult =
 /** Admit only a fresh destination or the exact same plan/state generation. */
 export function classifyDeliveryTransferImport(input: {
   readonly bundle: DeliveryTransferBundleV1;
-  readonly currentWorkUnitId: string;
+  readonly subjectMatches: boolean;
   readonly currentPlan: DeliveryPlanV1 | null;
   readonly currentState: DeliveryRevisionedRecord<DeliveryStateV1> | null;
 }): ClassifyDeliveryTransferImportResult {
   const built = buildDeliveryTransferBundle({ plan: input.bundle.plan, state: input.bundle.state });
   if (built.status === "refused") return built;
-  if (built.bundle.plan.workUnitId !== input.currentWorkUnitId) {
+  if (!input.subjectMatches) {
     return { status: "refused", reason: "subject-mismatch" };
   }
   const planMatches = input.currentPlan === null

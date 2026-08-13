@@ -45,21 +45,21 @@ describe("delivery state transfer", () => {
 
     expect(classifyDeliveryTransferImport({
       bundle: built.bundle,
-      currentWorkUnitId: plan.workUnitId,
+      subjectMatches: true,
       currentPlan: null,
       currentState: null,
     })).toEqual({ status: "ready", writePlan: true, writeState: true });
 
     expect(classifyDeliveryTransferImport({
       bundle: built.bundle,
-      currentWorkUnitId: plan.workUnitId,
+      subjectMatches: true,
       currentPlan: plan,
       currentState: state,
     })).toEqual({ status: "already-current", writePlan: false, writeState: false });
 
     expect(classifyDeliveryTransferImport({
       bundle: built.bundle,
-      currentWorkUnitId: plan.workUnitId,
+      subjectMatches: true,
       currentPlan: plan,
       currentState: { revision: 6, value: state.value },
     })).toEqual({ status: "refused", reason: "destination-conflict" });
@@ -75,7 +75,7 @@ describe("delivery state transfer", () => {
 
     expect(classifyDeliveryTransferImport({
       bundle: built.bundle,
-      currentWorkUnitId: "another-work-unit",
+      subjectMatches: false,
       currentPlan: null,
       currentState: null,
     })).toEqual({ status: "refused", reason: "subject-mismatch" });
