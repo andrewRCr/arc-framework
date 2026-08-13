@@ -429,17 +429,15 @@ bind/gate/settle semantics; what relocates is the sequencing around it and the r
 workflow-wide prose invariant into the verb's exit paths. The `Coverage` cut lands here whole: it is a pure
 field-scoped deletion, not gated on the Phase 6 rewrite.
 
-### `[ ]` **5.1 Execute persisted review settlements idempotently**
+### `[x]` **5.1 Execute persisted review settlements idempotently**
 
 - _Goal:_ Only the approved disposition set settles — the persisted plan is the sole source, execution is
   idempotent, and anything missing, stale, ambiguous, or actor-mismatched invalidates before release or merge.
 
-    - `[ ]` **5.1.a Idempotent execution through existing settlement APIs**
-        - executes through `arc review hosted settle` / `arc review respond`; `settled` and
-          `already-settled` continue; the plan is never rebuilt from mutable threads or agent narration
-        - Build `test-first` (one behavior at a time):
-            - re-execution after partial settlement completes without duplicate side effects
-            - each invalidation class (missing, stale, ambiguous, actor-mismatched) returns before release
+    - `[x]` **5.1.a Idempotent execution through existing settlement APIs**
+        - Executes the persisted canonical plan in order through the hosted-settlement and review-response APIs;
+          replay accepts already-settled actions, and missing, stale, ambiguous, or actor-mismatched evidence
+          invalidates before any later action runs.
 
 ### `[ ]` **5.2 Release the lock, await required checks, revalidate policy and drift, merge pinned**
 
