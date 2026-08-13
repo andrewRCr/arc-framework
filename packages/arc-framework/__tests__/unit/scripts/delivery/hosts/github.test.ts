@@ -12,7 +12,7 @@ function pull(overrides: Record<string, unknown> = {}) {
   return {
     number: 401,
     state: "open",
-    merged: false,
+    merged_at: null,
     draft: true,
     head: { ref: "delivery/example/first", sha: headSha, repo: { full_name: repository } },
     base: { ref: "main", repo: { full_name: repository } },
@@ -49,7 +49,10 @@ describe("GhDeliveryHostPort", () => {
     const nativeRunner: HostedProcessRunner = {
       run: async (args) => {
         calls.push(args);
-        if (args.includes("--method")) return { stdout: JSON.stringify({ number: 9 }), stderr: "" };
+        if (args.includes("-f") && !args.includes("--method")) {
+          throw new HostedProcessError("request defaulted to POST", "", 1, 422);
+        }
+        if (args.includes("POST")) return { stdout: JSON.stringify({ number: 9 }), stderr: "" };
         return { stdout: JSON.stringify([{ number: 9, pull_requests: [
           { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
           { number: 402, head: { ref: "delivery/example/second", sha: "b".repeat(40) }, base: { ref: "delivery/example/first" } },
@@ -59,7 +62,9 @@ describe("GhDeliveryHostPort", () => {
     const port = new GhDeliveryHostPort(nativeRunner);
     await expect(port.observe(nativeInput)).resolves.toEqual({ status: "registered", stackNumber: 9 });
     await expect(port.link(nativeInput)).resolves.toEqual({ status: "submitted" });
-    expect(calls[0]).toEqual(["api", `repos/${repository}/stacks`, "-f", "pull_request=401"]);
+    expect(calls[0]).toEqual([
+      "api", `repos/${repository}/stacks`, "--method", "GET", "-f", "pull_request=401",
+    ]);
     expect(calls[1]).toEqual([
       "api", `repos/${repository}/stacks`, "--method", "POST",
       "-f", "pull_requests[]=401", "-f", "pull_requests[]=402",
@@ -154,6 +159,23 @@ describe("GhDeliveryHostPort", () => {
     await expect(new GhDeliveryHostPort(runner([pull({
       head: { ref: "delivery/example/first", sha: headSha, repo: { full_name: "fork/example" } },
     })])).observeRequest(effect())).resolves.toEqual({ status: "refused", reason: "foreign" });
+  });
+
+  it("observes request absence through an explicit GET and owner-qualified head filter", async () => {
+    const request = effect();
+    const queryRunner: HostedProcessRunner = {
+      run: async (args) => {
+        if (args.includes("-f") && !args.includes("--method")) {
+          throw new HostedProcessError("request defaulted to POST", "", 1, 422);
+        }
+        const owner = repository.slice(0, repository.indexOf("/"));
+        const response = args.includes(`head=${owner}:${request.headRef}`) ? [] : [pull()];
+        return { stdout: JSON.stringify(response), stderr: "" };
+      },
+    };
+
+    await expect(new GhDeliveryHostPort(queryRunner).observeRequest(request))
+      .resolves.toEqual({ status: "absent" });
   });
 
   it("maps each configured merge strategy to one exact head-matched mutation", async () => {

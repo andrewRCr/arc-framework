@@ -50,9 +50,12 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const baseRepository = record(base?.repo);
   const number = request?.number;
   const state = request?.state;
-  if (!Number.isSafeInteger(number) || (number as number) <= 0
+  const merged = request?.merged;
+  const mergedAt = request?.merged_at;
+  if (request === null || !Number.isSafeInteger(number) || (number as number) <= 0
     || (state !== "open" && state !== "closed")
-    || typeof request?.merged !== "boolean"
+    || (merged !== undefined && typeof merged !== "boolean")
+    || (mergedAt !== undefined && mergedAt !== null && (typeof mergedAt !== "string" || mergedAt === ""))
     || typeof request.draft !== "boolean"
     || typeof head?.ref !== "string" || head.ref === ""
     || typeof head.sha !== "string" || !objectId.test(head.sha)
@@ -66,7 +69,7 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
     headRef: head.ref,
     headSha: head.sha,
     baseRef: base.ref,
-    state: request.merged ? "merged" : state,
+    state: merged === true || typeof mergedAt === "string" ? "merged" : state,
     draft: request.draft,
   };
 }
@@ -97,7 +100,8 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
   async observe(input: DeliveryNativeStackInput): Promise<DeliveryNativeStackObservation> {
     try {
       const result = await this.runner.run([
-        "api", `repos/${input.repository}/stacks`, "-f", `pull_request=${input.members[0]?.changeRequestId ?? ""}`,
+        "api", `repos/${input.repository}/stacks`, "--method", "GET",
+        "-f", `pull_request=${input.members[0]?.changeRequestId ?? ""}`,
       ]);
       const decoded = parse(result.stdout);
       if (!Array.isArray(decoded)) return { status: "malformed" };
@@ -226,10 +230,14 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
   }
 
   async observeRequest(effect: DeliveryPublishEffectV1): Promise<DeliveryHostRequestObservation> {
+    const [owner, name, ...extra] = effect.repository.split("/");
+    if (owner === undefined || owner === "" || name === undefined || name === "" || extra.length > 0) {
+      return { status: "refused", reason: "malformed" };
+    }
     try {
       const result = await this.runner.run([
-        "api", `repos/${effect.repository}/pulls`,
-        "-f", "state=all", "-f", `head=${effect.headRef}`, "-f", `base=${effect.baseRef}`,
+        "api", `repos/${effect.repository}/pulls`, "--method", "GET",
+        "-f", "state=all", "-f", `head=${owner}:${effect.headRef}`, "-f", `base=${effect.baseRef}`,
       ]);
       const decoded = parse(result.stdout);
       return Array.isArray(decoded) ? exactObservation(decoded, effect) : { status: "refused", reason: "malformed" };

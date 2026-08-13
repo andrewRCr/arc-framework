@@ -304,6 +304,13 @@ export async function reconcileDeliveryExecution(input: {
   }
   const reconciled = reconcileDeliveryOperation(input.current, observed.value);
   if (reconciled.status === "retry") {
+    const cleared = await input.stateStore.publish(input.planId, {
+      ...input.current.value,
+      activeOperation: null,
+    }, input.current.revision);
+    if (cleared.status !== "ok") {
+      return { status: "blocked", guidance: "Retry-state persistence failed; retain and reconcile the reservation." };
+    }
     return {
       status: "retryable",
       guidance: input.current.value.activeOperation?.kind === "land"

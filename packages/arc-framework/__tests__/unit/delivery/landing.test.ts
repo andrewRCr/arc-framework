@@ -309,7 +309,7 @@ describe("delivery landing", () => {
     })).resolves.toEqual({ status: "refused" });
   });
 
-  it("retains attended authorization out of state and routes nonapplication back through prepare", async () => {
+  it("clears a proven non-applied reservation and routes attended landing back through prepare", async () => {
     const { plan, state } = boundState();
     const deps = boundaries(state);
     const persisted: Array<{ revision: number; value: DeliveryStateV1 }> = [];
@@ -334,16 +334,55 @@ describe("delivery landing", () => {
     expect(prepared.status).toBe("prepared");
     const [current] = persisted;
     if (current === undefined) throw new Error("fixture must persist");
+    const retryStates: DeliveryStateV1[] = [];
     await expect(reconcileDeliveryExecution({
       planId: plan.planId,
       current,
       observation: { observe: async () => ({ status: "observed" as const, value: { outcome: "not-applied" } }) },
-      stateStore: { publish: async () => { throw new Error("must retain reservation"); } },
+      stateStore: { publish: async (_planId, value) => {
+        retryStates.push(value);
+        return { status: "ok" as const, value: { revision: current.revision + 1, value } };
+      } },
     })).resolves.toEqual({
       status: "retryable",
       guidance: "Prepare the exact landing again and re-fire its integration interlock.",
     });
+    expect(retryStates).toHaveLength(1);
+    expect(retryStates[0]?.activeOperation).toBeNull();
     expect(JSON.stringify(current.value)).not.toMatch(/approval|reviewVerdict/u);
+  });
+
+  it("blocks when a proven non-applied reservation cannot be cleared durably", async () => {
+    const { plan, state } = boundState();
+    const deps = boundaries(state);
+    let current: { revision: number; value: DeliveryStateV1 } | null = null;
+    await prepareDeliveryLanding({
+      plan,
+      current: { revision: 7, value: state },
+      facts: facts(state),
+      selectedDeliverableId: state.members[0]!.deliverableId,
+      repository: "andrewRCr/arc-framework",
+      baseRef: "refs/heads/main",
+      targetRef: "refs/heads/main",
+      mergeStrategy: "merge",
+      releaseMergeLock: false,
+      stateStore: { publish: async (_planId, value) => {
+        current = { revision: 8, value };
+        return { status: "ok" as const, value: current };
+      } },
+      host: deps.host,
+      readiness: deps.readiness,
+    });
+    if (current === null) throw new Error("fixture must reserve");
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current,
+      observation: { observe: async () => ({ status: "observed" as const, value: { outcome: "not-applied" } }) },
+      stateStore: { publish: async () => ({ status: "refused" as const, reason: "version-conflict" as const }) },
+    })).resolves.toEqual({
+      status: "blocked",
+      guidance: "Retry-state persistence failed; retain and reconcile the reservation.",
+    });
   });
 
   it("blocks unavailable recovery evidence and retains the reservation", async () => {
