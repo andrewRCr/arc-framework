@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 4 — Integration checkpoint composition (Tasks 4.1–4.4)
-- **Next Task:** Task 5.1 — Execute persisted review settlements idempotently (line ~432)
+- **Last Completed:** Phase 6 — Workflow convergence (Tasks 6.1–6.7)
+- **Next Task:** Task 7.1 — Complete verification (line ~603)
 - **Blockers:** [none] — integration (not planning or implementation) waits on `delivery-stack-topology`
 
-- **Next Action:** Begin Task 5.1.a — execute persisted review settlements through the existing settlement APIs
+- **Next Action:** Start Task 7.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
