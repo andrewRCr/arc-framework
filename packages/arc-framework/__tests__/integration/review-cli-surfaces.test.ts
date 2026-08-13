@@ -44,6 +44,7 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.stdout).toContain("readiness");
     expect(reviewHelp.stdout).toContain("planning-lane");
     expect(reviewHelp.stdout).toContain("change-request");
+    expect(reviewHelp.stdout).toContain("merge-method");
     expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
     expect(reviewHelp.stdout).toContain("hosted");
     expect(reviewHelp.stdout).not.toContain("unlock");

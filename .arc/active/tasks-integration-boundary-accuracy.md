@@ -284,23 +284,21 @@ Stack member `integration-review-primitives`; independently landable. Spec eleme
 - _Outcome:_ One GitHub-backed resolver now answers creation, reuse, completion, reconcile, reopen, and stop
   decisions without treating the invoking checkout's ref freshness as host truth.
 
-### `[ ]` **3.2 Resolve the configured merge method against live repository policy**
+### `[x]` **3.2 Resolve the configured merge method against live repository policy**
 
 - _Goal:_ No lane discovers a disallowed merge method by attempting the merge: one resolution logic serves the
   errand pre-arm, the checkpoint, and the merge-time revalidation.
 
-    - `[ ]` **3.2.a `arc review merge-method resolve --json`**
-        - derives the repository and configured `merge.strategy`, reads the live ruleset, returns
-          `validated / use-method` with the method plus a policy fingerprint, or `blocked / stop` naming the
-          configured and allowed values — never a silent substitution
-        - Build `test-first` (one behavior at a time):
-            - an allowed configured method validates with a fingerprint
-            - a disallowed configured method blocks naming both values
-            - an unreadable ruleset returns `blocked / stop`, never a fallback method
+    - `[x]` **3.2.a `arc review merge-method resolve --json`**
+        - Added a command that derives the repository and configured method, reads GitHub's live merge-policy
+          booleans, and returns either a fingerprinted validation or a typed stop without substitution.
 
-    - `[ ]` **3.2.b Fingerprint drift detection**
-        - a changed policy between two resolutions yields a different fingerprint (the merge verb's equality
-          check keys on it)
+    - `[x]` **3.2.b Fingerprint drift detection**
+        - The canonical fingerprint covers repository identity and the ordered allowed-method set, and changes
+          whenever that live policy projection changes.
+
+- _Outcome:_ The errand, checkpoint, and merge lanes can share one fail-closed merge-method decision and compare
+  its live policy identity across resolutions.
 
 ### `[ ]` **3.3 Extract the provider-neutral bounded wait primitive**
 

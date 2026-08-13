@@ -140,10 +140,12 @@ import {
   handleReviewLocalResume,
   handleReviewPlanningLane,
   handleReviewChangeRequestResolve,
+  handleReviewMergeMethodResolve,
   handleReviewReduce,
   handleReviewRespond,
   type ReviewPlanningLaneOptions,
   type ReviewChangeRequestResolveOptions,
+  type ReviewMergeMethodResolveOptions,
 } from "./handlers/review.js";
 import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
@@ -1244,6 +1246,14 @@ reviewCmd
   .requiredOption("--head-sha <oid>", "Exact 40-hex proposed head")
   .requiredOption("--json", "Emit a typed JSON result")
   .action((options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options));
+
+reviewCmd
+  .command("merge-method")
+  .description("Configured merge-method operations")
+  .command("resolve")
+  .description("Validate the configured method against live repository policy")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action((options: ReviewMergeMethodResolveOptions) => handleReviewMergeMethodResolve(options));
 
 reviewCmd
   .command("readiness")

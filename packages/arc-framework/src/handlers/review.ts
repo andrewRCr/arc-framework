@@ -143,6 +143,12 @@ import {
   type ChangeRequestResolveResult,
 } from "../scripts/review-gate/change-request.js";
 import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
+import {
+  MergeMethodSchema,
+  resolveMergeMethod,
+  type MergeMethodResolveResult,
+} from "../scripts/review-gate/merge-method.js";
+import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 
 /**
  * Build the request-source operand schema owned by one review command.
@@ -261,6 +267,34 @@ export async function handleReviewChangeRequestResolve(
   }
   const result = await dependencies.resolve(parsed.data, process.cwd());
   dependencies.write(`${JSON.stringify(result)}\n`);
+}
+
+export interface ReviewMergeMethodResolveOptions {
+  json?: boolean;
+}
+
+export interface ReviewMergeMethodResolveHandlerDependencies {
+  readConfiguredMethod(cwd: string): Promise<"merge" | "rebase" | "squash">;
+  resolve(method: "merge" | "rebase" | "squash"): Promise<MergeMethodResolveResult>;
+  write(text: string): void;
+}
+
+/** Validate the configured merge method against live repository policy. */
+export async function handleReviewMergeMethodResolve(
+  _options: ReviewMergeMethodResolveOptions,
+  overrides: Partial<ReviewMergeMethodResolveHandlerDependencies> = {},
+): Promise<void> {
+  const port = createGhMergeMethodPolicyPort(hostedGhRunner);
+  const dependencies: ReviewMergeMethodResolveHandlerDependencies = {
+    readConfiguredMethod: async (cwd) => MergeMethodSchema.parse(
+      (await readConfigSettings(cwd)).settings["merge.strategy"],
+    ),
+    resolve: (method) => resolveMergeMethod(method, port),
+    write: (text) => process.stdout.write(text),
+    ...overrides,
+  };
+  const configuredMethod = await dependencies.readConfiguredMethod(process.cwd());
+  dependencies.write(`${JSON.stringify(await dependencies.resolve(configuredMethod))}\n`);
 }
 
 /** Input and interaction policies owned by the review command adapters. */

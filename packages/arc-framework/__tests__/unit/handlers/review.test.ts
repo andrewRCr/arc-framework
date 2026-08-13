@@ -16,6 +16,7 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewMergeMethodResolve,
   handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
@@ -99,6 +100,32 @@ const frontlineRunRequest = {
     },
   },
 };
+
+describe("handleReviewMergeMethodResolve", () => {
+  it("emits the live validation result for the configured method", async () => {
+    const write = vi.fn();
+    await handleReviewMergeMethodResolve({ json: true }, {
+      readConfiguredMethod: async () => "squash",
+      resolve: async (method) => ({
+        schemaVersion: 1,
+        mode: "review-merge-method-resolve",
+        repository: "owner/repo",
+        state: "validated",
+        nextAction: "use-method",
+        method,
+        allowedMethods: ["merge", "squash"],
+        policyFingerprint: `sha256:${"a".repeat(64)}`,
+      }),
+      write,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "validated",
+      nextAction: "use-method",
+      method: "squash",
+    });
+  });
+});
 const localAttestRequest = {
   schemaVersion: 1,
   operationId: "local-operation",
