@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 describe("delivery execution handler", () => {
   it("preserves a prepared service result through the strict verb envelope", async () => {
@@ -56,15 +57,53 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(firstWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-command-input");
 
     const secondWrite = vi.fn();
+    const state = deliveryStateFixture();
     await handleDeliveryExecution("position", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
-        planId: "123e4567-e89b-42d3-a456-426614174000", facts: {},
+        planId: state.planId,
+        facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
       })),
       execute: vi.fn().mockResolvedValue({ status: "invented" }),
       write: secondWrite,
       setExitCode: vi.fn(),
     });
     expect(JSON.parse(secondWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-service-result");
+  });
+
+  it("keeps read and execution failures inside the command envelope", async () => {
+    const readExecute = vi.fn();
+    const readWrite = vi.fn();
+    const readExit = vi.fn();
+    await handleDeliveryExecution("position", { input: "-" }, undefined, {
+      readText: vi.fn().mockRejectedValue(new Error("read failed")),
+      execute: readExecute,
+      write: readWrite,
+      setExitCode: readExit,
+    });
+    expect(readExecute).not.toHaveBeenCalled();
+    expect(JSON.parse(readWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+    expect(readExit).toHaveBeenCalledWith(1);
+
+    const state = deliveryStateFixture();
+    const executeWrite = vi.fn();
+    const executeExit = vi.fn();
+    await handleDeliveryExecution("position", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+      })),
+      execute: vi.fn().mockRejectedValue(new Error("execution failed")),
+      write: executeWrite,
+      setExitCode: executeExit,
+    });
+    expect(JSON.parse(executeWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "execution-unavailable",
+    });
+    expect(executeExit).toHaveBeenCalledWith(1);
   });
 
   it("preserves the native none-landed retry envelope", async () => {
@@ -133,6 +172,7 @@ describe("delivery execution handler", () => {
       status: "refused",
       reason: "invalid-command-input",
     });
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("accepts only raw candidate refs and checkout locators for mutation", async () => {

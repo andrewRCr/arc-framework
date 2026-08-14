@@ -365,7 +365,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
         },
       },
     }));
-    expect(healthy.match(new RegExp(line, "gu"))).toHaveLength(1);
+    expect(healthy.split(line)).toHaveLength(2);
     expect(healthy).toContain("Delivery:");
 
     const silent = buildSessionInitStatusSummary(makeSessionInitResult({

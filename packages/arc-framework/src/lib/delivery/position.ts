@@ -23,6 +23,25 @@ export const DeliveryPositionFactsV1Schema = DeliveryOperationSnapshotV1Schema.e
 });
 export type DeliveryPositionFactsV1 = z.infer<typeof DeliveryPositionFactsV1Schema>;
 
+/**
+ * Resolve the exact predecessor head for one observed member.
+ *
+ * @param facts - Fresh exact delivery-position facts.
+ * @param memberIndex - Zero-based member position in plan order.
+ * @returns The predecessor head, or null when an unlanded predecessor has no coordinates.
+ */
+export function resolveDeliveryPredecessorHead(
+  facts: DeliveryPositionFactsV1,
+  memberIndex: number,
+): string | null {
+  const targetHead = facts.target?.coordinates?.head ?? null;
+  if (memberIndex === 0) return targetHead;
+  const previous = facts.members[memberIndex - 1];
+  if (previous === undefined) return null;
+  if (previous.coordinates !== null) return previous.coordinates.head;
+  return facts.landedDeliverableIds.includes(previous.deliverableId) ? targetHead : null;
+}
+
 /** Current labels derived from plan order, state bindings, and host facts. */
 export interface DeliveryPositionV1 {
   readonly landedPrefix: readonly CanonicalDigest[];

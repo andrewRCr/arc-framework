@@ -4,6 +4,7 @@ import {
   assessDeliveryMemberReadiness,
   deriveDeliveryPosition,
   recognizeDeliverySuffixRetarget,
+  resolveDeliveryPredecessorHead,
   type DeliveryPositionFactsV1,
 } from "../../../src/lib/delivery/position.js";
 import { deriveDeliveryPlanDigest } from "../../../src/lib/delivery/plan.js";
@@ -32,6 +33,19 @@ function positionFacts(
 }
 
 describe("deriveDeliveryPosition", () => {
+  it("uses the target only for a coordinate-free predecessor already known landed", () => {
+    const state = deliveryStateFixture();
+    const first = state.members[0]!;
+    const facts = positionFacts(state);
+    facts.members[0] = { ...facts.members[0]!, coordinates: null };
+
+    expect(resolveDeliveryPredecessorHead(facts, 1)).toBeNull();
+    expect(resolveDeliveryPredecessorHead({
+      ...facts,
+      landedDeliverableIds: [first.deliverableId],
+    }, 1)).toBe(state.target!.coordinates!.head);
+  });
+
   it("derives the landed prefix, first unlanded member, and bound suffix", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);

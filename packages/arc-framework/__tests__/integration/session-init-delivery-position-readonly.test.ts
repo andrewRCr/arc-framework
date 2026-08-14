@@ -73,6 +73,7 @@ describe("session-init delivery position — read-only Git common state", () => 
             status: "observed",
             facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
             operationObservation: null,
+            projectedState: state,
           }),
         })).resolves.toMatchObject({
           status: "ok",

@@ -4,7 +4,10 @@ import {
   inspectDeliveryEntry,
   inspectDeliveryPlanLocus,
 } from "../../../src/lib/delivery/entry-inspection.js";
-import { renderDeliveryPlanSection } from "../../../src/lib/delivery/task-list-render.js";
+import {
+  DELIVERY_PLAN_START_SENTINEL,
+  renderDeliveryPlanSection,
+} from "../../../src/lib/delivery/task-list-render.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -16,6 +19,7 @@ function dependencies(input: {
   taskList?: string;
   resolvedPlan?: typeof plan | null | "indeterminate";
   authoring?: "match" | "no-match" | "indeterminate";
+  authoringPlanDigest?: string | null;
   state?: ReturnType<typeof deliveryStateFixture> | null | "refused";
 } = {}) {
   return {
@@ -28,7 +32,11 @@ function dependencies(input: {
     resolveAuthoring: vi.fn().mockResolvedValue(input.authoring === "indeterminate"
       ? { status: "indeterminate" }
       : input.authoring === "match"
-        ? { status: "match", mapId: "map-1" }
+        ? {
+            status: "match",
+            mapId: "map-1",
+            candidatePlanDigest: input.authoringPlanDigest ?? null,
+          }
         : { status: "no-match" }),
     readState: vi.fn().mockResolvedValue(input.state === "refused"
       ? { status: "refused" }
@@ -49,6 +57,17 @@ describe("delivery entry inspection", () => {
       `${prefix}## Delivery Plan\n\nFirst.\n\n## Delivery Plan\n\nSecond.\n\n${suffix}`,
       null,
     )).toEqual({ status: "refused", reason: "delivery-locus-duplicate" });
+    expect(inspectDeliveryPlanLocus(
+      `${prefix}${DELIVERY_PLAN_START_SENTINEL}\n## Delivery Plan\n\n${suffix}`,
+      null,
+    )).toEqual({ status: "refused", reason: "delivery-locus-malformed" });
+    expect(inspectDeliveryPlanLocus(
+      `${prefix}${renderDeliveryPlanSection(plan).replace(
+        "<!-- arc:delivery-plan:end -->",
+        "Unexpected projection bytes.\n<!-- arc:delivery-plan:end -->",
+      )}${suffix}`,
+      plan,
+    )).toEqual({ status: "refused", reason: "canonical-projection-mismatch" });
   });
 
   it("routes attended absence and reviewed provisional intent with honest precomposed cost", async () => {
@@ -97,19 +116,54 @@ describe("delivery entry inspection", () => {
       .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
   });
 
+  it("recovers a canonical plan only from its exact authoring receipt", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      boundaryDisposition: "delivery-candidate",
+      provisionalDisposition: "not-applicable",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      authoring: "match",
+      authoringPlanDigest: plan.planDigest,
+    }))).resolves.toMatchObject({
+      status: "canonicalize-provisional",
+      authoringMapId: "map-1",
+    });
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      boundaryDisposition: "delivery-candidate",
+      provisionalDisposition: "not-applicable",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      authoring: "match",
+      authoringPlanDigest: `sha256:${"0".repeat(64)}`,
+    }))).resolves.toMatchObject({ status: "refused", reason: "evidence-conflict" });
+  });
+
   it("refuses ambiguity, incoherence, and unconfirmed provisional prose rather than treating them as absence", async () => {
-    for (const deps of [
+    const cases = [
       dependencies({ resolvedPlan: "indeterminate" }),
       dependencies({ authoring: "indeterminate" }),
       dependencies({ taskList: `${prefix}## Delivery Plan\n\nUnconfirmed.\n\n${suffix}` }),
       dependencies({ taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}` }),
-    ]) {
+    ];
+    const reasons = [
+      "evidence-unavailable",
+      "evidence-unavailable",
+      "provisional-unconfirmed",
+      "canonical-plan-missing",
+    ];
+    for (const [index, deps] of cases.entries()) {
       const result = await inspectDeliveryEntry({
         workUnitId: plan.workUnitId,
         boundaryDisposition: "delivery-candidate",
         provisionalDisposition: "not-applicable",
       }, deps);
-      expect(result.status).toBe("refused");
+      expect(result).toMatchObject({ status: "refused", reason: reasons[index] });
     }
   });
 

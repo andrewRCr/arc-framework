@@ -25,7 +25,7 @@ describe("delivery lifecycle attachment ownership", () => {
 
     const attachment = "Invoke the typed delivery terminal post-merge attachment exactly once";
     const attachmentIndex = integrate.indexOf(attachment);
-    expect(integrate.match(new RegExp(attachment, "gu"))).toHaveLength(1);
+    expect(integrate.split(attachment)).toHaveLength(2);
     expect(attachmentIndex).toBeGreaterThan(phaseTwo);
     expect(attachmentIndex).toBeLessThan(integrate.indexOf("arc user close", attachmentIndex));
   });

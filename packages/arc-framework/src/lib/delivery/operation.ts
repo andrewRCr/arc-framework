@@ -62,6 +62,14 @@ const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outc
   z.strictObject({ outcome: z.literal("not-applied") }),
   z.strictObject({ outcome: z.literal("ambiguous") }),
 ]);
+/** Host-assigned observation used to reconcile an interrupted publish or land. */
+export type DeliveryHostReconciliationObservationV1 = z.infer<
+  typeof DeliveryHostReconciliationObservationV1Schema
+>;
+/** Exact observation accepted by delivery-operation reconciliation. */
+export type DeliveryOperationReconciliationObservationV1 =
+  | DeliveryOperationSnapshotV1
+  | DeliveryHostReconciliationObservationV1;
 
 /** Closed failures while reserving the single delivery-operation slot. */
 export type ReserveDeliveryOperationFailure =

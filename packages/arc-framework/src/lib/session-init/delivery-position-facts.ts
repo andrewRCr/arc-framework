@@ -4,7 +4,10 @@ import { canonicalize } from "../kernel/index.js";
 import type { GitExec } from "../git/exec.js";
 import { observeDeliveryEligibilityRef } from "../delivery/git-eligibility.js";
 import type { DeliveryHostPort } from "../delivery/host.js";
-import { reconcileDeliveryOperation } from "../delivery/operation.js";
+import {
+  reconcileDeliveryOperation,
+  type DeliveryOperationReconciliationObservationV1,
+} from "../delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../delivery/position.js";
 import type {
   DeliveryOperationSnapshotV1,
@@ -86,10 +89,13 @@ async function observeOperation(
   state: DeliveryStateV1,
   revision: number,
   dependencies: DeliveryPositionFactsDependencies,
-): Promise<{ readonly observation: unknown; readonly projected: DeliveryStateV1 } | null> {
+): Promise<{
+  readonly observation: DeliveryOperationReconciliationObservationV1 | null;
+  readonly projected: DeliveryStateV1;
+} | null> {
   const operation = state.activeOperation;
   if (operation === null) return { observation: null, projected: state };
-  let observation: unknown;
+  let observation: DeliveryOperationReconciliationObservationV1;
   if (operation.kind === "publish") {
     const request = await dependencies.host.observeRequest(operation.effect);
     if (request.status === "absent") {
@@ -212,5 +218,10 @@ export async function observeRepositoryDeliveryPosition(
   const facts = await observeFacts(plan, operation.projected, dependencies);
   return facts === null
     ? { status: "refused" }
-    : { status: "observed", facts, operationObservation: operation.observation };
+    : {
+        status: "observed",
+        facts,
+        operationObservation: operation.observation,
+        projectedState: operation.projected,
+      };
 }
