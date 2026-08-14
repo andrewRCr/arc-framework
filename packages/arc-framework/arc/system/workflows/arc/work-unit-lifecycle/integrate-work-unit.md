@@ -149,10 +149,21 @@ actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
 
 From the pushed branch, compose the immutable policy target
 `{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
-For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
-whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
-`arc review resolve -`. The chunking recommendation informs this bounded scope judgment — apply the
-[`review-chunking` method][review-chunking] to make it; the workflow never recomputes thresholds.
+Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
+selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` hold-whole decision stays
+silent while the current evidence is semantically unchanged; invocation, elapsed time, and restatement are not
+material deltas. Otherwise invoke `arc review chunking resolve -` once, including an existing exact-target
+`scopeSelection` when one exists, and retain its target statistics. Dispatch only on its closed pair:
+
+- `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
+  `evidence-unavailable / continue-review` — render no attention text and continue review.
+- `consider-chunks / select-review-scope` — render `recommendedActionText` verbatim, then apply the
+  [`review-chunking` method][review-chunking] to the bounded scope judgment.
+- `delivery-bound / continue-review` — render `recommendedActionText` verbatim and continue through the bound
+  delivery plan; never also offer chunked review.
+
+Select whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
+`arc review resolve -`. The workflow never recomputes thresholds or compares typed delivery state in prose.
 
 Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
 `nextAction` pair:
@@ -223,9 +234,10 @@ reviewing first would waste the pass; use an append-only merge, rerun Tier 1 gat
 without a permission stop. A conflict, material interaction, or uncertain product decision stops. This advisory
 never replaces Step 13's authoritative final drift read.
 
-For the opened target, rerun `arc review chunking resolve -` and invoke `arc review resolve -` for any incomplete
-lane. Follow the Step 3 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the selected
-provider, exact opened target, and `coverage: complete`:
+For the opened target, repeat Step 3's boundary-decision read before rerunning `arc review chunking resolve -`, then
+follow its closed attention dispatch and invoke `arc review resolve -` for any incomplete lane. On
+`ready / hosted-request`, invoke `arc review hosted request -` with the selected provider, exact opened target, and
+`coverage: complete`:
 
 - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use the bounded
   wait again when it returns `pending / await`; do not build an agent polling loop.

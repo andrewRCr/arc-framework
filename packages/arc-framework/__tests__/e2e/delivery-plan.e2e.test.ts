@@ -32,7 +32,7 @@ describe("arc delivery", () => {
 
   it("registers compose and plan abandon from the built entry point", async () => {
     await expect(runArc(["delivery", "plan", "from-tasks", "--help"], repository))
-      .resolves.toMatchObject({ exitCode: 0 });
+      .resolves.toMatchObject({ exitCode: 0, stdout: expect.stringContaining("--task-list <path>") });
     const branchHelp = await runArc(["delivery", "plan", "from-branch", "--help"], repository);
     expect(branchHelp).toMatchObject({ exitCode: 0 });
     expect(branchHelp.stdout).toContain("--base <commit-ish>");
@@ -50,6 +50,23 @@ describe("arc delivery", () => {
     });
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
+    const inventorySchema = await runArc([
+      "delivery", "plan", "inventory", "schema", "--json",
+    ], repository);
+    expect(inventorySchema.exitCode, inventorySchema.stderr).toBe(0);
+    expect(JSON.parse(inventorySchema.stdout)).toMatchObject({
+      command: "delivery plan inventory schema",
+      status: "ok",
+      value: {
+        id: "delivery-design-inventory-input",
+        version: 1,
+        schema: {
+          $id: "delivery-design-inventory-input.schema.json",
+          additionalProperties: false,
+          required: ["artifacts"],
+        },
+      },
+    });
   });
 
   it("validates design input before writing task-derived authoring state", async () => {
@@ -68,6 +85,89 @@ describe("arc delivery", () => {
       command: "delivery plan from-tasks",
       status: "refused",
       reason: "invalid-design-inventory",
+    });
+    const common = await gitCommonDir(repository);
+    await expect(readdir(join(common, "arc", "delivery", "authoring")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("accepts a coherent explicit task list before the meta pointer exists and refuses invalid loci", async () => {
+    await installTaskFixture(repository);
+    await writeDesignInventory(repository);
+    const metaPath = join(repository, ".arc", "active", "meta-demo.md");
+    const meta = await readFile(metaPath, "utf8");
+    await writeFile(metaPath, meta.replace("`tasks-demo.md`", "[none]"));
+
+    for (const candidate of [
+      resolve(repository, ".arc/active/tasks-demo.md"),
+      "../tasks-demo.md",
+      ".arc/active/tasks-other.md",
+    ]) {
+      const refused = await runArc([
+        "delivery", "plan", "from-tasks",
+        "--task-list", candidate,
+        "--design-inventory", "design-inventory.json",
+        "--json",
+      ], repository);
+      expect(refused.exitCode).toBe(1);
+      expect(JSON.parse(refused.stdout)).toMatchObject({
+        command: "delivery plan from-tasks",
+        status: "refused",
+        reason: "task-list-path-invalid",
+      });
+    }
+    const common = await gitCommonDir(repository);
+    await expect(readdir(join(common, "arc", "delivery", "authoring")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+
+    const taskPath = join(repository, ".arc", "active", "tasks-demo.md");
+    const taskList = await readFile(taskPath, "utf8");
+    await writeFile(taskPath, taskList.replace("`spec-demo.md`", "`spec-other.md`"));
+    const incoherent = await runArc([
+      "delivery", "plan", "from-tasks",
+      "--task-list", ".arc/active/tasks-demo.md",
+      "--design-inventory", "design-inventory.json",
+      "--json",
+    ], repository);
+    expect(incoherent.exitCode).toBe(1);
+    expect(JSON.parse(incoherent.stdout)).toMatchObject({
+      status: "refused",
+      reason: "task-list-design-incoherent",
+    });
+    await expect(readdir(join(common, "arc", "delivery", "authoring")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+
+    await writeFile(taskPath, taskList);
+    const authored = await runArc([
+      "delivery", "plan", "from-tasks",
+      "--task-list", ".arc/active/tasks-demo.md",
+      "--design-inventory", "design-inventory.json",
+      "--json",
+    ], repository);
+    expect(authored.exitCode, authored.stderr).toBe(0);
+    expect(JSON.parse(authored.stdout)).toMatchObject({
+      status: "ok",
+      value: { taskListPath: ".arc/active/tasks-demo.md" },
+    });
+  });
+
+  it("refuses a metadata-selected task list from another design", async () => {
+    await installTaskFixture(repository);
+    await writeDesignInventory(repository);
+    const taskPath = join(repository, ".arc", "active", "tasks-demo.md");
+    const taskList = await readFile(taskPath, "utf8");
+    await writeFile(taskPath, taskList.replace("`spec-demo.md`", "`spec-other.md`"));
+
+    const incoherent = await runArc([
+      "delivery", "plan", "from-tasks",
+      "--design-inventory", "design-inventory.json",
+      "--json",
+    ], repository);
+
+    expect(incoherent.exitCode).toBe(1);
+    expect(JSON.parse(incoherent.stdout)).toMatchObject({
+      status: "refused",
+      reason: "task-list-design-incoherent",
     });
     const common = await gitCommonDir(repository);
     await expect(readdir(join(common, "arc", "delivery", "authoring")))
@@ -657,11 +757,16 @@ async function installTaskFixture(repository: string, includeSecondTask = false)
     "",
     "- **State:** Active",
     "- **Branch:** feat/demo",
+    "- **Design:** `spec-demo.md`",
     "- **Task List:** `tasks-demo.md`",
     "",
   ].join("\n"));
   await writeFile(join(repository, ".arc", "active", "tasks-demo.md"), [
     "# Task List: Demo",
+    "",
+    "- **Design:** `spec-demo.md`",
+    "",
+    "---",
     "",
     "## Delivery Plan",
     "",

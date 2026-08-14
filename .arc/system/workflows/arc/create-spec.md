@@ -7,7 +7,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
-    - assess-cohort-fit
+    - assess-boundary-fit
     - assess-draft-readiness
     - assess-design-proportionality
     - spec-review
@@ -53,11 +53,18 @@ Make **one derivation-axis read**, then run [`resolve-planning-depth`][resolve-p
 `detailed`) — and confirming-or-ratcheting **`Class`** against that same read. The methods own how the read maps
 to a level, and the mid-stage re-entry valve.
 
-Off the same read, run [`assess-cohort-fit`][assess-cohort-fit] — the **upper-bound** confirm paired with
-`classify-work-unit`. By create-spec the design is settled, so this is where a holistic draft that has **matured
-into a cohort** reveals itself (the **emergent-decomposition** arm): if applying the orthogonality discriminator
-and the two guard rails cleanly cuts the concern into independently-deliverable members, route to
-`decompose-work-unit` rather than crystallizing a monolith spec. A single determinate concern clears it trivially.
+Off the same read, run [`assess-boundary-fit`][assess-boundary-fit] — the boundary confirm paired with
+`classify-work-unit`. Dispatch its one selected outcome before crystallizing the spec:
+
+| Outcome                                  | Owner                   | Action                                                                                                                                                        |
+| ---------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stays one WU`                           | Current authoring stage | Record outcome and evidence basis in existing spec decision prose; continue whole and stay silent while evidence is materially unchanged.                     |
+| `cut-map`                                | `decompose-work-unit`   | Route the complete cut-map before crystallizing a monolith; that workflow alone owns the transform.                                                           |
+| `stays one WU + delivery-plan candidate` | Current authoring stage | Record outcome and evidence basis in existing spec decision prose; make discovery and spec emission slice-aware without publishing or binding delivery state. |
+
+The selected result is sticky planning judgment. At later fire-points, compare the evidence semantically and
+re-raise only for a material new-evidence delta, never for mere invocation, elapsed time, or restatement. No CLI
+parser, fingerprint, schema, or new decision record is introduced.
 
 The richest evidence is the **`draft-*`** when one exists (from draft-design): read it as the primary input, and
 let its produced shape indicate the form — a rich, fully-shaped draft feeds `detailed`; a thin draft or a
@@ -330,7 +337,7 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [assess-design-proportionality]: ../../methods/assess-design-proportionality.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
-[assess-cohort-fit]: ../../methods/assess-cohort-fit.md
+[assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [spec-review]: ../../methods/spec-review.md
 [pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md

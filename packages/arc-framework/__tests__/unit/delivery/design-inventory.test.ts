@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   bindDesignInventory,
+  DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
+  registerDeliveryAuthoringSchemas,
   validateDesignElementCoverage,
 } from "../../../src/lib/delivery/design-inventory.js";
+import { createKernelRegistry, SchemaError } from "../../../src/lib/kernel/index.js";
 
 const digestA = `sha256:${"a".repeat(64)}`;
 const digestB = `sha256:${"b".repeat(64)}`;
@@ -19,6 +22,16 @@ function artifact(overrides: Record<string, unknown> = {}) {
 }
 
 describe("bindDesignInventory", () => {
+  it("registers the strict authoring input once with stable metadata", () => {
+    const registry = registerDeliveryAuthoringSchemas(createKernelRegistry());
+    expect(registry.meta(DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID)).toEqual({
+      id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
+      version: 1,
+      migrationPosture: "strict-current",
+    });
+    expect(() => registerDeliveryAuthoringSchemas(registry)).toThrowError(SchemaError);
+  });
+
   it.each([
     {},
     { artifacts: [] },

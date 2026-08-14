@@ -54,8 +54,8 @@ describe("validateConfigFile", () => {
       "PASS  platform.type: [absent, default: github]",
       "PASS  review.frontline_max_passes: 2",
       "PASS  review.standard_max_passes: 2",
-      "PASS  review.chunking_threshold_lines: 0",
-      "PASS  review.chunking_threshold_files: 0",
+      "PASS  changeset.advisory_threshold_lines: 0",
+      "PASS  changeset.advisory_threshold_files: 0",
       "PASS  pm.mode: [absent, default: none]",
       "PASS  team.mode: [absent, default: false]",
       "PASS  session.remote_sync: [absent, default: enabled]",
@@ -123,6 +123,22 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'unknown.two' (possible typo?)",
     ]);
     expect(result).toMatchObject({ passes: 29, warnings: 5, errors: 0, exitCode: 1 });
+  });
+
+  it("treats the former review-owned thresholds as unknown rather than aliases", async () => {
+    const result = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.chunking_threshold_lines: 5000",
+        "review.chunking_threshold_files: 150",
+      ].join("\n")),
+    });
+
+    expect(result.lines).toContain("WARN  Unknown key: 'review.chunking_threshold_lines' (possible typo?)");
+    expect(result.lines).toContain("WARN  Unknown key: 'review.chunking_threshold_files' (possible typo?)");
+    expect(result.lines).toContain("PASS  changeset.advisory_threshold_lines: 0");
+    expect(result.lines).toContain("PASS  changeset.advisory_threshold_files: 0");
   });
 
   it("distinguishes default, unset, and invalid quoted-empty fields", async () => {

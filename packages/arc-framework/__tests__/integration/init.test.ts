@@ -288,7 +288,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs every registered per-file method plus README in system/methods/", async () => {
     const methodFiles = [
-      "assess-cohort-fit.md",
+      "assess-boundary-fit.md",
       "assess-design-proportionality.md",
       "assess-draft-readiness.md",
       "adversarial-review.md",
@@ -315,6 +315,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const s = await stat(join(arcDir, "system/methods", name));
       expect(s.isFile(), `expected system/methods/${name}`).toBe(true);
     }
+    await expect(stat(join(arcDir, "system/methods/assess-cohort-fit.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("installs all 13 per-file extensions plus README in system/extensions/", async () => {
@@ -346,7 +349,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+        "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
@@ -476,8 +479,10 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(config).toContain("pm.mode: none");
-    expect(config).toContain("review.chunking_threshold_lines: 0");
-    expect(config).toContain("review.chunking_threshold_files: 0");
+    expect(config).toContain("changeset.advisory_threshold_lines: 0");
+    expect(config).toContain("changeset.advisory_threshold_files: 0");
+    expect(config).not.toContain("review.chunking_threshold_lines");
+    expect(config).not.toContain("review.chunking_threshold_files");
   });
 
   it("writes arc-config.yml with solo team mode defaults", async () => {

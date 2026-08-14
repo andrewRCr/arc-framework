@@ -11,6 +11,12 @@ function taskList(goalLines: readonly string[], options?: {
   readonly peerLines?: readonly string[];
 }): string {
   return [
+    "## Delivery Plan",
+    "",
+    "### `[ ]` **9.9 Task-shaped plan member**",
+    "",
+    "- _Goal:_ Plan prose must not enter the implementation inventory.",
+    "",
     "## **Phase 1:** Implementation",
     "",
     `### \`[${options?.marker ?? " "}]\` **1.1 ${options?.title ?? "Build inventory"}**`,

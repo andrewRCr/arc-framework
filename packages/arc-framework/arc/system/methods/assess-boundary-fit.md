@@ -1,38 +1,52 @@
 ---
-name: assess-cohort-fit
-description: Upper-bound WU boundary test — decompose a concern into multiple work units, or keep it one
+name: assess-boundary-fit
+description: WU boundary test — keep one concern whole, decompose orthogonal concerns, or plan separate delivery
 override-active: false
 ---
 
-# Method: assess-cohort-fit
+# Method: assess-boundary-fit
 
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
-> - **When:** A work unit's design is the live artifact at a derivation stage — `draft-design` (the _predicted_
->   arm, design still forming) and `create-spec` (the _emergent_ arm, a matured draft). A cheap confirm at every
->   design-stage read, **not** depth-gated: decompose-candidacy keys on orthogonality/breadth, a different axis
->   than derivation depth, so gating behind `high` depth would miss low-derivation-but-wide cohorts.
->   `generate-tasks` coverage is free — a "this should be multiple WUs" discovery there is a derivation-class
->   signal `resolve-planning-depth`'s re-entry valve already routes upstream to these design stages.
+> - **When:** A work unit's design is the live artifact at each planning evidence read — `draft-design` (the
+>   _predicted_ arm), `create-spec` (the _emergent_ arm), and `generate-tasks` Pass 1 (the first concrete task-scale
+>   evidence). This is a cheap confirm at every fire-point and is **not** planning-depth-gated. The depth/re-entry
+>   valve routes scale and derivation gaps only; concern multiplicity is a third axis, so task-generation discovery
+>   must be assessed here rather than treated as free upstream coverage. From implementation onward, delivery entry
+>   is operator-invoked rather than another automatic planning pass.
 >
-> - **Contract:** Given a work unit whose design is maturing, return either **"stays one WU"** or a **cut-map** —
->   the placement, members (with slugs), internal dependency edges, and deliverable boundaries — by testing
->   design/subsystem orthogonality (not raw size) against the two guard rails and the design-maturity gate.
->   `decompose-work-unit` consumes the cut-map to execute the transform; this method _decides_, it never
->   restructures. The full model and reasoning live in [strategy-work-organization][work-org] § Cohorts; this
->   method is the
->   single decide home every design stage declares, paired sibling of [classify-work-unit][classify-work-unit]
->   (the lower-bound Errand-vs-WU test).
+> - **Contract:** Given the latest planning authority and its current boundary evidence, return exactly one outcome:
+>   **"stays one WU"**, a **cut-map**, or **"stays one WU + delivery-plan candidate"**. Orthogonality decides
+>   concern count; sizing and deliverable multiplicity prompt the read and distinguish delivery topology, but raw
+>   size never decides a cut. `decompose-work-unit` consumes the cut-map; slice-aware authoring consumes the delivery
+>   candidate. This method _decides_ only — it neither restructures nor publishes or binds delivery state. The full
+>   model lives in [strategy-work-organization][work-org] § Cohorts; this is the single boundary-decision home paired
+>   with [classify-work-unit][classify-work-unit] (the lower-bound Errand-vs-WU test).
 
-## assess-cohort-fit.override
+## assess-boundary-fit.override
 
 [No override configured]
 
-## assess-cohort-fit.default
+## assess-boundary-fit.default
 
 The upper-bound boundary test — the mirror of `classify-work-unit`'s lower-bound Errand-vs-WU test. Where that
-method asks "is this big enough to warrant a WU?", this one asks "is this too big to be **one** WU?" Apply the
-discriminator against the two guard rails, gated on design maturity; when it fires affirmative, produce the
-cut-map.
+method asks "is this big enough to warrant a WU?", this one asks whether the concern remains one WU and, if it
+does, whether its delivery surfaces deserve an authored plan. Apply the discriminator against the two guard rails,
+gated on design maturity, and return one of the three outcomes below.
+
+### Outcomes
+
+1. **stays one WU** — one cohesive concern with no material separable-delivery signal. This is the default and is
+   advisory-silent on borderline evidence.
+2. **cut-map** — orthogonal concerns whose pieces are independently deliverable, ownable, and WU-worthy. Return the
+   complete author-owned cut-map below; `decompose-work-unit` owns the transform.
+3. **stays one WU + delivery-plan candidate** — one cohesive concern whose distinct deliverables or independently
+   reviewable surfaces warrant slice-aware authoring without changing the concern boundary.
+
+Treat a selected outcome as decided planning judgment. The caller records the outcome and evidence basis in the
+existing draft or spec decision prose. At later fire-points, compare evidence semantically and re-raise only for a
+material new-evidence delta — never for mere invocation, elapsed time, or restatement. A recorded hold-whole decision
+suppresses repeat advice, and a bound delivery plan suppresses redundant downstream advice. The prose record is not a
+CLI input, fingerprint, schema, or new authority record.
 
 ### The discriminator — orthogonality, not size
 
@@ -101,10 +115,11 @@ When the cut produces members, **their slugs must read legibly out of context.**
 afterthought. **Never encode order in the slug** — no `-pt1` / `-pt2` ordinals (they fabricate sequencing and
 aren't self-describing); inter-member order, when it exists, lives in `Depends On`.
 
-### Output — the cut-map
+### Output
 
-The method produces either **"stays one WU"** or the author-owned half of the v3 cut-map. The CLI supplies the
-immutable source units and dependency edges; complete only these authoring decisions:
+The method produces exactly one of **"stays one WU"**, the author-owned half of the v3 cut-map, or
+**"stays one WU + delivery-plan candidate"**. For a cut-map, the CLI supplies the immutable source units and
+dependency edges; complete only these authoring decisions:
 
 - **shape** — `symmetric` or `heterogeneous`;
 - **placement** — `direct-member`, `cohort`, `subcohort`, or `at-cap`;
@@ -113,10 +128,9 @@ immutable source units and dependency edges; complete only these authoring decis
 - **dependency dispositions** — one replacement, target set, or reasoned drop for every reported edge;
 - **internal dependency edges** — authored from the cut's delivery order.
 
-When the result is **"stays one WU"**, carry one advisory only if the sizing read found distinct deliverables or
-independently reviewable surfaces: **"Delivery-plan candidate — keep the concern as one WU while giving its
-separable surfaces independent delivery boundaries."** The advisory is never a gate; omit it when that signal did
-not fire.
+When the concern stays cohesive but the sizing read finds material distinct deliverables or independently reviewable
+surfaces, return **"stays one WU + delivery-plan candidate"**. This is a first-class planning outcome, not an advisory
+nested under "stays one WU". It is never a gate and authorizes no publication, binding, or external mutation.
 
 `direct-member` is the placement for exactly one newly minted member. Every decomposition with more than one new
 member must select `cohort`, `subcohort`, or `at-cap`, regardless of content ownership. Existing or atomic homes

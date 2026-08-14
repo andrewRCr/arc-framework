@@ -20,6 +20,9 @@ no field edit. The design is canonical for Scope (Will Do / Won't Do); the task 
 
 ---
 
+<!-- Optional before Phase 1: one unmarked provisional `## Delivery Plan` while authoring, or the
+     renderer-owned canonical sentinel block. The delivery renderer owns canonical projection bytes. -->
+
 ## **Phase 1:** {Phase name}
 
 _Purpose:_ {what this phase delivers and why this granularity}
@@ -59,6 +62,21 @@ _Purpose:_ {what this phase delivers and why this granularity}
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
 ```
+
+### Optional Delivery Plan locus
+
+A task list may carry one top-level `## Delivery Plan` between the header rule and Phase 1. During planning it is
+an unmarked provisional section. Canonical publication replaces that whole locus with the exact
+`<!-- arc:delivery-plan:start -->` / `<!-- arc:delivery-plan:end -->` sentinel block rendered from the canonical
+plan record.
+
+The renderer owns the complete canonical projection: plan metadata and plan-level stack landability; aligned
+`### Members` identity and `#### Member coverage` tables; an aligned `### Named seams` topology table; and, when
+seams exist, naturally wrapped `#### Acceptance` bullets outside tables. Task and design-element identifiers are
+individually backticked and comma-separated. Workflow prose and templates do not hand-author that layout.
+
+The locus is informative and non-executable. Scanners, cursors, tallies, and delivery task inventory ignore its
+headings, rows, task-looking identifiers, and bullets; the first implementation phase remains the execution start.
 
 Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) appear only when the work
 needs them.

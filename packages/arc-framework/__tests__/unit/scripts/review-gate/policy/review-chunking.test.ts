@@ -8,8 +8,8 @@ import {
 describe("parseReviewChunkingThresholds", () => {
   it("accepts normalized unsigned safe integers including zero", () => {
     expect(parseReviewChunkingThresholds({
-      "review.chunking_threshold_lines": "  \"5000\" ",
-      "review.chunking_threshold_files": "'0'",
+      "changeset.advisory_threshold_lines": "  \"5000\" ",
+      "changeset.advisory_threshold_files": "'0'",
     })).toEqual({
       kind: "valid",
       thresholds: { lines: 5000, files: 0 },
@@ -20,11 +20,11 @@ describe("parseReviewChunkingThresholds", () => {
     "rejects malformed threshold %s",
     (value) => {
       expect(parseReviewChunkingThresholds({
-        "review.chunking_threshold_lines": value,
-        "review.chunking_threshold_files": "0",
+        "changeset.advisory_threshold_lines": value,
+        "changeset.advisory_threshold_files": "0",
       })).toMatchObject({
         kind: "invalid",
-        key: "review.chunking_threshold_lines",
+        key: "changeset.advisory_threshold_lines",
       });
     },
   );
@@ -53,14 +53,54 @@ describe("resolveReviewChunkingPolicy", () => {
     [{ lines: 0, files: 10 }, { lines: 999, files: 10 }, ["files"]],
     [{ lines: 100, files: 10 }, { lines: 100, files: 10 }, ["lines", "files"]],
   ] as const)("trips enabled dimensions at equality", (thresholds, metrics, tripped) => {
-    const result = resolveReviewChunkingPolicy({ thresholds, metrics });
+    const result = resolveReviewChunkingPolicy({
+      thresholds,
+      metrics,
+      deliveryBinding: { status: "authoritative-unbound" },
+    });
     expect(result).toMatchObject({
       disposition: "consider-chunks",
       metrics,
       thresholds,
       tripped,
+      remedy: "review-chunks",
     });
-    expect(result).toHaveProperty("advisory");
+    expect(result).toHaveProperty("recommendedActionText");
+  });
+
+  it("suppresses a tripped signal when chunked scope is already selected", () => {
+    expect(resolveReviewChunkingPolicy({
+      thresholds: { lines: 10, files: 0 },
+      metrics: { lines: 10, files: 1 },
+      scopeSelected: true,
+      deliveryBinding: { status: "authoritative-unbound" },
+    })).toMatchObject({ disposition: "scope-selected", tripped: ["lines"] });
+  });
+
+  it("selects only bound-delivery continuation for coherent bound evidence", () => {
+    const result = resolveReviewChunkingPolicy({
+      thresholds: { lines: 10, files: 0 },
+      metrics: { lines: 10, files: 1 },
+      deliveryBinding: { status: "bound", planId: "plan-1" },
+    });
+    expect(result).toMatchObject({
+      disposition: "delivery-bound",
+      remedy: "continue-bound-delivery",
+      planId: "plan-1",
+    });
+    expect(result).not.toHaveProperty("advisory");
+  });
+
+  it("keeps unavailable delivery evidence silent with its diagnostic reason", () => {
+    expect(resolveReviewChunkingPolicy({
+      thresholds: { lines: 10, files: 0 },
+      metrics: { lines: 10, files: 1 },
+      deliveryBinding: { status: "unavailable", reason: "namespace-corrupt" },
+    })).toMatchObject({
+      disposition: "evidence-unavailable",
+      reason: "namespace-corrupt",
+      tripped: ["lines"],
+    });
   });
 
   it("requires metrics when automatic consideration is enabled", () => {

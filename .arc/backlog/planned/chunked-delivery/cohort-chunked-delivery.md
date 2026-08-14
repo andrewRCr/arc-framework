@@ -179,6 +179,9 @@ the cohort itself closes and archives.
 - `review-chunking` owns review-attention boundaries. Delivery consumes chunk identity without making every chunk a
   merge boundary.
 - `decomposition-doctrine` owns whether a concern splits into several work units. Delivery begins after that decision.
+  The shared boundary checkpoint splits along the same line: `delivery-stack-topology` owns the checkpoint chassis
+  (the re-chartered `assess-boundary-fit` read and its delivery arm); doctrine owns the split-decision discriminator
+  it dispatches to.
 - Existing review contracts own obligation, applicability, findings, and clearance. The external
   `delivery-slice-review-vehicle` owns the narrow vehicle binding that names a delivery member and exact head.
 - `integration-boundary-accuracy` and `integration-lane` own shared integration naming and final-window behavior.

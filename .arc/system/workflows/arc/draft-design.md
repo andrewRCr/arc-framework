@@ -7,7 +7,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
-    - assess-cohort-fit
+    - assess-boundary-fit
     - assess-draft-readiness
     - adversarial-review
     - assess-design-proportionality
@@ -63,12 +63,18 @@ read drives both, yielding this stage's **level** (`low` / `medium` / `high`) an
 **`Class`**, born here at its first touchpoint. The methods own how the read maps to a level, and the mid-stage
 re-entry valve.
 
-Off the same read, run [`assess-cohort-fit`][assess-cohort-fit] — the cheap **upper-bound** confirm paired with
-`classify-work-unit`'s lower-bound one: is this one work unit, or has the design surfaced orthogonal subsystems
-that want decomposing into a cohort? It is **maturity-gated**, so while the design is still forming it clears
-trivially — hold as one unit and iterate. It fires affirmative only once the design is stable enough that the
-cuts are real (the **predicted-decomposition** arm, where you author directly into the cohort structure rather
-than a monolith); re-confirm cheaply as the draft matures across passes.
+Off the same read, run [`assess-boundary-fit`][assess-boundary-fit] — the cheap boundary confirm paired with
+`classify-work-unit`'s lower-bound read. Dispatch its one selected outcome:
+
+| Outcome                                  | Owner                   | Action                                                                                                                                         |
+| ---------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stays one WU`                           | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; continue whole and stay silent while evidence is materially unchanged.     |
+| `cut-map`                                | `decompose-work-unit`   | Route the complete cut-map to that workflow; it alone owns the transform.                                                                      |
+| `stays one WU + delivery-plan candidate` | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; author the draft slice-aware without publishing or binding delivery state. |
+
+The selected result is sticky planning judgment. At later fire-points, compare the evidence semantically and
+re-raise only for a material new-evidence delta, never for mere invocation, elapsed time, or restatement. No CLI
+parser, fingerprint, schema, or new decision record is introduced.
 
 The resolved level selects this stage's path below — the stage default, re-selectable, never below the
 derivation floor.
@@ -258,7 +264,7 @@ planning-depth level is never recorded.
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [assess-design-proportionality]: ../../methods/assess-design-proportionality.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
-[assess-cohort-fit]: ../../methods/assess-cohort-fit.md
+[assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
 [setup-merge-gate]: supplemental/setup-merge-gate.md

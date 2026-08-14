@@ -62,7 +62,11 @@ describe("command-input schema adapter and registry", () => {
   it("registers every command-owned schema in the live Commander tree", async () => {
     const sourceRoot = resolve(import.meta.dirname, "../../../src");
     const source = await scanCommandInputSources({ sourceRoot });
-    const flagOnlySchemaPaths = ["delivery compose", "delivery plan abandon"];
+    const flagOnlySchemaPaths = [
+      "delivery compose",
+      "delivery plan abandon",
+      "delivery plan inventory schema",
+    ];
     const expectedPaths = source.commands
       .filter((command) => command.path !== "release commit" && command.path !== "release push")
       .filter((command) => flagOnlySchemaPaths.includes(command.path)

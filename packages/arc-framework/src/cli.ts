@@ -48,10 +48,12 @@ import {
   handleDeliveryPlanAbandon,
   handleDeliveryPlanFromBranch,
   handleDeliveryPlanFromTasks,
+  handleDeliveryPlanInventorySchema,
   type DeliveryComposeOptions,
   type DeliveryPlanAbandonOptions,
   type DeliveryPlanFromBranchOptions,
   type DeliveryPlanFromTasksOptions,
+  type DeliveryPlanInventorySchemaOptions,
 } from "./handlers/delivery.js";
 import {
   handleDeliveryTransferExport,
@@ -667,10 +669,26 @@ const deliveryPlan = delivery
   .command("plan")
   .description("Create or abandon transient delivery-plan authoring state");
 
+const deliveryPlanInventory = deliveryPlan
+  .command("inventory")
+  .description("Inspect delivery-plan design-inventory authoring contracts");
+
+deliveryPlanInventory
+  .command("schema")
+  .description("Emit the registered strict design-inventory input schema")
+  .option("--json", "Emit the schema through the typed delivery command envelope")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (_context, opts: DeliveryPlanInventorySchemaOptions) => {
+      handleDeliveryPlanInventorySchema(opts);
+    },
+  ));
+
 deliveryPlan
   .command("from-tasks")
   .description("Create a delivery authoring map from the active task list")
   .option("--design-inventory <json-path>", "Strict design inventory JSON path")
+  .option("--task-list <path>", "Explicit repository-relative task-list path")
   .option("--json", "Emit the typed authoring result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

@@ -241,11 +241,11 @@ describe("v3 decomposition topology planning", () => {
 describe("decomposition cohort doctrine projection", () => {
   it("keeps package authority and the project method synchronized on multi-member grouping", () => {
     const packageMethod = readFileSync(
-      resolve(packageRoot, "arc/system/methods/assess-cohort-fit.md"),
+      resolve(packageRoot, "arc/system/methods/assess-boundary-fit.md"),
       "utf8",
     );
     const projectMethod = readFileSync(
-      resolve(repositoryRoot, ".arc/system/methods/assess-cohort-fit.md"),
+      resolve(repositoryRoot, ".arc/system/methods/assess-boundary-fit.md"),
       "utf8",
     );
 
