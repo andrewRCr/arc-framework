@@ -30,6 +30,7 @@ function fixture(name: string): Record<string, unknown> {
       active: null,
     },
   };
+  delete value.deliveryPosition;
   const active = value.active as { ok?: boolean; value?: { resolution?: string; path?: string | null } };
   const baseDistance = value.baseDistance as {
     ok?: boolean;
@@ -95,6 +96,11 @@ function fixture(name: string): Record<string, unknown> {
   return value;
 }
 
+function owningWorkUnitFixture(): Record<string, unknown> {
+  const normalized = readFileSync(join(FIXTURE_DIR, "session-init-active-resume.json"), "utf8");
+  return JSON.parse(normalized.replaceAll(/<DATE_\d+>/gu, "2026-01-02")) as Record<string, unknown>;
+}
+
 function clone(value: Record<string, unknown>): Record<string, unknown> {
   return structuredClone(value);
 }
@@ -129,6 +135,44 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
 }
 
 describe("session-init envelope schema", () => {
+  it("requires the delivery-position slot exactly at the owning work-unit locus", () => {
+    const owning = owningWorkUnitFixture();
+    expectValid(owning);
+
+    const missing = clone(owning);
+    delete missing.deliveryPosition;
+    expectContractFailure(missing, "deliveryPosition");
+
+    const ineligible = fixture("orient");
+    ineligible.deliveryPosition = { ok: true, value: null };
+    expectContractFailure(ineligible, "deliveryPosition");
+  });
+
+  it("accepts null, coherent, and degraded delivery-position probe arms", () => {
+    const coherent = owningWorkUnitFixture();
+    coherent.deliveryPosition = {
+      ok: true,
+      value: {
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        workUnitId: "active-widget",
+        landedCount: 1,
+        totalCount: 2,
+        activeOperation: { kind: "rewrite", operationId: "op-1" },
+        line: "Delivery position: 1/2 landed; active operation: rewrite op-1.",
+      },
+    };
+    expectValid(coherent);
+
+    const degraded = owningWorkUnitFixture();
+    degraded.deliveryPosition = {
+      ok: false,
+      error: { kind: "runtime", message: "delivery evidence unavailable" },
+    };
+    expectValid(degraded);
+
+    setPath(coherent, ["deliveryPosition", "value", "landedCount"], 3);
+    expectContractFailure(coherent, "deliveryPosition.value.landedCount");
+  });
   it("rejects retired session-frame fields", () => {
     const value = fixture("orient");
     setPath(value, ["derivedLocusState", "value", "current"], { kind: "none" });

@@ -16,6 +16,7 @@ import {
   buildStatusSummary,
 } from "../../src/commands/status.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 import type {
   Probe,
   SessionInitProbeResult,
@@ -349,6 +350,35 @@ describe("buildStatusSummary — full mode", () => {
 });
 
 describe("buildSessionInitStatusSummary — scoped mode", () => {
+  it("renders one precomposed delivery line, omits null, and reports isolated degradation", () => {
+    const line = "Delivery position: 1/2 landed; active operation: none.";
+    const healthy = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: {
+        ok: true,
+        value: {
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+          workUnitId: SlugSchema.parse("delivery-plan-record"),
+          landedCount: 1,
+          totalCount: 2,
+          activeOperation: null,
+          line,
+        },
+      },
+    }));
+    expect(healthy.match(new RegExp(line, "gu"))).toHaveLength(1);
+    expect(healthy).toContain("Delivery:");
+
+    const silent = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: { ok: true, value: null },
+    }));
+    expect(silent).not.toContain("Delivery:");
+
+    const failed = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: { ok: false, error: { kind: "runtime", message: "delivery unavailable" } },
+    }));
+    expect(failed).toContain("Delivery:\n  (unavailable) delivery unavailable");
+  });
+
   it("includes identity block plus all probe sections (user, worktree, extensions, config, active)", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("Identity:");

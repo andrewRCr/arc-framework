@@ -133,6 +133,10 @@ function buildLocusGuidanceSummary(value: LocusSessionGuidance): string | null {
 /** Build the Clack summary for `arc status --session-init`. */
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
   const locusGuidance = buildLocusGuidanceSummary(result.locusGuidance);
+  const deliveryPosition = result.deliveryPosition === undefined
+    || (result.deliveryPosition.ok && result.deliveryPosition.value === null)
+    ? []
+    : [renderSlot("Delivery", result.deliveryPosition, (value) => value?.line ?? "")];
   const sections: string[] = [
     renderIdentity(result.identity),
     ...(locusGuidance === null
@@ -144,6 +148,7 @@ export function buildSessionInitStatusSummary(result: SessionInitProbeResult): s
     renderSlot("Config", result.config, buildConfigSessionInitSummary),
     renderSlot("Release Routing", result.releaseRouting, buildReleaseRoutingSummary),
     renderSlot("Active", result.active, buildActiveSessionInitSummary),
+    ...deliveryPosition,
     renderSlot("Domain Rules", result.domainRules, buildDomainRulesSessionInitSummary),
   ];
   return sections.join(`\n${SECTION_SEPARATOR}\n`);

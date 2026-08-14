@@ -25,6 +25,7 @@ import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.
 import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
+import { DeliveryPositionViewSchema } from "../../lib/session-init/delivery-position.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
 const CleanupRemoteEvidenceViewFields = {
@@ -815,6 +816,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   domainRules: probe(DomainRulesSessionInitValueViewSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
+  deliveryPosition: probe(DeliveryPositionViewSchema.nullable()).optional(),
   userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
   roster: probe(WorktreeRosterValueViewSchema).optional(),
   recovery: probe(SessionInitRecoveryValueSchema).optional(),
@@ -915,6 +917,9 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
   requireExactPresence(value, context, "currentWuReconcile", active?.resolution === "single");
+  const owningWorkUnit = value.derivedLocusState.ok
+    && value.derivedLocusState.value.active?.subject.kind === "work-unit";
+  requireExactPresence(value, context, "deliveryPosition", owningWorkUnit);
   requireExactPresence(
     value,
     context,

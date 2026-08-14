@@ -573,7 +573,7 @@ user-workspace close or branch teardown. This call only adopts an exact terminal
 CAS: it takes no reservation, adds no authorization, and runs identically after a fresh merge or merged-PR resume.
 
 ```bash
-arc delivery terminal attach --input - --json
+arc delivery terminal attach - --json
 ```
 
 Retire the per-WU user workspace subdir (filesystem op only, no git ops — contents are gitignored):

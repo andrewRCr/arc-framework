@@ -1,6 +1,10 @@
 /** Git-common-directory adapters for delivery plan and mutable execution records. */
 
-import type { GitCommonStateLocation, GitCommonStatePublisher } from "../git-common-state.js";
+import type {
+  GitCommonStateLocation,
+  GitCommonStatePublisher,
+  GitCommonStateSnapshotEntry,
+} from "../git-common-state.js";
 import {
   canonicalize,
   SlugSchema,
@@ -344,6 +348,27 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
 
   async enumerateCurrent(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>> {
     const entries = await this.publisher.snapshot(PLAN_LOCATION);
+    return this.decodePlanEntries(entries);
+  }
+
+  /** Enumerate current plans without acquiring a publication lock or materializing a namespace. */
+  async enumerateCurrentReadOnly(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>> {
+    const listed = await this.publisher.list(PLAN_LOCATION);
+    const entries = await Promise.all(listed.map(async (entry) => {
+      if (entry.kind !== "file") return { name: entry.name, kind: "other" as const };
+      const content = await this.publisher.read(PLAN_LOCATION, entry.name);
+      return content === null ? { name: entry.name, kind: "other" as const } : {
+        name: entry.name,
+        kind: "file" as const,
+        content,
+      };
+    }));
+    return this.decodePlanEntries(entries);
+  }
+
+  private decodePlanEntries(
+    entries: readonly GitCommonStateSnapshotEntry[],
+  ): DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure> {
     const plansById = new Map<string, TPlan>();
     for (const entry of entries) {
       if (entry.kind !== "file" || !/^[a-z0-9][a-z0-9.-]*\.json$/u.test(entry.name)) {
