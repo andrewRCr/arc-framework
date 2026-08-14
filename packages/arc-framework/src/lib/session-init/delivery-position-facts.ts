@@ -40,40 +40,59 @@ async function observeTarget(
 
 async function observeMember(
   member: DeliveryOperationSnapshotV1["members"][number],
+  target: DeliveryOperationSnapshotV1["target"],
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<{ readonly exact: boolean; readonly requestState: RequestState }> {
   if ((member.ref === null) !== (member.coordinates === null)) {
     return { exact: false, requestState: null };
+  }
+  let requestState: RequestState = null;
+  let requestHead: string | null = null;
+  if (member.changeRequest !== null) {
+    const observed = await dependencies.host.readRequest(dependencies.repository, member.changeRequest);
+    if (observed.status !== "observed"
+      || canonicalize(observed.request.binding) !== canonicalize(member.changeRequest)
+      || observed.request.repository !== dependencies.repository
+      || observed.request.headRepository !== dependencies.repository
+      || (member.ref !== null && observed.request.headRef !== member.ref.replace(/^refs\/heads\//u, ""))) {
+      return { exact: false, requestState: null };
+    }
+    requestState = observed.request.state;
+    requestHead = observed.request.headSha;
   }
   if (member.ref !== null && member.coordinates !== null) {
     const prefix = "refs/heads/";
     if (!member.ref.startsWith(prefix)) return { exact: false, requestState: null };
     const branch = member.ref.slice(prefix.length);
     const remoteHead = dependencies.remoteHeads[branch];
+    const expectedRemoteHead = requestState === "merged" ? requestHead : member.coordinates.head;
     if (remoteHead === undefined
-      || remoteHead !== member.coordinates.head
+      || remoteHead !== expectedRemoteHead
       || dependencies.localCommits[remoteHead] !== true) {
       return { exact: false, requestState: null };
     }
-    const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
-      ...options,
-      cwd: dependencies.cwd,
-      objectAccess: "local-only",
-    });
-    const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, remoteHead);
-    if (coordinates === null || coordinates.tree !== member.coordinates.tree) {
-      return { exact: false, requestState: null };
+    if (requestState === "merged") {
+      if (target === null || target.coordinates === null
+        || member.coordinates.head !== target.coordinates.head
+        || member.coordinates.tree !== target.coordinates.tree) {
+        return { exact: false, requestState: null };
+      }
+    } else {
+      const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+        ...options,
+        cwd: dependencies.cwd,
+        objectAccess: "local-only",
+      });
+      const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, remoteHead);
+      if (coordinates === null || coordinates.tree !== member.coordinates.tree
+        || (requestHead !== null && requestHead !== member.coordinates.head)) {
+        return { exact: false, requestState: null };
+      }
     }
-  }
-  if (member.changeRequest === null) return { exact: true, requestState: null };
-  const observed = await dependencies.host.readRequest(dependencies.repository, member.changeRequest);
-  if (observed.status !== "observed"
-    || canonicalize(observed.request.binding) !== canonicalize(member.changeRequest)
-    || (member.ref !== null && observed.request.headRef !== member.ref.replace(/^refs\/heads\//u, ""))
-    || (member.coordinates !== null && observed.request.headSha !== member.coordinates.head)) {
+  } else if (requestState === "merged") {
     return { exact: false, requestState: null };
   }
-  return { exact: true, requestState: observed.request.state };
+  return { exact: true, requestState };
 }
 
 async function snapshotIsCurrent(
@@ -81,7 +100,9 @@ async function snapshotIsCurrent(
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<boolean> {
   if (!(await observeTarget(snapshot.target, dependencies))) return false;
-  const observed = await Promise.all(snapshot.members.map((member) => observeMember(member, dependencies)));
+  const observed = await Promise.all(snapshot.members.map((member) => (
+    observeMember(member, snapshot.target, dependencies)
+  )));
   return observed.every((member) => member.exact);
 }
 
@@ -168,7 +189,7 @@ async function observeFacts(
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<DeliveryPositionFactsV1 | null> {
   if (!(await observeTarget(state.target, dependencies))) return null;
-  const members = await Promise.all(state.members.map((member) => observeMember(member, dependencies)));
+  const members = await Promise.all(state.members.map((member) => observeMember(member, state.target, dependencies)));
   if (members.some((member) => !member.exact)) return null;
 
   const landedDeliverableIds: string[] = [];
