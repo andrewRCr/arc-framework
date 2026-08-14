@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { reconcileDeliveryOperation } from "../delivery/operation.js";
+import type { DeliveryOperationReconciliationObservationV1 } from "../delivery/operation.js";
 import type {
   DeliveryPlanStoreFailure,
   DeliveryStateStore,
@@ -41,7 +41,8 @@ export type DeliveryPositionObservation =
   | {
     readonly status: "observed";
     readonly facts: DeliveryPositionFactsV1;
-    readonly operationObservation: unknown;
+    readonly operationObservation: DeliveryOperationReconciliationObservationV1 | null;
+    readonly projectedState: DeliveryStateV1;
   }
   | { readonly status: "refused" };
 
@@ -76,17 +77,6 @@ export type ReadDeliveryPositionViewResult =
       | "position-incoherent";
   };
 
-function projectStateForOrientation(
-  revision: number,
-  state: DeliveryStateV1,
-  observation: unknown,
-): DeliveryStateV1 | null {
-  const reconciled = reconcileDeliveryOperation({ revision, value: state }, observation);
-  if (reconciled.status === "adopt") return reconciled.state;
-  if (reconciled.status !== "retry") return null;
-  return { ...state, activeOperation: null };
-}
-
 /**
  * Read one owning work unit's delivery position without changing delivery or Git state.
  *
@@ -117,21 +107,10 @@ export async function readDeliveryPositionView(
   }
 
   const activeOperation = coherence.state.activeOperation;
-  let projectedState = coherence.state;
-  if (activeOperation !== null) {
-    if (observed.operationObservation === null) {
-      return { status: "refused", reason: "operation-ambiguous" };
-    }
-    const projected = projectStateForOrientation(
-      stored.value.revision,
-      coherence.state,
-      observed.operationObservation,
-    );
-    if (projected === null) return { status: "refused", reason: "operation-ambiguous" };
-    projectedState = projected;
+  if (activeOperation !== null && observed.operationObservation === null) {
+    return { status: "refused", reason: "operation-ambiguous" };
   }
-
-  const derived = deriveDeliveryPosition(plan, projectedState, observed.facts);
+  const derived = deriveDeliveryPosition(plan, observed.projectedState, observed.facts);
   if (derived.status === "refused") return { status: "refused", reason: "position-incoherent" };
   const landedCount = derived.position.landedPrefix.length;
   const totalCount = plan.members.length;

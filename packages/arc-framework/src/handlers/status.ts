@@ -175,13 +175,33 @@ import { readDeliveryPositionView } from "../lib/session-init/delivery-position.
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../lib/errand/change-request-lifecycle.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
-import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
+import {
+  hostedGhRunner,
+  type HostedProcessRunner,
+} from "../scripts/review-gate/hosted/gh-process.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import type { CleanupBaseEvidence } from "../lib/session-init/cleanup-remote-evidence.js";
 import { readLocalInFlightRefSnapshot } from "../lib/git/remote-ref-reader.js";
 import { resolveWorktreePathsByBranchResult } from "../lib/git/worktree-roster.js";
+
+const SESSION_DELIVERY_OBSERVATION_TIMEOUT_MS = 10_000;
+
+/**
+ * Bind all host calls in one session delivery observation to one aggregate deadline.
+ *
+ * @param runner - Underlying hosted-process runner.
+ * @param timeoutMs - Aggregate observation deadline in milliseconds.
+ * @returns A delivery host whose calls share one abort signal.
+ */
+export function createSessionDeliveryObservationHost(
+  runner: HostedProcessRunner,
+  timeoutMs = SESSION_DELIVERY_OBSERVATION_TIMEOUT_MS,
+): GhDeliveryHostPort {
+  const signal = AbortSignal.timeout(timeoutMs);
+  return new GhDeliveryHostPort({ run: (args) => runner.run(args, { signal }) });
+}
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
   if (execInput === undefined) {
@@ -656,7 +676,6 @@ export async function handleStatus(
     const deliveryPublisher = new RepositoryGitCommonStatePublisher(exec, cwd);
     const deliveryPlans = new RepositoryDeliveryPlanStore(deliveryPublisher, DeliveryPlanV1Codec);
     const deliveryStates = new RepositoryDeliveryStateStore(deliveryPublisher);
-    const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
     const getRemoteContext = createSessionRemoteContextReader({
       cwd,
       exec,
@@ -1012,6 +1031,7 @@ export async function handleStatus(
               exec,
               `refs/heads/${resolved.settings["branch.base"]}`,
             );
+            const deliveryHost = createSessionDeliveryObservationHost(hostedGhRunner);
             return configuration === null
               ? { status: "refused" }
               : observeRepositoryDeliveryPosition(plan, state, revision, {

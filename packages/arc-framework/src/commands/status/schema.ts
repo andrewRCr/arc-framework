@@ -917,9 +917,21 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
   requireExactPresence(value, context, "currentWuReconcile", active?.resolution === "single");
-  const owningWorkUnit = value.derivedLocusState.ok
-    && value.derivedLocusState.value.active?.subject.kind === "work-unit";
+  const owningSubject = value.derivedLocusState.ok
+    && value.derivedLocusState.value.active?.subject.kind === "work-unit"
+    ? value.derivedLocusState.value.active.subject
+    : null;
+  const owningWorkUnit = owningSubject !== null;
   requireExactPresence(value, context, "deliveryPosition", owningWorkUnit);
+  if (owningSubject !== null && value.deliveryPosition?.ok === true
+    && value.deliveryPosition.value !== null
+    && value.deliveryPosition.value.workUnitId !== owningSubject.key) {
+    context.addIssue({
+      code: "custom",
+      path: ["deliveryPosition", "value", "workUnitId"],
+      message: "must match the owning work-unit subject",
+    });
+  }
   requireExactPresence(
     value,
     context,

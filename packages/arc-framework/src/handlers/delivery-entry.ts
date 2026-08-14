@@ -207,7 +207,11 @@ async function inspectRepositoryDeliveryEntry(
         currentWorkUnitId: active.name, authority, transitionSource,
       });
       if (result.status === "match") {
-        return { status: "match", mapId: result.record.snapshot.mapId };
+        return {
+          status: "match",
+          mapId: result.record.snapshot.mapId,
+          candidatePlanDigest: result.record.snapshot.candidatePlanDigest,
+        };
       }
       return { status: result.status };
     },

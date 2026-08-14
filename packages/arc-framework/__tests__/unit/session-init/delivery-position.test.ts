@@ -35,7 +35,12 @@ describe("session-init delivery position", () => {
     const result = await readDeliveryPositionView(plan.workUnitId, {
       plans: { enumerateCurrentReadOnly: vi.fn().mockResolvedValue({ status: "ok", value: [plan] }) },
       states: { read: vi.fn().mockResolvedValue({ status: "ok", value: { revision: 3, value: state } }) },
-      observe: vi.fn().mockResolvedValue({ status: "observed", facts, operationObservation: null }),
+      observe: vi.fn().mockResolvedValue({
+        status: "observed",
+        facts,
+        operationObservation: null,
+        projectedState: state,
+      }),
     });
     expect(result).toEqual({
       status: "ok",
@@ -70,7 +75,10 @@ describe("session-init delivery position", () => {
       plans: { enumerateCurrentReadOnly: vi.fn().mockResolvedValue({ status: "ok", value: [plan] }) },
       states: { read: vi.fn().mockResolvedValue({ status: "ok", value: { revision: 4, value: active } }) },
       observe: vi.fn().mockResolvedValue({
-        status: "observed", facts, operationObservation: operation.before,
+        status: "observed",
+        facts,
+        operationObservation: operation.before,
+        projectedState: { ...active, activeOperation: null },
       }),
     });
     expect(result.status).toBe("ok");

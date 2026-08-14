@@ -44,7 +44,11 @@ import {
   resolveDeliveryMemberPresentations,
 } from "../lib/delivery/materialization.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
-import { DeliveryPositionFactsV1Schema, deriveDeliveryPosition } from "../lib/delivery/position.js";
+import {
+  DeliveryPositionFactsV1Schema,
+  deriveDeliveryPosition,
+  resolveDeliveryPredecessorHead,
+} from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import {
   DeliveryCanonicalDigestSchema,
@@ -126,7 +130,7 @@ const PublishSchema = MaterializeSchema.extend({
     designReference: z.string().trim().min(1).regex(/^[^\r\n]+$/u).optional(),
   })),
 });
-const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: z.unknown() });
+const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: DeliveryPositionFactsV1Schema });
 const ReconcileSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -305,6 +309,10 @@ function executionPath(command: DeliveryExecutionCommand): string {
   return `delivery ${command}`;
 }
 
+function requireTeardownCommand(command: DeliveryExecutionCommand): asserts command is "teardown" {
+  if (command !== "teardown") throw new Error(`Unhandled delivery execution command: ${command}`);
+}
+
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin as AsyncIterable<Buffer | string>) {
@@ -464,10 +472,8 @@ async function executeDeliveryCommand(
       const index = observed.facts.members.findIndex((member) => member.deliverableId === deliverableId);
       const member = observed.facts.members[index];
       if (member === undefined || member.coordinates === null) continue;
-      const predecessor = index === 0
-        ? observed.facts.target?.coordinates?.head
-        : observed.facts.members[index - 1]?.coordinates?.head ?? observed.facts.target?.coordinates?.head;
-      if (predecessor === undefined || member.coordinates.base !== predecessor) return { status: "refused" as const };
+      const predecessor = resolveDeliveryPredecessorHead(observed.facts, index);
+      if (predecessor === null || member.coordinates.base !== predecessor) return { status: "refused" as const };
     }
     return observed;
   };
@@ -479,7 +485,8 @@ async function executeDeliveryCommand(
     return closeDeliveryEligibility(CloseSchema.parse(request).snapshot, eligibilityDeps);
   }
   if (command === "materialize" || command === "publish") {
-    const parsed = (command === "publish" ? PublishSchema : MaterializeSchema).parse(request);
+    const publishRequest = command === "publish" ? PublishSchema.parse(request) : null;
+    const parsed = publishRequest ?? MaterializeSchema.parse(request);
     return executeWithFreshDeliveryEligibility(parsed, {
       ...eligibilityDeps,
       resolveLifecyclePaths: async (plan) => {
@@ -503,9 +510,9 @@ async function executeDeliveryCommand(
       mutate: async ({ plan, snapshot }) => {
         const derived = deriveDeliveryMaterialization(plan, snapshot);
         if (derived.status !== "derived") return derived;
-        const reviewerPresentations = command === "publish"
-          ? resolveDeliveryMemberPresentations(plan, PublishSchema.parse(parsed).presentations)
-          : null;
+        const reviewerPresentations = publishRequest === null
+          ? null
+          : resolveDeliveryMemberPresentations(plan, publishRequest.presentations);
         if (reviewerPresentations?.status === "refused") return reviewerPresentations;
         const refs = {
           observe: async (ref: string) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
@@ -518,7 +525,8 @@ async function executeDeliveryCommand(
         if (current.status !== "ok") return { status: "refused" as const, reason: "state-unavailable" };
         if (current.value === null) {
           if (command === "publish") {
-            const publish = PublishSchema.parse(parsed);
+            const publish = publishRequest;
+            if (publish === null) return { status: "refused" as const, reason: "initial-request-refused" };
             const recovered = await bindInitialDeliveryRequest({
               plan,
               materialization: derived.value,
@@ -544,7 +552,8 @@ async function executeDeliveryCommand(
           plan, materialization: derived.value, stateStore, refs,
         });
         if (materialized.status !== "materialized" || command === "materialize") return materialized;
-        const publish = PublishSchema.parse(parsed);
+        const publish = publishRequest;
+        if (publish === null) return { status: "refused" as const, reason: "initial-request-refused" };
         return publishDeliveryRequests({
           plan,
           materialization: derived.value,
@@ -1115,6 +1124,7 @@ async function executeDeliveryCommand(
       stateStore,
     });
   }
+  requireTeardownCommand(command);
   const parsed = TeardownSchema.parse(request);
     const [planRead, stateRead] = await Promise.all([
       planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId),

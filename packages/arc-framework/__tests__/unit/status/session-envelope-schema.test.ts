@@ -163,6 +163,10 @@ describe("session-init envelope schema", () => {
     };
     expectValid(coherent);
 
+    const mismatched = clone(coherent);
+    setPath(mismatched, ["deliveryPosition", "value", "workUnitId"], "other-widget");
+    expectContractFailure(mismatched, "deliveryPosition.value.workUnitId");
+
     const degraded = owningWorkUnitFixture();
     degraded.deliveryPosition = {
       ok: false,

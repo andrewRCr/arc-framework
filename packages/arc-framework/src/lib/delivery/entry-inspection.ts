@@ -119,7 +119,11 @@ type ResolvedPlan =
   | { readonly status: "no-match" }
   | { readonly status: "indeterminate" };
 type ResolvedAuthoring =
-  | { readonly status: "match"; readonly mapId: string }
+  | {
+      readonly status: "match";
+      readonly mapId: string;
+      readonly candidatePlanDigest: string | null;
+    }
   | { readonly status: "no-match" }
   | { readonly status: "indeterminate" };
 type ReadState =
@@ -251,6 +255,15 @@ export async function inspectDeliveryEntry(
         authoringMapId: authoring.mapId,
         laterEntryCostText: LATER_ENTRY_COST,
         recommendedActionText: "Recover and finish canonical publication from the reviewed provisional plan.",
+      };
+    }
+    if (locus.status === "canonical" && authoring.candidatePlanDigest === plan.planDigest) {
+      return {
+        status: "canonicalize-provisional",
+        nextAction: "canonicalize-provisional",
+        authoringMapId: authoring.mapId,
+        laterEntryCostText: LATER_ENTRY_COST,
+        recommendedActionText: "Recover and finish canonical publication from the matching authoring receipt.",
       };
     }
     return refused("evidence-conflict");

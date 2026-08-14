@@ -650,7 +650,7 @@
     "system/workflows/arc/supplemental/deliver-stack.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "e734de9e70a371c3874fefcea8813b7807493b444a952d6c07d5a695f555bde9"
+      "pristine_hash": "dd6b0f49a6993c60765de47517206f849210761cafe5b74d29507fa2847be525"
     },
     "system/workflows/arc/work-unit-lifecycle/activate-work-unit.md": {
       "classification": "Framework",

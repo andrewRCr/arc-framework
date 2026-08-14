@@ -110,7 +110,7 @@ describe("arc delivery", () => {
       ), "utf8"),
     ]);
     const invocations = workflows.flatMap((workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? []);
-    expect(invocations.length).toBeGreaterThan(0);
+    expect(invocations).toHaveLength(21);
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);
       if (invocation.startsWith("arc delivery entry inspect ")) {
