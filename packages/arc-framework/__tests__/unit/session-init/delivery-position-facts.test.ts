@@ -170,7 +170,7 @@ describe("session-init delivery position facts", () => {
     });
   });
 
-  it("projects an applied publish and an open landing retry", async () => {
+  it("projects an applied publish, an open landing retry, and a merged landing", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const first = state.members[0]!;
@@ -260,6 +260,45 @@ describe("session-init delivery position facts", () => {
         status: "observed",
         operationObservation: { outcome: "not-applied" },
         projectedState: { activeOperation: null },
+      });
+
+    const mergedCoordinates = { head: "a".repeat(40), tree: "b".repeat(40) };
+    const mergedState = {
+      ...publishedState,
+      target: { ...publishedState.target!, coordinates: mergedCoordinates },
+      members: [{
+        ...publishedState.members[0]!,
+        coordinates: {
+          base: publishedState.members[0]!.coordinates!.base,
+          ...mergedCoordinates,
+        },
+      }, ...publishedState.members.slice(1)],
+    };
+    const mergedDeps = exactDependencies(mergedState);
+    mergedDeps.remoteHeads[effect.headRef] = effect.headSha;
+    mergedDeps.localCommits[effect.headSha] = true;
+    mergedDeps.host.readRequest.mockResolvedValue({
+      status: "observed",
+      request: {
+        binding,
+        repository: "owner/repository",
+        headRepository: "owner/repository",
+        headRef: effect.headRef,
+        headSha: effect.headSha,
+        baseRef: "main",
+        state: "merged",
+        draft: true,
+      },
+    });
+    await expect(observeRepositoryDeliveryPosition(plan, land.state, 6, mergedDeps))
+      .resolves.toMatchObject({
+        status: "observed",
+        operationObservation: { outcome: "applied" },
+        projectedState: {
+          activeOperation: null,
+          target: mergedState.target,
+          members: mergedState.members,
+        },
       });
   });
 });

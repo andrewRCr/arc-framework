@@ -27,7 +27,13 @@ describe("session delivery observation host", () => {
   it("degrades an expired aggregate read through the host refusal boundary", async () => {
     const runner = {
       run: vi.fn((_args: string[], options?: { signal?: AbortSignal }) => new Promise<never>((_resolve, reject) => {
-        options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true });
+        const signal = options?.signal;
+        if (signal === undefined) return;
+        if (signal.aborted) {
+          reject(signal.reason);
+          return;
+        }
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
       })),
     };
 
