@@ -106,6 +106,68 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
+After the exact chain exists, an operator may opt into native presentation:
+
+```bash
+arc delivery native link - --json
+```
+
+The CLI receives the explicit opt-in and exact plan/state-derived member set. `linked` continues only after a fresh
+exact host observation. An opt-out `unlinked` result makes zero native host calls and enters the ordinary singleton
+path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the explicit unlink verb; `refused`
+stops. On the linked path, refresh presentation facts before every landing:
+
+```bash
+arc delivery native observe - --json
+```
+
+Provider registration never selects member order and never enters the delivery plan or state.
+
+## Select and execute the native landing arm
+
+Immediately after the fresh native observation, select the service-owned arm:
+
+```bash
+arc delivery native land-select - --json
+```
+
+The selector derives the exact plan-ordered non-terminal remainder from current plan/state facts. An `unlinked` arm
+or a preceding `downgrade-required` result invokes the presentation-only degradation verb:
+
+```bash
+arc delivery native unlink - --json
+```
+
+Only its fresh `unlinked` result continues through the ordinary singleton path below. Every other result renders its
+precomposed guidance and stops without a landing mutation. `blocked` likewise renders `recommendedActionText` and
+stops. A `linked-single` or explicitly selected direct `linked-atomic` result advances to set-wide preparation:
+
+```bash
+arc delivery native land-prepare - --json
+```
+
+Render the returned exact member/head set and consequence verbatim, including the atomic residual race. The terminal
+member is never included. Every displayed head has independently passed the existing readiness, review, check, and
+merge-lock reads.
+
+> [!IMPORTANT]
+> `integration-interlock`: Stop after native landing preparation. Surface the exact authorized member/head set and
+> consequence; await approval before proceeding to the native submission.
+
+After approval, submit only the prepared effect:
+
+```bash
+arc delivery native land-submit - --json
+arc delivery native land-status - --json
+```
+
+Dispatch only on the typed result. `pending` retains the reservation; after a restart, invoke `land-status` with
+only the plan, request, and remote locators rather than submitting again. The service resolves the persisted effect
+identity from delivery state. `retryable` / `none-landed` returns to preparation and a new interlock.
+`partial-landed`, unavailable, expired, or ambiguous results stop with the reservation intact. An applied
+`linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof, before
+new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
+
 ## Review and land the current member
 
 Read the next action from:

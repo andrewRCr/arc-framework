@@ -56,12 +56,6 @@ import {
   type DeliveryPlanInventorySchemaOptions,
 } from "./handlers/delivery.js";
 import {
-  handleDeliveryTransferExport,
-  handleDeliveryTransferImport,
-  type DeliveryTransferExportOptions,
-  type DeliveryTransferImportOptions,
-} from "./handlers/delivery-transfer.js";
-import {
   handleDeliveryExecution,
   type DeliveryExecutionOptions,
 } from "./handlers/delivery-execution.js";
@@ -69,6 +63,12 @@ import {
   handleDeliveryEntryInspect,
   type DeliveryEntryInspectOptions,
 } from "./handlers/delivery-entry.js";
+import {
+  handleDeliveryTransferExport,
+  handleDeliveryTransferImport,
+  type DeliveryTransferExportOptions,
+  type DeliveryTransferImportOptions,
+} from "./handlers/delivery-transfer.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -692,6 +692,42 @@ delivery.command("publish").description("Open or adopt exact non-terminal change
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("publish", { ...opts, input }, context)
+  )));
+const deliveryNative = delivery.command("native").description("Compose optional host-native stack presentation");
+deliveryNative.command("observe").description("Observe exact native registration without mutation")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-observe", { ...opts, input }, context)
+  )));
+deliveryNative.command("link").description("Optionally register an already-materialized exact chain")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-link", { ...opts, input }, context)
+  )));
+deliveryNative.command("unlink").description("Remove native presentation before sequential delivery")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-unlink", { ...opts, input }, context)
+  )));
+deliveryNative.command("land-select").description("Select the native or unlinked landing arm from fresh facts")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-land-select", { ...opts, input }, context)
+  )));
+deliveryNative.command("land-prepare").description("Validate and reserve one exact native landing set")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-land-prepare", { ...opts, input }, context)
+  )));
+deliveryNative.command("land-submit").description("Submit one freshly authorized native landing effect")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-land-submit", { ...opts, input }, context)
+  )));
+deliveryNative.command("land-status").description("Poll and reconcile one persisted native landing identity")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("native-land-status", { ...opts, input }, context)
   )));
 delivery.command("position").description("Derive the exact current delivery position")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")

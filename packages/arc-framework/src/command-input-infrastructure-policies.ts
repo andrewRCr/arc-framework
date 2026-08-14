@@ -23,6 +23,25 @@ const rawGitSubprocessPolicy = {
   subprocess: "close-stdin" as const,
 };
 
+const hostedGhSubprocessPolicy = {
+  acquisition: "subprocess" as const,
+  schemaOwnership: "none" as const,
+  cancellation: "not-applicable" as const,
+  automation: { noInput: "same" as const, flags: [], acceptedSyntax: [] },
+  mutationBoundary: "delivery GitHub subprocess boundary",
+  subprocess: "close-stdin" as const,
+};
+
+const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
+  "delivery native link",
+  "delivery native land-prepare",
+  "delivery native land-select",
+  "delivery native land-status",
+  "delivery native land-submit",
+  "delivery native observe",
+  "delivery native unlink",
+]);
+
 const rawGitCommandPaths = [
   "abandon",
   "activate",
@@ -36,6 +55,13 @@ const rawGitCommandPaths = [
   "delivery land apply",
   "delivery land prepare",
   "delivery materialize",
+  "delivery native link",
+  "delivery native land-prepare",
+  "delivery native land-select",
+  "delivery native land-status",
+  "delivery native land-submit",
+  "delivery native observe",
+  "delivery native unlink",
   "delivery plan abandon",
   "delivery plan from-branch",
   "delivery plan from-tasks",
@@ -92,8 +118,14 @@ export const infrastructureCommandInputPolicyDeclarations = [{
 }, ...rawGitCommandPaths.map((commandPath) => ({
   commandPath,
   aliases: [],
-  sites: [declareInteractionSite(
-    { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
-    rawGitSubprocessPolicy,
-  )],
+  sites: [
+    declareInteractionSite(
+      { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
+      rawGitSubprocessPolicy,
+    ),
+    ...(nativeDeliveryCommandPaths.has(commandPath) ? [declareInteractionSite(
+      { file: "scripts/review-gate/hosted/gh-process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
+      hostedGhSubprocessPolicy,
+    )] : []),
+  ],
 }))] satisfies readonly CommandInputDeclaration[];

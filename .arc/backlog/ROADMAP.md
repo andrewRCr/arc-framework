@@ -15,10 +15,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit                     | Priority | Owner  | Depends on | Cohort                    |
 | ---------- | ----------------------------- | -------- | ------ | ---------- | ------------------------- |
-| `Planning` | delivery-stack-topology       | P1       | andrew | —          | chunked-delivery          |
+| `Active`   | finalize-parallelism          | P1       | andrew | —          | agile-parallelism         |
 | `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment |
 | `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                         |
-| `Planning` | integration-boundary-accuracy | P1       | andrew | —          | —                         |
+| `Active`   | integration-boundary-accuracy | P1       | andrew | —          | —                         |
 | `Planning` | review-checkout-lifecycle     | P1       | andrew | —          | —                         |
 | `Planning` | stub-mint-to-launch           | P1       | andrew | —          | —                         |
 
@@ -125,9 +125,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 4
 
-| Work unit                   | Priority | Owner  | Depends on                                        | Cohort           |
-| --------------------------- | -------- | ------ | ------------------------------------------------- | ---------------- |
-| delivery-review-cardinality | P2       | andrew | delivery-stack-topology, review-request-contracts | chunked-delivery |
+| Work unit                   | Priority | Owner  | Depends on               | Cohort           |
+| --------------------------- | -------- | ------ | ------------------------ | ---------------- |
+| delivery-review-cardinality | P2       | andrew | review-request-contracts | chunked-delivery |
 
 ---
 

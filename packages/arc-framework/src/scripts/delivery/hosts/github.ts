@@ -12,7 +12,19 @@ import type {
   DeliveryLandEffectV1,
   DeliveryPublishEffectV1,
 } from "../../../lib/delivery/schema.js";
-import type { HostedProcessRunner } from "../../review-gate/hosted/gh-process.js";
+import { HostedProcessError, type HostedProcessRunner } from "../../review-gate/hosted/gh-process.js";
+import type {
+  DeliveryNativeStackInput,
+  DeliveryNativeStackObservation,
+  DeliveryNativeStackPort,
+  DeliveryNativeStackUnlinkPort,
+} from "../../../lib/delivery/native-stack.js";
+import type {
+  DeliveryNativeMergeHostPort,
+  DeliveryNativeMergeObservation,
+  DeliveryNativeMergeRequest,
+  DeliveryNativeMergeSubmission,
+} from "../../../lib/delivery/native-landing.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
@@ -87,8 +99,155 @@ function exactObservation(
 }
 
 /** GitHub observations and mutations through the existing bounded `gh` runner. */
-export class GhDeliveryHostPort implements DeliveryHostPort {
+export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort,
+  DeliveryNativeStackUnlinkPort, DeliveryNativeMergeHostPort {
   constructor(private readonly runner: HostedProcessRunner) {}
+
+  async observe(input: DeliveryNativeStackInput): Promise<DeliveryNativeStackObservation> {
+    try {
+      const result = await this.runner.run([
+        "api", `repos/${input.repository}/stacks`, "--method", "GET",
+        "-f", `pull_request=${input.members[0]?.changeRequestId ?? ""}`,
+      ]);
+      const decoded = parse(result.stdout);
+      if (!Array.isArray(decoded)) return { status: "malformed" };
+      if (decoded.length === 0) return { status: "unregistered" };
+      const matches: number[] = [];
+      const affected = new Set<string>();
+      for (const candidate of decoded) {
+        const stack = record(candidate);
+        const number = stack?.number;
+        const base = record(stack?.base);
+        const requests = stack?.pull_requests;
+        if (!Number.isSafeInteger(number) || typeof base?.ref !== "string" || base.ref === ""
+          || !Array.isArray(requests)) return { status: "malformed" };
+        const firstMember = input.members[0];
+        let exact = requests.length === input.members.length && base.ref === firstMember?.baseRef;
+        if (base.ref !== firstMember?.baseRef && firstMember !== undefined) {
+          affected.add(firstMember.deliverableId);
+        }
+        for (const [index, member] of input.members.entries()) {
+          const request = record(requests[index]);
+          const head = record(request?.head);
+          const requestBase = record(request?.base);
+          const matchesMember = String(request?.number) === member.changeRequestId
+            && head?.ref === member.headRef && head.sha === member.headSha
+            && requestBase?.ref === member.baseRef;
+          if (!matchesMember) affected.add(member.deliverableId);
+          exact &&= matchesMember;
+        }
+        if (exact) matches.push(number as number);
+      }
+      const [matchedStack] = matches;
+      if (matches.length === 1 && matchedStack !== undefined) {
+        return { status: "registered", stackNumber: matchedStack };
+      }
+      if (matches.length > 1) return { status: "ambiguous" };
+      return affected.size > 0
+        ? { status: "partial", affectedDeliverableIds: [...affected] }
+        : { status: "unregistered" };
+    } catch (error) {
+      const status = record(error)?.httpStatus;
+      return status === 404 ? { status: "unsupported" } : { status: "unavailable" };
+    }
+  }
+
+  async link(input: DeliveryNativeStackInput): Promise<
+    { readonly status: "submitted" } | { readonly status: "refused"; readonly reason: "unsupported" | "unavailable" | "malformed" }
+  > {
+    try {
+      await this.runner.run([
+        "api", `repos/${input.repository}/stacks`, "--method", "POST",
+        ...input.members.flatMap((member) => ["-F", `pull_requests[]=${member.changeRequestId}`]),
+      ]);
+      return { status: "submitted" };
+    } catch (error) {
+      const status = error instanceof HostedProcessError ? error.httpStatus : record(error)?.httpStatus;
+      return {
+        status: "refused",
+        reason: status === 404 ? "unsupported" : status === 422 ? "malformed" : "unavailable",
+      };
+    }
+  }
+
+  async unlink(input: DeliveryNativeStackInput & { readonly stackNumber: number }): Promise<
+    { readonly status: "submitted" | "already-unlinked" }
+    | { readonly status: "refused"; readonly reason: "unsupported" | "unavailable" | "malformed" }
+  > {
+    try {
+      await this.runner.run([
+        "api", `repos/${input.repository}/stacks/${input.stackNumber}/unstack`, "--method", "POST",
+      ]);
+      return { status: "submitted" };
+    } catch (error) {
+      if (error instanceof HostedProcessError && error.httpStatus === 404) return { status: "already-unlinked" };
+      return { status: "refused", reason: "unavailable" };
+    }
+  }
+
+  async submitNativeMerge(input: DeliveryNativeMergeRequest): Promise<DeliveryNativeMergeSubmission> {
+    const normalize = (text: string, existing: boolean): DeliveryNativeMergeSubmission => {
+      const response = record(parse(text));
+      const status = response?.status;
+      const details = record(response?.details);
+      if (status === "merged") return { status: "merged" };
+      if (status === "enqueued") return { status: "enqueued" };
+      if (status !== "pending" || typeof details?.uuid !== "string" || details.uuid === "") {
+        return { status: "refused", reason: "malformed" };
+      }
+      if (details.expected_head_sha !== input.topHeadSha
+        || details.merge_method !== input.mergeMethod || details.merge_action !== input.mergeAction) {
+        return { status: "refused", reason: "malformed" };
+      }
+      return { status: existing ? "existing" : "submitted", effectIdentity: details.uuid };
+    };
+    try {
+      const result = await this.runner.run([
+        "api", `repos/${input.repository}/pulls/${input.topChangeRequestId}/merge-async`,
+        "--method", "PUT", "-f", `sha=${input.topHeadSha}`,
+        "-f", `merge_method=${input.mergeMethod}`, "-f", `merge_action=${input.mergeAction}`,
+      ]);
+      return normalize(result.stdout, false);
+    } catch (error) {
+      if (error instanceof HostedProcessError && error.httpStatus === 409) {
+        const payload = [error.stdout, error.stderr, error.message]
+          .find((candidate) => record(parse(candidate)) !== null) ?? error.message;
+        return normalize(payload, true);
+      }
+      if (error instanceof HostedProcessError && error.httpStatus === 404) {
+        return { status: "refused", reason: "unsupported" };
+      }
+      return { status: "refused", reason: "unavailable" };
+    }
+  }
+
+  async observeNativeMerge(
+    input: DeliveryNativeMergeRequest & { readonly effectIdentity: string },
+  ): Promise<DeliveryNativeMergeObservation> {
+    try {
+      const result = await this.runner.run([
+        "api", `repos/${input.repository}/pulls/${input.topChangeRequestId}/merge-async/${input.effectIdentity}`,
+      ]);
+      const response = record(parse(result.stdout));
+      const status = response?.status;
+      if (status === "pending") {
+        const details = record(response?.details);
+        return details?.uuid === input.effectIdentity
+          && details.expected_head_sha === input.topHeadSha
+          && details.merge_method === input.mergeMethod
+          && details.merge_action === input.mergeAction
+          ? { status }
+          : { status: "refused", reason: "malformed" };
+      }
+      return status === "merged" || status === "enqueued" || status === "failed"
+        ? { status }
+        : { status: "refused", reason: "malformed" };
+    } catch (error) {
+      return error instanceof HostedProcessError && error.httpStatus === 404
+        ? { status: "refused", reason: "expired" }
+        : { status: "refused", reason: "unavailable" };
+    }
+  }
 
   async observeRequest(effect: DeliveryPublishEffectV1): Promise<DeliveryHostRequestObservation> {
     const [owner, name, ...extra] = effect.repository.split("/");
