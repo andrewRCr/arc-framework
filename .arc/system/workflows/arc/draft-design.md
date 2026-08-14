@@ -66,11 +66,11 @@ re-entry valve.
 Off the same read, run [`assess-boundary-fit`][assess-boundary-fit] — the cheap boundary confirm paired with
 `classify-work-unit`'s lower-bound read. Dispatch its one selected outcome:
 
-| Outcome                                  | Owner                   | Action                                                                                                                                     |
-| ---------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `stays one WU`                           | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; continue whole and stay silent while evidence is materially unchanged. |
-| `cut-map`                                | `decompose-work-unit`   | Route the complete cut-map to that workflow; it alone owns the transform.                                                                  |
-| `stays one WU + delivery-plan candidate` | Current authoring stage | Author the draft slice-aware, without publishing or binding delivery state.                                                                |
+| Outcome                                  | Owner                   | Action                                                                                                                                         |
+| ---------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stays one WU`                           | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; continue whole and stay silent while evidence is materially unchanged.     |
+| `cut-map`                                | `decompose-work-unit`   | Route the complete cut-map to that workflow; it alone owns the transform.                                                                      |
+| `stays one WU + delivery-plan candidate` | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; author the draft slice-aware without publishing or binding delivery state. |
 
 The selected result is sticky planning judgment. At later fire-points, compare the evidence semantically and
 re-raise only for a material new-evidence delta, never for mere invocation, elapsed time, or restatement. No CLI

@@ -115,10 +115,11 @@ When the cut produces members, **their slugs must read legibly out of context.**
 afterthought. **Never encode order in the slug** — no `-pt1` / `-pt2` ordinals (they fabricate sequencing and
 aren't self-describing); inter-member order, when it exists, lives in `Depends On`.
 
-### Output — the cut-map
+### Output
 
-The method produces either **"stays one WU"** or the author-owned half of the v3 cut-map. The CLI supplies the
-immutable source units and dependency edges; complete only these authoring decisions:
+The method produces exactly one of **"stays one WU"**, the author-owned half of the v3 cut-map, or
+**"stays one WU + delivery-plan candidate"**. For a cut-map, the CLI supplies the immutable source units and
+dependency edges; complete only these authoring decisions:
 
 - **shape** — `symmetric` or `heterogeneous`;
 - **placement** — `direct-member`, `cohort`, `subcohort`, or `at-cap`;

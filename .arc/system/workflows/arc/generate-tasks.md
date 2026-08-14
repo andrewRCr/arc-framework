@@ -212,7 +212,8 @@ treating the result as `proportionate`.
 Run [`assess-boundary-fit`][arc-methods-abf] against the provisional skeleton: this is the first concrete
 task-scale evidence and is independent of the scale/derivation depth valve. A derivation gap returns to design;
 orthogonal concerns route a complete cut-map to `decompose-work-unit`; a cohesive concern with separable delivery
-surfaces selects `stays one WU + delivery-plan candidate`.
+surfaces selects `stays one WU + delivery-plan candidate`. Record the selected outcome and evidence basis in
+existing draft or spec decision prose.
 
 For the delivery candidate, add exactly one unmarked provisional `## Delivery Plan` locus before Phase 1. It
 records the current member/seam intent for review but does not create canonical delivery state, publish or bind a
