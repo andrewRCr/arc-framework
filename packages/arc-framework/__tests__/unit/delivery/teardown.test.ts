@@ -15,7 +15,7 @@ function fixture() {
   const facts = { target: state.target, members: state.members, landedDeliverableIds: [first.deliverableId] };
   const request = {
     binding: first.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
-    headRef: first.ref!.replace("refs/heads/", ""), headSha: "a".repeat(40), baseRef: "main",
+    headRef: first.ref!.replace("refs/heads/", ""), headSha: first.coordinates!.head, baseRef: "main",
     state: "merged" as const, draft: false,
   };
   return { plan, state, facts, first, request };
@@ -56,12 +56,21 @@ describe("landed delivery teardown", () => {
       host: { readRequest: async () => ({ status: "observed", request: { ...request, state: "open" as const } }) },
       deleteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
+    const deleteRef = vi.fn(async () => ({ status: "adopted" as const }));
+    await expect(teardownLandedDeliveryMember({
+      ...common,
+      host: { readRequest: async () => ({
+        status: "observed", request: { ...request, headSha: "a".repeat(40) },
+      }) },
+      deleteRef,
+    })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
     await expect(teardownLandedDeliveryMember({
       ...common, deliverableId: state.members[1]!.deliverableId,
       host: { readRequest: async () => ({ status: "observed", request }) },
       deleteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "member-not-landed" });
     expect(publish).not.toHaveBeenCalled();
+    expect(deleteRef).not.toHaveBeenCalled();
   });
 
   it("retains the persisted reservation when deletion or post-delete request proof is unavailable", async () => {

@@ -112,7 +112,7 @@ describe("delivery suffix rematerialization", () => {
     });
     expect(result.status).toBe("rematerialized");
     expect(seenRevisions).toEqual([7, 8]);
-    expect(proveCarried.mock.calls.length).toBeGreaterThan(2);
+    expect(proveCarried).toHaveBeenCalledTimes(6);
   });
 
   it("resumes after a persisted predecessor rewrite without weakening carried contribution proof", async () => {
