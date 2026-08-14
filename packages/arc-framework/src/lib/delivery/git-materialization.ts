@@ -73,3 +73,71 @@ export async function publishDeliveryRemoteRef(input: {
   }
   return { status: "refused", reason: "unavailable" };
 }
+
+/** Rewrite one remote ref only from its exact stored head, or adopt the exact already-applied result. */
+export async function rewriteDeliveryRemoteRef(input: {
+  readonly exec: GitExec;
+  readonly remote: string;
+  readonly ref: string;
+  readonly beforeHead: string;
+  readonly requestedHead: string;
+}): Promise<
+  | { readonly status: "rewritten" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "stale-lease" | "malformed" | "unavailable" }
+> {
+  if (!objectId.test(input.beforeHead) || !objectId.test(input.requestedHead)
+    || !input.ref.startsWith("refs/heads/")) return { status: "refused", reason: "malformed" };
+  const before = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
+  if (before.status === "refused") return before;
+  if (before.status === "absent") return { status: "refused", reason: "collision" };
+  if (before.head === input.requestedHead) return { status: "adopted" };
+  if (before.head !== input.beforeHead) return { status: "refused", reason: "collision" };
+  try {
+    await input.exec("git", [
+      "push", input.remote, `${input.requestedHead}:${input.ref}`,
+      `--force-with-lease=${input.ref}:${input.beforeHead}`,
+    ]);
+  } catch {
+    const afterFailure = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
+    if (afterFailure.status === "observed" && afterFailure.head === input.requestedHead) {
+      return { status: "adopted" };
+    }
+    return { status: "refused", reason: afterFailure.status === "refused" ? "unavailable" : "stale-lease" };
+  }
+  const after = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
+  return after.status === "observed" && after.head === input.requestedHead
+    ? { status: "rewritten" }
+    : { status: "refused", reason: after.status === "refused" ? "unavailable" : "stale-lease" };
+}
+
+/** Delete one remote ref only at its exact observed head, or adopt exact absence. */
+export async function deleteDeliveryRemoteRef(input: {
+  readonly exec: GitExec;
+  readonly remote: string;
+  readonly ref: string;
+  readonly expectedHead: string;
+}): Promise<
+  | { readonly status: "deleted" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "stale-lease" | "malformed" | "unavailable" }
+> {
+  if (!objectId.test(input.expectedHead) || !input.ref.startsWith("refs/heads/")) {
+    return { status: "refused", reason: "malformed" };
+  }
+  const before = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
+  if (before.status === "refused") return before;
+  if (before.status === "absent") return { status: "adopted" };
+  if (before.head !== input.expectedHead) return { status: "refused", reason: "collision" };
+  try {
+    await input.exec("git", [
+      "push", input.remote, `--force-with-lease=${input.ref}:${input.expectedHead}`, `:${input.ref}`,
+    ]);
+  } catch {
+    const afterFailure = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
+    if (afterFailure.status === "absent") return { status: "adopted" };
+    return { status: "refused", reason: afterFailure.status === "refused" ? "unavailable" : "stale-lease" };
+  }
+  const after = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
+  return after.status === "absent"
+    ? { status: "deleted" }
+    : { status: "refused", reason: after.status === "refused" ? "unavailable" : "stale-lease" };
+}
