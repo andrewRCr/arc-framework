@@ -41,6 +41,36 @@ describe("delivery remote-ref leases", () => {
       .resolves.toEqual({ status: "refused", reason: "unavailable" });
   });
 
+  it("classifies publication failure from the exact reobserved remote state", async () => {
+    const afterFailure = (observed: string | null | "unavailable"): GitExec => {
+      let reads = 0;
+      return async (_command, args) => {
+        if (args[0] === "ls-remote") {
+          reads += 1;
+          if (reads === 1) return { stdout: "" };
+          if (observed === "unavailable") throw new Error("offline");
+          return { stdout: observed === null ? "" : `${observed}\t${ref}\n` };
+        }
+        throw new Error("push failed");
+      };
+    };
+    await expect(publishDeliveryRemoteRef({ exec: afterFailure(head), remote: "origin", ref, head }))
+      .resolves.toEqual({ status: "adopted" });
+    await expect(publishDeliveryRemoteRef({
+      exec: afterFailure("b".repeat(40)), remote: "origin", ref, head,
+    })).resolves.toEqual({ status: "refused", reason: "stale-lease" });
+    for (const observed of [null, "unavailable"] as const) {
+      await expect(publishDeliveryRemoteRef({ exec: afterFailure(observed), remote: "origin", ref, head }))
+        .resolves.toEqual({ status: "refused", reason: "unavailable" });
+    }
+  });
+
+  it("reports unavailable when a successful push leaves no observable ref", async () => {
+    const exec: GitExec = async () => ({ stdout: "" });
+    await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head }))
+      .resolves.toEqual({ status: "refused", reason: "unavailable" });
+  });
+
   it("rewrites only from the exact stored head and adopts an exact applied retry", async () => {
     const next = "b".repeat(40);
     let remoteHead = head;

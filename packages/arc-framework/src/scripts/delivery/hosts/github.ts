@@ -74,11 +74,17 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   };
 }
 
+function isDeletedHeadRequest(value: unknown): boolean {
+  const request = record(value);
+  const head = record(request?.head);
+  return request !== null && head !== null && head.repo === null;
+}
+
 function exactObservation(
   values: readonly unknown[],
   effect: DeliveryPublishEffectV1,
 ): DeliveryHostRequestObservation {
-  const normalized = values.map(normalizeRequest);
+  const normalized = values.filter((value) => !isDeletedHeadRequest(value)).map(normalizeRequest);
   if (normalized.some((request) => request === null)) return { status: "refused", reason: "malformed" };
   const requests = normalized as DeliveryHostChangeRequest[];
   const exact = requests.filter((request) => request.repository === effect.repository
@@ -248,9 +254,14 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
       const result = await this.runner.run([
         "api", `repos/${effect.repository}/pulls`, "--method", "GET",
         "-f", "state=all", "-f", `head=${owner}:${effect.headRef}`, "-f", `base=${effect.baseRef}`,
+        "--paginate", "--slurp",
       ]);
       const decoded = parse(result.stdout);
-      return Array.isArray(decoded) ? exactObservation(decoded, effect) : { status: "refused", reason: "malformed" };
+      if (!Array.isArray(decoded)) return { status: "refused", reason: "malformed" };
+      const pageFlags = decoded.map(Array.isArray);
+      if (pageFlags.some(Boolean) && !pageFlags.every(Boolean)) return { status: "refused", reason: "malformed" };
+      const values = pageFlags.every(Boolean) ? decoded.flat() : decoded;
+      return exactObservation(values, effect);
     } catch {
       return { status: "refused", reason: "unavailable" };
     }

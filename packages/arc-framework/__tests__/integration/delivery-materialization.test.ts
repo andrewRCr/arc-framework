@@ -49,6 +49,8 @@ describe("delivery materialization against a bare remote", () => {
     const second = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repository })).stdout.trim();
     await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head: second }))
       .resolves.toEqual({ status: "refused", reason: "collision" });
+    const retained = await execFileAsync("git", ["ls-remote", "--refs", "origin", ref], { cwd: repository });
+    expect(retained.stdout.trim()).toBe(`${first}\t${ref}`);
     await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: second }))
       .resolves.toEqual({ status: "refused", reason: "collision" });
     await expect(deleteDeliveryRemoteRef({ exec, remote: "origin", ref, expectedHead: first }))

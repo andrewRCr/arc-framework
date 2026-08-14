@@ -167,7 +167,7 @@ authoritative scope source. The delivery-member accessibility rule above governs
   `` `tasks-{name}.md` `` (Task X.Y).
 
 **Summary — required.** Frame the change for the reviewer. Long Summaries get skimmed; keep tight.
-Why-it-matters belongs here when non-obvious; otherwise let the diff and the Spec link carry it.
+Why-it-matters belongs here when non-obvious; otherwise let the diff and the Design reference carry it.
 
 **Changes — recommended for substantial PRs.** For single-line bug fixes or trivial changes the
 Summary can subsume the Changes content; omit the section in that case. For multi-component or

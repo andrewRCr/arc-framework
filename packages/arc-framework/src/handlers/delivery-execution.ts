@@ -829,6 +829,7 @@ async function executeDeliveryCommand(
               materialization: derived.value,
               stateStore,
               host: new GhDeliveryHostPort(hostedGhRunner),
+              providerId: "github",
               repository: publish.repository,
               draft: publish.draft,
             });
@@ -854,6 +855,7 @@ async function executeDeliveryCommand(
           materialization: derived.value,
           stateStore,
           host: new GhDeliveryHostPort(hostedGhRunner),
+          providerId: "github",
           repository: publish.repository,
           draft: publish.draft,
           presentation: (member) => {

@@ -14,6 +14,7 @@ import type {
   DeliveryMemberCoordinatesV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
+  DeliveryPublishEffectV1,
   DeliveryStateV1,
 } from "./schema.js";
 import { constructInitialDeliveryState } from "./state.js";
@@ -182,6 +183,20 @@ function isExactOpenRequest(
     && request.request.state === "open";
 }
 
+function deliveryPublishEffect(
+  input: { readonly providerId: string; readonly repository: string; readonly draft: boolean },
+  member: { readonly ref: string; readonly requestBaseRef: string; readonly head: string },
+): DeliveryPublishEffectV1 {
+  return {
+    providerId: input.providerId,
+    repository: input.repository,
+    headRef: member.ref.replace(/^refs\/heads\//u, ""),
+    headSha: member.head,
+    baseRef: member.requestBaseRef.replace(/^refs\/heads\//u, ""),
+    draft: input.draft,
+  };
+}
+
 /** Bind the first uniquely observed ref event through the shipped state constructor. */
 export async function bindInitialDeliveryRef(input: {
   readonly plan: DeliveryPlanV1;
@@ -222,6 +237,7 @@ export async function bindInitialDeliveryRequest(input: {
   readonly materialization: DeliveryMaterializationPlan;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "read" | "publish">;
   readonly host: DeliveryHostPort;
+  readonly providerId: string;
   readonly repository: string;
   readonly draft: boolean;
 }): Promise<
@@ -233,14 +249,11 @@ export async function bindInitialDeliveryRequest(input: {
   if (first?.ref === null || first === undefined || first.requestBaseRef === null) return { status: "refused" };
   const current = await input.stateStore.read(input.plan.planId);
   if (current.status !== "ok" || current.value !== null) return { status: "refused" };
-  const effect = {
-    providerId: "github",
-    repository: input.repository,
-    headRef: first.ref.replace(/^refs\/heads\//u, ""),
-    headSha: first.head,
-    baseRef: first.requestBaseRef.replace(/^refs\/heads\//u, ""),
-    draft: input.draft,
-  } as const;
+  const effect = deliveryPublishEffect(input, {
+    ref: first.ref,
+    requestBaseRef: first.requestBaseRef,
+    head: first.head,
+  });
   const observed = await input.host.observeRequest(effect);
   if (observed.status === "absent") return observed;
   if (observed.status !== "observed") return { status: "refused" };
@@ -401,6 +414,7 @@ export async function publishDeliveryRequests(input: {
   readonly materialization: DeliveryMaterializationPlan;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "read" | "publish">;
   readonly host: DeliveryHostPort;
+  readonly providerId: string;
   readonly repository: string;
   readonly draft: boolean;
   presentation(member: DeliveryMaterializationMember): Pick<DeliveryHostOpenRequest, "title" | "body">;
@@ -410,20 +424,28 @@ export async function publishDeliveryRequests(input: {
   const read = await input.stateStore.read(input.plan.planId);
   if (read.status !== "ok" || read.value === null) return { status: "refused" };
   let current = read.value;
+  const presentations = new Map<string, Pick<DeliveryHostOpenRequest, "title" | "body">>();
+  try {
+    for (const member of input.materialization.members) {
+      if (member.ref === null || member.requestBaseRef === null) continue;
+      const stored = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
+      if (stored?.changeRequest !== null && stored?.changeRequest !== undefined) continue;
+      presentations.set(member.deliverableId, input.presentation(member));
+    }
+  } catch {
+    return { status: "refused" };
+  }
   for (const member of input.materialization.members) {
     if (member.ref === null || member.requestBaseRef === null) continue;
     const stored = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
     if (stored?.changeRequest !== null && stored?.changeRequest !== undefined) continue;
     const before = snapshot(current.value, member.deliverableId);
     if (before === null) return { status: "refused" };
-    const effect = {
-      providerId: "github",
-      repository: input.repository,
-      headRef: member.ref.replace(/^refs\/heads\//u, ""),
-      headSha: member.head,
-      baseRef: member.requestBaseRef.replace(/^refs\/heads\//u, ""),
-      draft: input.draft,
-    } as const;
+    const effect = deliveryPublishEffect(input, {
+      ref: member.ref,
+      requestBaseRef: member.requestBaseRef,
+      head: member.head,
+    });
     const reserved = reserveDeliveryOperation(current, input.plan, {
       operationId: crypto.randomUUID(),
       kind: "publish",
@@ -447,7 +469,8 @@ export async function publishDeliveryRequests(input: {
     }
     let observed = await input.host.observeRequest(effect);
     if (observed.status === "absent") {
-      const presentation = input.presentation(member);
+      const presentation = presentations.get(member.deliverableId);
+      if (presentation === undefined) return { status: "refused" };
       if ((await input.host.openRequest({ effect, ...presentation })).status === "refused") return { status: "refused" };
       observed = await input.host.observeRequest(effect);
     }

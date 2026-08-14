@@ -227,7 +227,7 @@ describe("delivery materialization orchestration", () => {
     }
   });
 
-  it("adopts one exact request result while ambiguity leaves the reservation", async () => {
+  it("adopts one exact request result", async () => {
     const plan = deliveryPlanFixture();
     const derived = deriveDeliveryMaterialization(plan, eligible(plan));
     if (derived.status !== "derived") throw new Error("fixture must derive");
@@ -265,6 +265,7 @@ describe("delivery materialization orchestration", () => {
       materialization: derived.value,
       stateStore: store,
       host,
+      providerId: "github",
       repository: "andrewRCr/arc-framework",
       draft: true,
       presentation: () => ({ title: "First", body: "Exact member" }),
@@ -335,6 +336,7 @@ describe("delivery materialization orchestration", () => {
       materialization: derived.value,
       stateStore: store,
       host,
+      providerId: "github",
       repository: "andrewRCr/arc-framework",
       draft: true,
       presentation: (materialized) => describeDeliveryMemberPresentation(plan, materialized, authored),
@@ -404,6 +406,7 @@ describe("delivery materialization orchestration", () => {
       materialization: derived.value,
       stateStore: memoryStateStore(),
       host,
+      providerId: "github",
       repository: exact.repository,
       draft: exact.draft,
     });
@@ -413,6 +416,7 @@ describe("delivery materialization orchestration", () => {
       materialization: derived.value,
       stateStore: memoryStateStore(),
       host: { ...host, observeRequest: async () => ({ status: "absent" as const }) },
+      providerId: "github",
       repository: exact.repository,
       draft: exact.draft,
     })).resolves.toEqual({ status: "absent" });
@@ -420,6 +424,7 @@ describe("delivery materialization orchestration", () => {
     for (const mismatch of [
       { ...exact, repository: "someone/else" },
       { ...exact, baseRef: "release" },
+      { ...exact, headRef: "delivery/example/other" },
       { ...exact, headSha: "8".repeat(40) },
       { ...exact, state: "closed" as const },
       { ...exact, draft: false },
@@ -429,10 +434,58 @@ describe("delivery materialization orchestration", () => {
         materialization: derived.value,
         stateStore: memoryStateStore(),
         host: { ...host, observeRequest: async () => ({ status: "observed" as const, request: mismatch }) },
+        providerId: "github",
         repository: exact.repository,
         draft: exact.draft,
       })).resolves.toEqual({ status: "refused" });
     }
+  });
+
+  it("resolves every missing request presentation before reserving publication", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const refs = {
+      publish: async () => ({ status: "adopted" as const }),
+      observe: async (ref: string) => {
+        if (ref === "refs/heads/main") return { status: "observed" as const, head: protectedHead };
+        const member = derived.value.members.find((candidate) => candidate.ref === ref);
+        return member === undefined
+          ? { status: "refused" as const }
+          : { status: "observed" as const, head: member.head };
+      },
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
+    await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
+    let hostObserved = false;
+    const host = {
+      observeRequest: async () => {
+        hostObserved = true;
+        return { status: "absent" as const };
+      },
+      openRequest: async () => ({ status: "submitted" as const }),
+      readRequest: async () => ({ status: "absent" as const }),
+      mergeRequest: async () => ({ status: "submitted" as const }),
+      observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+    };
+
+    await expect(publishDeliveryRequests({
+      plan,
+      materialization: derived.value,
+      stateStore: store,
+      host,
+      providerId: "github",
+      repository: "andrewRCr/arc-framework",
+      draft: true,
+      presentation: (member) => {
+        if (member.deliverableId === plan.members[1]!.deliverableId) throw new Error("invalid presentation");
+        return { title: "First", body: "Exact member" };
+      },
+    })).resolves.toEqual({ status: "refused" });
+    expect(hostObserved).toBe(false);
+    const retained = await store.read();
+    expect(retained.value?.value.activeOperation).toBeNull();
   });
 
   it("reobserves and adopts an exact first ref after state publication is interrupted", async () => {
