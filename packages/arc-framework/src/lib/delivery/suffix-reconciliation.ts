@@ -1,6 +1,7 @@
 /** Exact reservation and convergence for one predecessor-changing suffix retarget. */
 
 import type { DeliveryHostPort } from "./host.js";
+import { canonicalize } from "../kernel/index.js";
 import {
   acceptDeliveryOperationResult,
   checkDeliveryOperationPrecondition,
@@ -82,12 +83,12 @@ export async function reconcileReservedSuffixRetarget(input: {
   | { readonly status: "retryable" }
   | { readonly status: "blocked"; readonly reason: "contribution-mismatch" | "ambiguous" | "state-conflict" }
 > {
-  if ((await input.proveContribution()).status !== "accepted") {
-    return { status: "blocked", reason: "contribution-mismatch" };
-  }
   const reconciled = reconcileDeliveryOperation(input.current, input.observed);
   if (reconciled.status === "retry") return { status: "retryable" };
   if (reconciled.status !== "adopt") return { status: "blocked", reason: "ambiguous" };
+  if ((await input.proveContribution()).status !== "accepted") {
+    return { status: "blocked", reason: "contribution-mismatch" };
+  }
   const persisted = await input.stateStore.publish(input.planId, reconciled.state, input.current.revision);
   return persisted.status === "ok"
     ? { status: "applied", state: persisted.value }
@@ -117,7 +118,8 @@ export async function executeDeliverySuffixRewrite(input: {
 > {
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.deliverableId);
   const requestedMember = input.requested.members[0];
-  if (member?.ref === null || member?.coordinates === null || requestedMember === undefined
+  if (canonicalize(input.requested.target) !== canonicalize(input.current.value.target)
+    || member?.ref === null || member?.coordinates === null || requestedMember === undefined
     || requestedMember.deliverableId !== member?.deliverableId || requestedMember.ref !== member.ref
     || requestedMember.changeRequest?.providerId !== member.changeRequest?.providerId
     || requestedMember.changeRequest?.changeRequestId !== member.changeRequest?.changeRequestId

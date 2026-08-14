@@ -130,6 +130,18 @@ describe("delivery suffix reconciliation", () => {
       stateStore: { publish: async () => ({ status: "refused", reason: "version-conflict" }) },
     })).resolves.toEqual({ status: "blocked", reason: "state-conflict" });
     expect(reserved.value.activeOperation).not.toBeNull();
+
+    const proveRetry = vi.fn(async () => ({
+      status: "refused" as const, reason: "contribution-mismatch" as const,
+    }));
+    await expect(reconcileReservedSuffixRetarget({
+      planId: plan.planId,
+      current: reserved,
+      observed: reserved.value.activeOperation!.before,
+      proveContribution: proveRetry,
+      stateStore: { publish: vi.fn() },
+    })).resolves.toEqual({ status: "retryable" });
+    expect(proveRetry).not.toHaveBeenCalled();
   });
 
   it("revalidates lifecycle paths before reserving and rewriting an explicit suffix head", async () => {
@@ -183,6 +195,34 @@ describe("delivery suffix reconciliation", () => {
       proveContribution: async () => ({ status: "accepted", proof: "tree-equality" }),
       stateStore: { publish },
     })).resolves.toEqual({ status: "refused", reason: "lifecycle-contribution" });
+    expect(publish).not.toHaveBeenCalled();
+    expect(rewriteRef).not.toHaveBeenCalled();
+  });
+
+  it("refuses a foreign requested target before lifecycle checks, reservation, or ref mutation", async () => {
+    const { plan, state } = movedFixture();
+    const member = state.members[1]!;
+    const revalidateLifecycle = vi.fn(async () => ({ status: "ok" as const }));
+    const publish = vi.fn();
+    const rewriteRef = vi.fn();
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested: {
+        target: {
+          ref: state.target!.ref,
+          coordinates: { head: "9".repeat(40), tree: state.target!.coordinates!.tree },
+        },
+        members: [{ ...member }],
+      },
+      revalidateLifecycle,
+      rewriteRef,
+      observeResult: async () => { throw new Error("must not observe"); },
+      proveContribution: async () => ({ status: "accepted", proof: "tree-equality" }),
+      stateStore: { publish },
+    })).resolves.toEqual({ status: "refused", reason: "position-mismatch" });
+    expect(revalidateLifecycle).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     expect(rewriteRef).not.toHaveBeenCalled();
   });

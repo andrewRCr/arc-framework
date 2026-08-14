@@ -128,6 +128,26 @@ describe("delivery terminal handoff", () => {
     expect(publish).toHaveBeenCalledOnce();
   });
 
+  it("blocks terminal attachment when the version-checked state write conflicts", async () => {
+    const f = fixture();
+    const request = {
+      binding: { providerId: "github", changeRequestId: "999" }, repository: "owner/repo",
+      headRepository: "owner/repo", headRef: "feat/control", headSha: f.controlAfter.head,
+      baseRef: f.state.target!.ref.replace("refs/heads/", ""), state: "merged" as const, draft: false,
+    };
+    const publish = vi.fn(async () => ({ status: "refused" as const, reason: "version-conflict" as const }));
+    await expect(adoptDeliveryTerminalMerge({
+      resolution: { status: "delivery", plan: f.plan, current: { revision: 8, value: f.state } },
+      repository: "owner/repo", retainedControlRef: "refs/heads/feat/control",
+      retainedControlHead: f.controlAfter.head,
+      landedDeliverableIds: f.plan.members.slice(0, -1).map((member) => member.deliverableId),
+      request, targetBefore: f.targetBefore, targetAfter: f.targetAfter,
+      proveResidual: async () => ({ status: "accepted", proof: "aggregate-patch" }),
+      stateStore: { publish },
+    })).resolves.toEqual({ status: "blocked", reason: "state-conflict" });
+    expect(publish).toHaveBeenCalledWith(f.plan.planId, expect.objectContaining({ activeOperation: null }), 8);
+  });
+
   it("returns not-applicable only for a proven ordinary WU and blocks bad terminal evidence", async () => {
     const f = fixture();
     const common = {
