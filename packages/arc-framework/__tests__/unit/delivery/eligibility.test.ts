@@ -81,6 +81,7 @@ describe("prepareDeliveryEligibility", () => {
 
   it.each([
     ["missing-candidate", () => candidates().slice(0, 1)],
+    ["extra-candidate", () => [...candidates(), { deliverableId: "extra", ref: "candidate/extra" }]],
     ["duplicate-candidate", () => [candidates()[0]!, candidates()[0]!]],
     ["reordered-candidate", () => candidates().reverse()],
   ] as const)("refuses %s membership", async (reason, makeCandidates) => {
@@ -187,7 +188,7 @@ describe("eligibility observation bracket", () => {
     expect(mutated).toBe(false);
   });
 
-  it("refuses tracked or index dirt while allowing ignored output", async () => {
+  it("refuses a candidate checkout reported as tracked-dirty", async () => {
     const prepared = await prepareDeliveryEligibility({
       plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
       candidates: candidates(), lifecyclePaths: [],
@@ -197,6 +198,22 @@ describe("eligibility observation bracket", () => {
     deps.inspectCheckout = vi.fn(async () => ({ head: oid("b"), tree: oid("2"), trackedDirty: true }));
     await expect(verifyDeliveryCandidateCheckout(prepared.snapshot, 0, "/tmp/candidate", deps))
       .resolves.toMatchObject({ status: "refused", reason: "checkout-dirty" });
+  });
+
+  it("refuses unavailable candidate-checkout evidence", async () => {
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, dependencies());
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const deps = dependencies();
+    deps.inspectCheckout = vi.fn(async () => null);
+    await expect(verifyDeliveryCandidateCheckout(prepared.snapshot, 0, "/tmp/candidate", deps))
+      .resolves.toMatchObject({
+        status: "refused",
+        reason: "evidence-unavailable",
+        deliverableId: prepared.snapshot.members[0]!.deliverableId,
+      });
   });
 
   it("closes only after exact completeness, plan/ref reobservation, and admissible bindings", async () => {
@@ -228,6 +245,63 @@ describe("eligibility observation bracket", () => {
     });
   });
 
+  it("refuses a final candidate head bound to a foreign member", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const finalMember = prepared.snapshot.members.at(-1)!;
+    deps.resolveMember = vi.fn(async (head: string) => ({
+      status: "ok" as const,
+      value: head === finalMember.head
+        ? { planId: "foreign", workUnitId: "other", deliverableId: finalMember.deliverableId }
+        : null,
+    }));
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toMatchObject({
+      status: "refused", reason: "head-already-bound", deliverableId: finalMember.deliverableId,
+    });
+  });
+
+  it("refuses moved source coordinates during close", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    deps.observeRef = vi.fn(async (ref: string) => new Map([
+      ["main", { head: oid("a"), tree: oid("1") }],
+      ["control", { head: oid("e"), tree: oid("5") }],
+      ["candidate/first", { head: oid("b"), tree: oid("2") }],
+      ["candidate/second", { head: oid("c"), tree: oid("4") }],
+    ]).get(ref) ?? null);
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toEqual({
+      status: "refused", reason: "source-moved",
+    });
+  });
+
+  it("maps unavailable ancestry and binding evidence to evidence-unavailable", async () => {
+    const ancestryDeps = dependencies();
+    ancestryDeps.readAncestry = vi.fn(async () => "unresolvable" as const);
+    await expect(prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, ancestryDeps)).resolves.toMatchObject({ status: "refused", reason: "evidence-unavailable" });
+
+    const bindingDeps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, bindingDeps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    bindingDeps.resolveMember = vi.fn(async () => ({ status: "refused" as const }));
+    await expect(closeDeliveryEligibility(prepared.snapshot, bindingDeps)).resolves.toEqual({
+      status: "refused", reason: "evidence-unavailable",
+    });
+  });
+
   it("admits an exact same-member retry and refuses late plan or completeness drift", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({
@@ -236,11 +310,14 @@ describe("eligibility observation bracket", () => {
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
     const first = prepared.snapshot.members[0]!;
-    deps.resolveMember = vi.fn(async () => ({ status: "ok" as const, value: {
-      planId: prepared.snapshot.planId,
-      workUnitId: prepared.snapshot.workUnitId,
-      deliverableId: first.deliverableId,
-    } }));
+    deps.resolveMember = vi.fn(async (head: string) => ({
+      status: "ok" as const,
+      value: head === first.head ? {
+        planId: prepared.snapshot.planId,
+        workUnitId: prepared.snapshot.workUnitId,
+        deliverableId: first.deliverableId,
+      } : null,
+    }));
     await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toMatchObject({ status: "eligible" });
 
     deps.compareNormalizedCompleteness = vi.fn(async () => ({ status: "refused" as const, reason: "dropped" as const }));

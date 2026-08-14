@@ -514,8 +514,7 @@ async function executeDeliveryCommand(
       return read.status === "ok" ? read.value : null;
     },
     resolveMember: (head: string) => stateStore.resolveMember({ selector: { kind: "head", objectId: head } }),
-    inspectCheckout: async (path: string) => (await inspectDeliveryCandidateCheckout(exec, path))
-      ?? { head: "", tree: "", trackedDirty: true },
+    inspectCheckout: (path: string) => inspectDeliveryCandidateCheckout(exec, path),
   };
   const observePosition = async (
     plan: z.infer<typeof DeliveryPlanV1Schema>,

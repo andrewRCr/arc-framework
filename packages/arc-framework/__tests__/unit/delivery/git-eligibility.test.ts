@@ -24,7 +24,26 @@ describe("delivery eligibility Git facts", () => {
     ]));
   });
 
-  it("checks tracked/index dirt without treating untracked output as dirt", async () => {
+  it.each([
+    ["a malformed record", "not-a-tree-record\0"],
+    ["a duplicate path", [
+      `100644 blob ${"a".repeat(40)}\tduplicate.md`,
+      `100644 blob ${"b".repeat(40)}\tduplicate.md`,
+      "",
+    ].join("\0")],
+  ])("fails closed for %s", async (_case, stdout) => {
+    const exec: GitExec = async () => ({ stdout });
+    await expect(readDeliveryEligibilityTree(exec, "tree")).resolves.toBeNull();
+  });
+
+  it("fails closed when the tree read throws", async () => {
+    const exec: GitExec = async () => {
+      throw new Error("tree unavailable");
+    };
+    await expect(readDeliveryEligibilityTree(exec, "tree")).resolves.toBeNull();
+  });
+
+  it("checks tracked/index dirt while requesting no untracked output", async () => {
     const head = "a".repeat(40);
     const tree = "b".repeat(40);
     const calls: string[][] = [];
@@ -41,5 +60,21 @@ describe("delivery eligibility Git facts", () => {
       head, tree, trackedDirty: false,
     });
     expect(calls).toContainEqual(["status", "--porcelain=v1", "-z", "--untracked-files=no"]);
+  });
+
+  it("reports non-empty tracked/index status as dirty", async () => {
+    const head = "a".repeat(40);
+    const tree = "b".repeat(40);
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return { stdout: `${head}\n` };
+      if (args[0] === "rev-list") return { stdout: `${head}\n` };
+      if (args[0] === "rev-parse" && args[1] === `${head}^{tree}`) return { stdout: `${tree}\n` };
+      if (args[0] === "status") return { stdout: " M tracked.ts\0" };
+      throw new Error(`unexpected ${args.join(" ")}`);
+    };
+
+    await expect(inspectDeliveryCandidateCheckout(exec, "/tmp/candidate")).resolves.toEqual({
+      head, tree, trackedDirty: true,
+    });
   });
 });
