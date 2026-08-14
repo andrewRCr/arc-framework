@@ -590,12 +590,12 @@
     "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "1a1a87a9d75c745fd13d2fdc1931b7a5364ff2ff88986f5b0e81ade3bfad6a6b"
+      "pristine_hash": "3886df1b8714ce7ce14855bf223a116cff5ba0b0d49274b5ec99bc0c975700d1"
     },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6888db5a199aa1b682e043b8eda32c1add69761260b4c6f6b4884ee82a65c94d"
+      "pristine_hash": "f69ca53655180e21d0da22674c5680ff4ad99d8d9aebb0b9f1fee7d1408149d3"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",
@@ -647,6 +647,11 @@
       "layer": "core",
       "pristine_hash": "f9f8c2aa5e9ba49a1f01b5b631446afd21888bb7f22fe6cb9722f1cd34e181a3"
     },
+    "system/workflows/arc/supplemental/deliver-stack.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "dd6b0f49a6993c60765de47517206f849210761cafe5b74d29507fa2847be525"
+    },
     "system/workflows/arc/work-unit-lifecycle/activate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
@@ -670,7 +675,7 @@
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "1e861ea36c80abf02d7dbb832457ca555c6556fe35502389ee520a8d584e17da"
+      "pristine_hash": "b6419cd3e6ba48be6ed2645b22620ae32c4f59dee44d5152168406adf7015cda"
     },
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",

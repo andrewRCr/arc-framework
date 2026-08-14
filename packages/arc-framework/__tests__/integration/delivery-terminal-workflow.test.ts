@@ -15,7 +15,7 @@ describe("delivery terminal integration attachment", () => {
     expect(installed).toBe(packaged);
     const attachment = "Invoke the typed delivery terminal post-merge attachment exactly once";
     expect(packaged.split(attachment)).toHaveLength(2);
-    expect(packaged.split("arc delivery terminal attach --input - --json")).toHaveLength(2);
+    expect(packaged.split("arc delivery terminal attach - --json")).toHaveLength(2);
     const merge = packaged.indexOf("gh pr merge {pr-number}");
     const resume = packaged.indexOf("**Skip the merge when the PR is already merged**");
     const attach = packaged.indexOf(attachment);

@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import {
   ROLLING_FIELD_RUN,
   SEVEN_MEMBER_FIELD_RUN,
@@ -31,6 +31,19 @@ describe("arc delivery", () => {
   });
 
   it("registers compose and plan abandon from the built entry point", async () => {
+    const entryHelp = await runArc(["delivery", "entry", "inspect", "--help"], repository);
+    expect(entryHelp).toMatchObject({ exitCode: 0 });
+    expect(entryHelp.stdout).toContain("--input <path>");
+    await writeFile(join(repository, "invalid-entry.json"), "{}\n");
+    const invalidEntry = await runArc([
+      "delivery", "entry", "inspect", "--input", "invalid-entry.json", "--json",
+    ], repository);
+    expect(invalidEntry.exitCode).toBe(1);
+    expect(JSON.parse(invalidEntry.stdout)).toMatchObject({
+      command: "delivery entry inspect",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
     await expect(runArc(["delivery", "plan", "from-tasks", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0, stdout: expect.stringContaining("--task-list <path>") });
     const branchHelp = await runArc(["delivery", "plan", "from-branch", "--help"], repository);
@@ -50,6 +63,25 @@ describe("arc delivery", () => {
     });
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
+    for (const command of [
+      ["eligibility", "prepare"], ["eligibility", "close"], ["materialize"], ["publish"],
+      ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"],
+      ["terminal", "prepare"], ["terminal", "attach"], ["teardown"],
+    ]) {
+      const help = await runArc(["delivery", ...command, "--help"], repository);
+      expect(help.exitCode, help.stderr).toBe(0);
+      expect(help.stdout).toContain("<input>");
+    }
+    await writeFile(join(repository, "invalid-execution.json"), "{}\n");
+    const invalidExecution = await runArc([
+      "delivery", "position", "invalid-execution.json", "--json",
+    ], repository);
+    expect(invalidExecution.exitCode).toBe(1);
+    expect(JSON.parse(invalidExecution.stdout)).toMatchObject({
+      command: "delivery position",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
     const inventorySchema = await runArc([
       "delivery", "plan", "inventory", "schema", "--json",
     ], repository);
@@ -67,6 +99,38 @@ describe("arc delivery", () => {
         },
       },
     });
+  });
+
+  it("parses every documented delivery invocation through the built CLI", async () => {
+    const workflows = await Promise.all([
+      readFile(resolve(import.meta.dirname, "../../arc/system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+      readFile(resolve(
+        import.meta.dirname,
+        "../../arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      ), "utf8"),
+    ]);
+    const invocationsByWorkflow = workflows.map(
+      (workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? [],
+    );
+    for (const invocations of invocationsByWorkflow) {
+      expect(invocations.length).toBeGreaterThan(0);
+    }
+    const invocations = invocationsByWorkflow.flat();
+    for (const invocation of invocations) {
+      const args = invocation.split(" ").slice(1);
+      if (invocation.startsWith("arc delivery entry inspect ")) {
+        expect(invocation).toContain("--input - --json");
+      } else {
+        expect(invocation).not.toContain("--input");
+        expect(args).toContain("-");
+      }
+      const result = await runArcWithStdin(args, repository, "{}\n");
+      expect(result.stderr).not.toMatch(/unknown option|missing required argument/iu);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        status: "refused",
+        reason: "invalid-command-input",
+      });
+    }
   });
 
   it("validates design input before writing task-derived authoring state", async () => {
@@ -89,6 +153,30 @@ describe("arc delivery", () => {
     const common = await gitCommonDir(repository);
     await expect(readdir(join(common, "arc", "delivery", "authoring")))
       .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("inspects reviewed provisional entry without creating delivery records", async () => {
+    await installTaskFixture(repository);
+    await writeFile(join(repository, "delivery-entry.json"), `${JSON.stringify({
+      boundaryDisposition: "delivery-candidate",
+      provisionalDisposition: "confirmed-reviewed",
+    })}\n`);
+    const common = await gitCommonDir(repository);
+    const deliveryNamespace = join(common, "arc", "delivery");
+    await expect(readdir(deliveryNamespace)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const inspected = await runArc([
+      "delivery", "entry", "inspect", "--input", "delivery-entry.json", "--json",
+    ], repository);
+    expect(inspected.exitCode, inspected.stderr).toBe(0);
+    expect(JSON.parse(inspected.stdout)).toMatchObject({
+      command: "delivery entry inspect",
+      status: "canonicalize-provisional",
+      nextAction: "canonicalize-provisional",
+      authoringMapId: null,
+      laterEntryCostText: expect.stringContaining("later entry"),
+    });
+    await expect(readdir(deliveryNamespace)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("accepts a coherent explicit task list before the meta pointer exists and refuses invalid loci", async () => {
