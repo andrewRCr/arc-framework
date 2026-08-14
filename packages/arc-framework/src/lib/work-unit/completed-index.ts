@@ -351,6 +351,7 @@ async function readCompletedRecordFromMeta(
  * @returns The WU-name slug, or `null` when the branch is not a WU branch
  */
 export function branchToWorkUnitSlug(branch: string): string | null {
+  if (branch.startsWith("delivery/")) return null;
   const slash = branch.indexOf("/");
   if (slash === -1) return null;
   const slug = branch.slice(slash + 1);

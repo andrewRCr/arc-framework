@@ -128,6 +128,12 @@ describe("runOrphanBranchSweep", () => {
     expect(result.orphans).toEqual([]);
   });
 
+  it("does not sweep a delivery presentation ref", async () => {
+    const result = await runSweep({ "delivery/example/first-member": { track: "gone", merged: true } });
+
+    expect(result.orphans).toEqual([]);
+  });
+
   it("does not sweep a branch carrying an errand record — the errand surfaces own it", async () => {
     const result = await runSweep(
       { "chore/errand-in-flight": { track: "gone", merged: true } },
