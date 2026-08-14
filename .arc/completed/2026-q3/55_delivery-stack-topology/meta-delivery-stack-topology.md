@@ -1,8 +1,8 @@
 # Metadata: delivery-stack-topology
 
-| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/delivery-stack-topology` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** [none]
@@ -17,10 +17,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the terminal pull request
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/507>
+- **Completed:** 2026-08-14
 
 ---
 
