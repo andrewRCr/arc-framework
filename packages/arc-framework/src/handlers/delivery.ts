@@ -327,6 +327,7 @@ export async function handleDeliveryPlanFromTasks(
     context.activePath,
     context.workUnitId,
     parsed.data.designInventory,
+    true,
     parsed.data.taskList,
   );
   if (inputs.status === "refused") {
@@ -401,6 +402,7 @@ export async function handleDeliveryPlanFromBranch(
     context.activePath,
     context.workUnitId,
     parsed.data.designInventory,
+    false,
   );
   if (inputs.status === "refused") {
     emit("delivery plan from-branch", parsed.data.json === true, inputs);
@@ -757,6 +759,7 @@ async function readFromTasksInputs(
   activeMetaPath: string,
   workUnitId: string,
   designInventoryPath: string,
+  requireDesignCoherence: boolean,
   explicitTaskListPath?: string,
 ): Promise<{
   readonly status: "ok";
@@ -809,7 +812,7 @@ async function readFromTasksInputs(
   } catch {
     return { status: "refused", reason: "task-list-unreadable" };
   }
-  if (explicitTaskListPath !== undefined) {
+  if (requireDesignCoherence) {
     const taskDesign = /^- \*\*Design:\*\*\s+`([^`]+)`\s*$/mu.exec(taskListContent)?.[1];
     if (taskDesign === undefined
       || metaRecord.design.length === 0

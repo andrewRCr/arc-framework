@@ -637,6 +637,29 @@ describe("arc delivery", () => {
     });
   });
 
+  it("refuses a metadata-selected task list from another design", async () => {
+    await installTaskFixture(repository);
+    await writeDesignInventory(repository);
+    const taskPath = join(repository, ".arc", "active", "tasks-demo.md");
+    const taskList = await readFile(taskPath, "utf8");
+    await writeFile(taskPath, taskList.replace("`spec-demo.md`", "`spec-other.md`"));
+
+    const incoherent = await runArc([
+      "delivery", "plan", "from-tasks",
+      "--design-inventory", "design-inventory.json",
+      "--json",
+    ], repository);
+
+    expect(incoherent.exitCode).toBe(1);
+    expect(JSON.parse(incoherent.stdout)).toMatchObject({
+      status: "refused",
+      reason: "task-list-design-incoherent",
+    });
+    const common = await gitCommonDir(repository);
+    await expect(readdir(join(common, "arc", "delivery", "authoring")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("authors a branch-derived map from default and explicit coordinates", async () => {
     await installTaskFixture(repository);
     const missingDesign = await runArc([
