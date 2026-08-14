@@ -519,6 +519,41 @@ describe("delivery operation pre- and post-mutation comparison", () => {
 });
 
 describe("reconcileDeliveryOperation", () => {
+  it.each(["rewrite", "teardown"] as const)(
+    "%s operations adopt exact application, retry exact non-application, and retain ambiguity",
+    (kind) => {
+      const plan = deliveryPlanFixture();
+      const state = deliveryStateFixture(plan);
+      const request = operationRequest(state, {
+        kind,
+        ...(kind === "teardown" ? {
+          requested: {
+            target: state.target,
+            members: [{
+              deliverableId: state.members[0]!.deliverableId,
+              ref: null,
+              changeRequest: null,
+              coordinates: null,
+            }],
+          },
+        } : {}),
+      });
+      const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+      expect(reserved.status).toBe("reserved");
+      if (reserved.status !== "reserved") return;
+      const current = { revision: STATE_REVISION + 1, value: reserved.state };
+      expect(reconcileDeliveryOperation(current, request.requested).status).toBe("adopt");
+      expect(reconcileDeliveryOperation(current, request.before)).toEqual({
+        status: "retry", operationId: request.operationId,
+      });
+      expect(reconcileDeliveryOperation(current, {
+        ...request.requested,
+        target: { ...request.requested.target!, ref: "refs/heads/unrelated" },
+      })).toEqual({ status: "blocked", reason: "ambiguous-result" });
+      expect(current.value.activeOperation?.kind).toBe(kind);
+    },
+  );
+
   it("adopts an exact requested result and permits retry after exact non-application", () => {
     const { current, request } = reservedRecord();
     const adopted = reconcileDeliveryOperation(current, request.requested);

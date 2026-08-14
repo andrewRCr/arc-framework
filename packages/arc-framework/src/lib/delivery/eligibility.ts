@@ -104,6 +104,7 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
   readonly planId: string;
   readonly protectedBaseRef: string;
   readonly controlRef: string;
+  readonly memberOffset?: number;
   readonly candidates: readonly {
     readonly deliverableId: string;
     readonly ref: string;
@@ -166,6 +167,7 @@ export async function prepareDeliveryEligibility(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
   readonly controlRef: string;
+  readonly memberOffset?: number;
   readonly candidates: readonly { readonly deliverableId: string; readonly ref: string }[];
   readonly lifecyclePaths: readonly string[];
 }, deps: DeliveryEligibilityDependencies): Promise<
@@ -176,13 +178,18 @@ export async function prepareDeliveryEligibility(input: {
   if (validation.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
     return { status: "refused", reason: "invalid-stack-plan" };
   }
-  if (input.candidates.length < input.plan.members.length) return { status: "refused", reason: "missing-candidate" };
-  if (input.candidates.length > input.plan.members.length) return { status: "refused", reason: "extra-candidate" };
+  const memberOffset = input.memberOffset ?? 0;
+  if (!Number.isSafeInteger(memberOffset) || memberOffset < 0 || memberOffset >= input.plan.members.length) {
+    return { status: "refused", reason: "missing-candidate" };
+  }
+  const expectedMembers = input.plan.members.slice(memberOffset);
+  if (input.candidates.length < expectedMembers.length) return { status: "refused", reason: "missing-candidate" };
+  if (input.candidates.length > expectedMembers.length) return { status: "refused", reason: "extra-candidate" };
   if (new Set(input.candidates.map((candidate) => candidate.deliverableId)).size !== input.candidates.length
     || new Set(input.candidates.map((candidate) => candidate.ref)).size !== input.candidates.length) {
     return { status: "refused", reason: "duplicate-candidate" };
   }
-  if (input.candidates.some((candidate, index) => candidate.deliverableId !== input.plan.members[index]?.deliverableId)) {
+  if (input.candidates.some((candidate, index) => candidate.deliverableId !== expectedMembers[index]?.deliverableId)) {
     return { status: "refused", reason: "reordered-candidate" };
   }
 

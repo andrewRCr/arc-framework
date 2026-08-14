@@ -23,6 +23,11 @@ export function deliveryThreeMemberStackPlanFixture(planId = defaultPlanId): Del
   return buildDeliveryPlanFixture(planId, "stack-to-main", 3);
 }
 
+/** Construct a valid independently-landable four-member stack plan. */
+export function deliveryFourMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 4);
+}
+
 function buildDeliveryPlanFixture(
   planId: string,
   projection: "wu-integration-target" | "stack-to-main",
@@ -30,7 +35,7 @@ function buildDeliveryPlanFixture(
 ): DeliveryPlanV1 {
   const implementation = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
-    semanticDigest: canonicalDigest({ goal: ["First", "Second", "Third"][index] }),
+    semanticDigest: canonicalDigest({ goal: ["First", "Second", "Third", "Fourth"][index] }),
   }));
   const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
     schemaVersion: 1,
@@ -47,11 +52,9 @@ function buildDeliveryPlanFixture(
     entry: "from-tasks",
     projection: { kind: projection },
     members: implementation.map(({ taskId }, index) => ({
-      chunkKey: ["first", "second", "third"][index],
-      title: `${["First", "Second", "Third"][index]} member`,
-      contract: index < 2
-        ? `Publish the ${["first", "second"][index]} contract.`
-        : "Publish the third contract.",
+      chunkKey: ["first", "second", "third", "fourth"][index],
+      title: `${["First", "Second", "Third", "Fourth"][index]} member`,
+      contract: `Publish the ${["first", "second", "third", "fourth"][index]} contract.`,
       taskIds: [taskId],
       designElementIds: index === 0 ? ["detailed:state-contract"] : [],
       mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
