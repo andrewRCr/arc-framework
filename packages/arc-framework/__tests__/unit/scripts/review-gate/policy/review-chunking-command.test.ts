@@ -155,4 +155,23 @@ describe("resolveReviewChunkingCommand", () => {
     });
     expect(result.payload).not.toHaveProperty("remedy");
   });
+
+  it("contains delivery-binding reader failures", async () => {
+    const result = await resolveReviewChunkingCommand(request, {
+      readSettings: async () => config("1", "0"),
+      readDeliveryBinding: async () => {
+        throw new Error("reader failed");
+      },
+      exec: async () => ({ stdout: new TextEncoder().encode("1\t0\tfile.txt\0") }),
+    });
+    expect(result).toMatchObject({
+      state: "evidence-unavailable",
+      nextAction: "continue-review",
+      diagnostics: [{
+        code: "delivery-evidence-unavailable",
+        message: "Delivery evidence is unavailable: reader-failure.",
+      }],
+    });
+    expect(result.payload).not.toHaveProperty("remedy");
+  });
 });
