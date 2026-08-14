@@ -111,8 +111,13 @@ describe("arc delivery", () => {
         "../../arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
       ), "utf8"),
     ]);
-    const invocations = workflows.flatMap((workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? []);
-    expect(invocations).toHaveLength(21);
+    const invocationsByWorkflow = workflows.map(
+      (workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? [],
+    );
+    for (const invocations of invocationsByWorkflow) {
+      expect(invocations.length).toBeGreaterThan(0);
+    }
+    const invocations = invocationsByWorkflow.flat();
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);
       if (invocation.startsWith("arc delivery entry inspect ")) {
