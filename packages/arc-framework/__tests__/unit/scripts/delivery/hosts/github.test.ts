@@ -264,8 +264,14 @@ describe("GhDeliveryHostPort", () => {
       });
     await expect(new GhDeliveryHostPort(runner({ object: {} })).observeTarget(repository, "refs/heads/main"))
       .resolves.toEqual({ status: "refused", reason: "malformed" });
-    await expect(new GhDeliveryHostPort(runner({})).observeTarget(repository, "main"))
+    let invalidTargetRan = false;
+    const invalidTargetRunner: HostedProcessRunner = { run: async () => {
+      invalidTargetRan = true;
+      return { stdout: "{}", stderr: "" };
+    } };
+    await expect(new GhDeliveryHostPort(invalidTargetRunner).observeTarget(repository, "main"))
       .resolves.toEqual({ status: "refused", reason: "malformed" });
+    expect(invalidTargetRan).toBe(false);
   });
 
   it("closes malformed and unavailable host evidence", async () => {

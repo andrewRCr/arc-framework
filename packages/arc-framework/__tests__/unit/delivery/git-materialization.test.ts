@@ -71,6 +71,18 @@ describe("delivery remote-ref leases", () => {
       .resolves.toEqual({ status: "refused", reason: "unavailable" });
   });
 
+  it("reports a stale lease when a successful push leaves a foreign head", async () => {
+    const foreignHead = "b".repeat(40);
+    let reads = 0;
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] !== "ls-remote") return { stdout: "" };
+      reads += 1;
+      return { stdout: reads === 1 ? "" : `${foreignHead}\t${ref}\n` };
+    };
+    await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head }))
+      .resolves.toEqual({ status: "refused", reason: "stale-lease" });
+  });
+
   it("rewrites only from the exact stored head and adopts an exact applied retry", async () => {
     const next = "b".repeat(40);
     let remoteHead = head;
