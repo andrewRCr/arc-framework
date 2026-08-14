@@ -125,18 +125,20 @@ describe("GhDeliveryHostPort", () => {
     expect(calls[0]).toContain(`sha=${request.topHeadSha}`);
 
     const existing: HostedProcessRunner = { run: async () => {
-      throw new HostedProcessError(JSON.stringify({ status: "pending", details: {
+      throw new HostedProcessError("request conflict", "gh: Conflict (HTTP 409)", 1, 409, JSON.stringify({
+        status: "pending", details: {
         uuid: "effect-8", expected_head_sha: request.topHeadSha,
         merge_method: "merge", merge_action: "direct_merge",
-      } }), "", 1, 409);
+      } }));
     } };
     await expect(new GhDeliveryHostPort(existing).submitNativeMerge(request))
       .resolves.toEqual({ status: "existing", effectIdentity: "effect-8" });
     const conflicting: HostedProcessRunner = { run: async () => {
-      throw new HostedProcessError(JSON.stringify({ status: "pending", details: {
+      throw new HostedProcessError("request conflict", "gh: Conflict (HTTP 409)", 1, 409, JSON.stringify({
+        status: "pending", details: {
         uuid: "effect-9", expected_head_sha: "c".repeat(40),
         merge_method: "squash", merge_action: "direct_merge",
-      } }), "", 1, 409);
+      } }));
     } };
     await expect(new GhDeliveryHostPort(conflicting).submitNativeMerge(request))
       .resolves.toEqual({ status: "refused", reason: "malformed" });
@@ -150,6 +152,30 @@ describe("GhDeliveryHostPort", () => {
     }), stderr: "" }) };
     await expect(new GhDeliveryHostPort(movedPending).observeNativeMerge({ ...request, effectIdentity: "effect-7" }))
       .resolves.toEqual({ status: "refused", reason: "malformed" });
+
+    const merged: HostedProcessRunner = { run: async () => ({
+      stdout: JSON.stringify({ status: "merged" }), stderr: "",
+    }) };
+    await expect(new GhDeliveryHostPort(merged).submitNativeMerge(request))
+      .resolves.toEqual({ status: "merged" });
+
+    const enqueued: HostedProcessRunner = { run: async () => ({
+      stdout: JSON.stringify({ status: "enqueued" }), stderr: "",
+    }) };
+    await expect(new GhDeliveryHostPort(enqueued).submitNativeMerge(request))
+      .resolves.toEqual({ status: "enqueued" });
+
+    const failed: HostedProcessRunner = { run: async () => ({
+      stdout: JSON.stringify({ status: "failed" }), stderr: "",
+    }) };
+    await expect(new GhDeliveryHostPort(failed).observeNativeMerge({ ...request, effectIdentity: "effect-7" }))
+      .resolves.toEqual({ status: "failed" });
+
+    const expired: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("not found", "", 1, 404);
+    } };
+    await expect(new GhDeliveryHostPort(expired).observeNativeMerge({ ...request, effectIdentity: "effect-7" }))
+      .resolves.toEqual({ status: "refused", reason: "expired" });
   });
 
   it("selects exactly one request by repository, head, sha, and base", async () => {

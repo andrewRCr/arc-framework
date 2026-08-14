@@ -95,21 +95,39 @@ describe("native delivery landing", () => {
       plan, landedPrefix: [], observation: { status: "registered", stackNumber: 3 },
       mergeStrategy: "merge", mergeAction: "direct", explicitAtomic: true, members: heads,
     })).toMatchObject({ status: "selected", arm: "linked-atomic", members: heads });
+    expect(selectNativeDeliveryLandingArm({
+      plan, landedPrefix: [heads[0]!.deliverableId], observation: { status: "registered", stackNumber: 3 },
+      mergeStrategy: "merge", mergeAction: "direct", explicitAtomic: false, members: [heads[1]!],
+    })).toMatchObject({ status: "selected", arm: "linked-single", members: [heads[1]] });
   });
 
-  it("composes the unlinked degradation arm for opt-out, capability, strategy, or queue refusal", () => {
-    for (const input of [
-      { observation: { status: "unregistered" as const }, mergeStrategy: "merge" as const },
-      { observation: { status: "unsupported" as const }, mergeStrategy: "merge" as const },
-      { observation: { status: "registered" as const, stackNumber: 3 }, mergeStrategy: "squash" as const },
-    ]) expect(selectNativeDeliveryLandingArm({
-      plan, landedPrefix: [], mergeAction: "direct", explicitAtomic: false, members: heads, ...input,
+  it("admits the unlinked arm only from authoritative absence and directs registered downgrades", () => {
+    expect(selectNativeDeliveryLandingArm({
+      plan, landedPrefix: [], mergeAction: "direct", explicitAtomic: false, members: heads,
+      observation: { status: "unregistered" }, mergeStrategy: "merge",
     })).toMatchObject({ status: "selected", arm: "unlinked" });
+
+    for (const observation of [
+      { status: "partial" as const, affectedDeliverableIds: [heads[0]!.deliverableId] },
+      { status: "incoherent" as const, affectedDeliverableIds: [heads[0]!.deliverableId] },
+      { status: "unsupported" as const },
+      { status: "unavailable" as const },
+      { status: "malformed" as const },
+      { status: "ambiguous" as const },
+    ]) expect(selectNativeDeliveryLandingArm({
+      plan, landedPrefix: [], mergeAction: "direct", explicitAtomic: false, members: heads,
+      observation, mergeStrategy: "merge",
+    })).toMatchObject({ status: "blocked", reason: observation.status });
+
+    expect(selectNativeDeliveryLandingArm({
+      plan, landedPrefix: [], mergeAction: "direct", explicitAtomic: false, members: heads,
+      observation: { status: "registered", stackNumber: 3 }, mergeStrategy: "squash",
+    })).toMatchObject({ status: "downgrade-required", reason: "merge-strategy-unsupported" });
 
     expect(selectNativeDeliveryLandingArm({
       plan, landedPrefix: [], observation: { status: "registered", stackNumber: 3 },
       mergeStrategy: "merge", mergeAction: "queue", explicitAtomic: true, members: heads,
-    })).toMatchObject({ status: "selected", arm: "unlinked" });
+    })).toMatchObject({ status: "downgrade-required", reason: "queue-not-atomic" });
   });
 
   it("requires every selected head independently ready and names the exact set and residual race", async () => {
@@ -211,6 +229,7 @@ describe("native delivery landing", () => {
       readiness: vi.fn().mockResolvedValue({ status: "ready" }),
       stateStore,
     })).resolves.toMatchObject({ status: "blocked", reason: "member-set-mismatch" });
+    expect(stateStore.publish).toHaveBeenCalledTimes(1);
   });
 
   it("persists a submitted effect identity before polling and adopts only exact all-landed facts", async () => {

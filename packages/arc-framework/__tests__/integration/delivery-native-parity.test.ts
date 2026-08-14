@@ -21,13 +21,25 @@ const nativeMembers: DeliveryNativeStackInput["members"] = plan.members.slice(0,
 }));
 const input = { repository: "owner/repo", members: nativeMembers };
 
-async function terminalProjection() {
+async function terminalProjection(landingBatches: readonly (readonly string[])[]) {
   const initial = deliveryStateFixture(plan);
+  const expectedIds = plan.members.slice(0, -1).map((member) => member.deliverableId);
+  const landedDeliverableIds = landingBatches.flat();
+  if (JSON.stringify(landedDeliverableIds) !== JSON.stringify(expectedIds)) {
+    throw new Error("landing batches must cover the exact ordered non-terminal remainder");
+  }
+  let members = initial.members.map((member, index) => index === initial.members.length - 1 ? {
+    deliverableId: member.deliverableId, ref: null, changeRequest: null, coordinates: null,
+  } : member);
+  for (const batch of landingBatches) {
+    const landed = new Set(batch);
+    members = members.map((member) => landed.has(member.deliverableId) ? {
+      deliverableId: member.deliverableId, ref: null, changeRequest: null, coordinates: null,
+    } : member);
+  }
   const state = {
     ...initial,
-    members: initial.members.map((member) => ({
-      deliverableId: member.deliverableId, ref: null, changeRequest: null, coordinates: null,
-    })),
+    members,
   };
   const targetBefore = state.target!.coordinates!;
   const targetAfter = { head: "e".repeat(40), tree: "f".repeat(40) };
@@ -36,7 +48,7 @@ async function terminalProjection() {
     repository: "owner/repo",
     retainedControlRef: "refs/heads/feat/control",
     retainedControlHead: "c".repeat(40),
-    landedDeliverableIds: plan.members.slice(0, -1).map((member) => member.deliverableId),
+    landedDeliverableIds,
     request: {
       binding: { providerId: "github", changeRequestId: "99" },
       repository: "owner/repo", headRepository: "owner/repo", headRef: "feat/control",
@@ -71,7 +83,7 @@ describe("native delivery degradation parity", () => {
         deliverableId, changeRequestId, headSha,
       })),
     });
-    expect(selected).toMatchObject({ status: "selected", arm: "unlinked" });
+    expect(selected).toMatchObject({ status: "downgrade-required", reason: "queue-not-atomic" });
     const calls: string[] = [];
     const observe = vi.fn()
       .mockImplementationOnce(async () => { calls.push("observe-linked"); return { status: "registered", stackNumber: 7 }; })
@@ -101,8 +113,23 @@ describe("native delivery degradation parity", () => {
     );
     expect(atomic.members).toHaveLength(plan.members.length - 1);
 
+    const ids = plan.members.slice(0, -1).map((member) => member.deliverableId);
+    const sequentialBatches = ids.map((deliverableId) => [deliverableId]);
+
+    const degradeObserve = vi.fn()
+      .mockResolvedValueOnce({ status: "registered", stackNumber: 7 })
+      .mockResolvedValueOnce({ status: "unregistered" });
+    await expect(degradeNativeDeliveryStack(input, {
+      observe: degradeObserve,
+      unlink: vi.fn().mockResolvedValue({ status: "submitted" }),
+    })).resolves.toMatchObject({ status: "unlinked" });
+    const degradedBatches = ids.map((deliverableId) => [deliverableId]);
+    const groupedBatches = [atomic.members.map((member) => member.deliverableId)];
+
     const [sequential, degraded, grouped] = await Promise.all([
-      terminalProjection(), terminalProjection(), terminalProjection(),
+      terminalProjection(sequentialBatches),
+      terminalProjection(degradedBatches),
+      terminalProjection(groupedBatches),
     ]);
     expect(degraded).toEqual(sequential);
     expect(grouped).toEqual(sequential);

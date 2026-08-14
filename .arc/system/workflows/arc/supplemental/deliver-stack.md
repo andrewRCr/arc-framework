@@ -161,9 +161,9 @@ arc delivery native land-submit - --json
 arc delivery native land-status - --json
 ```
 
-Dispatch only on the typed result. `pending` retains the reservation; after a restart, invoke `land-status` with the
-persisted effect identity rather than submitting again. `retryable` / `none-landed` returns to preparation and a
-new interlock.
+Dispatch only on the typed result. `pending` retains the reservation; after a restart, invoke `land-status` with
+only the plan, request, and remote locators rather than submitting again. The service resolves the persisted effect
+identity from delivery state. `retryable` / `none-landed` returns to preparation and a new interlock.
 `partial-landed`, unavailable, expired, or ambiguous results stop with the reservation intact. An applied
 `linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof, before
 new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.

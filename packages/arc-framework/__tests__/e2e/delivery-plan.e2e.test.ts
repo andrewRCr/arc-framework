@@ -306,8 +306,8 @@ describe("arc delivery", () => {
       `${JSON.stringify({ ...request, explicitAtomic: true })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "unsupported" } },
     );
-    expect(unsupported.exitCode, unsupported.stderr).toBe(0);
-    expect(JSON.parse(unsupported.stdout)).toMatchObject({ status: "selected", arm: "unlinked" });
+    expect(unsupported.exitCode, unsupported.stderr).toBe(1);
+    expect(JSON.parse(unsupported.stdout)).toMatchObject({ status: "blocked", reason: "unsupported" });
 
     const operationId = "native-operation-1";
     const prepareRequest = {
@@ -512,18 +512,22 @@ describe("arc delivery", () => {
       { env: { ...env, ARC_FAKE_GH_MODE: "after" } },
     );
     expect(attached.exitCode, attached.stderr).toBe(0);
-    expect(JSON.parse(attached.stdout)).toMatchObject({
+    const attachedBody = JSON.parse(attached.stdout) as {
+      status: string;
+      state: { value: { target: unknown; members: unknown[] } };
+    };
+    expect(attachedBody).toMatchObject({
       status: "attached",
       state: {
         value: {
           target: { coordinates: { head: controlHead, tree: controlTree } },
-          members: expect.arrayContaining([expect.objectContaining({
-            ref: "refs/heads/main",
-            changeRequest: { providerId: "github", changeRequestId: "99" },
-            coordinates: { base: targetHead, head: controlHead, tree: controlTree },
-          })]),
         },
       },
+    });
+    expect(attachedBody.state.value.members.at(-1)).toMatchObject({
+      ref: "refs/heads/main",
+      changeRequest: { providerId: "github", changeRequestId: "99" },
+      coordinates: { base: targetHead, head: controlHead, tree: controlTree },
     });
 
     const repeated = await runArcWithStdin(

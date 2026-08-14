@@ -20,6 +20,21 @@ describe("native delivery stack", () => {
       .resolves.toEqual({ status: "partial", affectedDeliverableIds: [members[1].deliverableId] });
   });
 
+  it("observes a singleton remainder but keeps singleton registration out of the host", async () => {
+    const observe = vi.fn().mockResolvedValue({ status: "unregistered" });
+    await expect(observeDeliveryNativeStack({ repository: "o/r", members: [members[0]] }, { observe }))
+      .resolves.toEqual({ status: "unregistered" });
+    expect(observe).toHaveBeenCalledOnce();
+
+    observe.mockReset();
+    const link = vi.fn();
+    await expect(linkDeliveryNativeStack({
+      repository: "o/r", members: [members[0]], optIn: true,
+    }, { observe, link })).resolves.toMatchObject({ status: "refused", reason: "invalid-input" });
+    expect(observe).not.toHaveBeenCalled();
+    expect(link).not.toHaveBeenCalled();
+  });
+
   it("refuses cross-repository and non-chain input before the host", async () => {
     const observe = vi.fn();
     await expect(observeDeliveryNativeStack({
@@ -85,6 +100,8 @@ describe("native delivery stack", () => {
     const finalObservations = [
       { status: "registered", stackNumber: 7 },
       { status: "partial", affectedDeliverableIds: [members[0].deliverableId] },
+      { status: "incoherent", affectedDeliverableIds: [members[0].deliverableId] },
+      { status: "unsupported" },
       { status: "unavailable" },
       { status: "malformed" },
       { status: "ambiguous" },

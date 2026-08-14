@@ -209,7 +209,11 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
       ]);
       return normalize(result.stdout, false);
     } catch (error) {
-      if (error instanceof HostedProcessError && error.httpStatus === 409) return normalize(error.message, true);
+      if (error instanceof HostedProcessError && error.httpStatus === 409) {
+        const payload = [error.stdout, error.stderr, error.message]
+          .find((candidate) => record(parse(candidate)) !== null) ?? error.message;
+        return normalize(payload, true);
+      }
       if (error instanceof HostedProcessError && error.httpStatus === 404) {
         return { status: "refused", reason: "unsupported" };
       }

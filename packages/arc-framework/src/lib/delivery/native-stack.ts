@@ -39,7 +39,7 @@ export type DeliveryNativeStackReadResult = DeliveryNativeStackObservation
   | { readonly status: "refused"; readonly reason: "foreign-repository" | "non-chain" | "invalid-input" };
 
 function validateInput(input: DeliveryNativeStackInput): DeliveryNativeStackReadResult | null {
-  if (input.repository === "" || input.members.length < 2) return { status: "refused", reason: "invalid-input" };
+  if (input.repository === "" || input.members.length === 0) return { status: "refused", reason: "invalid-input" };
   const ids = new Set<string>();
   for (const [index, member] of input.members.entries()) {
     if (member.deliverableId === "" || member.changeRequestId === "" || member.headRef === ""
@@ -84,6 +84,13 @@ export async function linkDeliveryNativeStack(
 ): Promise<DeliveryNativeStackLinkResult> {
   if (!input.optIn) {
     return { status: "unlinked", recommendedActionText: "Continue through the complete unlinked executor." };
+  }
+  if (input.members.length < 2) {
+    return {
+      status: "refused",
+      reason: "invalid-input",
+      recommendedActionText: "Native stack registration requires at least two exact members.",
+    };
   }
   const initial = await observeDeliveryNativeStack(input, port);
   if (initial.status === "refused") {

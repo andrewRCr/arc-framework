@@ -237,9 +237,12 @@ const NativeMemberSchema = z.strictObject({
 });
 const NativeObserveSchema = z.strictObject({
   repository: z.string().min(1),
-  members: z.array(NativeMemberSchema).min(2),
+  members: z.array(NativeMemberSchema).min(1),
 });
-const NativeLinkSchema = NativeObserveSchema.extend({ optIn: z.boolean() });
+const NativeLinkSchema = NativeObserveSchema.extend({
+  members: z.array(NativeMemberSchema).min(2),
+  optIn: z.boolean(),
+});
 const NativeLandingMemberSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   changeRequestId: z.string().min(1),
@@ -677,7 +680,7 @@ async function executeDeliveryCommand(
           const checked = await evaluateReviewReadiness({
             schemaVersion: 1, treeRoot: prepare.treeRoot,
             target: { repository: prepare.repository, pullRequest: Number(member.changeRequestId), headSha: member.headSha },
-            pullRequest: { repository: prepare.repository, number: Number(member.changeRequestId), state: "open", headBranch: "delivery", headSha: member.headSha },
+            pullRequest: { repository: prepare.repository, number: Number(member.changeRequestId), state: "open", headBranch: observed.request.headRef, headSha: member.headSha },
             vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId: member.deliverableId, workUnitSlug: plan.workUnitId },
           }, { deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd }) });
           return { status: checked.state === "ready" ? "ready" as const : "refused" as const };
@@ -727,7 +730,7 @@ async function executeDeliveryCommand(
           const checked = await evaluateReviewReadiness({
             schemaVersion: 1, treeRoot: submit.treeRoot,
             target: { repository: submit.request.repository, pullRequest: Number(member.changeRequest.changeRequestId), headSha },
-            pullRequest: { repository: submit.request.repository, number: Number(member.changeRequest.changeRequestId), state: "open", headBranch: member.ref, headSha },
+            pullRequest: { repository: submit.request.repository, number: Number(member.changeRequest.changeRequestId), state: "open", headBranch: observed.request.headRef, headSha },
             vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId, workUnitSlug: plan.workUnitId },
           }, { deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd }) });
           return { status: checked.state === "ready" ? "ready" as const : "refused" as const };

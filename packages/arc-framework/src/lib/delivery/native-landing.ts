@@ -90,6 +90,7 @@ export type DeliveryNativeLandingSelection =
     readonly members: readonly DeliveryNativeLandingMember[];
     readonly recommendedActionText: string;
   }
+  | { readonly status: "downgrade-required"; readonly reason: string; readonly recommendedActionText: string }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
 /** Select an arm only after exact plan-ordered facts have been supplied and freshly observed. */
@@ -119,15 +120,29 @@ export function selectNativeDeliveryLandingArm(input: {
   if (first === undefined) {
     return { status: "blocked", reason: "member-set-mismatch", recommendedActionText: "Refresh the complete exact non-terminal remainder." };
   }
-  if (input.observation.status !== "registered" || input.mergeStrategy !== "merge") {
+  if (input.observation.status === "unregistered") {
     return { status: "selected", arm: "unlinked", members: [first], recommendedActionText: "Continue through the complete sequential unlinked executor." };
+  }
+  if (input.observation.status !== "registered") {
+    return {
+      status: "blocked",
+      reason: input.observation.status,
+      recommendedActionText: "Restore authoritative native-stack observation before selecting any landing arm.",
+    };
+  }
+  if (input.mergeStrategy !== "merge") {
+    return {
+      status: "downgrade-required",
+      reason: "merge-strategy-unsupported",
+      recommendedActionText: "Unlink the registered stack and confirm a fresh unregistered observation before sequential delivery.",
+    };
   }
   if (!input.explicitAtomic) {
     return { status: "selected", arm: "linked-single", members: [first], recommendedActionText: "Prepare one exact bottom-member asynchronous landing." };
   }
   if (input.mergeAction === "queue") {
     return {
-      status: "selected", arm: "unlinked", members: [first],
+      status: "downgrade-required", reason: "queue-not-atomic",
       recommendedActionText: "Unlink and continue sequentially; merge queues may split the remaining prefix.",
     };
   }
