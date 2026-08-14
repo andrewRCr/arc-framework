@@ -47,15 +47,24 @@ function state(): Record<string, unknown> {
       boundPlanDigest: canonicalDigest({ plan: 1 }),
       before: {
         target: null,
-        members: [{ deliverableId: firstId, ref: null, coordinates: null }],
+        members: [{ deliverableId: firstId, ref: null, changeRequest: null, coordinates: null }],
       },
       requested: {
         target: null,
         members: [{
           deliverableId: firstId,
           ref: "refs/heads/delivery-first",
+          changeRequest: null,
           coordinates: { base: head, head, tree },
         }],
+      },
+      effect: {
+        providerId: "github",
+        repository: "andrewRCr/arc-framework",
+        headRef: "delivery/delivery-plan-record/first",
+        headSha: head,
+        baseRef: "main",
+        draft: true,
       },
     },
   };
@@ -64,7 +73,14 @@ function state(): Record<string, unknown> {
 describe("DeliveryStateV1Schema", () => {
   it("accepts exact current coordinates and rejects copied authority or history fields", () => {
     expect(DeliveryStateV1Schema.safeParse(state()).success).toBe(true);
-    for (const field of ["providerStatus", "reviewVerdict", "generation"] as const) {
+    for (const field of [
+      "providerStatus",
+      "providerCapability",
+      "reviewVerdict",
+      "authorization",
+      "gateResult",
+      "generation",
+    ] as const) {
       expect(DeliveryStateV1Schema.safeParse({ ...state(), [field]: "copied" }).success).toBe(false);
     }
   });
