@@ -37,7 +37,7 @@ describe("isEligibleInFlightBranch", () => {
     });
     const supplied = await deriveInFlight({
       exec: makeExec(options),
-      branches: [],
+      branches: [branch],
       reachable: true,
       identity: null,
       teamMode: false,
