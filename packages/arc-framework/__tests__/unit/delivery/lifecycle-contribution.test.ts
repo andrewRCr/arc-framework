@@ -88,6 +88,43 @@ describe("CurrentDeliveryLifecycleContributionPathSource", () => {
 });
 
 describe("compareNormalizedDeliveryTree", () => {
+  it("matches when the candidate equals the lifecycle-normalized control tree", () => {
+    const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
+    const protectedBase = new Map([["lifecycle.md", blob("base")]]);
+    const control = new Map([
+      ["kept.md", blob("same")],
+      ["lifecycle.md", blob("control")],
+    ]);
+    const finalCandidate = new Map([
+      ["kept.md", blob("same")],
+      ["lifecycle.md", blob("base")],
+    ]);
+
+    expect(compareNormalizedDeliveryTree({
+      protectedBase,
+      control,
+      finalCandidate,
+      lifecyclePaths: ["lifecycle.md"],
+    })).toEqual({ status: "match" });
+  });
+
+  it("reports a lifecycle path absent on the base but retained by the candidate as invented", () => {
+    const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
+    const lifecycleEntry = blob("control");
+
+    expect(compareNormalizedDeliveryTree({
+      protectedBase: new Map(),
+      control: new Map([["lifecycle.md", lifecycleEntry]]),
+      finalCandidate: new Map([["lifecycle.md", lifecycleEntry]]),
+      lifecyclePaths: ["lifecycle.md"],
+    })).toEqual({
+      status: "mismatch",
+      droppedPaths: [],
+      inventedPaths: ["lifecycle.md"],
+      mismatchedPaths: [],
+    });
+  });
+
   it("reports dropped, invented, and mismatched entries distinctly after lifecycle normalization", () => {
     const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
     const protectedBase = new Map([["lifecycle.md", blob("base")]]);

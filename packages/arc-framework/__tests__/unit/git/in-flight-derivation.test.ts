@@ -19,6 +19,37 @@ describe("isEligibleInFlightBranch", () => {
     expect(isEligibleInFlightBranch("delivery/example/first-member", options)).toBe(false);
     expect(isEligibleInFlightBranch("feat/unrelated", options)).toBe(true);
   });
+
+  it("excludes checked-out delivery branches from observed and supplied in-flight inputs", async () => {
+    const branch = "delivery/example/first-member";
+    const options = {
+      worktrees: [{ path: "/repo.delivery", branch }],
+      metas: {
+        [`${branch}:.arc/active/meta-example.md`]: metaContent({ branch }),
+      },
+    };
+
+    const observed = await deriveInFlight({
+      exec: makeExec(options),
+      localOnly: true,
+      identity: null,
+      teamMode: false,
+    });
+    const supplied = await deriveInFlight({
+      exec: makeExec(options),
+      branches: [],
+      reachable: true,
+      identity: null,
+      teamMode: false,
+    });
+
+    for (const result of [observed, supplied]) {
+      expect(result.entries).toEqual([]);
+      expect(result.residue).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.snapshot.worktrees).toEqual({});
+    }
+  });
 });
 
 /** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Class, Priority, Depends On). */

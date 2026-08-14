@@ -50,7 +50,9 @@ export interface DeliveryEligibilityDependencies {
     readonly status: "ok";
     readonly value: null | { readonly planId: string; readonly workUnitId: string; readonly deliverableId: string };
   } | { readonly status: "refused" }>;
-  inspectCheckout(path: string): Promise<DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }>;
+  inspectCheckout(path: string): Promise<
+    (DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }) | null
+  >;
 }
 
 /** Closed refusal from any mechanical eligibility stage. */
@@ -255,6 +257,9 @@ export async function verifyDeliveryCandidateCheckout(
     deps.inspectCheckout(checkoutPath),
     deps.observeRef(member.ref),
   ]);
+  if (checkout === null) {
+    return { status: "refused", reason: "evidence-unavailable", deliverableId: member.deliverableId };
+  }
   if (checkout.trackedDirty) {
     return { status: "refused", reason: "checkout-dirty", deliverableId: member.deliverableId };
   }
@@ -300,7 +305,7 @@ export async function closeDeliveryEligibility(
     || currentPlan.planDigest !== snapshot.planDigest) {
     return { status: "refused", reason: "plan-moved" };
   }
-  for (const member of snapshot.members.slice(0, -1)) {
+  for (const member of snapshot.members) {
     const binding = await deps.resolveMember(member.head);
     if (binding.status === "refused") return { status: "refused", reason: "evidence-unavailable" };
     if (binding.value !== null && (binding.value.planId !== snapshot.planId
