@@ -218,11 +218,11 @@ function matchesHostAssignedResult(
     return canonicalize(stableObservation) === canonicalize(operation.requested);
   }
   if (operation.kind === "land") {
-    if (observed.target === null || observed.target.coordinates === null
+    if (operation.requested.target === null || observed.target === null || observed.target.coordinates === null
       || observed.members.some((member) => member.coordinates === null)) return false;
     const stableObservation = {
       ...observed,
-      target: operation.requested.target === null ? null : {
+      target: {
         ...observed.target,
         coordinates: operation.requested.target.coordinates,
       },

@@ -56,10 +56,23 @@ describe("GhDeliveryHostPort", () => {
     })])).observeRequest(effect())).resolves.toEqual({ status: "refused", reason: "foreign" });
   });
 
+  it("combines every request page and ignores deleted-head tombstones", async () => {
+    const tombstone = pull({
+      number: 400,
+      head: { ref: "delivery/example/first", sha: headSha, repo: null },
+    });
+    await expect(new GhDeliveryHostPort(runner([[tombstone], [pull()]])).observeRequest(effect()))
+      .resolves.toMatchObject({ status: "observed", request: { binding: { changeRequestId: "401" } } });
+    await expect(new GhDeliveryHostPort(runner([[tombstone]])).observeRequest(effect()))
+      .resolves.toEqual({ status: "absent" });
+  });
+
   it("observes request absence through an explicit GET and owner-qualified head filter", async () => {
     const request = effect();
+    const calls: string[][] = [];
     const queryRunner: HostedProcessRunner = {
       run: async (args) => {
+        calls.push(args);
         if (args.includes("-f") && !args.includes("--method")) throw new Error("request defaulted to POST");
         const owner = repository.slice(0, repository.indexOf("/"));
         const response = args.includes(`head=${owner}:${request.headRef}`) ? [] : [pull()];
@@ -69,6 +82,29 @@ describe("GhDeliveryHostPort", () => {
 
     await expect(new GhDeliveryHostPort(queryRunner).observeRequest(request))
       .resolves.toEqual({ status: "absent" });
+    expect(calls[0]).toEqual([
+      "api", `repos/${repository}/pulls`, "--method", "GET",
+      "-f", "state=all", "-f", `head=andrewRCr:${request.headRef}`, "-f", `base=${request.baseRef}`,
+      "--paginate", "--slurp",
+    ]);
+  });
+
+  it("validates direct request bindings and rejects foreign request repositories", async () => {
+    const port = new GhDeliveryHostPort(runner(pull()));
+    await expect(port.readRequest(repository, { providerId: "github", changeRequestId: "401" }))
+      .resolves.toMatchObject({ status: "observed", request: { binding: { changeRequestId: "401" } } });
+    await expect(port.readRequest(repository, { providerId: "other", changeRequestId: "401" }))
+      .resolves.toEqual({ status: "refused", reason: "malformed" });
+    await expect(port.readRequest(repository, { providerId: "github", changeRequestId: "pull/401" }))
+      .resolves.toEqual({ status: "refused", reason: "malformed" });
+    await expect(new GhDeliveryHostPort(runner(pull({
+      base: { ref: "main", repo: { full_name: "someone/else" } },
+    }))).readRequest(repository, { providerId: "github", changeRequestId: "401" }))
+      .resolves.toEqual({ status: "refused", reason: "foreign" });
+    await expect(new GhDeliveryHostPort(runner(pull({
+      head: { ref: "delivery/example/first", sha: headSha, repo: { full_name: "someone/else" } },
+    }))).readRequest(repository, { providerId: "github", changeRequestId: "401" }))
+      .resolves.toEqual({ status: "refused", reason: "foreign" });
   });
 
   it("maps each configured merge strategy to one exact head-matched mutation", async () => {
@@ -107,6 +143,8 @@ describe("GhDeliveryHostPort", () => {
         coordinates: { head: "b".repeat(40), tree: "c".repeat(40) },
       });
     await expect(new GhDeliveryHostPort(runner({ object: {} })).observeTarget(repository, "refs/heads/main"))
+      .resolves.toEqual({ status: "refused", reason: "malformed" });
+    await expect(new GhDeliveryHostPort(runner({})).observeTarget(repository, "main"))
       .resolves.toEqual({ status: "refused", reason: "malformed" });
   });
 

@@ -141,7 +141,9 @@ export async function prepareDeliveryLanding(input: {
     member,
     baseRef: input.baseRef,
   });
-  if (request.status !== "exact" || member.coordinates === null) return { status: "refused" };
+  if (request.status !== "exact" || member.coordinates === null || member.changeRequest === null) {
+    return { status: "refused" };
+  }
   const readiness = await input.readiness.assess({
     planId: input.plan.planId,
     deliverableId: member.deliverableId,
@@ -154,7 +156,7 @@ export async function prepareDeliveryLanding(input: {
   const before = memberSnapshot(input.current.value, member.deliverableId);
   if (before === null) return { status: "refused" };
   const effect: DeliveryLandEffectV1 = {
-    providerId: member.changeRequest?.providerId ?? "",
+    providerId: member.changeRequest.providerId,
     repository: input.repository,
     changeRequestId: request.changeRequestId,
     headSha: member.coordinates.head,
@@ -218,6 +220,7 @@ export async function applyDeliveryLanding(input: {
     || operation.effect.strategy !== input.approved.mergeStrategy) return { status: "refused" };
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.approved.deliverableId);
   if (member === undefined || member.coordinates === null) return { status: "refused" };
+  const memberHead = member.coordinates.head;
   const stateWithoutReservation = { ...input.current.value, activeOperation: null };
   const observeReady = async (): Promise<boolean> => {
     const fresh = await input.observation.observeSelection();
@@ -238,7 +241,7 @@ export async function applyDeliveryLanding(input: {
         workUnitId: input.plan.workUnitId,
         repository: input.approved.repository,
         changeRequestId: input.approved.changeRequestId,
-        head: member.coordinates?.head ?? "",
+        head: memberHead,
       })).status === "ready";
   };
   if (!(await observeReady())) return { status: "refused" };
@@ -273,7 +276,7 @@ export async function applyDeliveryLanding(input: {
     target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
     members: operation.before.members.map((entry) => ({
       ...entry,
-      coordinates: { base: memberCoordinates.base, head: target.coordinates.head, tree: target.coordinates.tree },
+      coordinates: { base: beforeTarget.head, head: target.coordinates.head, tree: target.coordinates.tree },
     })),
   };
   const accepted = acceptDeliveryOperationResult(input.current, {

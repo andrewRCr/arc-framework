@@ -58,11 +58,18 @@ export async function publishDeliveryRemoteRef(input: {
     ]);
   } catch {
     const afterFailure = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
-    if (afterFailure.status === "observed" && afterFailure.head === input.head) return { status: "adopted" };
-    return { status: "refused", reason: afterFailure.status === "refused" ? "unavailable" : "stale-lease" };
+    if (afterFailure.status === "observed") {
+      return afterFailure.head === input.head
+        ? { status: "adopted" }
+        : { status: "refused", reason: "stale-lease" };
+    }
+    return { status: "refused", reason: "unavailable" };
   }
   const after = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
-  return after.status === "observed" && after.head === input.head
-    ? { status: "published" }
-    : { status: "refused", reason: after.status === "refused" ? "unavailable" : "stale-lease" };
+  if (after.status === "observed") {
+    return after.head === input.head
+      ? { status: "published" }
+      : { status: "refused", reason: "stale-lease" };
+  }
+  return { status: "refused", reason: "unavailable" };
 }
