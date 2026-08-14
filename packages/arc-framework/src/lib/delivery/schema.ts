@@ -166,6 +166,7 @@ export type DeliveryChangeRequestV1 = z.infer<typeof DeliveryChangeRequestV1Sche
 const DeliveryOperationMemberSnapshotV1Schema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   ref: DeliveryOpaqueIdSchema.nullable(),
+  changeRequest: DeliveryChangeRequestV1Schema.nullable(),
   coordinates: DeliveryMemberCoordinatesV1Schema.nullable(),
 });
 
@@ -182,10 +183,8 @@ export const DeliveryOperationSnapshotV1Schema = z.strictObject({
 });
 export type DeliveryOperationSnapshotV1 = z.infer<typeof DeliveryOperationSnapshotV1Schema>;
 
-/** One crash-recoverable reservation for an external delivery mutation. */
-export const DeliveryActiveOperationV1Schema = z.strictObject({
+export const DeliveryOperationCommonV1Schema = z.strictObject({
   operationId: DeliveryOpaqueIdSchema,
-  kind: z.enum(["materialize", "publish", "rewrite", "land", "teardown"]),
   affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).refine(
     (ids) => new Set(ids).size === ids.length,
     "affected deliverables must be distinct",
@@ -195,6 +194,48 @@ export const DeliveryActiveOperationV1Schema = z.strictObject({
   before: DeliveryOperationSnapshotV1Schema,
   requested: DeliveryOperationSnapshotV1Schema,
 });
+
+export const DeliveryPublishEffectV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  repository: DeliveryOpaqueIdSchema,
+  headRef: DeliveryOpaqueIdSchema,
+  headSha: DeliveryGitObjectIdSchema,
+  baseRef: DeliveryOpaqueIdSchema,
+  draft: z.boolean(),
+});
+export type DeliveryPublishEffectV1 = z.infer<typeof DeliveryPublishEffectV1Schema>;
+
+export const DeliveryLandEffectV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  repository: DeliveryOpaqueIdSchema,
+  changeRequestId: DeliveryOpaqueIdSchema,
+  headSha: DeliveryGitObjectIdSchema,
+  baseRef: DeliveryOpaqueIdSchema,
+  targetRef: DeliveryOpaqueIdSchema,
+  strategy: z.enum(["merge", "rebase", "squash"]),
+});
+export type DeliveryLandEffectV1 = z.infer<typeof DeliveryLandEffectV1Schema>;
+
+/** One crash-recoverable reservation for an external delivery mutation. */
+export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("materialize"),
+  }),
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("rewrite"),
+  }),
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("teardown"),
+  }),
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("publish"),
+    effect: DeliveryPublishEffectV1Schema,
+  }),
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("land"),
+    effect: DeliveryLandEffectV1Schema,
+  }),
+]);
 export type DeliveryActiveOperationV1 = z.infer<typeof DeliveryActiveOperationV1Schema>;
 
 const DeliveryStateMemberV1Schema = z.strictObject({

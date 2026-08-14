@@ -23,6 +23,7 @@ function positionFacts(
     members: state.members.map((member) => ({
       deliverableId: member.deliverableId,
       ref: member.ref,
+      changeRequest: member.changeRequest,
       coordinates: member.coordinates,
     })),
     landedDeliverableIds,
@@ -87,6 +88,7 @@ describe("deriveDeliveryPosition", () => {
     const foreign = {
       deliverableId: canonicalDigest({ member: "foreign" }),
       ref: null,
+      changeRequest: null,
       coordinates: null,
     };
 
@@ -224,6 +226,14 @@ describe("assessDeliveryMemberReadiness", () => {
         boundPlanDigest: plan.planDigest,
         before,
         requested: before,
+        effect: {
+          providerId: "github",
+          repository: "andrewRCr/arc-framework",
+          headRef: "delivery/delivery-plan-record/first",
+          headSha: "4".repeat(40),
+          baseRef: "main",
+          draft: true,
+        },
       },
     });
     expect(assessDeliveryMemberReadiness(plan, active, positionFacts(active), selectedId))

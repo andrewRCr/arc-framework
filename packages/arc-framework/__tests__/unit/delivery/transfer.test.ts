@@ -20,6 +20,7 @@ function activeOperationRecord() {
     members: state.members.slice(0, 1).map((member) => ({
       deliverableId: member.deliverableId,
       ref: member.ref,
+      changeRequest: member.changeRequest,
       coordinates: member.coordinates,
     })),
   };
@@ -142,6 +143,7 @@ describe("delivery state transfer", () => {
     const reversedMembers = [...active.state.value.members].reverse().map((member) => ({
       deliverableId: member.deliverableId,
       ref: member.ref,
+      changeRequest: member.changeRequest,
       coordinates: member.coordinates,
     }));
 

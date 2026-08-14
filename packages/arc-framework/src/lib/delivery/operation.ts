@@ -6,8 +6,10 @@ import { canonicalize } from "../kernel/index.js";
 import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
-  DeliveryActiveOperationV1Schema,
+  DeliveryLandEffectV1Schema,
+  DeliveryOperationCommonV1Schema,
   DeliveryOperationSnapshotV1Schema,
+  DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
   type DeliveryActiveOperationV1,
   type DeliveryOperationSnapshotV1,
@@ -17,15 +19,48 @@ import {
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 /** Caller-supplied operation intent before state-owned binding fields are added. */
-export const DeliveryOperationReservationRequestV1Schema = DeliveryActiveOperationV1Schema.omit({
-  stateRevision: true,
-  boundPlanDigest: true,
-}).extend({
+const reservationFields = {
   expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-});
+};
+export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion("kind", [
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("materialize") }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("rewrite") }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("teardown") }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("land"), effect: DeliveryLandEffectV1Schema }),
+]);
 export type DeliveryOperationReservationRequestV1 = z.infer<
   typeof DeliveryOperationReservationRequestV1Schema
 >;
+
+const DeliveryHostAssignedObservationV1Schema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("publish"),
+    effect: DeliveryPublishEffectV1Schema,
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
+  z.strictObject({
+    kind: z.literal("land"),
+    effect: DeliveryLandEffectV1Schema,
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
+]);
+
+const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
+  z.strictObject({
+    outcome: z.literal("applied"),
+    observation: DeliveryHostAssignedObservationV1Schema,
+  }),
+  z.strictObject({ outcome: z.literal("not-applied") }),
+  z.strictObject({ outcome: z.literal("ambiguous") }),
+]);
 
 /** Closed failures while reserving the single delivery-operation slot. */
 export type ReserveDeliveryOperationFailure =
@@ -92,6 +127,7 @@ function snapshotFromState(
       return member === undefined ? [] : [{
         deliverableId: member.deliverableId,
         ref: member.ref,
+        changeRequest: member.changeRequest,
         coordinates: member.coordinates,
       }];
     }),
@@ -142,27 +178,62 @@ export function validateDeliveryActiveOperation(
   return { status: "valid", state: parsedState.data, operation };
 }
 
-function applyRequestedSnapshot(
+function applyObservedSnapshot(
   state: DeliveryStateV1,
-  operation: DeliveryActiveOperationV1,
+  observed: DeliveryOperationSnapshotV1,
 ): DeliveryStateV1 | null {
-  const requestedByDeliverable = new Map(
-    operation.requested.members.map((member) => [member.deliverableId, member]),
+  const observedByDeliverable = new Map(
+    observed.members.map((member) => [member.deliverableId, member]),
   );
   const parsed = DeliveryStateV1Schema.safeParse({
     ...state,
-    target: operation.requested.target,
+    target: observed.target,
     members: state.members.map((member) => {
-      const requested = requestedByDeliverable.get(member.deliverableId);
-      return requested === undefined ? member : {
+      const result = observedByDeliverable.get(member.deliverableId);
+      return result === undefined ? member : {
         ...member,
-        ref: requested.ref,
-        coordinates: requested.coordinates,
+        ref: result.ref,
+        changeRequest: result.changeRequest,
+        coordinates: result.coordinates,
       };
     }),
     activeOperation: null,
   });
   return parsed.success ? parsed.data : null;
+}
+
+function matchesHostAssignedResult(
+  operation: DeliveryActiveOperationV1,
+  observed: DeliveryOperationSnapshotV1,
+): boolean {
+  if (operation.kind === "publish") {
+    if (observed.members.some((member) => member.changeRequest === null)) return false;
+    const stableObservation = {
+      ...observed,
+      members: observed.members.map((member, index) => ({
+        ...member,
+        changeRequest: operation.requested.members[index]?.changeRequest ?? null,
+      })),
+    };
+    return canonicalize(stableObservation) === canonicalize(operation.requested);
+  }
+  if (operation.kind === "land") {
+    if (operation.requested.target === null || observed.target === null || observed.target.coordinates === null
+      || observed.members.some((member) => member.coordinates === null)) return false;
+    const stableObservation = {
+      ...observed,
+      target: {
+        ...observed.target,
+        coordinates: operation.requested.target.coordinates,
+      },
+      members: observed.members.map((member, index) => ({
+        ...member,
+        coordinates: operation.requested.members[index]?.coordinates ?? null,
+      })),
+    };
+    return canonicalize(stableObservation) === canonicalize(operation.requested);
+  }
+  return canonicalize(observed) === canonicalize(operation.requested);
 }
 
 /**
@@ -224,6 +295,9 @@ export function reserveDeliveryOperation(
       boundPlanDigest: plan.planDigest,
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
+      ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
+        ? { effect: parsedRequest.data.effect }
+        : {}),
     },
   });
   if (!reserved.success) return { status: "refused", reason: "operation-invalid" };
@@ -264,12 +338,21 @@ export function acceptDeliveryOperationResult(
 ): AcceptDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const parsedObserved = DeliveryOperationSnapshotV1Schema.safeParse(observed);
-  if (!parsedObserved.success) return { status: "blocked", reason: "observed-facts-invalid" };
-  if (canonicalize(parsedObserved.data) !== canonicalize(active.operation.requested)) {
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  const parsedHost = hostAssigned ? DeliveryHostAssignedObservationV1Schema.safeParse(observed) : null;
+  if (hostAssigned && (parsedHost === null || !parsedHost.success
+    || parsedHost.data.kind !== active.operation.kind
+    || canonicalize(parsedHost.data.effect) !== canonicalize(active.operation.effect))) {
     return { status: "blocked", reason: "requested-mismatch" };
   }
-  const next = applyRequestedSnapshot(active.state, active.operation);
+  const parsedObserved = DeliveryOperationSnapshotV1Schema.safeParse(
+    parsedHost?.success === true ? parsedHost.data.snapshot : observed,
+  );
+  if (!parsedObserved.success) return { status: "blocked", reason: "observed-facts-invalid" };
+  if (!matchesHostAssignedResult(active.operation, parsedObserved.data)) {
+    return { status: "blocked", reason: "requested-mismatch" };
+  }
+  const next = applyObservedSnapshot(active.state, parsedObserved.data);
   return next === null
     ? { status: "blocked", reason: "state-invalid" }
     : { status: "applied", state: next };
@@ -288,11 +371,21 @@ export function reconcileDeliveryOperation(
 ): ReconcileDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  if (hostAssigned) {
+    const parsedHost = DeliveryHostReconciliationObservationV1Schema.safeParse(observed);
+    if (!parsedHost.success) return { status: "blocked", reason: "observed-facts-invalid" };
+    if (parsedHost.data.outcome === "not-applied") {
+      return { status: "retry", operationId: active.operation.operationId };
+    }
+    if (parsedHost.data.outcome === "ambiguous") return { status: "blocked", reason: "ambiguous-result" };
+    return acceptHostReconciliation(active, parsedHost.data.observation);
+  }
   const parsedObserved = DeliveryOperationSnapshotV1Schema.safeParse(observed);
   if (!parsedObserved.success) return { status: "blocked", reason: "observed-facts-invalid" };
   const observedBytes = canonicalize(parsedObserved.data);
-  if (observedBytes === canonicalize(active.operation.requested)) {
-    const next = applyRequestedSnapshot(active.state, active.operation);
+  if (matchesHostAssignedResult(active.operation, parsedObserved.data)) {
+    const next = applyObservedSnapshot(active.state, parsedObserved.data);
     return next === null
       ? { status: "blocked", reason: "state-invalid" }
       : { status: "adopt", state: next };
@@ -301,4 +394,20 @@ export function reconcileDeliveryOperation(
     return { status: "retry", operationId: active.operation.operationId };
   }
   return { status: "blocked", reason: "ambiguous-result" };
+}
+
+function acceptHostReconciliation(
+  active: Extract<ValidateDeliveryActiveOperationResult, { readonly status: "valid" }>,
+  observed: z.infer<typeof DeliveryHostAssignedObservationV1Schema>,
+): ReconcileDeliveryOperationResult {
+  if ((active.operation.kind !== "publish" && active.operation.kind !== "land")
+    || observed.kind !== active.operation.kind
+    || canonicalize(observed.effect) !== canonicalize(active.operation.effect)
+    || !matchesHostAssignedResult(active.operation, observed.snapshot)) {
+    return { status: "blocked", reason: "ambiguous-result" };
+  }
+  const next = applyObservedSnapshot(active.state, observed.snapshot);
+  return next === null
+    ? { status: "blocked", reason: "state-invalid" }
+    : { status: "adopt", state: next };
 }

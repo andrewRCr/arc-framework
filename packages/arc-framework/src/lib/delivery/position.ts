@@ -100,6 +100,7 @@ export function deriveDeliveryPosition(
     members: parsedState.data.members.map((member) => ({
       deliverableId: member.deliverableId,
       ref: member.ref,
+      changeRequest: member.changeRequest,
       coordinates: member.coordinates,
     })),
   };
