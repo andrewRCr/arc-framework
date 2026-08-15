@@ -619,83 +619,118 @@ restore the three control obligations the convergence rewrite dropped. Review ch
 the blocker class are in `notes-integration-boundary-accuracy.md` § Verification Findings.
 
 _Design decisions:_ The blocker class is one defect, not four — Phase 1's modules landed with their contracts and
-tests but no production callers — so 7.1 through 7.4 sequence as a single wiring pass. Order is load-bearing:
-7.4 ahead of 7.3 would convert today's silent empty composition into a hard `composition-unavailable` block. The
+tests but no production callers — so 7.2 through 7.5 sequence as a single wiring pass. Order is load-bearing:
+7.5 ahead of 7.4 would convert today's silent empty composition into a hard `composition-unavailable` block. The
 restored disclosure and readiness gate go to the surface each lane already traverses — the interlock composer and
 the checkpoint's lifecycle read — rather than to new prose invariants, preserving the determinism relocation this
 work unit exists to make.
 
+_Amended 2026-08-15 — lane-progress split._ Scoping the pre-publication wiring established that the procedure's
+policy requests need per-attempt lane progress the system computes but does not keep: `awaitHostedReview` already
+returns the driver's exact outcome vocabulary, the standard lane persists nothing per attempt, and the records that
+do persist collapse `rate-limited` / `transient-unavailable` / `capability-unsupported` / `source-unbound` into one
+`unavailable` — losing precisely the distinction `isSafeUnavailable` reads to decide source fall-through. Having
+the agent carry those facts instead would reintroduce the defect Goal 6 names (`pass ceilings are CLI-owned`), so
+persistence lands first, as its own review increment: 7.1 below. Everything that was 7.1–7.9 shifts to 7.2–7.10;
+no task's content changed except 7.2's, which now composes from the persisted progress.
+
 No success criterion is added or amended. The existing criteria already require these behaviors; the gap was in
 how they were verified, not in what they state.
 
-### `[ ]` **7.1 Register and wire the pre-publication procedure**
+### `[ ]` **7.1 Persist driver-grade lane progress at attempt end**
+
+- _Goal:_ Per-attempt review progress is durable at the fidelity the policy driver reads, so source order and pass
+  ceilings are owned by the CLI rather than assembled by an agent.
+
+- _Rationale:_ This is not new state. The outcome vocabulary already exists at attempt time and is discarded;
+  what lands here is keeping it. Composing the existing `ReviewOperationStateStore` rather than adding a store
+  keeps the change to a record variant plus its write sites.
+
+    - `[ ]` **7.1.a `lane-progress` operation-state variant**
+        - Add the variant to `ReviewOperationStateSchema`'s discriminated union carrying lane, target, source
+          identity, the driver-grade outcome, and pass count, so the existing versioned store persists it.
+
+    - `[ ]` **7.1.b Write sites on all three lanes**
+        - Record the outcome where each lane already computes it — the hosted await, the frontline run path, and
+          the local attest path — without changing any lane's observable behavior.
+
+    - `[ ]` **7.1.c Lane-progress reader**
+        - Project persisted progress into the driver's `completedPasses` and ordered `attempts`, preserving
+          fall-through fidelity so a reconstructed request is accepted by the policy request schema's ordering and
+          fall-through refinements.
+
+### `[ ]` **7.2 Register and wire the pre-publication procedure**
 
 - _Goal:_ The typed pre-publication procedure is reachable from the CLI, so the next action every Candidate-bearing
   locus names is a command that exists, and a standard-review reservation is created on the production path rather
   than only under test.
 
-    - `[ ]` **7.1.a `arc review pre-publication` registration and handler**
+    - `[ ]` **7.2.a `arc review pre-publication` registration and handler**
         - Register the subcommand in `cli.ts` under the `review` namespace and route it to
           `projectPrePublicationReview`, matching the `<name> --json` shape the four emitting sites already name.
 
-    - `[ ]` **7.1.b Reservation creation on the production path**
+    - `[ ]` **7.2.b Request composition from repository state**
+        - Compose both lane policy requests from the Candidate record, the git subject, resolved review config, and
+          7.1's lane-progress reader, so the command self-composes from a slug with no caller-supplied progress.
+
+    - `[ ]` **7.2.c Reservation creation on the production path**
         - Reach `createStandardReviewReservation` from the registered handler so an ordered hosted-first source is
           reserved before pull-request binding, and the reservation the submission boundary carries is a real one.
 
-    - `[ ]` **7.1.c Command-surface coverage**
+    - `[ ]` **7.2.d Command-surface coverage**
         - Extend the command-inventory and handler suites to assert the subcommand is registered and that every
           locus-emitted corrective command resolves to a registered command.
 
-### `[ ]` **7.2 Close the submission-boundary write path**
+### `[ ]` **7.3 Close the submission-boundary write path**
 
 - _Goal:_ `arc submit` succeeds on its first call over a ready Candidate — the durable boundary is written where
   the pre-publication locus settles, not by the consumer that refuses without it.
 
-    - `[ ]` **7.2.a Write the boundary at the pre-publication settle point**
+    - `[ ]` **7.3.a Write the boundary at the pre-publication settle point**
         - Move the `writeSubmissionBoundary` call out of `handleSubmit`'s post-transition tail to the point where
           the locus reduces to `candidate-submit-ready`, keeping the file's canonical shape and staged-effect
           behavior unchanged.
 
-    - `[ ]` **7.2.b Submit over a first-call boundary**
+    - `[ ]` **7.3.b Submit over a first-call boundary**
         - `handleSubmit` reads the settled boundary, retains its idempotent repeat-from-`Integrating` arm, and
           keeps refusing when no boundary exists — a state that is now reachable only by genuinely open
           obligations.
 
-    - `[ ]` **7.2.c End-to-end reachability proof**
+    - `[ ]` **7.3.c End-to-end reachability proof**
         - Cover `propose → pre-publication → submit` against the real CLI, so the spine's first-call path is
           proven by execution rather than by injected dependencies.
 
-### `[ ]` **7.3 Advance Candidate lineage in production**
+### `[ ]` **7.4 Advance Candidate lineage in production**
 
 - _Goal:_ An approved review response and its delta-verification evidence append to the managed Candidate record,
   so lineage currentness, the `implementationChanged` reduction, and B1's convergence guard all reach live paths.
 
-    - `[ ]` **7.3.a Response append on the production path**
+    - `[ ]` **7.4.a Response append on the production path**
         - Reach `recordCandidateVerifiedResponse` from the registered handler and persist the appended record, so
           `responses` is written by something other than `propose`'s empty literal.
 
-    - `[ ]` **7.3.b Convergence-guard reachability**
+    - `[ ]` **7.4.b Convergence-guard reachability**
         - Cover a review-fix lineage that drives `implementationChanged` true, blocks the checkpoint on pending
           convergence, and clears through `arc propose` — the guard at `checkpoint.ts` proven reachable.
 
-### `[ ]` **7.4 Compose the checkpoint's review record and settlement plan**
+### `[ ]` **7.5 Compose the checkpoint's review record and settlement plan**
 
 - _Goal:_ The checkpoint persists the review record and canonical settlement plan the approver decides on, and the
   merge verb posts and executes exactly that composition.
 
-    - `[ ]` **7.4.a Review-record composition**
+    - `[ ]` **7.5.a Review-record composition**
         - Replace the hardcoded null record in `checkpoint-composition.ts` with composition from the Candidate's
           responses, preserving the schema's record/disposition-identity invariant.
 
-    - `[ ]` **7.4.b Settlement-plan composition**
+    - `[ ]` **7.5.b Settlement-plan composition**
         - Replace the hardcoded empty plan with the canonical cross-channel plan built from the same responses, so
           the digest binds a plan that has actions in it.
 
-    - `[ ]` **7.4.c Review-bearing checkpoint and merge coverage**
+    - `[ ]` **7.5.c Review-bearing checkpoint and merge coverage**
         - Cover a review-bearing work unit through checkpoint and merge: the record posts, the plan executes
           idempotently, and drift or handle substitution still fails closed.
 
-### `[ ]` **7.5 Restore the review-applicability disclosure at the work-unit interlock**
+### `[ ]` **7.6 Restore the review-applicability disclosure at the work-unit interlock**
 
 - _Goal:_ The facts § G2 priced the `Coverage` deletion against — every review applicability call, targeted
   verification, and the candidate-tail diff — are surfaced at the stop on both lanes, not just the errand one.
@@ -705,7 +740,7 @@ how they were verified, not in what they state.
     - Keep the nine-signal composer count intact: the disclosure is a surfaced item, not a tenth machine signal —
       Criterion 2 and the composer's structural tests pin that count.
 
-### `[ ]` **7.6 Restore the lifecycle-artifact readiness gate on a lock-independent path**
+### `[ ]` **7.7 Restore the lifecycle-artifact readiness gate on a lock-independent path**
 
 - _Goal:_ Completion Notes and any applicable Release Notes are verified before merge in every lock mode, closing
   the `merge.lock: none` hole where nothing checks them.
@@ -714,7 +749,7 @@ how they were verified, not in what they state.
       modes traverse — rather than restoring a workflow-prose step or depending on the lock release.
     - Cover the `none` lock mode explicitly: a work unit missing Completion Notes must not reach a `ready` verdict.
 
-### `[ ]` **7.7 Restore the errand lane's pre-create head re-validation**
+### `[ ]` **7.8 Restore the errand lane's pre-create head re-validation**
 
 - _Goal:_ No pull request is created against a head that changed after validation, in either lane.
 
@@ -723,7 +758,7 @@ how they were verified, not in what they state.
     - `pre-pr-open` is project-authored and guaranteed only retry-safe, so resolver-time validation upstream of it
       does not cover this window.
 
-### `[ ]` **7.8 Name a corrective command on every spine refusal**
+### `[ ]` **7.9 Name a corrective command on every spine refusal**
 
 - _Goal:_ Every checkpoint, merge, and submit refusal names the failed invariant and one corrective command, per
   Criterion 15's closing clause.
@@ -733,7 +768,7 @@ how they were verified, not in what they state.
       their own remedies.
     - Give `submit`'s string refusals the same treatment.
 
-### `[ ]` **7.9 Correct the `arc integrate` command reference**
+### `[ ]` **7.10 Correct the `arc integrate` command reference**
 
 - _Goal:_ `QUICK-REFERENCE` describes the namespace as it shipped.
 

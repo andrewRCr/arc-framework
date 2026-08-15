@@ -187,6 +187,33 @@ The pass flagged two further `integrate` residues that are not defects: `draft-r
 spec's own inventory classes as a forward-reference rather than an invocation, and a `reopen.test.ts` docstring
 outside the five inventoried test files.
 
+### Why lane-progress persistence is part of the remediation
+
+Established while scoping the pre-publication wiring, and the reason Phase 7 opens with a persistence task rather
+than the registration it was first planned as.
+
+`projectPrePublicationReview` needs, per lane, `completedPasses` and an ordered `attempts[]` whose outcomes come
+from a twelve-value vocabulary. `isSafeUnavailable` reads exactly two of those values — `rate-limited` and
+`transient-unavailable` — to decide whether a lane may fall through to the next configured source, and the request
+schema enforces that structurally. So outcome fidelity is load-bearing, not descriptive.
+
+Three facts decide the shape:
+
+- `awaitHostedReview` already returns the driver's exact vocabulary, including the four unavailable-class values
+  the fall-through decision turns on. The information exists at attempt time.
+- The standard lane persists nothing per attempt — no receipt append, no operation publish anywhere under the
+  hosted or GitHub host paths. That fidelity is computed and dropped.
+- Where outcomes are persisted, they are collapsed: receipts to `clean | findings | unavailable | failed`, the
+  frontline run state to eight values. Both fold two fall-through-safe and two unsafe outcomes into one
+  `unavailable`, so the distinction cannot be recovered from storage.
+
+Deriving lane progress from existing records therefore does not close, and the alternative — having the agent
+supply the progress facts in a composed request — reintroduces exactly what Goal 6 places with the CLI (`source
+order, pass ceilings … are CLI-owned`) and what Task 1.4's Goal forbids (`no parsing of … pass counts`). The
+remedy is to stop discarding a fact the system already computes at the right fidelity: a `lane-progress` variant on
+the existing `ReviewOperationStateSchema` union, written where each lane already knows its outcome. Composing the
+existing versioned operation store keeps this a record variant and its write sites rather than new storage.
+
 ## Resume Procedure
 
 1. Resume `generate-tasks` from the stack-member seed above under the amended spec — structural skeleton from
