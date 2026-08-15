@@ -2,10 +2,10 @@
  * Integration tests for pre-commit CHECK 9 (meta-project references).
  *
  * The check scans staged production-code added lines for planning IDs.
- * A merge commit stages incoming-parent content as if it were author-added
- * (`git diff --cached` is vs HEAD), so already-landed strict tokens
- * re-trigger the check. Merge-aware scanning compares added lines against
- * MERGE_HEAD instead.
+ * A merge commit stages parent content as if it were author-added
+ * (`git diff --cached` is vs HEAD). Merge-aware scanning keeps only lines
+ * added against both parents — content already on HEAD or MERGE_HEAD stays
+ * out of scope.
  */
 
 import { execFile } from "node:child_process";
@@ -99,6 +99,25 @@ describe("pre-commit CHECK 9 (meta-project references)", () => {
     await writeRepoFile(root, "src/domain.ts", STRICT_SOURCE);
     await commit(root, "land domain id");
     await git(root, ["checkout", "main"]);
+    await git(root, ["merge", "--no-ff", "--no-commit", "incoming"]);
+
+    const result = await runHook(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).not.toContain("Meta-project references found in production code");
+  });
+
+  it("does not re-trigger on current-branch content when incoming also edits the file", async () => {
+    const root = await freshRepo();
+    const padding = `${"// keep\n".repeat(8)}export const tail = "a";\n`;
+    await writeRepoFile(root, "src/domain.ts", `export const name = "ok";\n\n${padding}`);
+    await commit(root, "shared base");
+    await git(root, ["checkout", "-b", "incoming"]);
+    await writeRepoFile(root, "src/domain.ts", `export const name = "ok";\n\n${padding.replace('"a"', '"b"')}`);
+    await commit(root, "incoming edits tail");
+    await git(root, ["checkout", "main"]);
+    await writeRepoFile(root, "src/domain.ts", `export const name = "ok";\n${STRICT_SOURCE}\n${padding}`);
+    await commit(root, "land token on current branch");
     await git(root, ["merge", "--no-ff", "--no-commit", "incoming"]);
 
     const result = await runHook(root);
