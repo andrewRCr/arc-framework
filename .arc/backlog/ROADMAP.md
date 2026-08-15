@@ -15,7 +15,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit                     | Priority | Owner  | Depends on | Cohort                    |
 | ---------- | ----------------------------- | -------- | ------ | ---------- | ------------------------- |
-| `Active`   | finalize-parallelism          | P1       | andrew | —          | agile-parallelism         |
+| `Active`   | delivery-stack-topology       | P1       | andrew | —          | chunked-delivery          |
 | `Planning` | review-signal-convergence     | P1       | andrew | —          | review-protocol-alignment |
 | `Planning` | decomposition-doctrine        | P1       | andrew | —          | —                         |
 | `Active`   | integration-boundary-accuracy | P1       | andrew | —          | —                         |
@@ -100,6 +100,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                                                  | Cohort                     |
 | --------------------------------- | -------- | ------ | ----------------------------------------------------------- | -------------------------- |
+| delivery-native-stack-composition | P1       | andrew | integration-boundary-accuracy                               | chunked-delivery           |
 | review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment  |
 | unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
 | review-orchestration-right-sizing | P2       | andrew | retrospective-right-sizing                                  | —                          |
@@ -125,9 +126,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 4
 
-| Work unit                   | Priority | Owner  | Depends on               | Cohort           |
-| --------------------------- | -------- | ------ | ------------------------ | ---------------- |
-| delivery-review-cardinality | P2       | andrew | review-request-contracts | chunked-delivery |
+| Work unit                   | Priority | Owner  | Depends on                                        | Cohort           |
+| --------------------------- | -------- | ------ | ------------------------------------------------- | ---------------- |
+| delivery-review-cardinality | P2       | andrew | delivery-stack-topology, review-request-contracts | chunked-delivery |
 
 ---
 
