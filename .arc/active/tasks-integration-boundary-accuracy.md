@@ -754,24 +754,41 @@ how they were verified, not in what they state.
   rather than throwing. An unrecorded lane composes as no attempts and says so on stderr, because the local attest
   lane persists nothing and the two cases are indistinguishable from storage alone.
 
-### `[ ]` **7.3 Close the submission-boundary write path**
+### `[x]` **7.3 Close the submission-boundary write path**
 
 - _Goal:_ `arc submit` succeeds on its first call over a ready Candidate — the durable boundary is written where
   the pre-publication locus settles, not by the consumer that refuses without it.
 
-    - `[ ]` **7.3.a Write the boundary at the pre-publication settle point**
-        - Move the `writeSubmissionBoundary` call out of `handleSubmit`'s post-transition tail to the point where
-          the locus reduces to `candidate-submit-ready`, keeping the file's canonical shape and staged-effect
-          behavior unchanged.
+    - `[x]` **7.3.a Write the boundary at the pre-publication settle point**
+        - `arc review pre-publication` writes and stages the durable boundary when its locus reduces to
+          `candidate-submit-ready`, before the result is claimed. The envelope already satisfies the boundary
+          schema, so the file's canonical shape and staged-effect behavior are unchanged.
+        - **Not a move.** `handleSubmit`'s post-transition write records `publication-pending`, which is what its
+          idempotent repeat arm reads — removing it would break the arm 7.3.b preserves. The two writes record
+          different loci: this one settles pre-publication, that one advances past it.
 
-    - `[ ]` **7.3.b Submit over a first-call boundary**
-        - `handleSubmit` reads the settled boundary, retains its idempotent repeat-from-`Integrating` arm, and
-          keeps refusing when no boundary exists — a state that is now reachable only by genuinely open
-          obligations.
+    - `[x]` **7.3.b Submit over a first-call boundary**
+        - `handleSubmit` needed no change — it already read the boundary, kept the repeat arm, and refused when
+          absent. What it needed was a boundary to read, and one correction so that reading it does not block the
+          Candidate it settles.
+        - **Correction.** Staging the boundary put it in the reviewable subject, so `projectCandidateCurrentness`
+          returned `blocked` and submission refused on the very path the settle-point write opens. The boundary is
+          the Candidate's own projection, like the record beside it, so `collectGitCandidateTarget` now classifies
+          both as `candidate-projection` — resolving each through its store's own path resolver rather than the
+          inlined literal the record previously duplicated.
 
-    - `[ ]` **7.3.c End-to-end reachability proof**
-        - Cover `propose → pre-publication → submit` against the real CLI, so the spine's first-call path is
-          proven by execution rather than by injected dependencies.
+    - `[x]` **7.3.c End-to-end reachability proof**
+        - Added `publication-spine.e2e.test.ts`: `propose → pre-publication → submit` against the built CLI, with
+          the boundary written and staged at the settle point, submission succeeding on its first call, and a
+          repeat reporting the publication resume point. A second case covers the open-obligation arm — an active
+          self-review method stops the procedure before it settles, no boundary is written, and submission refuses.
+        - Origin coordinates resolve to `owner/repo` at a reserved `.invalid` host, so the change-request probe
+          fails at name resolution and the spine proof stays offline and deterministic.
+
+- _Outcome:_ The spine's first call runs end to end. The write was an addition rather than the planned move —
+  `handleSubmit`'s tail write records a different locus, and the repeat arm reads it — and moving the write
+  forward of submission's currentness check exposed the subject-classification gap that the boundary, unlike the
+  record, had never hit.
 
 ### `[ ]` **7.4 Advance Candidate lineage in production**
 

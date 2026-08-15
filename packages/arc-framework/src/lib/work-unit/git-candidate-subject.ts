@@ -11,6 +11,8 @@ import {
   type CandidateLineageTarget,
   type CandidateSubjectEntryInput,
 } from "./candidate-attestation.js";
+import { resolveCandidateRecordRelativePath } from "./candidate-record-store.js";
+import { resolveSubmissionBoundaryPath } from "./submission-boundary-store.js";
 
 export interface CollectGitCandidateTargetInput {
   cwd: string;
@@ -39,7 +41,14 @@ export async function collectGitCandidateTarget(
   )).stdout.split("\0").filter((path) => path !== "");
   const paths = [...new Set(changed)].sort(compareUtf8);
   const readBlob = input.readBlob ?? readGitBlobBytes;
-  const candidatePath = `.arc/system/.internal/candidates/${name}.json`;
+  // The Candidate's own record and the publication boundary reduced from it are projections of this
+  // subject, so digesting them would make the subject reference itself. The boundary is written
+  // where pre-publication settles — before submission reads currentness — so classifying it is what
+  // keeps a settled Candidate current rather than blocked by its own settle-point write.
+  const projectionPaths = new Set([
+    resolveCandidateRecordRelativePath(name),
+    resolveSubmissionBoundaryPath(name),
+  ]);
   const metaPath = `.arc/active/meta-${name}.md`;
   const entries: CandidateSubjectEntryInput[] = [];
   for (const path of paths) {
@@ -47,7 +56,7 @@ export async function collectGitCandidateTarget(
     entries.push({
       path,
       digest: bytes === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(bytes),
-      treatment: path === candidatePath
+      treatment: projectionPaths.has(path)
         ? "candidate-projection"
         : path === metaPath
           ? "operational"

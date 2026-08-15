@@ -1437,6 +1437,7 @@ describe("handleReviewPrePublication", () => {
   function boundary(overrides: Record<string, unknown> = {}) {
     return {
       resolveRoot: () => "/repo",
+      persistBoundary: vi.fn(),
       write: vi.fn(),
       warn: vi.fn(),
       setExitCode: vi.fn(),
@@ -1464,6 +1465,54 @@ describe("handleReviewPrePublication", () => {
       target: { repository: "arc-framework/example", headSha: "a".repeat(40) },
     });
     expect(dependencies.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("writes the durable publication boundary where the locus settles", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      workUnit: "example",
+      locus: "candidate-submit-ready",
+      candidateId: request.candidateId,
+    }));
+  });
+
+  it("writes no boundary while a pre-publication obligation is still open", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request: { ...request, selfReview: "pending" as const },
+        advisories: [],
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-review-pending",
+    });
+    expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed boundary write instead of claiming a settled locus", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+      persistBoundary: vi.fn(async () => {
+        throw new Error("boundary write failed");
+      }),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { message: expect.stringContaining("boundary write failed") },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
   });
 
   it("passes the reported self-review state through to the procedure", async () => {

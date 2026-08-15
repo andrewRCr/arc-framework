@@ -50,4 +50,37 @@ describe("collectGitCandidateTarget", () => {
       { path: "packages/arc-framework/src/example.ts", treatment: "reviewable" },
     ].map((entry) => expect.objectContaining(entry))));
   });
+
+  it("leaves the subject digest unchanged when the settled publication boundary is staged", async () => {
+    const staged = [
+      ".arc/active/tasks-example.md",
+      ".arc/system/.internal/candidates/example.json",
+    ];
+    const bytes = new Map([
+      [".arc/active/tasks-example.md", new TextEncoder().encode("tasks")],
+      [".arc/system/.internal/candidates/example.json", new TextEncoder().encode("candidate")],
+      [".arc/system/.internal/candidates/example.boundary.json", new TextEncoder().encode("boundary")],
+    ]);
+    const collect = (paths: readonly string[]) => collectGitCandidateTarget({
+      cwd: "/repo",
+      name: "example",
+      baseBranch: "main",
+      readBlob: async (_cwd, _ref, path) => bytes.get(path) ?? null,
+      exec: async (_command, args) => {
+        if (args[0] === "rev-parse") return { stdout: `${HEAD}\n` };
+        if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
+        if (args[0] === "diff") return { stdout: [...paths, ""].join("\0") };
+        throw new Error(`Unexpected Git operation: ${args.join(" ")}`);
+      },
+    });
+
+    const before = await collect(staged);
+    const after = await collect([...staged, ".arc/system/.internal/candidates/example.boundary.json"]);
+
+    expect(after.subject.entries).toEqual(expect.arrayContaining([expect.objectContaining({
+      path: ".arc/system/.internal/candidates/example.boundary.json",
+      treatment: "candidate-projection",
+    })]));
+    expect(after.subject.subjectDigest).toBe(before.subject.subjectDigest);
+  });
 });

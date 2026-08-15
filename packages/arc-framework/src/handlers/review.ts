@@ -53,7 +53,12 @@ import {
 import {
   PrePublicationReviewEnvelopeSchema,
   projectPrePublicationReview,
+  type PrePublicationReviewEnvelope,
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
+import type {
+  IntegrationBoundaryLocus,
+} from "../scripts/review-gate/policy/integration-boundary-locus.js";
+import { writeSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 import {
   LocalTargetDerivationError,
   type LocalTargetInvalidReason,
@@ -1536,6 +1541,7 @@ export interface ReviewPrePublicationOptions {
 export interface ReviewPrePublicationHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   compose(root: string, input: z.infer<typeof ReviewPrePublicationInputSchema>): Promise<PrePublicationComposition>;
+  persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
   write(text: string): void;
   warn(text: string): void;
   setExitCode(code: number): void;
@@ -1552,6 +1558,10 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
       },
       createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec }),
     ),
+    persistBoundary: async (root, settled) => {
+      const path = await writeSubmissionBoundary(root, settled);
+      await gitExec("git", ["add", "--", path], { cwd: root });
+    },
     write: (text) => {
       boundary.write(text);
     },
@@ -1609,7 +1619,7 @@ export async function handleReviewPrePublication(
     return;
   }
 
-  let envelope: unknown;
+  let envelope: PrePublicationReviewEnvelope;
   try {
     const composition = await dependencies.compose(root, input.data);
     if (composition.status === "refused") {
@@ -1618,6 +1628,10 @@ export async function handleReviewPrePublication(
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
     envelope = projectPrePublicationReview(composition.request);
+    // The settled locus is where the durable publication boundary is written. Recording it here —
+    // before the result is claimed — is what makes `arc submit` succeed on its first call; an
+    // absent boundary now means genuinely open obligations rather than a write nobody performed.
+    if (envelope.locus === "candidate-submit-ready") await dependencies.persistBoundary(root, envelope);
   } catch (error) {
     emitFailure(error, "execution");
     return;
