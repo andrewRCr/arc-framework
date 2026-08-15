@@ -51,6 +51,7 @@ const reviewIdentities = [
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
   "frontline-run-state",
+  "lane-progress-state",
   "local-review-policy-binding",
   "local-review-policy-binding-digest-preimage",
   "local-review-source",

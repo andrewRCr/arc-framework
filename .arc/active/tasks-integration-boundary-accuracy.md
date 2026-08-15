@@ -646,9 +646,15 @@ how they were verified, not in what they state.
   what lands here is keeping it. Composing the existing `ReviewOperationStateStore` rather than adding a store
   keeps the change to a record variant plus its write sites.
 
-    - `[ ]` **7.1.a `lane-progress` operation-state variant**
-        - Add the variant to `ReviewOperationStateSchema`'s discriminated union carrying lane, target, source
-          identity, the driver-grade outcome, and pass count, so the existing versioned store persists it.
+    - `[x]` **7.1.a `lane-progress` operation-state variant**
+        - Added the variant to `ReviewOperationStateSchema`'s discriminated union carrying lane, repository,
+          change request, head, pass count, and ordered attempts, registered alongside its siblings so the
+          existing versioned store persists it.
+        - Attempt source identity and outcome use the policy driver's vocabulary rather than this module's looser
+          identifier, so progress that could not be replayed into a policy request is refused at write. The target
+          is spelled in the core boundary's neutral terms (`repositoryId`, nullable `changeRequestId`, `headSha`)
+          because the core source is guarded against host vocabulary; mapping to the driver's target belongs to
+          the reader in 7.1.c.
 
     - `[ ]` **7.1.b Write sites on all three lanes**
         - Record the outcome where each lane already computes it — the hosted await, the frontline run path, and

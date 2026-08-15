@@ -8,6 +8,7 @@ import {
 import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
 import {
   FrontlineRunStateSchema,
+  LaneProgressStateSchema,
   LocalReviewStateSchema,
   ReviewOperationStateSchema,
   ReviewSuspensionStateSchema,
@@ -122,6 +123,20 @@ const localReview = {
   request: localCarrier.request,
   attestation: localCarrier.attestation,
   cleanupTtlMs: 86_400_000,
+};
+
+const laneProgress = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "review-operation/v1" as const,
+  operationId: "lane-progress-1",
+  updatedAt: "2026-07-20T20:00:00Z",
+  kind: "lane-progress" as const,
+  lane: "standard" as const,
+  repositoryId: "repo-1",
+  changeRequestId: null,
+  headSha: objectId("c"),
+  completedPasses: 1,
+  attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" as const }],
 };
 
 const memberTarget = createReviewTarget({
@@ -254,6 +269,86 @@ describe("review operation state schemas", () => {
     ]) {
       expect(() => ReviewOperationStateSchema.parse({ ...suspension, ...forbidden })).toThrow();
     }
+  });
+
+  it("round-trips lane progress and rejects extra or missing fields", () => {
+    expect(LaneProgressStateSchema.parse(laneProgress)).toEqual(laneProgress);
+    expect(() => LaneProgressStateSchema.parse({ ...laneProgress, lane: undefined })).toThrow();
+    expect(() => LaneProgressStateSchema.parse({ ...laneProgress, resolvedAt: "2026-07-20T20:00:00Z" })).toThrow();
+    expect(() => LaneProgressStateSchema.parse({ ...laneProgress, lane: "hosted" })).toThrow();
+  });
+
+  it("keeps every attempt outcome the fall-through decision reads", () => {
+    for (const outcome of [
+      "clean",
+      "findings",
+      "rate-limited",
+      "transient-unavailable",
+      "partial",
+      "ambiguous-delivery",
+      "malformed",
+      "timed-out",
+      "stale-target",
+      "capability-unsupported",
+      "source-unbound",
+      "terminal-failure",
+    ]) {
+      const parsed = LaneProgressStateSchema.parse({
+        ...laneProgress,
+        attempts: [{ sourceId: "coderabbit-pr", outcome }],
+      });
+      expect(parsed.attempts[0]?.outcome).toBe(outcome);
+    }
+  });
+
+  it("refuses a collapsed unavailable outcome that loses the fall-through distinction", () => {
+    for (const collapsed of ["unavailable", "failed", "pending"]) {
+      expect(() => LaneProgressStateSchema.parse({
+        ...laneProgress,
+        attempts: [{ sourceId: "coderabbit-pr", outcome: collapsed }],
+      })).toThrow();
+    }
+  });
+
+  it("preserves attempt order as recorded", () => {
+    const attempts = [
+      { sourceId: "coderabbit-pr", outcome: "rate-limited" as const },
+      { sourceId: "codex-pr", outcome: "transient-unavailable" as const },
+      { sourceId: "delegated-agent", outcome: "findings" as const },
+    ];
+    expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
+  });
+
+  it("rejects a source id the policy driver would refuse", () => {
+    for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
+      expect(() => LaneProgressStateSchema.parse({
+        ...laneProgress,
+        attempts: [{ sourceId, outcome: "clean" }],
+      })).toThrow();
+    }
+  });
+
+  it("carries a chunk-series completion flag when the attempt had one", () => {
+    const attempts = [{ sourceId: "coderabbit-pr", outcome: "clean" as const, chunkSeriesComplete: true }];
+    expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
+  });
+
+  it("accepts an unbound pre-publication target and a change-request-bound one", () => {
+    expect(LaneProgressStateSchema.parse(laneProgress).changeRequestId).toBeNull();
+    const bound = { ...laneProgress, changeRequestId: "pull/42" };
+    expect(LaneProgressStateSchema.parse(bound).changeRequestId).toBe("pull/42");
+  });
+
+  it("keeps the record free of host vocabulary the core boundary forbids", () => {
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: objectId("c") },
+    })).toThrow();
+  });
+
+  it("discriminates lane progress inside the operation-state union", () => {
+    expect(ReviewOperationStateSchema.parse(laneProgress)).toEqual(laneProgress);
+    expect(ReviewOperationStateSchema.parse(laneProgress).kind).toBe("lane-progress");
   });
 
   it("crosses storage only through the injected versioned port", async () => {

@@ -126,10 +126,49 @@ export const LocalReviewStateSchema = z.strictObject({
 });
 export type LocalReviewState = z.infer<typeof LocalReviewStateSchema>;
 
+/**
+ * Source identity and outcome vocabulary are the review-policy driver's, not this module's
+ * looser `IdentifierSchema`: progress that cannot be replayed into a policy request is not
+ * progress, so an unusable value is refused at write rather than discovered at read.
+ */
+const LaneSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
+const LaneAttemptOutcomeSchema = z.enum([
+  "clean",
+  "findings",
+  "rate-limited",
+  "transient-unavailable",
+  "partial",
+  "ambiguous-delivery",
+  "malformed",
+  "timed-out",
+  "stale-target",
+  "capability-unsupported",
+  "source-unbound",
+  "terminal-failure",
+]);
+const LaneAttemptSchema = z.strictObject({
+  sourceId: LaneSourceIdSchema,
+  outcome: LaneAttemptOutcomeSchema,
+  chunkSeriesComplete: z.boolean().optional(),
+});
+
+export const LaneProgressStateSchema = z.strictObject({
+  ...OperationEnvelopeShape,
+  kind: z.literal("lane-progress"),
+  lane: z.enum(["frontline", "standard"]),
+  repositoryId: IdentifierSchema,
+  changeRequestId: IdentifierSchema.nullable(),
+  headSha: z.string().regex(/^[a-f0-9]{40}$/u),
+  completedPasses: z.number().int().nonnegative(),
+  attempts: z.array(LaneAttemptSchema),
+});
+export type LaneProgressState = z.infer<typeof LaneProgressStateSchema>;
+
 export const ReviewOperationStateSchema = z.discriminatedUnion("kind", [
   FrontlineRunStateSchema,
   ReviewSuspensionStateSchema,
   LocalReviewStateSchema,
+  LaneProgressStateSchema,
 ]);
 export type ReviewOperationState = z.infer<typeof ReviewOperationStateSchema>;
 
@@ -147,6 +186,11 @@ export function registerReviewOperationStateSchemas(registry: KernelRegistry): K
   });
   registry.register(LocalReviewStateSchema, {
     id: "local-review-state",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(LaneProgressStateSchema, {
+    id: "lane-progress-state",
     version: 1,
     migrationPosture: "strict-current",
   });
