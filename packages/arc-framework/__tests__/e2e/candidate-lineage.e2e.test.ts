@@ -233,6 +233,7 @@ async function checkpointOver(root: string) {
       archiveCadence: "manual",
       state: "integrating",
       position: { phase: "Integrating", location: "active" },
+      artifactFacts: [],
       complete: true,
     }),
   };
@@ -423,6 +424,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
         archiveCadence: "manual",
         state: "integrating",
         position: { phase: "Integrating", location: "active" },
+        artifactFacts: [],
         complete: true,
       },
       changeRequest: {

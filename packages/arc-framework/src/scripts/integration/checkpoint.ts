@@ -35,7 +35,20 @@ export const IntegrationLifecycleSummarySchema = z.strictObject({
     phase: z.enum(["Planning", "Active", "Integrating", "Shipped"]),
     location: z.enum(["provisional", "planned", "active", "completed"]),
   }).nullable(),
+  artifactFacts: z.array(z.strictObject({
+    code: z.string().min(1),
+    path: z.string().min(1),
+    message: z.string().min(1),
+  })),
   complete: z.boolean(),
+}).superRefine((summary, context) => {
+  if (summary.complete && summary.artifactFacts.length > 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["complete"],
+      message: "a lifecycle summary owing artifact facts is never complete",
+    });
+  }
 });
 export type IntegrationLifecycleSummary = z.infer<typeof IntegrationLifecycleSummarySchema>;
 

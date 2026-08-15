@@ -460,6 +460,18 @@ function releaseNotesFacts(content: string, path: string): ReviewReadinessFact[]
   return [];
 }
 
+/**
+ * Collect the lifecycle-artifact facts a work-unit meta owes before merge: Completion
+ * Notes are required, and a Release Notes Entry is validated whenever one is present.
+ *
+ * @param content - The work-unit meta's full text.
+ * @param path - The meta's path, reported on each fact.
+ * @returns One fact per unmet obligation; empty when the artifacts are satisfied.
+ */
+export function lifecycleArtifactFacts(content: string, path: string): ReviewReadinessFact[] {
+  return [...completionFacts(content, path), ...releaseNotesFacts(content, path)];
+}
+
 async function evaluateDeliveryMember(
   request: ReviewReadinessRequest & {
     vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
@@ -551,8 +563,7 @@ async function evaluateManualWorkUnit(
       "The active work-unit meta branch does not match the pull-request head branch.",
     ));
   }
-  facts.push(...completionFacts(content, path));
-  facts.push(...releaseNotesFacts(content, path));
+  facts.push(...lifecycleArtifactFacts(content, path));
   return facts;
 }
 
@@ -878,8 +889,7 @@ async function evaluateArchivedWorkUnit(
       "The archived PR URL does not name the guarded repository and pull request.",
     ));
   }
-  facts.push(...completionFacts(content, candidate.metaPath));
-  facts.push(...releaseNotesFacts(content, candidate.metaPath));
+  facts.push(...lifecycleArtifactFacts(content, candidate.metaPath));
   facts.push(...await lifecycleCandidateFacts(root, fs));
   if (facts.length === 0) {
     facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.cohort, request.vehicle.slug));

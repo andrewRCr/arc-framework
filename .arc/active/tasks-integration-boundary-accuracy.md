@@ -868,14 +868,16 @@ how they were verified, not in what they state.
   by decision here: mechanical ROADMAP regen carries no review signal at the stop, and the Goal's three facts stay
   surfaced. The nine-signal composer is untouched, so Criterion 2's pinned count holds.
 
-### `[ ]` **7.7 Restore the lifecycle-artifact readiness gate on a lock-independent path**
+### `[x]` **7.7 Restore the lifecycle-artifact readiness gate on a lock-independent path**
 
 - _Goal:_ Completion Notes and any applicable Release Notes are verified before merge in every lock mode, closing
   the `merge.lock: none` hole where nothing checks them.
 
-    - Fold the artifact-presence read into the checkpoint's own lifecycle composition — the one gate both lock
-      modes traverse — rather than restoring a workflow-prose step or depending on the lock release.
-    - Cover the `none` lock mode explicitly: a work unit missing Completion Notes must not reach a `ready` verdict.
+- _Outcome:_ `readLifecycleSummary` reads the work unit's meta at its index-resolved path and folds
+  `lifecycleArtifactFacts` — a shared export both `readiness.ts` lanes now call — into the lifecycle summary, whose
+  schema refuses to report `complete` while facts remain. The checkpoint reads no lock mode and `merge` refuses
+  without a persisted handle, so the gate is unavoidable under either mode. Covered on both archive cadences,
+  including the archived `with-integration` meta.
 
 ### `[ ]` **7.8 Restore the errand lane's pre-create head re-validation**
 

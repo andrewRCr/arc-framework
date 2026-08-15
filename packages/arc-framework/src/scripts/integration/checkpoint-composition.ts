@@ -1,5 +1,8 @@
 /** Production composition for the typed integration checkpoint. */
 
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
 import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
@@ -16,6 +19,7 @@ import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-sub
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { resolveChangeRequest } from "../review-gate/change-request.js";
+import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
@@ -127,25 +131,51 @@ async function readHostFact(exec: GitExec, cwd: string): Promise<ReconcileHostFa
   }
 }
 
+/**
+ * Read the lifecycle artifacts the work unit owes before merge. The meta is the only
+ * source: an absent index entry leaves the positional read to refuse on its own terms
+ * rather than manufacturing an artifact verdict from a work unit that is in no tier.
+ */
+async function readLifecycleArtifactFacts(
+  cwd: string,
+  metaPath: string | null,
+): Promise<ReviewReadinessFact[]> {
+  if (metaPath === null) return [];
+  let content: string;
+  try {
+    content = await readFile(resolve(cwd, metaPath), "utf8");
+  } catch {
+    return [{
+      code: "unreadable-artifact",
+      path: metaPath,
+      message: "The work-unit meta could not be read, so its lifecycle artifacts are unverified.",
+    }];
+  }
+  return lifecycleArtifactFacts(content, metaPath);
+}
+
 async function readLifecycleSummary(
   cwd: string,
   workUnit: string,
   archiveCadence: "with-integration" | "manual",
 ): Promise<IntegrationLifecycleSummary> {
-  const query = resolveSlugQuery((await resolveComposedLifecycleIndex({ cwd })).index, workUnit);
-  const complete = archiveCadence === "with-integration"
+  const { index } = await resolveComposedLifecycleIndex({ cwd });
+  const query = resolveSlugQuery(index, workUnit);
+  const positioned = archiveCadence === "with-integration"
     ? query.state === "shipped"
       && query.position?.phase === "Shipped"
       && query.position.location === "completed"
     : query.state === "integrating"
       && query.position?.phase === "Integrating"
       && query.position.location === "active";
+  const artifactFacts = await readLifecycleArtifactFacts(cwd, index.get(workUnit)?.path ?? null);
   return IntegrationLifecycleSummarySchema.parse({
     workUnit,
     archiveCadence,
     state: query.state,
     position: query.position,
-    complete,
+    artifactFacts,
+    complete: positioned && artifactFacts.length === 0,
   });
 }
 

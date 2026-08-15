@@ -11,6 +11,26 @@ import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integrat
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 
+const CLEAN_DRIFT = {
+  mode: "authoritative" as const,
+  verdict: "clean" as const,
+  state: "local-ahead" as const,
+  ahead: 3,
+  behind: 0,
+  base: "main",
+  baseOid: oid("b"),
+  integrationEvidence: {
+    coverage: "complete" as const,
+    scannedCommitCount: 0,
+    events: [],
+    unclassifiedCommitCount: 0,
+    truncated: false,
+    limitations: [],
+  },
+  overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+  register: null,
+};
+
 function dependencies(): IntegrationCheckpointDependencies {
   return {
     readDrift: async () => ({
@@ -38,6 +58,7 @@ function dependencies(): IntegrationCheckpointDependencies {
       archiveCadence: "manual",
       state: "integrating",
       position: { phase: "Integrating", location: "active" },
+      artifactFacts: [],
       complete: true,
     }),
     readCandidate: async () => ({
@@ -130,6 +151,56 @@ describe("integration checkpoint", () => {
           drift: { verdict: "unavailable", unavailableReason: "fetch-failed" },
         },
       });
+  });
+
+  it("blocks a work unit whose meta still owes its lifecycle artifacts", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readLifecycle = async () => ({
+      workUnit: "example",
+      archiveCadence: "manual",
+      state: "integrating",
+      position: { phase: "Integrating", location: "active" },
+      artifactFacts: [{
+        code: "missing-completion-notes",
+        path: ".arc/active/meta-example.md",
+        message: "Completion Notes are required.",
+      }],
+      complete: false,
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "lifecycle-incomplete",
+        payload: {
+          lifecycle: {
+            state: "integrating",
+            artifactFacts: [{ code: "missing-completion-notes" }],
+          },
+        },
+      });
+  });
+
+  it("refuses a lifecycle summary that calls itself complete while owing artifacts", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readLifecycle = async () => ({
+      workUnit: "example",
+      archiveCadence: "manual",
+      state: "integrating",
+      position: { phase: "Integrating", location: "active" },
+      artifactFacts: [{
+        code: "missing-completion-notes",
+        path: ".arc/active/meta-example.md",
+        message: "Completion Notes are required.",
+      }],
+      complete: true,
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .rejects.toThrow();
   });
 
   it("returns the complete approval composition when every prerequisite is ready", async () => {
