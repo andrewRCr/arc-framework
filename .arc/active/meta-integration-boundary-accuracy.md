@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.1 — Persist driver-grade lane progress at attempt end
-- **Next Task:** Task 7.2 — Register and wire the pre-publication procedure (line ~711)
+- **Last Completed:** Task 7.3 — Close the submission-boundary write path
+- **Next Task:** Task 7.4 — Advance Candidate lineage in production (line ~793)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.2.a — register `arc review pre-publication` and route it to the typed procedure
+- **Next Action:** Start Task 7.4.a — reach `recordCandidateVerifiedResponse` from the registered handler so
+  `responses` is written by something other than `propose`'s empty literal
 
 - **PR URL:** [none]
 - **Completed:** [none]
