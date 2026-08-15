@@ -11,21 +11,30 @@ import {
   laneProgressOperationId,
   recordFrontlineAttempt,
   recordHostedAwaitAttempt,
+  readLaneProgress,
   recordLaneAttempt,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
 function createStore() {
+  const records = new Map<string, { version: number; state: ReviewOperationState }>();
   const store = {
-    state: null as ReviewOperationState | null,
-    version: 0,
-    readOperation: async () => ({ version: store.version, state: store.state }),
+    records,
+    drift: 0,
+    get state(): ReviewOperationState | null {
+      return [...records.values()][0]?.state ?? null;
+    },
+    readOperation: async (operationId: string) => {
+      const record = records.get(operationId);
+      return { version: record?.version ?? 0, state: record?.state ?? null };
+    },
     publishOperation: async (next: ReviewOperationState, expectedVersion: number) => {
-      if (expectedVersion !== store.version) throw new Error("operation-state-version-conflict");
-      store.state = next;
-      store.version += 1;
-      return { version: store.version };
+      const current = records.get(next.operationId)?.version ?? 0;
+      if (expectedVersion !== current + store.drift) throw new Error("operation-state-version-conflict");
+      const version = current + 1;
+      records.set(next.operationId, { version, state: next });
+      return { version };
     },
   };
   return store;
@@ -120,12 +129,7 @@ describe("lane progress", () => {
   it("surfaces a concurrent write rather than silently overwriting it", async () => {
     const store = createStore();
     await recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true });
-    const readOperation = store.readOperation.bind(store);
-    store.readOperation = async () => {
-      const result = await readOperation();
-      store.version += 1;
-      return result;
-    };
+    store.drift = 1;
     await expect(recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true }))
       .rejects.toThrow(/version-conflict/u);
   });
@@ -164,11 +168,12 @@ describe("hosted await lane recording", () => {
   it("records a concluded hosted attempt against the standard lane", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
       result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "rate-limited", nextAction: "try-next-source" },
       now: "2026-08-15T12:00:00Z",
     });
     expect(state?.lane).toBe("standard");
-    expect(state?.repositoryId).toBe("andrewRCr/arc-framework");
+    expect(state?.repositoryId).toBe("repo-1");
     expect(state?.changeRequestId).toBe("pull/42");
     expect(state?.attempts).toEqual([{ sourceId: "coderabbit-pr", outcome: "rate-limited" }]);
     expect(state?.completedPasses).toBe(0);
@@ -177,6 +182,7 @@ describe("hosted await lane recording", () => {
   it("consumes a pass only for a verdict-bearing outcome", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
       result: {
         schemaVersion: 1,
         mode: "review-hosted-await",
@@ -193,6 +199,7 @@ describe("hosted await lane recording", () => {
   it("records nothing when the bounded call only yielded at its deadline", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
       result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "pending", nextAction: "await", elapsedMs: 10 },
       now: "2026-08-15T12:00:00Z",
     });
@@ -286,5 +293,59 @@ describe("frontline lane recording", () => {
       now: "2026-08-15T12:00:00Z",
     });
     expect(state?.completedPasses).toBe(1);
+  });
+});
+
+describe("lane progress reader", () => {
+  it("reports an unrecorded lane distinctly from one that recorded attempts", async () => {
+    const store = createStore();
+    await expect(readLaneProgress(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("c"),
+    })).resolves.toEqual({ status: "unrecorded" });
+  });
+
+  it("projects recorded progress into the driver's pass count and ordered attempts", async () => {
+    const store = createStore();
+    await recordLaneAttempt(store, { ...attempt, outcome: "rate-limited", consumedPass: false });
+    await recordLaneAttempt(store, {
+      ...attempt,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      consumedPass: true,
+    });
+    await expect(readLaneProgress(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("c"),
+    })).resolves.toEqual({
+      status: "recorded",
+      completedPasses: 1,
+      attempts: [
+        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        { sourceId: "codex-pr", outcome: "findings" },
+      ],
+    });
+  });
+
+  it("does not read another lane's progress against the same head", async () => {
+    const store = createStore();
+    await recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true });
+    await expect(readLaneProgress(store, {
+      lane: "frontline",
+      repositoryId: "repo-1",
+      headSha: objectId("c"),
+    })).resolves.toEqual({ status: "unrecorded" });
+  });
+
+  it("does not read progress recorded against a different head", async () => {
+    const store = createStore();
+    await recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true });
+    await expect(readLaneProgress(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("d"),
+    })).resolves.toEqual({ status: "unrecorded" });
   });
 });

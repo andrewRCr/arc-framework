@@ -637,7 +637,7 @@ no task's content changed except 7.2's, which now composes from the persisted pr
 No success criterion is added or amended. The existing criteria already require these behaviors; the gap was in
 how they were verified, not in what they state.
 
-### `[ ]` **7.1 Persist driver-grade lane progress at attempt end**
+### `[x]` **7.1 Persist driver-grade lane progress at attempt end**
 
 - _Goal:_ Per-attempt review progress is durable at the fidelity the policy driver reads, so source order and pass
   ceilings are owned by the CLI rather than assembled by an agent.
@@ -691,12 +691,22 @@ how they were verified, not in what they state.
           collapse them. Read it before shaping this vocabulary, and route the work there instead if the two
           prove to be one concern.
 
-    - `[ ]` **7.1.d Lane-progress reader**
-        - Project persisted progress into the driver's `completedPasses` and ordered `attempts`, preserving
-          fall-through fidelity so a reconstructed request is accepted by the policy request schema's ordering and
-          fall-through refinements.
-        - Distinguish a lane with no recorded progress from a lane that recorded no attempts, so an unrecorded
-          lane cannot read as a clean slate.
+    - `[x]` **7.1.d Lane-progress reader**
+        - Added `readLaneProgress`, projecting persisted progress into the driver's `completedPasses` and ordered
+          `attempts` with the recorded outcomes unchanged. An unrecorded lane returns its own status rather than
+          zero attempts, so a caller composing a policy request cannot read "nothing was kept" as "nothing
+          happened", and the projection is guarded on lane, repository, and head as well as the record key.
+        - **Corrected 7.1.b's repository identity.** The hosted write stored the host's `owner/repo` slug where
+          the frontline write stored the repository identity every sibling operation record uses, leaving the two
+          lanes keyed in different identifier spaces and unreachable by one reader. The hosted lane now resolves
+          the same identity; host coordinates travel on `changeRequestId` and the caller's policy target.
+
+- _Outcome:_ Both publication lanes now keep their attempts at the fidelity the policy driver reads, and one
+  reader projects either. The unit's shape changed twice under investigation: the frontline lane needed no schema
+  widening once its reason class was read correctly, and the two write sites disagreed on repository identity
+  until the reader forced the question. What stays unrecorded is the local attest lane, whose receipt vocabulary
+  genuinely cannot express the fall-through distinction — so 7.2 must treat an unrecorded lane as its own fact
+  rather than an empty one.
 
 ### `[ ]` **7.2 Register and wire the pre-publication procedure**
 

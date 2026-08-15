@@ -110,20 +110,24 @@ export async function recordLaneAttempt(
  * A verdict-bearing outcome consumes a pass; an unavailable or failed attempt is recorded without
  * consuming one, matching the review-policy driver's own `consumedPass` distinction.
  *
+ * `repositoryId` is the store's own repository identity, not the host's `owner/repo` slug — every
+ * sibling operation record keys on that identity, and both lanes must key alike for one reader to
+ * find either. The host coordinates travel on `changeRequestId` and the caller's policy target.
+ *
  * @param store - Versioned operation-state storage boundary.
- * @param input - The hosted await result and the timestamp to record it at.
+ * @param input - The repository identity, the hosted await result, and the timestamp.
  * @returns The published record, or `null` when the call yielded without concluding an attempt.
  */
 export async function recordHostedAwaitAttempt(
   store: ReviewOperationStateStore,
-  input: { result: HostedAwaitResult; now: string },
+  input: { repositoryId: string; result: HostedAwaitResult; now: string },
 ): Promise<LaneProgressState | null> {
   const outcome = hostedAwaitLaneOutcome(input.result.state);
   if (outcome === null) return null;
   const { handle } = input.result;
   return await recordLaneAttempt(store, {
     lane: "standard",
-    repositoryId: handle.target.repository,
+    repositoryId: input.repositoryId,
     changeRequestId: `pull/${handle.target.pullRequest}`,
     headSha: handle.target.headSha,
     sourceId: handle.provider,
@@ -194,4 +198,44 @@ export async function recordFrontlineAttempt(
     consumedPass: laneOutcome === "clean" || laneOutcome === "findings",
     now: input.now,
   });
+}
+
+export type LaneProgressProjection =
+  | { status: "unrecorded" }
+  | {
+    status: "recorded";
+    completedPasses: number;
+    attempts: readonly LaneAttempt[];
+  };
+
+/**
+ * Read one lane's recorded progress for an exact head.
+ *
+ * An unrecorded lane is reported as such rather than as zero attempts: the two are different facts,
+ * and a caller composing a policy request must not read "nothing was kept" as "nothing happened".
+ *
+ * @param store - Versioned operation-state storage boundary.
+ * @param input - The lane and the exact target to read progress for.
+ * @returns The recorded pass count and ordered attempts, or an unrecorded result.
+ */
+export async function readLaneProgress(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+  },
+): Promise<LaneProgressProjection> {
+  const { state } = await store.readOperation(laneProgressOperationId(input));
+  if (state === null || state.kind !== "lane-progress") return { status: "unrecorded" };
+  if (state.lane !== input.lane
+    || state.repositoryId !== input.repositoryId
+    || state.headSha !== input.headSha) {
+    return { status: "unrecorded" };
+  }
+  return {
+    status: "recorded",
+    completedPasses: state.completedPasses,
+    attempts: state.attempts,
+  };
 }

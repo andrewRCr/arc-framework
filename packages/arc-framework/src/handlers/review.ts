@@ -100,6 +100,7 @@ import {
 } from "../scripts/review-gate/hosted/await.js";
 import { recordHostedAwaitAttempt } from "../scripts/review-gate/lane-progress.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
+import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import {
   HostedSettleEnvelopeSchema,
   HostedSettleResultSchema,
@@ -1433,9 +1434,7 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
 function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
   const { observers } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
-  const laneProgress = root === null
-    ? null
-    : new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(gitExec, root));
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
     ...defaultHostedHandlerBoundary(),
     awaitResult: async (input) => {
@@ -1446,8 +1445,12 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
           sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
         },
       });
-      if (laneProgress !== null) {
-        await recordHostedAwaitAttempt(laneProgress, { result, now: new Date().toISOString() });
+      if (publisher !== null) {
+        await recordHostedAwaitAttempt(new LocalReviewOperationStateStore(publisher), {
+          repositoryId: await resolveRepositoryIdentity(publisher),
+          result,
+          now: new Date().toISOString(),
+        });
       }
       return result;
     },
