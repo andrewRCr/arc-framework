@@ -163,12 +163,14 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPrePublication,
   handleReviewChangeRequestResolve,
   handleReviewMergeMethodResolve,
   handleReviewChecksAwait,
   handleReviewStatus,
   handleReviewReduce,
   handleReviewRespond,
+  type ReviewPrePublicationOptions,
   type ReviewPlanningLaneOptions,
   type ReviewChangeRequestResolveOptions,
   type ReviewMergeMethodResolveOptions,
@@ -1604,6 +1606,14 @@ reviewCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewReduce(input));
+
+reviewCmd
+  .command("pre-publication <name>")
+  .description("Resolve one work unit's typed pre-publication review procedure as JSON")
+  .option("--self-review <state>", "Report author self-review: inactive | pending | settled")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action((name: string, options: ReviewPrePublicationOptions) =>
+    handleReviewPrePublication(name, options));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

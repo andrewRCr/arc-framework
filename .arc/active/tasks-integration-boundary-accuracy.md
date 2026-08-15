@@ -708,27 +708,51 @@ how they were verified, not in what they state.
   genuinely cannot express the fall-through distinction — so 7.2 must treat an unrecorded lane as its own fact
   rather than an empty one.
 
-### `[ ]` **7.2 Register and wire the pre-publication procedure**
+### `[x]` **7.2 Register and wire the pre-publication procedure**
 
 - _Goal:_ The typed pre-publication procedure is reachable from the CLI, so the next action every Candidate-bearing
   locus names is a command that exists, and a standard-review reservation is created on the production path rather
   than only under test.
 
-    - `[ ]` **7.2.a `arc review pre-publication` registration and handler**
-        - Register the subcommand in `cli.ts` under the `review` namespace and route it to
-          `projectPrePublicationReview`, matching the `<name> --json` shape the four emitting sites already name.
+    - `[x]` **7.2.a `arc review pre-publication` registration and handler**
+        - Registered the subcommand under the `review` namespace with the `<name> --json` shape the four emitting
+          sites name, and added `handleReviewPrePublication` routing it to `projectPrePublicationReview`. Failures
+          emit the review family's error envelope under a new `review-pre-publication` mode.
+        - Added `--self-review <state>`: the procedure's `run-self-review` arm needs a fact no repository read
+          establishes, and without it an active self-review method would loop the bare command forever. Absent the
+          flag, the state derives from the method's effective activity — `inactive` when off, `pending` when on.
 
-    - `[ ]` **7.2.b Request composition from repository state**
-        - Compose both lane policy requests from the Candidate record, the git subject, resolved review config, and
-          7.1's lane-progress reader, so the command self-composes from a slug with no caller-supplied progress.
+    - `[x]` **7.2.b Request composition from repository state**
+        - Split composition into `pre-publication-request.ts` (the lane assembly over five injected reads) and
+          `pre-publication-composition.ts` (the production binder over Candidate record, git subject, active meta,
+          origin coordinates, repository identity, and the durable lane store), following the checkpoint's own
+          reducer/binder shape. Progress comes from 7.1's reader, so the command self-composes from a slug.
+        - The change set's routing facts are author judgments the CLI does not establish, so the standard-review
+          obligation routes as an unknown change set — `required`, reason `unknown-change-set` — with the two facts
+          the repository does carry, the work unit's `Class` and effective method activity, supplied exactly.
+        - Extracted `resolveConfiguredLanePolicy`; `arc review resolve` now shares that source-order and
+          pass-ceiling resolution rather than carrying its own copy.
 
-    - `[ ]` **7.2.c Reservation creation on the production path**
-        - Reach `createStandardReviewReservation` from the registered handler so an ordered hosted-first source is
-          reserved before pull-request binding, and the reservation the submission boundary carries is a real one.
+    - `[x]` **7.2.c Reservation creation on the production path**
+        - The registered handler reaches `createStandardReviewReservation` through the procedure: with no open
+          change request the target composes `pullRequest: null`, the standard lane resolves to
+          `awaiting-change-request`, and the hosted-first source is reserved before pull-request binding.
+        - A non-open change request leaves the target unbound rather than binding a closed or merged one, so a
+          lower-ranked local carrier cannot take a reserved hosted source's place.
 
-    - `[ ]` **7.2.d Command-surface coverage**
-        - Extend the command-inventory and handler suites to assert the subcommand is registered and that every
-          locus-emitted corrective command resolves to a registered command.
+    - `[x]` **7.2.d Command-surface coverage**
+        - Extended the command-surface suite with a derived scan: every `arc …` invocation the source emits as a
+          corrective action must resolve to a registered command. Verified against the defect — reverting the
+          registration fails it at all four emitting sites.
+        - Covered the composition (lane assembly, routing, self-review derivation, progress replay, each refusal
+          arm) and the handler (envelope, reservation, advisory routing, refusals).
+
+- _Outcome:_ The spine's middle verb exists and self-composes. Two facts forced decisions the subtask text did not
+  anticipate: self-review state is not derivable from the repository, so it became an explicit option rather than a
+  silently-stuck arm; and durable progress and the live target are read independently, so they can disagree — a
+  hosted attempt recorded at a head whose change request has since closed now refuses with the conflict named
+  rather than throwing. An unrecorded lane composes as no attempts and says so on stderr, because the local attest
+  lane persists nothing and the two cases are indistinguishable from storage alone.
 
 ### `[ ]` **7.3 Close the submission-boundary write path**
 
@@ -823,6 +847,24 @@ how they were verified, not in what they state.
 
     - List `arc integrate checkpoint` and `arc integrate merge` and stop presenting bare `arc integrate` as
       invocable, in both copies.
+
+### `[ ]` **7.11 Converge the workflow onto the registered pre-publication procedure**
+
+- _Goal:_ One path resolves the pre-publication lanes. The command every Candidate locus emits and the procedure
+  `integrate-work-unit.md` instructs are the same procedure, not two routes to the same lane resolution.
+
+- _Note:_ Surfaced at 7.2's interlock, once registration made the divergence observable. § 2 composes the policy
+  target, the routed `standardReview` projection, and explicit routing facts, then drives `arc review resolve -`
+  per lane; `propose`, the boundary locus, and the procedure's own next actions all emit
+  `arc review pre-publication <wu> --json`. Both reach the same driver, so this is a convergence defect rather
+  than a behavioral one — but it leaves the emitted next action instructing a path no workflow walks.
+
+    - The two paths differ on one real axis: § 2's agent-supplied routing facts can route a change set to
+      `exempt` or `recommended`, while the registered command routes an unestablished change set conservatively
+      to `required` (7.2.b). Settle that axis before converging — either the command accepts the routing facts
+      the workflow already composes, or the workflow stops composing them and accepts the conservative route.
+    - Converge § 2's lane dispatch in both copies once the axis is settled, keeping the returned `state` /
+      `nextAction` dispatch table intact — it is the driver's contract, not this procedure's.
 
 ## **Phase 8:** Verification
 

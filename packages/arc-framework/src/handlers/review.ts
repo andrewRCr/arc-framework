@@ -22,6 +22,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
@@ -40,8 +41,19 @@ import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
-  parseReviewSourceIds,
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
+import { resolveConfiguredLanePolicy } from "../scripts/review-gate/policy/lane-policy-config.js";
+import {
+  createPrePublicationCompositionDependencies,
+} from "../scripts/review-gate/policy/pre-publication-composition.js";
+import {
+  composePrePublicationReviewRequest,
+  type PrePublicationComposition,
+} from "../scripts/review-gate/policy/pre-publication-request.js";
+import {
+  PrePublicationReviewEnvelopeSchema,
+  projectPrePublicationReview,
+} from "../scripts/review-gate/policy/pre-publication-procedure.js";
 import {
   LocalTargetDerivationError,
   type LocalTargetInvalidReason,
@@ -252,6 +264,23 @@ const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
 
 export const ReviewStatusCliInputSchema = z.strictObject({ target: z.string().trim().min(1) });
 
+/** Syntax-owned input for the pre-publication review procedure. */
+export const ReviewPrePublicationInputSchema = z.strictObject({
+  name: SlugSchema,
+  selfReview: z.enum(["inactive", "pending", "settled"]).optional(),
+  json: z.literal(true),
+});
+
+const reviewPrePublicationInputRegistration: CommandInputRegistration = {
+  commandPath: "review pre-publication",
+  schema: ReviewPrePublicationInputSchema,
+  schemaFields: {
+    "operand.name": "name",
+    "option.self-review": "selfReview",
+    "option.json": "json",
+  },
+};
+
 const reviewStatusInputRegistration: CommandInputRegistration = {
   commandPath: "review status",
   schema: ReviewStatusCliInputSchema,
@@ -269,6 +298,7 @@ export const reviewCommandInputRegistrations = [
   reviewChangeRequestInputRegistration,
   reviewChecksAwaitInputRegistration,
   reviewStatusInputRegistration,
+  reviewPrePublicationInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
 
 export interface ReviewChangeRequestResolveOptions {
@@ -598,24 +628,15 @@ async function resolveConfiguredReviewPolicy(
   root: string,
 ): Promise<unknown> {
   const { settings } = await readConfigSettings(root);
-  let sources: readonly string[] | undefined;
-  if (request.lane === "frontline") {
-    const preferences = createLocalFrontlineSourcePreferenceReader({
+  const { sources, maxPasses } = await resolveConfiguredLanePolicy({
+    lane: request.lane,
+    settings,
+    preferences: createLocalFrontlineSourcePreferenceReader({
       cwd: root,
       exec: gitExec,
       readFile: (path) => readFile(path, "utf8"),
-    });
-    const developerSources = await preferences.readDeveloperSourceIds();
-    sources = developerSources.length > 0
-      ? developerSources
-      : await preferences.readProjectSourceIds();
-  }
-  sources ??= parseReviewSourceIds(settings["review.standard_sources"]);
-  const maxPasses = Number(
-    settings[request.lane === "frontline"
-      ? "review.frontline_max_passes"
-      : "review.standard_max_passes"],
-  );
+    }),
+  });
   return resolveReviewPolicy({ ...request, sources, maxPasses });
 }
 
@@ -1504,4 +1525,107 @@ export async function handleReviewHostedSettle(
     dependencies,
     execute: dependencies.settle,
   });
+}
+
+/** Command-line options for `arc review pre-publication`. */
+export interface ReviewPrePublicationOptions {
+  selfReview?: string;
+  json?: boolean;
+}
+
+export interface ReviewPrePublicationHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  compose(root: string, input: z.infer<typeof ReviewPrePublicationInputSchema>): Promise<PrePublicationComposition>;
+  write(text: string): void;
+  warn(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDependencies {
+  const boundary = defaultReviewHandlerBoundary();
+  return {
+    resolveRoot: (cwd) => boundary.resolveRoot(cwd),
+    compose: (root, input) => composePrePublicationReviewRequest(
+      {
+        workUnit: input.name,
+        ...(input.selfReview === undefined ? {} : { selfReview: input.selfReview }),
+      },
+      createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec }),
+    ),
+    write: (text) => {
+      boundary.write(text);
+    },
+    warn: (text) => {
+      process.stderr.write(text);
+    },
+    setExitCode: (code) => {
+      boundary.setExitCode(code);
+    },
+  };
+}
+
+/**
+ * Resolve the typed pre-publication review procedure for one work unit.
+ *
+ * The command self-composes both lane policy requests from repository state, so the next action
+ * every Candidate-bearing locus names is invocable with the slug alone. `--self-review` reports the
+ * one fact the repository cannot establish: whether the author's self-review actually ran.
+ *
+ * @param name - The target work unit's slug.
+ * @param options - Parsed command-line options.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout, stderr, and exit status are assigned.
+ */
+export async function handleReviewPrePublication(
+  name: string,
+  options: ReviewPrePublicationOptions,
+  overrides: Partial<ReviewPrePublicationHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies = { ...defaultPrePublicationDependencies(), ...overrides };
+  const emitFailure = (error: unknown, phase: "request" | "execution" | "output"): void => {
+    dependencies.write(`${JSON.stringify(
+      reviewCommandError("review-pre-publication", error, phase, ReviewCommandErrorEnvelopeSchema),
+    )}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  const input = ReviewPrePublicationInputSchema.safeParse({
+    name: name.trim(),
+    ...(options.selfReview === undefined ? {} : { selfReview: options.selfReview }),
+    json: options.json,
+  });
+  if (!input.success) {
+    emitFailure(input.error, "request");
+    return;
+  }
+
+  let root: string;
+  try {
+    const resolved = dependencies.resolveRoot(process.cwd());
+    if (resolved === null) throw new Error("Not inside an ARC project.");
+    root = resolved;
+  } catch (error) {
+    emitFailure(error, "execution");
+    return;
+  }
+
+  let envelope: unknown;
+  try {
+    const composition = await dependencies.compose(root, input.data);
+    if (composition.status === "refused") {
+      emitFailure(new Error(composition.reason), "execution");
+      return;
+    }
+    for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
+    envelope = projectPrePublicationReview(composition.request);
+  } catch (error) {
+    emitFailure(error, "execution");
+    return;
+  }
+
+  try {
+    dependencies.write(`${JSON.stringify(PrePublicationReviewEnvelopeSchema.parse(envelope))}\n`);
+  } catch (error) {
+    emitFailure(error, "output");
+  }
 }

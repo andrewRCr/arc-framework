@@ -16,6 +16,7 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPrePublication,
   handleReviewMergeMethodResolve,
   handleReviewChecksAwait,
   handleReviewReduce,
@@ -1398,6 +1399,148 @@ describe("handleReviewReduce", () => {
       mode: "review-reduce",
       state: "advisory-complete",
       payload: { operationId: "local-operation", projection: { state: "advisory-complete" } },
+    });
+  });
+});
+
+describe("handleReviewPrePublication", () => {
+  const target = { repository: "arc-framework/example", pullRequest: null, headSha: "a".repeat(40) };
+  const standardReview = {
+    obligation: "required" as const,
+    reasons: ["unknown-change-set" as const],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"b".repeat(64)}`,
+    retrigger: "full-final" as const,
+    count: 1 as const,
+  };
+  const lane = (name: "frontline" | "standard", sources: readonly string[]) => ({
+    schemaVersion: 1 as const,
+    target,
+    lane: name,
+    frontlineActive: false,
+    standardReview,
+    completedPasses: 0,
+    attempts: [],
+    sources,
+    maxPasses: 2 as const,
+  });
+  const request = {
+    schemaVersion: 1 as const,
+    workUnit: "example",
+    candidateId: `sha256:${"c".repeat(64)}`,
+    selfReview: "inactive" as const,
+    frontline: lane("frontline", []),
+    standard: lane("standard", ["codex-pr"]),
+    candidate: { implementationChanged: false, convergenceVerification: "satisfied" as const },
+  };
+
+  function boundary(overrides: Record<string, unknown> = {}) {
+    return {
+      resolveRoot: () => "/repo",
+      write: vi.fn(),
+      warn: vi.fn(),
+      setExitCode: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  it("emits the projected locus and reserves the hosted source before pull-request binding", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(envelope).toMatchObject({
+      mode: "pre-publication-review",
+      workUnit: "example",
+      locus: "candidate-submit-ready",
+      nextAction: { kind: "submit-candidate", command: "arc submit example --json" },
+    });
+    expect(envelope.reservation).toMatchObject({
+      semanticsVersion: "standard-review-reservation/v1",
+      sourceId: "codex-pr",
+      target: { repository: "arc-framework/example", headSha: "a".repeat(40) },
+    });
+    expect(dependencies.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("passes the reported self-review state through to the procedure", async () => {
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+
+    await handleReviewPrePublication(
+      "example",
+      { json: true, selfReview: "settled" },
+      boundary({ compose }),
+    );
+
+    expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      name: "example",
+      selfReview: "settled",
+    }));
+  });
+
+  it("writes composition advisories to stderr so the JSON envelope stays machine-clean", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request,
+        advisories: ["the standard lane has no durable progress at this head"],
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(dependencies.warn).toHaveBeenCalledWith(
+      "the standard lane has no durable progress at this head\n",
+    );
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "pre-publication-review",
+    });
+  });
+
+  it("rejects an unreported self-review state before composing", async () => {
+    const compose = vi.fn();
+    const dependencies = boundary({ compose });
+
+    await handleReviewPrePublication("example", { json: true, selfReview: "done" }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { code: "invalid-input" },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("emits the composition's refusal rather than an empty procedure result", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused",
+        reason: "No managed Candidate record exists for `example`.",
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { message: expect.stringContaining("No managed Candidate record") },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("reports a repository it cannot resolve as an ARC project", async () => {
+    const compose = vi.fn();
+    const dependencies = boundary({ resolveRoot: () => null, compose });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { message: expect.stringContaining("Not inside an ARC project") },
     });
   });
 });
