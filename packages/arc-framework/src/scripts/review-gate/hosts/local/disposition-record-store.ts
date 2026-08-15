@@ -5,12 +5,17 @@ import {
   ApprovedDispositionRecordSchema,
   type ApprovedDispositionRecord,
 } from "../../core/advisory-records.js";
-import type { ApprovedDispositionRecordStore } from "../../core/ports.js";
+import type {
+  ApprovedDispositionRecordIndex,
+  ApprovedDispositionRecordStore,
+} from "../../core/ports.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { LocalReviewRecordStoreError } from "./record-store-error.js";
 
+const RECORD_PREFIX = "disposition-";
+
 function recordName(operationId: string): string {
-  return `disposition-${canonicalDigest({ operationId }).slice("sha256:".length)}.json`;
+  return `${RECORD_PREFIX}${canonicalDigest({ operationId }).slice("sha256:".length)}.json`;
 }
 
 function parseRecord(raw: string): ApprovedDispositionRecord {
@@ -22,8 +27,18 @@ function parseRecord(raw: string): ApprovedDispositionRecord {
 }
 
 /** Git-common disposition store with idempotent exact replay and conflict refusal. */
-export class LocalApprovedDispositionRecordStore implements ApprovedDispositionRecordStore {
+export class LocalApprovedDispositionRecordStore
+implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
+
+  async listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]> {
+    const entries = await this.publisher.snapshot({ root: "review-gate", namespace: "evidence" });
+    return entries.flatMap((entry) => (
+      entry.kind === "file" && entry.name.startsWith(RECORD_PREFIX) && entry.name.endsWith(".json")
+        ? [parseRecord(entry.content)]
+        : []
+    ));
+  }
 
   async readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null> {
     const raw = await this.publisher.read(

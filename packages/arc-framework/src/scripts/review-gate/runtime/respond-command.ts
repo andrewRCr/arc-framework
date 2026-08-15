@@ -27,6 +27,7 @@ import {
 } from "../core/dispositions.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
+  ReviewTargetSchema,
   type ReviewReceiptV2,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
@@ -91,8 +92,25 @@ const RespondVerifiedFixSchema = z.strictObject({
   verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
 });
 
+/**
+ * The head an approved set's fixes settled at, supplied when the checkpoint's plan replays it.
+ *
+ * A settlement replay carries no new judgment — the fix landed and was verified at approval time —
+ * so it names the target that must still be current instead of the applicability a fix pass owns.
+ */
+const RespondSettledFixTargetSchema = ReviewTargetSchema;
+
 const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.extend({
   verifiedFix: RespondVerifiedFixSchema.optional(),
+  settledFixTarget: RespondSettledFixTargetSchema.optional(),
+}).superRefine((request, context) => {
+  if (request.verifiedFix !== undefined && request.settledFixTarget !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["settledFixTarget"],
+      message: "a settlement replay cannot also submit a verified fix",
+    });
+  }
 });
 
 export const RespondRequestSchema = z.union([
@@ -431,6 +449,54 @@ async function persistCandidateResponse(
   });
 }
 
+function staleTargetEnvelope(
+  operationId: string,
+  attemptedTarget: ReviewTarget,
+  currentTarget: ReviewTarget,
+): z.infer<typeof RespondEnvelopeSchema> {
+  return RespondEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-respond",
+    diagnostics: [],
+    state: "stale-target",
+    nextAction: "prepare-current-target",
+    payload: { operationId, attemptedTarget, currentTarget },
+  });
+}
+
+/**
+ * Settle one approved set the durable record already carries, at the head its fixes landed at.
+ *
+ * The replay decides nothing: approval, the fix, and its verification all completed earlier, and the
+ * durable record is what proves it. Re-appending the exact record it read is what makes a repeated
+ * settlement pass a no-op rather than a second decision, and a record that disagrees refuses.
+ */
+async function settleApprovedReplay(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+  dependencies: RespondCommandDependencies,
+): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  if (existing === null) {
+    throw new RespondCommandError("invalid-input", "settlement replay has no approved disposition record");
+  }
+  if (canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)) {
+    throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
+  }
+  const appended = await dependencies.dispositionStore.appendDispositionRecord(existing);
+  return RespondEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-respond",
+    diagnostics: [],
+    state: "already-settled",
+    nextAction: "reduce",
+    payload: {
+      operationId: source.operationId,
+      dispositionRecordRef: appended.dispositionRecordRef,
+    },
+  });
+}
+
 /** Validate one approved set against its durable source and append its advisory record. */
 export async function respondToReviewCommand(
   requestInput: unknown,
@@ -454,7 +520,11 @@ export async function respondToReviewCommand(
     );
   }
   const verifiedFix = "verifiedFix" in request ? request.verifiedFix : undefined;
+  const settledFixTarget = "settledFixTarget" in request ? request.settledFixTarget : undefined;
   const confirmation = await dependencies.confirmTarget(source.target);
+  const currentTarget = confirmation.state === "stale-target"
+    ? confirmation.currentTarget
+    : confirmation.target;
   // A landed fix moves the head, so the settlement pass expects the stale reading its approval pass
   // treats as a dead end. An unchanged head means no fix landed and there is nothing to attest.
   const changedTarget = confirmation.state === "stale-target" ? confirmation.currentTarget : null;
@@ -464,19 +534,13 @@ export async function respondToReviewCommand(
       "a verified fix requires a changed exact target",
     );
   }
-  if (confirmation.state === "stale-target" && verifiedFix === undefined) {
-    return RespondEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-respond",
-      diagnostics: [],
-      state: "stale-target",
-      nextAction: "prepare-current-target",
-      payload: {
-        operationId: source.operationId,
-        attemptedTarget: confirmation.attemptedTarget,
-        currentTarget: confirmation.currentTarget,
-      },
-    });
+  // A replay pins the head its fixes settled at, not the originating review target, which the same
+  // fixes are expected to have left stale.
+  if (settledFixTarget !== undefined && currentTarget.targetId !== settledFixTarget.targetId) {
+    return staleTargetEnvelope(source.operationId, settledFixTarget, currentTarget);
+  }
+  if (confirmation.state === "stale-target" && verifiedFix === undefined && settledFixTarget === undefined) {
+    return staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget);
   }
   if ("proposal" in request) {
     return RespondEnvelopeSchema.parse({
@@ -504,6 +568,9 @@ export async function respondToReviewCommand(
   }
   validateActors(dispositions, source.actors);
   validateFindings(dispositions, source);
+  if (settledFixTarget !== undefined) {
+    return settleApprovedReplay(source, dispositions, dependencies);
+  }
   if (verifiedFix !== undefined && changedTarget !== null) {
     const settlement = projectApprovedResponse(source, dispositions, {
       candidateTarget: changedTarget,

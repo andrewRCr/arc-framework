@@ -634,6 +634,11 @@ the agent carry those facts instead would reintroduce the defect Goal 6 names (`
 persistence lands first, as its own review increment: 7.1 below. Everything that was 7.1–7.9 shifts to 7.2–7.10;
 no task's content changed except 7.2's, which now composes from the persisted progress.
 
+_Amended 2026-08-15 — settlement invalidation typing._ Composing the plan in 7.5 made Criterion 3's
+`actor-mismatched` arm reachable on the review-response channel for the first time, and its refusals throw rather
+than returning a typed state. Task 7.12 closes it, appended rather than inserted because the load-bearing ordering
+binds only 7.2 through 7.5.
+
 No success criterion is added or amended. The existing criteria already require these behaviors; the gap was in
 how they were verified, not in what they state.
 
@@ -820,22 +825,37 @@ how they were verified, not in what they state.
   decision the task text left open — which registered handler hosts the append — and the disposition binding
   settled it: only respond holds a digest and actors it can validate.
 
-### `[ ]` **7.5 Compose the checkpoint's review record and settlement plan**
+### `[x]` **7.5 Compose the checkpoint's review record and settlement plan**
 
 - _Goal:_ The checkpoint persists the review record and canonical settlement plan the approver decides on, and the
   merge verb posts and executes exactly that composition.
 
-    - `[ ]` **7.5.a Review-record composition**
-        - Replace the hardcoded null record in `checkpoint-composition.ts` with composition from the Candidate's
-          responses, preserving the schema's record/disposition-identity invariant.
+    - `[x]` **7.5.a Review-record composition**
+        - Added `review-record.ts`: the pull request's `## Review` section composed from the approved disposition
+          records the Candidate's responses name — `Local` and `Hosted PR` from each record's source kind, `Triage`
+          from the approvers and the final disposition of every distinct material finding.
+        - Reaching those records by disposition-set identity needed an enumeration over the repository's
+          approved-disposition storage, since the lineage records which set a response settled and not the operation
+          that produced it. A lineage entry the repository cannot produce refuses rather than composing partially.
 
-    - `[ ]` **7.5.b Settlement-plan composition**
-        - Replace the hardcoded empty plan with the canonical cross-channel plan built from the same responses, so
-          the digest binds a plan that has actions in it.
+    - `[x]` **7.5.b Settlement-plan composition**
+        - The same records compose one `review-response` action each in `lineage-review-composition.ts`, binding the
+          originating target read back from the lane that owns the operation and, where the set authorized a fix, the
+          head those fixes settled at.
+        - Settlement carries that head to its executor. An approved set replayed after its fix landed pins the settled
+          head rather than the originating review target, which the fix itself leaves stale.
 
-    - `[ ]` **7.5.c Review-bearing checkpoint and merge coverage**
-        - Cover a review-bearing work unit through checkpoint and merge: the record posts, the plan executes
-          idempotently, and drift or handle substitution still fails closed.
+    - `[x]` **7.5.c Review-bearing checkpoint and merge coverage**
+        - Extended the lineage end-to-end coverage: a review-bearing work unit composes its record and plan from the
+          records the public verbs wrote, the persisted plan executes twice to the same result through the production
+          settlement path, the composed record reaches the posting boundary, and final drift and a substituted handle
+          both invalidate.
+
+- _Outcome:_ Composing the plan surfaced that the review-response channel had no executable replay: the response
+  planner returns the fix state its approval pass already consumed, and the originating target is stale by
+  settlement time, so every review-bearing merge would have invalidated. Settling that axis — the replay pins the
+  settled fix target, as the hosted channel already did — is what makes the composed plan executable rather than
+  merely well-formed.
 
 ### `[ ]` **7.6 Restore the review-applicability disclosure at the work-unit interlock**
 
@@ -899,6 +919,17 @@ how they were verified, not in what they state.
       the workflow already composes, or the workflow stops composing them and accepts the conservative route.
     - Converge § 2's lane dispatch in both copies once the axis is settled, keeping the returned `state` /
       `nextAction` dispatch table intact — it is the driver's contract, not this procedure's.
+
+### `[ ]` **7.12 Return typed settlement invalidations from the review-response channel**
+
+- _Goal:_ An actor-mismatched or record-missing review-response settlement invalidates under its own typed reason,
+  as the hosted channel already does, rather than surfacing as an untyped operation failure.
+
+    - The refusals reach `executeSettlementPlan` as thrown errors, so merge's outer catch converts them to
+      `blocked` / `operation-failed` — fail-closed, and the lock still re-holds, but not the reason Criterion 3
+      names. The `stale` and `ambiguous` mappings already work.
+    - Carry the refusal as a typed state out of the settlement replay rather than classifying error causes by
+      message at the merge boundary.
 
 ## **Phase 8:** Verification
 

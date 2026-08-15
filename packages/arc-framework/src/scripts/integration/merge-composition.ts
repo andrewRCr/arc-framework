@@ -137,7 +137,10 @@ export function createIntegrationMergeDependencies(input: {
     },
     executeSettlement: async (record) => executeSettlementPlan(record.settlementPlan, {
       settleHosted: (request) => settleHostedFinding(request, { port: hostedPort }),
-      settleReviewResponse: (request) => respondToReviewCommand(request, respondDependencies),
+      settleReviewResponse: ({ request, fixTarget }) => respondToReviewCommand(
+        fixTarget === null ? request : { ...request, settledFixTarget: fixTarget },
+        respondDependencies,
+      ),
     }),
     readStatus: async (workUnit) => {
       const [target, query, cadence] = await Promise.all([

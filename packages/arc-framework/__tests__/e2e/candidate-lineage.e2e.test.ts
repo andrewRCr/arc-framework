@@ -21,6 +21,19 @@ import {
   createIntegrationCheckpointDependencies,
 } from "../../src/scripts/integration/checkpoint-composition.js";
 import {
+  createLineageReviewComposer,
+} from "../../src/scripts/integration/lineage-review-composition.js";
+import {
+  mergeIntegration,
+  type IntegrationMergeDependencies,
+  type IntegrationMergeTarget,
+} from "../../src/scripts/integration/merge.js";
+import {
+  createIntegrationMergeDependencies,
+} from "../../src/scripts/integration/merge-composition.js";
+import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
+import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
+import {
   cleanupTempDir,
   createTempRepo,
   git,
@@ -279,6 +292,23 @@ describe("review-fix Candidate lineage", () => {
     expect(cleared).not.toMatchObject({ reason: "candidate-convergence-pending" });
   });
 
+  it("composes the review record and settlement plan its approved responses back", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+
+    expect(composed.dispositionIds).toHaveLength(1);
+    expect(composed.markdown).toContain("## Review");
+    expect(composed.markdown).toContain("- **Local:** reviewer-1 — 1 pass");
+    expect(composed.markdown).toContain("- **Hosted PR:** None");
+    expect(composed.markdown).toContain("- **Triage:** @test-user — 1 addressed, 0 unresolved");
+    expect(composed.actions).toHaveLength(1);
+    expect(composed.actions[0]).toMatchObject({
+      channel: "review-response",
+      dispositionId: composed.dispositionIds[0],
+      fixTarget: { headSha: approvedHead },
+    });
+  });
+
   it("repeats the settlement pass without appending a second response", async () => {
     const root = await fixture();
     expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
@@ -308,5 +338,188 @@ describe("review-fix Candidate lineage", () => {
 
     await expect(invoke(root, ["review", "respond", "-"], request))
       .resolves.toMatchObject({ state: "candidate-current", nextAction: "continue-review" });
+  });
+});
+
+const MERGE_METHOD: Extract<MergeMethodResolveResult, { state: "validated" }> = {
+  schemaVersion: 1,
+  mode: "review-merge-method-resolve",
+  repository: "owner/repo",
+  state: "validated",
+  nextAction: "use-method",
+  method: "squash",
+  allowedMethods: ["squash"],
+  policyFingerprint: `sha256:${"7".repeat(64)}`,
+};
+
+/**
+ * Drive one work unit to a settled, review-bearing Candidate lineage at a committed head.
+ *
+ * The convergence attestation is committed rather than left staged: composing the settlement plan
+ * derives the current change set, and that derivation requires a clean worktree.
+ */
+async function settledReviewLineage(): Promise<{ root: string; approvedHead: string }> {
+  const root = await fixture();
+  expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+  await git(root, ["commit", "-m", "verification"]);
+
+  const source = await reviewToFindings(root);
+  const dispositions = await approvedFix(root, source);
+  await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+  await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+  await git(root, ["add", "reviewed.txt"]);
+  await git(root, ["commit", "-m", "apply approved fix"]);
+
+  await expect(invoke(root, ["review", "respond", "-"], {
+    schemaVersion: 1,
+    source,
+    dispositions,
+    verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
+  })).resolves.toMatchObject({ state: "candidate-advanced" });
+  await git(root, ["commit", "-m", "record verified response"]);
+
+  expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+  await git(root, ["commit", "-m", "convergence verification"]);
+  return { root, approvedHead: await git(root, ["rev-parse", "HEAD"]) };
+}
+
+/**
+ * Run one in-process production call from inside the fixture checkout.
+ *
+ * The identity the review lanes resolve is read from the process working directory rather than a
+ * passed root, which the subprocess verbs satisfy by construction and an in-process call does not.
+ */
+async function inRepository<T>(root: string, run: () => Promise<T>): Promise<T> {
+  const previous = process.cwd();
+  process.chdir(root);
+  try {
+    return await run();
+  } finally {
+    process.chdir(previous);
+  }
+}
+
+/** Persist the composition through the production checkpoint store and return its handle. */
+async function persistComposition(root: string, approvedHead: string): Promise<string> {
+  const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+  return inRepository(root, async () => createIntegrationCheckpointDependencies({
+    cwd: root,
+    exec: gitExec,
+  }).createHandle({
+    workUnit: "example",
+    approvedHead,
+    candidateTailDiff: {
+      fromRevision: approvedHead,
+      throughRevision: approvedHead,
+      reference: `${approvedHead}..${approvedHead}`,
+    },
+    requirementSummary: {
+      conclusion: "satisfied",
+      requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
+    },
+    statusSummary: {
+      lifecycle: {
+        workUnit: "example",
+        archiveCadence: "manual",
+        state: "integrating",
+        position: { phase: "Integrating", location: "active" },
+        complete: true,
+      },
+      changeRequest: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headRef: "feat/example",
+        headSha: approvedHead,
+        state: "open",
+      },
+      requiredChecks: "green",
+    },
+    reviewRecord: { markdown: composed.markdown, dispositionIds: composed.dispositionIds },
+    settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+    mergeMethod: MERGE_METHOD,
+  }));
+}
+
+describe("review-bearing integration checkpoint and merge", () => {
+  it("executes the persisted plan idempotently against the durable review records", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const handle = await persistComposition(root, approvedHead);
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+
+    const record = await inRepository(root, async () => production.readCheckpoint("example", handle));
+    expect(record?.reviewRecord.markdown).toContain("## Review");
+    if (record === null) throw new Error("expected a persisted checkpoint");
+
+    await expect(inRepository(root, async () => production.executeSettlement(record)))
+      .resolves.toEqual({ state: "settled", completedActions: 1 });
+    await expect(inRepository(root, async () => production.executeSettlement(record)))
+      .resolves.toEqual({ state: "settled", completedActions: 1 });
+  });
+
+  it("posts the composed record and fails closed on final drift", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const handle = await persistComposition(root, approvedHead);
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    const target: IntegrationMergeTarget = {
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: approvedHead,
+    };
+    const posted: (string | null)[] = [];
+    const dependencies: IntegrationMergeDependencies = {
+      readCheckpoint: production.readCheckpoint.bind(production),
+      executeSettlement: production.executeSettlement.bind(production),
+      readStatus: async () => ({ actualHead: approvedHead, lifecycleComplete: true, target }),
+      releaseLock: async () => ({ state: "released" }),
+      holdLock: async () => ({ state: "held" }),
+      awaitChecks: async () => ({
+        schemaVersion: 1,
+        mode: "review-checks-await",
+        repository: target.repository,
+        pullRequest: target.pullRequest,
+        headSha: target.headSha,
+        state: "green",
+        nextAction: "complete",
+        checks: [],
+      }),
+      resolveMergeMethod: async () => MERGE_METHOD,
+      postReviewRecord: async (_target, markdown) => {
+        posted.push(markdown);
+      },
+      readFinalDrift: async () => ({ verdict: "reconcile" }),
+      mergePinned: () => Promise.reject(new Error("unexpected merge")),
+    };
+
+    await expect(inRepository(root, async () => mergeIntegration(
+      { schemaVersion: 1, workUnit: "example", checkpointHandle: handle },
+      dependencies,
+    ))).resolves.toMatchObject({ state: "invalidated", reason: "drift-reconcile" });
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toContain("- **Triage:** @test-user — 1 addressed, 0 unresolved");
+  });
+
+  it("fails closed on a substituted checkpoint handle", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    await persistComposition(root, approvedHead);
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    const substituted = `checkpoint-v1:${approvedHead}:sha256:${"4".repeat(64)}`;
+
+    await expect(inRepository(root, async () => production.readCheckpoint("example", substituted)))
+      .resolves.toBeNull();
+    await expect(inRepository(root, async () => mergeIntegration(
+      { schemaVersion: 1, workUnit: "example", checkpointHandle: substituted },
+      {
+        readCheckpoint: production.readCheckpoint.bind(production),
+        executeSettlement: () => Promise.reject(new Error("unexpected settlement")),
+        readStatus: () => Promise.reject(new Error("unexpected status read")),
+        releaseLock: () => Promise.reject(new Error("unexpected release")),
+        holdLock: () => Promise.reject(new Error("unexpected hold")),
+        awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
+        resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
+        postReviewRecord: () => Promise.reject(new Error("unexpected record post")),
+        readFinalDrift: () => Promise.reject(new Error("unexpected drift read")),
+        mergePinned: () => Promise.reject(new Error("unexpected merge")),
+      },
+    ))).resolves.toMatchObject({ state: "invalidated", reason: "checkpoint-missing" });
   });
 });

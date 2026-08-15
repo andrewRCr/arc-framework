@@ -683,3 +683,113 @@ describe("verified-fix Candidate settlement", () => {
     expect(appends).toHaveLength(0);
   });
 });
+
+/** The head an approved set's landed fixes settled at, which is what the replay pins. */
+function settledHead(repositoryId: string, headSha: string, headTree: string) {
+  return createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId,
+    baseRef: "main",
+    diffBaseSha: objectId("a"),
+    diffBaseTree: objectId("b"),
+    headSha,
+    headTree,
+  });
+}
+
+/** Bind respond to a checkout whose current target the test moves between passes. */
+function movingCheckout(records: ReturnType<typeof fixture>) {
+  const deps = dependencies(records);
+  let current: ReturnType<typeof settledHead> | null = null;
+  return {
+    deps: {
+      ...deps,
+      confirmTarget: async (target: typeof records.target) => (current === null
+        ? { state: "current" as const, target }
+        : { state: "stale-target" as const, attemptedTarget: target, currentTarget: current }),
+    },
+    moveTo: (target: ReturnType<typeof settledHead> | null) => {
+      current = target;
+    },
+  };
+}
+
+describe("approved-settlement replay", () => {
+  it("settles an approved set at the head its fixes landed at", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+
+    await expect(respondToReviewCommand(localRequest(records), deps))
+      .resolves.toMatchObject({ state: "ready-to-fix" });
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand({ ...localRequest(records), settledFixTarget }, deps))
+      .resolves.toMatchObject({
+        state: "already-settled",
+        nextAction: "reduce",
+        payload: { operationId: records.operation.operationId },
+      });
+  });
+
+  it("repeats without deciding anything a second time", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await respondToReviewCommand(localRequest(records), deps);
+    moveTo(settledFixTarget);
+
+    const replay = { ...localRequest(records), settledFixTarget };
+    const first = await respondToReviewCommand(replay, deps);
+    await expect(respondToReviewCommand(replay, deps)).resolves.toEqual(first);
+  });
+
+  it("refuses when the checkout no longer carries the settled head", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await respondToReviewCommand(localRequest(records), deps);
+    moveTo(settledHead(records.target.repositoryId, objectId("9"), objectId("8")));
+
+    await expect(respondToReviewCommand({ ...localRequest(records), settledFixTarget }, deps))
+      .resolves.toMatchObject({
+        state: "stale-target",
+        nextAction: "prepare-current-target",
+        payload: { attemptedTarget: { targetId: settledFixTarget.targetId } },
+      });
+  });
+
+  it("refuses a replay no durable approved record backs", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand({ ...localRequest(records), settledFixTarget }, deps))
+      .rejects.toThrow("no approved disposition record");
+  });
+
+  it("refuses a replay whose dispositions disagree with the durable record", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await expect(respondToReviewCommand(localRequest(records, "defer"), deps))
+      .resolves.toMatchObject({ state: "settled" });
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand({ ...localRequest(records), settledFixTarget }, deps))
+      .rejects.toThrow("conflicting approved disposition record");
+  });
+
+  it("refuses a replay that also submits a verified fix", async () => {
+    const records = fixture();
+    const { deps } = movingCheckout(records);
+
+    await expect(respondToReviewCommand({
+      ...verifiedFixRequest(records),
+      settledFixTarget: settledHead(records.target.repositoryId, objectId("e"), objectId("f")),
+    }, deps)).rejects.toThrow();
+  });
+});

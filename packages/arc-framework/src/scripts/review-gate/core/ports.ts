@@ -48,6 +48,17 @@ export interface ApprovedDispositionRecordStore {
   appendDispositionRecord(record: ApprovedDispositionRecord): Promise<{ dispositionRecordRef: string }>;
 }
 
+/**
+ * Enumeration boundary for consumers holding a disposition-set identity rather than an operation.
+ *
+ * Separate from the keyed store because only the integration checkpoint needs it: its input is the
+ * Candidate lineage, which records the approved set each response settled and not the operation
+ * that produced it.
+ */
+export interface ApprovedDispositionRecordIndex {
+  listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]>;
+}
+
 /** Version-checked durable frontline outcome storage. */
 export interface FrontlineOutcomeStore {
   readOutcome(operationId: string): Promise<{

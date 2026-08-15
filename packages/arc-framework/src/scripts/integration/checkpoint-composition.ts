@@ -34,6 +34,7 @@ import {
   type ReconcileHostFact,
 } from "./checkpoint.js";
 import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
+import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 
 interface CachedCandidate {
@@ -164,6 +165,7 @@ export function createIntegrationCheckpointDependencies(input: {
     identityPromise ??= resolveIdentity({ exec: input.exec });
     return identityPromise;
   };
+  const composeLineageReview = createLineageReviewComposer(input);
   const candidate = (workUnit: string): Promise<CachedCandidate | null> => {
     let value = candidates.get(workUnit);
     if (value === undefined) {
@@ -183,6 +185,7 @@ export function createIntegrationCheckpointDependencies(input: {
     }
     return value;
   };
+
   return {
     readDrift: async () => {
       const config = await settings();
@@ -214,10 +217,11 @@ export function createIntegrationCheckpointDependencies(input: {
       );
     },
     composeReady: async ({ workUnit, lifecycle, candidate: currentness }) => {
-      const [value, changeRequest, boundary] = await Promise.all([
+      const [value, changeRequest, boundary, review] = await Promise.all([
         candidate(workUnit),
         resolveOpenChangeRequest(input.exec, input.cwd),
         readSubmissionBoundary(input.cwd, workUnit),
+        composeLineageReview(workUnit, currentness.recognizedRevision),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
       if (boundary === null) throw new Error("The durable publication boundary is unavailable.");
@@ -239,7 +243,6 @@ export function createIntegrationCheckpointDependencies(input: {
       );
       const lastResponse = value.record.responses.at(-1);
       const fromRevision = lastResponse?.newTarget.revision ?? value.record.attestation.baseRevision;
-      const dispositionIds = [...new Set(value.record.responses.map(({ dispositionId }) => dispositionId))];
       return CheckpointReadyCompositionSchema.parse({
         approvedHead: currentness.recognizedRevision,
         candidateTailDiff: {
@@ -273,10 +276,12 @@ export function createIntegrationCheckpointDependencies(input: {
           },
           requiredChecks: checks,
         },
-        reviewRecord: { markdown: null, dispositionIds },
+        reviewRecord: { markdown: review.markdown, dispositionIds: review.dispositionIds },
       });
     },
-    composeSettlementPlan: () => Promise.resolve(composeCanonicalSettlementPlan([])),
+    composeSettlementPlan: async ({ workUnit, composition }) => composeCanonicalSettlementPlan(
+      (await composeLineageReview(workUnit, composition.approvedHead)).actions,
+    ),
     createHandle: async ({ workUnit, approvedHead, settlementPlan, reviewRecord, mergeMethod }) => {
       const resolvedIdentity = await identity();
       if (resolvedIdentity === null) {

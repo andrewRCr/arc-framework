@@ -3,7 +3,10 @@
 import { z } from "zod";
 
 import type { HostedSettleEnvelope, HostedSettleResult } from "../review-gate/hosted/settle.js";
-import type { ReviewResponseSettlementRequest } from "../review-gate/core/response-plan-schema.js";
+import type {
+  ReviewResponseSettlementAction,
+  ReviewResponseSettlementRequest,
+} from "../review-gate/core/response-plan-schema.js";
 import {
   CanonicalSettlementPlanSchema,
   type CanonicalSettlementPlan,
@@ -26,11 +29,21 @@ export type SettlementExecutionResult =
       completedActions: number;
     };
 
+/**
+ * One approved response replayed at settlement time.
+ *
+ * The fix target travels beside the request because settlement runs after the approved fixes landed:
+ * the originating review target is expected to be stale by then, and the head the fixes settled at is
+ * what must still be current. The hosted channel pins the same head through its own envelope.
+ */
+export interface ReviewResponseSettlementReplay {
+  request: ReviewResponseSettlementRequest;
+  fixTarget: ReviewResponseSettlementAction["fixTarget"];
+}
+
 export interface SettlementExecutionDependencies {
   settleHosted(request: HostedSettleEnvelope): Promise<HostedSettleResult>;
-  settleReviewResponse(
-    request: ReviewResponseSettlementRequest,
-  ): Promise<{ state: string }>;
+  settleReviewResponse(input: ReviewResponseSettlementReplay): Promise<{ state: string }>;
 }
 
 function hostedInvalidation(result: HostedSettleResult): SettlementInvalidationReason | null {
@@ -53,7 +66,10 @@ export async function executeSettlementPlan(
     if (action.channel === "hosted") {
       reason = hostedInvalidation(await dependencies.settleHosted(action.request));
     } else {
-      const result = await dependencies.settleReviewResponse(action.request);
+      const result = await dependencies.settleReviewResponse({
+        request: action.request,
+        fixTarget: action.fixTarget,
+      });
       reason = result.state === "settled" || result.state === "already-settled"
         ? null
         : result.state === "stale-target" ? "stale" : "ambiguous";
