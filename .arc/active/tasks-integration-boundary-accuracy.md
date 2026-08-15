@@ -857,15 +857,16 @@ how they were verified, not in what they state.
   settled fix target, as the hosted channel already did — is what makes the composed plan executable rather than
   merely well-formed.
 
-### `[ ]` **7.6 Restore the review-applicability disclosure at the work-unit interlock**
+### `[x]` **7.6 Restore the review-applicability disclosure at the work-unit interlock**
 
 - _Goal:_ The facts § G2 priced the `Coverage` deletion against — every review applicability call, targeted
   verification, and the candidate-tail diff — are surfaced at the stop on both lanes, not just the errand one.
 
-    - Restore the item to the work-unit interlock callout in both copies, matching `run-errand.md`'s surviving
-      wording so the lanes stop diverging.
-    - Keep the nine-signal composer count intact: the disclosure is a surfaced item, not a tenth machine signal —
-      Criterion 2 and the composer's structural tests pin that count.
+- _Outcome:_ The `integration-interlock` callout now surfaces the composed candidate-tail diff — Release Notes
+  entry and Completion Notes — with swept and regenerated artifacts named rather than diffed, beside the ready
+  evidence and the applicability calls retained from Step 4. Narrowed from `main`'s "complete candidate-tail diff"
+  by decision here: mechanical ROADMAP regen carries no review signal at the stop, and the Goal's three facts stay
+  surfaced. The nine-signal composer is untouched, so Criterion 2's pinned count holds.
 
 ### `[ ]` **7.7 Restore the lifecycle-artifact readiness gate on a lock-independent path**
 
