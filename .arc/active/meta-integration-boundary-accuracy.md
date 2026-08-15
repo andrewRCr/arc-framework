@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Base reconcile with `main`; delivery plan pivoted to single-PR chunked review
-- **Next Task:** Task 7.1 — Complete verification (line ~611)
+- **Last Completed:** Task 7.1 — Persist driver-grade lane progress at attempt end
+- **Next Task:** Task 7.2 — Register and wire the pre-publication procedure (line ~711)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.1 — load and follow `verify-work-unit.md`
+- **Next Action:** Start Task 7.2.a — register `arc review pre-publication` and route it to the typed procedure
 
 - **PR URL:** [none]
 - **Completed:** [none]
