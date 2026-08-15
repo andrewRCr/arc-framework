@@ -49,6 +49,7 @@ describe("production schema artifact", () => {
       "frontline-outcome-record",
       "frontline-run-state",
       "inbox-state",
+      "lane-progress-state",
       "load-set-audit-verdict",
       "load-set-manifest",
       "local-review-policy-binding",

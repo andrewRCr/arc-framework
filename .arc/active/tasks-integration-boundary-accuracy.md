@@ -646,6 +646,16 @@ how they were verified, not in what they state.
   what lands here is keeping it. Composing the existing `ReviewOperationStateStore` rather than adding a store
   keeps the change to a record variant plus its write sites.
 
+- _Note:_ Amended 2026-08-15, after 7.1.a. The `_Rationale:_` above holds for the hosted lane only. Walking the
+  write sites established that frontline resolves to an eight-value outcome with one flat `unavailable`
+  (`FrontlineExecutionOutcome.outcome` is typed as `FrontlineRunState["outcome"]`, so nothing richer exists
+  upstream), and the local attest lane to the receipt's four values. Neither distinguishes the four
+  unavailable-class outcomes the driver's fall-through decision reads, so recording them would mean inventing the
+  distinction — permissive invites the source leapfrog Success Criterion 6 forbids, conservative wrongly strands a
+  retryable lane. 7.1.b therefore narrows to the hosted lane, 7.1.c widens frontline at its compute point, and the
+  local lane stays unrecorded pending its own assessment. The reader distinguishes an unrecorded lane from a lane
+  with no attempts rather than returning a bare empty list for both.
+
     - `[x]` **7.1.a `lane-progress` operation-state variant**
         - Added the variant to `ReviewOperationStateSchema`'s discriminated union carrying lane, repository,
           change request, head, pass count, and ordered attempts, registered alongside its siblings so the
@@ -654,16 +664,33 @@ how they were verified, not in what they state.
           identifier, so progress that could not be replayed into a policy request is refused at write. The target
           is spelled in the core boundary's neutral terms (`repositoryId`, nullable `changeRequestId`, `headSha`)
           because the core source is guarded against host vocabulary; mapping to the driver's target belongs to
-          the reader in 7.1.c.
+          the reader in 7.1.d.
 
-    - `[ ]` **7.1.b Write sites on all three lanes**
-        - Record the outcome where each lane already computes it — the hosted await, the frontline run path, and
-          the local attest path — without changing any lane's observable behavior.
+    - `[x]` **7.1.b Hosted-lane write site**
+        - Added `lane-progress.ts` — a stable per-lane-and-head operation identity, an append that carries the
+          attempt and advances the pass count, and the hosted binding that maps each concluded await state onto
+          the driver's vocabulary. The hosted-await handler records after the await returns, so the await
+          function and every lane's observable behavior are unchanged.
+        - Pass accounting follows the driver's own `consumedPass` distinction — a verdict-bearing outcome
+          consumes a pass, an unavailable or failed attempt does not — rather than being inferred from the
+          outcome at the write site. A deadline yield concludes no attempt and records nothing.
 
-    - `[ ]` **7.1.c Lane-progress reader**
+    - `[ ]` **7.1.c Frontline outcome vocabulary and write site**
+        - Widen the frontline outcome at its compute point so the unavailable-class distinction survives, then
+          record the frontline lane on the same boundary as 7.1.b.
+        - **Additional Context:** `USER-INBOX § Work Unit` — "Make frontline review resilient to CodeRabbit CLI
+          auto-updates" (`WU_Target: coderabbit-cli-compatibility`). It records the same collapse from the other
+          side: a successful review discarded because the lane flattened a version mismatch into malformed
+          output, with the explicit requirement that the diagnostic name expected and observed values rather than
+          collapse them. Read it before shaping this vocabulary, and route the work there instead if the two
+          prove to be one concern.
+
+    - `[ ]` **7.1.d Lane-progress reader**
         - Project persisted progress into the driver's `completedPasses` and ordered `attempts`, preserving
           fall-through fidelity so a reconstructed request is accepted by the policy request schema's ordering and
           fall-through refinements.
+        - Distinguish a lane with no recorded progress from a lane that recorded no attempts, so an unrecorded
+          lane cannot read as a clean slate.
 
 ### `[ ]` **7.2 Register and wire the pre-publication procedure**
 
