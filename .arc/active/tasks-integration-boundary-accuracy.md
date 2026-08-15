@@ -646,15 +646,14 @@ how they were verified, not in what they state.
   what lands here is keeping it. Composing the existing `ReviewOperationStateStore` rather than adding a store
   keeps the change to a record variant plus its write sites.
 
-- _Note:_ Amended 2026-08-15, after 7.1.a. The `_Rationale:_` above holds for the hosted lane only. Walking the
-  write sites established that frontline resolves to an eight-value outcome with one flat `unavailable`
-  (`FrontlineExecutionOutcome.outcome` is typed as `FrontlineRunState["outcome"]`, so nothing richer exists
-  upstream), and the local attest lane to the receipt's four values. Neither distinguishes the four
-  unavailable-class outcomes the driver's fall-through decision reads, so recording them would mean inventing the
-  distinction — permissive invites the source leapfrog Success Criterion 6 forbids, conservative wrongly strands a
-  retryable lane. 7.1.b therefore narrows to the hosted lane, 7.1.c widens frontline at its compute point, and the
-  local lane stays unrecorded pending its own assessment. The reader distinguishes an unrecorded lane from a lane
-  with no attempts rather than returning a bare empty list for both.
+- _Note:_ Amended 2026-08-15, after 7.1.a, and corrected during 7.1.c. Walking the write sites established that
+  each lane's _persisted_ outcome is collapsed — the frontline run state to eight values, the local attest lane to
+  the receipt's four — so neither storage distinguishes the four unavailable-class outcomes the driver's
+  fall-through decision reads. That is why 7.1.b narrowed to the hosted lane. The first reading generalized this
+  to what the frontline lane _computes_, which was wrong: `FrontlineExecutionOutcome` carries a `reason.class`
+  beside its `outcome` holding the full distinction, so no schema widening is needed and 7.1.c is the same shape
+  of mapping the hosted lane uses. The local lane stays unrecorded pending its own assessment, and the reader
+  distinguishes an unrecorded lane from a lane with no attempts rather than returning a bare empty list for both.
 
     - `[x]` **7.1.a `lane-progress` operation-state variant**
         - Added the variant to `ReviewOperationStateSchema`'s discriminated union carrying lane, repository,
@@ -675,9 +674,16 @@ how they were verified, not in what they state.
           consumes a pass, an unavailable or failed attempt does not — rather than being inferred from the
           outcome at the write site. A deadline yield concludes no attempt and records nothing.
 
-    - `[ ]` **7.1.c Frontline outcome vocabulary and write site**
-        - Widen the frontline outcome at its compute point so the unavailable-class distinction survives, then
-          record the frontline lane on the same boundary as 7.1.b.
+    - `[x]` **7.1.c Frontline lane write site**
+        - Mapped the computed `(outcome, reason.class)` pair onto the driver's vocabulary and recorded the
+          frontline lane where the run command already holds both the outcome and the store. No schema widening
+          was needed: the reason class already carries every unavailable-class distinction the fall-through
+          decision reads.
+        - The four retryable carrier failures map onto `transient-unavailable` — the lane itself routes exactly
+          those to a retry action, and it is the only value in the driver's vocabulary carrying that meaning.
+          `invalid-output` maps to `malformed` and `authorization-rejected` to `terminal-failure`, keeping a
+          carrier that produced unusable output distinct from one that refused, which is the distinction
+          `coderabbit-cli-compatibility` needs preserved.
         - **Additional Context:** `USER-INBOX § Work Unit` — "Make frontline review resilient to CodeRabbit CLI
           auto-updates" (`WU_Target: coderabbit-cli-compatibility`). It records the same collapse from the other
           side: a successful review discarded because the lane flattened a version mismatch into malformed

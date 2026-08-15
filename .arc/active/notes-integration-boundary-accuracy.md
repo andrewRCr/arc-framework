@@ -205,7 +205,16 @@ Three facts decide the shape:
   hosted or GitHub host paths. That fidelity is computed and dropped.
 - Where outcomes are persisted, they are collapsed: receipts to `clean | findings | unavailable | failed`, the
   frontline run state to eight values. Both fold two fall-through-safe and two unsafe outcomes into one
-  `unavailable`, so the distinction cannot be recovered from storage.
+  `unavailable`, so the distinction cannot be recovered from **storage**.
+
+**Correction, recorded during 7.1.c.** The third point above is true of what each lane _persists_ and was wrongly
+generalized to what the frontline lane _computes_. `FrontlineExecutionOutcome` carries a `reason.class` beside its
+`outcome`, and that class holds the full distinction: `unavailable` splits into `rate-limited`,
+`transient-unavailable`, `source-unbound`, and `capability-unsupported`, and `failed` into six classes including
+`invalid-output` and `authorization-rejected`. The original read checked `outcome.outcome`, saw the eight-value
+enum, and concluded no finer axis existed upstream. It does. The consequence is that the frontline lane needs no
+schema widening — only the same shape of mapping the hosted lane uses — and that the fidelity problem is
+consistently one of _persistence_, not of computation, across both lanes.
 
 Deriving lane progress from existing records therefore does not close, and the alternative — having the agent
 supply the progress facts in a composed request — reintroduces exactly what Goal 6 places with the CLI (`source

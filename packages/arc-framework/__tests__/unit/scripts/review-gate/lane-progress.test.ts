@@ -4,9 +4,12 @@ import {
   LaneProgressStateSchema,
   type ReviewOperationState,
 } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
+  frontlineLaneOutcome,
   hostedAwaitLaneOutcome,
   laneProgressOperationId,
+  recordFrontlineAttempt,
   recordHostedAwaitAttempt,
   recordLaneAttempt,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
@@ -195,5 +198,93 @@ describe("hosted await lane recording", () => {
     });
     expect(state).toBeNull();
     expect(store.state).toBeNull();
+  });
+});
+
+const frontlineTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "change-set",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: objectId("a"),
+  diffBaseTree: objectId("b"),
+  headSha: objectId("c"),
+  headTree: objectId("d"),
+});
+
+function frontlineOutcome(
+  outcome: string,
+  reason: { class: string } | null,
+): Parameters<typeof recordFrontlineAttempt>[1]["outcome"] {
+  return {
+    schemaVersion: 1,
+    semanticsVersion: "frontline-review/v1",
+    source: { sourceId: "coderabbit", kind: "agent", handle: { agent: "coderabbit" } },
+    target: frontlineTarget,
+    pass: 1,
+    maxPasses: 2,
+    outcome,
+    findings: [],
+    reason,
+  } as unknown as Parameters<typeof recordFrontlineAttempt>[1]["outcome"];
+}
+
+describe("frontline lane recording", () => {
+  it("preserves the unavailable-class distinction the fall-through decision reads", () => {
+    expect(frontlineLaneOutcome("unavailable", "rate-limited")).toBe("rate-limited");
+    expect(frontlineLaneOutcome("unavailable", "transient-unavailable")).toBe("transient-unavailable");
+    expect(frontlineLaneOutcome("unavailable", "source-unbound")).toBe("source-unbound");
+    expect(frontlineLaneOutcome("unavailable", "capability-unsupported")).toBe("capability-unsupported");
+  });
+
+  it("maps the verdict, timeout, and stale-target outcomes", () => {
+    expect(frontlineLaneOutcome("clean", null)).toBe("clean");
+    expect(frontlineLaneOutcome("findings", null)).toBe("findings");
+    expect(frontlineLaneOutcome("timed-out", "execution-timeout")).toBe("timed-out");
+    expect(frontlineLaneOutcome("stale-target", "head-mismatch")).toBe("stale-target");
+  });
+
+  it("separates a malformed carrier result from a terminal refusal", () => {
+    expect(frontlineLaneOutcome("failed", "invalid-output")).toBe("malformed");
+    expect(frontlineLaneOutcome("failed", "authorization-rejected")).toBe("terminal-failure");
+  });
+
+  it("keeps the lane's own retry classification for transient carrier failures", () => {
+    for (const reasonClass of [
+      "transient-transport",
+      "process-failure",
+      "signal-termination",
+      "unexpected-adapter-failure",
+    ]) {
+      expect(frontlineLaneOutcome("failed", reasonClass)).toBe("transient-unavailable");
+    }
+  });
+
+  it("concludes no attempt for an exhausted pass cap", () => {
+    expect(frontlineLaneOutcome("pass-cap-exhausted", "pass-cap")).toBeNull();
+  });
+
+  it("records a concluded frontline attempt against the frontline lane", async () => {
+    const store = createStore();
+    const state = await recordFrontlineAttempt(store, {
+      outcome: frontlineOutcome("unavailable", { class: "rate-limited" }),
+      now: "2026-08-15T12:00:00Z",
+    });
+    expect(state?.lane).toBe("frontline");
+    expect(state?.repositoryId).toBe("repo-1");
+    expect(state?.changeRequestId).toBeNull();
+    expect(state?.headSha).toBe(objectId("c"));
+    expect(state?.attempts).toEqual([{ sourceId: "coderabbit", outcome: "rate-limited" }]);
+    expect(state?.completedPasses).toBe(0);
+  });
+
+  it("consumes a pass for a verdict-bearing frontline outcome", async () => {
+    const store = createStore();
+    const state = await recordFrontlineAttempt(store, {
+      outcome: frontlineOutcome("findings", null),
+      now: "2026-08-15T12:00:00Z",
+    });
+    expect(state?.completedPasses).toBe(1);
   });
 });
