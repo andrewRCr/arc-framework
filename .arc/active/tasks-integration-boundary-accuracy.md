@@ -6,36 +6,46 @@
 
 ## Delivery Plan
 
-Hand-authored in the shape the authoring command will later render and replace. No plan record exists yet —
-the identities below are the author-supplied chunk keys the eventual record derives from; the strict
-design-inventory JSON is hand-built at record composition.
+_Amended 2026-08-15 — single-PR pivot._ Originally projected as a six-member stack to `main`. The landing
+machinery shipped with `delivery-stack-topology`, but its corrective follow-up
+`delivery-native-stack-composition` records a dependency on this work unit, so serialized stack landing would
+hold that follow-up behind six sequential member landings. The decomposition below is unchanged and retained as
+review boundaries; only the merge topology collapses. Superseded by this amendment: the stack-to-`main`
+projection, per-member independent landability, the per-member cut-and-land procedure, the `Predecessor` column
+(review order is now simply ascending), and the deferral of landing to `delivery-stack-topology`.
 
-_Projection:_ stack-to-`main`. Every member is independently landable and reaches the protected base at member
-size; the verification task (Phase 7) is assigned to no member. Landing runs on `delivery-stack-topology`'s
-machinery once it ships; implementation and stacking do not wait on it.
+Hand-authored. No plan record exists — the identities below are chunk keys, and with a single merge boundary
+there are no deliverables for a record to derive from.
 
-| # | Member                 | Chunk key                            | Phase | Design elements                | Predecessor |
-|---|------------------------|--------------------------------------|-------|--------------------------------|-------------|
-| 1 | Candidate attestation  | `candidate-review-attestation`       | 1     | E1–E4, E6, E9                  | —           |
-| 2 | Publication boundary   | `submission-publication-boundary`    | 2     | E3, E5–E9, F1–F4               | 1           |
-| 3 | Review primitives      | `integration-review-primitives`      | 3     | B4, B8, D1–D3                  | 2           |
-| 4 | Checkpoint composition | `integration-checkpoint-composition` | 4     | A, B1, B3–B5, B7               | 3           |
-| 5 | Settlement and merge   | `integration-settlement-merge`       | 5     | B2–B4, D2, G, H                | 4           |
-| 6 | Workflow convergence   | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I | 5           |
+_Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
+in ascending order; the verification task (Phase 7) belongs to no chunk. Chunk closure, complete union coverage
+across the six, and the seam review below carry the review obligation the stack's per-member pull requests would
+have carried.
 
-**Named seams** — cross-member contracts no single member's review covers:
+| # | Chunk                  | Chunk key                            | Phase | Design elements                |
+| - | ---------------------- | ------------------------------------ | ----- | ------------------------------ |
+| 1 | Candidate attestation  | `candidate-review-attestation`       | 1     | E1–E4, E6, E9                  |
+| 2 | Publication boundary   | `submission-publication-boundary`    | 2     | E3, E5–E9, F1–F4               |
+| 3 | Review primitives      | `integration-review-primitives`      | 3     | B4, B8, D1–D3                  |
+| 4 | Checkpoint composition | `integration-checkpoint-composition` | 4     | A, B1, B3–B5, B7               |
+| 5 | Settlement and merge   | `integration-settlement-merge`       | 5     | B2–B4, D2, G, H                |
+| 6 | Workflow convergence   | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I |
+
+Chunk N covers Phase N exactly, so every chunk resolves to a contiguous commit range and no review pass needs a
+hand-assembled diff.
+
+**Named seams** — cross-chunk contracts no single chunk's review covers:
 
 | Seam               | Incident | Owner | Acceptance                                                                  |
-|--------------------|----------|-------|-----------------------------------------------------------------------------|
+| ------------------ | -------- | ----- | --------------------------------------------------------------------------- |
 | Candidate gate     | 1, 2, 4  | 4     | Checkpoint rejects unattested lineage heads; submit carries the reservation |
 | Namespace handover | 2, 4, 5  | 5     | Bare `arc integrate` errors to `arc submit`; subcommands compose later      |
 | Checkpoint handle  | 4, 5     | 5     | Merge executes only the handle's persisted composition                      |
 | Primitive reuse    | 3, 5, 6  | 6     | One wait implementation and one PR-resolution logic serve both lanes        |
 
-_Per-member procedure_ — stated once, applied to every member: cut from the `main` containing the member's
-predecessor; ordinary repository checks, exact-head pull request, and ARC merge lock govern the landing; no
-separate delivery proof. Integration holds until `delivery-stack-topology` ships the landing machinery;
-implementation need not wait.
+_Per-chunk procedure_ — stated once, applied to every chunk: review the chunk's commit range against its design
+elements, settling each seam at its owning chunk. One exact-head pull request carries all six; ordinary
+repository checks and the ARC merge lock govern the single landing, with no separate delivery proof.
 
 ---
 
@@ -43,8 +53,7 @@ implementation need not wait.
 
 _Purpose:_ Land Candidate as a storage-neutral verified lineage with machine-owned private-review progress —
 the attestation record, the idempotent `propose` verb, the typed pre-publication review procedure, and the
-status/session-init projection. Stack member `candidate-review-attestation`; independently landable. Spec
-elements: E1–E4, E6, E9.
+status/session-init projection. Review chunk `candidate-review-attestation`. Spec elements: E1–E4, E6, E9.
 
 _Design decisions:_ Candidate is a projection over typed evidence — never a fifth `State` value, stored
 boolean, or exact-head flag; lineage advances through existing `review-response` records rather than a new
@@ -154,8 +163,7 @@ pass ledger or findings store. Full rationale in `spec-integration-boundary-accu
 
 _Purpose:_ Separate attestation from publication scheduling — rename the lifecycle transition to `submit`,
 free the `integrate` namespace, and move the transition to the publication-step head so `Integrating` is true
-in every lock mode. Stack member `submission-publication-boundary`; independently landable. Spec elements: E3,
-E5–E9, F1–F4.
+in every lock mode. Review chunk `submission-publication-boundary`. Spec elements: E3, E5–E9, F1–F4.
 
 _Design decisions:_ The rename precedes the spine verbs (Phases 4–5) so `integrate` is free as a namespace
 before `checkpoint` and `merge` mint under it. The fire position lands at the publication-step head, before
@@ -263,7 +271,7 @@ the push extension — the one placement costing one commit, one push, no recomp
 _Purpose:_ Land the typed, provider-neutral primitives both publication lanes share — exact-head
 change-request disposition, merge-method validation, the extracted bounded-wait primitive, and the
 required-checks await. Verbs land before the prose that consumes them; workflow call sites convert in Phase 6.
-Stack member `integration-review-primitives`; independently landable. Spec elements: B4, B8, D1–D3.
+Review chunk `integration-review-primitives`. Spec elements: B4, B8, D1–D3.
 
 ### `[x]` **3.1 Resolve exact-head change-request disposition and next action, host-anchored**
 
@@ -334,7 +342,7 @@ Stack member `integration-review-primitives`; independently landable. Spec eleme
 _Purpose:_ Collapse the stopless pre-approval span into a fail-closed checkpoint verb composing only
 decision-relevant evidence — typed readiness verdicts folding lifecycle readiness, digest-bound
 settlement-plan persistence, and the exception-filtered interlock surface with its typed extension boundary.
-Stack member `integration-checkpoint-composition`; independently landable. Spec elements: A, B1, B3–B5, B7.
+Review chunk `integration-checkpoint-composition`. Spec elements: A, B1, B3–B5, B7.
 
 _Design decisions:_ One reader per fact — the checkpoint reads lifecycle completeness from the status
 projection directly and the standalone readiness verb shrinks to what its remaining consumers need. The
@@ -421,8 +429,8 @@ projection directly and the standalone readiness verb shrinks to what its remain
 
 _Purpose:_ Make exactly the approved settlement and record execute before a policy-revalidated, pinned merge —
 idempotent settlement execution, lock release and the checks await inside the merge span, re-lock as the
-fail-closed exit, and the `Coverage`-free record. Stack member `integration-settlement-merge`; independently
-landable. Spec elements: B2–B4, D2, G, H.
+fail-closed exit, and the `Coverage`-free record. Review chunk `integration-settlement-merge`. Spec elements:
+B2–B4, D2, G, H.
 
 _Design decisions:_ The merge span composes the shipped `arc merge lock` verbs — release keeps its
 bind/gate/settle semantics; what relocates is the sequencing around it and the re-lock obligation, from a
@@ -479,8 +487,8 @@ field-scoped deletion, not gated on the Phase 6 rewrite.
 
 _Purpose:_ Reduce both integration workflows to typed procedures plus their real stops — the reconcile-arm
 orchestration verbs, the work-unit lane's checkpoint-to-merge spine, the errand lane's convergence on the
-shared primitives, the errand tail's terminal-exit semantics, and the prose-pin test rewrite. Stack member
-`integration-workflow-convergence`; independently landable. Spec elements: A, B4–B8, C1–C7, D1–D3, G–H, I.
+shared primitives, the errand tail's terminal-exit semantics, and the prose-pin test rewrite. Review chunk
+`integration-workflow-convergence`. Spec elements: A, B4–B8, C1–C7, D1–D3, G–H, I.
 
 _Design decisions:_ Verbs landed before the prose that consumes them; this member converts the prose. The
 shared `pre-merge` seam position lands here with both lanes and the extension contract's position statement —
