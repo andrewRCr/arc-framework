@@ -158,8 +158,9 @@ describe("trusted review-gate workflows", () => {
     expect(tsup).toContain('entry: ["src/cli.ts"]');
     expect(tsup).toContain("registerReviewDomainSchemas");
     expect(tsup).toContain("registerDeliveryDomainSchemas");
+    expect(tsup).toContain("registerDeliveryAuthoringSchemas");
     expect(tsup).toContain(
-      "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()))",
+      "registerDeliveryAuthoringSchemas(\n      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()))",
     );
     expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");

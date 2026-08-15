@@ -669,6 +669,9 @@ tracked source documents the work.
 
 **Conditional top-level sections** — prepend above `**Active work state:**` when applicable:
 
+- `deliveryPosition.ok == true` AND `deliveryPosition.value != null` — render
+  `deliveryPosition.value.line` verbatim exactly once. Do not re-read delivery state or derive coordinates, counts,
+  or operation status in prose. Omit an `ok + null` slot.
 - `locusGuidance.kind === "unavailable"` — render `locusGuidance.message` and stop before any role-sensitive
   action.
 - `locusGuidance.kind === "ready"` — collect only present optional strings and non-empty arrays; omit the section

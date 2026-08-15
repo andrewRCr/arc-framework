@@ -26,6 +26,7 @@ describe("production schema artifact", () => {
       "class-composition",
       "compaction-seed",
       "delivery-deliverable-id-preimage",
+      "delivery-design-inventory-input",
       "delivery-plan",
       "delivery-plan-authoring-input",
       "delivery-plan-member",

@@ -19,7 +19,11 @@ import {
   resolveChangeSet,
 } from "../lib/change-facts.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
+import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
@@ -33,6 +37,7 @@ import {
   type ReviewCommandMode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
+import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
   parseReviewSourceIds,
@@ -1045,10 +1050,31 @@ export interface ReviewChunkingResolveHandlerDependencies {
 function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request, root) => resolveReviewChunkingCommand(request, {
-      readSettings: () => readConfigSettings(root),
-      exec: createRawGitExec(root),
-    }),
+    resolve: async (request, root) => {
+      const parsed = ReviewChunkingResolveRequestSchema.parse(request);
+      const exec = createGitExec();
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+      const stateStore = new RepositoryDeliveryStateStore(publisher);
+      const active = await resolveActiveWu({ cwd: root });
+      const workUnitId = active.status === "resolved" && active.name !== ""
+        ? active.name
+        : active.status === "none"
+          ? null
+          : undefined;
+      const bindingLookup = new DeliveryBindingLookup({
+        enumeratePlans: () => planStore.enumerateCurrent(),
+        readState: (planId) => stateStore.read(planId),
+        resolveMember: (input) => stateStore.resolveMember(input),
+      });
+      return resolveReviewChunkingCommand(parsed, {
+        readSettings: () => readConfigSettings(root),
+        readDeliveryBinding: () => workUnitId === undefined
+          ? Promise.resolve({ status: "unavailable", reason: "owning-work-unit-unresolved" })
+          : bindingLookup.resolve({ target: parsed.target, workUnitId }),
+        exec: createRawGitExec(root),
+      });
+    },
   };
 }
 

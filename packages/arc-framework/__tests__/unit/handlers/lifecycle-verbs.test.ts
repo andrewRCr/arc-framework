@@ -347,7 +347,13 @@ beforeEach(() => {
     plannedPaths: [".arc/backlog/planned/foo/meta-foo.md"],
   });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
-  mockRunMaterialize.mockResolvedValue({ status: "materialized", outcome: okOutcome, branch: "feat/foo", inPlace: false });
+  mockRunMaterialize.mockResolvedValue({
+    status: "materialized",
+    branch: "feat/foo",
+    inPlace: false,
+    worktreePath: "/repos/myrepo-feat-foo",
+    advisories: [],
+  });
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunDeactivate.mockResolvedValue({ status: "deactivated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunAbandon.mockResolvedValue({
@@ -744,9 +750,21 @@ describe("handleMaterialize", () => {
     expect(mockSpinnerStop).toHaveBeenCalledWith("Fetch complete.");
     expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning materialize worktree...");
     expect(mockSpinnerStop).toHaveBeenCalledWith("Worktree ready.");
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("Worktree:  /repos/myrepo-feat-foo"),
+      "Materialized",
+    );
   });
 
   it("dispatches an in-place materialize under `--here` after fetching the remote ref", async () => {
+    mockRunMaterialize.mockResolvedValueOnce({
+      status: "materialized",
+      branch: "feat/foo",
+      inPlace: true,
+      worktreePath: "/repo",
+      advisories: [],
+    });
+
     await handleMaterialize("foo", { here: true });
 
     expect(mockIoExec).toHaveBeenCalledWith(
@@ -762,6 +780,23 @@ describe("handleMaterialize", () => {
     });
     expect(mockSpinnerStart).toHaveBeenCalledWith("Materializing in place...");
     expect(mockSpinnerStop).toHaveBeenCalledWith("Materialize complete.");
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("Worktree:  /repo"),
+      "Materialized (in place)",
+    );
+  });
+
+  it("stops the spinner and reports a materialize rejection", async () => {
+    mockRunMaterialize.mockResolvedValueOnce({
+      status: "rejected",
+      reason: "occupancy probe failed",
+    });
+
+    await handleMaterialize("foo", { here: true });
+
+    expect(mockSpinnerStop).toHaveBeenCalledWith("Materialize failed.");
+    expect(mockLogError).toHaveBeenCalledWith("occupancy probe failed");
+    expect(process.exitCode).toBe(1);
   });
 
   it("propagates forbidden subprocess interaction to the network boundary", async () => {

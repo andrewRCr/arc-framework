@@ -9,7 +9,8 @@ override-active: false
 
 # Method: review-chunking
 
-> - **When:** A caller explicitly selects chunked review, or exact-target tripwires recommend considering it
+> - **When:** A caller explicitly selects chunked review, or the derived exact-target changeset-size attention
+>   signal recommends considering it
 >
 > - **Contract:** Partition one exact change set into bounded review scopes without changing its work-unit, branch,
 >   pull-request, or merge boundary. Preserve complete local and cross-chunk review through dependency closure,
@@ -45,9 +46,9 @@ Derive boundaries through **seed → judgment → guard**:
 - **Guard:** Check changed consumer-to-declaration edges with type checking and definition/reference navigation for
   code, or explicit reference inspection for prose. Re-run against the current exact target if it moves.
 
-The configured line and file tripwires select attention only. They can recommend considering chunks, but never draw
-boundaries, cap chunk size, or make a numeric budget a validity rule. Explicit callers may apply this method even
-when automatic consideration is disabled.
+The configured exact-target changeset-size advisory thresholds derive an attention signal only. They can recommend
+considering chunks, but never draw boundaries, cap chunk size, or make a numeric budget a validity rule. Explicit
+callers may apply this method even when automatic consideration is disabled.
 
 Closure establishes validity; it does not by itself establish that a chunk is bounded enough for one review pass.
 After closure and test cohesion hold, inspect the candidate's residual attention burden using its available size,

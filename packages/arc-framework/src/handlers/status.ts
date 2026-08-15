@@ -168,12 +168,40 @@ import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycl
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
+import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
+import { readDeliveryPositionView } from "../lib/session-init/delivery-position.js";
+import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
+import { resolveChangeRequestLifecycleConfiguration } from "../lib/errand/change-request-lifecycle.js";
+import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
+import {
+  hostedGhRunner,
+  type HostedProcessRunner,
+} from "../scripts/review-gate/hosted/gh-process.js";
 import { readIdentityPointers } from "./identity-pointers.js";
 import { requireArcProjectRoot } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import type { CleanupBaseEvidence } from "../lib/session-init/cleanup-remote-evidence.js";
 import { readLocalInFlightRefSnapshot } from "../lib/git/remote-ref-reader.js";
 import { resolveWorktreePathsByBranchResult } from "../lib/git/worktree-roster.js";
+
+const SESSION_DELIVERY_OBSERVATION_TIMEOUT_MS = 10_000;
+
+/**
+ * Bind all host calls in one session delivery observation to one aggregate deadline.
+ *
+ * @param runner - Underlying hosted-process runner.
+ * @param timeoutMs - Aggregate observation deadline in milliseconds.
+ * @returns A delivery host whose calls share one abort signal.
+ */
+export function createSessionDeliveryObservationHost(
+  runner: HostedProcessRunner,
+  timeoutMs = SESSION_DELIVERY_OBSERVATION_TIMEOUT_MS,
+): GhDeliveryHostPort {
+  const signal = AbortSignal.timeout(timeoutMs);
+  return new GhDeliveryHostPort({ run: (args) => runner.run(args, { signal }) });
+}
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
   if (execInput === undefined) {
@@ -645,6 +673,9 @@ export async function handleStatus(
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec, readFile: io.readFile });
+    const deliveryPublisher = new RepositoryGitCommonStatePublisher(exec, cwd);
+    const deliveryPlans = new RepositoryDeliveryPlanStore(deliveryPublisher, DeliveryPlanV1Codec);
+    const deliveryStates = new RepositoryDeliveryStateStore(deliveryPublisher);
     const getRemoteContext = createSessionRemoteContextReader({
       cwd,
       exec,
@@ -982,6 +1013,42 @@ export async function handleStatus(
           },
           { slug, metaPath },
         ),
+      deliveryPosition: async (context, { workUnitId }) => {
+        const result = await readDeliveryPositionView(workUnitId, {
+          plans: {
+            enumerateCurrentReadOnly: () => deliveryPlans.enumerateCurrentReadOnly(),
+          },
+          states: deliveryStates,
+          observe: async (plan, state, revision) => {
+            const prerequisites = sessionRemotePrerequisites(context);
+            if (prerequisites.kind === "not-needed"
+              || prerequisites.snapshot.kind !== "available"
+              || prerequisites.objectAvailability.kind !== "complete") {
+              return { status: "refused" };
+            }
+            const resolved = await resolvedSettingsP;
+            const configuration = await resolveChangeRequestLifecycleConfiguration(
+              exec,
+              `refs/heads/${resolved.settings["branch.base"]}`,
+            );
+            const deliveryHost = createSessionDeliveryObservationHost(hostedGhRunner);
+            return configuration === null
+              ? { status: "refused" }
+              : observeRepositoryDeliveryPosition(plan, state, revision, {
+                exec,
+                cwd,
+                host: deliveryHost,
+                repository: configuration.repositoryRef,
+                remoteHeads: prerequisites.snapshot.tips,
+                localCommits: prerequisites.objectAvailability.commits,
+              });
+          },
+        });
+        if (result.status === "refused") {
+          throw new Error(`Delivery position is unavailable: ${result.reason}.`);
+        }
+        return result.value;
+      },
       userReferenceReconcile: async (context, { slug }) => {
         if (identity === null) throw new Error("User-reference probe requires an identity.");
         const resolved = await resolvedSettingsP;

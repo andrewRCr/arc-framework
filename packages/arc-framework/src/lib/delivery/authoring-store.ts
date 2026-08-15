@@ -231,6 +231,21 @@ export class RepositoryDeliveryAuthoringStore implements DeliveryAuthoringStore,
     return decodeRecords(await this.publisher.snapshot(AUTHORING_LOCATION));
   }
 
+  /** Enumerate authoring records without acquiring a publication lock or creating a namespace. */
+  async enumerateReadOnly(): Promise<DeliveryAuthoringStoreResult<readonly DeliveryAuthoringRecord[]>> {
+    const listed = await this.publisher.list(AUTHORING_LOCATION);
+    const entries = await Promise.all(listed.map(async (entry) => {
+      if (entry.kind !== "file") return { name: entry.name, kind: "other" as const };
+      const content = await this.publisher.read(AUTHORING_LOCATION, entry.name);
+      return content === null ? { name: entry.name, kind: "other" as const } : {
+        name: entry.name,
+        kind: "file" as const,
+        content,
+      };
+    }));
+    return decodeRecords(entries);
+  }
+
   async abandon(
     mapId: string,
   ): Promise<DeliveryAuthoringStoreResult<{ readonly removed: boolean }>> {

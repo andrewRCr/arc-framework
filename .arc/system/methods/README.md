@@ -46,8 +46,8 @@ when populating any `.override` section. Methods not listed here are independent
 | review-chunking               | frontline-review, standard-review                                        | Bounded review-scope consumers             |
 | self-review                   | review-triage                                                            | Uses review-triage for findings            |
 | review-response               | review-triage                                                            | Consumes approved finding dispositions     |
-| assess-cohort-fit             | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
-| classify-work-unit            | assess-cohort-fit                                                        | Upper/lower WU-boundary tests              |
+| assess-boundary-fit           | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
+| classify-work-unit            | assess-boundary-fit                                                      | Upper/lower WU-boundary tests              |
 | assess-design-proportionality | design-audit                                                             | Material proportionality and broader fit   |
 | design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
 | testing-standards             | test-first                                                               | Planning/execution seam split              |

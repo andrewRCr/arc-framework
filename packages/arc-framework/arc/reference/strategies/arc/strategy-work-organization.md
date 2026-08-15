@@ -300,7 +300,7 @@ is a separate axis. The work unit remains the **leaf deliverable**; the cohort i
 
 This taxonomy complements the [Class Model](#class-model): `Class` is the _weight_ of one WU; a cohort is the
 _shape_ a concern takes when it spans more than one. The planning-time judgment of whether a concern is one WU or
-a cohort — and where the cuts fall — is the `assess-cohort-fit` method's; this section defines what a cohort _is_
+a cohort — and where the cuts fall — is the `assess-boundary-fit` method's; this section defines what a cohort _is_
 once that cut is made.
 
 ### One grouping kind; coordination by degree
@@ -448,7 +448,7 @@ Decompositions that author member design on a live planning branch stay full lif
 ### WU sizing standard
 
 Decomposition keys on **orthogonality, not size** — but size is the heads-up that prompts the question. This is
-the sizing standard the `assess-cohort-fit` method consumes:
+the sizing standard the `assess-boundary-fit` method consumes:
 
 - **Count distinct deliverables and independently-reviewable surfaces** — the primary signal. Several unrelated
   review surfaces in one WU is the decompose trigger.

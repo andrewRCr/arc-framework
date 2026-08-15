@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptDeliveryOperationResult,
+  attachDeliveryOperationEffectIdentity,
   checkDeliveryOperationPrecondition,
   reconcileDeliveryOperation,
   reserveDeliveryOperation,
@@ -28,6 +29,7 @@ function stateSnapshot(
       return {
         deliverableId: deliverableId as DeliveryStateV1["members"][number]["deliverableId"],
         ref: member?.ref ?? null,
+        changeRequest: member?.changeRequest ?? null,
         coordinates: member?.coordinates ?? null,
       };
     }),
@@ -36,8 +38,12 @@ function stateSnapshot(
 
 function operationRequest(
   state: DeliveryStateV1,
-  overrides: Partial<DeliveryOperationReservationRequestV1> = {},
-): DeliveryOperationReservationRequestV1 {
+  overrides: Partial<Omit<Extract<DeliveryOperationReservationRequestV1, {
+    kind: "materialize" | "rewrite" | "teardown";
+  }>, "kind">> & { kind?: "materialize" | "rewrite" | "teardown" } = {},
+): Extract<DeliveryOperationReservationRequestV1, {
+  kind: "materialize" | "rewrite" | "teardown";
+}> {
   const affectedDeliverableIds = [state.members[0]!.deliverableId];
   const before = stateSnapshot(state, affectedDeliverableIds);
   return {
@@ -58,6 +64,29 @@ function operationRequest(
     },
     ...overrides,
   };
+}
+
+function publishEffect() {
+  return {
+    providerId: "github",
+    repository: "andrewRCr/arc-framework",
+    headRef: "delivery/delivery-plan-record/first",
+    headSha: "4".repeat(40),
+    baseRef: "main",
+    draft: true,
+  } as const;
+}
+
+function landEffect() {
+  return {
+    providerId: "github",
+    repository: "andrewRCr/arc-framework",
+    changeRequestId: "401",
+    headSha: "4".repeat(40),
+    baseRef: "main",
+    targetRef: "refs/heads/main",
+    strategy: "merge",
+  } as const;
 }
 
 function reservedRecord() {
@@ -110,7 +139,7 @@ describe("reserveDeliveryOperation", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
 
-    for (const kind of ["materialize", "publish", "rewrite", "land", "teardown"] as const) {
+    for (const kind of ["materialize", "rewrite", "teardown"] as const) {
       const request = operationRequest(state, { kind });
       expect(reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request)).toEqual({
         status: "reserved",
@@ -127,6 +156,40 @@ describe("reserveDeliveryOperation", () => {
           },
         },
       });
+    }
+
+    for (const request of [
+      { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
+      { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
+    ]) {
+      const result = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+      expect(result.status).toBe("reserved");
+      if (result.status === "reserved") {
+        expect(result.state.activeOperation).toMatchObject({
+          kind: request.kind,
+          effect: request.effect,
+          stateRevision: STATE_REVISION,
+          boundPlanDigest: plan.planDigest,
+        });
+      }
+    }
+  });
+
+  it("requires the matching host effect for publish and land reservations", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const publish = { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() };
+    const land = { ...operationRequest(state), kind: "land" as const, effect: landEffect() };
+    const publishWithoutEffect = { ...publish, effect: undefined };
+    const landWithoutEffect = { ...land, effect: undefined };
+    for (const invalid of [
+      publishWithoutEffect,
+      landWithoutEffect,
+      { ...publish, effect: landEffect() },
+      { ...land, effect: publishEffect() },
+    ]) {
+      expect(reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, invalid))
+        .toEqual({ status: "refused", reason: "operation-invalid" });
     }
   });
 
@@ -227,6 +290,24 @@ describe("reserveDeliveryOperation", () => {
 });
 
 describe("delivery operation pre- and post-mutation comparison", () => {
+  it("attaches one async host identity idempotently and advances the operation revision guard", () => {
+    const { current, request } = reservedRecord();
+    const land = { ...current.value.activeOperation!, kind: "land" as const, effect: landEffect(), effectIdentity: null };
+    const record = { ...current, value: { ...current.value, activeOperation: land } };
+    const identity = { providerId: "github", effectId: "merge-request-uuid" };
+    const attached = attachDeliveryOperationEffectIdentity(record, request.operationId, identity);
+    expect(attached.status).toBe("attached");
+    if (attached.status !== "attached") return;
+    expect(attached.state.activeOperation).toMatchObject({ effectIdentity: identity, stateRevision: current.revision });
+    const published = { revision: current.revision + 1, value: attached.state };
+    expect(attachDeliveryOperationEffectIdentity(published, request.operationId, identity))
+      .toEqual({ status: "already-attached", state: attached.state });
+    expect(attachDeliveryOperationEffectIdentity(published, request.operationId, {
+      providerId: "github", effectId: "different",
+    })).toEqual({ status: "refused", reason: "identity-conflict" });
+    expect(checkDeliveryOperationPrecondition(published, request.before)).toMatchObject({ status: "ready" });
+  });
+
   it("is ready only when fresh pre-mutation facts equal the exact source snapshot", () => {
     const { current, request } = reservedRecord();
     expect(checkDeliveryOperationPrecondition(current, request.before)).toEqual({
@@ -278,6 +359,158 @@ describe("delivery operation pre- and post-mutation comparison", () => {
     })).toEqual({ status: "blocked", reason: "requested-mismatch" });
   });
 
+  it("records one uniquely observed publish handle without relaxing exact coordinates", () => {
+    const { plan, request } = reservedRecord();
+    const publishRequest = {
+      ...request,
+      kind: "publish" as const,
+      effect: publishEffect(),
+      requested: {
+        ...request.requested,
+        members: request.requested.members.map((member) => ({ ...member, changeRequest: null })),
+      },
+    };
+    const reserved = reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: deliveryStateFixture(plan) },
+      plan,
+      publishRequest,
+    );
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const published = { revision: STATE_REVISION + 1, value: reserved.state };
+    const observed = {
+      ...publishRequest.requested,
+      members: publishRequest.requested.members.map((member) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: "401" },
+      })),
+    };
+
+    const applied = acceptDeliveryOperationResult(published, {
+      kind: "publish",
+      effect: publishRequest.effect,
+      outcome: "applied",
+      snapshot: observed,
+    });
+    expect(applied.status).toBe("applied");
+    if (applied.status === "applied") {
+      expect(applied.state.members[0]!.changeRequest).toEqual(observed.members[0]!.changeRequest);
+    }
+    expect(acceptDeliveryOperationResult(published, {
+      kind: "publish",
+      effect: publishRequest.effect,
+      outcome: "applied",
+      snapshot: {
+        ...observed,
+        members: observed.members.map((member) => ({
+          ...member,
+          coordinates: { ...member.coordinates!, head: "f".repeat(40) },
+        })),
+      },
+    })).toEqual({ status: "blocked", reason: "requested-mismatch" });
+    expect(published.value.activeOperation).not.toBeNull();
+  });
+
+  it("records host-assigned landed coordinates and teardown clears every member binding", () => {
+    const { plan, request } = reservedRecord();
+    const state = deliveryStateFixture(plan);
+    const landRequest = {
+      ...operationRequest(state, {
+      requested: stateSnapshot(state, request.affectedDeliverableIds),
+      }),
+      kind: "land" as const,
+      effect: landEffect(),
+    };
+    const reservedLand = reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      landRequest,
+    );
+    expect(reservedLand.status).toBe("reserved");
+    if (reservedLand.status !== "reserved") return;
+    const landedObservation = {
+      target: {
+        ref: state.target!.ref,
+        coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+      },
+      members: landRequest.requested.members.map((member) => ({
+        ...member,
+        coordinates: { base: "1".repeat(40), head: "d".repeat(40), tree: "e".repeat(40) },
+      })),
+    };
+    const landed = acceptDeliveryOperationResult(
+      { revision: STATE_REVISION + 1, value: reservedLand.state },
+      { kind: "land", effect: landRequest.effect, outcome: "applied", snapshot: landedObservation },
+    );
+    expect(landed.status).toBe("applied");
+    if (landed.status !== "applied") return;
+    expect(landed.state.target).toEqual(landedObservation.target);
+    expect(landed.state.members[0]!.coordinates).toEqual(landedObservation.members[0]!.coordinates);
+
+    const teardownBefore = stateSnapshot(landed.state, request.affectedDeliverableIds);
+    const teardownRequest = operationRequest(landed.state, {
+      kind: "teardown",
+      expectedStateRevision: STATE_REVISION + 2,
+      before: teardownBefore,
+      requested: {
+        target: teardownBefore.target,
+        members: teardownBefore.members.map((member) => ({
+          ...member,
+          ref: null,
+          changeRequest: null,
+          coordinates: null,
+        })),
+      },
+    });
+    const reservedTeardown = reserveDeliveryOperation(
+      { revision: STATE_REVISION + 2, value: landed.state },
+      plan,
+      teardownRequest,
+    );
+    expect(reservedTeardown.status).toBe("reserved");
+    if (reservedTeardown.status !== "reserved") return;
+    const tornDown = acceptDeliveryOperationResult(
+      { revision: STATE_REVISION + 3, value: reservedTeardown.state },
+      teardownRequest.requested,
+    );
+    expect(tornDown.status).toBe("applied");
+    if (tornDown.status === "applied") {
+      expect(tornDown.state.members[0]).toMatchObject({ ref: null, changeRequest: null, coordinates: null });
+      expect(tornDown.state.members[1]).toEqual(landed.state.members[1]);
+    }
+  });
+
+  it("does not accept provider-assigned target coordinates when no target was requested", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const before = stateSnapshot(state, [state.members[0]!.deliverableId]);
+    const request = {
+      ...operationRequest(state),
+      kind: "land" as const,
+      before,
+      requested: { ...before, target: null },
+      effect: landEffect(),
+    };
+    const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    expect(acceptDeliveryOperationResult(
+      { revision: STATE_REVISION + 1, value: reserved.state },
+      {
+        kind: "land",
+        effect: request.effect,
+        outcome: "applied",
+        snapshot: {
+          ...request.requested,
+          target: {
+            ref: "refs/heads/main",
+            coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+          },
+        },
+      },
+    )).toEqual({ status: "blocked", reason: "requested-mismatch" });
+  });
+
   it("blocks a missing or stale reservation before comparing observations", () => {
     const { current, request } = reservedRecord();
     expect(checkDeliveryOperationPrecondition(
@@ -305,6 +538,41 @@ describe("delivery operation pre- and post-mutation comparison", () => {
 });
 
 describe("reconcileDeliveryOperation", () => {
+  it.each(["rewrite", "teardown"] as const)(
+    "%s operations adopt exact application, retry exact non-application, and retain ambiguity",
+    (kind) => {
+      const plan = deliveryPlanFixture();
+      const state = deliveryStateFixture(plan);
+      const request = operationRequest(state, {
+        kind,
+        ...(kind === "teardown" ? {
+          requested: {
+            target: state.target,
+            members: [{
+              deliverableId: state.members[0]!.deliverableId,
+              ref: null,
+              changeRequest: null,
+              coordinates: null,
+            }],
+          },
+        } : {}),
+      });
+      const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+      expect(reserved.status).toBe("reserved");
+      if (reserved.status !== "reserved") return;
+      const current = { revision: STATE_REVISION + 1, value: reserved.state };
+      expect(reconcileDeliveryOperation(current, request.requested).status).toBe("adopt");
+      expect(reconcileDeliveryOperation(current, request.before)).toEqual({
+        status: "retry", operationId: request.operationId,
+      });
+      expect(reconcileDeliveryOperation(current, {
+        ...request.requested,
+        target: { ...request.requested.target!, ref: "refs/heads/unrelated" },
+      })).toEqual({ status: "blocked", reason: "ambiguous-result" });
+      expect(current.value.activeOperation?.kind).toBe(kind);
+    },
+  );
+
   it("adopts an exact requested result and permits retry after exact non-application", () => {
     const { current, request } = reservedRecord();
     const adopted = reconcileDeliveryOperation(current, request.requested);
@@ -328,7 +596,7 @@ describe("reconcileDeliveryOperation", () => {
       ...request.requested,
       members: [
         ...request.requested.members,
-        { deliverableId: unknown, ref: null, coordinates: null },
+        { deliverableId: unknown, ref: null, changeRequest: null, coordinates: null },
       ],
     };
     const reordered = { ...request.requested, members: [...request.requested.members].reverse() };
@@ -345,6 +613,29 @@ describe("reconcileDeliveryOperation", () => {
         status: "blocked",
         reason: "ambiguous-result",
       });
+    }
+  });
+
+  it("adopts only a matching host-assigned result and retains ambiguous publish or land reservations", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    for (const request of [
+      { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
+      { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
+    ]) {
+      const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+      expect(reserved.status).toBe("reserved");
+      if (reserved.status !== "reserved") continue;
+      const current = { revision: STATE_REVISION + 1, value: reserved.state };
+      expect(reconcileDeliveryOperation(current, { outcome: "not-applied" })).toEqual({
+        status: "retry",
+        operationId: request.operationId,
+      });
+      expect(reconcileDeliveryOperation(current, { outcome: "ambiguous" })).toEqual({
+        status: "blocked",
+        reason: "ambiguous-result",
+      });
+      expect(current.value.activeOperation).not.toBeNull();
     }
   });
 });

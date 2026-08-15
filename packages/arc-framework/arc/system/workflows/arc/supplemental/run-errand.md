@@ -176,8 +176,18 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Compose the immutable policy target `{ repository, pullRequest: null, headSha }`, the routed `standardReview`
    projection, and explicit review-routing facts. The future merge lane remains downstream presentation, not a
-   routing input. For each new target, invoke `arc review chunking resolve -` once; select whole-target or chunked
-   scope separately for each role and pass it to `arc review resolve -`.
+   routing input. For each new target, invoke `arc review chunking resolve -` once, including an existing exact-target
+   `scopeSelection` when one exists. An Errand has no owning work unit, so ordinary tripped evidence resolves
+   authoritative-unbound. Dispatch the closed result without adding delivery judgment:
+
+   - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
+     `evidence-unavailable / continue-review` — render no attention text and continue review.
+   - `consider-chunks / select-review-scope` — render `recommendedActionText` verbatim, then make the existing
+     bounded review-scope judgment.
+   - `delivery-bound / continue-review` — render `recommendedActionText` verbatim and continue; do not infer or
+     author Errand-side delivery state.
+
+   Select whole-target or chunked scope separately for each role and pass it to `arc review resolve -`.
 
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
@@ -244,9 +254,9 @@ remote base all name the same exact head. Any tracked change continues through t
    target without a permission stop. A conflict, material interaction, or uncertain product decision stops. This
    advisory never replaces Step 5's authoritative final drift read.
 
-   Rerun `arc review chunking resolve -` for the opened target and invoke `arc review resolve -` for each incomplete
-   lane. Follow the Step 2 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the
-   selected provider, exact opened target, and `coverage: complete`:
+   Rerun `arc review chunking resolve -` for the opened target, follow the closed attention dispatch in Step 2, and
+   invoke `arc review resolve -` for each incomplete lane. On `ready / hosted-request`, invoke
+   `arc review hosted request -` with the selected provider, exact opened target, and `coverage: complete`:
 
    - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use that bounded
      wait again for `pending / await`; do not build an agent polling loop.

@@ -22,6 +22,7 @@ export interface HostedProcessRunner {
 }
 
 export class HostedProcessError extends Error {
+  readonly stdout: string;
   readonly stderr: string;
   readonly exitCode: number | null;
   readonly httpStatus: number | null;
@@ -31,9 +32,11 @@ export class HostedProcessError extends Error {
     stderr: string,
     exitCode: number | null = null,
     httpStatus: number | null = null,
+    stdout = "",
   ) {
     super(message);
     this.name = "HostedProcessError";
+    this.stdout = stdout;
     this.stderr = stderr;
     this.exitCode = exitCode;
     this.httpStatus = httpStatus;
@@ -62,6 +65,7 @@ export const hostedGhRunner: HostedProcessRunner = {
         throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
       }
       const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
+      const stdout = typeof record.stdout === "string" ? record.stdout : "";
       const stderr = typeof record.stderr === "string" ? record.stderr : "";
       const message = error instanceof Error ? error.message : String(error);
       throw new HostedProcessError(
@@ -69,6 +73,7 @@ export const hostedGhRunner: HostedProcessRunner = {
         stderr,
         typeof record.exitCode === "number" ? record.exitCode : null,
         parseHttpStatus(`${message}\n${stderr}`),
+        stdout,
       );
     }
   },

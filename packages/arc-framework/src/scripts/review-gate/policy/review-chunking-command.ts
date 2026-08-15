@@ -13,6 +13,7 @@ import {
 import {
   parseReviewChunkingThresholds,
   resolveReviewChunkingPolicy,
+  type ReviewAttentionDeliveryBinding,
 } from "./review-chunking.js";
 
 export class ReviewChunkingCommandError extends Error {
@@ -26,6 +27,7 @@ export async function resolveReviewChunkingCommand(
   request: unknown,
   dependencies: {
     readSettings(): Promise<ReaderResult>;
+    readDeliveryBinding(): Promise<ReviewAttentionDeliveryBinding>;
     exec: RawGitExec;
   },
 ) {
@@ -37,6 +39,21 @@ export async function resolveReviewChunkingCommand(
     throw new ReviewChunkingCommandError(
       error instanceof Error ? error.message : "invalid review target",
     );
+  }
+  let scopeSelected = false;
+  if (parsed.scopeSelection !== undefined) {
+    let selectedTarget;
+    try {
+      selectedTarget = validateReviewTarget(parsed.scopeSelection.target);
+    } catch (error) {
+      throw new ReviewChunkingCommandError(
+        error instanceof Error ? error.message : "invalid selected review target",
+      );
+    }
+    if (selectedTarget.targetId !== target.targetId) {
+      throw new ReviewChunkingCommandError("selected review scope does not belong to the current target");
+    }
+    scopeSelected = parsed.scopeSelection.mode === "chunked";
   }
   const config = await dependencies.readSettings();
   const thresholds = parseReviewChunkingThresholds(config.settings);
@@ -59,9 +76,24 @@ export async function resolveReviewChunkingCommand(
           `Unable to measure exact review target: ${stats.reason}`,
         );
       }
+      const initial = resolveReviewChunkingPolicy({
+        thresholds: thresholds.thresholds,
+        metrics: stats.metrics,
+        scopeSelected,
+        deliveryBinding: { status: "unavailable", reason: "not-read" },
+      });
+      if (initial.disposition !== "evidence-unavailable") return initial;
+      let deliveryBinding: ReviewAttentionDeliveryBinding;
+      try {
+        deliveryBinding = await dependencies.readDeliveryBinding();
+      } catch {
+        deliveryBinding = { status: "unavailable", reason: "reader-failure" };
+      }
       return resolveReviewChunkingPolicy({
         thresholds: thresholds.thresholds,
         metrics: stats.metrics,
+        scopeSelected,
+        deliveryBinding,
       });
     })();
   const base = {
@@ -85,16 +117,56 @@ export async function resolveReviewChunkingCommand(
       payload: { target, metrics: policy.metrics, thresholds: policy.thresholds },
     });
   }
+  const measuredPayload = {
+    target,
+    metrics: policy.metrics,
+    thresholds: policy.thresholds,
+    tripped: policy.tripped,
+  };
+  if (policy.disposition === "scope-selected") {
+    return ReviewChunkingResolveEnvelopeSchema.parse({
+      ...base,
+      state: "scope-selected",
+      nextAction: "continue-review",
+      payload: measuredPayload,
+    });
+  }
+  if (policy.disposition === "evidence-unavailable") {
+    return ReviewChunkingResolveEnvelopeSchema.parse({
+      ...base,
+      diagnostics: [
+        ...diagnostics,
+        {
+          code: "delivery-evidence-unavailable",
+          message: `Delivery evidence is unavailable: ${policy.reason}.`,
+        },
+      ],
+      state: "evidence-unavailable",
+      nextAction: "continue-review",
+      payload: measuredPayload,
+    });
+  }
+  if (policy.disposition === "delivery-bound") {
+    return ReviewChunkingResolveEnvelopeSchema.parse({
+      ...base,
+      state: "delivery-bound",
+      nextAction: "continue-review",
+      payload: {
+        ...measuredPayload,
+        planId: policy.planId,
+        remedy: policy.remedy,
+        recommendedActionText: policy.recommendedActionText,
+      },
+    });
+  }
   return ReviewChunkingResolveEnvelopeSchema.parse({
     ...base,
     state: "consider-chunks",
     nextAction: "select-review-scope",
     payload: {
-      target,
-      metrics: policy.metrics,
-      thresholds: policy.thresholds,
-      tripped: policy.tripped,
-      advisory: policy.advisory,
+      ...measuredPayload,
+      remedy: policy.remedy,
+      recommendedActionText: policy.recommendedActionText,
     },
   });
 }

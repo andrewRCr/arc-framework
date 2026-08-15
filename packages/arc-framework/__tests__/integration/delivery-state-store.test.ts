@@ -70,6 +70,34 @@ function state(options: {
 }
 
 describe("repository delivery state store", () => {
+  it("restores an exact revision only into an absent or identical record", async () => {
+    const records = await stateStore();
+    const imported = { revision: 69, value: state() };
+
+    await expect(records.store.restoreExact(PLAN_ID, imported)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+    await expect(records.store.restoreExact(PLAN_ID, imported)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+
+    const conflict = { revision: 68, value: imported.value };
+    await expect(records.store.restoreExact(PLAN_ID, conflict)).resolves.toEqual({
+      status: "refused",
+      reason: "version-conflict",
+    });
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: imported,
+    });
+  });
+
   it("publishes state by expected revision and treats an equal replay as idempotent", async () => {
     const records = await stateStore();
     const first = state();
@@ -143,6 +171,26 @@ describe("repository delivery state store", () => {
         observedHeadObjectId: HEAD,
       },
     })).resolves.toEqual({ status: "ok", value: null });
+  });
+
+  it("persists observed request binding and teardown without changing reverse-lookup authority", async () => {
+    const records = await stateStore();
+    const published = state({ changeRequestId: "401" });
+    await records.store.publish(PLAN_ID, published, 0);
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: { revision: 1, value: published },
+    });
+
+    const tornDown = state({ changeRequestId: undefined, ref: null });
+    await records.store.publish(PLAN_ID, tornDown, 1);
+    await expect(records.store.resolveMember({
+      selector: { kind: "head", objectId: HEAD },
+    })).resolves.toEqual({ status: "ok", value: null });
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: { revision: 2, value: tornDown },
+    });
   });
 
   it("detects global ambiguity even when an owning-unit pointer names one match", async () => {

@@ -13,10 +13,11 @@ operations. It does not create a second proof or review system.
 
 ```text
 delivery-plan-record                          shipped
-└── delivery-stack-topology                   v1 spine
+└── delivery-stack-topology                   shipped (v1 spine)
+    ├── delivery-native-stack-composition     v2 topology amendment; the stream's remaining body of work
     └── delivery-review-cardinality           optional follow-up; not a v1 delivery prerequisite
 
-delivery-stack-topology also waits on delivery-slice-review-vehicle (external, review seam)
+delivery-native-stack-composition also waits on integration-boundary-accuracy (external, integration seam)
 delivery-review-cardinality also waits on review-request-contracts
 ```
 
@@ -25,17 +26,21 @@ Current readiness derives from member metas and their `Depends On`, not from thi
 The v1 delivery path is `delivery-plan-record` plus `delivery-stack-topology`, with member review admission supplied
 by the external `delivery-slice-review-vehicle`. Both recorded field deliveries were stack-shaped landings to the
 protected base, and the stack projection is the one that removes the oversized terminal pull request, so it carries
-the cohort's spine. `delivery-review-cardinality` remains a demand-held follow-up that activates on observed field
-evidence and does not gate v1 readiness.
+the cohort's spine. The v1 self-delivery then demonstrated that the retained control branch and disconnected
+terminal request — v1's own lifecycle accommodations — are the topology's principal defect;
+`delivery-native-stack-composition` amends that shape rather than patching around it.
+`delivery-review-cardinality` remains a demand-held follow-up that activates on observed field evidence and does
+not gate v1 readiness.
 
 ## Shared contracts
 
 - `delivery-plan-record` owns immutable authored intent, stable member identity and order, plan revisions, the task-list
   projection, and one version-checked mutable `DeliveryState`. State binds exact refs and change requests, supports
   reverse lookup from a member ref to its owning plan and work unit, and records at most one active operation.
-- `delivery-stack-topology` owns stack eligibility, guarded sequential landing to the protected base, suffix
-  reconciliation, and lifecycle-artifact exclusion. Its landing core is built projection-neutral so downstream
-  projections can reuse it. Member review admission is owned by the external `delivery-slice-review-vehicle`.
+- `delivery-stack-topology` owns stack eligibility, a complete guarded sequential landing path to the protected base,
+  one optional exact all-remaining native atomic arm, suffix reconciliation, and lifecycle-artifact exclusion. Its
+  landing core is built projection-neutral so downstream projections can reuse it. Member review admission is owned
+  by the external `delivery-slice-review-vehicle`.
 - `delivery-review-cardinality` owns no v1 contract. If field evidence activates it, it may improve review-request
   cardinality without weakening any member's existing obligation or creating delivery-authored review authority.
 
@@ -112,9 +117,10 @@ The model keeps four boundaries distinct:
 - **Delivery member:** a chunk or group of chunks with an independent pull-request or merge boundary.
 - **Phase:** task-plan organization, not a delivery identity.
 
-The cohort executes one topology: members form an ordered stack and land to the protected base one at a time. Every
-member must leave the protected base green and semantically coherent. The plan schema remains projection-neutral so a
-downstream delivery projection can consume it without expanding this cohort's closeout boundary.
+The cohort executes one topology: members form an ordered stack, and the provider-independent path lands them to the
+protected base one at a time. An opt-in native adapter may group only the exact complete remaining non-terminal set in
+one atomic direct effect after every included head independently satisfies the same guards. Every member must still be
+green and semantically coherent. The plan schema remains projection-neutral, and provider grouping never enters it.
 
 The lifecycle is deliberately direct:
 
@@ -149,16 +155,25 @@ version-checked state; and one active-operation port. No topology execution.
 
 ### `delivery-stack-topology`
 
-The v1 executable projection: human-authored landability validation, ordered member refs and pull requests, sequential
-landing and suffix reconciliation, and lifecycle-artifact exclusion, with the landing core built projection-neutral.
-Member review admission comes from the external `delivery-slice-review-vehicle`; no host-native stack API is required
-for v1.
+The v1 executable projection: human-authored landability validation, ordered member refs and pull requests, complete
+sequential landing and suffix reconciliation, lifecycle-artifact exclusion, and one optional exact all-remaining
+native atomic arm, with the landing core built projection-neutral. Member review admission comes from the external
+`delivery-slice-review-vehicle`; no host-native stack API is required for v1 correctness.
 
 ### `delivery-review-cardinality`
 
 An optional, evidence-triggered follow-up. It asks whether several delivery members need fewer provider requests or a
 stronger aggregate review surface than the v1 baseline supplies. It starts from observed delivery cost and existing
 review contracts; it does not begin with an assurance-group schema.
+
+### `delivery-native-stack-composition`
+
+The v2 topology amendment, consolidated from the v1 self-delivery's field captures: every code-bearing member joins
+the provider stack and the top member is the ordinary terminal integration vehicle (the retained control branch and
+separate terminal request are removed); landing is bottom-up and non-blocking; restack/refresh mechanics delegate to
+the stack provider with ARC adopting the reobserved chain on structural contribution equivalence; native landing is
+the routed path for a registered stack. It preserves the plan/state contracts, member review admission, exact-head
+integration authority, and the complete unlinked landing path.
 
 ## V1 readiness
 
@@ -179,6 +194,9 @@ the cohort itself closes and archives.
 - `review-chunking` owns review-attention boundaries. Delivery consumes chunk identity without making every chunk a
   merge boundary.
 - `decomposition-doctrine` owns whether a concern splits into several work units. Delivery begins after that decision.
+  The shared boundary checkpoint splits along the same line: `delivery-stack-topology` owns the checkpoint chassis
+  (the re-chartered `assess-boundary-fit` read and its delivery arm); doctrine owns the split-decision discriminator
+  it dispatches to.
 - Existing review contracts own obligation, applicability, findings, and clearance. The external
   `delivery-slice-review-vehicle` owns the narrow vehicle binding that names a delivery member and exact head.
 - `integration-boundary-accuracy` and `integration-lane` own shared integration naming and final-window behavior.
@@ -189,9 +207,10 @@ the cohort itself closes and archives.
 
 ### Cross-cohort
 
-`delivery-integration-target` is a standalone provisional downstream projection. If activated, it consumes the shipped
-plan/state contracts and projection-neutral landing core, but it is not a cohort member and does not gate this cohort's
-readiness, completion, or archival closeout.
+`delivery-integration-target` was retired unimplemented (2026-08-15, at the `delivery-native-stack-composition`
+minting): its private-target accumulator shape is the topology defect the v2 amendment removes, and its activation
+threshold was never met. The retirement disposition — including where a genuinely stack-ineligible concern routes
+instead — is recorded in `draft-delivery-native-stack-composition.md`.
 
 ## Scope estimate
 

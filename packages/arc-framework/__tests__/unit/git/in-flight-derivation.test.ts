@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   analyzeInFlightSnapshot,
   deriveInFlight,
+  isEligibleInFlightBranch,
   renderInFlightWarning,
   type InFlightWarning,
 } from "../../../src/lib/git/in-flight-derivation.js";
@@ -11,6 +12,45 @@ import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
+
+describe("isEligibleInFlightBranch", () => {
+  it("excludes delivery presentation refs while preserving unrelated work-unit branches", () => {
+    const options = { baseBranch: "main", errandBranches: new Set<string>() };
+    expect(isEligibleInFlightBranch("delivery/example/first-member", options)).toBe(false);
+    expect(isEligibleInFlightBranch("feat/unrelated", options)).toBe(true);
+  });
+
+  it("excludes checked-out delivery branches from observed and supplied in-flight inputs", async () => {
+    const branch = "delivery/example/first-member";
+    const options = {
+      worktrees: [{ path: "/repo.delivery", branch }],
+      metas: {
+        [`${branch}:.arc/active/meta-example.md`]: metaContent({ branch }),
+      },
+    };
+
+    const observed = await deriveInFlight({
+      exec: makeExec(options),
+      localOnly: true,
+      identity: null,
+      teamMode: false,
+    });
+    const supplied = await deriveInFlight({
+      exec: makeExec(options),
+      branches: [branch],
+      reachable: true,
+      identity: null,
+      teamMode: false,
+    });
+
+    for (const result of [observed, supplied]) {
+      expect(result.entries).toEqual([]);
+      expect(result.residue).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.snapshot.worktrees).toEqual({});
+    }
+  });
+});
 
 /** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Class, Priority, Depends On). */
 function metaContent(

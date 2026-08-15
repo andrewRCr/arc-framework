@@ -1,18 +1,23 @@
 /** CLI adapters for the delivery authoring spine. */
 
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 import { z } from "zod";
 
-import { parseMetaFile } from "../lib/active/meta-reader.js";
+import { parseMetaFile, parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { DeliveryPlanComposer } from "../lib/delivery/compose.js";
-import type { BoundDesignInventory } from "../lib/delivery/design-inventory.js";
+import {
+  DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
+  DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_VERSION,
+  registerDeliveryAuthoringSchemas,
+  type BoundDesignInventory,
+} from "../lib/delivery/design-inventory.js";
 import {
   prepareDeliveryFromBranchAuthoring,
   resolveDeliveryFromBranchProjection,
@@ -40,14 +45,17 @@ import {
 } from "../lib/delivery/plan-resolution.js";
 import {
   DeliveryCanonicalDigestSchema,
+  registerDeliveryDomainSchemas,
   type DeliveryPlanV1,
 } from "../lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import {
   assertCanonicalDigest,
   canonicalize,
+  createKernelRegistry,
   type CanonicalDigest,
 } from "../lib/kernel/index.js";
+import { projectKernelSchemas } from "../lib/kernel/schema/generate.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
@@ -59,6 +67,7 @@ import { requireArcProjectRoot } from "./shared.js";
 
 const DeliveryPlanFromTasksInputSchema = z.strictObject({
   designInventory: z.string().trim().min(1),
+  taskList: z.string().trim().min(1).optional(),
   json: z.boolean().optional(),
 });
 const DeliveryPlanFromBranchInputSchema = z.strictObject({
@@ -72,6 +81,7 @@ const DeliveryComposeInputSchema = z.strictObject({
   json: z.boolean().optional(),
 });
 const DeliveryPlanAbandonInputSchema = z.strictObject({ json: z.boolean().optional() });
+const DeliveryPlanInventorySchemaInputSchema = z.strictObject({ json: z.boolean().optional() });
 const FromTasksSourceInputsSchema = z.strictObject({ taskListPath: z.string().min(1) });
 const FromBranchSourceInputsSchema = z.strictObject({
   taskListPath: z.string().min(1),
@@ -81,6 +91,7 @@ const FromBranchSourceInputsSchema = z.strictObject({
 
 export interface DeliveryPlanFromTasksOptions {
   readonly designInventory?: string;
+  readonly taskList?: string;
   readonly json?: boolean;
 }
 export interface DeliveryPlanFromBranchOptions {
@@ -94,6 +105,7 @@ export interface DeliveryComposeOptions {
   readonly json?: boolean;
 }
 export interface DeliveryPlanAbandonOptions { readonly json?: boolean }
+export interface DeliveryPlanInventorySchemaOptions { readonly json?: boolean }
 
 /** Command-input schema owned by the value-taking task-list authoring command. */
 export const deliveryCommandInputRegistrations = [
@@ -102,6 +114,7 @@ export const deliveryCommandInputRegistrations = [
     schema: DeliveryPlanFromTasksInputSchema,
     schemaFields: {
       "option.designInventory": "designInventory",
+      "option.task-list": "taskList",
       "option.json": "json",
     },
   },
@@ -128,6 +141,11 @@ export const deliveryCommandInputRegistrations = [
     schema: DeliveryPlanAbandonInputSchema,
     schemaFields: { "option.json": "json" },
   },
+  {
+    commandPath: "delivery plan inventory schema",
+    schema: DeliveryPlanInventorySchemaInputSchema,
+    schemaFields: { "option.json": "json" },
+  },
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Machine-output policies owned by the delivery command family. */
@@ -147,6 +165,20 @@ export const deliveryCommandInputPolicyDeclarations = [
           acceptedSyntax: ["--design-inventory <json-path>"],
         },
         mutationBoundary: "delivery authoring input validation",
+        subprocess: "none",
+      }),
+      declareCliOptionSite("task-list", {
+        acquisition: "safe-default",
+        schemaOwnership: "owned",
+        schemaField: "taskList",
+        defaultSource: "active meta Task List pointer",
+        cancellation: "not-applicable",
+        automation: {
+          noInput: "use-default",
+          flags: ["--task-list"],
+          acceptedSyntax: ["--task-list <path>"],
+        },
+        mutationBoundary: "delivery authoring locus validation",
         subprocess: "none",
       }),
       declareCliOptionSite("json", {
@@ -245,6 +277,7 @@ export const deliveryCommandInputPolicyDeclarations = [
     ],
   },
   deliveryJsonPolicy("delivery plan abandon"),
+  deliveryJsonPolicy("delivery plan inventory schema"),
 ] as const satisfies readonly CommandInputDeclaration[];
 
 function deliveryJsonPolicy(commandPath: string): CommandInputDeclaration {
@@ -292,7 +325,10 @@ export async function handleDeliveryPlanFromTasks(
   const inputs = await readFromTasksInputs(
     context.cwd,
     context.activePath,
+    context.workUnitId,
     parsed.data.designInventory,
+    true,
+    parsed.data.taskList,
   );
   if (inputs.status === "refused") {
     emit("delivery plan from-tasks", parsed.data.json === true, inputs);
@@ -364,7 +400,9 @@ export async function handleDeliveryPlanFromBranch(
   const inputs = await readFromTasksInputs(
     context.cwd,
     context.activePath,
+    context.workUnitId,
     parsed.data.designInventory,
+    false,
   );
   if (inputs.status === "refused") {
     emit("delivery plan from-branch", parsed.data.json === true, inputs);
@@ -613,6 +651,35 @@ export async function handleDeliveryPlanAbandon(
   emit("delivery plan abandon", parsed.data.json === true, result);
 }
 
+/** Emit the registered design-inventory authoring schema through the delivery envelope. */
+export function handleDeliveryPlanInventorySchema(opts: DeliveryPlanInventorySchemaOptions): void {
+  const parsed = DeliveryPlanInventorySchemaInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    emit("delivery plan inventory schema", opts.json === true, {
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+    return;
+  }
+  const registry = registerDeliveryAuthoringSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
+  const schema = projectKernelSchemas(registry).schemas[DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID];
+  if (schema === undefined) {
+    emit("delivery plan inventory schema", parsed.data.json === true, {
+      status: "refused",
+      reason: "schema-unavailable",
+    });
+    return;
+  }
+  emit("delivery plan inventory schema", parsed.data.json === true, {
+    status: "ok",
+    value: {
+      id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
+      version: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_VERSION,
+      schema,
+    },
+  });
+}
+
 async function resolveDeliveryContext(interaction?: InteractionContext) {
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" } as const;
@@ -690,7 +757,10 @@ async function resolveAuthoringPlanIdentity(
 async function readFromTasksInputs(
   cwd: string,
   activeMetaPath: string,
+  workUnitId: string,
   designInventoryPath: string,
+  requireDesignCoherence: boolean,
+  explicitTaskListPath?: string,
 ): Promise<{
   readonly status: "ok";
   readonly taskListPath: string;
@@ -698,17 +768,42 @@ async function readFromTasksInputs(
   readonly designInventory: unknown;
 } | { readonly status: "refused"; readonly reason: string }> {
   let meta: ReturnType<typeof parseMetaFile>;
+  let metaRecord: ReturnType<typeof parseMetaRecord>;
   try {
-    meta = parseMetaFile(await readFile(resolve(cwd, activeMetaPath), "utf8"));
+    const metaContent = await readFile(resolve(cwd, activeMetaPath), "utf8");
+    meta = parseMetaFile(metaContent);
+    metaRecord = parseMetaRecord(metaContent);
   } catch {
     return { status: "refused", reason: "active-work-unit-unreadable" };
   }
-  if (meta.taskList === null || meta.taskList === "[none]") {
+  if (explicitTaskListPath === undefined && (meta.taskList === null || meta.taskList === "[none]")) {
     return { status: "refused", reason: "task-list-path-unresolved" };
   }
-  const taskListPath = resolveRepositoryPath(cwd, `${dirname(activeMetaPath)}/${meta.taskList}`);
+  const candidate = explicitTaskListPath
+    ?? `${dirname(activeMetaPath)}/${String(meta.taskList)}`;
+  const taskListPath = resolveRepositoryPath(cwd, candidate);
   if (taskListPath === null) {
     return { status: "refused", reason: "task-list-path-invalid" };
+  }
+  if (explicitTaskListPath !== undefined) {
+    const expected = `${dirname(activeMetaPath).replaceAll("\\", "/")}/tasks-${workUnitId}.md`;
+    if (taskListPath !== expected) {
+      return { status: "refused", reason: "task-list-path-invalid" };
+    }
+    try {
+      const realRoot = await realpath(cwd);
+      const realTaskList = await realpath(resolve(cwd, taskListPath));
+      const realRelation = relative(realRoot, realTaskList);
+      if (realRelation === ""
+        || realRelation === ".."
+        || realRelation.startsWith("../")
+        || realRelation.startsWith("..\\")
+        || isAbsolute(realRelation)) {
+        return { status: "refused", reason: "task-list-path-invalid" };
+      }
+    } catch {
+      // Preserve the established task-list-unreadable refusal below for missing or inaccessible files.
+    }
   }
   let taskListContent: string;
   let designInventory: unknown;
@@ -716,6 +811,15 @@ async function readFromTasksInputs(
     taskListContent = await readFile(resolve(cwd, taskListPath), "utf8");
   } catch {
     return { status: "refused", reason: "task-list-unreadable" };
+  }
+  if (requireDesignCoherence) {
+    const taskDesign = /^- \*\*Design:\*\*\s+`([^`]+)`\s*$/mu.exec(taskListContent)?.[1];
+    if (taskDesign === undefined
+      || metaRecord.design.length === 0
+      || metaRecord.design.length > 2
+      || !metaRecord.design.includes(taskDesign)) {
+      return { status: "refused", reason: "task-list-design-incoherent" };
+    }
   }
   try {
     designInventory = JSON.parse(await readFile(resolve(cwd, designInventoryPath), "utf8")) as unknown;

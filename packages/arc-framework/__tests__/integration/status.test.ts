@@ -67,6 +67,7 @@ import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
 import { createSessionRemoteContextReader } from "../../src/handlers/status-remote-context.js";
+import { DeliveryPositionViewSchema } from "../../src/lib/session-init/delivery-position.js";
 
 interface Fixture {
   root: string;
@@ -634,7 +635,25 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
         "- **Task List:** `.arc/active/tasks-foo.md`",
       ].join("\n"),
     );
-    await writeFile(join(fixture.activeDir, "tasks-foo.md"), "# tasks\n");
+    await writeFile(
+      join(fixture.activeDir, "tasks-foo.md"),
+      [
+        "# Task List: Foo",
+        "",
+        "<!-- arc:delivery-plan:start -->",
+        "## Delivery Plan",
+        "",
+        "- **Plan Revision:** `1`",
+        `- **Plan Digest:** \`sha256:${"a".repeat(64)}\``,
+        "- **Projection:** `stack-to-main`",
+        "<!-- arc:delivery-plan:end -->",
+        "",
+        "## **Phase 1:** Fixture",
+        "",
+        "### `[ ]` **1.1 Exercise the envelope**",
+        "",
+      ].join("\n"),
+    );
     await writeFile(join(fixture.activeDir, "notes-foo.md"), "# notes\n");
     await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# atomic\n");
   });
@@ -654,6 +673,53 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
       expect(result.active.value.companions).toBeUndefined();
+    }
+  });
+
+  it("isolates delivery orientation from every sibling session projection", async () => {
+    const baseline = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: makeSessionInitProbes(fixture),
+    });
+    const coherent = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: {
+        ...makeSessionInitProbes(fixture),
+        deliveryPosition: async () => DeliveryPositionViewSchema.parse({
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+          workUnitId: "foo",
+          landedCount: 1,
+          totalCount: 2,
+          activeOperation: null,
+          line: "Delivery position: 1/2 landed; active operation: none.",
+        }),
+      },
+    });
+    const degraded = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: {
+        ...makeSessionInitProbes(fixture),
+        deliveryPosition: async () => {
+          throw new Error("delivery observation unavailable");
+        },
+      },
+    });
+
+    expect(coherent.deliveryPosition).toMatchObject({ ok: true, value: { landedCount: 1, totalCount: 2 } });
+    expect(degraded.deliveryPosition).toMatchObject({ ok: false });
+    for (const result of [coherent, degraded]) {
+      expect(result.taskCursor).toEqual(baseline.taskCursor);
+      expect(result.derivedLocusState).toEqual(baseline.derivedLocusState);
+      expect(result.loadSet).toEqual(baseline.loadSet);
+      expect(result.active).toEqual(baseline.active);
+      if (result.active.ok && baseline.active.ok) {
+        expect(result.active.value.sessionType).toBe(baseline.active.value.sessionType);
+        expect(result.active.value.currentWorkflow).toBe(baseline.active.value.currentWorkflow);
+      }
+      expect(result.recommendedCombinedPrompt).toEqual(baseline.recommendedCombinedPrompt);
     }
   });
 });

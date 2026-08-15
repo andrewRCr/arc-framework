@@ -23,6 +23,25 @@ export const DeliveryPositionFactsV1Schema = DeliveryOperationSnapshotV1Schema.e
 });
 export type DeliveryPositionFactsV1 = z.infer<typeof DeliveryPositionFactsV1Schema>;
 
+/**
+ * Resolve the exact predecessor head for one observed member.
+ *
+ * @param facts - Fresh exact delivery-position facts.
+ * @param memberIndex - Zero-based member position in plan order.
+ * @returns The predecessor head, or null when an unlanded predecessor has no coordinates.
+ */
+export function resolveDeliveryPredecessorHead(
+  facts: DeliveryPositionFactsV1,
+  memberIndex: number,
+): string | null {
+  const targetHead = facts.target?.coordinates?.head ?? null;
+  if (memberIndex === 0) return targetHead;
+  const previous = facts.members[memberIndex - 1];
+  if (previous === undefined) return null;
+  if (previous.coordinates !== null) return previous.coordinates.head;
+  return facts.landedDeliverableIds.includes(previous.deliverableId) ? targetHead : null;
+}
+
 /** Current labels derived from plan order, state bindings, and host facts. */
 export interface DeliveryPositionV1 {
   readonly landedPrefix: readonly CanonicalDigest[];
@@ -57,6 +76,16 @@ export type AssessDeliveryMemberReadinessFailure = DeriveDeliveryPositionFailure
 export type AssessDeliveryMemberReadinessResult =
   | { readonly status: "ready"; readonly position: DeliveryPositionV1 }
   | { readonly status: "blocked"; readonly reason: AssessDeliveryMemberReadinessFailure };
+
+/** The sole coordinate movement tolerated by suffix-reconciliation recognition. */
+export type RecognizeDeliverySuffixRetargetResult =
+  | {
+      readonly status: "recognized";
+      readonly deliverableId: CanonicalDigest;
+      readonly before: z.infer<typeof DeliveryOperationSnapshotV1Schema>;
+      readonly requested: z.infer<typeof DeliveryOperationSnapshotV1Schema>;
+    }
+  | { readonly status: "refused"; readonly reason: DeriveDeliveryPositionFailure };
 
 /**
  * Derive current delivery labels without persisting aggregate status.
@@ -100,6 +129,7 @@ export function deriveDeliveryPosition(
     members: parsedState.data.members.map((member) => ({
       deliverableId: member.deliverableId,
       ref: member.ref,
+      changeRequest: member.changeRequest,
       coordinates: member.coordinates,
     })),
   };
@@ -125,6 +155,86 @@ export function deriveDeliveryPosition(
       firstUnlanded: firstUnlanded ?? null,
       boundSuffix,
     },
+  };
+}
+
+/**
+ * Recognize exactly one already-observed first-suffix retarget without weakening ordinary position reads.
+ *
+ * @param plan - Current authored plan revision
+ * @param state - Current exact delivery state with no active operation
+ * @param facts - Fresh facts in which only the first unlanded member may have moved
+ * @returns Exact before/requested snapshots for a post-observation rewrite reservation
+ */
+export function recognizeDeliverySuffixRetarget(
+  plan: DeliveryPlanV1,
+  state: DeliveryStateV1,
+  facts: unknown,
+): RecognizeDeliverySuffixRetargetResult {
+  if (validateDeliveryPlanRecord(plan).status === "refused") {
+    return { status: "refused", reason: "plan-invalid" };
+  }
+  const parsedState = DeliveryStateV1Schema.safeParse(state);
+  if (!parsedState.success) return { status: "refused", reason: "state-invalid" };
+  if (validateDeliveryStateAgainstPlan(parsedState.data, plan).status === "refused") {
+    return { status: "refused", reason: "stale-plan-binding" };
+  }
+  if (parsedState.data.activeOperation !== null) {
+    return { status: "refused", reason: "operation-active" };
+  }
+  const parsedFacts = DeliveryPositionFactsV1Schema.safeParse(facts);
+  if (!parsedFacts.success) return { status: "refused", reason: "facts-invalid" };
+  const ids = plan.members.map((member) => member.deliverableId);
+  if (canonicalize(parsedFacts.data.members.map((member) => member.deliverableId)) !== canonicalize(ids)) {
+    return { status: "refused", reason: "member-sequence-invalid" };
+  }
+  const landedCount = parsedFacts.data.landedDeliverableIds.length;
+  if (landedCount < 1 || landedCount >= ids.length
+    || canonicalize(parsedFacts.data.landedDeliverableIds) !== canonicalize(ids.slice(0, landedCount))) {
+    return { status: "refused", reason: "landed-sequence-invalid" };
+  }
+  if (canonicalize(parsedFacts.data.target) !== canonicalize(parsedState.data.target)) {
+    return { status: "refused", reason: "coordinates-moved" };
+  }
+  const candidate = parsedState.data.members[landedCount];
+  const observed = parsedFacts.data.members[landedCount];
+  const target = parsedState.data.target;
+  if (candidate === undefined || observed === undefined || candidate.coordinates === null
+    || observed.coordinates === null || target?.coordinates == null
+    || candidate.ref !== observed.ref
+    || canonicalize(candidate.changeRequest) !== canonicalize(observed.changeRequest)
+    || observed.coordinates.base !== target.coordinates.head
+    || canonicalize(candidate.coordinates) === canonicalize(observed.coordinates)) {
+    return { status: "refused", reason: "coordinates-moved" };
+  }
+  for (const [index, member] of parsedState.data.members.entries()) {
+    if (index === landedCount) continue;
+    const fresh = parsedFacts.data.members[index];
+    if (fresh === undefined || canonicalize({
+      deliverableId: member.deliverableId,
+      ref: member.ref,
+      changeRequest: member.changeRequest,
+      coordinates: member.coordinates,
+    }) !== canonicalize(fresh)) return { status: "refused", reason: "coordinates-moved" };
+  }
+  const before = {
+    target: parsedState.data.target,
+    members: [{
+      deliverableId: candidate.deliverableId,
+      ref: candidate.ref,
+      changeRequest: candidate.changeRequest,
+      coordinates: candidate.coordinates,
+    }],
+  };
+  const requested = {
+    target: parsedState.data.target,
+    members: [observed],
+  };
+  return {
+    status: "recognized",
+    deliverableId: candidate.deliverableId as CanonicalDigest,
+    before,
+    requested,
   };
 }
 

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import { writeDevBuildStamp } from "./src/lib/dev-check.js";
 import { registerDeliveryDomainSchemas } from "./src/lib/delivery/schema.js";
+import { registerDeliveryAuthoringSchemas } from "./src/lib/delivery/design-inventory.js";
 import { createKernelRegistry } from "./src/lib/kernel/index.js";
 import { writeKernelSchemaArtifact } from "./src/lib/kernel/schema/generate.js";
 import { registerSessionEnvelopeSchemas } from "./src/lib/session-envelope/registry.js";
@@ -26,9 +27,9 @@ export const baseOptions = {
   onSuccess: async () => {
     const pkgDir = import.meta.dirname;
     const outDir = resolve(pkgDir, "dist");
-    const registry = registerSessionEnvelopeSchemas(
+    const registry = registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
       registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
-    );
+    ));
     await writeKernelSchemaArtifact({
       outDir,
       registry,

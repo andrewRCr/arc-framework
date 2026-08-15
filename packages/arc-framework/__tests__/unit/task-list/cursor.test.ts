@@ -76,6 +76,23 @@ describe("task-list cursor schemas", () => {
 });
 
 describe("resolveTaskListCursor", () => {
+  it("starts at Task 1.1 after a task-shaped provisional Delivery Plan", () => {
+    const result = resolveTaskListCursor(taskList([
+      "## Delivery Plan",
+      "",
+      "### `[ ]` **9.9 Provisional member**",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 First executable task**",
+    ]));
+
+    expect(result).toMatchObject({
+      status: "found",
+      cursor: { section: { id: "1.1" }, leaf: { id: "1.1" } },
+    });
+  });
+
   it("returns the parent section and first open subtask leaf", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",

@@ -69,6 +69,10 @@ export interface DeliveryPlanStore<TPlan> {
   readCurrent(
     planId: string,
   ): Promise<DeliveryStoreResult<TPlan | null, DeliveryPlanStoreFailure>>;
+  restoreExact(
+    planId: string,
+    plan: TPlan,
+  ): Promise<DeliveryStoreResult<{ readonly currentDigest: CanonicalDigest }, DeliveryPlanStoreFailure>>;
   publishCurrent(
     planId: string,
     plan: TPlan,

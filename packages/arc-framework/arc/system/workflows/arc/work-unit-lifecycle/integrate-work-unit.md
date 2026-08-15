@@ -110,10 +110,21 @@ When inactive, continue with the typed pre-publication procedure.
 
 From the local Candidate branch, compose the immutable policy target
 `{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
-For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
-whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
-`arc review resolve -`. The chunking recommendation informs this bounded scope judgment — apply the
-[`review-chunking` method][review-chunking] to make it; the workflow never recomputes thresholds.
+Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
+selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` hold-whole decision stays
+silent while the current evidence is semantically unchanged; invocation, elapsed time, and restatement are not
+material deltas. Otherwise invoke `arc review chunking resolve -` once, including an existing exact-target
+`scopeSelection` when one exists, and retain its target statistics. Dispatch only on its closed pair:
+
+- `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
+  `evidence-unavailable / continue-review` — render no attention text and continue review.
+- `consider-chunks / select-review-scope` — render `recommendedActionText` verbatim, then apply the
+  [`review-chunking` method][review-chunking] to the bounded scope judgment.
+- `delivery-bound / continue-review` — render `recommendedActionText` verbatim and continue through the bound
+  delivery plan; never also offer chunked review.
+
+Select whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
+`arc review resolve -`. The workflow never recomputes thresholds or compares typed delivery state in prose.
 
 Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
 `nextAction` pair:
@@ -482,8 +493,16 @@ same command after the returned deadline. `invalidated / checkpoint` returns to 
 stops. The integration interlock is the sole merge authority.
 
 **Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the
-merge already landed (attended elsewhere, or unattended on the auto-merge lane); proceed straight to `arc user
-close`.
+merge already landed (attended elsewhere, or unattended on the auto-merge lane); enter the same attachment below.
+
+Invoke the typed delivery terminal post-merge attachment exactly once with the freshly observed merged request and
+retained control identity. `attached`, `already-attached`, and `not-applicable` continue; `blocked` stops before
+user-workspace close or branch teardown. This call only adopts an exact terminal result through the delivery-state
+CAS: it takes no reservation, adds no authorization, and runs identically after a fresh merge or merged-PR resume.
+
+```bash
+arc delivery terminal attach - --json
+```
 
 Retire the per-WU user workspace subdir (filesystem op only, no git ops — contents are gitignored):
 

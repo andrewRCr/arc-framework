@@ -100,6 +100,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                                                  | Cohort                     |
 | --------------------------------- | -------- | ------ | ----------------------------------------------------------- | -------------------------- |
+| delivery-native-stack-composition | P1       | andrew | integration-boundary-accuracy                               | chunked-delivery           |
 | review-source-authority           | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment  |
 | unit-scoped-review                | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
 | review-orchestration-right-sizing | P2       | andrew | retrospective-right-sizing                                  | —                          |

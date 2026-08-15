@@ -288,6 +288,12 @@ skip_extensions=$(arc_config_get "hooks.skip_extensions" "md|yml|yaml|json|toml|
 test_patterns=$(arc_config_get "hooks.test_patterns" "__tests__/|\.test\.|\.spec\.|/test/|/tests/")
 strict_meta_ref_patterns=$(arc_config_get "hooks.strict_meta_ref_patterns" "PRD R[0-9]+|\b[RB][0-9]+\b|§ ")
 meta_ref_patterns=$(arc_config_get "hooks.meta_ref_patterns" "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md")
+# During a merge, `git diff --cached` is versus HEAD, so parent content
+# reads as author-added and already-landed tokens re-trigger. When
+# MERGE_HEAD exists, keep only lines added against both parents — content
+# already on HEAD or MERGE_HEAD stays out of scope; author-written
+# conflict resolutions and extra edits remain.
+merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null || true)
 meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^packages/.*/arc/" | \
@@ -295,7 +301,17 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -vE "(^|/)(\.[a-z]*ignore|\.gitattributes)$" | \
     grep -vE "\.($skip_extensions)$" | \
     while IFS= read -r file; do
-        added=$(git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' || true)
+        if [ -n "$merge_head" ]; then
+            added_vs_head=$(git diff HEAD -U0 --cached -- "$file" 2>/dev/null | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+            added_vs_merge=$(git diff "$merge_head" -U0 --cached -- "$file" 2>/dev/null | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+            if [ -z "$added_vs_head" ] || [ -z "$added_vs_merge" ]; then
+                added=""
+            else
+                added=$(comm -12 <(printf '%s\n' "$added_vs_head" | sort) <(printf '%s\n' "$added_vs_merge" | sort) || true)
+            fi
+        else
+            added=$(git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' || true)
+        fi
         [ -z "$added" ] && continue
 
         # Strict patterns apply to all staged code. Strip known false-positive

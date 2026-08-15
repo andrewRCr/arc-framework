@@ -206,6 +206,19 @@ export async function runSessionInitStatus(
         extensions.isOk() ? extensions.value.active : [],
       ));
   const active = derivedLocusState.map(projectDerivedActiveSession);
+  const owningWorkUnitId = derivedLocusState.isOk()
+    && derivedLocusState.value.active?.subject.kind === "work-unit"
+      ? derivedLocusState.value.active.subject.key
+      : null;
+  const deliveryPositionProbe = probes.deliveryPosition;
+  const deliveryPosition = owningWorkUnitId === null
+    ? undefined
+    : deliveryPositionProbe === undefined
+      ? ok(null)
+      : await remote.run(
+          "deliveryPosition",
+          (context) => deliveryPositionProbe(context, { workUnitId: owningWorkUnitId }),
+        );
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
   // to "primary" (surface nothing) rather than masking the whole worktree slot.
@@ -506,6 +519,7 @@ export async function runSessionInitStatus(
     domainRules: toProbe(domainRules),
     releaseRouting: toProbe(releaseRouting),
     ...(currentWuReconcile !== undefined ? { currentWuReconcile: toProbe(currentWuReconcile) } : {}),
+    ...(deliveryPosition !== undefined ? { deliveryPosition: toProbe(deliveryPosition) } : {}),
     ...(userReferenceReconcile !== undefined
       ? { userReferenceReconcile: toProbe(userReferenceReconcile) }
       : {}),

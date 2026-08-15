@@ -323,6 +323,17 @@ function reportOutcome(label: string, lines: string[], outcome: TransitionOutcom
   p.outro("Done.");
 }
 
+/** Surface a placement-only materialize result without fabricating a lifecycle transition. */
+function reportMaterializeOutcome(
+  label: string,
+  lines: string[],
+  advisories: readonly string[],
+): void {
+  p.note(lines.join("\n"), label);
+  for (const advisory of advisories) p.log.info(advisory);
+  p.outro("Done.");
+}
+
 /** Report a refusal and set a non-zero exit code. */
 function refuse(reason: string): void {
   p.log.error(reason);
@@ -1538,15 +1549,16 @@ export async function handleMaterialize(
       return;
     }
     spinner.stop("Materialize complete.");
-    reportOutcome(
+    reportMaterializeOutcome(
       "Materialized (in place)",
       [
         `Work unit: ${candidate.name}`,
         `Branch:    ${candidate.branch}`,
+        `Worktree:  ${result.worktreePath}`,
         ``,
         `Run \`arc user pull\`, then re-run session init to resume.`,
       ],
-      result.outcome,
+      result.advisories,
     );
     return;
   }
@@ -1575,15 +1587,16 @@ export async function handleMaterialize(
       return;
     }
     spinner.stop("Worktree ready.");
-    reportOutcome(
+    reportMaterializeOutcome(
       "Materialized",
       [
         `Work unit: ${candidate.name}`,
         `Branch:    ${candidate.branch}`,
+        `Worktree:  ${result.worktreePath}`,
         ``,
         `Run \`arc user pull\` in the materialized checkout, then re-run session init to resume.`,
       ],
-      result.outcome,
+      result.advisories,
     );
   }
 }

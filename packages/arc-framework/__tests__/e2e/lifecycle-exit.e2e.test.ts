@@ -44,6 +44,7 @@ import {
   createTempRepo,
   cleanupTempDir,
   removeGitBackedDir,
+  unwrapPresentationOutput,
 } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -519,7 +520,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(started.exitCode, started.stdout + started.stderr).toBe(0);
     const sourceWorktree = `${repo}.origin`;
     worktrees.push(sourceWorktree);
-    expect(started.stdout).toContain(sourceWorktree);
+    expect(unwrapPresentationOutput(started.stdout)).toContain(sourceWorktree);
     expect(await pathExists(sourceWorktree)).toBe(true);
 
     const sourceMetaPath = join(sourceWorktree, ".arc", "active", "meta-origin.md");

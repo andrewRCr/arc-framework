@@ -171,8 +171,8 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "user.notes_push": "on-sync",
       "inbox.remind_after_days": "1",
       "integration.stale_after_days": "2",
-      "review.chunking_threshold_lines": "0",
-      "review.chunking_threshold_files": "0",
+      "changeset.advisory_threshold_lines": "0",
+      "changeset.advisory_threshold_files": "0",
     },
     defaultsApplied: [],
     warnings: [],
@@ -626,6 +626,7 @@ function sessionInitProbes(overrides: SessionInitProbeOverrides = {}): SessionIn
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     currentWuReconcile: vi.fn(cleanCurrentWuReconcile),
+    deliveryPosition: vi.fn(async () => null),
     userReferenceReconcile: vi.fn(cleanUserReferenceReconcile),
     roster: vi.fn(async () => rosterResult()),
     cleanupRoster: vi.fn(async () => rosterResult()),
@@ -2118,6 +2119,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "baseDistance",
       "config",
       "currentWuReconcile",
+      "deliveryPosition",
       "derivedLocusState",
       "dirty",
       "domainRules",
@@ -2190,6 +2192,74 @@ describe("runSessionInitStatus — current work-unit reconcile", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
 
     expect(result.currentWuReconcile).toBeUndefined();
+  });
+});
+
+describe("runSessionInitStatus — delivery position", () => {
+  it("carries a healthy owning-WU value and isolates a failed read", async () => {
+    const active = vi.fn(async () => activeSessionInit({
+      resolution: "single",
+      path: ".arc/active/meta-delivery-plan-record.md",
+      sessionType: "execution",
+    }));
+    const remoteContext = {
+      kind: "available" as const,
+      snapshot: {
+        kind: "available" as const,
+        scope: "all-heads" as const,
+        tips: { main: "a".repeat(40) },
+      },
+      objectAvailability: { kind: "complete" as const, commits: { ["a".repeat(40)]: true } },
+      history: { kind: "complete" as const },
+    };
+    const deliveryPosition = vi.fn(async (_context, { workUnitId }) => ({
+      planId: "123e4567-e89b-42d3-a456-426614174000",
+      workUnitId,
+      landedCount: 1,
+      totalCount: 2,
+      activeOperation: null,
+      line: "Delivery position: 1/2 landed; active operation: none.",
+    }));
+    const healthyProbes = sessionInitProbes({
+      active,
+      remoteContext: vi.fn(async () => remoteContext),
+      deliveryPosition,
+    });
+    const healthy = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes: healthyProbes });
+    expect(healthy.deliveryPosition).toEqual({
+      ok: true,
+      value: expect.objectContaining({ workUnitId: "delivery-plan-record", landedCount: 1 }),
+    });
+    expect(deliveryPosition).toHaveBeenCalledWith(remoteContext, {
+      workUnitId: "delivery-plan-record",
+    });
+
+    const failed = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionInitProbes({
+        active,
+        deliveryPosition: vi.fn(async () => { throw new Error("delivery unavailable"); }),
+      }),
+    });
+    expect(failed.deliveryPosition).toEqual({
+      ok: false,
+      error: { kind: "runtime", message: "delivery unavailable" },
+    });
+    expect(failed.loadSet).toEqual(healthy.loadSet);
+    expect(failed.taskCursor).toEqual(healthy.taskCursor);
+    expect(failed.recommendedCombinedPrompt).toEqual(healthy.recommendedCombinedPrompt);
+  });
+
+  it("omits the slot outside an owning work-unit locus", async () => {
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: sessionInitProbes({
+        active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      }),
+    });
+    expect(result.deliveryPosition).toBeUndefined();
   });
 });
 

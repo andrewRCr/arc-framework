@@ -8,6 +8,10 @@ import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 export const ReviewChunkingResolveRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   target: ReviewTargetSchema,
+  scopeSelection: z.strictObject({
+    mode: z.enum(["whole-target", "chunked"]),
+    target: ReviewTargetSchema,
+  }).readonly().optional(),
 });
 export type ReviewChunkingResolveRequest = z.infer<typeof ReviewChunkingResolveRequestSchema>;
 

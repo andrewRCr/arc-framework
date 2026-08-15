@@ -14,6 +14,28 @@ function taskList(lines: readonly string[]): string {
 }
 
 describe("analyzeTaskList", () => {
+  it("excludes delivery-plan members and seams from phase and task tallies", () => {
+    const result = analyzeTaskList(taskList([
+      "## Delivery Plan",
+      "",
+      "### `[x]` **9.9 Plan member**",
+      "    - `[x]` **9.9.a Named seam**",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 Real task**",
+    ]));
+
+    expect(result).toMatchObject({
+      status: "found",
+      cursor: { section: { id: "1.1" } },
+      tallies: {
+        phase: { current: 1, total: 1 },
+        overall: { done: 0, total: 1 },
+      },
+    });
+  });
+
   it("derives overall, phase, task, and subtask tallies from the cursor grammar", () => {
     const result = analyzeTaskList(taskList([
       "# Task List: analysis",

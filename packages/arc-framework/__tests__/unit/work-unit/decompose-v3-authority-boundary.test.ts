@@ -102,9 +102,9 @@ describe("decomposition v3 authority boundary", () => {
   });
 
   it("keeps shipped methodology v3-only and its project projection synchronized", () => {
-    const packageMethod = readFileSync(join(PACKAGE_ROOT, "arc/system/methods/assess-cohort-fit.md"), "utf8");
+    const packageMethod = readFileSync(join(PACKAGE_ROOT, "arc/system/methods/assess-boundary-fit.md"), "utf8");
     const projectMethod = readFileSync(
-      join(PROJECT_ROOT, ".arc/system/methods/assess-cohort-fit.md"),
+      join(PROJECT_ROOT, ".arc/system/methods/assess-boundary-fit.md"),
       "utf8",
     );
     const packagePark = readFileSync(
@@ -117,6 +117,10 @@ describe("decomposition v3 authority boundary", () => {
     );
 
     expect(projectMethod).toBe(packageMethod);
+    expect(packageMethod).toContain("name: assess-boundary-fit");
+    expect(packageMethod).toContain("stays one WU + delivery-plan candidate");
+    expect(packageMethod).toContain("new-evidence delta");
+    expect(packageMethod).toContain("concern multiplicity is a third axis");
     expect(packageMethod).not.toContain("parentPosition");
     expect(packageMethod).not.toContain("surviving-origin");
     expect(packageMethod).toContain("outside the core");
