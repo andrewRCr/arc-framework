@@ -17,9 +17,13 @@ projection, per-member independent landability, the per-member cut-and-land proc
 Hand-authored. No plan record exists — the identities below are chunk keys, and with a single merge boundary
 there are no deliverables for a record to derive from.
 
+_Amended 2026-08-15 — verification remediation._ The verification boundary's adversarial pass found the landed
+typed surfaces unreachable from production and three control obligations dropped; Phase 7 remediates them and
+Verification moves to Phase 8. Chunk 7 is added as its review boundary. Nothing else in this section changes.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
-in ascending order; the verification task (Phase 7) belongs to no chunk. Chunk closure, complete union coverage
-across the six, and the seam review below carry the review obligation the stack's per-member pull requests would
+in ascending order; the verification task (Phase 8) belongs to no chunk. Chunk closure, complete union coverage
+across the seven, and the seam review below carry the review obligation the stack's per-member pull requests would
 have carried.
 
 | # | Chunk                  | Chunk key                            | Phase | Design elements                |
@@ -30,6 +34,7 @@ have carried.
 | 4 | Checkpoint composition | `integration-checkpoint-composition` | 4     | A, B1, B3–B5, B7               |
 | 5 | Settlement and merge   | `integration-settlement-merge`       | 5     | B2–B4, D2, G, H                |
 | 6 | Workflow convergence   | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I |
+| 7 | Production wiring      | `integration-production-wiring`      | 7     | D1, E3–E4, E6, G2, B1–B2, B6   |
 
 Chunk N covers Phase N exactly, so every chunk resolves to a contiguous commit range and no review pass needs a
 hand-assembled diff.
@@ -606,9 +611,138 @@ now enforce are deleted; the bias-guarding invariants that remain are stated onc
           convergence pending/completion, cap exhaustion, awaiting-checks resume, and unexplained Candidate drift;
           added explicit converged-submit and same-checkpoint resume cases.
 
-## **Phase 7:** Verification
+## **Phase 7:** Production wiring and obligation restoration
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+_Purpose:_ Close the verification boundary's findings — reach the landed typed surfaces from production, and
+restore the three control obligations the convergence rewrite dropped. Review chunk
+`integration-production-wiring`. The findings record, its verified evidence, and why the implementer pass missed
+the blocker class are in `notes-integration-boundary-accuracy.md` § Verification Findings.
+
+_Design decisions:_ The blocker class is one defect, not four — Phase 1's modules landed with their contracts and
+tests but no production callers — so 7.1 through 7.4 sequence as a single wiring pass. Order is load-bearing:
+7.4 ahead of 7.3 would convert today's silent empty composition into a hard `composition-unavailable` block. The
+restored disclosure and readiness gate go to the surface each lane already traverses — the interlock composer and
+the checkpoint's lifecycle read — rather than to new prose invariants, preserving the determinism relocation this
+work unit exists to make.
+
+No success criterion is added or amended. The existing criteria already require these behaviors; the gap was in
+how they were verified, not in what they state.
+
+### `[ ]` **7.1 Register and wire the pre-publication procedure**
+
+- _Goal:_ The typed pre-publication procedure is reachable from the CLI, so the next action every Candidate-bearing
+  locus names is a command that exists, and a standard-review reservation is created on the production path rather
+  than only under test.
+
+    - `[ ]` **7.1.a `arc review pre-publication` registration and handler**
+        - Register the subcommand in `cli.ts` under the `review` namespace and route it to
+          `projectPrePublicationReview`, matching the `<name> --json` shape the four emitting sites already name.
+
+    - `[ ]` **7.1.b Reservation creation on the production path**
+        - Reach `createStandardReviewReservation` from the registered handler so an ordered hosted-first source is
+          reserved before pull-request binding, and the reservation the submission boundary carries is a real one.
+
+    - `[ ]` **7.1.c Command-surface coverage**
+        - Extend the command-inventory and handler suites to assert the subcommand is registered and that every
+          locus-emitted corrective command resolves to a registered command.
+
+### `[ ]` **7.2 Close the submission-boundary write path**
+
+- _Goal:_ `arc submit` succeeds on its first call over a ready Candidate — the durable boundary is written where
+  the pre-publication locus settles, not by the consumer that refuses without it.
+
+    - `[ ]` **7.2.a Write the boundary at the pre-publication settle point**
+        - Move the `writeSubmissionBoundary` call out of `handleSubmit`'s post-transition tail to the point where
+          the locus reduces to `candidate-submit-ready`, keeping the file's canonical shape and staged-effect
+          behavior unchanged.
+
+    - `[ ]` **7.2.b Submit over a first-call boundary**
+        - `handleSubmit` reads the settled boundary, retains its idempotent repeat-from-`Integrating` arm, and
+          keeps refusing when no boundary exists — a state that is now reachable only by genuinely open
+          obligations.
+
+    - `[ ]` **7.2.c End-to-end reachability proof**
+        - Cover `propose → pre-publication → submit` against the real CLI, so the spine's first-call path is
+          proven by execution rather than by injected dependencies.
+
+### `[ ]` **7.3 Advance Candidate lineage in production**
+
+- _Goal:_ An approved review response and its delta-verification evidence append to the managed Candidate record,
+  so lineage currentness, the `implementationChanged` reduction, and B1's convergence guard all reach live paths.
+
+    - `[ ]` **7.3.a Response append on the production path**
+        - Reach `recordCandidateVerifiedResponse` from the registered handler and persist the appended record, so
+          `responses` is written by something other than `propose`'s empty literal.
+
+    - `[ ]` **7.3.b Convergence-guard reachability**
+        - Cover a review-fix lineage that drives `implementationChanged` true, blocks the checkpoint on pending
+          convergence, and clears through `arc propose` — the guard at `checkpoint.ts` proven reachable.
+
+### `[ ]` **7.4 Compose the checkpoint's review record and settlement plan**
+
+- _Goal:_ The checkpoint persists the review record and canonical settlement plan the approver decides on, and the
+  merge verb posts and executes exactly that composition.
+
+    - `[ ]` **7.4.a Review-record composition**
+        - Replace the hardcoded null record in `checkpoint-composition.ts` with composition from the Candidate's
+          responses, preserving the schema's record/disposition-identity invariant.
+
+    - `[ ]` **7.4.b Settlement-plan composition**
+        - Replace the hardcoded empty plan with the canonical cross-channel plan built from the same responses, so
+          the digest binds a plan that has actions in it.
+
+    - `[ ]` **7.4.c Review-bearing checkpoint and merge coverage**
+        - Cover a review-bearing work unit through checkpoint and merge: the record posts, the plan executes
+          idempotently, and drift or handle substitution still fails closed.
+
+### `[ ]` **7.5 Restore the review-applicability disclosure at the work-unit interlock**
+
+- _Goal:_ The facts § G2 priced the `Coverage` deletion against — every review applicability call, targeted
+  verification, and the candidate-tail diff — are surfaced at the stop on both lanes, not just the errand one.
+
+    - Restore the item to the work-unit interlock callout in both copies, matching `run-errand.md`'s surviving
+      wording so the lanes stop diverging.
+    - Keep the nine-signal composer count intact: the disclosure is a surfaced item, not a tenth machine signal —
+      Criterion 2 and the composer's structural tests pin that count.
+
+### `[ ]` **7.6 Restore the lifecycle-artifact readiness gate on a lock-independent path**
+
+- _Goal:_ Completion Notes and any applicable Release Notes are verified before merge in every lock mode, closing
+  the `merge.lock: none` hole where nothing checks them.
+
+    - Fold the artifact-presence read into the checkpoint's own lifecycle composition — the one gate both lock
+      modes traverse — rather than restoring a workflow-prose step or depending on the lock release.
+    - Cover the `none` lock mode explicitly: a work unit missing Completion Notes must not reach a `ready` verdict.
+
+### `[ ]` **7.7 Restore the errand lane's pre-create head re-validation**
+
+- _Goal:_ No pull request is created against a head that changed after validation, in either lane.
+
+    - Reinstate the remote-head comparison against `proposedChangeRequest.headSha` in both copies of
+      `run-errand.md`, positioned after the `pre-pr-open` actions and immediately before creation.
+    - `pre-pr-open` is project-authored and guaranteed only retry-safe, so resolver-time validation upstream of it
+      does not cover this window.
+
+### `[ ]` **7.8 Name a corrective command on every spine refusal**
+
+- _Goal:_ Every checkpoint, merge, and submit refusal names the failed invariant and one corrective command, per
+  Criterion 15's closing clause.
+
+    - Carry a corrective command alongside the typed reason on the blocked envelopes rather than widening
+      `nextAction` — `candidate-convergence-pending` names `arc propose`, the merge-method and relock reasons name
+      their own remedies.
+    - Give `submit`'s string refusals the same treatment.
+
+### `[ ]` **7.9 Correct the `arc integrate` command reference**
+
+- _Goal:_ `QUICK-REFERENCE` describes the namespace as it shipped.
+
+    - List `arc integrate checkpoint` and `arc integrate merge` and stop presenting bare `arc integrate` as
+      invocable, in both copies.
+
+## **Phase 8:** Verification
+
+### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 ---
 

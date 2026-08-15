@@ -123,6 +123,70 @@ against the delivered implementation of every predecessor it composes (`merge-re
 assumptions and substrate references; preserve settled design unless delivered behavior materially invalidates
 it, and route any such invalidation back through spec review. Last run 2026-08-12 (spec re-ground).
 
+## Verification Findings
+
+Recorded 2026-08-15 at the verification boundary, from the advisory adversarial pass (`adversarial-review`, pass
+one of two, `Heavy` cap). Every finding below was verified against source before it was recorded; the pass ran
+from fresh context with the implementer's success-criteria markings withheld. Phase 7 remediates them.
+
+**Why the self-verify missed the blocker class.** The implementer pass validated each criterion against the new
+typed modules and their unit suites, which pass because they inject their dependencies. It did not trace whether a
+production caller reaches those modules. Every blocker below is invisible to that method and visible to a
+call-graph read — the durable lesson for this boundary is that a criterion naming a runtime behavior needs a
+reachability check, not a contract check.
+
+### The blocker class — production wiring absent
+
+Phase 1's typed surfaces landed with their contracts and tests; the CLI registration and write paths that reach
+them did not. The spine `propose → pre-publication → submit → checkpoint → merge` has no executable path.
+
+| # | Defect                                                                                   | Verified evidence                                                                                                                                                                                                                                                        | Criteria |
+| - | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| 1 | `arc submit` refuses unconditionally on first call                                       | `handlers/lifecycle.ts:1654` refuses when `readSubmissionBoundary` is null; the sole production `writeSubmissionBoundary` caller is `:1706`, inside `handleSubmit` after `runSubmit` succeeded                                                                           | 4, 6, 9  |
+| 2 | The pre-publication procedure is unreachable and its next-action command is unregistered | `pre-publication-procedure.ts` has zero `src/` importers; four production sites emit `arc review pre-publication <wu> --json` while `cli.ts` registers no such subcommand; `createStandardReviewReservation` has no production caller, so no reservation is ever created | 6, 7, 15 |
+| 3 | The checkpoint composes no review record and no settlement plan                          | `checkpoint-composition.ts:276` hardcodes `reviewRecord: { markdown: null, … }`; `:279` hardcodes an empty `composeSettlementPlan`                                                                                                                                       | 3        |
+| 4 | Candidate lineage never advances                                                         | `responses` is written in production only as the literal `[]` at `propose.ts:129`; the appender lives in the unreachable module                                                                                                                                          | 5, 7     |
+
+Defects 3 and 4 interlock: the always-empty `responses` keeps `dispositionIds` empty, so the record/plan
+invariants at `checkpoint.ts:88` and `:377` hold vacuously and the composition fails **silently** rather than
+throwing. Restoring the lineage writer without also composing the record would convert this into a hard
+`composition-unavailable` block, so the two land together.
+
+### Obligation losses
+
+- **The `G2` disclosure the `Coverage` cut was priced against.** `main`'s interlock callout enumerated "every
+  review applicability call and targeted verification" and the complete candidate-tail diff. The rewritten
+  work-unit callout surfaces the nine-signal composer text alone, and no signal kind covers review applicability
+  or targeted verification. Spec § G2 licenses "nothing replaces it" precisely because those facts stay surfaced
+  live at the stop. The errand lane still carries the item, so the two lanes diverge. Criterion 12's literal
+  text holds; its justification does not.
+- **The lifecycle-artifact readiness gate under `merge.lock: none`.** `main` ran `arc status --json` product
+  validation and `arc review readiness -` before merge, independent of lock mode; both are deleted from the
+  workflow. The only surviving production reach is through the lock release, and `merge-lock.ts:214` returns
+  `noLock("lock-disabled")` before `gateCandidateReadiness` at `:230`. Under that supported configuration a work
+  unit can merge with no Completion Notes. Not one of Goal 5's four authorized relocations, and no covering
+  enforcement was named — Criterion 14 classes that as a defect.
+- **The errand lane's pre-create head re-validation.** `main` re-read the remote head and compared it to
+  `proposedChangeRequest.headSha` immediately before `gh pr create`, after the `pre-pr-open` actions ("Never
+  create against a head that changed after validation"). The rewrite deletes it and leaves head validation only
+  at `arc review change-request resolve`, which runs _before_ those actions. `pre-pr-open` is project-authored
+  and guaranteed only retry-safe, so the window the deleted sentence closed is open again. Spec D1 authorizes
+  folding the _work-unit_ lane's _missing_ check into the resolver; it does not authorize relocating the errand
+  lane's existing one earlier.
+
+### Surface residue
+
+- Checkpoint and merge refusals fix `nextAction: "stop"` for every blocked reason and carry no corrective
+  command, against Criterion 15's closing clause.
+- `QUICK-REFERENCE` presents bare `arc integrate` as invocable — it errors — and omits `checkpoint` and `merge`,
+  which landed here.
+
+### Raised and not confirmed
+
+The pass flagged two further `integrate` residues that are not defects: `draft-roadmap-tooling.md`, which the
+spec's own inventory classes as a forward-reference rather than an invocation, and a `reopen.test.ts` docstring
+outside the five inventoried test files.
+
 ## Resume Procedure
 
 1. Resume `generate-tasks` from the stack-member seed above under the amended spec — structural skeleton from
