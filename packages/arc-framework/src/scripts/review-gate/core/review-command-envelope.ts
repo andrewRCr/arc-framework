@@ -477,6 +477,28 @@ export const RespondEnvelopeSchema = z.union([
       ...TargetPairPayloadSchema.shape,
     }),
   ),
+  envelopeVariant(
+    "review-respond",
+    "candidate-advanced",
+    "continue-review",
+    z.strictObject({
+      operationId: IdentifierSchema,
+      candidateId: CanonicalDigestSchema,
+      responseId: CanonicalDigestSchema,
+      recordPath: DurableReferenceSchema,
+      implementationChanged: z.boolean(),
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "candidate-current",
+    "continue-review",
+    z.strictObject({
+      operationId: IdentifierSchema,
+      candidateId: CanonicalDigestSchema,
+      implementationChanged: z.boolean(),
+    }),
+  ),
 ]);
 
 const ReductionBasePayload = {

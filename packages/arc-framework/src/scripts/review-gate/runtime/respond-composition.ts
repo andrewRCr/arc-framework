@@ -1,8 +1,15 @@
 /** Production assembly for approved review dispositions. */
 
+import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
+import {
+  readCandidateRecord,
+  writeCandidateRecord,
+} from "../../../lib/work-unit/candidate-record-store.js";
+import { collectGitCandidateTarget } from "../../../lib/work-unit/git-candidate-subject.js";
 import {
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
@@ -49,6 +56,30 @@ export function createRespondDependencies(input: {
         approverIdentity: live.context.activeIdentity,
         proposerIdentity: `arc-cli/${getFrameworkVersion()}`,
       };
+    },
+    readCandidateLineage: async () => {
+      const active = await resolveActiveWu({ cwd: input.cwd });
+      if (active.status !== "resolved" || active.name === "") return null;
+      const record = await readCandidateRecord(input.cwd, active.name);
+      if (record === null) return null;
+      const { settings } = await readConfigSettings(input.cwd);
+      return {
+        workUnit: active.name,
+        record,
+        current: await collectGitCandidateTarget({
+          cwd: input.cwd,
+          name: active.name,
+          baseBranch: settings["branch.base"],
+          exec: input.exec,
+        }),
+      };
+    },
+    // Staged like the record `propose` publishes: the Candidate's own projection never enters the
+    // reviewable subject, so staging it advances the lineage without disturbing what review sees.
+    appendCandidateResponse: async ({ workUnit, record }) => {
+      const recordPath = await writeCandidateRecord(input.cwd, workUnit, record);
+      await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
+      return { recordPath };
     },
   };
 }

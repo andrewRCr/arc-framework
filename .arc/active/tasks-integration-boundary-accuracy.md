@@ -790,18 +790,35 @@ how they were verified, not in what they state.
   forward of submission's currentness check exposed the subject-classification gap that the boundary, unlike the
   record, had never hit.
 
-### `[ ]` **7.4 Advance Candidate lineage in production**
+### `[x]` **7.4 Advance Candidate lineage in production**
 
 - _Goal:_ An approved review response and its delta-verification evidence append to the managed Candidate record,
   so lineage currentness, the `implementationChanged` reduction, and B1's convergence guard all reach live paths.
 
-    - `[ ]` **7.4.a Response append on the production path**
-        - Reach `recordCandidateVerifiedResponse` from the registered handler and persist the appended record, so
-          `responses` is written by something other than `propose`'s empty literal.
+    - `[x]` **7.4.a Response append on the production path**
+        - `arc review respond` gained a settlement pass: the same approved dispositions and durable source,
+          resubmitted with the `verifiedFix` block the primary owns (applicability plus verification evidence). It
+          hosts the append because it is the only surface that validates the disposition digest and both actor
+          identities against durable records — supplying them anywhere else would restore agent-owned authority.
+        - The pass reaches `ready-to-persist` through the response planner, whose production caller had pinned
+          `persist: false` with a null candidate target — the same landed-but-unwired shape as the checkpoint's
+          hardcoded record. The changed target it needs is the stale reading the approval pass treats as a dead
+          end, so a landed fix is what distinguishes the two passes rather than a separate verb.
+        - Lineage targets stay CLI-derived: `projectCandidateDeltaVerification` reduces the recognized head and the
+          indexed subject, and an already-explained subject appends nothing, so a repeated pass is a no-op rather
+          than a second empty response. The appended record stages like `propose`'s.
 
-    - `[ ]` **7.4.b Convergence-guard reachability**
-        - Cover a review-fix lineage that drives `implementationChanged` true, blocks the checkpoint on pending
-          convergence, and clears through `arc propose` — the guard at `checkpoint.ts` proven reachable.
+    - `[x]` **7.4.b Convergence-guard reachability**
+        - Added `candidate-lineage.e2e.test.ts`: `propose → local review → respond → propose` through the public
+          verbs, with the checkpoint run over the production Candidate reader. Only the host- and artifact-dependent
+          reads ahead of the guard are stubbed, so the branch under test is decided by the record the commands wrote.
+        - The advanced lineage blocks on `candidate-convergence-pending` and clears through the convergence
+          `arc propose`; a second case pins the repeat pass.
+
+- _Outcome:_ The lineage advances from an approved fix rather than only from `propose`'s empty literal, which
+  turns the checkpoint's vacuously-true convergence guard into one a live record can fail. Scoping surfaced a
+  decision the task text left open — which registered handler hosts the append — and the disposition binding
+  settled it: only respond holds a digest and actors it can validate.
 
 ### `[ ]` **7.5 Compose the checkpoint's review record and settlement plan**
 

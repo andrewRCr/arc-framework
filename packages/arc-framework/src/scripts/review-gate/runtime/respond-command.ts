@@ -4,6 +4,13 @@ import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import {
+  CandidateManagedRecordV1Schema,
+  CandidateVerificationApplicabilitySchema,
+  projectCandidateCurrentness,
+  type CandidateLineageTarget,
+  type CandidateManagedRecordV1,
+} from "../../../lib/work-unit/candidate-attestation.js";
+import {
   ApprovedDispositionRecordSchema,
   FrontlineOutcomeRecordSchema,
   type ApprovedDispositionRecord,
@@ -41,6 +48,10 @@ import {
 } from "../core/response-plan-schema.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
 import {
+  projectCandidateDeltaVerification,
+  recordCandidateVerifiedResponse,
+} from "../policy/pre-publication-procedure.js";
+import {
   projectFrontlineResponse,
 } from "../policy/frontline-response.js";
 import {
@@ -69,7 +80,20 @@ const RespondProposalRequestSchema = z.strictObject({
   }),
 });
 
-const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema;
+/**
+ * The one judgment the repository cannot establish: how much verification the applied fix warranted.
+ *
+ * Its presence is what distinguishes the post-fix settlement pass from the approval pass — the same
+ * approved dispositions and durable source, submitted once the fix has landed and been verified.
+ */
+const RespondVerifiedFixSchema = z.strictObject({
+  applicability: CandidateVerificationApplicabilitySchema,
+  verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
+});
+
+const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.extend({
+  verifiedFix: RespondVerifiedFixSchema.optional(),
+});
 
 export const RespondRequestSchema = z.union([
   RespondProposalRequestSchema,
@@ -81,6 +105,13 @@ interface ResponseActors {
   proposerIdentity: string;
 }
 
+/** One repository's Candidate lineage and the subject its current index carries. */
+export interface CandidateLineageBinding {
+  workUnit: string;
+  record: CandidateManagedRecordV1;
+  current: CandidateLineageTarget;
+}
+
 export interface RespondCommandDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
@@ -90,6 +121,12 @@ export interface RespondCommandDependencies {
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
   resolveLocalActors(evaluatorIdentity: string): Promise<ResponseActors>;
   resolveFrontlineActors(): Promise<ResponseActors>;
+  /** Null when no work unit is active or it carries no Candidate record. */
+  readCandidateLineage(): Promise<CandidateLineageBinding | null>;
+  appendCandidateResponse(input: {
+    workUnit: string;
+    record: CandidateManagedRecordV1;
+  }): Promise<{ recordPath: string }>;
 }
 
 /** Stable durable-authority failure for response source or replay mismatches. */
@@ -286,7 +323,11 @@ async function resolveFrontlineSource(
   };
 }
 
-function projectApprovedResponse(source: ResolvedResponseSource, dispositions: ApprovedDispositionSet) {
+function projectApprovedResponse(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+  verified?: { candidateTarget: ReviewTarget; verificationEvidenceRefs: readonly string[] },
+) {
   const response: Omit<
     ReviewResponseInput,
     "currentTarget" | "findings"
@@ -301,11 +342,17 @@ function projectApprovedResponse(source: ResolvedResponseSource, dispositions: A
       reasons: ["sensitive-change-set"],
     },
     dispositionState: dispositions,
-    candidateTarget: null,
+    candidateTarget: verified?.candidateTarget ?? null,
     persistedTargetId: null,
-    verificationPassed: false,
-    verificationRefs: [],
-    capabilities: { approve: false, fix: true, persist: false, close: true, reroute: false },
+    verificationPassed: verified !== undefined,
+    verificationRefs: [...verified?.verificationEvidenceRefs ?? []],
+    capabilities: {
+      approve: false,
+      fix: true,
+      persist: verified !== undefined,
+      close: true,
+      reroute: false,
+    },
   };
   return source.frontlineOutcome === undefined
     ? projectReviewResponse({
@@ -317,6 +364,71 @@ function projectApprovedResponse(source: ResolvedResponseSource, dispositions: A
         ...response,
         outcome: source.frontlineOutcome,
       });
+}
+
+/**
+ * Append one approved fix's delta-verification evidence to the managed Candidate record.
+ *
+ * The lineage targets are the repository's own — the recognized head reduced from prior responses and
+ * the subject the index currently carries — so the caller supplies only the applicability it selected
+ * and the evidence that supports it. An already-explained subject appends nothing, which is what makes
+ * a repeated settlement pass a no-op rather than a second empty response.
+ */
+async function persistCandidateResponse(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+  verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
+  dependencies: RespondCommandDependencies,
+): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  const lineage = await dependencies.readCandidateLineage();
+  if (lineage === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified fix requires an active work unit carrying a managed Candidate record",
+    );
+  }
+  const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
+  const currentness = projectCandidateCurrentness({ record: lineage.record, current: lineage.current });
+  if (currentness.status === "current") {
+    return RespondEnvelopeSchema.parse({
+      ...header,
+      state: "candidate-current",
+      nextAction: "continue-review",
+      payload: {
+        operationId: source.operationId,
+        candidateId: currentness.candidateId,
+        implementationChanged: currentness.implementationChanged,
+      },
+    });
+  }
+  const projection = projectCandidateDeltaVerification({ record: lineage.record, current: lineage.current });
+  const response = recordCandidateVerifiedResponse({
+    projection,
+    dispositionId: dispositions.dispositionSet.dispositionSetId,
+    approvedBy: dispositions.approval.approvedBy,
+    appliedBy: dispositions.dispositionSet.proposedBy,
+    applicability: verifiedFix.applicability,
+    verificationEvidenceRefs: verifiedFix.verificationEvidenceRefs,
+  });
+  const { recordPath } = await dependencies.appendCandidateResponse({
+    workUnit: lineage.workUnit,
+    record: CandidateManagedRecordV1Schema.parse({
+      ...lineage.record,
+      responses: [...lineage.record.responses, response],
+    }),
+  });
+  return RespondEnvelopeSchema.parse({
+    ...header,
+    state: "candidate-advanced",
+    nextAction: "continue-review",
+    payload: {
+      operationId: source.operationId,
+      candidateId: response.candidateId,
+      responseId: response.responseId,
+      recordPath,
+      implementationChanged: response.implementationChanged,
+    },
+  });
 }
 
 /** Validate one approved set against its durable source and append its advisory record. */
@@ -341,8 +453,18 @@ export async function respondToReviewCommand(
       error instanceof Error ? error.message : "review response source cannot be validated",
     );
   }
+  const verifiedFix = "verifiedFix" in request ? request.verifiedFix : undefined;
   const confirmation = await dependencies.confirmTarget(source.target);
-  if (confirmation.state === "stale-target") {
+  // A landed fix moves the head, so the settlement pass expects the stale reading its approval pass
+  // treats as a dead end. An unchanged head means no fix landed and there is nothing to attest.
+  const changedTarget = confirmation.state === "stale-target" ? confirmation.currentTarget : null;
+  if (verifiedFix !== undefined && changedTarget === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified fix requires a changed exact target",
+    );
+  }
+  if (confirmation.state === "stale-target" && verifiedFix === undefined) {
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-respond",
@@ -382,6 +504,19 @@ export async function respondToReviewCommand(
   }
   validateActors(dispositions, source.actors);
   validateFindings(dispositions, source);
+  if (verifiedFix !== undefined && changedTarget !== null) {
+    const settlement = projectApprovedResponse(source, dispositions, {
+      candidateTarget: changedTarget,
+      verificationEvidenceRefs: verifiedFix.verificationEvidenceRefs,
+    });
+    if (settlement.state !== "ready-to-persist") {
+      throw new RespondCommandError(
+        "invalid-input",
+        `a verified fix produced unsupported state '${settlement.state}'`,
+      );
+    }
+    return persistCandidateResponse(source, dispositions, verifiedFix, dependencies);
+  }
   const plan = projectApprovedResponse(source, dispositions);
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {
     throw new RespondCommandError("corrupt-state", `approved response produced unsupported state '${plan.state}'`);
