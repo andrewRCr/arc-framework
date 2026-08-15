@@ -13,9 +13,9 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 6 — Workflow convergence (Tasks 6.1–6.7)
-- **Next Task:** Task 7.1 — Complete verification (line ~603)
-- **Blockers:** [none] — integration (not planning or implementation) waits on `delivery-stack-topology`
+- **Last Completed:** Base reconcile with `main`; delivery plan pivoted to single-PR chunked review
+- **Next Task:** Task 7.1 — Complete verification (line ~611)
+- **Blockers:** [none]
 
 - **Next Action:** Start Task 7.1 — load and follow `verify-work-unit.md`
 
