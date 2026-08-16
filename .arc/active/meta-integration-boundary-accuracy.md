@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 8.2 — Compose the settlement plan from approved-disposition records
-- **Next Task:** Task 8.3 — Restore the proposed-disposition disclosure at the work-unit interlock (line ~1021)
+- **Last Completed:** Task 8.5 — Derive the publication locus and compute the hosted-reservation requirement
+- **Next Task:** Task 8.6 — Name a corrective command on pre-publication refusals (line ~1080)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.3.a — restore "the proposed final dispositions" to the `integration-interlock`
-  callout and scope its channel-settlement clause to the review-response channel
+- **Next Action:** Start Task 8.6.a — extend `spineRemedy` to carry a remedy on every `review-pre-publication`
+  refusal, deriving reason coverage from the refusal shapes
 
 - **PR URL:** [none]
 - **Completed:** [none]
