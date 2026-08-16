@@ -1096,6 +1096,21 @@ distinction and its reasoning are recorded in the spec's own amendment blocks.
         - Surface `candidateTailDiff.reference`, composed and validated but rendered nowhere, so the approver can
           self-serve the diff the narrowing excluded.
 
+### `[ ]` **8.8 Pin the routed-obligation derivation**
+
+- _Goal:_ The obligation state `arc review status` reports is proved against a repository that recorded the
+  evidence, not inferred from the projection it delegates to.
+
+- _Note:_ `status-composition.ts` is one of three composition modules no test reaches, and Task 8.5 changed a
+  decision inside it. The other two, and the dependency-injection change that would open all three to the unit
+  tier, are captured in `USER-INBOX` as work beyond this spec's scope.
+
+    - `[ ]` **8.8.a Discharge-state coverage at the e2e tier**
+        - Drive `createReviewStatusPort`'s routed obligation over a temp repository in the `candidate-lineage`
+          e2e style, covering both arms: a reserved source with a recorded verdict-bearing attempt settles, and one
+          without leaves review required. The fixture already builds the git-common-state refs the discharge read
+          needs, so no production restructuring is required to reach it.
+
 ## **Phase 9:** Verification
 
 _Amended 2026-08-15._ Verification moved here from Phase 8; the boundary was entered twice and closed neither time.
