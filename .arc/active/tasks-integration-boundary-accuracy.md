@@ -929,16 +929,23 @@ how they were verified, not in what they state.
   routing fact already falls to the conservative route. § 2 now names one command and keeps the driver's
   `state` / `nextAction` table intact.
 
-### `[ ]` **7.12 Return typed settlement invalidations from the review-response channel**
+### `[x]` **7.12 Return typed settlement invalidations from the review-response channel**
 
 - _Goal:_ An actor-mismatched or record-missing review-response settlement invalidates under its own typed reason,
   as the hosted channel already does, rather than surfacing as an untyped operation failure.
 
-    - The refusals reach `executeSettlementPlan` as thrown errors, so merge's outer catch converts them to
-      `blocked` / `operation-failed` — fail-closed, and the lock still re-holds, but not the reason Criterion 3
-      names. The `stale` and `ambiguous` mappings already work.
-    - Carry the refusal as a typed state out of the settlement replay rather than classifying error causes by
-      message at the merge boundary.
+    - Added `actor-mismatch` and `missing-record` variants to `RespondEnvelopeSchema`, both resuming at
+      `respond-again`, and returned them from the settlement-replay arm of `respondToReviewCommand`.
+    - `settlement-execution.ts` now classifies the review-response channel through
+      `reviewResponseInvalidation`, mirroring `hostedInvalidation` — both channels name their own refusals, so
+      no error message is read back at the merge boundary.
+
+- _Outcome:_ Typed state is scoped to the replay arm alone: the attended response path still throws, because an
+  interactive caller reads the exception while the replay runs unattended behind the merge verb, where a thrown
+  refusal is legible only as `operation-failed`. Actor validation split into a pure `actorMismatch` classifier
+  that both arms share, so the two paths cannot drift on what counts as a mismatch. The conflicting-record case
+  stays a `corrupt-state` throw and lands as `ambiguous` — it is corruption rather than one of the two reasons
+  Criterion 3 names — and an unrecognized state still maps to `ambiguous` rather than settled.
 
 ## **Phase 8:** Verification
 

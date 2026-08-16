@@ -499,6 +499,23 @@ export const RespondEnvelopeSchema = z.union([
       implementationChanged: z.boolean(),
     }),
   ),
+  // Settlement-replay invalidations. The replay runs unattended behind the merge verb, where an
+  // exception is only legible as an operation failure, so each refusal carries its own state.
+  envelopeVariant(
+    "review-respond",
+    "actor-mismatch",
+    "respond-again",
+    z.strictObject({
+      operationId: IdentifierSchema,
+      actor: z.enum(["approver", "proposer"]),
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "missing-record",
+    "respond-again",
+    z.strictObject({ operationId: IdentifierSchema }),
+  ),
 ]);
 
 const ReductionBasePayload = {

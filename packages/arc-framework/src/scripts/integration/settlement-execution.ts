@@ -46,6 +46,19 @@ export interface SettlementExecutionDependencies {
   settleReviewResponse(input: ReviewResponseSettlementReplay): Promise<{ state: string }>;
 }
 
+/**
+ * Both channels classify their own refusals, so neither is read back from an error message here.
+ * A state this does not name is `ambiguous` rather than settled — an unrecognized outcome is not
+ * evidence that the approved response landed.
+ */
+function reviewResponseInvalidation(state: string): SettlementInvalidationReason | null {
+  if (state === "settled" || state === "already-settled") return null;
+  if (state === "missing-record") return "missing";
+  if (state === "stale-target") return "stale";
+  if (state === "actor-mismatch") return "actor-mismatched";
+  return "ambiguous";
+}
+
 function hostedInvalidation(result: HostedSettleResult): SettlementInvalidationReason | null {
   if (result.state === "settled" || result.state === "already-settled") return null;
   if (result.state === "missing-thread" || result.state === "missing-comment") return "missing";
@@ -70,9 +83,7 @@ export async function executeSettlementPlan(
         request: action.request,
         fixTarget: action.fixTarget,
       });
-      reason = result.state === "settled" || result.state === "already-settled"
-        ? null
-        : result.state === "stale-target" ? "stale" : "ambiguous";
+      reason = reviewResponseInvalidation(result.state);
     }
     if (reason !== null) {
       return { state: "invalidated", reason, dispositionId: action.dispositionId, completedActions };

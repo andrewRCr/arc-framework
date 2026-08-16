@@ -188,11 +188,21 @@ function parseSourceReference(
   }
 }
 
+function actorMismatch(
+  dispositions: ApprovedDispositionSet,
+  actors: ResponseActors,
+): "approver" | "proposer" | null {
+  if (dispositions.approval.approvedBy !== actors.approverIdentity) return "approver";
+  if (dispositions.dispositionSet.proposedBy !== actors.proposerIdentity) return "proposer";
+  return null;
+}
+
 function validateActors(dispositions: ApprovedDispositionSet, actors: ResponseActors): void {
-  if (dispositions.approval.approvedBy !== actors.approverIdentity) {
+  const mismatch = actorMismatch(dispositions, actors);
+  if (mismatch === "approver") {
     throw new RespondCommandError("invalid-input", "disposition approver is not the active local identity");
   }
-  if (dispositions.dispositionSet.proposedBy !== actors.proposerIdentity) {
+  if (mismatch === "proposer") {
     throw new RespondCommandError("invalid-input", "disposition proposer is not the composing runtime");
   }
 }
@@ -478,7 +488,14 @@ async function settleApprovedReplay(
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   if (existing === null) {
-    throw new RespondCommandError("invalid-input", "settlement replay has no approved disposition record");
+    return RespondEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-respond",
+      diagnostics: [],
+      state: "missing-record",
+      nextAction: "respond-again",
+      payload: { operationId: source.operationId },
+    });
   }
   if (canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)) {
     throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
@@ -566,11 +583,25 @@ export async function respondToReviewCommand(
       error instanceof Error ? error.message : "invalid approved dispositions",
     );
   }
-  validateActors(dispositions, source.actors);
-  validateFindings(dispositions, source);
   if (settledFixTarget !== undefined) {
+    // The replay's own refusals return typed state: it runs unattended behind the merge verb, where
+    // a thrown refusal reaches the operator only as a generic operation failure.
+    const mismatch = actorMismatch(dispositions, source.actors);
+    if (mismatch !== null) {
+      return RespondEnvelopeSchema.parse({
+        schemaVersion: 1,
+        mode: "review-respond",
+        diagnostics: [],
+        state: "actor-mismatch",
+        nextAction: "respond-again",
+        payload: { operationId: source.operationId, actor: mismatch },
+      });
+    }
+    validateFindings(dispositions, source);
     return settleApprovedReplay(source, dispositions, dependencies);
   }
+  validateActors(dispositions, source.actors);
+  validateFindings(dispositions, source);
   if (verifiedFix !== undefined && changedTarget !== null) {
     const settlement = projectApprovedResponse(source, dispositions, {
       candidateTarget: changedTarget,

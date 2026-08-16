@@ -190,6 +190,8 @@ describe("integration settlement execution", () => {
 
   it.each([
     ["stale-target", "stale"],
+    ["actor-mismatch", "actor-mismatched"],
+    ["missing-record", "missing"],
     ["ready-to-fix", "ambiguous"],
   ] as const)("maps a review-response %s to the %s invalidation", async (state, reason) => {
     const action = reviewResponseAction();

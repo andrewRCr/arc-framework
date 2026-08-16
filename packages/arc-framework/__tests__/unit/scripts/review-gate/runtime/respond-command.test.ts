@@ -324,6 +324,19 @@ function localRequest(
   };
 }
 
+/** The same approved set, approved by an identity that is not the active local one. */
+function foreignApproval(records: ReturnType<typeof fixture>) {
+  return approved({
+    targetId: records.target.targetId,
+    policyVersion: records.operation.policyVersion,
+    rubricVersion: records.operation.requirement.rubricVersion,
+    rubricDigest: records.operation.requirement.rubricDigest,
+    sourceIdentity: records.authority.evaluatorIdentity,
+    finding: records.finding,
+    approvedBy: "a-different-author",
+  });
+}
+
 describe("review response command", () => {
   it("constructs a source-bound proposal from author-owned finding decisions", async () => {
     const records = fixture();
@@ -761,14 +774,42 @@ describe("approved-settlement replay", () => {
       });
   });
 
-  it("refuses a replay no durable approved record backs", async () => {
+  it("refuses a replay no durable approved record backs, under its own typed state", async () => {
     const records = fixture();
     const { deps, moveTo } = movingCheckout(records);
     const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
     moveTo(settledFixTarget);
 
     await expect(respondToReviewCommand({ ...localRequest(records), settledFixTarget }, deps))
-      .rejects.toThrow("no approved disposition record");
+      .resolves.toMatchObject({ state: "missing-record", nextAction: "respond-again" });
+  });
+
+  it("returns a replay's actor mismatch as typed state rather than throwing", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand({
+      ...localRequest(records),
+      dispositions: foreignApproval(records),
+      settledFixTarget,
+    }, deps)).resolves.toMatchObject({
+      state: "actor-mismatch",
+      nextAction: "respond-again",
+      payload: { actor: "approver" },
+    });
+  });
+
+  it("still throws the same mismatch on the attended response path", async () => {
+    // Only the unattended replay needs typed state; an attended caller reads the exception.
+    const records = fixture();
+    const { deps } = movingCheckout(records);
+
+    await expect(respondToReviewCommand({
+      ...localRequest(records),
+      dispositions: foreignApproval(records),
+    }, deps)).rejects.toThrow("approver is not the active local identity");
   });
 
   it("refuses a replay whose dispositions disagree with the durable record", async () => {
