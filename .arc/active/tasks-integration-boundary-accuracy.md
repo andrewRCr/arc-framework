@@ -1077,13 +1077,16 @@ distinction and its reasoning are recorded in the spec's own amendment blocks.
   refusal is part of this increment rather than 8.6's. `status-composition.ts` is one of three composition modules
   no test reaches, so its obligation mapping currently rides on the discharge projection's unit coverage.
 
-### `[ ]` **8.6 Name a corrective command on pre-publication refusals**
+### `[x]` **8.6 Name a corrective command on pre-publication refusals**
 
 - _Goal:_ Criterion 15's closing clause is unqualified; the spine's middle verb refuses without a remedy.
 
-    - `[ ]` **8.6.a Extend `spineRemedy`**
-        - Carry a remedy on every `review-pre-publication` refusal, deriving reason coverage from the refusal
-          shapes as `checkpoint`, `merge`, and `submit` already do.
+    - `[x]` **8.6.a Extend `spineRemedy`**
+        - `review-command-envelope.ts` now carries the remedy map for the pre-publication verb, keyed by the
+          refusal codes the error envelope itself declares, and the mode's error variants require a
+          `SpineRemedy` where every other review-family mode's are unchanged. The corrective command is the
+          idempotent `arc review pre-publication <slug> --json` re-attempt; a refusal of the work-unit operand
+          itself has no exact re-attempt, so it names `arc status --project --json` instead.
 
 ### `[ ]` **8.7 Pin the restored interlock disclosure and render the tail-diff reference**
 

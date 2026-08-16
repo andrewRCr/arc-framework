@@ -1656,4 +1656,33 @@ describe("handleReviewPrePublication", () => {
       error: { message: expect.stringContaining("Not inside an ARC project") },
     });
   });
+
+  it.each([
+    ["an unreadable request", { json: true, selfReview: "done" }, {}],
+    ["an unresolvable repository", { json: true }, { resolveRoot: () => null }],
+    ["a refused composition", { json: true }, {
+      compose: vi.fn(async () => ({ status: "refused", reason: "No managed Candidate record exists." })),
+    }],
+  ] as const)("names the resume command on %s", async (_case, options, overrides) => {
+    const dependencies = boundary(overrides);
+
+    await handleReviewPrePublication("example", options, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] },
+    });
+  });
+
+  it("points a refusal of the operand itself at work-unit discovery", async () => {
+    const compose = vi.fn();
+    const dependencies = boundary({ compose });
+
+    await handleReviewPrePublication("Not A Slug", { json: true }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input" },
+      remedy: { argv: ["arc", "status", "--project", "--json"] },
+    });
+  });
 });

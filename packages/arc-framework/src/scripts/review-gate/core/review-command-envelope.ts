@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { SpineRemedySchema, spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import {
   FrontlineFailedRepairReasonSchema,
   FrontlineFailedRetryReasonSchema,
@@ -53,6 +54,67 @@ export const ReviewCommandModeSchema = z.enum([
   "review-pre-publication",
 ]);
 export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
+
+export const ReviewCommandErrorCodeSchema = z.enum([
+  "invalid-input",
+  "corrupt-state",
+  "unexpected-failure",
+]);
+export type ReviewCommandErrorCode = z.infer<typeof ReviewCommandErrorCodeSchema>;
+
+/** Every shape the pre-publication verb refuses with, for exhaustive iteration. */
+export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewCommandErrorCode[] =
+  ReviewCommandErrorCodeSchema.options;
+
+/** The idempotent pre-publication re-attempt — the resume point every refusal returns to. */
+function prePublicationResumeArgv(workUnit: string): readonly string[] {
+  return ["arc", "review", "pre-publication", workUnit, "--json"];
+}
+
+const PRE_PUBLICATION_REMEDIES: Record<ReviewCommandErrorCode, (workUnit: string) => SpineRemedy> = {
+  "invalid-input": (workUnit) => spineRemedy(
+    "Pre-publication resolves only a request it can read.",
+    "Correct the reported input, then re-run",
+    prePublicationResumeArgv(workUnit),
+  ),
+  "corrupt-state": (workUnit) => spineRemedy(
+    "Pre-publication reduces only intact durable review evidence.",
+    "Repair the reported durable record, then re-run",
+    prePublicationResumeArgv(workUnit),
+  ),
+  "unexpected-failure": (workUnit) => spineRemedy(
+    "A refused pre-publication leaves the Candidate resumable at the same boundary.",
+    "Resolve the reported failure, then re-run",
+    prePublicationResumeArgv(workUnit),
+  ),
+};
+
+/**
+ * Resolve the corrective remedy for one pre-publication refusal.
+ *
+ * @param code - The typed refusal shape the envelope reports.
+ * @param workUnit - The refused work unit, interpolated into the resume command.
+ * @returns The remedy naming the failed invariant and one corrective command.
+ */
+export function prePublicationRemedy(code: ReviewCommandErrorCode, workUnit: string): SpineRemedy {
+  return PRE_PUBLICATION_REMEDIES[code](workUnit);
+}
+
+/**
+ * Resolve the remedy for a refusal whose own work-unit operand never resolved.
+ *
+ * The resume command interpolates a slug, so a refusal that rejected the operand itself has no
+ * exact re-attempt to name; it names the discovery that produces a usable one instead.
+ *
+ * @returns The remedy naming work-unit discovery.
+ */
+export function prePublicationTargetRemedy(): SpineRemedy {
+  return spineRemedy(
+    "Pre-publication runs against one existing work unit.",
+    "Name an existing work unit, then re-run",
+    ["arc", "status", "--project", "--json"],
+  );
+}
 
 const RepositoryPreconditionDiagnosticSchema = z.strictObject({
   code: z.literal("repository-precondition"),
@@ -634,14 +696,17 @@ export const LocalResumeEnvelopeSchema = z.union([
 ]);
 
 export const ReviewCommandErrorEnvelopeSchema = z.union([
-  ...ReviewCommandModeSchema.options.flatMap((mode) => [
-    errorVariant(mode, "invalid-input"),
-    errorVariant(mode, "corrupt-state"),
-    errorVariant(mode, "unexpected-failure"),
-  ]),
+  ...ReviewCommandModeSchema.options
+    .filter((mode) => mode !== "review-pre-publication")
+    .flatMap((mode) => ReviewCommandErrorCodeSchema.options.map((code) => errorVariant(mode, code))),
+  // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
+  // corrective guidance the checkpoint and merge verbs do.
+  ...ReviewCommandErrorCodeSchema.options.map(
+    (code) => remedialErrorVariant("review-pre-publication", code),
+  ),
 ]);
 
-function errorVariant<Mode extends ReviewCommandMode, Code extends string>(
+function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewCommandErrorCode>(
   mode: Mode,
   code: Code,
 ): z.ZodObject<{
@@ -661,6 +726,22 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends string>(
       message: z.string().trim().min(1),
     }),
   });
+}
+
+function remedialErrorVariant<Mode extends ReviewCommandMode, Code extends ReviewCommandErrorCode>(
+  mode: Mode,
+  code: Code,
+): z.ZodObject<{
+  schemaVersion: z.ZodLiteral<1>;
+  diagnostics: z.ZodArray<typeof ReviewCommandDiagnosticSchema>;
+  mode: z.ZodLiteral<Mode>;
+  error: z.ZodObject<{
+    code: z.ZodLiteral<Code>;
+    message: z.ZodString;
+  }>;
+  remedy: typeof SpineRemedySchema;
+}> {
+  return errorVariant(mode, code).extend({ remedy: SpineRemedySchema });
 }
 
 /** Register every command envelope as a strict-current protocol contract. */

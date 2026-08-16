@@ -24,6 +24,7 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
   FrontlineResolveEnvelopeSchema,
@@ -35,6 +36,9 @@ import {
   ReduceEnvelopeSchema,
   RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
+  prePublicationRemedy,
+  prePublicationTargetRemedy,
+  type ReviewCommandErrorCode,
   type ReviewCommandMode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
@@ -1224,6 +1228,7 @@ function reviewCommandError(
   error: unknown,
   phase: ReviewHandlerErrorPhase,
   errorSchema: ZodType,
+  remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy,
 ) {
   const message = error instanceof Error ? error.message : String(error);
   const stableCode = errorCode(error);
@@ -1248,6 +1253,7 @@ function reviewCommandError(
     mode,
     diagnostics,
     error: { code, message },
+    ...(remedyFor === undefined ? {} : { remedy: remedyFor(code) }),
   });
 }
 
@@ -1620,9 +1626,19 @@ export async function handleReviewPrePublication(
   overrides: Partial<ReviewPrePublicationHandlerDependencies> = {},
 ): Promise<void> {
   const dependencies = { ...defaultPrePublicationDependencies(), ...overrides };
+  const target = SlugSchema.safeParse(name.trim());
+  const remedyFor = (code: ReviewCommandErrorCode): SpineRemedy => target.success
+    ? prePublicationRemedy(code, target.data)
+    : prePublicationTargetRemedy();
   const emitFailure = (error: unknown, phase: "request" | "execution" | "output"): void => {
     dependencies.write(`${JSON.stringify(
-      reviewCommandError("review-pre-publication", error, phase, ReviewCommandErrorEnvelopeSchema),
+      reviewCommandError(
+        "review-pre-publication",
+        error,
+        phase,
+        ReviewCommandErrorEnvelopeSchema,
+        remedyFor,
+      ),
     )}\n`);
     dependencies.setExitCode(1);
   };
