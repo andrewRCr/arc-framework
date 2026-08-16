@@ -160,6 +160,61 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.advisories[0]).toContain(path);
   });
 
+  it("binds each lane's scope and ceiling judgment to the resolved target and lane", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: {
+          frontline: { scopeMode: "chunked" },
+          standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
+        },
+      },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    // The caller supplies the judgment; the target and lane it would otherwise restate come from
+    // the composition, so a target or lane mismatch is not reachable from this path.
+    expect(composition.request.frontline.scopeSelection)
+      .toEqual({ mode: "chunked", target: resolvedTarget.status === "resolved" ? resolvedTarget.target : null });
+    expect(composition.request.frontline.ceilingOverride).toBeUndefined();
+    expect(composition.request.standard.scopeSelection).toBeUndefined();
+    expect(composition.request.standard.ceilingOverride).toMatchObject({
+      lane: "standard",
+      exhaustedPassCount: 2,
+      nextPass: 3,
+      target: resolvedTarget.status === "resolved" ? resolvedTarget.target : null,
+    });
+  });
+
+  it("omits both per-lane inputs when no judgment is supplied", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline.scopeSelection).toBeUndefined();
+    expect(composition.request.standard.ceilingOverride).toBeUndefined();
+  });
+
+  it.each([
+    ["an unrecognized scope mode", { standard: { scopeMode: "partial" } }],
+    ["a half-supplied ceiling override", { standard: { ceilingOverride: { nextPass: 3 } } }],
+    ["a caller-restated target", { standard: { scopeMode: "chunked", target: { repository: "x/y" } } }],
+    ["an unrecognized lane", { hosted: { scopeMode: "chunked" } }],
+  ])("refuses %s rather than dropping it to the unbounded default", async (_label, lanes) => {
+    // Deliberately unlike the change-set facts, which normalize: silently dropping a bounded scope
+    // reviews the whole target, and dropping an override re-blocks a pass already approved.
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", lanes },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("refused");
+    expect(composition.status === "refused" && composition.reason)
+      .toContain("per-lane review judgment is not composable");
+  });
+
   it("carries the effective method activity into both lanes and the self-review state", async () => {
     const active = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       readAssurance: async () => ({

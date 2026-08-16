@@ -1527,7 +1527,7 @@ describe("handleReviewPrePublication", () => {
     expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
       name: "example",
       selfReview: "settled",
-    }), undefined);
+    }), { changeSet: undefined, lanes: undefined });
   });
 
   it("writes composition advisories to stderr so the JSON envelope stays machine-clean", async () => {
@@ -1563,18 +1563,28 @@ describe("handleReviewPrePublication", () => {
     expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
   });
 
-  it("reads the change-set facts from their source and hands them to composition", async () => {
+  it("reads each judgment source separately and hands both to composition", async () => {
     const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
-    const readText = vi.fn(async () => JSON.stringify({ changeSetState: "known" }));
+    const readText = vi.fn(async (source: string) => source === "-"
+      ? JSON.stringify({ changeSetState: "known" })
+      : JSON.stringify({ standard: { scopeMode: "chunked" } }));
     const dependencies = boundary({ compose, readText });
 
-    await handleReviewPrePublication("example", { json: true, changeSet: "-" }, dependencies);
+    await handleReviewPrePublication(
+      "example",
+      { json: true, changeSet: "-", lanes: "lanes.json" },
+      dependencies,
+    );
 
     expect(readText).toHaveBeenCalledWith("-");
-    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), { changeSetState: "known" });
+    expect(readText).toHaveBeenCalledWith("lanes.json");
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      changeSet: { changeSetState: "known" },
+      lanes: { standard: { scopeMode: "chunked" } },
+    });
   });
 
-  it("composes with no facts rather than a placeholder when the option is absent", async () => {
+  it("composes with no judgment rather than a placeholder when both options are absent", async () => {
     const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
     const readText = vi.fn();
     const dependencies = boundary({ compose, readText });
@@ -1582,14 +1592,33 @@ describe("handleReviewPrePublication", () => {
     await handleReviewPrePublication("example", { json: true }, dependencies);
 
     expect(readText).not.toHaveBeenCalled();
-    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), undefined);
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      changeSet: undefined,
+      lanes: undefined,
+    });
   });
 
-  it("rejects an unparseable change-set source before composing", async () => {
+  it("refuses to read both judgment inputs from the same stdin stream", async () => {
+    const compose = vi.fn();
+    const readText = vi.fn();
+    const dependencies = boundary({ compose, readText });
+
+    await handleReviewPrePublication("example", { json: true, changeSet: "-", lanes: "-" }, dependencies);
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { code: "invalid-input" },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it.each(["changeSet", "lanes"] as const)("rejects an unparseable %s source before composing", async (option) => {
     const compose = vi.fn();
     const dependencies = boundary({ compose, readText: async () => "{ not json" });
 
-    await handleReviewPrePublication("example", { json: true, changeSet: "facts.json" }, dependencies);
+    await handleReviewPrePublication("example", { json: true, [option]: "facts.json" }, dependencies);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({

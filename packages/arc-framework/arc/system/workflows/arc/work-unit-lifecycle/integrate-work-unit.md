@@ -108,8 +108,11 @@ If the [`self-review` method][self-review] is effectively active:
    [`commit-footer` method][commit-footer].
 When inactive, continue with the typed pre-publication procedure.
 
-From the local Candidate branch, compose the immutable policy target
-`{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
+From the local Candidate branch, compose the change-set routing facts — content kind, risk, determinacy,
+ownership, and surface authority — as the author judgment the repository cannot read. The immutable policy target,
+the routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are
+composed from repository state by the command below; never assemble or restate them here.
+
 Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
 selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` hold-whole decision stays
 silent while the current evidence is semantically unchanged; invocation, elapsed time, and restatement are not
@@ -123,11 +126,18 @@ material deltas. Otherwise invoke `arc review chunking resolve -` once, includin
 - `delivery-bound / continue-review` — render `recommendedActionText` verbatim and continue through the bound
   delivery plan; never also offer chunked review.
 
-Select whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
-`arc review resolve -`. The workflow never recomputes thresholds or compares typed delivery state in prose.
+Select whole-target or chunked scope separately for frontline and standard review. The workflow never recomputes
+thresholds or compares typed delivery state in prose.
 
-Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
-`nextAction` pair:
+Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
+mode and any approved ceiling override as `--lanes`, and a completed author self-review as `--self-review settled`.
+One call resolves the frontline lane, then the pre-PR standard lane, and returns the procedure's typed locus.
+Re-invoke it after every lane operation: it is idempotent, so repeated calls advance or report the same resume
+point.
+
+A null `policy` means no lane operation is open — follow the envelope's own `nextAction.kind`, one of
+`run-self-review`, `run-convergence-verification`, or `submit-candidate`. Otherwise follow only the `policy`
+envelope's returned `state` / `nextAction` pair:
 
 - `skipped | no-op | pass-complete / none` — the lane is complete at this boundary.
 - `awaiting-change-request / open-change-request` — retain the exact hosted-first reservation and complete the
@@ -137,9 +147,10 @@ Resolve the frontline lane first, then the pre-PR standard lane. Follow only eac
 - `ready / local-prepare` — invoke `arc review local prepare -`.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the returned exact one-pass consequence and
-  `Approve (or redirect)?`; only exact approval returns that override to the next identical target/lane call.
+  `Approve (or redirect)?`; only exact approval returns that override, as the lane's `ceilingOverride`, to the
+  next identical target/lane call.
 - `chunk-pending / continue-chunks` — continue the selected local chunk series without consuming the pass.
-- `stale-target / select-scope` — recompose the target and rerun chunking before resolving again.
+- `stale-target / select-scope` — rerun chunking against the current target before invoking the procedure again.
 - `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
 
 Dispatch frontline and local operations only through their public typed actions. Local preparation receives the

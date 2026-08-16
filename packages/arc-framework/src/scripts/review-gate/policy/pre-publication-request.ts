@@ -1,5 +1,7 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
 
+import { z } from "zod";
+
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
@@ -7,8 +9,16 @@ import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
 } from "./pre-publication-procedure.js";
+import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
+
+/** Per-lane scope and ceiling judgment, keyed by the lane it applies to. */
+export const PrePublicationLaneJudgmentsSchema = z.strictObject({
+  frontline: ReviewLaneJudgmentSchema.optional(),
+  standard: ReviewLaneJudgmentSchema.optional(),
+}).readonly();
+export type PrePublicationLaneJudgments = z.infer<typeof PrePublicationLaneJudgmentsSchema>;
 
 /** The author self-review states the procedure distinguishes. */
 export type PrePublicationSelfReviewState = PrePublicationReviewRequest["selfReview"];
@@ -55,6 +65,12 @@ export interface PrePublicationCompositionInput {
    * the repository and cannot be overridden here.
    */
   changeSet?: unknown;
+  /**
+   * Per-lane scope and ceiling judgment. Unlike the change-set facts, these refuse rather than
+   * normalize: dropping a malformed bounded scope silently reviews the whole target, and dropping a
+   * malformed ceiling override silently re-blocks a pass the operator already approved.
+   */
+  lanes?: unknown;
 }
 
 export type PrePublicationComposition =
@@ -127,10 +143,12 @@ function routingInput(
  *
  * Per-attempt progress comes from the durable lane record rather than the caller, so source order
  * and pass ceilings stay with the CLI rather than being assembled by whoever invokes the command.
- * The caller's one contribution is judgment the repository cannot read — whether self-review ran,
- * and what kind of change set this is — which the router reduces here rather than the caller.
+ * The caller's contribution is judgment the repository cannot read — whether self-review ran, what
+ * kind of change set this is, and each lane's bounded scope or approved ceiling override. The
+ * decisions those facts feed are reduced here rather than by the caller, and the target and lane
+ * every per-lane input would otherwise restate are supplied from the resolved composition.
  *
- * @param input - The target work unit, any author self-review report, and any change-set facts.
+ * @param input - The target work unit and the author judgment described above.
  * @param dependencies - The repository reads bound by the production composition root.
  * @returns The composed request with any composition advisories, or a refusal naming what is missing.
  */
@@ -151,6 +169,15 @@ export async function composePrePublicationReviewRequest(
   if (resolvedTarget.status === "refused") return { status: "refused", reason: resolvedTarget.reason };
   const { target } = resolvedTarget;
 
+  const lanes = PrePublicationLaneJudgmentsSchema.safeParse(input.lanes ?? {});
+  if (!lanes.success) {
+    return {
+      status: "refused",
+      reason: "The supplied per-lane review judgment is not composable: "
+        + lanes.error.issues.map(({ path, message }) => `${path.join(".")}: ${message}`).join("; "),
+    };
+  }
+
   const routing = resolveReviewRouting(
     routingInput(input.changeSet, assurance.assurance, assurance.activity),
   );
@@ -164,6 +191,7 @@ export async function composePrePublicationReviewRequest(
       dependencies.readLaneProgress(lane, candidate.headSha),
     ]);
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
+    const judgment = lanes.data[lane];
     return {
       schemaVersion: 1,
       target,
@@ -174,6 +202,12 @@ export async function composePrePublicationReviewRequest(
       attempts: progress.status === "recorded" ? progress.attempts : [],
       sources: policy.sources,
       maxPasses: policy.maxPasses,
+      ...(judgment?.scopeMode === undefined
+        ? {}
+        : { scopeSelection: { mode: judgment.scopeMode, target } }),
+      ...(judgment?.ceilingOverride === undefined
+        ? {}
+        : { ceilingOverride: { ...judgment.ceilingOverride, target, lane } }),
     };
   };
   const frontline = await composeLane("frontline");

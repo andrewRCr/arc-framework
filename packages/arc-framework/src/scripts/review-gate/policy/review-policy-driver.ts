@@ -69,6 +69,23 @@ export const ReviewPolicyCommandRequestSchema = z.strictObject({
 }).readonly();
 export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandRequestSchema>;
 
+/**
+ * The per-lane inputs above that are judgment rather than repository state.
+ *
+ * `scopeSelection` and `ceilingOverride` each carry a target, and `ceilingOverride` a lane, which a
+ * caller composing against a resolved target should not restate — the mismatch refusals exist for
+ * callers that assemble the whole request. This is the judgment half alone, for a caller that holds
+ * the bounded scope decision or the exhausted-ceiling approval but not the target.
+ */
+export const ReviewLaneJudgmentSchema = z.strictObject({
+  scopeMode: ReviewScopeModeSchema.optional(),
+  ceilingOverride: z.strictObject({
+    exhaustedPassCount: CompletedPassCountSchema,
+    nextPass: ReviewPassSchema,
+  }).readonly().optional(),
+}).readonly();
+export type ReviewLaneJudgment = z.infer<typeof ReviewLaneJudgmentSchema>;
+
 export const ReviewPolicyRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
   sources: z.array(ReviewSourceIdSchema).readonly(),

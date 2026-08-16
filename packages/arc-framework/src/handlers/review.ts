@@ -275,8 +275,13 @@ export const ReviewPrePublicationInputSchema = z.strictObject({
   selfReview: z.enum(["inactive", "pending", "settled"]).optional(),
   changeSet: z.string().trim().min(1, "A JSON change-set file path, or - for stdin, is required.")
     .optional(),
+  lanes: z.string().trim().min(1, "A JSON lane-judgment file path, or - for stdin, is required.")
+    .optional(),
   json: z.literal(true),
-});
+}).refine(
+  ({ changeSet, lanes }) => changeSet !== "-" || lanes !== "-",
+  "Only one of --change-set and --lanes may read stdin.",
+);
 
 const reviewPrePublicationInputRegistration: CommandInputRegistration = {
   commandPath: "review pre-publication",
@@ -285,6 +290,7 @@ const reviewPrePublicationInputRegistration: CommandInputRegistration = {
     "operand.name": "name",
     "option.self-review": "selfReview",
     "option.change-set": "changeSet",
+    "option.lanes": "lanes",
     "option.json": "json",
   },
 };
@@ -1539,7 +1545,14 @@ export async function handleReviewHostedSettle(
 export interface ReviewPrePublicationOptions {
   selfReview?: string;
   changeSet?: string;
+  lanes?: string;
   json?: boolean;
+}
+
+/** The caller's parsed judgment inputs, each absent unless its option named a source. */
+export interface ReviewPrePublicationJudgment {
+  changeSet: unknown;
+  lanes: unknown;
 }
 
 export interface ReviewPrePublicationHandlerDependencies {
@@ -1548,7 +1561,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   compose(
     root: string,
     input: z.infer<typeof ReviewPrePublicationInputSchema>,
-    changeSet: unknown,
+    judgment: ReviewPrePublicationJudgment,
   ): Promise<PrePublicationComposition>;
   persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
   write(text: string): void;
@@ -1561,11 +1574,12 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
     readText: (source) => boundary.readText(source),
-    compose: (root, input, changeSet) => composePrePublicationReviewRequest(
+    compose: (root, input, judgment) => composePrePublicationReviewRequest(
       {
         workUnit: input.name,
         ...(input.selfReview === undefined ? {} : { selfReview: input.selfReview }),
-        ...(input.changeSet === undefined ? {} : { changeSet }),
+        ...(input.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+        ...(input.lanes === undefined ? {} : { lanes: judgment.lanes }),
       },
       createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec }),
     ),
@@ -1592,7 +1606,8 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
  * every Candidate-bearing locus names is invocable with the slug alone. Two options report what the
  * repository cannot establish: `--self-review`, whether the author's self-review actually ran, and
  * `--change-set`, the routing facts the standard-review obligation turns on. Omitting the latter
- * routes the change set as unestablished, which is the conservative `required` route.
+ * routes the change set as unestablished, which is the conservative `required` route. `--lanes`
+ * carries each lane's bounded review scope and any approved ceiling override.
  *
  * @param name - The target work unit's slug.
  * @param options - Parsed command-line options.
@@ -1616,6 +1631,7 @@ export async function handleReviewPrePublication(
     name: name.trim(),
     ...(options.selfReview === undefined ? {} : { selfReview: options.selfReview }),
     ...(options.changeSet === undefined ? {} : { changeSet: options.changeSet }),
+    ...(options.lanes === undefined ? {} : { lanes: options.lanes }),
     json: options.json,
   });
   if (!input.success) {
@@ -1623,14 +1639,18 @@ export async function handleReviewPrePublication(
     return;
   }
 
-  let changeSet: unknown;
-  if (input.data.changeSet !== undefined) {
-    try {
-      changeSet = JSON.parse(await dependencies.readText(input.data.changeSet));
-    } catch (error) {
-      emitFailure(error, "request");
-      return;
-    }
+  const readJudgment = async (source: string | undefined): Promise<unknown> =>
+    source === undefined ? undefined : JSON.parse(await dependencies.readText(source));
+
+  let judgment: ReviewPrePublicationJudgment;
+  try {
+    judgment = {
+      changeSet: await readJudgment(input.data.changeSet),
+      lanes: await readJudgment(input.data.lanes),
+    };
+  } catch (error) {
+    emitFailure(error, "request");
+    return;
   }
 
   let root: string;
@@ -1645,7 +1665,7 @@ export async function handleReviewPrePublication(
 
   let envelope: PrePublicationReviewEnvelope;
   try {
-    const composition = await dependencies.compose(root, input.data, changeSet);
+    const composition = await dependencies.compose(root, input.data, judgment);
     if (composition.status === "refused") {
       emitFailure(new Error(composition.reason), "execution");
       return;

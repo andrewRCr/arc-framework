@@ -1612,6 +1612,7 @@ reviewCmd
   .description("Resolve one work unit's typed pre-publication review procedure as JSON")
   .option("--self-review <state>", "Report author self-review: inactive | pending | settled")
   .option("--change-set <file | ->", "Change-set routing facts as JSON; omitted routes as unestablished")
+  .option("--lanes <file | ->", "Per-lane review scope and approved ceiling override as JSON")
   .requiredOption("--json", "Emit a typed JSON result")
   .action((name: string, options: ReviewPrePublicationOptions) =>
     handleReviewPrePublication(name, options));

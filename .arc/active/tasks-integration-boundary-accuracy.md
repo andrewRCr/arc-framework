@@ -912,23 +912,22 @@ how they were verified, not in what they state.
       `arc integrate checkpoint <name> [--json]` and `arc integrate merge <name> --checkpoint <handle> [--json]` —
       in `.arc/reference/QUICK-REFERENCE.md` and its `QUICK-REFERENCE.template.md` counterpart.
 
-### `[ ]` **7.11 Converge the workflow onto the registered pre-publication procedure**
+### `[x]` **7.11 Converge the workflow onto the registered pre-publication procedure**
 
 - _Goal:_ One path resolves the pre-publication lanes. The command every Candidate locus emits and the procedure
   `integrate-work-unit.md` instructs are the same procedure, not two routes to the same lane resolution.
 
-- _Note:_ Surfaced at 7.2's interlock, once registration made the divergence observable. § 2 composes the policy
-  target, the routed `standardReview` projection, and explicit routing facts, then drives `arc review resolve -`
-  per lane; `propose`, the boundary locus, and the procedure's own next actions all emit
-  `arc review pre-publication <wu> --json`. Both reach the same driver, so this is a convergence defect rather
-  than a behavioral one — but it leaves the emitted next action instructing a path no workflow walks.
-
-    - The two paths differ on one real axis: § 2's agent-supplied routing facts can route a change set to
-      `exempt` or `recommended`, while the registered command routes an unestablished change set conservatively
-      to `required` (7.2.b). Settle that axis before converging — either the command accepts the routing facts
-      the workflow already composes, or the workflow stops composing them and accepts the conservative route.
-    - Converge § 2's lane dispatch in both copies once the axis is settled, keeping the returned `state` /
-      `nextAction` dispatch table intact — it is the driver's contract, not this procedure's.
+- _Outcome:_ The routing axis settled toward the command accepting what the workflow already composed, so the
+  reducer's documentation, atomic-determinacy, ownership, and authority arms stay reachable from this path
+  instead of every work unit routing `required`. The settling principle — the caller asserts facts the
+  repository cannot read, the CLI reduces them — then decided two per-lane inputs the task line had not named:
+  converging § 2 wholesale would have dropped chunked scope selection and the ceiling-override return path,
+  since neither was carried. Both now compose through `--lanes`, with the target and lane supplied from the
+  resolved composition rather than restated, which makes the driver's target- and lane-mismatch refusals
+  unreachable from this path. Change-set facts normalize on rejection and lane judgment refuses, deliberately:
+  a dropped scope reviews the whole target and a dropped override re-blocks an approved pass, while a rejected
+  routing fact already falls to the conservative route. § 2 now names one command and keeps the driver's
+  `state` / `nextAction` table intact.
 
 ### `[ ]` **7.12 Return typed settlement invalidations from the review-response channel**
 
