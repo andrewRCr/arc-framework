@@ -207,9 +207,34 @@ describe("PR-open lifecycle extensions", () => {
       "`merged-stale-head / reconcile-head`",
       "`ambiguous | blocked / stop`",
     ]) expect(resolution).toContain(disposition);
-    expect(resolution).not.toContain("gh api");
-    expect(resolution).not.toContain("--paginate --slurp");
-    expect(resolution).not.toContain("git ls-remote --heads origin");
+
+    // Scoped to dispatch: the creation arm's pre-create race guard reads the remote head
+    // legitimately, so a step-wide ban on remote reads would forbid a control obligation
+    // rather than the hand-rolled resolution these assertions exist to prevent.
+    const dispatch = resolution.slice(0, resolution.indexOf("The no-match creation arm"));
+    expect(dispatch.length).toBeGreaterThan(0);
+    expect(dispatch).not.toContain("gh api");
+    expect(dispatch).not.toContain("--paginate --slurp");
+    expect(dispatch).not.toContain("git ls-remote");
+  });
+
+  it("re-validates the remote head immediately before creating the Errand PR", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
+      "utf8",
+    );
+    const creation = workflow.slice(
+      workflow.indexOf("The no-match creation arm"),
+      workflow.indexOf("4. **Enter the open PR.**"),
+    );
+    const hook = creation.indexOf("If `pre-pr-open` is active");
+    const guard = creation.indexOf("git ls-remote --heads origin");
+    const create = creation.indexOf("gh pr create --base");
+
+    expect([hook, guard, create].every((index) => index >= 0)).toBe(true);
+    expect(hook).toBeLessThan(guard);
+    expect(guard).toBeLessThan(create);
+    expect(creation).toContain("proposedChangeRequest.headSha");
   });
 
   it("keeps WU and Errand hook ordering symmetric", async () => {

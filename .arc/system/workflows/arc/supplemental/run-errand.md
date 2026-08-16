@@ -233,6 +233,10 @@ remote base all name the same exact head. Any tracked change continues through t
    execute numbered actions in authored order immediately before creation; halt before later actions on failure.
    Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
 
+   Immediately before `gh pr create`, read `refs/heads/<branch>` from the base repository remote with
+   `git ls-remote --heads origin`. Compare its exact 40-hex SHA with `proposedChangeRequest.headSha`; on absence,
+   ambiguity, or mismatch, stop and restart PR resolution. Never create against a head that changed after validation.
+
    Then invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action:
    `locked / open-locked` creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts
    creation before any PR exists. The lane is still unresolved here — it settles in Step 4 — so both lanes open the

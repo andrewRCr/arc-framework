@@ -879,14 +879,17 @@ how they were verified, not in what they state.
   without a persisted handle, so the gate is unavoidable under either mode. Covered on both archive cadences,
   including the archived `with-integration` meta.
 
-### `[ ]` **7.8 Restore the errand lane's pre-create head re-validation**
+### `[x]` **7.8 Restore the errand lane's pre-create head re-validation**
 
 - _Goal:_ No pull request is created against a head that changed after validation, in either lane.
 
-    - Reinstate the remote-head comparison against `proposedChangeRequest.headSha` in both copies of
-      `run-errand.md`, positioned after the `pre-pr-open` actions and immediately before creation.
-    - `pre-pr-open` is project-authored and guaranteed only retry-safe, so resolver-time validation upstream of it
-      does not cover this window.
+- _Outcome:_ The remote-head comparison against `proposedChangeRequest.headSha` is reinstated in both copies of
+  `run-errand.md`, in its original position between the `pre-pr-open` actions and the lock-resolve call that
+  precedes creation; the work-unit lane keeps the resolver-time check the design authorizes. A step-wide
+  `not.toContain("git ls-remote --heads origin")` in `pr-open-extensions.test.ts` had pinned the deletion —
+  over-broad for a rule about hand-rolled PR-state resolution, and the reason an authorized control obligation
+  could be dropped without failing anything. That ban is now scoped to the dispatch region, with a positive test
+  pinning the guard's presence and its position between the hook and creation.
 
 ### `[ ]` **7.9 Name a corrective command on every spine refusal**
 
