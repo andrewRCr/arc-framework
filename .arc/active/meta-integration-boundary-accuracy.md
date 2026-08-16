@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.5 — Compose the checkpoint's review record and settlement plan
-- **Next Task:** Task 7.6 — Restore the review-applicability disclosure at the work-unit interlock (line ~860)
+- **Last Completed:** Task 7.9 — Name a corrective command on every spine refusal
+- **Next Task:** Task 7.10 — Correct the `arc integrate` command reference (line ~907)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.6 — restore the review-applicability disclosure item to the work-unit interlock
-  callout in both copies, matching `run-errand.md`'s surviving wording and leaving the composer's signal count intact
+- **Next Action:** Start Task 7.10 — list `arc integrate checkpoint` and `arc integrate merge` in
+  `QUICK-REFERENCE` and stop presenting bare `arc integrate` as invocable, in both copies
 
 - **PR URL:** [none]
 - **Completed:** [none]
