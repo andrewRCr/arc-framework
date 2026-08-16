@@ -1018,23 +1018,28 @@ distinction and its reasoning are recorded in the spec's own amendment blocks.
           approval reaching the plan while the lineage provably never names it, and a review that ran before a fix
           landed surviving a span a candidate-tail lower bound would have excluded.
 
-### `[ ]` **8.3 Restore the proposed-disposition disclosure at the work-unit interlock**
+### `[x]` **8.3 Restore the proposed-disposition disclosure at the work-unit interlock**
 
 - _Goal:_ The approver sees every disposition their approval decides, including sets reaching the interlock
   unapproved for the final combined gate.
 
-    - `[ ]` **8.3.a Callout restoration**
-        - Restore "the proposed final dispositions" to the `integration-interlock` callout beside what Task 7.6
-          restored, and scope the channel-settlement clause to the review-response channel — hosted settlement
-          already ran at Step 4.
+    - `[x]` **8.3.a Callout restoration**
+        - The `integration-interlock` callout now surfaces the proposed final dispositions beside the review
+          applicability calls and targeted verification Task 7.6 restored, naming them as the no-action
+          record-only sets the checkpoint payload does not carry — so the approver has to gather them rather
+          than read them off the ready evidence. Approval decides those proposals and settles the
+          review-response channel alone, since hosted settlement already ran at Step 4. Both copies edited in
+          step; `review-gate-workflows.test.ts`'s consequence-ordering pin follows the scoped clause.
 
-### `[ ]` **8.4 Convert the remaining PR-state branch site to the typed resolver**
+### `[x]` **8.4 Convert the remaining PR-state branch site to the typed resolver**
 
 - _Goal:_ All five inventoried sites resolve through one typed disposition; the delivered count is 4/5.
 
-    - `[ ]` **8.4.a Review-entry resolve**
-        - Derive `openedChangeRequest` from the resolver's returned `candidate` at `integrate-work-unit.md` § 4,
-          as `run-errand.md` § 3 already does, replacing the untyped "resolve the one open PR" step.
+    - `[x]` **8.4.a Review-entry resolve**
+        - `integrate-work-unit.md` § 4 binds the open PR from the resolver's returned `candidate` — carried by
+          the reuse and reopen arms Steps 1 and 3 dispatch on — or from the request Step 3 just opened, and
+          composes `openedChangeRequest` from it. The untyped "resolve the one open PR" step is gone, so no
+          entry path into review iteration hand-rolls PR-state resolution.
 
 ### `[ ]` **8.5 Derive the publication locus and compute the hosted-reservation requirement**
 

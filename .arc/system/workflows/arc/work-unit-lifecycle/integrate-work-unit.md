@@ -243,11 +243,12 @@ describing post-merge workflow continuity or next actions — those route to the
 
 ### 4) Review iteration
 
-Resolve the one open PR and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open`
-is active, execute its numbered `.actions` in authored order before review iteration. This idempotent hook fires on
-both the newly-created path and every open-PR re-entry; actions derive current host state from `hostRef`. Every
-hook and review invocation shares this exact-head contract. If an action changes the head, recompose
-`openedChangeRequest` from the canonical current head before re-entry.
+Bind the open PR from the resolver's returned `candidate` — the reuse and reopen arms carry it, and the creation
+path uses the request Step 3 just opened — and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`
+from it. If `post-pr-open` is active, execute its numbered `.actions` in authored order before review iteration.
+This idempotent hook fires on both the newly-created path and every open-PR re-entry; actions derive current host
+state from `hostRef`. Every hook and review invocation shares this exact-head contract. If an action changes the
+head, recompose `openedChangeRequest` from the canonical current head before re-entry.
 
 Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean` and
 regenerable-only drift silent. For substantive overlap, reconcile early only when the interaction is clear and
