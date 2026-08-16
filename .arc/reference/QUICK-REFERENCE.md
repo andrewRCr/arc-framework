@@ -354,8 +354,9 @@ arc propose <name> --json
 
 # Schedule publication: Active → Integrating, not the merge (integrate-work-unit.md)
 arc submit [slug] --last-completed <work> --action <next action>
-# Integration procedures (subcommands are added as their machinery lands)
-arc integrate
+# Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
+arc integrate checkpoint <name> [--json]
+arc integrate merge <name> --checkpoint <handle> [--json]
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 

@@ -904,12 +904,13 @@ how they were verified, not in what they state.
   and as the idempotent resume point where the operator satisfies the invariant by hand — composing Completion
   Notes, explaining a lineage delta — rather than naming a verb that cannot author the missing work.
 
-### `[ ]` **7.10 Correct the `arc integrate` command reference**
+### `[x]` **7.10 Correct the `arc integrate` command reference**
 
 - _Goal:_ `QUICK-REFERENCE` describes the namespace as it shipped.
 
-    - List `arc integrate checkpoint` and `arc integrate merge` and stop presenting bare `arc integrate` as
-      invocable, in both copies.
+    - Replaced the bare `arc integrate` entry with the two registered subcommands and their signatures —
+      `arc integrate checkpoint <name> [--json]` and `arc integrate merge <name> --checkpoint <handle> [--json]` —
+      in `.arc/reference/QUICK-REFERENCE.md` and its `QUICK-REFERENCE.template.md` counterpart.
 
 ### `[ ]` **7.11 Converge the workflow onto the registered pre-publication procedure**
 
