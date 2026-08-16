@@ -117,8 +117,8 @@ export async function projectCheckoutSubjectMeta(options: {
       : projectPublicationBoundary({
           workUnit: options.subjectKey,
           candidateId: record.candidateId,
-          state: "publication-pending",
           reservation: null,
+          changeRequest: null,
         });
   } else if (record.candidateId !== null && record.state === "Active") {
     integrationBoundary = projectCandidateReviewBoundary({

@@ -341,8 +341,8 @@ async function projectCandidateIntegrationBoundary(
       integrationBoundary: projectPublicationBoundary({
         workUnit: slug,
         candidateId: candidate.candidateId,
-        state: "publication-pending",
         reservation: null,
+        changeRequest: null,
       }),
     };
   }

@@ -16,7 +16,7 @@ import { SpineRemedySchema } from "../../../../src/scripts/integration/spine-ref
 
 describe("spine refusal remedies", () => {
   it("derives its reason coverage from the refusal schemas", () => {
-    expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(8);
+    expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(9);
     expect(MERGE_REFUSAL_REASONS).toHaveLength(11);
     expect(new Set(CHECKPOINT_BLOCKED_REASONS).size).toBe(CHECKPOINT_BLOCKED_REASONS.length);
     expect(new Set(MERGE_REFUSAL_REASONS).size).toBe(MERGE_REFUSAL_REASONS.length);

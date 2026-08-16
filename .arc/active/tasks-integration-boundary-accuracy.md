@@ -1041,32 +1041,41 @@ distinction and its reasoning are recorded in the spec's own amendment blocks.
           composes `openedChangeRequest` from it. The untyped "resolve the one open PR" step is gone, so no
           entry path into review iteration hand-rolls PR-state resolution.
 
-### `[ ]` **8.5 Derive the publication locus and compute the hosted-reservation requirement**
+### `[x]` **8.5 Derive the publication locus and compute the hosted-reservation requirement**
 
 - _Goal:_ No surface asserts a review fact it did not read, and every enumerated locus is reachable.
 
-- _Note:_ `checkpoint.ts` **throws** when `requirementSummary.conclusion !== "satisfied"` — dead code today because
-  the requirement is a literal. Computing it activates that throw, which surfaces as untyped `operation-failed`,
-  the class Tasks 7.9 and 7.12 eliminated. The typed reason must land in the same increment.
+    - `[x]` **8.5.a Derive the locus**
+        - `projectPublicationBoundary` takes the reservation and change-request evidence in place of a
+          caller-supplied `state`, and derives `hosted-review-pending` from their conjunction — a reserved review
+          needs a change request to run against, so a reservation still awaiting one continues publication. The
+          three production callers pass what they hold: `submit.ts` names the absent change request at the
+          publication-step head, and the two boundary readers pass the fallback they already had.
 
-    - `[ ]` **8.5.a Derive the locus**
-        - `projectPublicationBoundary` derives `publication-pending` / `hosted-review-pending` from evidence
-          (reservation plus change-request state) rather than accepting a caller-supplied `state`. All three
-          production callers pass the same literal today, leaving the hosted arm — locus, `nextAction.kind`, and
-          emitted command — unreachable.
+    - `[x]` **8.5.b Compute the reservation requirement**
+        - New `hosted-reservation-discharge.ts` decides discharge from `lane-progress`: a verdict-bearing attempt
+          (`clean` or `findings`) by the reserved `sourceId` on the standard lane anywhere in the Candidate span,
+          read as `rev-list attestation.baseRevision..approvedHead`. Reading the span rather than the approved head
+          keeps a review that ran before a later fix from being discarded.
+        - `checkpoint-composition.ts` composes the `hosted-review-reservation` requirement from that discharge
+          against the locus it derives from the change request it already resolved — the production site where the
+          hosted arm becomes reachable — and the stored locus is no longer read as authority.
+        - `checkpoint.ts` refuses a pending hosted requirement as the typed `hosted-reservation-pending` ahead of
+          the bind check, so activating the computation lands the named reason rather than the generic composition
+          failure.
+        - `status-composition.ts` settles the routed obligation on the same discharge evidence in place of
+          `boundary.reservation !== null`, which no writer clears.
 
-    - `[ ]` **8.5.b Compute the reservation requirement**
-        - Replace the hardcoded `hosted-review-reservation: satisfied` with a requirement computed from
-          `lane-progress`: discharged when the reserved `sourceId` produced a verdict-bearing attempt (`clean` or
-          `findings`) on the hosted lane within the Candidate span. `pre-publication-composition.ts` already binds
-          `readLaneProgress`; `checkpoint-composition.ts` does not yet reach it. Never gate on the approved head
-          alone — that overrides Step 4's applicability judgment with a CLI gate.
-        - Add the typed `hosted-reservation-pending` blocked reason with remedy `arc review pre-publication`.
-        - `status-composition.ts` derives from the same evidence rather than `boundary.reservation !== null`, which
-          nothing ever clears.
+    - `[x]` **8.5.c Render the Requirements signal**
+        - The `Requirements` machine signal takes its `clean` and evidence from `requirementSummary`, so a
+          requirement the composer leaves outstanding under a satisfied conclusion reaches the approver as a
+          machine-evidence exception instead of being overwritten by a clean literal.
 
-    - `[ ]` **8.5.c Render the Requirements signal**
-        - The `Requirements` machine signal renders from `requirementSummary` instead of a literal `clean: true`.
+- _Outcome:_ The three surfaces that reported the hosted-review obligation now read it: the locus from
+  reservation-plus-change-request, the checkpoint requirement and review status from the lane's own verdict.
+  Activating the computation also activated the checkpoint's dormant conclusion check, which is why the typed
+  refusal is part of this increment rather than 8.6's. `status-composition.ts` is one of three composition modules
+  no test reaches, so its obligation mapping currently rides on the discharge projection's unit coverage.
 
 ### `[ ]` **8.6 Name a corrective command on pre-publication refusals**
 

@@ -875,8 +875,8 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     const boundary = projectPublicationBoundary({
       workUnit: "foo",
       candidateId,
-      state: "publication-pending",
       reservation,
+      changeRequest: null,
     });
     const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
     await mkdir(boundaryDir, { recursive: true });

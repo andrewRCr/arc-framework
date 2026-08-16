@@ -76,8 +76,11 @@ export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSc
 const PublicationBoundaryInputSchema = z.strictObject({
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
-  state: z.enum(["publication-pending", "hosted-review-pending"]),
   reservation: StandardReviewReservationV1Schema.nullable(),
+  changeRequest: z.strictObject({
+    repository: z.string().trim().min(1),
+    pullRequest: z.number().int().positive(),
+  }).nullable(),
 });
 
 /** Project the conservative exact Candidate entry point before review evidence is reduced. */
@@ -103,16 +106,24 @@ export function projectCandidateReviewBoundary(input: {
   });
 }
 
-/** Project one post-submission resume point. */
+/**
+ * Project one post-submission resume point from the evidence that decides it.
+ *
+ * The locus is derived rather than supplied, because a caller asserting it can only repeat what it
+ * was told: a carried reservation names a hosted review that cannot run until a change request
+ * exists to run it against, so those two facts together — and only together — place the work unit
+ * at the hosted resume point. Every other combination continues publication, including a
+ * reservation still waiting for its change request.
+ */
 export function projectPublicationBoundary(input: unknown): IntegrationBoundaryLocus {
   const value = PublicationBoundaryInputSchema.parse(input);
-  const hosted = value.state === "hosted-review-pending";
+  const hosted = value.reservation !== null && value.changeRequest !== null;
   return IntegrationBoundaryLocusSchema.parse({
     schemaVersion: 1,
     mode: "integration-boundary",
     workUnit: value.workUnit,
     candidateId: value.candidateId,
-    locus: value.state,
+    locus: hosted ? "hosted-review-pending" : "publication-pending",
     nextAction: {
       kind: hosted ? "continue-hosted-review" : "continue-publication",
       command: hosted

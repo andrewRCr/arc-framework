@@ -131,8 +131,8 @@ describe("checkout subject active-extension seam", () => {
     const boundary = projectPublicationBoundary({
       workUnit: "demo",
       candidateId,
-      state: "publication-pending",
       reservation,
+      changeRequest: null,
     });
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`, JSON.stringify(boundary));

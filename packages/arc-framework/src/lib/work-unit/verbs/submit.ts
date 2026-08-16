@@ -248,8 +248,10 @@ export async function runSubmit(
   const publicationBoundary = projectPublicationBoundary({
     workUnit: name,
     candidateId,
-    state: "publication-pending",
     reservation: authorization.reservation,
+    // Submission fires at the head of the publication step, before the change request exists, so a
+    // carried reservation has nothing to run against yet.
+    changeRequest: null,
   });
   return {
     status: "submitted",

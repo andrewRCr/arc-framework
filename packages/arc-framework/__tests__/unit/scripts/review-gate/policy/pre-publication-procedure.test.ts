@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
 import {
+  createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
   projectPublicationBoundary,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -34,12 +35,12 @@ const standardReview = {
 };
 
 describe("integration boundary locus", () => {
-  it("projects publication and hosted-review resume points with precomposed actions", () => {
+  it("continues publication while no reservation is carried across the boundary", () => {
     expect(projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
-      state: "publication-pending",
       reservation: null,
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     })).toMatchObject({
       locus: "publication-pending",
       nextAction: {
@@ -47,12 +48,26 @@ describe("integration boundary locus", () => {
         command: "arc submit example --json",
       },
     });
+  });
 
+  it("continues publication while the reserved review has no change request to run against", () => {
     expect(projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
-      state: "hosted-review-pending",
-      reservation: null,
+      reservation: reservation(),
+      changeRequest: null,
+    })).toMatchObject({
+      locus: "publication-pending",
+      nextAction: { kind: "continue-publication" },
+    });
+  });
+
+  it("resumes the reserved hosted review once its change request exists", () => {
+    expect(projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      reservation: reservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     })).toMatchObject({
       locus: "hosted-review-pending",
       nextAction: {
@@ -74,6 +89,16 @@ describe("integration boundary locus", () => {
     })).toThrow();
   });
 });
+
+function reservation() {
+  return createStandardReviewReservation({
+    candidateId: `sha256:${"c".repeat(64)}`,
+    sourceId: "coderabbit-pr",
+    repository: target.repository,
+    headSha: target.headSha,
+    obligation: standardReview,
+  });
+}
 
 function request(overrides: Record<string, unknown> = {}) {
   return {

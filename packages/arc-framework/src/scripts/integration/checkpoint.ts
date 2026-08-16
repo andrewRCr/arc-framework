@@ -83,14 +83,33 @@ export const CandidateTailDiffReferenceSchema = z.strictObject({
   reference: z.string().min(1),
 });
 
+export const CheckpointRequirementSchema = z.strictObject({
+  id: z.string().min(1),
+  state: z.enum(["satisfied", "pending", "failure", "not-applicable"]),
+  detail: z.string().min(1),
+});
+export type CheckpointRequirement = z.infer<typeof CheckpointRequirementSchema>;
+
 export const CheckpointRequirementSummarySchema = z.strictObject({
   conclusion: z.enum(["satisfied", "pending", "failure"]),
-  requirements: z.array(z.strictObject({
-    id: z.string().min(1),
-    state: z.enum(["satisfied", "pending", "failure", "not-applicable"]),
-    detail: z.string().min(1),
-  })),
+  requirements: z.array(CheckpointRequirementSchema),
 });
+export type CheckpointRequirementSummary = z.infer<typeof CheckpointRequirementSummarySchema>;
+
+/** The requirement identity carrying the hosted-review obligation deferred across publication. */
+export const HOSTED_REVIEW_REQUIREMENT_ID = "hosted-review-reservation";
+
+function outstanding(requirement: CheckpointRequirement): boolean {
+  return requirement.state !== "satisfied" && requirement.state !== "not-applicable";
+}
+
+/** Render what the composed requirements establish, so the surface reports a read rather than a claim. */
+function requirementEvidence(summary: CheckpointRequirementSummary): string {
+  const open = summary.requirements.filter(outstanding);
+  return open.length === 0
+    ? `Every composed requirement is satisfied (${summary.requirements.length} checked).`
+    : open.map(({ id, state, detail }) => `${id} is ${state}: ${detail}`).join(" ");
+}
 
 export const CheckpointStatusSummarySchema = z.strictObject({
   lifecycle: IntegrationLifecycleSummarySchema,
@@ -195,6 +214,11 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
   }),
   z.strictObject({
     ...CheckpointBlockedBaseShape,
+    reason: z.literal("hosted-reservation-pending"),
+    payload: z.strictObject({ requirement: CheckpointRequirementSchema }),
+  }),
+  z.strictObject({
+    ...CheckpointBlockedBaseShape,
     reason: z.literal("composition-unavailable"),
     payload: z.strictObject({ detail: z.string().min(1) }),
   }),
@@ -242,6 +266,11 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
     "The configured merge method is allowed by host policy.",
     "Align the configured `merge.strategy` with the repository's allowed methods, then re-resolve",
     ["arc", "review", "merge-method", "resolve", "--json"],
+  ),
+  "hosted-reservation-pending": (workUnit) => spineRemedy(
+    "A hosted review reserved before publication runs before its Candidate is checkpointed.",
+    "Run the reserved hosted review to a verdict, then re-run",
+    ["arc", "review", "pre-publication", workUnit, "--json"],
   ),
   "composition-unavailable": (workUnit) => spineRemedy(
     "The ready composition binds the exact satisfied Candidate head.",
@@ -437,6 +466,21 @@ export async function checkpointIntegration(
       lifecycle,
       candidate,
     }));
+    const hostedReview = composition.requirementSummary.requirements
+      .find(({ id }) => id === HOSTED_REVIEW_REQUIREMENT_ID);
+    // The deferred hosted obligation is the one composed requirement an operator can still
+    // discharge, so it refuses by name with that command rather than through the generic
+    // composition failure the bind check below raises.
+    if (hostedReview !== undefined && outstanding(hostedReview)) {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "hosted-reservation-pending",
+        remedy: checkpointRemedy("hosted-reservation-pending", request.workUnit),
+        payload: { requirement: hostedReview },
+      });
+    }
     if (
       composition.approvedHead !== candidate.recognizedRevision
       || composition.candidateTailDiff.throughRevision !== composition.approvedHead
@@ -491,8 +535,8 @@ export async function checkpointIntegration(
         {
           kind: "requirements",
           label: "Requirements",
-          clean: true,
-          evidence: "Every checkpoint requirement is satisfied.",
+          clean: !composition.requirementSummary.requirements.some(outstanding),
+          evidence: requirementEvidence(composition.requirementSummary),
         },
         {
           kind: "required-checks",

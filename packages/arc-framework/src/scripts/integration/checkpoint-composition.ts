@@ -29,7 +29,12 @@ import {
   resolveMergeMethod,
 } from "../review-gate/merge-method.js";
 import {
+  createHostedReservationDischargeReader,
+} from "../review-gate/policy/hosted-reservation-discharge.js";
+import { projectPublicationBoundary } from "../review-gate/policy/integration-boundary-locus.js";
+import {
   CheckpointReadyCompositionSchema,
+  HOSTED_REVIEW_REQUIREMENT_ID,
   IntegrationLifecycleSummarySchema,
   ReconcileHostFactSchema,
   ValidatedMergeMethodSchema,
@@ -196,6 +201,7 @@ export function createIntegrationCheckpointDependencies(input: {
     return identityPromise;
   };
   const composeLineageReview = createLineageReviewComposer(input);
+  const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
   const candidate = (workUnit: string): Promise<CachedCandidate | null> => {
     let value = candidates.get(workUnit);
     if (value === undefined) {
@@ -254,9 +260,25 @@ export function createIntegrationCheckpointDependencies(input: {
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
       if (boundary === null) throw new Error("The durable publication boundary is unavailable.");
-      if (boundary.locus === "hosted-review-pending") {
-        throw new Error("The reserved hosted review obligation is still pending.");
-      }
+      // The boundary's own derivation decides whether a hosted review is due at this exact head;
+      // the durable lane record decides whether it ran. Neither is read off the stored locus, which
+      // was derived before the change request existed and no writer clears.
+      const publicationLocus = projectPublicationBoundary({
+        workUnit,
+        candidateId: value.record.attestation.candidateId,
+        reservation: boundary.reservation,
+        changeRequest: {
+          repository: changeRequest.targetRef.repository,
+          pullRequest: changeRequest.candidate.number,
+        },
+      });
+      const discharge = await readHostedReservationDischarge({
+        reservation: boundary.reservation,
+        baseRevision: value.record.attestation.baseRevision,
+        approvedHead: currentness.recognizedRevision,
+      });
+      const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
+        && !discharge.discharged;
       const checksPort = createGhRequiredChecksPort(hostedGhRunner);
       const repository = await checksPort.resolveRepository();
       if (repository.toLowerCase() !== changeRequest.targetRef.repository.toLowerCase()) {
@@ -280,7 +302,7 @@ export function createIntegrationCheckpointDependencies(input: {
           reference: `${fromRevision}..${currentness.recognizedRevision}`,
         },
         requirementSummary: {
-          conclusion: "satisfied",
+          conclusion: hostedReviewPending ? "pending" : "satisfied",
           requirements: [
             {
               id: "candidate-convergence",
@@ -288,9 +310,9 @@ export function createIntegrationCheckpointDependencies(input: {
               detail: "The current Candidate lineage carries every required convergence attestation.",
             },
             {
-              id: "hosted-review-reservation",
-              state: "satisfied",
-              detail: "No pending hosted-review reservation remains at the publication boundary.",
+              id: HOSTED_REVIEW_REQUIREMENT_ID,
+              state: hostedReviewPending ? "pending" : "satisfied",
+              detail: discharge.detail,
             },
           ],
         },

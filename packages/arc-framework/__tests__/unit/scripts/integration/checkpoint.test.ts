@@ -294,4 +294,62 @@ describe("integration checkpoint", () => {
         },
       });
   });
+
+  it("blocks a reserved hosted review that has produced no verdict, naming its corrective command", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const composeReady = deps.composeReady;
+    deps.composeReady = async (input) => ({
+      ...await composeReady(input),
+      requirementSummary: {
+        conclusion: "pending",
+        requirements: [{
+          id: "hosted-review-reservation",
+          state: "pending",
+          detail: "The reserved hosted source `coderabbit-pr` has produced no verdict-bearing review.",
+        }],
+      },
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "hosted-reservation-pending",
+        remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] },
+        payload: {
+          requirement: { id: "hosted-review-reservation", state: "pending" },
+        },
+      });
+  });
+
+  it("renders the Requirements signal from the composed summary rather than a clean literal", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const composeReady = deps.composeReady;
+    deps.composeReady = async (input) => ({
+      ...await composeReady(input),
+      requirementSummary: {
+        conclusion: "satisfied",
+        requirements: [{
+          id: "candidate-convergence",
+          state: "pending",
+          detail: "Convergence evidence is still being collected.",
+        }],
+      },
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "ready",
+        payload: {
+          interlockSurface: {
+            machineEvidence: {
+              state: "exceptions",
+              text: expect.stringContaining("Convergence evidence is still being collected."),
+            },
+          },
+        },
+      });
+  });
 });

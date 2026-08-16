@@ -2,8 +2,10 @@
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
+import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { createHostedReservationDischargeReader } from "./policy/hosted-reservation-discharge.js";
 import {
   resolveChangeRequest,
   type ChangeRequestTargetRef,
@@ -56,6 +58,7 @@ async function readBasePosition(input: {
 
 async function readRoutedObligation(
   cwd: string,
+  exec: GitExec,
   target: ChangeRequestTargetRef,
 ): Promise<RoutedReviewObligation> {
   const workUnit = branchToWorkUnitSlug(target.headRef);
@@ -67,10 +70,25 @@ async function readRoutedObligation(
     if (boundary === null) {
       return { state: "blocked", detail: "The publication boundary is unavailable." };
     }
-    if (boundary.reservation !== null || boundary.locus === "hosted-review-pending") {
-      return { state: "review-required", detail: "The routed hosted review obligation remains unsettled." };
+    // A carried reservation is not itself an unsettled obligation — nothing clears it, so reading it
+    // that way reports every hosted-first work unit as forever mid-review. What settles it is the
+    // reserved source's own verdict on the lane.
+    const { reservation } = boundary;
+    if (reservation === null) {
+      return { state: "settled", detail: "No hosted review was reserved across publication." };
     }
-    return { state: "settled", detail: "The routed review obligation is settled." };
+    const record = await readCandidateRecord(cwd, workUnit);
+    if (record === null) {
+      return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
+    }
+    const discharge = await createHostedReservationDischargeReader({ cwd, exec })({
+      reservation,
+      baseRevision: record.attestation.baseRevision,
+      approvedHead: target.headSha,
+    });
+    return discharge.discharged
+      ? { state: "settled", detail: discharge.detail }
+      : { state: "review-required", detail: discharge.detail };
   } catch (error) {
     return {
       state: "blocked",
@@ -88,7 +106,7 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
       const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
       const [base, routedObligation] = await Promise.all([
         readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha }),
-        readRoutedObligation(input.cwd, target),
+        readRoutedObligation(input.cwd, input.exec, target),
       ]);
       const resolution = await resolveChangeRequest(
         { headRef: target.headRef, headSha: target.headSha },
