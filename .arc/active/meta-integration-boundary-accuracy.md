@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Verification boundary — pass-two findings dispositioned, spec amended, Phase 8 authored
-- **Next Task:** Task 8.1 — Reduce the review record to an attested local-review marker (line ~972)
+- **Last Completed:** Task 8.2 — Compose the settlement plan from approved-disposition records
+- **Next Task:** Task 8.3 — Restore the proposed-disposition disclosure at the work-unit interlock (line ~1021)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.1.a — cut `## Review` from `template-pull-request.md` and add the
-  `**Local review:**` field; success criteria stay unmarked and `arc propose` un-run until Phase 9
+- **Next Action:** Start Task 8.3.a — restore "the proposed final dispositions" to the `integration-interlock`
+  callout and scope its channel-settlement clause to the review-response channel
 
 - **PR URL:** [none]
 - **Completed:** [none]
