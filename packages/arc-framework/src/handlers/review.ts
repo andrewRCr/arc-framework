@@ -273,6 +273,8 @@ export const ReviewStatusCliInputSchema = z.strictObject({ target: z.string().tr
 export const ReviewPrePublicationInputSchema = z.strictObject({
   name: SlugSchema,
   selfReview: z.enum(["inactive", "pending", "settled"]).optional(),
+  changeSet: z.string().trim().min(1, "A JSON change-set file path, or - for stdin, is required.")
+    .optional(),
   json: z.literal(true),
 });
 
@@ -282,6 +284,7 @@ const reviewPrePublicationInputRegistration: CommandInputRegistration = {
   schemaFields: {
     "operand.name": "name",
     "option.self-review": "selfReview",
+    "option.change-set": "changeSet",
     "option.json": "json",
   },
 };
@@ -1535,12 +1538,18 @@ export async function handleReviewHostedSettle(
 /** Command-line options for `arc review pre-publication`. */
 export interface ReviewPrePublicationOptions {
   selfReview?: string;
+  changeSet?: string;
   json?: boolean;
 }
 
 export interface ReviewPrePublicationHandlerDependencies {
   resolveRoot(cwd: string): string | null;
-  compose(root: string, input: z.infer<typeof ReviewPrePublicationInputSchema>): Promise<PrePublicationComposition>;
+  readText(source: string): Promise<string>;
+  compose(
+    root: string,
+    input: z.infer<typeof ReviewPrePublicationInputSchema>,
+    changeSet: unknown,
+  ): Promise<PrePublicationComposition>;
   persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
   write(text: string): void;
   warn(text: string): void;
@@ -1551,10 +1560,12 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
   const boundary = defaultReviewHandlerBoundary();
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
-    compose: (root, input) => composePrePublicationReviewRequest(
+    readText: (source) => boundary.readText(source),
+    compose: (root, input, changeSet) => composePrePublicationReviewRequest(
       {
         workUnit: input.name,
         ...(input.selfReview === undefined ? {} : { selfReview: input.selfReview }),
+        ...(input.changeSet === undefined ? {} : { changeSet }),
       },
       createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec }),
     ),
@@ -1578,8 +1589,10 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
  * Resolve the typed pre-publication review procedure for one work unit.
  *
  * The command self-composes both lane policy requests from repository state, so the next action
- * every Candidate-bearing locus names is invocable with the slug alone. `--self-review` reports the
- * one fact the repository cannot establish: whether the author's self-review actually ran.
+ * every Candidate-bearing locus names is invocable with the slug alone. Two options report what the
+ * repository cannot establish: `--self-review`, whether the author's self-review actually ran, and
+ * `--change-set`, the routing facts the standard-review obligation turns on. Omitting the latter
+ * routes the change set as unestablished, which is the conservative `required` route.
  *
  * @param name - The target work unit's slug.
  * @param options - Parsed command-line options.
@@ -1602,11 +1615,22 @@ export async function handleReviewPrePublication(
   const input = ReviewPrePublicationInputSchema.safeParse({
     name: name.trim(),
     ...(options.selfReview === undefined ? {} : { selfReview: options.selfReview }),
+    ...(options.changeSet === undefined ? {} : { changeSet: options.changeSet }),
     json: options.json,
   });
   if (!input.success) {
     emitFailure(input.error, "request");
     return;
+  }
+
+  let changeSet: unknown;
+  if (input.data.changeSet !== undefined) {
+    try {
+      changeSet = JSON.parse(await dependencies.readText(input.data.changeSet));
+    } catch (error) {
+      emitFailure(error, "request");
+      return;
+    }
   }
 
   let root: string;
@@ -1621,7 +1645,7 @@ export async function handleReviewPrePublication(
 
   let envelope: PrePublicationReviewEnvelope;
   try {
-    const composition = await dependencies.compose(root, input.data);
+    const composition = await dependencies.compose(root, input.data, changeSet);
     if (composition.status === "refused") {
       emitFailure(new Error(composition.reason), "execution");
       return;

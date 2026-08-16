@@ -1527,7 +1527,7 @@ describe("handleReviewPrePublication", () => {
     expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
       name: "example",
       selfReview: "settled",
-    }));
+    }), undefined);
   });
 
   it("writes composition advisories to stderr so the JSON envelope stays machine-clean", async () => {
@@ -1559,6 +1559,41 @@ describe("handleReviewPrePublication", () => {
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
       error: { code: "invalid-input" },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("reads the change-set facts from their source and hands them to composition", async () => {
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+    const readText = vi.fn(async () => JSON.stringify({ changeSetState: "known" }));
+    const dependencies = boundary({ compose, readText });
+
+    await handleReviewPrePublication("example", { json: true, changeSet: "-" }, dependencies);
+
+    expect(readText).toHaveBeenCalledWith("-");
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), { changeSetState: "known" });
+  });
+
+  it("composes with no facts rather than a placeholder when the option is absent", async () => {
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+    const readText = vi.fn();
+    const dependencies = boundary({ compose, readText });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), undefined);
+  });
+
+  it("rejects an unparseable change-set source before composing", async () => {
+    const compose = vi.fn();
+    const dependencies = boundary({ compose, readText: async () => "{ not json" });
+
+    await handleReviewPrePublication("example", { json: true, changeSet: "facts.json" }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
     });
     expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
   });

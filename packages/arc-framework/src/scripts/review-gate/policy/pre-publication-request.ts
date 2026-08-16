@@ -49,6 +49,12 @@ export interface PrePublicationCompositionInput {
   workUnit: string;
   /** The author's report that self-review ran; absent, the method's effective activity decides. */
   selfReview?: PrePublicationSelfReviewState;
+  /**
+   * The author's change-set routing facts; absent, the change set routes as unestablished. Only the
+   * facts below are read — the work unit's `Class` and effective method activity are supplied from
+   * the repository and cannot be overridden here.
+   */
+  changeSet?: unknown;
 }
 
 export type PrePublicationComposition =
@@ -62,10 +68,11 @@ export type PrePublicationComposition =
 
 /**
  * The routing facts a change set's review obligation turns on are author judgments — content kind,
- * risk, determinacy, ownership, and surface authority. Nothing here establishes them, so the
- * composition routes as an unknown change set: `required` standard review, reason
- * `unknown-change-set`. What it does establish — the work unit's `Class` and the effective activity
- * of the two review methods — is supplied exactly, because the reducer applies both over that base.
+ * risk, determinacy, ownership, and surface authority. The repository does not establish them, so a
+ * caller that supplies none routes as an unknown change set: `required` standard review, reason
+ * `unknown-change-set`. What the repository does establish — the work unit's `Class` and the
+ * effective activity of the two review methods — is supplied exactly and is never the caller's to
+ * assert, because the reducer applies both over whichever base is in force.
  */
 const UNESTABLISHED_CHANGE_SET_FACTS = {
   changeSetState: "unknown",
@@ -90,12 +97,40 @@ function unrecordedLaneAdvisory(lane: ReviewLane): string {
 }
 
 /**
- * Compose both lane policy requests for one work unit from repository state alone.
+ * A rejected routing fact is normalized to an unknown change set rather than refused, so the route
+ * it produces is the conservative one either way. What the caller loses without this is why: a
+ * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
+ */
+function rejectedRoutingAdvisory(paths: readonly string[]): string {
+  return `Rejected or missing routing input at ${paths.join(", ")}; the change set routes as `
+    + "unestablished, so standard review stays required.";
+}
+
+/**
+ * Compose the routing input from the caller's change-set facts and the repository's own two facts.
+ *
+ * The caller supplies facts, never the decision: `assurance` and `activity` are overwritten from
+ * the repository, and any other key the caller adds is rejected by the router's own normalization.
+ */
+function routingInput(
+  changeSet: unknown,
+  assurance: ReviewAssuranceInput,
+  activity: ReviewMethodActivity,
+): unknown {
+  const supplied = changeSet === undefined ? UNESTABLISHED_CHANGE_SET_FACTS : changeSet;
+  if (typeof supplied !== "object" || supplied === null || Array.isArray(supplied)) return supplied;
+  return { ...supplied, schemaVersion: 1, assurance, activity };
+}
+
+/**
+ * Compose both lane policy requests for one work unit from repository state and author judgment.
  *
  * Per-attempt progress comes from the durable lane record rather than the caller, so source order
  * and pass ceilings stay with the CLI rather than being assembled by whoever invokes the command.
+ * The caller's one contribution is judgment the repository cannot read — whether self-review ran,
+ * and what kind of change set this is — which the router reduces here rather than the caller.
  *
- * @param input - The target work unit and any author self-review report.
+ * @param input - The target work unit, any author self-review report, and any change-set facts.
  * @param dependencies - The repository reads bound by the production composition root.
  * @returns The composed request with any composition advisories, or a refusal naming what is missing.
  */
@@ -116,15 +151,13 @@ export async function composePrePublicationReviewRequest(
   if (resolvedTarget.status === "refused") return { status: "refused", reason: resolvedTarget.reason };
   const { target } = resolvedTarget;
 
-  const routing = resolveReviewRouting({
-    schemaVersion: 1,
-    ...UNESTABLISHED_CHANGE_SET_FACTS,
-    assurance: assurance.assurance,
-    activity: assurance.activity,
-  });
+  const routing = resolveReviewRouting(
+    routingInput(input.changeSet, assurance.assurance, assurance.activity),
+  );
   const standardReview = projectStandardReviewObligation(routing.decision);
 
   const advisories: string[] = [];
+  if (routing.diagnostics.length > 0) advisories.push(rejectedRoutingAdvisory(routing.diagnostics));
   const composeLane = async (lane: ReviewLane) => {
     const [policy, progress] = await Promise.all([
       dependencies.readLanePolicy(lane),

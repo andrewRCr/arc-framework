@@ -89,6 +89,77 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
   });
 
+  it("routes a supplied change set through the router rather than the unestablished default", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        changeSet: {
+          changeSetState: "known",
+          contentKind: "documentation",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "planning-grooming",
+        },
+      },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.standardReview.obligation).toBe("exempt");
+    expect(composition.request.standard.standardReview.reasons).not.toContain("unknown-change-set");
+    expect(composition.advisories).toHaveLength(0);
+  });
+
+  it("reduces supplied facts in the composition rather than accepting a caller's obligation", async () => {
+    // The caller asserts facts; the two the repository establishes are not among them. A caller
+    // claiming a light class or an inactive method must not lower the route it receives.
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        changeSet: {
+          changeSetState: "known",
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "atomic",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+          assurance: { workContext: "work-unit", workClass: "Light" },
+          activity: { selfReview: false, frontlineReview: true },
+        },
+      },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    // The caller's facts reached the reducer — an atomic code change set softens to `recommended`.
+    expect(composition.request.standard.standardReview.obligation).toBe("recommended");
+    // Its claims about the repository's own two facts did not: the fixture holds the inverse of both.
+    expect(composition.request.frontline.frontlineActive).toBe(false);
+    expect(composition.request.selfReview).toBe("pending");
+    expect(composition.advisories).toHaveLength(0);
+  });
+
+  it.each([
+    ["an unrecognized fact value", { changeSetState: "known", contentKind: "prose" }, "contentKind"],
+    ["an unrecognized fact key", { changeSetState: "known", blastRadius: "wide" }, "blastRadius"],
+    ["a non-record change set", "documentation", "$"],
+  ])("normalizes %s to the conservative route and says why", async (_label, changeSet, path) => {
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", changeSet },
+      dependencies(),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.standardReview.obligation).toBe("required");
+    expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
+    expect(composition.advisories).toHaveLength(1);
+    expect(composition.advisories[0]).toContain(path);
+  });
+
   it("carries the effective method activity into both lanes and the self-review state", async () => {
     const active = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       readAssurance: async () => ({
