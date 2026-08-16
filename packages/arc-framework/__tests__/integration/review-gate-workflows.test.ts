@@ -295,6 +295,28 @@ describe("trusted review-gate workflows", () => {
     expect(finalGate).not.toContain("exact candidate-tail diff");
   });
 
+  it("discloses the applicability calls, dispositions, and narrowed tail diff at the merge stop", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      ),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(project).toBe(packaged);
+
+    const finalGate = sectionBetween(
+      packaged,
+      "### 13) Behind-base reconcile gate and merge",
+      "### 14) Post-merge worktree cleanup",
+    );
+    const interlock = finalGate.slice(finalGate.lastIndexOf("`integration-interlock`"));
+    expect(interlock).toMatch(/candidate-tail diff[\s\S]*Release Notes entry and Completion Notes/u);
+    expect(interlock).toContain("named rather than diffed");
+    expect(interlock).toContain("review applicability calls and targeted verification");
+    expect(interlock).toContain("proposed final dispositions");
+    expect(interlock).toContain("no-action record-only sets");
+  });
+
   it("routes frontline and local review through the public advisory command surface", async () => {
     const paths = [
       "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",

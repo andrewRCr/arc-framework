@@ -507,6 +507,7 @@ export async function checkpointIntegration(
       repository: composition.statusSummary.changeRequest.repository,
       pullRequest: composition.statusSummary.changeRequest.pullRequest,
       method: mergeMethod.method,
+      candidateTailReference: composition.candidateTailDiff.reference,
       signals: [
         {
           kind: "base-drift",

@@ -30,6 +30,7 @@ describe("checkpoint interlock surface", () => {
       repository: "owner/repo",
       pullRequest: 42,
       method: "merge",
+      candidateTailReference: `${oid("b")}..${oid("a")}`,
       signals: signals(),
     });
 
@@ -37,6 +38,31 @@ describe("checkpoint interlock surface", () => {
     expect(result.machineEvidence.text).toContain("Machine evidence: 9 checks clean.");
     expect(result.machineEvidence.text).not.toContain("Authoritative drift is clean.");
     expect(result.extensionReport).toEqual({ label: "Extension report", content: null });
+  });
+
+  it("names the candidate tail so the approver can self-serve the diff", () => {
+    const clean = composeCheckpointInterlockSurface({
+      approvedHead: oid("a"),
+      repository: "owner/repo",
+      pullRequest: 42,
+      method: "merge",
+      candidateTailReference: `${oid("b")}..${oid("a")}`,
+      signals: signals(),
+    });
+    const evidence = signals();
+    evidence[0] = { kind: "base-drift", label: "Base drift", clean: false, evidence: "The base advanced." };
+    const exceptions = composeCheckpointInterlockSurface({
+      approvedHead: oid("a"),
+      repository: "owner/repo",
+      pullRequest: 42,
+      method: "merge",
+      candidateTailReference: `${oid("b")}..${oid("a")}`,
+      signals: evidence,
+    });
+
+    for (const result of [clean, exceptions]) {
+      expect(result.machineEvidence.text).toContain(`Candidate tail: ${oid("b")}..${oid("a")}`);
+    }
   });
 
   it("expands any unclean signal with its evidence", () => {
@@ -52,6 +78,7 @@ describe("checkpoint interlock surface", () => {
       repository: "owner/repo",
       pullRequest: 42,
       method: "merge",
+      candidateTailReference: `${oid("b")}..${oid("a")}`,
       signals: evidence,
     });
 

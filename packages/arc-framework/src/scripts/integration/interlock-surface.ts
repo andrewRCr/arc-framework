@@ -43,18 +43,24 @@ export const CheckpointInterlockSurfaceSchema = z.strictObject({
 });
 export type CheckpointInterlockSurface = z.infer<typeof CheckpointInterlockSurfaceSchema>;
 
-/** Collapse clean signals and expand only machine-computed exceptions into approval text. */
+/**
+ * Collapse clean signals and expand only machine-computed exceptions into approval text.
+ *
+ * The tail reference is named rather than expanded: the disclosure at the stop narrows to the
+ * artifacts carrying review signal, so the approver reads this to self-serve what it excluded.
+ */
 export function composeCheckpointInterlockSurface(input: {
   approvedHead: string;
   repository: string;
   pullRequest: number;
   method: "merge" | "rebase" | "squash";
+  candidateTailReference: string;
   signals: readonly CheckpointMachineSignal[];
 }): CheckpointInterlockSurface {
   const signals = CheckpointMachineSignalsSchema.parse(input.signals);
   const exceptions = signals.filter(({ clean }) => !clean);
   const decision = `Approve merge of ${input.approvedHead} via ${input.method} for `
-    + `${input.repository}#${input.pullRequest}.`;
+    + `${input.repository}#${input.pullRequest}.\nCandidate tail: ${input.candidateTailReference}`;
   const text = exceptions.length === 0
     ? `${decision}\nMachine evidence: ${signals.length} checks clean.`
     : `${decision}\nMachine evidence exceptions:\n${exceptions
