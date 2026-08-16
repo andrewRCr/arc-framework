@@ -18,19 +18,26 @@ import {
 import { deriveLocalReviewTarget } from "../review-gate/hosts/local/repository-target.js";
 import type { SettlementAction } from "./settlement-plan.js";
 
-/** The settlement actions one lineage composes, with the approved sets they were built from. */
+/** The settlement actions one Candidate span composes, with the approved sets they were built from. */
 export interface LineageReviewComposition {
   dispositionIds: string[];
   actions: SettlementAction[];
 }
 
 /**
- * Bind the durable review records one Candidate lineage points at to its settlement plan.
+ * Compose the settlement plan from every approved disposition record the Candidate covers.
  *
- * The lineage records which approved set each response settled, not the operation that produced it,
- * so the approved records are reached by identity and the originating target is read back from the
- * lane that owns it. Anything the lineage names but the repository cannot produce refuses rather
- * than composing a partial plan: a plan missing an action would settle less than approval covered.
+ * The plan answers "which approved dispositions exist", which the Candidate lineage cannot: a set
+ * that authorized no fix moves no implementation, so it correctly appends nothing to the lineage and
+ * would vanish from a plan indexed off it. Approved records are therefore enumerated and then scoped
+ * to the **full Candidate span** — `attestation.baseRevision..approvedHead`, not the candidate-tail
+ * span, whose lower bound advances past a review that ran before a fix landed.
+ *
+ * Records the lineage names are still resolved strictly: anything it names but the repository cannot
+ * produce refuses rather than composing a partial plan, because a plan missing an action would settle
+ * less than approval covered. The disposition store is repository-common, so enumeration also returns
+ * other work units' records; one whose originating operation is unreadable cannot be placed in any
+ * span and is left out rather than refusing this work unit's checkpoint.
  *
  * @param input - The repository root and its Git boundary.
  * @returns A composer memoized per work unit and approved head.
@@ -45,7 +52,12 @@ export function createLineageReviewComposer(input: {
   const outcomeStore = new LocalFrontlineOutcomeStore(publisher);
   const compositions = new Map<string, Promise<LineageReviewComposition>>();
 
-  const originTarget = async (record: ApprovedDispositionRecord): Promise<ReviewTarget> => {
+  // `required` marks a record the Candidate lineage names: those refuse, while a record enumeration
+  // merely surfaced resolves to null so an unrelated work unit's residue cannot block this one.
+  const originTarget = async (
+    record: ApprovedDispositionRecord,
+    required: boolean,
+  ): Promise<ReviewTarget | null> => {
     const resolved = await (record.source.kind === "attested-local"
       ? operationStore.readOperation(record.operationId).then(({ state }) => (
           state !== null && state.kind === "local-review" ? state.target : null
@@ -54,12 +66,27 @@ export function createLineageReviewComposer(input: {
           outcome?.outcome.target ?? null
         )));
     if (resolved === null) {
+      if (!required) return null;
       throw new Error(`The review operation behind approved dispositions ${record.operationId} is unavailable.`);
     }
     if (resolved.targetId !== record.approvedDisposition.dispositionSet.targetId) {
+      if (!required) return null;
       throw new Error(`The review operation behind approved dispositions ${record.operationId} moved target.`);
     }
     return resolved;
+  };
+
+  // Revisions the Candidate covers, indexed oldest-first so the plan follows the work's own order.
+  const candidateSpan = async (baseRevision: string, approvedHead: string): Promise<Map<string, number>> => {
+    const { stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
+      cwd: input.cwd,
+      objectAccess: "local-only",
+    });
+    const order = new Map<string, number>();
+    stdout.trim().split("\n").filter((line) => line !== "").reverse().forEach((revision, index) => {
+      order.set(revision, index);
+    });
+    return order;
   };
 
   // Every approved fix in the lineage settles at the head the checkpoint approves, so one derivation
@@ -84,25 +111,42 @@ export function createLineageReviewComposer(input: {
     if (record === null) {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }
-    const dispositionIds = [...new Set(record.responses.map(({ dispositionId }) => dispositionId))];
-    if (dispositionIds.length === 0) return { dispositionIds, actions: [] };
+    const named = new Set(record.responses.map(({ dispositionId }) => dispositionId));
+    const [span, enumerated] = await Promise.all([
+      candidateSpan(record.attestation.baseRevision, approvedHead),
+      dispositionIndex.listDispositionRecords(),
+    ]);
 
-    const indexed = new Map((await dispositionIndex.listDispositionRecords()).map(
-      (approved) => [approved.approvedDisposition.dispositionSet.dispositionSetId, approved],
-    ));
-    const approvedRecords = dispositionIds.map((dispositionId) => {
-      const approved = indexed.get(dispositionId);
-      if (approved === undefined) {
+    const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
+    for (const approved of enumerated) {
+      const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
+      const required = named.has(dispositionId);
+      const origin = await originTarget(approved, required);
+      // A named record settles a response this Candidate already recorded, so it is covered whatever
+      // the span read says; everything else is covered only by landing inside the span.
+      if (origin === null || !(required || span.has(origin.headSha))) continue;
+      if (!covered.has(dispositionId)) covered.set(dispositionId, { approved, origin });
+    }
+    for (const dispositionId of named) {
+      if (!covered.has(dispositionId)) {
         throw new Error(`The approved disposition record ${dispositionId} is unavailable.`);
       }
-      return approved;
-    });
+    }
+    if (covered.size === 0) return { dispositionIds: [], actions: [] };
+
+    // Lineage order no longer supplies a composition order, so span position — tiebroken by the
+    // disposition identity — supplies one that two runs at the same head reproduce exactly.
+    const scoped = [...covered].sort(([leftId, left], [rightId, right]) => (
+      (span.get(left.origin.headSha) ?? Number.MAX_SAFE_INTEGER)
+        - (span.get(right.origin.headSha) ?? Number.MAX_SAFE_INTEGER)
+      || leftId.localeCompare(rightId)
+    ));
     const fixTarget = await settledFixTarget(approvedHead);
-    const actions = await Promise.all(approvedRecords.map(async (approved) => {
+    const actions = scoped.map(([, { approved, origin }]) => {
       const dispositions = approved.approvedDisposition;
       const hasFix = dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix");
       return composeReviewResponseSettlementAction({
-        originTarget: await originTarget(approved),
+        originTarget: origin,
         fixTarget: hasFix ? fixTarget : null,
         request: {
           schemaVersion: 1,
@@ -112,8 +156,8 @@ export function createLineageReviewComposer(input: {
           dispositions,
         },
       });
-    }));
-    return { dispositionIds, actions };
+    });
+    return { dispositionIds: scoped.map(([dispositionId]) => dispositionId), actions };
   };
 
   return (workUnit, approvedHead) => {

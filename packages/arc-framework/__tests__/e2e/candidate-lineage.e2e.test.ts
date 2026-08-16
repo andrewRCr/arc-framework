@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { gitExec } from "../../src/lib/io-context.js";
+import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import {
   checkpointIntegration,
   type IntegrationCheckpointDependencies,
@@ -184,8 +185,12 @@ async function reviewToFindings(root: string): Promise<{ kind: "attested-local";
     .responseSource;
 }
 
-/** Propose and approve one `fix` disposition over the reduced findings. */
-async function approvedFix(root: string, source: { kind: "attested-local"; receiptRef: string }) {
+/** Propose and approve one disposition over the reduced findings. */
+async function approvedSet(
+  root: string,
+  source: { kind: "attested-local"; receiptRef: string },
+  disposition: "fix" | "defer" = "fix",
+) {
   const prepared = await invoke(root, ["review", "respond", "-"], {
     schemaVersion: 1,
     source,
@@ -194,9 +199,11 @@ async function approvedFix(root: string, source: { kind: "attested-local"; recei
         findingId: "finding-1",
         sourceVerification: "verified",
         verificationRefs: ["source:reviewed.txt:1"],
-        disposition: "fix",
-        rationale: "The reviewed source supports applying this fix.",
-        recommendation: "Apply the fix.",
+        disposition,
+        rationale: disposition === "fix"
+          ? "The reviewed source supports applying this fix."
+          : "The reviewed source supports carrying this to a follow-up.",
+        recommendation: disposition === "fix" ? "Apply the fix." : "Carry this to a follow-up.",
         openQuestions: [],
       }],
     },
@@ -250,7 +257,7 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "verification"]);
 
     const source = await reviewToFindings(root);
-    const dispositions = await approvedFix(root, source);
+    const dispositions = await approvedSet(root, source);
     await expect(invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions }))
       .resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
@@ -306,13 +313,82 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
+  it("carries an approved set that authorized no fix into the settlement plan", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const source = await reviewToFindings(root);
+    const deferred = await approvedSet(root, source, "defer");
+    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
+
+
+    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+
+    // The deferred set moves no implementation, so the Candidate lineage never names it — the
+    // premise the drop rested on. Composing from the lineage lost it; enumerate-then-scope over the
+    // Candidate span reaches it.
+    const lineage = await readCandidateRecord(root, "example");
+    expect(lineage?.responses.map(({ dispositionId }) => dispositionId))
+      .not.toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).toHaveLength(2);
+    expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.actions.map(({ dispositionId }) => dispositionId))
+      .toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.actions.find(
+      ({ dispositionId }) => dispositionId === deferred.dispositionSet.dispositionSetId,
+    )).toMatchObject({ channel: "review-response", fixTarget: null });
+  });
+
+  it("scopes to the full Candidate span, keeping a review that ran before a fix landed", async () => {
+    const root = await fixture();
+    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+
+    // A defer-only approval first: it appends nothing to the lineage, and every later response
+    // advances a candidate-tail lower bound past the revision it ran on.
+    const deferSource = await reviewToFindings(root);
+    const deferred = await approvedSet(root, deferSource, "defer");
+    await invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source: deferSource,
+      dispositions: deferred,
+    });
+    const deferredHead = await git(root, ["rev-parse", "HEAD"]);
+    // Move off the deferred review's target so the next pass reviews its own revision.
+    await git(root, ["commit", "--allow-empty", "-m", "record deferred response"]);
+
+    // Then a fix lands, moving the head the tail span would be measured from.
+    const source = await reviewToFindings(root);
+    const dispositions = await approvedSet(root, source);
+    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply approved fix"]);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
+    })).resolves.toMatchObject({ state: "candidate-advanced" });
+    await git(root, ["commit", "-m", "record verified response"]);
+    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "convergence verification"]);
+    const approvedHead = await git(root, ["rev-parse", "HEAD"]);
+    expect(approvedHead).not.toBe(deferredHead);
+
+    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+
+    expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).toContain(dispositions.dispositionSet.dispositionSetId);
+    // Span position orders the plan, so the earlier review composes first.
+    expect(composed.dispositionIds[0]).toBe(deferred.dispositionSet.dispositionSetId);
+  });
+
   it("repeats the settlement pass without appending a second response", async () => {
     const root = await fixture();
     expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
 
     const source = await reviewToFindings(root);
-    const dispositions = await approvedFix(root, source);
+    const dispositions = await approvedSet(root, source);
     await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
@@ -361,7 +437,7 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
   await git(root, ["commit", "-m", "verification"]);
 
   const source = await reviewToFindings(root);
-  const dispositions = await approvedFix(root, source);
+  const dispositions = await approvedSet(root, source);
   await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
   await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
   await git(root, ["add", "reviewed.txt"]);

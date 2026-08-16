@@ -1004,18 +1004,19 @@ distinction and its reasoning are recorded in the spec's own amendment blocks.
   also removed the checkpoint's only independent cross-check on the settlement plan's disposition set; the plan is
   now self-describing, which is the axis Task 8.2 re-derives it on.
 
-### `[ ]` **8.2 Compose the settlement plan from approved-disposition records**
+### `[x]` **8.2 Compose the settlement plan from approved-disposition records**
 
 - _Goal:_ Every approved disposition set the Candidate covers reaches the settlement plan, including sets that
   authorized no fix, so the merge verb's compare-and-confirm sees them.
 
-    - `[ ]` **8.2.a Enumerate-then-scope**
-        - Invert `lineage-review-composition.ts` from filter-by-lineage to enumerate-then-scope over
-          `listDispositionRecords()`, scoped to the **full Candidate span**
-          (`attestation.baseRevision..approvedHead`) — not the candidate-tail span, whose lower bound advances past
-          reviews that ran before a fix landed.
-        - Order by resolved origin-target revision, tiebroken by `dispositionSetId`. The handle digests the plan,
-          so two runs at one head must order identically; lineage order no longer supplies that.
+    - `[x]` **8.2.a Enumerate-then-scope**
+        - `lineage-review-composition.ts` enumerates `listDispositionRecords()` and scopes to the full Candidate
+          span, read as one `rev-list attestation.baseRevision..approvedHead`. Records the lineage names still
+          resolve strictly; the store is repository-common, so a record whose originating operation is unreadable
+          cannot be placed in any span and is left out rather than refusing this work unit's checkpoint.
+        - Composition order is span position, tiebroken by `dispositionSetId`. Two e2e tests carry it: a defer-only
+          approval reaching the plan while the lineage provably never names it, and a review that ran before a fix
+          landed surviving a span a candidate-tail lower bound would have excluded.
 
 ### `[ ]` **8.3 Restore the proposed-disposition disclosure at the work-unit interlock**
 
