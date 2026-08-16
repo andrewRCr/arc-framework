@@ -258,9 +258,10 @@ describe("runSubmit — the set-phase-only move", () => {
 
     const result = await runSubmit(ctx, { ...BASE, candidateCurrent: false });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       status: "rejected",
       reason: "Cannot submit `foo`: the Candidate lineage is not current.",
+      remedy: { argv: ["arc", "propose", "foo"] },
     });
     expect(calls).not.toContain("reconcile:prepare");
     expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);

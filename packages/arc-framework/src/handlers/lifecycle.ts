@@ -146,6 +146,7 @@ import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-sourc
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
+import { spineRemedy, type SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
@@ -338,6 +339,11 @@ function reportMaterializeOutcome(
 function refuse(reason: string): void {
   p.log.error(reason);
   process.exitCode = 1;
+}
+
+/** Refuse with the failed invariant and the one command that advances from it. */
+function refuseWithRemedy(reason: string, remedy: SpineRemedy): void {
+  refuse(`${reason}\n${remedy.text}`);
 }
 
 function parseLifecycleCommand<T extends z.ZodType>(schema: T, value: unknown): z.output<T> | null {
@@ -1640,7 +1646,14 @@ export async function handleSubmit(
   const { executor, settings } = await buildExecutor(base);
   const record = await readCandidateRecord(base.cwd, target);
   if (record === null) {
-    refuse(`Cannot submit \`${target}\`: no managed Candidate record exists.`);
+    refuseWithRemedy(
+      `Cannot submit \`${target}\`: no managed Candidate record exists.`,
+      spineRemedy(
+        "Submission requires a managed Candidate attestation.",
+        "Attest the candidate",
+        ["arc", "propose", target],
+      ),
+    );
     return;
   }
   const current = await collectGitCandidateTarget({
@@ -1652,7 +1665,14 @@ export async function handleSubmit(
   const currentness = projectCandidateCurrentness({ record, current });
   const boundary = await readSubmissionBoundary(base.cwd, target);
   if (boundary === null) {
-    refuse(`Cannot submit \`${target}\`: no durable pre-publication boundary exists.`);
+    refuseWithRemedy(
+      `Cannot submit \`${target}\`: no durable pre-publication boundary exists.`,
+      spineRemedy(
+        "Submission requires a settled pre-publication boundary.",
+        "Resolve the pre-publication lanes",
+        ["arc", "review", "pre-publication", target, "--json"],
+      ),
+    );
     return;
   }
   const result = await runSubmit(executor, {
@@ -1665,7 +1685,7 @@ export async function handleSubmit(
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuseWithRemedy(result.reason, result.remedy);
     return;
   }
   if (result.status === "unchanged") {
@@ -1680,7 +1700,7 @@ export async function handleSubmit(
     return;
   }
   if (result.status === "reconcile-failed") {
-    refuse(result.reason);
+    refuseWithRemedy(result.reason, result.remedy);
     return;
   }
   if (result.status === "reconcile-pending") {
@@ -1691,7 +1711,7 @@ export async function handleSubmit(
         + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
       );
     }
-    refuse(result.reason);
+    refuseWithRemedy(result.reason, result.remedy);
     return;
   }
   if (result.reconcile.status === "pending") {

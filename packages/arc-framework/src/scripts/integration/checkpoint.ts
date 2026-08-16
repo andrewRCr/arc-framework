@@ -14,6 +14,13 @@ import {
   CheckpointInterlockSurfaceSchema,
   composeCheckpointInterlockSurface,
 } from "./interlock-surface.js";
+import {
+  SpineRemedySchema,
+  checkpointResumeArgv,
+  proposeArgv,
+  spineRemedy,
+  type SpineRemedy,
+} from "./spine-refusal.js";
 
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -154,7 +161,9 @@ const CheckpointBlockedBaseShape = {
   ...ResultBaseShape,
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
+  remedy: SpineRemedySchema,
 };
+
 
 const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", [
   z.strictObject({
@@ -204,6 +213,67 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     payload: z.strictObject({ detail: z.string().min(1) }),
   }),
 ]);
+
+/** The blocked reasons the checkpoint refuses with — derived from the refusal union itself. */
+export type CheckpointBlockedReason = z.infer<typeof IntegrationCheckpointBlockedResultSchema>["reason"];
+
+/** Every blocked reason, for exhaustive iteration. */
+export const CHECKPOINT_BLOCKED_REASONS: readonly CheckpointBlockedReason[] =
+  IntegrationCheckpointBlockedResultSchema.options.map((option) => option.shape.reason.value);
+
+const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) => SpineRemedy> = {
+  "drift-unavailable": () => spineRemedy(
+    "The checkpoint requires an authoritative base-drift read.",
+    "Restore remote access, then re-read drift",
+    ["arc", "base", "drift", "--json"],
+  ),
+  "unsafe-reconcile": (workUnit) => spineRemedy(
+    "A candidate behind its base reconciles before it is checkpointed.",
+    "Resolve the reported substantive overlap with an append-only base merge, then re-run",
+    checkpointResumeArgv(workUnit),
+  ),
+  "lifecycle-incomplete": (workUnit) => spineRemedy(
+    "Completion Notes and the lifecycle position are verified before merge.",
+    "Compose the reported lifecycle artifacts or complete the archive move, then re-run",
+    checkpointResumeArgv(workUnit),
+  ),
+  "candidate-missing": (workUnit) => spineRemedy(
+    "Integration requires a managed Candidate attestation.",
+    "Attest the candidate",
+    proposeArgv(workUnit),
+  ),
+  "candidate-unexplained-delta": (workUnit) => spineRemedy(
+    "A Candidate lineage advances only on approved review responses.",
+    "Explain the reported delta through an approved response, then re-attest",
+    proposeArgv(workUnit),
+  ),
+  "candidate-convergence-pending": (workUnit) => spineRemedy(
+    "An implementation-changing lineage converges before it is checkpointed.",
+    "Run the converged verification, then re-attest",
+    proposeArgv(workUnit),
+  ),
+  "merge-method-blocked": () => spineRemedy(
+    "The configured merge method is allowed by host policy.",
+    "Align the configured `merge.strategy` with the repository's allowed methods, then re-resolve",
+    ["arc", "review", "merge-method", "resolve", "--json"],
+  ),
+  "composition-unavailable": (workUnit) => spineRemedy(
+    "The ready composition binds the exact satisfied Candidate head.",
+    "Resolve the reported composition failure, then re-run",
+    checkpointResumeArgv(workUnit),
+  ),
+};
+
+/**
+ * Resolve the corrective remedy for one checkpoint refusal.
+ *
+ * @param reason - The typed blocked reason.
+ * @param workUnit - The refused work unit, interpolated into slug-bearing commands.
+ * @returns The remedy naming the failed invariant and one corrective command.
+ */
+export function checkpointRemedy(reason: CheckpointBlockedReason, workUnit: string): SpineRemedy {
+  return CHECKPOINT_REMEDIES[reason](workUnit);
+}
 
 export const IntegrationCheckpointResultSchema = z.union([
   z.strictObject({
@@ -306,6 +376,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "unsafe-reconcile",
+      remedy: checkpointRemedy("unsafe-reconcile", request.workUnit),
       payload: { drift, safety },
     });
   }
@@ -315,6 +386,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "drift-unavailable",
+      remedy: checkpointRemedy("drift-unavailable", request.workUnit),
       payload: { drift },
     });
   }
@@ -327,6 +399,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "lifecycle-incomplete",
+      remedy: checkpointRemedy("lifecycle-incomplete", request.workUnit),
       payload: { lifecycle },
     });
   }
@@ -337,6 +410,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "candidate-missing",
+      remedy: checkpointRemedy("candidate-missing", request.workUnit),
       payload: { workUnit: request.workUnit },
     });
   }
@@ -346,6 +420,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "candidate-unexplained-delta",
+      remedy: checkpointRemedy("candidate-unexplained-delta", request.workUnit),
       payload: { candidate },
     });
   }
@@ -355,6 +430,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "candidate-convergence-pending",
+      remedy: checkpointRemedy("candidate-convergence-pending", request.workUnit),
       payload: { candidate },
     });
   }
@@ -365,6 +441,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "merge-method-blocked",
+      remedy: checkpointRemedy("merge-method-blocked", request.workUnit),
       payload: { mergeMethod },
     });
   }
@@ -476,6 +553,7 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "composition-unavailable",
+      remedy: checkpointRemedy("composition-unavailable", request.workUnit),
       payload: { detail: error instanceof Error ? error.message : String(error) },
     });
   }

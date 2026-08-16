@@ -891,15 +891,18 @@ how they were verified, not in what they state.
   could be dropped without failing anything. That ban is now scoped to the dispatch region, with a positive test
   pinning the guard's presence and its position between the hook and creation.
 
-### `[ ]` **7.9 Name a corrective command on every spine refusal**
+### `[x]` **7.9 Name a corrective command on every spine refusal**
 
 - _Goal:_ Every checkpoint, merge, and submit refusal names the failed invariant and one corrective command, per
   Criterion 15's closing clause.
 
-    - Carry a corrective command alongside the typed reason on the blocked envelopes rather than widening
-      `nextAction` — `candidate-convergence-pending` names `arc propose`, the merge-method and relock reasons name
-      their own remedies.
-    - Give `submit`'s string refusals the same treatment.
+- _Outcome:_ Refusals across `checkpoint`, `merge`, and `submit` carry a `remedy` beside the typed reason — the
+  failed invariant, a render-verbatim sentence, and the corrective command as argv — with `nextAction` unchanged.
+  Both reason sets and their exhaustive tests derive from the refusal schemas rather than a hand-listed table, so
+  a new reason without a remedy fails to compile. Criterion 15's "one corrective command" is read as the specific
+  verb where one exists (`arc propose` for the Candidate arms, `arc wu reconcile` for submit's reconcile stops)
+  and as the idempotent resume point where the operator satisfies the invariant by hand — composing Completion
+  Notes, explaining a lineage delta — rather than naming a verb that cannot author the missing work.
 
 ### `[ ]` **7.10 Correct the `arc integrate` command reference**
 

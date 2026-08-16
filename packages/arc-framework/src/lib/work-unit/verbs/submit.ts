@@ -22,6 +22,7 @@
 import { join } from "node:path";
 
 import { parseMetaRecord } from "../../active/meta-reader.js";
+import { spineRemedy, type SpineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import {
   executeTransition,
   type ExecuteTransitionContext,
@@ -80,9 +81,33 @@ export interface SubmitParams {
   allowAdvisories?: boolean;
 }
 
+const NOT_ACTIVE_REMEDY = (name: string): SpineRemedy => spineRemedy(
+  "Submission runs only from an Active work unit.",
+  "Confirm the work unit's lifecycle state",
+  ["arc", "status", name, "--json"],
+);
+
+const CANDIDATE_REMEDY = (name: string): SpineRemedy => spineRemedy(
+  "Submission requires a current Candidate lineage matching the recorded attestation.",
+  "Re-attest the candidate",
+  ["arc", "propose", name],
+);
+
+const RECONCILE_REMEDY = (name: string): SpineRemedy => spineRemedy(
+  "Tracked references reconcile before the publication boundary is written.",
+  "Apply the current work unit's reconcile",
+  ["arc", "wu", "reconcile", name, "--apply", "--json"],
+);
+
+const SUBMIT_RESUME_REMEDY = (name: string): SpineRemedy => spineRemedy(
+  "A refused submission leaves the work unit resumable at the same boundary.",
+  "Resolve the reported failure, then re-run",
+  ["arc", "submit", name],
+);
+
 /** The outcome of a `submit` attempt, including reconcile stops before phase mutation. */
 export type SubmitResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; remedy: SpineRemedy }
   | { status: "unchanged"; boundary: IntegrationBoundaryLocus }
   | {
       status: "submitted";
@@ -94,12 +119,14 @@ export type SubmitResult =
   | {
       status: "reconcile-pending";
       reason: string;
+      remedy: SpineRemedy;
       metaPath: string;
       reconcile: Extract<CurrentWuReconcileResult, { status: "pending" | "applied" }>;
     }
   | {
       status: "reconcile-failed";
       reason: string;
+      remedy: SpineRemedy;
       metaPath: string;
       reconcile: Extract<CurrentWuReconcileResult, { status: "conflict" }>;
     };
@@ -120,7 +147,11 @@ export async function runSubmit(
   const { name, lastCompleted, nextAction, candidateId, candidateCurrent, boundary, allowAdvisories } = params;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
-    return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
+    return {
+      status: "rejected",
+      reason: `\`${name}\` is not an active WU — nothing to submit.`,
+      remedy: NOT_ACTIVE_REMEDY(name),
+    };
   }
   const metaPath = resolveArcPath({
     kind: "work-unit-artifact",
@@ -137,26 +168,47 @@ export async function runSubmit(
       return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
     }
     if (meta.state !== "Active") {
-      return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
+      return {
+      status: "rejected",
+      reason: `\`${name}\` is not an active WU — nothing to submit.`,
+      remedy: NOT_ACTIVE_REMEDY(name),
+    };
     }
     if (meta.candidateId === null || meta.candidateId !== candidateId) {
-      return { status: "rejected", reason: `Cannot submit \`${name}\`: the current Candidate identity is absent or stale.` };
+      return {
+        status: "rejected",
+        reason: `Cannot submit \`${name}\`: the current Candidate identity is absent or stale.`,
+        remedy: CANDIDATE_REMEDY(name),
+      };
     }
   } catch {
-    return { status: "rejected", reason: `\`${name}\` is not an active WU — nothing to submit.` };
+    return {
+      status: "rejected",
+      reason: `\`${name}\` is not an active WU — nothing to submit.`,
+      remedy: NOT_ACTIVE_REMEDY(name),
+    };
   }
   if (!candidateCurrent) {
-    return { status: "rejected", reason: `Cannot submit \`${name}\`: the Candidate lineage is not current.` };
+    return {
+      status: "rejected",
+      reason: `Cannot submit \`${name}\`: the Candidate lineage is not current.`,
+      remedy: CANDIDATE_REMEDY(name),
+    };
   }
   const authorization = authorizeSubmission({ expectedCandidateId: candidateId, boundary });
   if (authorization.status === "refused") {
-    return { status: "rejected", reason: `Cannot submit \`${name}\`: ${authorization.reason}` };
+    return {
+      status: "rejected",
+      reason: `Cannot submit \`${name}\`: ${authorization.reason}`,
+      remedy: CANDIDATE_REMEDY(name),
+    };
   }
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
   if (reconcile.status === "conflict") {
     return {
       status: "rejected",
       reason: `Cannot submit \`${name}\`: current-WU reconcile refused (${reconcile.reason}).`,
+      remedy: RECONCILE_REMEDY(name),
     };
   }
   const applied = await ctx.currentWuReconcile.apply(reconcile.prepared);
@@ -166,6 +218,7 @@ export async function runSubmit(
       reason:
         `Submission preflight for \`${name}\` became stale before mutation (${applied.reason}). `
         + `Rerun \`arc submit\` after reconciling the current branch.`,
+      remedy: RECONCILE_REMEDY(name),
       metaPath,
       reconcile: applied,
     };
@@ -177,6 +230,7 @@ export async function runSubmit(
       reason:
         `Cannot submit \`${name}\`: current-WU reconcile has `
         + `${advisories.length} advisory reference(s) requiring review.`,
+      remedy: RECONCILE_REMEDY(name),
       metaPath,
       reconcile: applied,
     };
@@ -188,7 +242,9 @@ export async function runSubmit(
     inputs: { softFields: { lastCompleted, nextAction } },
   });
 
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  if (outcome.status !== "ok") {
+    return { status: "rejected", reason: outcome.message, remedy: SUBMIT_RESUME_REMEDY(name) };
+  }
   const publicationBoundary = projectPublicationBoundary({
     workUnit: name,
     candidateId,

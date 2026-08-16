@@ -6,6 +6,12 @@ import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
 import type { ChecksAwaitResult } from "../review-gate/checks-await.js";
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
 import type { IntegrationCheckpointCompositionRecord } from "./checkpoint-store.js";
+import {
+  SpineRemedySchema,
+  checkpointResumeArgv,
+  spineRemedy,
+  type SpineRemedy,
+} from "./spine-refusal.js";
 import type { SettlementExecutionResult } from "./settlement-execution.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
@@ -42,6 +48,93 @@ export const IntegrationMergeInvalidationReasonSchema = z.enum([
 ]);
 export type IntegrationMergeInvalidationReason = z.infer<typeof IntegrationMergeInvalidationReasonSchema>;
 
+export const MergeBlockedReasonSchema = z.enum(["relock-failed", "operation-failed"]);
+
+/** Every reason the merge verb refuses with — invalidation plus terminal block. */
+export type MergeRefusalReason =
+  | IntegrationMergeInvalidationReason
+  | z.infer<typeof MergeBlockedReasonSchema>;
+
+/** Every refusal reason, for exhaustive iteration. */
+export const MERGE_REFUSAL_REASONS: readonly MergeRefusalReason[] = [
+  ...IntegrationMergeInvalidationReasonSchema.options,
+  ...MergeBlockedReasonSchema.options,
+];
+
+const MERGE_REMEDIES: Record<MergeRefusalReason, (workUnit: string) => SpineRemedy> = {
+  "checkpoint-missing": (workUnit) => spineRemedy(
+    "A merge executes only a persisted checkpoint composition.",
+    "Compose a fresh checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "settlement-invalidated": (workUnit) => spineRemedy(
+    "The executed settlement is exactly what the approval covered.",
+    "Re-settle the reported channel, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "head-mismatch": (workUnit) => spineRemedy(
+    "A merge lands only the exact approved head.",
+    "Re-checkpoint over the current head",
+    checkpointResumeArgv(workUnit),
+  ),
+  "lifecycle-moved": (workUnit) => spineRemedy(
+    "The lifecycle stays complete from checkpoint through merge.",
+    "Restore the reported lifecycle position, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "release-blocked": (workUnit) => spineRemedy(
+    "The merge lock releases only through its own lifecycle gate.",
+    "Resolve the reported release refusal, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "checks-failed": (workUnit) => spineRemedy(
+    "Required checks are green on the exact approved head.",
+    "Land a fix for the failing checks, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "merge-method-moved": () => spineRemedy(
+    "The merge method does not move after the checkpoint pinned it.",
+    "Re-resolve the host merge-method policy",
+    ["arc", "review", "merge-method", "resolve", "--json"],
+  ),
+  "review-record-failed": (workUnit) => spineRemedy(
+    "The posted review record is exactly what approval covered.",
+    "Resolve the reported posting failure, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "drift-reconcile": (workUnit) => spineRemedy(
+    "A merge lands only from an authoritatively clean base.",
+    "Reconcile the base append-only, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "merge-blocked": (workUnit) => spineRemedy(
+    "The host merge succeeds on the pinned head or the candidate stays unmerged.",
+    "Resolve the reported host refusal, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "relock-failed": () => spineRemedy(
+    "An invalidated candidate is re-locked before the operator resumes.",
+    "Re-hold the merge lock",
+    ["arc", "merge", "lock", "hold", "-"],
+  ),
+  "operation-failed": (workUnit) => spineRemedy(
+    "A merge either lands or leaves the candidate resumable.",
+    "Resolve the reported operational failure, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+};
+
+/**
+ * Resolve the corrective remedy for one merge refusal.
+ *
+ * @param reason - The typed invalidation or blocked reason.
+ * @param workUnit - The refused work unit, interpolated into slug-bearing commands.
+ * @returns The remedy naming the failed invariant and one corrective command.
+ */
+export function mergeRemedy(reason: MergeRefusalReason, workUnit: string): SpineRemedy {
+  return MERGE_REMEDIES[reason](workUnit);
+}
+
 const ResultBaseShape = {
   schemaVersion: z.literal(1),
   mode: z.literal("integrate-merge"),
@@ -60,6 +153,7 @@ export const IntegrationMergeResultSchema = z.union([
     state: z.literal("invalidated"),
     nextAction: z.literal("checkpoint"),
     reason: IntegrationMergeInvalidationReasonSchema,
+    remedy: SpineRemedySchema,
     payload: z.record(z.string(), z.unknown()),
   }),
   z.strictObject({
@@ -76,7 +170,8 @@ export const IntegrationMergeResultSchema = z.union([
     ...ResultBaseShape,
     state: z.literal("blocked"),
     nextAction: z.literal("stop"),
-    reason: z.enum(["relock-failed", "operation-failed"]),
+    reason: MergeBlockedReasonSchema,
+    remedy: SpineRemedySchema,
     payload: z.record(z.string(), z.unknown()),
   }),
 ]);
@@ -115,6 +210,7 @@ async function invalidated(
       state: "blocked",
       nextAction: "stop",
       reason: "relock-failed",
+      remedy: mergeRemedy("relock-failed", base.workUnit),
       payload: {
         invalidationReason: reason,
         detail: error instanceof Error ? error.message : String(error),
@@ -126,6 +222,7 @@ async function invalidated(
     state: "invalidated",
     nextAction: "checkpoint",
     reason,
+    remedy: mergeRemedy(reason, base.workUnit),
     payload,
   });
 }
@@ -148,6 +245,7 @@ export async function mergeIntegration(
       state: "invalidated",
       nextAction: "checkpoint",
       reason: "checkpoint-missing",
+      remedy: mergeRemedy("checkpoint-missing", request.workUnit),
       payload: { checkpointHandle: request.checkpointHandle },
     });
   }
@@ -241,6 +339,7 @@ export async function mergeIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "operation-failed",
+        remedy: mergeRemedy("operation-failed", request.workUnit),
         payload: result.payload,
       });
     }

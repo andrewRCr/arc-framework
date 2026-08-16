@@ -1,6 +1,7 @@
 /** Integration procedure CLI adapter behavior. */
 
 import { describe, expect, it, vi } from "vitest";
+import { checkpointRemedy } from "../../../src/scripts/integration/checkpoint.js";
 
 import {
   handleIntegrationCheckpoint,
@@ -21,6 +22,7 @@ describe("integration checkpoint handler", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "candidate-missing",
+        remedy: checkpointRemedy("candidate-missing", "example"),
         payload: { workUnit: "example" },
       }),
       write,

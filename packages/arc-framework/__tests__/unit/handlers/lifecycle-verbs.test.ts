@@ -977,6 +977,12 @@ describe("handleSubmit", () => {
     mockRunSubmit.mockResolvedValueOnce({
       status: "reconcile-pending",
       reason: "Cannot submit `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      remedy: {
+        invariant: "Tracked references reconcile before the publication boundary is written.",
+        text: "Tracked references reconcile before the publication boundary is written. "
+          + "Apply the current work unit's reconcile: `arc wu reconcile foo --apply --json`.",
+        argv: ["arc", "wu", "reconcile", "foo", "--apply", "--json"],
+      },
       metaPath: ".arc/active/meta-foo.md",
       reconcile: {
         status: "pending",
@@ -1027,7 +1033,9 @@ describe("handleSubmit", () => {
         + "remove-or-retarget. Context: `notes-retired-beta.md`",
     ]);
     expect(mockLogError).toHaveBeenCalledWith(
-      "Cannot submit `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      "Cannot submit `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.\n"
+      + "Tracked references reconcile before the publication boundary is written. "
+      + "Apply the current work unit's reconcile: `arc wu reconcile foo --apply --json`.",
     );
     expect(process.exitCode).toBe(1);
     expect(mockNote).not.toHaveBeenCalled();
