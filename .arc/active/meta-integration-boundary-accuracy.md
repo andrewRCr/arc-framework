@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.9 — Name a corrective command on every spine refusal
-- **Next Task:** Task 7.10 — Correct the `arc integrate` command reference (line ~907)
+- **Last Completed:** Task 7.12 — Return typed settlement invalidations from the review-response channel
+- **Next Task:** Task 8.1 — Complete verification (line ~952)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.10 — list `arc integrate checkpoint` and `arc integrate merge` in
-  `QUICK-REFERENCE` and stop presenting bare `arc integrate` as invocable, in both copies
+- **Next Action:** Start Task 8.1 — load `verify-work-unit.md` and run it from Step 1; the interrupted
+  verification five sessions ago carries no credit
 
 - **PR URL:** [none]
 - **Completed:** [none]
