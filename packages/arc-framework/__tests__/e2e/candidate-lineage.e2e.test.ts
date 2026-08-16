@@ -12,8 +12,20 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+import {
+  LocalReviewOperationStateStore,
+} from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { recordLaneAttempt } from "../../src/scripts/review-gate/lane-progress.js";
+import {
+  createStandardReviewReservation,
+  projectPublicationBoundary,
+} from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
 import {
   checkpointIntegration,
   type IntegrationCheckpointDependencies,
@@ -587,5 +599,84 @@ describe("review-bearing integration checkpoint and merge", () => {
         mergePinned: () => Promise.reject(new Error("unexpected merge")),
       },
     ))).resolves.toMatchObject({ state: "invalidated", reason: "checkpoint-missing" });
+  });
+});
+
+const OBLIGATION = {
+  obligation: "required",
+  reasons: ["sensitive-change-set"],
+  rubricVersion: "standard-review/v1",
+  rubricDigest: `sha256:${"d".repeat(64)}`,
+  retrigger: "full-final",
+  count: 1,
+} as const;
+
+/** Record the durable publication boundary a reserved hosted review is carried on. */
+async function reserveHostedReview(root: string, approvedHead: string): Promise<void> {
+  const record = await readCandidateRecord(root, "example");
+  const candidateId = record?.attestation.candidateId;
+  expect(candidateId).toBeDefined();
+  await writeSubmissionBoundary(root, projectPublicationBoundary({
+    workUnit: "example",
+    candidateId,
+    reservation: createStandardReviewReservation({
+      candidateId: candidateId ?? "",
+      sourceId: "codex-pr",
+      repository: "owner/repo",
+      headSha: approvedHead,
+      obligation: OBLIGATION,
+    }),
+    changeRequest: { repository: "owner/repo", pullRequest: 42 },
+  }));
+}
+
+describe("routed review obligation", () => {
+  it("settles the reservation on the reserved source's recorded verdict", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    await reserveHostedReview(root, approvedHead);
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
+      lane: "standard",
+      repositoryId: await resolveRepositoryIdentity(publisher),
+      changeRequestId: "pull/42",
+      headSha: approvedHead,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      consumedPass: true,
+      now: "2026-08-16T12:00:00Z",
+    });
+
+    await expect(readRoutedObligation(root, gitExec, {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: approvedHead,
+    })).resolves.toMatchObject({
+      state: "settled",
+      detail: expect.stringContaining("codex-pr"),
+    });
+  });
+
+  it("leaves review required while the reserved source has returned no verdict", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    await reserveHostedReview(root, approvedHead);
+
+    await expect(readRoutedObligation(root, gitExec, {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: approvedHead,
+    })).resolves.toMatchObject({
+      state: "review-required",
+      detail: expect.stringContaining("no verdict-bearing"),
+    });
+  });
+
+  it("reports a work unit with no recorded publication boundary as blocked", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+
+    await expect(readRoutedObligation(root, gitExec, {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: approvedHead,
+    })).resolves.toMatchObject({ state: "blocked" });
   });
 });

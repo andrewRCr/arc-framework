@@ -56,7 +56,15 @@ async function readBasePosition(input: {
   }
 }
 
-async function readRoutedObligation(
+/**
+ * Reduce the routed review obligation for one exact target from the repository's own evidence.
+ *
+ * @param cwd - The repository root holding the boundary, Candidate record, and lane progress.
+ * @param exec - The Git boundary the Candidate span and durable state are read through.
+ * @param target - The exact change-request target the obligation is reported for.
+ * @returns The obligation state and the evidence sentence naming what decided it.
+ */
+export async function readRoutedObligation(
   cwd: string,
   exec: GitExec,
   target: ChangeRequestTargetRef,

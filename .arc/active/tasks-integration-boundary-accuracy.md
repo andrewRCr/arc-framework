@@ -1088,31 +1088,36 @@ distinction and its reasoning are recorded in the spec's own amendment blocks.
           idempotent `arc review pre-publication <slug> --json` re-attempt; a refusal of the work-unit operand
           itself has no exact re-attempt, so it names `arc status --project --json` instead.
 
-### `[ ]` **8.7 Pin the restored interlock disclosure and render the tail-diff reference**
+### `[x]` **8.7 Pin the restored interlock disclosure and render the tail-diff reference**
 
 - _Goal:_ The premise Criterion 12's "nothing replaces it" rests on cannot regress silently again.
 
-    - `[ ]` **8.7.a Positive pins**
-        - Pin the interlock callout's restored disclosure — review applicability calls, targeted verification,
-          proposed dispositions, artifacts named rather than diffed — in both copies. Only a negative pin guards
-          that region today, so Task 7.6's restoration is unprotected.
-        - Surface `candidateTailDiff.reference`, composed and validated but rendered nowhere, so the approver can
-          self-serve the diff the narrowing excluded.
+    - `[x]` **8.7.a Positive pins**
+        - `review-gate-workflows.test.ts` now pins the merge stop's disclosure positively in both copies — the
+          candidate-tail diff over the Release Notes entry and Completion Notes, swept artifacts named rather
+          than diffed, the retained applicability calls and targeted verification, and the proposed final
+          dispositions with their no-action record-only sets — beside the negative pin that already guarded the
+          region.
+        - `composeCheckpointInterlockSurface` takes the candidate-tail reference and renders it beneath the
+          decision line on both the clean and exception paths, so the head the approver would diff reaches them
+          through the text the workflow already renders verbatim.
 
-### `[ ]` **8.8 Pin the routed-obligation derivation**
+### `[x]` **8.8 Pin the routed-obligation derivation**
 
 - _Goal:_ The obligation state `arc review status` reports is proved against a repository that recorded the
   evidence, not inferred from the projection it delegates to.
 
-- _Note:_ `status-composition.ts` is one of three composition modules no test reaches, and Task 8.5 changed a
-  decision inside it. The other two, and the dependency-injection change that would open all three to the unit
-  tier, are captured in `USER-INBOX` as work beyond this spec's scope.
+    - `[x]` **8.8.a Discharge-state coverage at the e2e tier**
+        - Three cases in `candidate-lineage.e2e.test.ts` drive the derivation over the settled-lineage fixture:
+          a reserved source whose recorded standard-lane verdict settles it, the same reservation with no
+          recorded attempt leaving review required, and an absent publication boundary reporting blocked. The
+          reservation, boundary, and lane attempt are written through their production writers, so the read
+          under test consumes the records production would have left.
 
-    - `[ ]` **8.8.a Discharge-state coverage at the e2e tier**
-        - Drive `createReviewStatusPort`'s routed obligation over a temp repository in the `candidate-lineage`
-          e2e style, covering both arms: a reserved source with a recorded verdict-bearing attempt settles, and one
-          without leaves review required. The fixture already builds the git-common-state refs the discharge read
-          needs, so no production restructuring is required to reach it.
+- _Outcome:_ Reaching the derivation cost one export — `readRoutedObligation` — rather than the
+  dependency-injection change the module would otherwise need, which stays out of scope and captured. The three
+  host-dependent reads around it in `status-composition.ts` are still unreached; this covers the routed-obligation
+  path alone.
 
 ## **Phase 9:** Verification
 
