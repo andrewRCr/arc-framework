@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.12 — Return typed settlement invalidations from the review-response channel
-- **Next Task:** Task 8.1 — Complete verification (line ~952)
+- **Last Completed:** Verification boundary — pass-two findings dispositioned, spec amended, Phase 8 authored
+- **Next Task:** Task 8.1 — Reduce the review record to an attested local-review marker (line ~972)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.1 — load `verify-work-unit.md` and run it from Step 1; the interrupted
-  verification five sessions ago carries no credit
+- **Next Action:** Start Task 8.1.a — cut `## Review` from `template-pull-request.md` and add the
+  `**Local review:**` field; success criteria stay unmarked and `arc propose` un-run until Phase 9
 
 - **PR URL:** [none]
 - **Completed:** [none]
