@@ -223,7 +223,154 @@ remedy is to stop discarding a fact the system already computes at the right fid
 the existing `ReviewOperationStateSchema` union, written where each lane already knows its outcome. Composing the
 existing versioned operation store keeps this a record variant and its write sites rather than new storage.
 
+## Verification Findings — pass two
+
+Recorded 2026-08-15 at the reopened verification boundary, from the second advisory adversarial pass
+(`adversarial-review`, pass two of two, `Heavy` cap). Tier 3 was green when the pass ran: md lint over 664 files,
+the three `lint:arc:*` contract checks, `lint:ts`, `lint:sh`, both type checks, 9956 tests passing with one
+skipped, and a clean build. The pass ran from fresh context with the implementer's success-criteria markings
+withheld; every finding below was verified against source by the primary before disposition.
+
+**Why pass one's lesson did not generalize.** Pass one's recorded lesson was that a criterion naming a runtime
+behavior needs a reachability check rather than a contract check. That lesson was applied — to Phase 7, the region
+where it was learned. Every Phase 7 remediation traces to a production caller and holds. But F5 below is an
+unreachable enumerated state in a module Phase 7 never touched, and F2 is an unimported export. The lesson was
+applied to the instance and not to the class.
+
+**The self-verify's structural blind spot.** Pass two's findings are almost entirely **completeness** questions —
+which cases do not reach this, which value has no writer, which inventoried site was not converted, whether the
+composed artifact reaches a human. The self-verify asked "is there code that does X" and found it every time. That
+method finds what exists and cannot find what is missing: presence has a signature, absence does not. Two passes,
+two distinct defect strata, no sign of convergence.
+
+### Confirmed findings and dispositions
+
+| #   | Finding                                                                                       | Severity           | Criteria | Disposition                                                       |
+| --- | --------------------------------------------------------------------------------------------- | ------------------ | -------- | ----------------------------------------------------------------- |
+| F1  | The approver never previews the `## Review` record approval is said to cover                  | blocker            | 3        | Dissolved by the § G reduction; a **residue** remains — see below |
+| F3  | Approved no-fix disposition sets reach neither the record nor the settlement plan             | major              | 3        | Fix the **plan** half; record half dissolved                      |
+| F4  | The `Hosted PR` line reports the frontline advisory lane; hosted review is unrepresentable    | major              | 3        | Dissolved by the § G reduction                                    |
+| F5  | `hosted-review-pending` is read in five places and written in none                            | major              | 15       | Fix — derive the locus                                            |
+| F6  | The checkpoint asserts the hosted reservation satisfied without reading it; nothing clears it | major              | 6, 2     | Fix — compute the requirement                                     |
+| F7  | PR-state branch site 3 was never converted to the typed resolver (4/5 delivered)              | major              | 10       | Fix — mechanical                                                  |
+| F8  | Task 7.6's restored disclosure ships unpinned; `candidateTailDiff.reference` never rendered   | minor              | 12, 2    | Fix — add the pin                                                 |
+| F9  | Pre-publication refusals name no corrective command                                           | minor              | 15       | Fix — extend `spineRemedy`                                        |
+| F2  | Hosted settlement composer has no production caller                                           | minor (downgraded) | —        | Capture; dead capability, not a correctness gap                   |
+| F10 | `--change-set` / `--lanes` are `<file \| ->` inputs § Coordination commits against            | minor              | —        | Capture                                                           |
+
+**F2's downgrade.** The pass called it a blocker on the reasoning that hosted settlements never reach any plan.
+The evidence is right and the inference is not: `integrate-work-unit.md` § 4 settles hosted findings inline via
+`arc review hosted settle -` through `handlers/review.ts:1525`, before the checkpoint. The plan legitimately
+carries no hosted actions, so Criterion 3 holds. What remains is dead capability — a schema arm, a composer, and
+the merge executor's `settleHosted` binding with no producer — plus a loose interlock disclosure, corrected under
+F1's residue.
+
+**F1's residue, which the § G reduction does not touch.** `main`'s interlock callout surfaced "the proposed final
+dispositions"; the convergence rewrite dropped it and Task 7.6 did not restore it. This matters because
+`integrate-work-unit.md` explicitly permits a complete no-action record-only set to remain **proposed** for the
+final combined gate — so disposition sets can reach the integration interlock unapproved, receiving their first
+and only approval there. Having no approved-disposition record, they also never enter the checkpoint's count. They
+are invisible on both surfaces, and the approver is asked to approve dispositions never shown. The errand lane
+still surfaces them (`run-errand.md` § 5), confirming a loss rather than a design change. Already-approved sets
+need no expansion — each was individually approved upstream and the interlock authorizes execution rather than
+re-deciding; what the checkpoint adds is deterministic, verb-validated target binding.
+
+### The precedent review
+
+Run before deciding F4, because the alternative to fixing the record was cutting it, and that choice turns on
+whether the shape has precedent. Three parallel external passes, no verification tier.
+
+- **No established convention records, in a pull-request body, what review a change received.** Checked across
+  major PR/MR template collections, the contributing guides of Kubernetes, Rust, Node.js, Envoy, Chromium and
+  others, published conventions (Conventional Commits, Conventional Comments), public engineering handbooks, and
+  regulated-context practice (SOC 2, FedRAMP, IEC 62304), where audit evidence comes from platform approval
+  records or a separate QMS rather than PR prose.
+- **Two real traditions exist, and neither is prose in a PR body.** Commit trailers — kernel
+  `submitting-patches.rst`, Git's `SubmittingPatches`, Gerrit's auto-appended footers, and on hosted platforms
+  Node.js's required `Reviewed-By:` and GitLab's `approved_by` — attest **who** reviewed, never what was found.
+  Detached signed attestations — SLSA Source Track, in-toto, VSAs — are explicitly not prose; in-toto's
+  human-review predicate has been an open issue since December 2021, and SLSA names a code-review attestation as
+  an example then declines to define its schema.
+- **A structured findings-and-disposition summary is genuinely unprecedented**, on-platform or off. Stated
+  independently by two of the three passes.
+- **Three AI reviewers do write to the PR body** — CodeRabbit (appended summary, regenerated every push, or
+  anchored at `@coderabbitai summary`), Sourcery ("Summary by Sourcery", and it can rewrite the title), and Qodo's
+  `/describe` when it holds write access. All three write a **description of the change**, not a record of review
+  received. Everything else surveyed uses comments, Check Runs, or commit statuses.
+- **`Reviewed-by:` is human and consent-gated.** Kernel docs require the named reviewer's permission and treat
+  fabrication as a serious trust violation. No tool-as-reviewer trailer standard exists; `Assisted-by:` and
+  `Coding-Agent:` cover AI **authorship**, not AI **review**. ARC must not put a carrier in `Reviewed-by:`.
+- **Local, pre-PR review carry-forward is a settled negative.** CodeRabbit CLI, Qodo's IDE review, and Semgrep's
+  pre-commit hook were each checked: when they run before a PR exists, the review leaves no trace on the eventual
+  PR unless a human pastes something in. No vendor recommends anything.
+- **Where durable machine-readable evidence lives when it exists**: Check Runs (coarse) and SARIF via platform
+  code scanning (finding-level, with structured dismissal reasons including `won't fix`). Both platform-owned and
+  vendor-independent — the standard to meet rather than parallel, if finding-level disposition is ever wanted.
+- **`gittuf`'s Reference State Log** is the one purpose-built answer to review evidence the forge cannot see: an
+  append-only, individually-signed hash chain in a repo-local ref, positioned as the platform-agnostic route to
+  SLSA Source L3. Structurally close to `refs/notes/arc/user/{identity}`; long-horizon, routed to capture.
+
+### The four decisions
+
+**F3 — compose from approved-disposition records, scoped to the Candidate.** The Candidate lineage answers "has
+the implementation moved, and was the movement explained"; the review record and settlement plan answer "which
+approved dispositions exist". Task 7.5.a indexed the second off the first, and a `defer`/`reject`-only set moves
+no implementation, so it correctly appends nothing to the lineage and wrongly vanishes from the plan. The lineage
+is behaving as § E designed; the plan was hung off the wrong axis.
+
+Rejected: widening the lineage to append no-fix sets. `projectCandidateCurrentness` reduces old/new target pairs to
+decide `implementationChanged`, which drives B1's convergence gate and Criteria 5 and 7 — both of which hold today.
+Degenerate members in that reduction risk working machinery, and a currentness ledger carrying non-currentness
+entries to serve a second consumer is the second-ledger shape (see `USER-INBOX` "Census the hosted-lane record
+family against the no-second-ledger doctrine").
+
+Two sub-decisions settled with it. **Scope is the full Candidate span** (`attestation.baseRevision..approvedHead`),
+not the candidate-tail span — `checkpoint-composition.ts` computes `fromRevision` from the last response, correct
+for the tail diff and wrong here, because a defer/reject review that ran before a fix landed falls outside the tail
+and would be dropped again. **Ordering needs an explicit deterministic key** — resolved origin-target revision,
+tiebroken by `dispositionSetId` — because the handle digests the composed plan and lineage order no longer
+supplies it.
+
+Why the plan half survives the record cut: `settleApprovedReplay` is compare-and-confirm, not state-change. It
+reads the durable disposition record, returns `missing-record` if absent, throws `corrupt-state` if the stored set
+differs, and otherwise idempotently re-asserts. Excluding a set means the merge verb never re-verifies it — the
+Criterion 3 guarantee, not record cosmetics.
+
+**F4 — cut the record; keep an attestation-shaped marker.** Recorded as § G's amendment. The decision boundary
+matters and is recorded there: the defects prompted the question, the precedent answers it.
+
+**F1 — restore proposed final dispositions to the work-unit interlock callout**, alongside what 7.6 restored, and
+scope the "channel settlement" clause to the review-response channel, since hosted settlement already ran at § 4.
+
+**F5 / F6 — derive, do not store.** § E9 settles the direction: the loci are "operational loci, not stored
+lifecycle states." `projectPublicationBoundary` takes `state` as a caller-supplied literal that drives the locus,
+the `nextAction.kind`, and the emitted command; all three production callers pass `"publication-pending"`, so the
+entire hosted arm is dead and a hosted-first WU interrupted mid-review is told to run `arc submit` — a transition
+that already fired.
+
+Rejected: giving the reservation an explicit discharge write. A write needs a caller who remembers to call it, and
+"nobody wrote it" is exactly the realized failure — F6b is that approach's failure mode, already observed.
+Derivation cannot drift.
+
+Also ruled out: checking only at the approved head. Cheap, but it hard-blocks the checkpoint after any head
+movement until hosted review re-runs, overriding § 4's review-applicability judgment leaf with a CLI gate — the
+wrong side of the line Goal 6 draws.
+
+**Discharge semantics:** the reserved `sourceId` produced a verdict-bearing attempt (`clean` or `findings`) on the
+hosted lane within the Candidate span. Task 7.1's `lane-progress` already persists exactly this, and
+`pre-publication-composition.ts` already binds `readLaneProgress`; `checkpoint-composition.ts` does not yet reach
+it. The span read is the real implementation cost, since `lane-progress` is keyed `(lane, repositoryId, headSha)`.
+
+**One activation hazard to carry.** `checkpoint.ts` throws when `requirementSummary.conclusion !== "satisfied"`.
+That is dead code today because the requirement is hardcoded satisfied. Computing it activates a **throw**, which
+surfaces as untyped `operation-failed` — the class Tasks 7.9 and 7.12 worked to eliminate. Activation must land
+with a typed blocked reason (`hosted-reservation-pending`, remedy `arc review pre-publication <wu> --json`); 7.9
+made both reason sets derive from the refusal schemas, so a reason without a remedy fails to compile.
+
 ## Resume Procedure
+
+_Superseded 2026-08-15 — the planning-stage procedure below is complete and retained for provenance. The live
+resume path is Phase 9 in `tasks-integration-boundary-accuracy.md`._
 
 1. Resume `generate-tasks` from the stack-member seed above under the amended spec — structural skeleton from
    the seed, then content fill and grounding per the resolved level.
@@ -231,3 +378,17 @@ existing versioned operation store keeps this a record variant and its write sit
    boundary as the starting candidate) and compose it into the task list's `## Delivery Plan` projection.
 3. Hold integration until `delivery-stack-topology` ships the landing machinery; plan authoring and
    implementation need not wait.
+
+## Resume Procedure — verification remediation
+
+1. Implement Phase 8 in order. 8.1 (§ G reduction) is load-bearing for 8.2 and 8.3: it removes the composed
+   record, which is what shrinks F3 to its plan half and dissolves F4 entirely.
+2. Success criteria stay unmarked and `arc propose` stays un-run until Phase 9 completes. Criterion 3 is judged
+   against its **amended** text.
+3. In Phase 9, apply the falsification method rather than the confirmation method that failed twice:
+   for each criterion, construct the case that would break it before looking for the code that satisfies it; walk
+   every count the spec's § Inventory states as an exhaustive checklist rather than a number to reach; and for any
+   criterion naming a human-facing surface, trace to the human rather than to the writer.
+4. The `adversarial-review` pass cap for `Heavy` is 2 and both passes are spent. A third pass is a deliberate
+   cap override, not an automatic loop continuation — the exit gate requires surfacing unresolved findings at the
+   stage interlock for the user's call instead.

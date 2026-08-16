@@ -21,20 +21,27 @@ _Amended 2026-08-15 — verification remediation._ The verification boundary's a
 typed surfaces unreachable from production and three control obligations dropped; Phase 7 remediates them and
 Verification moves to Phase 8. Chunk 7 is added as its review boundary. Nothing else in this section changes.
 
+_Amended 2026-08-15 — review-record reduction._ The reopened boundary's second adversarial pass found a further
+stratum: completeness gaps rather than reachability gaps. Phase 8 remediates them and Verification moves to Phase
+9. Chunk 8 is added as its review boundary. The § G spec amendment it carries **reduces** delivered scope — the
+composed review record is cut on external-precedent grounds — so chunk 8's review should read the spec's amendment
+blocks first, since three of its tasks are deletions justified there rather than in this plan.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 8) belongs to no chunk. Chunk closure, complete union coverage
 across the seven, and the seam review below carry the review obligation the stack's per-member pull requests would
 have carried.
 
-| # | Chunk                  | Chunk key                            | Phase | Design elements                |
-| - | ---------------------- | ------------------------------------ | ----- | ------------------------------ |
-| 1 | Candidate attestation  | `candidate-review-attestation`       | 1     | E1–E4, E6, E9                  |
-| 2 | Publication boundary   | `submission-publication-boundary`    | 2     | E3, E5–E9, F1–F4               |
-| 3 | Review primitives      | `integration-review-primitives`      | 3     | B4, B8, D1–D3                  |
-| 4 | Checkpoint composition | `integration-checkpoint-composition` | 4     | A, B1, B3–B5, B7               |
-| 5 | Settlement and merge   | `integration-settlement-merge`       | 5     | B2–B4, D2, G, H                |
-| 6 | Workflow convergence   | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I |
-| 7 | Production wiring      | `integration-production-wiring`      | 7     | D1, E3–E4, E6, G2, B1–B2, B6   |
+| # | Chunk                   | Chunk key                            | Phase | Design elements                |
+| - | ----------------------- | ------------------------------------ | ----- | ------------------------------ |
+| 1 | Candidate attestation   | `candidate-review-attestation`       | 1     | E1–E4, E6, E9                  |
+| 2 | Publication boundary    | `submission-publication-boundary`    | 2     | E3, E5–E9, F1–F4               |
+| 3 | Review primitives       | `integration-review-primitives`      | 3     | B4, B8, D1–D3                  |
+| 4 | Checkpoint composition  | `integration-checkpoint-composition` | 4     | A, B1, B3–B5, B7               |
+| 5 | Settlement and merge    | `integration-settlement-merge`       | 5     | B2–B4, D2, G, H                |
+| 6 | Workflow convergence    | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I |
+| 7 | Production wiring       | `integration-production-wiring`      | 7     | D1, E3–E4, E6, G2, B1–B2, B6   |
+| 8 | Review-record reduction | `review-record-reduction`            | 8     | G (amended), B3, E9, D1, B1    |
 
 Chunk N covers Phase N exactly, so every chunk resolves to a contiguous commit range and no review pass needs a
 hand-assembled diff.
@@ -947,9 +954,127 @@ how they were verified, not in what they state.
   stays a `corrupt-state` throw and lands as `ambiguous` — it is corruption rather than one of the two reasons
   Criterion 3 names — and an unrecognized state still maps to `ambiguous` rather than settled.
 
-## **Phase 8:** Verification
+## **Phase 8:** Review-record reduction and verification remediation
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+_Purpose:_ Close the reopened verification boundary's findings. Chunk `review-record-reduction`. The findings
+record, the precedent review that decided the § G reduction, and the four design decisions with their rejected
+alternatives are in `notes-integration-boundary-accuracy.md` § Verification Findings — pass two.
+
+_Design decisions:_ 8.1 is load-bearing and lands first — removing the composed review record is what shrinks 8.2
+to its settlement-plan half and dissolves the lane-labelling defect entirely. The remaining tasks are independent
+of each other.
+
+_Amended 2026-08-15 — spec amendment._ § G now cuts `Hosted PR` and `Triage` and retains an attestation-shaped
+local-review marker; B3 governs the settlement plan alone; Criterion 3 is amended forward. This is a deliberate
+scope **reduction** decided on external precedent grounds, not a criterion trimmed to fit what shipped — the
+distinction and its reasoning are recorded in the spec's own amendment blocks.
+
+### `[ ]` **8.1 Reduce the review record to an attested local-review marker**
+
+- _Goal:_ The pull-request record reports only what a reader cannot otherwise obtain — that gated review ran
+  locally before publication — and nothing composes, digests, or posts a review record.
+
+    - `[ ]` **8.1.a Template and field grammar**
+        - Cut `## Review` from `template-pull-request.md`'s main fence and its `## Optional Sections` entry; add
+          `**Local review:** {carrier identity}` beneath `**Design:**`; update § Section Guidance and the
+          Delivery-Member Variant line listing `Review` among the sections retaining ordinary content gates.
+          Omitted entirely when no local review ran — no `None`, no heading.
+
+    - `[ ]` **8.1.b Workflow prose, both lanes**
+        - Remove record composition, preview, and posting from `integrate-work-unit.md` and `run-errand.md`, and
+          correct the canonical-shape parenthetical that reads `Spec` for `Design` and omits the record entirely.
+
+    - `[ ]` **8.1.c Composition and posting removal**
+        - Retire `review-record.ts` and the checkpoint's `reviewRecord` composition; drop the merge verb's
+          `postReviewRecord` dependency and its `review-record-failed` invalidation reason; resolve the
+          `review-record` machine signal against the reduced surface.
+
+### `[ ]` **8.2 Compose the settlement plan from approved-disposition records**
+
+- _Goal:_ Every approved disposition set the Candidate covers reaches the settlement plan, including sets that
+  authorized no fix, so the merge verb's compare-and-confirm sees them.
+
+    - `[ ]` **8.2.a Enumerate-then-scope**
+        - Invert `lineage-review-composition.ts` from filter-by-lineage to enumerate-then-scope over
+          `listDispositionRecords()`, scoped to the **full Candidate span**
+          (`attestation.baseRevision..approvedHead`) — not the candidate-tail span, whose lower bound advances past
+          reviews that ran before a fix landed.
+        - Order by resolved origin-target revision, tiebroken by `dispositionSetId`. The handle digests the plan,
+          so two runs at one head must order identically; lineage order no longer supplies that.
+
+### `[ ]` **8.3 Restore the proposed-disposition disclosure at the work-unit interlock**
+
+- _Goal:_ The approver sees every disposition their approval decides, including sets reaching the interlock
+  unapproved for the final combined gate.
+
+    - `[ ]` **8.3.a Callout restoration**
+        - Restore "the proposed final dispositions" to the `integration-interlock` callout beside what Task 7.6
+          restored, and scope the channel-settlement clause to the review-response channel — hosted settlement
+          already ran at Step 4.
+
+### `[ ]` **8.4 Convert the remaining PR-state branch site to the typed resolver**
+
+- _Goal:_ All five inventoried sites resolve through one typed disposition; the delivered count is 4/5.
+
+    - `[ ]` **8.4.a Review-entry resolve**
+        - Derive `openedChangeRequest` from the resolver's returned `candidate` at `integrate-work-unit.md` § 4,
+          as `run-errand.md` § 3 already does, replacing the untyped "resolve the one open PR" step.
+
+### `[ ]` **8.5 Derive the publication locus and compute the hosted-reservation requirement**
+
+- _Goal:_ No surface asserts a review fact it did not read, and every enumerated locus is reachable.
+
+- _Note:_ `checkpoint.ts` **throws** when `requirementSummary.conclusion !== "satisfied"` — dead code today because
+  the requirement is a literal. Computing it activates that throw, which surfaces as untyped `operation-failed`,
+  the class Tasks 7.9 and 7.12 eliminated. The typed reason must land in the same increment.
+
+    - `[ ]` **8.5.a Derive the locus**
+        - `projectPublicationBoundary` derives `publication-pending` / `hosted-review-pending` from evidence
+          (reservation plus change-request state) rather than accepting a caller-supplied `state`. All three
+          production callers pass the same literal today, leaving the hosted arm — locus, `nextAction.kind`, and
+          emitted command — unreachable.
+
+    - `[ ]` **8.5.b Compute the reservation requirement**
+        - Replace the hardcoded `hosted-review-reservation: satisfied` with a requirement computed from
+          `lane-progress`: discharged when the reserved `sourceId` produced a verdict-bearing attempt (`clean` or
+          `findings`) on the hosted lane within the Candidate span. `pre-publication-composition.ts` already binds
+          `readLaneProgress`; `checkpoint-composition.ts` does not yet reach it. Never gate on the approved head
+          alone — that overrides Step 4's applicability judgment with a CLI gate.
+        - Add the typed `hosted-reservation-pending` blocked reason with remedy `arc review pre-publication`.
+        - `status-composition.ts` derives from the same evidence rather than `boundary.reservation !== null`, which
+          nothing ever clears.
+
+    - `[ ]` **8.5.c Render the Requirements signal**
+        - The `Requirements` machine signal renders from `requirementSummary` instead of a literal `clean: true`.
+
+### `[ ]` **8.6 Name a corrective command on pre-publication refusals**
+
+- _Goal:_ Criterion 15's closing clause is unqualified; the spine's middle verb refuses without a remedy.
+
+    - `[ ]` **8.6.a Extend `spineRemedy`**
+        - Carry a remedy on every `review-pre-publication` refusal, deriving reason coverage from the refusal
+          shapes as `checkpoint`, `merge`, and `submit` already do.
+
+### `[ ]` **8.7 Pin the restored interlock disclosure and render the tail-diff reference**
+
+- _Goal:_ The premise Criterion 12's "nothing replaces it" rests on cannot regress silently again.
+
+    - `[ ]` **8.7.a Positive pins**
+        - Pin the interlock callout's restored disclosure — review applicability calls, targeted verification,
+          proposed dispositions, artifacts named rather than diffed — in both copies. Only a negative pin guards
+          that region today, so Task 7.6's restoration is unprotected.
+        - Surface `candidateTailDiff.reference`, composed and validated but rendered nowhere, so the approver can
+          self-serve the diff the narrowing excluded.
+
+## **Phase 9:** Verification
+
+_Amended 2026-08-15._ Verification moved here from Phase 8; the boundary was entered twice and closed neither time.
+Both adversarial passes are spent against the `Heavy` cap, so a third is a deliberate override rather than an
+automatic continuation. Apply the falsification method recorded in `notes-integration-boundary-accuracy.md`
+§ Resume Procedure — verification remediation: construct the breaking case before finding the satisfying code, walk
+every § Inventory count as an exhaustive checklist, and trace human-facing criteria to the human.
+
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 ---
 
@@ -961,6 +1086,10 @@ how they were verified, not in what they state.
   extension evidence renders in a separate labelled block — both tested structurally
 - `[ ]` The posted review record and executed settlement are exactly what approval covered; missing, stale,
   ambiguous, or actor-mismatched settlement invalidates before release or merge
+    - _Amended 2026-08-15 — see `spec-integration-boundary-accuracy.md` § G and its Criterion 3 amendment. Judge
+      against: **the executed settlement is exactly what approval covered**; missing, stale, ambiguous, or
+      actor-mismatched settlement invalidates before release or merge. The record clause is withdrawn with the
+      composed record. Original text retained above, not edited into agreement._
 - `[ ]` `propose` and `submit` replace their predecessors with zero added happy-path commands, commits,
   approvals, or agent judgments
 - `[ ]` Candidate is a typed attestation and verified lineage — advancing on approved responses, surviving

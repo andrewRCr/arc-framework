@@ -196,6 +196,13 @@ merge verb must post the `## Review` record the approver previewed and execute t
 settlements that approval authorizes. The approved disposition set is the shared input to both products; a redirect
 routes to composition correction and a fresh checkpoint.
 
+> _Amended 2026-08-15 — per § G's review-record reduction._ The record half of the sentence above no longer
+> applies: there is no composed `## Review` record, so the merge verb posts nothing and the composed record leaves
+> the digest, the checkpoint composition, and the merge verb's responsibilities entirely. B3 governs the
+> **settlement plan** alone. The proportionality reading behind the split: the settlement plan is authority and the
+> record was prose, and bundling them applied plan-grade rigor — digest binding, verbatim posting, invalidation on
+> drift — to advisory content.
+
 - The canonical settlement plan binds the exact originating and fix targets, actor, finding and thread identities,
   dispositions, and reply content needed by the existing source settlement APIs. The handle is the approved head
   plus a digest over that plan, the composed review record, and the validated merge method. **The digest is
@@ -503,6 +510,47 @@ test; `Coverage` is audit metadata whose only interested reader already approved
   persisted anywhere. Should a durable review-coverage record ever be wanted, it needs its own justification and
   its own concern; it is not smuggled in behind a field deletion.
 
+_Amended 2026-08-15 — review-record reduction._
+
+G1 and G2 stand. What follows narrows the **retained** fields, reversing the judgment recorded in
+§ Alternatives under **Retained review-record fields** — which flagged itself as "a judgment rather than a
+validated requirement" that "has not been tested outside this project."
+
+**What prompted the re-examination** was the verification boundary's second adversarial pass: the composed record
+labelled the frontline advisory lane as `Hosted PR`, dropped every approved disposition set that authorized no fix,
+and was never surfaced to the approver it was composed for. **What justifies the change** is not those defects but
+an external precedent review run before deciding. The defects prompted the question; the precedent answers it. Had
+precedent supported the shape, the correct response would have been to fix the three defects as scoped.
+
+The precedent review found no established convention, in any surveyed ecosystem, that records in a pull-request
+body what review a change received. Two traditions exist. Commit trailers (`Reviewed-by:` and family — kernel, Git,
+Gerrit; on hosted platforms, Node.js's required `Reviewed-By:` and GitLab's `approved_by`) attest **who** reviewed
+and never **what was found**. Detached signed attestations (SLSA Source Track, in-toto) are explicitly not prose,
+and their review-specific predicate remains unratified. A structured findings-and-disposition summary in a PR body
+is unprecedented. Separately, SARIF via platform code scanning already models finding-level disposition as a
+queryable standard with structured dismissal reasons.
+
+- **G3. `Hosted PR` is cut.** It reports review that ran on the pull request, which the platform already exposes
+  natively and which the hosted reviewer's own bot commonly writes into the body itself. A third copy carries no
+  information.
+- **G4. `Triage` is cut.** Its vocabulary — material finding, disposition, deferred — addresses a reader with no
+  model for it, the same test G1 applied to `Coverage`. Where finding-level disposition is genuinely wanted,
+  SARIF-plus-code-scanning is the standard to meet rather than parallel in prose.
+- **G5. A single local-review marker survives.** Review carried locally before publication leaves no platform
+  trace, and no vendor or convention carries it forward. This is the one field with information content a reader
+  cannot otherwise obtain, and the reason to keep it is the team case: without it, a gated pre-publication review
+  is invisible to everyone but its operator.
+- **G6. The marker is attestation-shaped, not report-shaped, and is authored rather than composed.** It names the
+  carrier and nothing else — no pass counts, no finding summaries, no dispositions. It renders as a bold
+  top-of-body field beneath `**Design:**`, grouping the ARC-authored metadata and following the template's own
+  convention that bold field labels are top-of-body metadata. It is omitted entirely when no local review ran — no
+  `None`, no heading, no section. It is written when the PR body is composed, since the pre-publication lanes have
+  settled by then, so it neither goes stale nor requires the merge verb to post anything. **It must not use
+  `Reviewed-by:`**, which is human and consent-gated by long-standing convention; no tool-as-reviewer standard
+  exists, so this is minted, not adopted.
+- **G7. Richer review reporting is an extension concern.** A project wanting counts, dispositions, or per-lane
+  detail attaches it at the `pre-merge` seam in whatever shape it wants. ARC ships none.
+
 ### H. The approval-invalidation narration is deleted
 
 The exact-head pin stays: it is a compare-and-swap guarding a real failure mode — an agent pushing a fix in the
@@ -803,6 +851,11 @@ on the reading that a reader wants to know who reviewed and what became of the f
 outside this project and the whole section is optional today, so the retention is a judgment rather than a validated
 requirement.
 
+> _Reversed 2026-08-15._ The judgment above was tested against external precedent and did not survive; `Hosted PR`
+> and `Triage` are cut and the residue is an attestation-shaped marker. See § G's review-record reduction
+> amendment for the finding, the reasoning, and the boundary between what prompted the re-examination and what
+> justifies the change.
+
 ## Success Criteria
 
 1. **The final integration step's residual length is a function of its stop inventory.** Every stopless run is a
@@ -815,6 +868,14 @@ requirement.
 3. **The posted review record and executed settlement are exactly what approval covered.** The checkpoint persists
    one digest-bound record and canonical settlement plan; merge posts the record and executes the plan
    idempotently. Missing, stale, ambiguous, or actor-mismatched settlement invalidates before release or merge.
+    - _Amended 2026-08-15 — per § G's review-record reduction._ The original text is preserved above; it is not
+      edited into agreement with what shipped. **Reads:** _The executed settlement is exactly what approval
+      covered._ The checkpoint persists one digest-bound canonical settlement plan; merge executes it
+      idempotently. Missing, stale, ambiguous, or actor-mismatched settlement invalidates before release or merge.
+      The record clause is withdrawn with the composed record itself; no posted-record obligation survives. This
+      narrows a criterion at the verification boundary, which is defensible only because the narrowing is a
+      deliberate scope reduction on external grounds, decided by the maintainer, with the original text and the
+      reason both visible.
 4. **`propose` and `submit` name different axes without adding happy-path ceremony.** `arc propose` replaces
    `arc finalize verify`, records Candidate while leaving `State: Active`, and `arc submit` replaces the old
    transition. Under no-review configuration the path adds zero commands, commits, approvals, and agent judgments.
