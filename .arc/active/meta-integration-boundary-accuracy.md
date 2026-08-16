@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 8.5 — Derive the publication locus and compute the hosted-reservation requirement
-- **Next Task:** Task 8.6 — Name a corrective command on pre-publication refusals (line ~1080)
+- **Last Completed:** Task 8.8 — Pin the routed-obligation derivation
+- **Next Task:** Task 9.1 — Complete verification (line ~1130)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.6.a — extend `spineRemedy` to carry a remedy on every `review-pre-publication`
-  refusal, deriving reason coverage from the refusal shapes
+- **Next Action:** Start Task 9.1 — load `verify-work-unit.md` and run the verification boundary; Tier 3 has not
+  run since `9baf7d4dd` and is owed first
 
 - **PR URL:** [none]
 - **Completed:** [none]
