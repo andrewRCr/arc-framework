@@ -88,24 +88,23 @@ describe("lifecycle review driver", () => {
     expect(errand).toContain("follow the closed attention dispatch in Step 2");
   });
 
-  it("publishes a content-gated PR review record", async () => {
+  it("carries a content-gated local-review attestation instead of a composed record", async () => {
     const path = "reference/templates/arc/work-unit/template-pull-request.md";
     const [packaged, project] = await Promise.all([
       readFile(resolve(packageArc, path), "utf8"),
       readFile(resolve(projectArc, path), "utf8"),
     ]);
     expect(project).toBe(packaged);
-    expect(packaged).toContain("## Review");
-    expect(packaged).toContain("**Local:**");
-    expect(packaged).toContain("**Hosted PR:**");
-    expect(packaged).toContain("**Triage:**");
+    expect(packaged).toContain("**Local review:** {carrier identity}");
+    expect(packaged).toContain("**Local review — content-gated.**");
+    expect(packaged).toContain("Omit the field entirely when no local review ran");
+    expect(packaged).not.toContain("## Review");
+    expect(packaged).not.toContain("**Hosted PR:**");
+    expect(packaged).not.toContain("**Triage:**");
     expect(packaged).not.toContain("**Coverage:**");
     expect(packaged).toContain("## Delivery-Member Variant");
     expect(packaged).toContain("Do not add a `Delivery` field");
     expect(packaged).toContain("Design is content-gated for delivery members");
     expect(packaged).toContain("{work-unit-slug} [{position}/{total}]: {member title}");
-    expect(packaged.replaceAll("\n> ", " ")).toContain(
-      "Omit the whole section when no review ran",
-    );
   });
 });

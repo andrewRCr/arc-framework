@@ -1,4 +1,4 @@
-/** Review record and settlement plan composed from one Candidate lineage's approved responses. */
+/** Settlement plan composed from one Candidate lineage's approved responses. */
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
@@ -16,23 +16,21 @@ import {
   LocalReviewOperationStateStore,
 } from "../review-gate/hosts/local/operation-state-store.js";
 import { deriveLocalReviewTarget } from "../review-gate/hosts/local/repository-target.js";
-import { composeReviewRecordMarkdown } from "./review-record.js";
 import type { SettlementAction } from "./settlement-plan.js";
 
-/** The two checkpoint products one lineage composes, bound to the same approved disposition set. */
+/** The settlement actions one lineage composes, with the approved sets they were built from. */
 export interface LineageReviewComposition {
-  markdown: string | null;
   dispositionIds: string[];
   actions: SettlementAction[];
 }
 
 /**
- * Bind the durable review records one Candidate lineage points at to both checkpoint products.
+ * Bind the durable review records one Candidate lineage points at to its settlement plan.
  *
  * The lineage records which approved set each response settled, not the operation that produced it,
  * so the approved records are reached by identity and the originating target is read back from the
  * lane that owns it. Anything the lineage names but the repository cannot produce refuses rather
- * than composing a partial record: a plan missing an action would settle less than approval covered.
+ * than composing a partial plan: a plan missing an action would settle less than approval covered.
  *
  * @param input - The repository root and its Git boundary.
  * @returns A composer memoized per work unit and approved head.
@@ -87,7 +85,7 @@ export function createLineageReviewComposer(input: {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }
     const dispositionIds = [...new Set(record.responses.map(({ dispositionId }) => dispositionId))];
-    if (dispositionIds.length === 0) return { markdown: null, dispositionIds, actions: [] };
+    if (dispositionIds.length === 0) return { dispositionIds, actions: [] };
 
     const indexed = new Map((await dispositionIndex.listDispositionRecords()).map(
       (approved) => [approved.approvedDisposition.dispositionSet.dispositionSetId, approved],
@@ -115,7 +113,7 @@ export function createLineageReviewComposer(input: {
         },
       });
     }));
-    return { markdown: composeReviewRecordMarkdown(approvedRecords), dispositionIds, actions };
+    return { dispositionIds, actions };
   };
 
   return (workUnit, approvedHead) => {

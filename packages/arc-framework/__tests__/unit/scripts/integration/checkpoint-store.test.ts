@@ -17,7 +17,6 @@ function composition() {
     workUnit: "example",
     approvedHead: oid("a"),
     settlementPlan: composeCanonicalSettlementPlan([]),
-    reviewRecord: { markdown: null, dispositionIds: [] },
     mergeMethod: {
       schemaVersion: 1 as const,
       mode: "review-merge-method-resolve" as const,

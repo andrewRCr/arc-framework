@@ -6,7 +6,6 @@ import {
   mergeIntegration,
   type IntegrationMergeDependencies,
 } from "../../../../src/scripts/integration/merge.js";
-import { replaceReviewSection } from "../../../../src/scripts/integration/merge-composition.js";
 import { IntegrationCheckpointCompositionRecordSchema } from "../../../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 
@@ -15,7 +14,7 @@ const digest = (character: string): `sha256:${string}` => `sha256:${character.re
 const checkpointHandle = `checkpoint-v1:${oid("c")}:${digest("e")}`;
 
 function dependencies() {
-  const state = { held: true, merged: false, posted: false };
+  const state = { held: true, merged: false };
   const value: IntegrationMergeDependencies = {
     readCheckpoint: async () => IntegrationCheckpointCompositionRecordSchema.parse({
       schemaVersion: 1,
@@ -24,7 +23,6 @@ function dependencies() {
       workUnit: "example",
       approvedHead: oid("c"),
       settlementPlan: composeCanonicalSettlementPlan([]),
-      reviewRecord: { markdown: null, dispositionIds: [] },
       mergeMethod: {
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
@@ -71,7 +69,6 @@ function dependencies() {
       allowedMethods: ["merge"],
       policyFingerprint: digest("d"),
     }),
-    postReviewRecord: async () => { state.posted = true; },
     readFinalDrift: async () => ({ verdict: "clean" }),
     mergePinned: async () => {
       state.merged = true;
@@ -84,23 +81,14 @@ function dependencies() {
 const request = { schemaVersion: 1 as const, workUnit: "example", checkpointHandle };
 
 describe("integration merge", () => {
-  it("replaces the pull-request Review section with the exact checkpointed record", () => {
-    const record = "## Review\n\n- Local: clean\n- Triage: settled";
-
-    expect(replaceReviewSection(
-      "# Change\n\nIntro.\n\n## Review\n\nStale.\n\n## Notes\n\nKeep.\n",
-      record,
-    )).toBe(`# Change\n\nIntro.\n\n${record}\n## Notes\n\nKeep.\n`);
-  });
-
-  it("posts the persisted record and merges only the checkpointed head", async () => {
+  it("merges only the checkpointed head", async () => {
     const { value, state } = dependencies();
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({
       state: "merged",
       payload: { approvedHead: oid("c"), pullRequest: 42 },
     });
-    expect(state).toEqual({ held: false, merged: true, posted: true });
+    expect(state).toEqual({ held: false, merged: true });
   });
 
   it.each([

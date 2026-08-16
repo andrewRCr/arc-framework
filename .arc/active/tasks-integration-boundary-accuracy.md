@@ -969,25 +969,40 @@ local-review marker; B3 governs the settlement plan alone; Criterion 3 is amende
 scope **reduction** decided on external precedent grounds, not a criterion trimmed to fit what shipped — the
 distinction and its reasoning are recorded in the spec's own amendment blocks.
 
-### `[ ]` **8.1 Reduce the review record to an attested local-review marker**
+### `[x]` **8.1 Reduce the review record to an attested local-review marker**
 
 - _Goal:_ The pull-request record reports only what a reader cannot otherwise obtain — that gated review ran
   locally before publication — and nothing composes, digests, or posts a review record.
 
-    - `[ ]` **8.1.a Template and field grammar**
-        - Cut `## Review` from `template-pull-request.md`'s main fence and its `## Optional Sections` entry; add
-          `**Local review:** {carrier identity}` beneath `**Design:**`; update § Section Guidance and the
-          Delivery-Member Variant line listing `Review` among the sections retaining ordinary content gates.
-          Omitted entirely when no local review ran — no `None`, no heading.
+    - `[x]` **8.1.a Template and field grammar**
+        - Cut `## Review` from `template-pull-request.md`'s main fence and its `## Optional Sections` entry; added
+          `**Local review:** {carrier identity}` beneath `**Design:**`. § Section Guidance now carries a
+          `Local review` field entry in place of the `Review` section entry, and the Delivery-Member Variant line
+          lists the field rather than the section among the surfaces retaining ordinary content gates. The
+          `Success-criteria status` anti-pattern, which pointed at "the normalized review record above", now points
+          at the field. Both template copies edited in step.
 
-    - `[ ]` **8.1.b Workflow prose, both lanes**
-        - Remove record composition, preview, and posting from `integrate-work-unit.md` and `run-errand.md`, and
-          correct the canonical-shape parenthetical that reads `Spec` for `Design` and omits the record entirely.
+    - `[x]` **8.1.b Workflow prose, both lanes**
+        - Removed the record preview from `run-errand.md`'s settle step, the record from its integration-interlock
+          disclosure, and the stale-summary replacement from its post-approval step. `integrate-work-unit.md`'s
+          canonical-shape parenthetical now reads `Design` and lists the optional `Local review` field, with a
+          sentence on what the field carries. The two workflow pins that asserted the composed record were
+          converted: `review-gate-workflows.test.ts` now pins its absence, and `review-driver-lifecycle.test.ts`
+          pins the template's attestation field in place of the `## Review` section.
 
-    - `[ ]` **8.1.c Composition and posting removal**
-        - Retire `review-record.ts` and the checkpoint's `reviewRecord` composition; drop the merge verb's
-          `postReviewRecord` dependency and its `review-record-failed` invalidation reason; resolve the
-          `review-record` machine signal against the reduced surface.
+    - `[x]` **8.1.c Composition and posting removal**
+        - Deleted `review-record.ts` and its unit test; `lineage-review-composition.ts` now returns only the
+          settlement half. The checkpoint's `reviewRecord` slot is gone from `CheckpointReadyCompositionSchema`,
+          the persisted composition record, and its digest, taking with it the two disposition-alignment
+          cross-checks that compared the plan against lineage-derived ids. The merge verb lost
+          `postReviewRecord`, `review-record-failed`, and the body-splicing `replaceReviewSection`. The machine
+          signal is now `settlement` / `Settlement`, derived from the persisted plan's disposition count.
+
+- _Outcome:_ The composed record is gone end to end — template, both lane workflows, composition, persistence,
+  and posting — and the surviving `**Local review:**` field is authored at PR-body composition rather than
+  composed at the checkpoint, so nothing downstream of approval writes to the pull request. Removing the record
+  also removed the checkpoint's only independent cross-check on the settlement plan's disposition set; the plan is
+  now self-describing, which is the axis Task 8.2 re-derives it on.
 
 ### `[ ]` **8.2 Compose the settlement plan from approved-disposition records**
 

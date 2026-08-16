@@ -42,7 +42,6 @@ export const IntegrationMergeInvalidationReasonSchema = z.enum([
   "release-blocked",
   "checks-failed",
   "merge-method-moved",
-  "review-record-failed",
   "drift-reconcile",
   "merge-blocked",
 ]);
@@ -96,11 +95,6 @@ const MERGE_REMEDIES: Record<MergeRefusalReason, (workUnit: string) => SpineReme
     "The merge method does not move after the checkpoint pinned it.",
     "Re-resolve the host merge-method policy",
     ["arc", "review", "merge-method", "resolve", "--json"],
-  ),
-  "review-record-failed": (workUnit) => spineRemedy(
-    "The posted review record is exactly what approval covered.",
-    "Resolve the reported posting failure, then re-checkpoint",
-    checkpointResumeArgv(workUnit),
   ),
   "drift-reconcile": (workUnit) => spineRemedy(
     "A merge lands only from an authoritatively clean base.",
@@ -189,7 +183,6 @@ export interface IntegrationMergeDependencies {
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
   resolveMergeMethod(): Promise<MergeMethodResolveResult>;
-  postReviewRecord(target: IntegrationMergeTarget, markdown: string | null): Promise<void>;
   readFinalDrift(): Promise<Pick<BaseDriftResult, "verdict">>;
   mergePinned(target: IntegrationMergeTarget, method: "merge" | "rebase" | "squash"): Promise<{ state: string }>;
 }
@@ -304,14 +297,6 @@ export async function mergeIntegration(
       || mergeMethod.policyFingerprint !== checkpoint.mergeMethod.policyFingerprint
     ) {
       return await invalidated(base, "merge-method-moved", { mergeMethod }, dependencies, target);
-    }
-
-    try {
-      await dependencies.postReviewRecord(target, checkpoint.reviewRecord.markdown);
-    } catch (error) {
-      return await invalidated(base, "review-record-failed", {
-        detail: error instanceof Error ? error.message : String(error),
-      }, dependencies, target);
     }
 
     const drift = await dependencies.readFinalDrift();

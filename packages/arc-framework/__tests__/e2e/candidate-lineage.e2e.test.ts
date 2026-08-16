@@ -293,15 +293,11 @@ describe("review-fix Candidate lineage", () => {
     expect(cleared).not.toMatchObject({ reason: "candidate-convergence-pending" });
   });
 
-  it("composes the review record and settlement plan its approved responses back", async () => {
+  it("composes the settlement plan its approved responses back", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
     expect(composed.dispositionIds).toHaveLength(1);
-    expect(composed.markdown).toContain("## Review");
-    expect(composed.markdown).toContain("- **Local:** reviewer-1 — 1 pass");
-    expect(composed.markdown).toContain("- **Hosted PR:** None");
-    expect(composed.markdown).toContain("- **Triage:** @test-user — 1 addressed, 0 unresolved");
     expect(composed.actions).toHaveLength(1);
     expect(composed.actions[0]).toMatchObject({
       channel: "review-response",
@@ -436,7 +432,6 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
       },
       requiredChecks: "green",
     },
-    reviewRecord: { markdown: composed.markdown, dispositionIds: composed.dispositionIds },
     settlementPlan: composeCanonicalSettlementPlan(composed.actions),
     mergeMethod: MERGE_METHOD,
   }));
@@ -449,8 +444,8 @@ describe("review-bearing integration checkpoint and merge", () => {
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
 
     const record = await inRepository(root, async () => production.readCheckpoint("example", handle));
-    expect(record?.reviewRecord.markdown).toContain("## Review");
     if (record === null) throw new Error("expected a persisted checkpoint");
+    expect(record.settlementPlan.actions).toHaveLength(1);
 
     await expect(inRepository(root, async () => production.executeSettlement(record)))
       .resolves.toEqual({ state: "settled", completedActions: 1 });
@@ -458,7 +453,7 @@ describe("review-bearing integration checkpoint and merge", () => {
       .resolves.toEqual({ state: "settled", completedActions: 1 });
   });
 
-  it("posts the composed record and fails closed on final drift", async () => {
+  it("fails closed on final drift before any merge", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     const handle = await persistComposition(root, approvedHead);
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
@@ -467,7 +462,6 @@ describe("review-bearing integration checkpoint and merge", () => {
       pullRequest: 42,
       headSha: approvedHead,
     };
-    const posted: (string | null)[] = [];
     const dependencies: IntegrationMergeDependencies = {
       readCheckpoint: production.readCheckpoint.bind(production),
       executeSettlement: production.executeSettlement.bind(production),
@@ -485,9 +479,6 @@ describe("review-bearing integration checkpoint and merge", () => {
         checks: [],
       }),
       resolveMergeMethod: async () => MERGE_METHOD,
-      postReviewRecord: async (_target, markdown) => {
-        posted.push(markdown);
-      },
       readFinalDrift: async () => ({ verdict: "reconcile" }),
       mergePinned: () => Promise.reject(new Error("unexpected merge")),
     };
@@ -496,8 +487,6 @@ describe("review-bearing integration checkpoint and merge", () => {
       { schemaVersion: 1, workUnit: "example", checkpointHandle: handle },
       dependencies,
     ))).resolves.toMatchObject({ state: "invalidated", reason: "drift-reconcile" });
-    expect(posted).toHaveLength(1);
-    expect(posted[0]).toContain("- **Triage:** @test-user — 1 addressed, 0 unresolved");
   });
 
   it("fails closed on a substituted checkpoint handle", async () => {
@@ -518,7 +507,6 @@ describe("review-bearing integration checkpoint and merge", () => {
         holdLock: () => Promise.reject(new Error("unexpected hold")),
         awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
-        postReviewRecord: () => Promise.reject(new Error("unexpected record post")),
         readFinalDrift: () => Promise.reject(new Error("unexpected drift read")),
         mergePinned: () => Promise.reject(new Error("unexpected merge")),
       },

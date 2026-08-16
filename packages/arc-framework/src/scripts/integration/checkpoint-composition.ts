@@ -247,11 +247,10 @@ export function createIntegrationCheckpointDependencies(input: {
       );
     },
     composeReady: async ({ workUnit, lifecycle, candidate: currentness }) => {
-      const [value, changeRequest, boundary, review] = await Promise.all([
+      const [value, changeRequest, boundary] = await Promise.all([
         candidate(workUnit),
         resolveOpenChangeRequest(input.exec, input.cwd),
         readSubmissionBoundary(input.cwd, workUnit),
-        composeLineageReview(workUnit, currentness.recognizedRevision),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
       if (boundary === null) throw new Error("The durable publication boundary is unavailable.");
@@ -306,13 +305,12 @@ export function createIntegrationCheckpointDependencies(input: {
           },
           requiredChecks: checks,
         },
-        reviewRecord: { markdown: review.markdown, dispositionIds: review.dispositionIds },
       });
     },
     composeSettlementPlan: async ({ workUnit, composition }) => composeCanonicalSettlementPlan(
       (await composeLineageReview(workUnit, composition.approvedHead)).actions,
     ),
-    createHandle: async ({ workUnit, approvedHead, settlementPlan, reviewRecord, mergeMethod }) => {
+    createHandle: async ({ workUnit, approvedHead, settlementPlan, mergeMethod }) => {
       const resolvedIdentity = await identity();
       if (resolvedIdentity === null) {
         throw new Error("An ARC identity is required to persist the integration checkpoint.");
@@ -324,7 +322,6 @@ export function createIntegrationCheckpointDependencies(input: {
           workUnit,
           approvedHead,
           settlementPlan,
-          reviewRecord,
           mergeMethod: ValidatedMergeMethodSchema.parse(mergeMethod),
         },
       );

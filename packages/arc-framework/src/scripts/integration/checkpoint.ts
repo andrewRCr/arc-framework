@@ -104,25 +104,11 @@ export const CheckpointStatusSummarySchema = z.strictObject({
   requiredChecks: z.enum(["green", "pending", "failed", "not-required", "unavailable"]),
 });
 
-export const ComposedReviewRecordSchema = z.strictObject({
-  markdown: z.string().min(1).nullable(),
-  dispositionIds: z.array(DigestSchema),
-}).superRefine((record, context) => {
-  if ((record.markdown === null) !== (record.dispositionIds.length === 0)) {
-    context.addIssue({
-      code: "custom",
-      path: ["markdown"],
-      message: "a disposition-bearing review record requires composed markdown",
-    });
-  }
-});
-
 export const CheckpointReadyCompositionSchema = z.strictObject({
   approvedHead: ObjectIdSchema,
   candidateTailDiff: CandidateTailDiffReferenceSchema,
   requirementSummary: CheckpointRequirementSummarySchema,
   statusSummary: CheckpointStatusSummarySchema,
-  reviewRecord: ComposedReviewRecordSchema,
 });
 export type CheckpointReadyComposition = z.infer<typeof CheckpointReadyCompositionSchema>;
 
@@ -464,12 +450,7 @@ export async function checkpointIntegration(
       workUnit: request.workUnit,
       composition,
     }));
-    if (
-      settlementDispositionIds(settlementPlan).join("\0")
-      !== [...new Set(composition.reviewRecord.dispositionIds)].sort().join("\0")
-    ) {
-      throw new Error("settlement plan does not match the composed review record dispositions");
-    }
+    const settledDispositions = settlementDispositionIds(settlementPlan);
     const checkpointHandle = await dependencies.createHandle({
       workUnit: request.workUnit,
       ...composition,
@@ -526,12 +507,12 @@ export async function checkpointIntegration(
           evidence: `${mergeMethod.method} is allowed by policy ${mergeMethod.policyFingerprint}.`,
         },
         {
-          kind: "review-record",
-          label: "Review record",
-          clean: composition.reviewRecord.dispositionIds.length === 0,
-          evidence: composition.reviewRecord.dispositionIds.length === 0
+          kind: "settlement",
+          label: "Settlement",
+          clean: settledDispositions.length === 0,
+          evidence: settledDispositions.length === 0
             ? "No approved dispositions require settlement."
-            : `${composition.reviewRecord.dispositionIds.length} approved disposition set(s) require settlement.`,
+            : `${settledDispositions.length} approved disposition set(s) require settlement.`,
         },
         {
           kind: "checkpoint",

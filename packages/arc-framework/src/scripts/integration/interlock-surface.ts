@@ -10,7 +10,7 @@ const SignalKindSchema = z.enum([
   "requirements",
   "required-checks",
   "merge-method",
-  "review-record",
+  "settlement",
   "checkpoint",
 ]);
 

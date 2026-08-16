@@ -9,14 +9,8 @@ import { z } from "zod";
 import { canonicalDigest, canonicalize } from "../../lib/canonical/canonical-json.js";
 import { atomicCreateFile } from "../../lib/fs.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import {
-  ComposedReviewRecordSchema,
-  ValidatedMergeMethodSchema,
-} from "./checkpoint.js";
-import {
-  CanonicalSettlementPlanSchema,
-  settlementDispositionIds,
-} from "./settlement-plan.js";
+import { ValidatedMergeMethodSchema } from "./checkpoint.js";
+import { CanonicalSettlementPlanSchema } from "./settlement-plan.js";
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -31,7 +25,6 @@ export const IntegrationCheckpointCompositionRecordSchema = z.strictObject({
   workUnit: SlugSchema,
   approvedHead: ObjectIdSchema,
   settlementPlan: CanonicalSettlementPlanSchema,
-  reviewRecord: ComposedReviewRecordSchema,
   mergeMethod: ValidatedMergeMethodSchema,
   compositionDigest: DigestSchema,
 });
@@ -43,7 +36,6 @@ export interface IntegrationCheckpointCompositionInput {
   workUnit: string;
   approvedHead: string;
   settlementPlan: z.infer<typeof CanonicalSettlementPlanSchema>;
-  reviewRecord: z.infer<typeof ComposedReviewRecordSchema>;
   mergeMethod: z.infer<typeof ValidatedMergeMethodSchema>;
 }
 
@@ -68,14 +60,12 @@ const nodeStoreDependencies: IntegrationCheckpointStoreDependencies = {
 function digestComposition(input: {
   checkpointId: string;
   settlementPlan: z.infer<typeof CanonicalSettlementPlanSchema>;
-  reviewRecord: z.infer<typeof ComposedReviewRecordSchema>;
   mergeMethod: z.infer<typeof ValidatedMergeMethodSchema>;
 }): string {
   return canonicalDigest({
     domain: "arc.integration-checkpoint-composition/v1",
     checkpointId: input.checkpointId,
     settlementPlan: input.settlementPlan,
-    reviewRecord: input.reviewRecord,
     mergeMethod: input.mergeMethod,
   });
 }
@@ -92,14 +82,6 @@ function recordPath(workUnitRoot: string, handle: string): string {
   return join(workUnitRoot, ".internal", "integration-checkpoints", `${digest.slice("sha256:".length)}.json`);
 }
 
-function assertDispositionAlignment(input: IntegrationCheckpointCompositionInput): void {
-  const planned = settlementDispositionIds(input.settlementPlan);
-  const recorded = [...new Set(input.reviewRecord.dispositionIds)].sort();
-  if (canonicalize(planned) !== canonicalize(recorded)) {
-    throw new Error("The settlement plan does not match the composed review record dispositions.");
-  }
-}
-
 /** Persist one immutable checkpoint composition and return its opaque approval handle. */
 export async function persistIntegrationCheckpointComposition(
   workUnitRoot: string,
@@ -107,7 +89,6 @@ export async function persistIntegrationCheckpointComposition(
   overrides: Partial<IntegrationCheckpointStoreDependencies> = {},
 ): Promise<string> {
   const dependencies = { ...nodeStoreDependencies, ...overrides };
-  assertDispositionAlignment(input);
   const checkpointId = dependencies.randomId();
   const compositionDigest = digestComposition({ checkpointId, ...input });
   const record = IntegrationCheckpointCompositionRecordSchema.parse({
@@ -145,7 +126,6 @@ export async function readIntegrationCheckpointComposition(
     throw new Error("The persisted integration checkpoint is malformed.", { cause: error });
   }
   const record = IntegrationCheckpointCompositionRecordSchema.parse(value);
-  assertDispositionAlignment(record);
   const parsedHandle = parseHandle(handle);
   const expectedDigest = digestComposition(record);
   if (

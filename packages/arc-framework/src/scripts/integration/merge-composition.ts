@@ -33,41 +33,6 @@ import { executeSettlementPlan } from "./settlement-execution.js";
 const CHECKS_TIMEOUT_MS = 10 * 60 * 1_000;
 const CHECKS_POLL_INTERVAL_MS = 10 * 1_000;
 
-function parseObject(text: string, path: string): Record<string, unknown> {
-  let value: unknown;
-  try {
-    value = JSON.parse(text) as unknown;
-  } catch (error) {
-    throw new Error(`${path}: malformed JSON`, { cause: error });
-  }
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${path}: expected an object`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function string(value: unknown, path: string): string {
-  if (typeof value !== "string") throw new Error(`${path}: expected a string`);
-  return value;
-}
-
-/** Replace exactly one top-level Review section while preserving every other body byte. */
-export function replaceReviewSection(body: string, reviewRecord: string): string {
-  if (!/^## Review(?:\r?\n|$)/u.test(reviewRecord)) {
-    throw new Error("The persisted review record must begin with a top-level Review heading.");
-  }
-  const start = /^## Review(?:\r?\n|$)/mu.exec(body);
-  if (start === null) {
-    const separator = body.trimEnd() === "" ? "" : "\n\n";
-    return `${body.trimEnd()}${separator}${reviewRecord.trimEnd()}\n`;
-  }
-  const nextHeading = /^## /gmu;
-  nextHeading.lastIndex = start.index + start[0].length;
-  const next = nextHeading.exec(body);
-  const end = next?.index ?? body.length;
-  return `${body.slice(0, start.index)}${reviewRecord.trimEnd()}\n${body.slice(end)}`;
-}
-
 /** Bind Git, GitHub, review, lifecycle, and checkpoint stores to the merge reducer. */
 export function createIntegrationMergeDependencies(input: {
   cwd: string;
@@ -176,17 +141,6 @@ export function createIntegrationMergeDependencies(input: {
       MergeMethodSchema.parse((await settings()).settings["merge.strategy"]),
       createGhMergeMethodPolicyPort(hostedGhRunner),
     ),
-    postReviewRecord: async (target, markdown) => {
-      if (markdown === null) return;
-      const current = parseObject((await hostedGhRunner.run([
-        "pr", "view", String(target.pullRequest), "--repo", target.repository, "--json", "body",
-      ])).stdout, "pull-request");
-      const body = string(current.body, "pull-request.body");
-      await hostedGhRunner.run([
-        "pr", "edit", String(target.pullRequest), "--repo", target.repository,
-        "--body", replaceReviewSection(body, markdown),
-      ]);
-    },
     readFinalDrift: async () => {
       const config = await settings();
       return runBaseDrift({

@@ -97,7 +97,6 @@ function dependencies(): IntegrationCheckpointDependencies {
         },
         requiredChecks: "green",
       },
-      reviewRecord: { markdown: null, dispositionIds: [] },
     }),
     composeSettlementPlan: async () => composeCanonicalSettlementPlan([]),
     createHandle: async () => `checkpoint-v1:${oid("c")}:${digest("e")}`,
@@ -243,7 +242,6 @@ describe("integration checkpoint", () => {
             method: "merge",
             policyFingerprint: digest("d"),
           },
-          reviewRecord: { markdown: null, dispositionIds: [] },
           interlockSurface: {
             machineEvidence: {
               state: "clean",

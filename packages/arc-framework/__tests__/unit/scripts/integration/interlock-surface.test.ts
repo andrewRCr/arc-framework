@@ -18,7 +18,7 @@ function signals(): CheckpointMachineSignal[] {
     { kind: "requirements", label: "Requirements", clean: true, evidence: "All requirements are satisfied." },
     { kind: "required-checks", label: "Required checks", clean: true, evidence: "Required checks are green." },
     { kind: "merge-method", label: "Merge method", clean: true, evidence: "Merge is allowed." },
-    { kind: "review-record", label: "Review record", clean: true, evidence: "No dispositions require settlement." },
+    { kind: "settlement", label: "Settlement", clean: true, evidence: "No dispositions require settlement." },
     { kind: "checkpoint", label: "Checkpoint", clean: true, evidence: "Composition is persisted." },
   ];
 }

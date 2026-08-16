@@ -357,12 +357,11 @@ describe("trusted review-gate workflows", () => {
     const preMerge = full.lastIndexOf("**Extension report** · `#pre-merge`");
     const interlock = full.lastIndexOf("`integration-interlock`");
     const autoMerge = full.lastIndexOf("gh pr merge <pr-number>");
-    const reviewRecord = full.slice(full.indexOf("content-gated `## Review` record"), preMerge);
     expect(preMerge).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(autoMerge);
     expect(full.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
-    expect(reviewRecord).toContain("`Local`, `Hosted PR`, and `Triage`");
-    expect(reviewRecord).not.toContain("`Coverage`");
+    expect(full).not.toContain("## Review");
+    expect(full).not.toMatch(/`Local`, `Hosted PR`, and `Triage`|`Coverage`/u);
     expect(full).not.toContain("authorizes the lane action only if");
     expect(full).not.toMatch(/changed head[\s\S]*invalidates approval/iu);
     expect(full).toContain("--match-head-commit {approved-head-sha}");

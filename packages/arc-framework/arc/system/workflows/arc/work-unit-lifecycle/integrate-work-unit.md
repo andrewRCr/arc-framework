@@ -234,8 +234,10 @@ gh pr create --base {base-branch} --head {type}/{name} --draft    # open-locked
 
 Single PR per WU. The PR title's Conventional Commits type carries the signal.
 
-**PR body:** load [`template-pull-request.md`][template-pull-request] for the canonical shape (Spec / Summary /
-Changes / optional Test Plan / Out of Scope / Follow-Up Work) and its anti-patterns. Do not add sections
+**PR body:** load [`template-pull-request.md`][template-pull-request] for the canonical shape (Design / optional
+Local review / Summary / Changes / optional Test Plan / Out of Scope / Follow-Up Work) and its anti-patterns. The
+`Local review` field names the carrier that ran gated review locally before publication and nothing else; omit it
+when none ran. Do not add sections
 describing post-merge workflow continuity or next actions — those route to the meta file and SESSION-NOTES per
 [DEV-RULES.ARC][dev-rules-arc] § Write for the reader, not the author.
 

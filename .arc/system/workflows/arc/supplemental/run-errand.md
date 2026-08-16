@@ -314,9 +314,7 @@ remote base all name the same exact head. Any tracked change continues through t
    prior complete coverage confidently remains applicable; otherwise run focused or complete review. Repeat until
    base, head, requirements, and review are settled.
 
-   Compose the final `openedChangeRequest` and preview the content-gated `## Review` record from the settled review
-   cycle: `Local`, `Hosted PR`, and `Triage`. Omit the whole section when no review ran. Retain
-   `openedChangeRequest.headSha` as `{approved-head-sha}`.
+   Compose the final `openedChangeRequest` and retain `openedChangeRequest.headSha` as `{approved-head-sha}`.
 
    **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled head and render
    their results under this label; otherwise render `None`. The extension fires here, before the integration
@@ -325,13 +323,12 @@ remote base all name the same exact head. Any tracked change continues through t
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the current head is settled and before arming auto-merge or releasing the
 > reviewed lane. Surface the exact head, review applicability calls and targeted verification, proposed final
-> dispositions and `## Review` record, PR checks, required approvals, base freshness, and the resolved lane. State
+> dispositions, PR checks, required approvals, base freshness, and the resolved lane. State
 > that approval applies final dispositions and channel settlement, ends review, invokes the exact-head release on
 > whichever lane resolves, and authorizes the lane action.
 > Close with `Approve (or redirect)?`.
 
-After approval, apply the approved final dispositions and channel settlements, replace any stale PR review summary
-with the previewed `## Review` record, and continue to the lane action.
+After approval, apply the approved final dispositions and channel settlements, then continue to the lane action.
 
 6. Land per lane:
 
