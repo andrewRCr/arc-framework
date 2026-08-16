@@ -291,7 +291,7 @@ describe("trusted review-gate workflows", () => {
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(finalGate).toContain("**Extension report** · `#pre-merge`");
-    expect(finalGate).toMatch(/checkpointed dispositions[\s\S]*channel settlement[\s\S]*ends review/u);
+    expect(finalGate).toMatch(/checkpointed dispositions[\s\S]*review-response channel[\s\S]*ends review/u);
     expect(finalGate).not.toContain("exact candidate-tail diff");
   });
 

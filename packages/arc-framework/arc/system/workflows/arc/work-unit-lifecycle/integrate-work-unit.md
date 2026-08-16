@@ -489,9 +489,11 @@ integration interlock. No commit or push may occur after `ready`.
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the ready evidence and extension report. Surface both, the composed
 > candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated artifacts
-> named rather than diffed, and the review applicability calls and targeted verification retained from Step 4;
-> state that approval applies the checkpointed dispositions and channel settlement, ends review, and authorizes
-> merge of the checkpointed head. Close with `Approve (or redirect)?`.
+> named rather than diffed, the review applicability calls and targeted verification retained from Step 4, and the
+> proposed final dispositions — the no-action record-only sets that rode here for this combined gate, which the
+> checkpoint payload does not carry; state that approval applies the checkpointed dispositions, decides those
+> proposals, settles the review-response channel — hosted settlement already ran at Step 4 — ends review, and
+> authorizes merge of the checkpointed head. Close with `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
