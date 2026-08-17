@@ -659,10 +659,17 @@ Finalize this session's PRs that merged outside an attended ceremony. A no-op un
 that has not been finalized — resolve this session's candidate branches (the WU or `chore/<slug>` branches whose
 PRs this session opened) and return when there are none.
 
-Poll each candidate once — a single `gh pr view <branch> --json state,mergedAt`, never a wait-loop (never block
-on CI) — then dispatch:
+Resolve each candidate branch's exact local head with `git rev-parse "<branch>^{commit}"`, then invoke the typed
+resolver once — never a wait-loop (never block on CI):
 
-- **merged-clean** → eager teardown. Each step is presence-guarded (safe to re-run):
+```bash
+arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json
+```
+
+An unavailable local head is **failed / blocked**; never substitute a host-reported or remembered head.
+Dispatch only on its typed state and action:
+
+- `merged-at-head / complete` → **merged-clean** — eager teardown. Each step is presence-guarded (safe to re-run):
     - **work-unit candidate** → `arc teardown <wu-name>`: reaps the merged branch (merged-safe), removes any
       distinct worktree (clean-checked, never `--force`), and prunes the stale remote-tracking ref;
     - **errand candidate with a record** → `arc errand close <slug> --json`: consume its typed result while it
@@ -671,8 +678,11 @@ on CI) — then dispatch:
     - **recordless `chore/<slug>` cheap-branch candidate** → `arc teardown --branch <branch>`: reaps the merged
       branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs;
     - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
-- **failed / blocked** → surface loudly, for both the manual- and auto-merge lanes.
-- **still-pending** → hand to the session-init completion sweep; no action this session.
+- `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
+  `ambiguous / stop`, or `blocked / stop` → **failed / blocked** — surface loudly, for both the manual- and
+  auto-merge lanes.
+- `open / reuse-change-request` → **still-pending** — hand to the session-init completion sweep; no action this
+  session.
 
 ## Notes-sync leg
 

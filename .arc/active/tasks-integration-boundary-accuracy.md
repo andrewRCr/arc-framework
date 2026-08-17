@@ -1214,8 +1214,9 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Goal:_ Every recorded minor closes or carries a deliberate residue note in the findings record.
 
 _Outcome:_ Typed refusals and blocked results now carry JSON-safe remedies, convergence-pending boundaries persist,
-and integration prose/tests pin the executable wait and interlock contracts. The two refactor-sized findings remain
-deliberate residue at their existing captures, as recorded in `notes-integration-boundary-accuracy.md`.
+and integration prose/tests pin the executable wait and interlock contracts. Same-session handoff finalization also
+uses exact-head typed PR resolution; only the hosted settlement composer's authority decision remains deliberate
+residue, as recorded in `notes-integration-boundary-accuracy.md`.
 
 ## **Phase 10:** Verification
 

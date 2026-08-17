@@ -480,6 +480,10 @@ above close in Task 9.9. Two deliberate residues remain at their existing `USER-
 `composeHostedSettlementAction` stays census input for `review-source-authority` rather than gaining an artificial
 caller here.
 
+**Phase 9 disposition amendment.** The session-handoff item is the same typed PR-resolution concern despite
+sitting outside the original five-site inventory. Task 9.9's follow-up converts that finalize pass as well. Only
+the production-uncalled `composeHostedSettlementAction` remains deliberate residue for the record-family census.
+
 ### Adjudicated not-defects
 
 The errand lane's retained `git ls-remote` pre-create head check (flagged independently by three lenses as a

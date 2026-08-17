@@ -113,6 +113,24 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("routes same-session finalization through exact-head change-request resolution", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const suffix = base === packageArc ? ".template.md" : ".md";
+      const handoff = await readFile(
+        resolve(base, `system/workflows/arc/session-lifecycle/session-handoff${suffix}`),
+        "utf8",
+      );
+
+      expect(handoff).toContain(
+        "arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json",
+      );
+      expect(handoff).toContain("`merged-at-head / complete` → **merged-clean**");
+      expect(handoff).toContain("`open / reuse-change-request` → **still-pending**");
+      expect(handoff).toContain("An unavailable local head is **failed / blocked**");
+      expect(handoff).not.toContain("gh pr view <branch> --json state,mergedAt");
+    }
+  });
+
   it("preserves typed cleanup guidance without promising an unproduced Errand queue", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
