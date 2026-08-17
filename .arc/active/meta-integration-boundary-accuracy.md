@@ -13,13 +13,13 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:e90cbd61af59badb7a577168f69db1e62a3460ddf3c90b057f23c5a26afd6b68`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Tasks 11.8–11.11 — publication input defaults, host-evidence scope, the spine-verb rename,
-  and the upheld-deviation rationale
-- **Next Task:** Task 11.12 — Convergence verification and re-attestation over the remediated tree (line ~1603)
+- **Current Workflow:** `integrate-work-unit`
+- **Last Completed:** Task 11.12 — convergence verification and re-attestation, closing Phase 11 and the task list
+- **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — run pre-publication review
+- **Next Action:** integrate-work-unit Step 1 — enter integration, then run the chunked pre-publication review
+  over the ten chunks (chunk 10 covers Phase 11)
 
 - **PR URL:** [none]
 - **Completed:** [none]
