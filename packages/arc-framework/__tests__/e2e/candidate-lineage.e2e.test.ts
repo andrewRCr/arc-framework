@@ -367,7 +367,7 @@ describe("review-fix Candidate lineage", () => {
     expect(JSON.parse(rerooted.stdout)).toMatchObject({
       status: "attested",
       operation: "re-root",
-      locus: { kind: "candidate-review-pending" },
+      locus: { locus: "candidate-review-pending" },
     });
     await git(root, ["commit", "-m", "re-attest over full verification"]);
 
@@ -424,7 +424,7 @@ describe("review-fix Candidate lineage", () => {
     expect(JSON.parse(converged.stdout)).toMatchObject({
       status: "attested",
       operation: "convergence",
-      locus: { kind: "candidate-submit-ready" },
+      locus: { locus: "candidate-review-pending" },
     });
 
     const cleared = await checkpointOver(root);

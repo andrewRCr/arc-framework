@@ -1464,18 +1464,29 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
       change on the work-unit lane. No remaining `git ls-remote` or render-`None` residue in either copy of either
       workflow.
 
-### `[ ]` **11.7 `arc propose` returns the shared integration-boundary locus with a truthful pointer**
+### `[x]` **11.7 `arc propose` returns the shared integration-boundary locus with a truthful pointer**
 
 - _Goal:_ One typed locus union (§ E9) with no untruthful next action: `propose` never points at submission the
   authoritative projection would refuse.
 
-- _Approach:_ Delete the private `CandidatePrePublicationLocusSchema` in `verbs/propose.ts`; return the shared
-  locus shape, deriving the kind from the same projection the pre-publication procedure uses — or return the
-  conservative `candidate-review-pending` and let one idempotent hop resolve the finer locus (the § E9
-  amendment's own pattern). Submit-readiness is never derived from `record.responses.length`.
+- _Outcome:_ `CandidatePrePublicationLocusSchema` is deleted; `ProposeResult` carries
+  `IntegrationBoundaryLocusSchema`, and every arm builds it through `projectCandidateReviewBoundary` — the same
+  helper `arc status` and the session-locus reader already use. Of the approach's two options, § E9's own amendment
+  picks the second: it bounds evidence reduction to the pre-publication procedure and has the conservative entry
+  locus resolve the finer one "one typed hop away", which is what the two sibling surfaces already do. Deriving the
+  kind instead would have made `propose` a third reducer, against the amendment that the finding came from.
 
-    - Not in scope: new locus kinds; changes to `arc status` / session-init projection; `submit`'s
-      authorization checks (already correct).
+    - Both untruthful pointers are gone: the `responses.length` derivation, and the convergence arm's hardcoded
+      `candidate-submit-ready`. Neither could establish what `authorizeSubmission` actually requires — a boundary
+      at `candidate-submit-ready` whose `candidateSubjectDigest` matches — so both could route to an `arc submit`
+      that refuses. Attesting content never settles the pre-publication obligations that decide submit-readiness.
+
+    - The narrative `Next Action` written to the meta collapses to one constant for every arm, since every arm now
+      lands on the same locus; the convergence arm no longer writes "run arc submit". The human-readable handler
+      line reads the shared shape's `locus` field.
+
+    - Workflow prose needed no change: it already sources `candidate-submit-ready` from the pre-publication
+      procedure's envelope rather than from `propose`.
 
 ### `[ ]` **11.8 CLI trims: `submit` input defaults and single-source shared shapes**
 

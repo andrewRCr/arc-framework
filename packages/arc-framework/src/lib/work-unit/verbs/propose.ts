@@ -12,17 +12,18 @@ import {
   type CandidateLineageTarget,
 } from "../candidate-attestation.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
+import {
+  IntegrationBoundaryLocusSchema,
+  projectCandidateReviewBoundary,
+} from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
-export const CandidatePrePublicationLocusSchema = z.strictObject({
-  kind: z.enum(["candidate-review-pending", "candidate-submit-ready"]),
-  workUnit: SlugSchema,
-  candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
-  nextAction: z.strictObject({
-    command: z.string().trim().min(1),
-    interactionText: z.string().trim().min(1),
-  }),
-});
-export type CandidatePrePublicationLocus = z.infer<typeof CandidatePrePublicationLocusSchema>;
+/**
+ * The narrative pointer written to the meta alongside every attestation.
+ *
+ * One string for every arm, because every arm lands on the same conservative locus: attesting a
+ * Candidate never establishes submit-readiness, so no arm may point at submission.
+ */
+const ATTESTED_NEXT_ACTION = "Candidate review pending — run pre-publication review";
 
 export const ProposeResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
@@ -30,11 +31,11 @@ export const ProposeResultSchema = z.discriminatedUnion("status", [
     operation: z.enum(["root", "re-root", "convergence"]),
     recordPath: z.string().trim().min(1),
     metaPath: z.string().trim().min(1),
-    locus: CandidatePrePublicationLocusSchema,
+    locus: IntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("unchanged"),
-    locus: CandidatePrePublicationLocusSchema,
+    locus: IntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("blocked"),
@@ -97,11 +98,7 @@ export async function runPropose(
     if (currentness.convergenceVerification === "satisfied") {
       return {
         status: "unchanged",
-        locus: locusFor(
-          name,
-          currentness.candidateId,
-          record.responses.length === 0 ? "candidate-review-pending" : "candidate-submit-ready",
-        ),
+        locus: projectCandidateReviewBoundary({ workUnit: name, candidateId: currentness.candidateId }),
       };
     }
     const lineageAttestation = createCandidateLineageAttestation({
@@ -115,12 +112,12 @@ export async function runPropose(
       ...record,
       lineageAttestations: [...record.lineageAttestations, lineageAttestation],
     });
-    const locus = locusFor(name, currentness.candidateId, "candidate-submit-ready");
+    const locus = projectCandidateReviewBoundary({ workUnit: name, candidateId: currentness.candidateId });
     const published = await context.publish({
       name,
       record: nextRecord,
       candidateId: currentness.candidateId,
-      nextAction: "Candidate submit ready — run arc submit",
+      nextAction: ATTESTED_NEXT_ACTION,
     });
     return { status: "attested", operation: "convergence", ...published, locus };
   }
@@ -152,12 +149,12 @@ async function establishRoot(
     responses: [],
     lineageAttestations: [],
   });
-  const locus = locusFor(name, attestation.candidateId, "candidate-review-pending");
+  const locus = projectCandidateReviewBoundary({ workUnit: name, candidateId: attestation.candidateId });
   const published = await context.publish({
     name,
     record,
     candidateId: attestation.candidateId,
-    nextAction: "Candidate review pending — run pre-publication review",
+    nextAction: ATTESTED_NEXT_ACTION,
   });
   return {
     status: "attested",
@@ -165,25 +162,4 @@ async function establishRoot(
     ...published,
     locus,
   };
-}
-
-function locusFor(
-  workUnit: string,
-  candidateId: string,
-  kind: CandidatePrePublicationLocus["kind"],
-): CandidatePrePublicationLocus {
-  return CandidatePrePublicationLocusSchema.parse({
-    kind,
-    workUnit,
-    candidateId,
-    nextAction: kind === "candidate-review-pending"
-      ? {
-          command: `arc review pre-publication ${workUnit} --json`,
-          interactionText: "Run the configured pre-publication review procedure.",
-        }
-      : {
-          command: `arc submit ${workUnit} --json`,
-          interactionText: "Submit the current Candidate for publication.",
-        },
-  });
 }

@@ -97,7 +97,7 @@ describe("propose → pre-publication → submit", () => {
     expect(JSON.parse(proposed.stdout)).toMatchObject({
       status: "attested",
       locus: {
-        kind: "candidate-review-pending",
+        locus: "candidate-review-pending",
         nextAction: { command: "arc review pre-publication example --json" },
       },
     });

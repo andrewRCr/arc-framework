@@ -2415,7 +2415,7 @@ export async function handlePropose(
     const lines = [
       `Work unit: ${result.locus.workUnit}`,
       `Candidate: ${result.locus.candidateId}`,
-      `Locus:     ${result.locus.kind}`,
+      `Locus:     ${result.locus.locus}`,
     ];
     p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
     p.outro("Done.");

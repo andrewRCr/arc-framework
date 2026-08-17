@@ -76,7 +76,7 @@ describe("arc propose", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       status: "attested",
       operation: "root",
-      locus: { kind: "candidate-review-pending", workUnit: "example" },
+      locus: { locus: "candidate-review-pending", workUnit: "example" },
     });
     const meta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
     expect(meta).toContain("| `Active`  | `test-user`");

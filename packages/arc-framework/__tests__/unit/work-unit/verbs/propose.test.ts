@@ -69,7 +69,7 @@ describe("runPropose", () => {
       recordPath: ".arc/system/.internal/candidates/example.json",
       metaPath: ".arc/active/meta-example.md",
       locus: {
-        kind: "candidate-review-pending",
+        locus: "candidate-review-pending",
         workUnit: "example",
         nextAction: { command: "arc review pre-publication example --json" },
       },
@@ -95,7 +95,7 @@ describe("runPropose", () => {
     expect(first.status).toBe("attested");
     expect(repeated).toMatchObject({
       status: "unchanged",
-      locus: { kind: "candidate-review-pending", workUnit: "example" },
+      locus: { locus: "candidate-review-pending", workUnit: "example" },
     });
     expect(state().publicationCount).toBe(1);
   });
@@ -122,15 +122,18 @@ describe("runPropose", () => {
     const converged = await runPropose(fixture.context, { name: "example" });
     const repeated = await runPropose(fixture.context, { name: "example" });
 
+    // Converging a lineage attests content; it does not settle the pre-publication obligations that
+    // decide submit-readiness. Both arms therefore land on the conservative locus, and the finer one
+    // resolves through the pre-publication procedure rather than being asserted here.
     expect(converged).toMatchObject({
       status: "attested",
       operation: "convergence",
-      locus: { kind: "candidate-submit-ready" },
+      locus: { locus: "candidate-review-pending" },
     });
-    expect(repeated).toMatchObject({ status: "unchanged", locus: { kind: "candidate-submit-ready" } });
+    expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
     expect(fixture.state()).toMatchObject({
       publicationCount: 2,
-      projectedNextAction: "Candidate submit ready — run arc submit",
+      projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: { lineageAttestations: [{ target: changedTarget }] },
     });
   });
@@ -162,7 +165,7 @@ describe("runPropose", () => {
     expect(rerooted).toMatchObject({
       status: "attested",
       operation: "re-root",
-      locus: { kind: "candidate-review-pending", workUnit: "example" },
+      locus: { locus: "candidate-review-pending", workUnit: "example" },
     });
     expect(fixture.state()).toMatchObject({
       publicationCount: 2,
@@ -186,7 +189,7 @@ describe("runPropose", () => {
     const repeated = await runPropose(fixture.context, { name: "example", newRoot: true });
 
     expect(rerooted.status).toBe("attested");
-    expect(repeated).toMatchObject({ status: "unchanged", locus: { kind: "candidate-review-pending" } });
+    expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
     expect(fixture.state().publicationCount).toBe(2);
   });
 
