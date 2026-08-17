@@ -185,6 +185,7 @@ import {
 } from "../scripts/review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
 import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   resolveReviewStatus,
   ReviewStatusTargetInputSchema,
@@ -440,6 +441,11 @@ export async function handleReviewStatus(
       nextAction: "stop",
       reason: "invalid-input",
       detail: parsed.error.issues.map(({ message }) => message).join("; "),
+      remedy: spineRemedy(
+        "Review status requires the exact target emitted by change-request resolution.",
+        "Review command usage",
+        ["arc", "review", "status", "--help"],
+      ),
     })}\n`);
     dependencies.setExitCode(64);
     return;
@@ -1691,7 +1697,10 @@ export async function handleReviewPrePublication(
     // The settled locus is where the durable publication boundary is written. Recording it here —
     // before the result is claimed — is what makes `arc submit` succeed on its first call; an
     // absent boundary now means genuinely open obligations rather than a write nobody performed.
-    if (envelope.locus === "candidate-submit-ready") await dependencies.persistBoundary(root, envelope);
+    if (envelope.locus === "candidate-submit-ready"
+      || envelope.locus === "candidate-convergence-verification-pending") {
+      await dependencies.persistBoundary(root, envelope);
+    }
   } catch (error) {
     emitFailure(error, "execution");
     return;

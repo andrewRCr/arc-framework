@@ -450,7 +450,9 @@ After a head-changing push, rerun
 `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`, then invoke
 `arc review status --target '{targetRef}' --json` with its fresh `targetRef`. Follow only the typed action:
 `settled / continue-reconcile` proceeds; `review-required / run-review` returns through review applicability;
-`checks-pending / await-checks` invokes the bounded checks wait; `base-moved / rerun-checkpoint` restarts this step;
+`checks-pending / await-checks` invokes
+`arc review checks await --pull-request {pull-request} --head-sha {head-sha} --json`;
+`base-moved / rerun-checkpoint` restarts this step;
 `blocked / stop` stops. Advisory receipts are not merge authority.
 
 Apply the current WU's exact reconcile:
@@ -473,7 +475,7 @@ chore(arc): reconcile {name} before integration
 Context: meta-{name}.md (integration reconcile)
 ```
 
-Repeat the Step 3 push extension contract and exact-head mutability action.
+Repeat the Step 3 push extension contract.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
@@ -507,7 +509,8 @@ arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
 ```
 
 `merged / complete` proceeds to the tail. `awaiting-checks / retry` retains the checkpoint and re-invokes this
-same command after the returned deadline. `invalidated / checkpoint` returns to the checkpoint; `blocked / stop`
+same command after `payload.elapsedMs` milliseconds. `invalidated / checkpoint` returns to the checkpoint;
+`blocked / stop`
 stops. The integration interlock is the sole merge authority.
 
 **Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the

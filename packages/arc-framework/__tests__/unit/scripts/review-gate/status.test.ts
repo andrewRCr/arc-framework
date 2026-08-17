@@ -31,6 +31,14 @@ describe("review status", () => {
       nextAction: "stop",
       reason: "stale-target",
       target,
+      remedy: {
+        argv: [
+          "arc", "review", "change-request", "resolve",
+          "--head-ref", target.headRef,
+          "--head-sha", oid("f"),
+          "--json",
+        ],
+      },
     });
   });
 
@@ -77,6 +85,7 @@ describe("review status", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
     });
   });
 
@@ -86,6 +95,7 @@ describe("review status", () => {
       nextAction: "stop",
       reason: "checks-failed",
       requiredChecks: "failed",
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
     });
   });
 });

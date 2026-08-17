@@ -42,6 +42,7 @@ describe("merge-method resolution", () => {
       reason: "method-disallowed",
       configuredMethod: "rebase",
       allowedMethods: ["merge", "squash"],
+      remedy: { argv: ["arc", "review", "merge-method", "resolve", "--json"] },
     });
   });
 
@@ -55,6 +56,7 @@ describe("merge-method resolution", () => {
       reason: "policy-unreadable",
       configuredMethod: "squash",
       allowedMethods: [],
+      remedy: { argv: ["arc", "review", "merge-method", "resolve", "--json"] },
     });
   });
 

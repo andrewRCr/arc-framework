@@ -967,6 +967,19 @@ describe("handleSubmit", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("emits a JSON refusal with command usage under --json", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification", json: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "rejected",
+      remedy: { argv: ["arc", "submit", "--help"] },
+    });
+    expect(mockRunSubmit).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
   it("defaults a bare invocation to the current worktree's WU", async () => {
     await handleSubmit(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
     expect(mockRunSubmit).toHaveBeenCalledTimes(1);

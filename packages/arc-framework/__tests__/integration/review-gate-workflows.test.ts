@@ -382,6 +382,11 @@ describe("trusted review-gate workflows", () => {
     expect(preMerge).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(autoMerge);
     expect(full.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
+    const interlockText = full.slice(interlock, autoMerge);
+    const pinnedInterlockText = interlockText.replace(/^>\s?/gmu, "").replace(/\s+/gu, " ");
+    expect(pinnedInterlockText).toContain("Surface the exact head");
+    expect(pinnedInterlockText).toContain("proposed final dispositions");
+    expect(pinnedInterlockText).toContain("authorizes the lane action");
     expect(full).not.toContain("## Review");
     expect(full).not.toMatch(/`Local`, `Hosted PR`, and `Triage`|`Coverage`/u);
     expect(full).not.toContain("authorizes the lane action only if");
@@ -524,6 +529,12 @@ describe("trusted review-gate workflows", () => {
     expect(reconcile).toBeGreaterThan(status);
     expect(merge).toBeGreaterThan(reconcile);
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
+    expect(gate).toContain(
+      "arc review checks await --pull-request {pull-request} --head-sha {head-sha} --json",
+    );
+    expect(gate).toContain("after `payload.elapsedMs` milliseconds");
+    expect(gate).not.toContain("returned deadline");
+    expect(gate).not.toContain("exact-head mutability action");
     expect(gate).toContain("review applicability");
     expect(gate).toMatch(/targeted, focused, or full review/u);
     expect(gate).not.toContain("git merge --no-edit");

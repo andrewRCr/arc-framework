@@ -154,6 +154,7 @@ const BlockedMergeMethodSchema = z.strictObject({
   allowedMethods: z.array(z.enum(["merge", "rebase", "squash"])),
   policyFingerprint: DigestSchema.optional(),
   detail: z.string().min(1).optional(),
+  remedy: SpineRemedySchema,
 });
 
 const ResultBaseShape = {

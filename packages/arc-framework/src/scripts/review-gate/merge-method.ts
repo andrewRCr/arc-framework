@@ -2,6 +2,7 @@
 
 import { canonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
 import { z } from "zod";
+import { spineRemedy, type SpineRemedy } from "../integration/spine-refusal.js";
 
 export const MergeMethodSchema = z.enum(["merge", "rebase", "squash"]);
 export type MergeMethod = z.infer<typeof MergeMethodSchema>;
@@ -33,6 +34,7 @@ export type MergeMethodResolveResult = MergeMethodResultBase & (
       allowedMethods: MergeMethod[];
       policyFingerprint?: `sha256:${string}`;
       detail?: string;
+      remedy: SpineRemedy;
     }
 );
 
@@ -57,6 +59,7 @@ export async function resolveMergeMethod(
       configuredMethod,
       allowedMethods: [],
       detail: error instanceof Error ? error.message : String(error),
+      remedy: mergeMethodRemedy(),
     };
   }
   const allowedMethods = (["merge", "rebase", "squash"] as const).filter((method) => policy[method]);
@@ -72,6 +75,7 @@ export async function resolveMergeMethod(
       configuredMethod,
       allowedMethods,
       policyFingerprint,
+      remedy: mergeMethodRemedy(),
     };
   }
   return {
@@ -84,4 +88,12 @@ export async function resolveMergeMethod(
     allowedMethods,
     policyFingerprint,
   };
+}
+
+function mergeMethodRemedy(): SpineRemedy {
+  return spineRemedy(
+    "The configured merge method must match readable repository policy.",
+    "Align merge.strategy with repository policy, then re-run",
+    ["arc", "review", "merge-method", "resolve", "--json"],
+  );
 }

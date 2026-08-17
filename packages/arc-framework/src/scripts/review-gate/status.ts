@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { ChangeRequestTargetRefSchema } from "./change-request.js";
+import { spineRemedy, type SpineRemedy } from "../integration/spine-refusal.js";
 
 const ObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
 
@@ -39,6 +40,7 @@ export type ReviewStatusResult = ReviewStatusBase & (
       nextAction: "stop";
       reason: "stale-target" | "checks-failed" | "status-unavailable";
       detail: string;
+      remedy: SpineRemedy;
     }
 );
 
@@ -79,6 +81,16 @@ export async function resolveReviewStatus(
       nextAction: "stop",
       reason: "stale-target",
       detail: `The target head moved to ${actualHeadSha}.`,
+      remedy: spineRemedy(
+        "Review status must be recomposed for the current branch head.",
+        "Resolve the current change request",
+        [
+          "arc", "review", "change-request", "resolve",
+          "--head-ref", request.target.headRef,
+          "--head-sha", actualHeadSha,
+          "--json",
+        ],
+      ),
     };
   }
   if (!observation.baseContained && base.currentBaseOid !== null) {
@@ -93,6 +105,7 @@ export async function resolveReviewStatus(
       detail: base.currentBaseOid === null
         ? "The current base revision is unavailable."
         : base.routedObligation.detail,
+      remedy: reviewStatusRetryRemedy(request.target),
     };
   }
   if (base.routedObligation.state === "review-required") {
@@ -110,7 +123,16 @@ export async function resolveReviewStatus(
       detail: base.requiredChecks === "failed"
         ? "One or more required checks failed."
         : "Required-check status is unavailable.",
+      remedy: reviewStatusRetryRemedy(request.target),
     };
   }
   return { ...base, state: "settled", nextAction: "continue-reconcile" };
+}
+
+function reviewStatusRetryRemedy(target: z.infer<typeof ChangeRequestTargetRefSchema>): SpineRemedy {
+  return spineRemedy(
+    "Review status must be recomposed from an exact current target.",
+    "Resolve the reported condition, then re-run",
+    ["arc", "review", "status", "--target", JSON.stringify(target), "--json"],
+  );
 }

@@ -1498,6 +1498,25 @@ describe("handleReviewPrePublication", () => {
     expect(dependencies.persistBoundary).not.toHaveBeenCalled();
   });
 
+  it("persists the convergence-verification resume locus", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request: {
+          ...request,
+          candidate: { implementationChanged: true, convergenceVerification: "pending" as const },
+        },
+        advisories: [],
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      locus: "candidate-convergence-verification-pending",
+    }));
+  });
+
   it("reports a failed boundary write instead of claiming a settled locus", async () => {
     const dependencies = boundary({
       compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),

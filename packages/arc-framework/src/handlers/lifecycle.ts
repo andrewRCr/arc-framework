@@ -342,14 +342,32 @@ function refuse(reason: string): void {
 }
 
 /** Refuse with the failed invariant and the one command that advances from it. */
-function refuseWithRemedy(reason: string, remedy: SpineRemedy): void {
+function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): void {
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ status: "rejected", reason, remedy })}\n`);
+    process.exitCode = 1;
+    return;
+  }
   refuse(`${reason}\n${remedy.text}`);
 }
 
-function parseLifecycleCommand<T extends z.ZodType>(schema: T, value: unknown): z.output<T> | null {
+function parseLifecycleCommand<T extends z.ZodType>(
+  schema: T,
+  value: unknown,
+  command: readonly string[],
+  json = false,
+): z.output<T> | null {
   const parsed = schema.safeParse(value);
   if (parsed.success) return parsed.data;
-  refuse(z.prettifyError(parsed.error));
+  refuseWithRemedy(
+    z.prettifyError(parsed.error),
+    spineRemedy(
+      "Command input must satisfy its registered schema.",
+      "Review command usage",
+      ["arc", ...command, "--help"],
+    ),
+    json,
+  );
   return null;
 }
 
@@ -914,7 +932,7 @@ export async function handleRename(
   p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
     slug: sourceSlug.trim(), newSlug: targetSlug.trim(),
-  });
+  }, ["rename"]);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
   const base = await resolveVerbBase(context);
@@ -1076,7 +1094,7 @@ export async function handlePromote(
 
 /** `arc demote <slug>` — lower a planned stub back to provisional. */
 export function handleDemote(slug: string | undefined, context?: InteractionContext): Promise<void> {
-  const input = parseLifecycleCommand(DemoteCommandInputSchema, { slug: slug?.trim() || undefined });
+  const input = parseLifecycleCommand(DemoteCommandInputSchema, { slug: slug?.trim() || undefined }, ["demote"]);
   return input === null
     ? Promise.resolve()
     : handleBacklogMove("demote", input.slug, runDemote, "Demoted", context);
@@ -1104,7 +1122,11 @@ export async function handleActivate(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc activate");
-  const input = parseLifecycleCommand(ActivateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ActivateCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["activate"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1135,7 +1157,11 @@ export async function handleActivate(
 /** `arc deactivate [slug]` — undo a premature activation (Active → Planning). */
 export async function handleDeactivate(slug: string | undefined, context?: InteractionContext): Promise<void> {
   p.intro("arc deactivate");
-  const input = parseLifecycleCommand(DeactivateCommandInputSchema, { slug: slug?.trim() || undefined });
+  const input = parseLifecycleCommand(
+    DeactivateCommandInputSchema,
+    { slug: slug?.trim() || undefined },
+    ["deactivate"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1254,7 +1280,7 @@ export async function handlePark(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc park");
-  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts }, ["park"]);
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1376,7 +1402,11 @@ export async function handleResume(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc resume");
-  const input = parseLifecycleCommand(ResumeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ResumeCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["resume"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1518,7 +1548,11 @@ export async function handleMaterialize(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc materialize");
-  const input = parseLifecycleCommand(MaterializeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    MaterializeCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["materialize"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1633,7 +1667,12 @@ export async function handleSubmit(
   context?: InteractionContext,
 ): Promise<void> {
   if (opts.json !== true) p.intro("arc submit");
-  const input = parseLifecycleCommand(SubmitCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    SubmitCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["submit"],
+    opts.json === true,
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1653,6 +1692,7 @@ export async function handleSubmit(
         "Attest the candidate",
         ["arc", "propose", target],
       ),
+      input.json === true,
     );
     return;
   }
@@ -1672,6 +1712,7 @@ export async function handleSubmit(
         "Resolve the pre-publication lanes",
         ["arc", "review", "pre-publication", target, "--json"],
       ),
+      input.json === true,
     );
     return;
   }
@@ -1686,7 +1727,7 @@ export async function handleSubmit(
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   });
   if (result.status === "rejected") {
-    refuseWithRemedy(result.reason, result.remedy);
+    refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;
   }
   if (result.status === "unchanged") {
@@ -1701,7 +1742,7 @@ export async function handleSubmit(
     return;
   }
   if (result.status === "reconcile-failed") {
-    refuseWithRemedy(result.reason, result.remedy);
+    refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;
   }
   if (result.status === "reconcile-pending") {
@@ -1712,7 +1753,7 @@ export async function handleSubmit(
         + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
       );
     }
-    refuseWithRemedy(result.reason, result.remedy);
+    refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;
   }
   if (result.reconcile.status === "pending") {
@@ -1780,7 +1821,11 @@ export async function handleReopen(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc reopen");
-  const input = parseLifecycleCommand(ReopenCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ReopenCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["reopen"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1929,7 +1974,11 @@ export async function handleArchive(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc archive");
-  const input = parseLifecycleCommand(ArchiveCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ArchiveCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["archive"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2029,7 +2078,11 @@ export async function handleTeardown(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc teardown");
-  const input = parseLifecycleCommand(TeardownCommandInputSchema, { name: name?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    TeardownCommandInputSchema,
+    { name: name?.trim() || undefined, ...opts },
+    ["teardown"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2173,7 +2226,11 @@ export async function handleSetStage(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc set-stage");
-  const input = parseLifecycleCommand(SetStageCommandInputSchema, { stage: stage?.trim(), advance: opts?.advance });
+  const input = parseLifecycleCommand(
+    SetStageCommandInputSchema,
+    { stage: stage?.trim(), advance: opts?.advance },
+    ["set-stage"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2225,7 +2282,7 @@ export async function handleFinalizeStage(
   const input = parseLifecycleCommand(FinalizeCommandInputSchema, {
     firePoint: firePoint?.trim(),
     class: opts?.class,
-  });
+  }, ["finalize"]);
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2279,7 +2336,12 @@ export async function handlePropose(
   context?: InteractionContext,
 ): Promise<void> {
   if (opts.json !== true) p.intro("arc propose");
-  const input = parseLifecycleCommand(ProposeCommandInputSchema, { name: name?.trim(), json: opts.json });
+  const input = parseLifecycleCommand(
+    ProposeCommandInputSchema,
+    { name: name?.trim(), json: opts.json },
+    ["propose"],
+    opts.json === true,
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2295,12 +2357,28 @@ export async function handlePropose(
   try {
     metaContent = await base.io.readFile(absoluteMetaPath);
   } catch {
-    refuse(`\`arc propose\` requires an active managed record for \`${input.name}\`.`);
+    refuseWithRemedy(
+      `\`arc propose\` requires an active managed record for \`${input.name}\`.`,
+      spineRemedy(
+        "Candidate attestation requires a resolvable active work-unit record.",
+        "Inspect the work-unit lifecycle state",
+        ["arc", "status", input.name, "--json"],
+      ),
+      input.json === true,
+    );
     return;
   }
   const meta = parseMetaRecord(metaContent);
   if (meta.state !== "Active" && meta.state !== "Integrating") {
-    refuse(`\`arc propose\` requires \`${input.name}\` to be Active or Integrating.`);
+    refuseWithRemedy(
+      `\`arc propose\` requires \`${input.name}\` to be Active or Integrating.`,
+      spineRemedy(
+        "Candidate attestation runs only from an active publication lifecycle.",
+        "Inspect the work-unit lifecycle state",
+        ["arc", "status", input.name, "--json"],
+      ),
+      input.json === true,
+    );
     return;
   }
 
@@ -2363,7 +2441,11 @@ export async function handleRepointDesign(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc repoint-design");
-  const input = parseLifecycleCommand(RepointDesignCommandInputSchema, { event: event?.trim() });
+  const input = parseLifecycleCommand(
+    RepointDesignCommandInputSchema,
+    { event: event?.trim() },
+    ["repoint-design"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;

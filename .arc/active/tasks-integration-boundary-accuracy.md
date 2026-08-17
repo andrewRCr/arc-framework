@@ -1209,17 +1209,13 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
   Passive status/session projections remain store-only; review continuation uses one live pre-publication action,
   and the four superseded lane/hosted action kinds are no longer schema members.
 
-### `[ ]` **9.9 Close the minor-findings batch**
+### `[x]` **9.9 Close the minor-findings batch**
 
 - _Goal:_ Every recorded minor closes or carries a deliberate residue note in the findings record.
 
-    - Each minor takes its smallest change; a minor that wants to become a refactor (the `--json` refusal
-      consistency especially) is surfaced with the finding's evidence, not built.
-    - The dangling "exact-head mutability action" narration; the bounded checks wait naming
-      `arc review checks await`; `--json` refusals on propose and submit emitting JSON; the `awaiting-checks`
-      prose matching its payload; refusal remedies on the propose active-record guard, `parseLifecycleCommand`,
-      the errand lane's merge-method resolve, and review status blocked; `persistBoundary` also persisting at
-      the convergence-pending locus; the errand interlock text gaining the content pin the work-unit lane has.
+_Outcome:_ Typed refusals and blocked results now carry JSON-safe remedies, convergence-pending boundaries persist,
+and integration prose/tests pin the executable wait and interlock contracts. The two refactor-sized findings remain
+deliberate residue at their existing captures, as recorded in `notes-integration-boundary-accuracy.md`.
 
 ## **Phase 10:** Verification
 

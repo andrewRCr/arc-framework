@@ -474,6 +474,12 @@ resolve, and review status blocked; `session-handoff.md:662`'s finalize pass sti
 convergence-pending locus (one extra pre-publication round-trip); the errand lane's integration-interlock text is
 not content-pinned by tests while the work-unit lane's is.
 
+**Phase 9 disposition.** The bounded workflow, refusal-envelope, remedy, persistence, and content-pin findings
+above close in Task 9.9. Two deliberate residues remain at their existing `USER-INBOX` captures:
+`session-handoff.md`'s raw `gh pr view` parse needs a separate workflow refactor, and the production-uncalled
+`composeHostedSettlementAction` stays census input for `review-source-authority` rather than gaining an artificial
+caller here.
+
 ### Adjudicated not-defects
 
 The errand lane's retained `git ls-remote` pre-create head check (flagged independently by three lenses as a
