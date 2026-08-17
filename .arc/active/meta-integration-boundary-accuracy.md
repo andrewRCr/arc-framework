@@ -11,15 +11,14 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:e90cbd61af59badb7a577168f69db1e62a3460ddf3c90b057f23c5a26afd6b68`
+- **Candidate:** `sha256:4c674cb3a14e67f0a1f64597a3372797aaddc54babf88abc53f4ffdadefa591d`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 11.12 — convergence verification and re-attestation, closing Phase 11 and the task list
 - **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — enter integration, then run the chunked pre-publication review
-  over the ten chunks (chunk 10 covers Phase 11)
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
