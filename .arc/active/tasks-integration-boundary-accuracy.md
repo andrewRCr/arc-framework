@@ -1282,7 +1282,17 @@ A scoped adversarial pass over those two criteria and the remediation commits th
 convergence gate. Tasks 9.10 through 9.12 close all three. On this re-entry the criteria walk narrows to 3, 6, and
 15 and to whatever the three fixes reach; Tier 3 re-runs because review-driven fixes landed.
 
-### `[ ]` **10.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **10.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint over 664 files, the three `lint:arc:*` contract checks, both lint passes, both
+  type checks, 9992 tests passing (1 skipped across 792 files), and a clean build — run whole over the remediated
+  tree, and re-run after each review-driven fix rather than carried forward.
+- _Success criteria:_ 19 criteria, all met; three carry deviation notes where a spec amendment governs the judgment
+  (Criteria 3, 7, 15). The fourth entry re-validated the eight criteria the third entry's findings touched, walked
+  Criteria 1, 6, and 17 that no prior entry had closed, and confirmed all four named seams. Its three findings
+  (V4-B1, V4-M1, V4-M2 — recorded in `notes-integration-boundary-accuracy.md`) remediated as Tasks 9.10 through
+  9.12; Criterion 15 was held open until the last of them landed. Hosted lane behavior is implemented and typed but
+  proven against typed ports rather than a live host, with the first hosted run recorded as the forcing event.
 
 ---
 
