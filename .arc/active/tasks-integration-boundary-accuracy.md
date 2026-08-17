@@ -1440,17 +1440,29 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
       above does not reach a lane with no composer. Surfaced at the gate and routed into Task 11.6, which already
       edits that file.
 
-### `[ ]` **11.6 Errand pre-create head validation goes through the typed resolver**
+### `[x]` **11.6 Errand pre-create head validation goes through the typed resolver**
 
 - _Goal:_ Goal 4 holds on both lanes: no agent-executed remote parse remains in `run-errand.md`'s pre-create
   sequence.
 
-- _Approach:_ Both copies: replace the `git ls-remote --heads origin` read and 40-hex comparison with
-  re-invoking `arc review change-request resolve` after the pre-create hook (the only thing that can move the
-  head since the prior call) and dispatching on its typed state — mirroring the work-unit lane's "this resolver
-  call is the pre-create exact-head validation."
+- _Amended 2026-08-17 — errand-lane extension block folded in._ Task 11.5 found the same render-`None` line on this
+  file's `#pre-merge` block, introduced by the same commit pair, but out of that task's named surface. Routed here
+  at the gate rather than captured, since this task already opens both copies. Approved before implementation.
 
-    - Not in scope: CLI changes; other errand-lane steps.
+- _Outcome:_ The hand-rolled `git ls-remote --heads origin` read and its 40-hex comparison are gone; the sequence
+  now re-invokes `arc review change-request resolve` with the current head immediately before `gh pr create` when
+  `pre-pr-open` ran, and dispatches on its typed state. The resolver already performs exactly this check —
+  `resolveChangeRequest` reads both local and remote refs and returns `blocked / head-mismatch` when the remote ref
+  disagrees with the supplied head — so the deleted prose was a reimplementation, not a second guarantee.
+
+    - Placement differs from the work-unit lane deliberately. That lane's single resolver call precedes its
+      `pre-pr-open` hook and carries the same "this resolver call is the pre-create exact-head validation" claim;
+      here the call moves to after the hook, because the hook is the only thing that can move the head between the
+      two points. Same contract, positioned where the validation has to hold.
+
+    - Folded in per the amendment: the `#pre-merge` block returns to omit-when-inactive, matching Task 11.5's
+      change on the work-unit lane. No remaining `git ls-remote` or render-`None` residue in either copy of either
+      workflow.
 
 ### `[ ]` **11.7 `arc propose` returns the shared integration-boundary locus with a truthful pointer**
 

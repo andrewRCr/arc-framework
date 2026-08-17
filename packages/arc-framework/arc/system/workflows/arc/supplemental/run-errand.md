@@ -233,9 +233,10 @@ remote base all name the same exact head. Any tracked change continues through t
    execute numbered actions in authored order immediately before creation; halt before later actions on failure.
    Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
 
-   Immediately before `gh pr create`, read `refs/heads/<branch>` from the base repository remote with
-   `git ls-remote --heads origin`. Compare its exact 40-hex SHA with `proposedChangeRequest.headSha`; on absence,
-   ambiguity, or mismatch, stop and restart PR resolution. Never create against a head that changed after validation.
+   The `pre-pr-open` hook is the only thing that can move the head since the resolver call above, so when it runs,
+   re-invoke `arc review change-request resolve` with the current head immediately before `gh pr create` and
+   dispatch on its typed state again. That resolver call is the pre-create exact-head validation; never create
+   against a head that changed after it.
 
    Then invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action:
    `locked / open-locked` creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts
@@ -317,8 +318,9 @@ remote base all name the same exact head. Any tracked change continues through t
    Compose the final `openedChangeRequest` and retain `openedChangeRequest.headSha` as `{approved-head-sha}`.
 
    **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled head and render
-   their results under this label; otherwise render `None`. The extension fires here, before the integration
-   interlock. No review-authored commit or push may occur after this checkpoint.
+   their results under this label. Otherwise, skip — an inactive extension renders nothing. The extension fires
+   here, before the integration interlock.
+   No review-authored commit or push may occur after this checkpoint.
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the current head is settled and before arming auto-merge or releasing the

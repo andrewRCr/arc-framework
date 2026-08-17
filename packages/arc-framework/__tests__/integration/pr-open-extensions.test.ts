@@ -228,13 +228,16 @@ describe("PR-open lifecycle extensions", () => {
       workflow.indexOf("4. **Enter the open PR.**"),
     );
     const hook = creation.indexOf("If `pre-pr-open` is active");
-    const guard = creation.indexOf("git ls-remote --heads origin");
+    const guard = creation.indexOf("re-invoke `arc review change-request resolve`");
     const create = creation.indexOf("gh pr create --base");
 
     expect([hook, guard, create].every((index) => index >= 0)).toBe(true);
     expect(hook).toBeLessThan(guard);
     expect(guard).toBeLessThan(create);
-    expect(creation).toContain("proposedChangeRequest.headSha");
+    expect(creation).toContain("the pre-create exact-head validation");
+    // The typed resolver owns the head check; a hand-rolled remote parse here
+    // would be a second implementation of what it already returns.
+    expect(creation).not.toContain("git ls-remote");
   });
 
   it("keeps WU and Errand hook ordering symmetric", async () => {
