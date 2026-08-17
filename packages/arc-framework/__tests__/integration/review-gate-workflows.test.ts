@@ -242,7 +242,7 @@ describe("trusted review-gate workflows", () => {
     const candidate = sectionBetween(
       packaged,
       "## Phase 2: Compose, sweep, ship",
-      "### 13) Behind-base reconcile gate and merge",
+      "### 12) Behind-base reconcile gate and merge",
     );
     expect(candidate).toContain("`review-settled`");
     expect(candidate).toContain("candidate-entry state");
@@ -264,8 +264,8 @@ describe("trusted review-gate workflows", () => {
     );
     const releaseNotes = sectionBetween(
       packaged,
-      "### 8) Compose Release Notes Entry",
-      "### 9) Compose Completion Notes",
+      "### 7) Compose Release Notes Entry",
+      "### 8) Compose Completion Notes",
     );
     expect(releaseNotes).toMatch(/shipped reader\/operator-visible outcomes/u);
     expect(releaseNotes).toMatch(/WU names or slugs[\s\S]*task or phase references[\s\S]*branches/u);
@@ -277,8 +277,8 @@ describe("trusted review-gate workflows", () => {
 
     const completionNotes = sectionBetween(
       packaged,
-      "### 9) Compose Completion Notes",
-      "### 10) Commit completion content",
+      "### 8) Compose Completion Notes",
+      "### 9) Commit completion content",
     );
     expect(completionNotes).toMatch(/delivered scope[\s\S]*material deviations or supersessions/u);
     expect(completionNotes).toContain("verified evidence");
@@ -286,8 +286,8 @@ describe("trusted review-gate workflows", () => {
 
     const finalGate = sectionBetween(
       packaged,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 12) Behind-base reconcile gate and merge",
+      "### 13) Post-merge worktree cleanup",
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(finalGate).toContain("**Extension report** · `#pre-merge`");
@@ -306,8 +306,8 @@ describe("trusted review-gate workflows", () => {
 
     const finalGate = sectionBetween(
       packaged,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 12) Behind-base reconcile gate and merge",
+      "### 13) Post-merge worktree cleanup",
     );
     const interlock = finalGate.slice(finalGate.lastIndexOf("`integration-interlock`"));
     expect(interlock).toMatch(/candidate-tail diff[\s\S]*Release Notes entry and Completion Notes/u);
@@ -513,8 +513,8 @@ describe("trusted review-gate workflows", () => {
 
     const gate = sectionBetween(
       packageIntegration,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 12) Behind-base reconcile gate and merge",
+      "### 13) Post-merge worktree cleanup",
     );
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
@@ -531,8 +531,10 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
     expect(gate).toContain("`checks-pending / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
-    expect(gate).toContain("after `payload.elapsedMs` milliseconds");
+    expect(gate).toContain("`payload.elapsedMs` discloses the wait already served");
+    expect(gate).not.toContain("after `payload.elapsedMs` milliseconds");
     expect(gate).not.toContain("returned deadline");
+    expect(gate).not.toContain("otherwise render `None`");
     expect(gate).not.toContain("exact-head mutability action");
     expect(gate).toContain("review applicability");
     expect(gate).toMatch(/targeted, focused, or full review/u);
@@ -548,13 +550,13 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration).toBe(instanceIntegration);
     const reviewSettlement = sectionBetween(
       packageIntegration,
-      "### 6) Confirm review coordination",
-      "### 7) Spec-presence + alignment checks",
+      "### 5) Confirm review coordination",
+      "### 6) Spec-presence + alignment checks",
     );
     expect(reviewSettlement).not.toContain("git merge");
     expect(reviewSettlement).toContain("`review-settled`");
     const advisory = packageIntegration.indexOf("Before spending a hosted pass");
-    const finalGate = packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge");
+    const finalGate = packageIntegration.indexOf("### 12) Behind-base reconcile gate and merge");
     expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
     expect(packageIntegration.indexOf("arc base merge --expected-base", finalGate)).toBeGreaterThan(finalGate);
     expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
@@ -566,8 +568,8 @@ describe("trusted review-gate workflows", () => {
     );
     const gate = sectionBetween(
       packaged,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 12) Behind-base reconcile gate and merge",
+      "### 13) Post-merge worktree cleanup",
     );
     expect(gate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(gate).toContain("The integration interlock is the sole merge authority");
@@ -588,8 +590,8 @@ describe("trusted review-gate workflows", () => {
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
     const resume = sectionBetween(packaged, "#### Resume entry", "### 2) Pre-publication review");
-    expect(resume).toMatch(/`shipped` in `completed`; `open`[\s\S]*Step 13/u);
-    expect(resume).toMatch(/`merged-at-head`[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
+    expect(resume).toMatch(/`shipped` in `completed`; `open`[\s\S]*Step 12/u);
+    expect(resume).toMatch(/`merged-at-head`[\s\S]*Verify Phase 2 products[\s\S]*Step 12 tail/u);
     expect(resume).toContain("`closed-unmerged`");
     expect(resume).toContain("`merged-stale-head`, `ambiguous`, or `blocked`");
     expect(resume).toMatch(/`ambiguous`[\s\S]*emitted remedy text/iu);
@@ -607,8 +609,8 @@ describe("trusted review-gate workflows", () => {
 
     const gate = sectionBetween(
       packaged,
-      "### 13) Behind-base reconcile gate and merge",
-      "### 14) Post-merge worktree cleanup",
+      "### 12) Behind-base reconcile gate and merge",
+      "### 13) Post-merge worktree cleanup",
     );
     expect(gate).toContain("requested composition correction");
     expect(gate).toMatch(/Append[\s\S]*never amend/u);

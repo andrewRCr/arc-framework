@@ -1411,19 +1411,34 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
     - § C3 gains the amendment reconciling its `checks-pending` member with § B8's single-wait-site claim. The
       contract test that pinned the old dispatch now pins the new one plus the verb's absence from the gate.
 
-### `[ ]` **11.5 Small workflow-prose trims: deadline-yield resume, extension-block omission, settlement fold**
+### `[x]` **11.5 Small workflow-prose trims: deadline-yield resume, extension-block omission, settlement fold**
 
 - _Goal:_ Three bookkeeping-ceremony lines stop costing routine runs: a deadline yield resumes immediately, an
   inactive extension renders nothing, and review settlement is confirmed once.
 
-- _Approach:_ Both copies where applicable. (a) Step 13: replace "re-invokes this same command after
-  `payload.elapsedMs` milliseconds" with immediate re-invocation; `elapsedMs` is disclosure of the wait already
-  served, not a delay. (b) Restore omit-when-inactive for the extension report block (drop the added
-  "otherwise render `None`" — the composer already models the absent case as a null slot). (c) Fold Step 5 into
-  Step 6's opening so `review-settled` is stated once as the candidate-entry requirement.
+- _Outcome:_ All three land in `integrate-work-unit.md` (both copies, byte-identical). The `awaiting-checks / retry`
+  arm re-invokes immediately and names `payload.elapsedMs` as disclosure of the wait already served — confirmed
+  against `bounded-wait.ts`, where it is `now() - startedAt` passed to the deadline branch, never a delay to
+  observe. The `#pre-merge` block returns to the corpus-wide "Otherwise, skip", since
+  `composeCheckpointInterlockSurface` types the slot's content as `z.null()` and so already models an inactive
+  extension as rendering nothing.
 
-    - Not in scope: renumbering later steps beyond what the fold forces; any envelope/schema change (a
-      `retryAfterMs` field is deliberately not added).
+    - The old Steps 5 and 6 fold into one `5) Confirm review coordination`, which states `review-settled` once as
+      the candidate-entry state and keeps the bias guard against a raw local report or unattested result.
+
+    - The fold renumbers Steps 6–14 to 5–13, with every in-file cross-reference and the `Steps 12–13` range moved
+      with it. Two live external pointers followed: `QUICK-REFERENCE.md` and its packaged template, both of which
+      named the post-merge cleanup step. A stale `clean-work-unit.md` back-reference ("invoked from Step 5") became
+      correct through the renumber rather than needing an edit.
+
+    - Three test files pinned the old numbering or the replaced prose and now pin the new contract. Reflowed the
+      extension block so the post-`ready` no-commit sentence stays on one line — two suites match it as a
+      contiguous string.
+
+    - `run-errand.md` carries the same render-`None` line on the errand lane, introduced by this work unit's own
+      `refactor(errand)` commit. Left out of this task — outside its named surface, and the composer rationale
+      above does not reach a lane with no composer. Surfaced at the gate and routed into Task 11.6, which already
+      edits that file.
 
 ### `[ ]` **11.6 Errand pre-create head validation goes through the typed resolver**
 

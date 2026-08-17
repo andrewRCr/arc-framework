@@ -24,8 +24,8 @@ const WORKFLOWS = [
 describe("integration current-WU reconcile workflow", () => {
   it.each(WORKFLOWS)("orders typed procedures around the final integration interlock in %s", async (path) => {
     const content = await readFile(path, "utf8");
-    const start = content.indexOf("### 13) Behind-base reconcile gate and merge");
-    const end = content.indexOf("### 14) Post-merge worktree cleanup", start);
+    const start = content.indexOf("### 12) Behind-base reconcile gate and merge");
+    const end = content.indexOf("### 13) Post-merge worktree cleanup", start);
     const step = content.slice(start, end);
     const orderedSurfaces = [
       "arc integrate checkpoint {name} --json",
