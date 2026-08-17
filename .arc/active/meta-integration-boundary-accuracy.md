@@ -11,7 +11,7 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:8fe81d1ee535685f20bf3d6f81f0d19dd43ca7e03ebe50ea5079b966ead8902d`
+- **Candidate:** `sha256:cda33ee04f86aa430691b1349f4fd2777c7ae407a92dad7ccb895ab7d024bb7a`
 
 - **Current Workflow:** `process-task-loop`
 - **Last Completed:** Tasks 11.8–11.11 — publication input defaults, host-evidence scope, the spine-verb rename,
