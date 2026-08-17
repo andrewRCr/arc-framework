@@ -1185,15 +1185,13 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Outcome:_ Both handlers now compose invalid-input and dependency-failure refusals through their published
   schemas, including corrective command remedies; malformed checkpoint-store reads no longer escape as crashes.
 
-### `[ ]` **9.6 Precompose the moved-head resolution remedy**
+### `[x]` **9.6 Precompose the moved-head resolution remedy**
 
 - _Goal:_ An interrupted fix-loop resume — committed, unpushed, PR open at the prior head — projects
   push-and-re-resolve rather than a bare stop.
 
-    - Enrich the resolver's `ambiguous` envelope with precomposed remedy text for the open-PR-with-moved-
-      supplied-head sub-case; the six disposition classes stay unchanged and the resume table consumes the
-      envelope's text. This one sub-case only — every other ambiguous cause keeps the bare stop; no general
-      remediation-suggestion machinery.
+- _Outcome:_ The open-request/prior-head ambiguity now carries a push-and-re-resolve remedy, and the resume table
+  follows emitted remedy text. Multi-candidate and other ambiguous states remain bare stops.
 
 ### `[ ]` **9.7 Name where review landed on the composed decision line**
 

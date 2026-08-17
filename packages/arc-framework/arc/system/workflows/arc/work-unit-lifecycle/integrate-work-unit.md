@@ -85,7 +85,7 @@ Resolve the branch head, then invoke
 | `integrating`; `closed-unmerged`                  | transition, former PR                | Reopen the request, then Step 4                                    |
 | `shipped` in `completed`; `open`                  | transition, PR open, candidate sweep | Step 13                                                            |
 | `merged-at-head`                                  | transition, PR open, merge           | Verify Phase 2 products; when complete, resume at the Step 13 tail |
-| `merged-stale-head`, `ambiguous`, or `blocked`    | unresolved                           | Stop on the resolver's typed action                                |
+| `merged-stale-head`, `ambiguous`, or `blocked`    | unresolved                           | Stop; follow any emitted remedy text                               |
 
 Resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`.
 Within the suspendable review cycle, resume the first incomplete candidate-tail step. Composition already written

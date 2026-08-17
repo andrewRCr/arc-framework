@@ -49,7 +49,12 @@ export type ChangeRequestResolveResult = ChangeRequestResultBase & (
   | { state: "merged-at-head"; nextAction: "complete"; candidate: ChangeRequestCandidate }
   | { state: "merged-stale-head"; nextAction: "reconcile-head"; candidate: ChangeRequestCandidate }
   | { state: "closed-unmerged"; nextAction: "reopen-change-request"; candidate: ChangeRequestCandidate }
-  | { state: "ambiguous"; nextAction: "stop"; candidates: readonly ChangeRequestCandidate[] }
+  | {
+      state: "ambiguous";
+      nextAction: "stop";
+      candidates: readonly ChangeRequestCandidate[];
+      remedy?: string;
+    }
   | {
       state: "blocked";
       nextAction: "stop";
@@ -78,6 +83,16 @@ function classifyCandidates(
   }
   if (candidate.state === "CLOSED" && candidate.headRefOid === targetRef.headSha) {
     return { ...base, state: "closed-unmerged", nextAction: "reopen-change-request", candidate };
+  }
+  if (candidate.state === "OPEN" && candidate.headRefOid !== targetRef.headSha) {
+    return {
+      ...base,
+      state: "ambiguous",
+      nextAction: "stop",
+      candidates,
+      remedy: `Push ${targetRef.headRef}, then re-run arc review change-request resolve --head-ref `
+        + `${targetRef.headRef} --head-sha ${targetRef.headSha} --json.`,
+    };
   }
   return { ...base, state: "ambiguous", nextAction: "stop", candidates };
 }

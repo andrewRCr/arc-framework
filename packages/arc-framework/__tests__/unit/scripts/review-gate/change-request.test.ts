@@ -85,12 +85,28 @@ describe("exact-head change-request resolution", () => {
 
   it("stops with every candidate when host state is ambiguous", async () => {
     const candidates = [candidate(), candidate({ number: 43, url: "https://github.com/owner/repo/pull/43" })];
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    const result = await resolveChangeRequest({ headRef, headSha }, port({
       listByHead: async () => candidates,
-    }))).resolves.toMatchObject({
+    }));
+    expect(result).toMatchObject({
       state: "ambiguous",
       nextAction: "stop",
       candidates,
+    });
+    expect(result).not.toHaveProperty("remedy");
+  });
+
+  it("precomposes push and re-resolution for one open request at the prior head", async () => {
+    const movedHead = "b".repeat(40);
+    await expect(resolveChangeRequest({ headRef, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: headSha }),
+      listByHead: async () => [candidate()],
+    }))).resolves.toMatchObject({
+      state: "ambiguous",
+      nextAction: "stop",
+      candidates: [{ number: 42, headRefOid: headSha }],
+      remedy: `Push ${headRef}, then re-run arc review change-request resolve --head-ref ${headRef} `
+        + `--head-sha ${movedHead} --json.`,
     });
   });
 

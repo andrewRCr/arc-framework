@@ -419,6 +419,7 @@ describe("trusted review-gate workflows", () => {
     expect(openPr).toMatch(/target movement[\s\S]*review applicability/iu);
     expect(openPr).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
     expect(openPr).not.toMatch(/review-suspension|promoted watcher|bounded schedule/u);
+
   });
 
   it("covers Errand merge lanes and already-merged cleanup", async () => {
@@ -581,6 +582,7 @@ describe("trusted review-gate workflows", () => {
     expect(resume).toMatch(/`merged-at-head`[\s\S]*Verify Phase 2 products[\s\S]*Step 13 tail/u);
     expect(resume).toContain("`closed-unmerged`");
     expect(resume).toContain("`merged-stale-head`, `ambiguous`, or `blocked`");
+    expect(resume).toMatch(/`ambiguous`[\s\S]*emitted remedy text/iu);
     expect(resume).toContain("first incomplete candidate-tail step");
 
     const creation = sectionBetween(packaged, "### 3) Open the PR", "### 4) Review iteration");
