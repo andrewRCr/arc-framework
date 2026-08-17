@@ -32,6 +32,7 @@ describe("submission boundary store", () => {
       mode: "integration-boundary",
       workUnit: SlugSchema.parse("example"),
       candidateId,
+      candidateRevision: "b".repeat(40),
       locus: "publication-pending",
       nextAction: {
         kind: "continue-publication",

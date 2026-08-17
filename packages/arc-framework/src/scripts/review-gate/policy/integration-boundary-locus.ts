@@ -8,6 +8,7 @@ import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 
 const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const CandidateRevisionSchema = z.string().regex(/^[a-f0-9]{40}$/u);
 
 export const IntegrationBoundaryNextActionSchema = z.strictObject({
   kind: z.enum([
@@ -44,6 +45,7 @@ export const IntegrationBoundaryLocusSchema = z.strictObject({
   mode: z.enum(["pre-publication-review", "integration-boundary"]),
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
+  candidateRevision: CandidateRevisionSchema.nullable().default(null),
   locus: z.enum([
     "candidate-review-pending",
     "candidate-fix-pending",
@@ -76,6 +78,7 @@ export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSc
 const PublicationBoundaryInputSchema = z.strictObject({
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
+  candidateRevision: CandidateRevisionSchema.nullable().default(null),
   reservation: StandardReviewReservationV1Schema.nullable(),
   changeRequest: z.strictObject({
     repository: z.string().trim().min(1),
@@ -87,6 +90,7 @@ const PublicationBoundaryInputSchema = z.strictObject({
 export function projectCandidateReviewBoundary(input: {
   workUnit: string;
   candidateId: string;
+  candidateRevision?: string | null;
 }): IntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
@@ -95,6 +99,7 @@ export function projectCandidateReviewBoundary(input: {
     mode: "integration-boundary",
     workUnit,
     candidateId,
+    candidateRevision: input.candidateRevision ?? null,
     locus: "candidate-review-pending",
     nextAction: {
       kind: "run-self-review",
@@ -123,6 +128,7 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     mode: "integration-boundary",
     workUnit: value.workUnit,
     candidateId: value.candidateId,
+    candidateRevision: value.candidateRevision,
     locus: hosted ? "hosted-review-pending" : "publication-pending",
     nextAction: {
       kind: hosted ? "continue-hosted-review" : "continue-publication",

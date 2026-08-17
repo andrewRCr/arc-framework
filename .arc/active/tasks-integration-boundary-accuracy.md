@@ -1161,13 +1161,13 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Outcome:_ Candidate collection now classifies the layout-resolved regenerated project document as operational.
   A real transition-style ROADMAP commit remains current while a subsequent reviewable delta still blocks.
 
-### `[ ]` **9.3 Bind submission authorization to the lineage head**
+### `[x]` **9.3 Bind submission authorization to the lineage head**
 
 - _Goal:_ `arc submit` refuses a boundary written for an earlier lineage head, so E3's changed-target re-entry
   cannot be skipped.
 
-    - Read-time validation in `authorizeSubmission` against the current recognized revision; the refusal names
-      the remedy (re-run `arc review pre-publication`). No invalidation write lands on re-attestation.
+- _Outcome:_ Durable review boundaries now carry the recognized Candidate revision. Submission rejects an older
+  revision before reconcile or lifecycle mutation and routes directly back to `arc review pre-publication`.
 
 ### `[ ]` **9.4 Close the merge verb's re-lock and merged-state gaps**
 

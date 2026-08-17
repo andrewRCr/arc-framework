@@ -48,11 +48,18 @@ export type SubmissionAuthorization =
 /** Admit only the exact current Candidate's settled-or-reserved pre-publication boundary. */
 export function authorizeSubmission(input: {
   expectedCandidateId: string;
+  expectedCandidateRevision: string;
   boundary: IntegrationBoundaryLocus;
 }): SubmissionAuthorization {
   const boundary = IntegrationBoundaryLocusSchema.parse(input.boundary);
   if (boundary.candidateId !== input.expectedCandidateId) {
     return { status: "refused", reason: "Submission boundary does not match the current Candidate." };
+  }
+  if (boundary.candidateRevision !== input.expectedCandidateRevision) {
+    return {
+      status: "refused",
+      reason: "Submission boundary was written for an earlier Candidate lineage head.",
+    };
   }
   if (boundary.locus !== "candidate-submit-ready") {
     return {
@@ -73,6 +80,8 @@ export interface SubmitParams {
   nextAction: string;
   /** Exact current Candidate identity read from its managed record. */
   candidateId: string;
+  /** Exact recognized Candidate revision the durable review boundary must authorize. */
+  candidateRevision: string;
   /** Whether the managed Candidate lineage still matches the current reviewable subject. */
   candidateCurrent: boolean;
   /** Durable pre-publication boundary reduced from review evidence. */
@@ -91,6 +100,12 @@ const CANDIDATE_REMEDY = (name: string): SpineRemedy => spineRemedy(
   "Submission requires a current Candidate lineage matching the recorded attestation.",
   "Re-attest the candidate",
   ["arc", "propose", name],
+);
+
+const PRE_PUBLICATION_REMEDY = (name: string): SpineRemedy => spineRemedy(
+  "Submission requires a pre-publication boundary written for the current Candidate lineage head.",
+  "Re-run pre-publication review",
+  ["arc", "review", "pre-publication", name, "--json"],
 );
 
 const RECONCILE_REMEDY = (name: string): SpineRemedy => spineRemedy(
@@ -144,7 +159,16 @@ export async function runSubmit(
   ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
   params: SubmitParams,
 ): Promise<SubmitResult> {
-  const { name, lastCompleted, nextAction, candidateId, candidateCurrent, boundary, allowAdvisories } = params;
+  const {
+    name,
+    lastCompleted,
+    nextAction,
+    candidateId,
+    candidateRevision,
+    candidateCurrent,
+    boundary,
+    allowAdvisories,
+  } = params;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
     return {
@@ -195,12 +219,16 @@ export async function runSubmit(
       remedy: CANDIDATE_REMEDY(name),
     };
   }
-  const authorization = authorizeSubmission({ expectedCandidateId: candidateId, boundary });
+  const authorization = authorizeSubmission({
+    expectedCandidateId: candidateId,
+    expectedCandidateRevision: candidateRevision,
+    boundary,
+  });
   if (authorization.status === "refused") {
     return {
       status: "rejected",
       reason: `Cannot submit \`${name}\`: ${authorization.reason}`,
-      remedy: CANDIDATE_REMEDY(name),
+      remedy: PRE_PUBLICATION_REMEDY(name),
     };
   }
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
@@ -248,6 +276,7 @@ export async function runSubmit(
   const publicationBoundary = projectPublicationBoundary({
     workUnit: name,
     candidateId,
+    candidateRevision,
     reservation: authorization.reservation,
     // Submission fires at the head of the publication step, before the change request exists, so a
     // carried reservation has nothing to run against yet.

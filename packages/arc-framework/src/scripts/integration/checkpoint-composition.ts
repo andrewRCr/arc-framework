@@ -266,6 +266,7 @@ export function createIntegrationCheckpointDependencies(input: {
       const publicationLocus = projectPublicationBoundary({
         workUnit,
         candidateId: value.record.attestation.candidateId,
+        candidateRevision: currentness.recognizedRevision,
         reservation: boundary.reservation,
         changeRequest: {
           repository: changeRequest.targetRef.repository,

@@ -68,6 +68,7 @@ export const PrePublicationReviewEnvelopeSchema = z.strictObject({
   mode: z.literal("pre-publication-review"),
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
+  candidateRevision: z.string().regex(/^[a-f0-9]{40}$/u),
   locus: z.enum([
     "candidate-review-pending",
     "candidate-fix-pending",
@@ -233,6 +234,7 @@ function envelope(
     mode: "pre-publication-review",
     workUnit: request.workUnit,
     candidateId: request.candidateId,
+    candidateRevision: request.frontline.target.headSha,
     policy: null,
     reservation: null,
     ...projection,
