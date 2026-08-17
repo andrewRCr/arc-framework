@@ -182,14 +182,14 @@ hosted-first reservation into publication without classifying that obligation as
 
 ### 3) Open the PR
 
-Compose the submission inputs (judgment — never fabricated):
-
-- last completed — the WU's final completed work (the last `[x]` task / phase in `tasks-{name}.md`)
-- next action — the publication pointer (`push and open the PR`)
-
 ```bash
-arc submit {name} --last-completed "{last completed}" --action "{next action}" --json
+arc submit {name} --json
 ```
+
+The verb reads its own orientation inputs rather than taking them as judgment: `Next Action` from the
+publication boundary it writes, and `Last Completed` from the last `[x]` task in `tasks-{name}.md`. Supply
+`--last-completed "{work}"` when that read refuses or names the wrong work, and `--action "{pointer}"` to
+override the pointer.
 
 The executor fires `Active → Integrating`, writes the composed orientation, regenerates ROADMAP, and stages the
 publication boundary with any carried reservation. An advisory-only reconcile stops before the transition and

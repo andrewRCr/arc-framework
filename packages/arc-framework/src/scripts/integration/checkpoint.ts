@@ -4,7 +4,8 @@ import { z } from "zod";
 
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
-import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import { MergeMethodSchema, type MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import { RequiredCheckStatusSchema } from "../review-gate/status.js";
 import {
   CanonicalSettlementPlanSchema,
   settlementDispositionIds,
@@ -121,7 +122,7 @@ export const CheckpointStatusSummarySchema = z.strictObject({
     headSha: ObjectIdSchema,
     state: z.literal("open"),
   }),
-  requiredChecks: z.enum(["green", "pending", "failed", "not-required", "unavailable"]),
+  requiredChecks: RequiredCheckStatusSchema,
 });
 
 export const CheckpointReadyCompositionSchema = z.strictObject({
@@ -138,8 +139,8 @@ export const ValidatedMergeMethodSchema = z.strictObject({
   repository: z.string().min(1),
   state: z.literal("validated"),
   nextAction: z.literal("use-method"),
-  method: z.enum(["merge", "rebase", "squash"]),
-  allowedMethods: z.array(z.enum(["merge", "rebase", "squash"])),
+  method: MergeMethodSchema,
+  allowedMethods: z.array(MergeMethodSchema),
   policyFingerprint: DigestSchema,
 });
 export type ValidatedMergeMethod = z.infer<typeof ValidatedMergeMethodSchema>;
@@ -151,8 +152,8 @@ const BlockedMergeMethodSchema = z.strictObject({
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
   reason: z.enum(["method-disallowed", "policy-unreadable"]),
-  configuredMethod: z.enum(["merge", "rebase", "squash"]),
-  allowedMethods: z.array(z.enum(["merge", "rebase", "squash"])),
+  configuredMethod: MergeMethodSchema,
+  allowedMethods: z.array(MergeMethodSchema),
   policyFingerprint: DigestSchema.optional(),
   detail: z.string().min(1).optional(),
   remedy: SpineRemedySchema,

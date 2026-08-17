@@ -21,6 +21,7 @@ import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-
 import { resolveChangeRequest } from "../review-gate/change-request.js";
 import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
+import { aggregateChecks } from "../review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
@@ -49,13 +50,6 @@ import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 interface CachedCandidate {
   record: CandidateManagedRecordV1;
   current: Awaited<ReturnType<typeof collectGitCandidateTarget>>;
-}
-
-function aggregateChecks(checks: Awaited<ReturnType<ReturnType<typeof createGhRequiredChecksPort>["readRequiredChecks"]>>) {
-  if (checks.length === 0) return "not-required" as const;
-  if (checks.some(({ state }) => state === "failed")) return "failed" as const;
-  if (checks.every(({ state }) => state === "green")) return "green" as const;
-  return "pending" as const;
 }
 
 function parseRecord(text: string, path: string): Record<string, unknown> {

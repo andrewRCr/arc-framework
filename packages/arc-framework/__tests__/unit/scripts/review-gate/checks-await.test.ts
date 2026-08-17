@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aggregateChecks,
   awaitRequiredChecks,
   type RequiredCheck,
   type RequiredChecksPort,
@@ -23,6 +24,17 @@ function port(checks: RequiredCheck[]): RequiredChecksPort {
     readRequiredChecks: async () => checks,
   };
 }
+
+describe("aggregateChecks", () => {
+  it.each([
+    { checks: [], expected: "not-required" },
+    { checks: [{ state: "green" }, { state: "green" }], expected: "green" },
+    { checks: [{ state: "green" }, { state: "failed" }, { state: "pending" }], expected: "failed" },
+    { checks: [{ state: "green" }, { state: "pending" }], expected: "pending" },
+  ] as const)("reduces $expected", ({ checks, expected }) => {
+    expect(aggregateChecks(checks)).toBe(expected);
+  });
+});
 
 describe("required-checks await", () => {
   it.each([

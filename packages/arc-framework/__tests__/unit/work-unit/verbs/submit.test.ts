@@ -39,6 +39,8 @@ interface MetaSpec {
   state: string;
   branch?: string;
   candidateId?: string;
+  /** Task-list markdown to place beside the meta; absent leaves `Task List` at `[none]`. */
+  taskList?: string;
 }
 
 /** Build an injectable index fs over a fixed set of `active/` metas. */
@@ -49,7 +51,9 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   for (const meta of metas) {
     const filename = `meta-${meta.slug}.md`;
+    const taskListName = meta.taskList === undefined ? "[none]" : `tasks-${meta.slug}.md`;
     entries.push({ name: filename, isDirectory: () => false });
+    if (meta.taskList !== undefined) files.set(`${activeDir}/${taskListName}`, meta.taskList);
     files.set(
       `${activeDir}/${filename}`,
       `# Metadata: ${meta.slug}\n\n` +
@@ -57,6 +61,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "feat/foo"}\` | \`Novel\` | \`P1\` |\n\n` +
         `- **Candidate:** \`${meta.candidateId ?? `sha256:${"a".repeat(64)}`}\`\n` +
+        `- **Task List:** ${taskListName}\n` +
         `- **Last Completed:** [none]\n- **Next Task:** continue.\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
@@ -147,6 +152,22 @@ function buildCtx(metas: MetaSpec[]): Harness {
 
 const ACTIVE: MetaSpec = { slug: "foo", state: "Active", branch: "feat/foo" };
 
+const TASK_LIST = [
+  "# Task List: Foo",
+  "",
+  "## **Phase 1:** Build",
+  "",
+  "### `[x]` **1.1 Wire the reducer**",
+  "",
+  "### `[x]` **1.2 Verify the composition**",
+].join("\n");
+
+const ACTIVE_WITH_TASKS: MetaSpec = { ...ACTIVE, taskList: TASK_LIST };
+
+/** The pointer `projectPublicationBoundary` writes for an unreserved publication. */
+const PUBLICATION_POINTER =
+  "Resume publication at the idempotent push, then resolve or open the change request.";
+
 const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
 const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}`;
 const OTHER_SUBJECT = `sha256:${"c".repeat(64)}`;
@@ -173,6 +194,15 @@ const BASE: SubmitParams = {
     policy: null,
     reservation: null,
   },
+};
+
+/** The same submission with neither orientation override supplied. */
+const DERIVED: SubmitParams = {
+  name: BASE.name,
+  candidateId: BASE.candidateId,
+  candidateSubjectDigest: BASE.candidateSubjectDigest,
+  candidateCurrent: BASE.candidateCurrent,
+  boundary: BASE.boundary,
 };
 
 describe("authorizeSubmission", () => {
@@ -348,6 +378,44 @@ describe("runSubmit — the set-phase-only move", () => {
       "Next Task": "[none]",
       "Next Action": "open the PR",
     });
+  });
+
+  it("derives both orientation inputs when neither override is supplied", async () => {
+    const { ctx, softWrites } = buildCtx([ACTIVE_WITH_TASKS]);
+
+    const result = await runSubmit(ctx, DERIVED);
+
+    expect(result.status).toBe("submitted");
+    expect(softWrites).toEqual([{
+      "Last Completed": "Task 1.2 — Verify the composition",
+      "Next Task": "[none]",
+      "Next Action": PUBLICATION_POINTER,
+    }]);
+  });
+
+  it("keeps supplied overrides ahead of both derivations", async () => {
+    const { ctx, softWrites } = buildCtx([ACTIVE_WITH_TASKS]);
+
+    await runSubmit(ctx, { ...DERIVED, lastCompleted: "Phase 7 — verification", nextAction: "open the PR" });
+
+    expect(softWrites[0]).toMatchObject({
+      "Last Completed": "Phase 7 — verification",
+      "Next Action": "open the PR",
+    });
+  });
+
+  it("refuses before any mutation when no completed task is readable", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+
+    const result = await runSubmit(ctx, DERIVED);
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: "Cannot submit `foo`: no completed task is readable from the work unit's task list.",
+      remedy: { argv: ["arc", "submit", "foo", "--last-completed", "<work>"] },
+    });
+    expect(calls).not.toContain("reconcile:prepare");
+    expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);
   });
 
   it("rejects a reconcile conflict before changing phase", async () => {
@@ -548,7 +616,9 @@ describe("runSubmit — the illegal-edge lookup", () => {
       },
     };
 
-    const result = await runSubmit(ctx, { ...BASE, boundary: publicationBoundary });
+    // The short-circuit precedes both orientation reads: an already-submitted WU resumes without
+    // needing an override or a task list to derive one from.
+    const result = await runSubmit(ctx, { ...DERIVED, boundary: publicationBoundary });
 
     expect(result).toEqual({ status: "unchanged", boundary: publicationBoundary });
     expect(calls.some((c) => c.startsWith("setPhase:"))).toBe(false);

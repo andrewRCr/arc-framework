@@ -960,17 +960,26 @@ describe("handleSubmit", () => {
     });
   });
 
-  it("refuses without the orientation inputs and never dispatches", async () => {
-    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification" });
-    expect(mockRunSubmit).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
+  it("leaves both orientation inputs to the verb when neither flag is given", async () => {
+    await handleSubmit("foo", {});
+    expect(mockRunSubmit).toHaveBeenCalledTimes(1);
+    const params = mockRunSubmit.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(params).toMatchObject({ name: "foo" });
+    expect(params).not.toHaveProperty("lastCompleted");
+    expect(params).not.toHaveProperty("nextAction");
+  });
+
+  it("forwards one orientation override without inventing the other", async () => {
+    await handleSubmit("foo", { action: "open the PR" });
+    const params = mockRunSubmit.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(params).toMatchObject({ nextAction: "open the PR" });
+    expect(params).not.toHaveProperty("lastCompleted");
   });
 
   it("emits a JSON refusal with command usage under --json", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
-    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification", json: true });
+    await handleSubmit("../foo", { json: true });
 
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "rejected",

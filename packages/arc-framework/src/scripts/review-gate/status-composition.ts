@@ -11,21 +11,14 @@ import {
   type ChangeRequestTargetRef,
 } from "./change-request.js";
 import { createGhChangeRequestResolutionPort } from "./hosts/github/change-request.js";
+import { aggregateChecks } from "./checks-await.js";
 import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
 import type {
-  RequiredCheckStatus,
   ReviewStatusObservation,
   ReviewStatusPort,
   RoutedReviewObligation,
 } from "./status.js";
-
-function aggregateChecks(checks: readonly { state: "pending" | "green" | "failed" }[]): RequiredCheckStatus {
-  if (checks.length === 0) return "not-required";
-  if (checks.some(({ state }) => state === "failed")) return "failed";
-  if (checks.every(({ state }) => state === "green")) return "green";
-  return "pending";
-}
 
 async function readBasePosition(input: {
   cwd: string;

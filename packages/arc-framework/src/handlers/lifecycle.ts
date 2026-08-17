@@ -481,8 +481,8 @@ export const ActivateCommandInputSchema = z.object({
 }).strict();
 export const SubmitCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
-  lastCompleted: z.string().trim().min(1),
-  action: z.string().trim().min(1),
+  lastCompleted: z.string().trim().min(1).optional(),
+  action: z.string().trim().min(1).optional(),
   allowAdvisories: z.boolean().optional(),
   json: z.boolean().optional(),
 }).strict();
@@ -1657,10 +1657,11 @@ export interface SubmitOptions {
 /**
  * `arc submit [slug]` — schedule publication for an `Active` WU (Active → Integrating),
  * defaulting to the current WU. Marks publication entry, not the merge — the
- * integration-interlock owns merge approval. Refuses without the orientation inputs
- * (`--last-completed` / `--action`); both feed the edge's `input` soft fields and
- * are never fabricated. A non-`Active` source falls to the table's illegal-edge
- * rejection.
+ * integration-interlock owns merge approval. The orientation inputs default to what the
+ * repository already states: `--action` to the publication boundary's own pointer and
+ * `--last-completed` to the task list's terminal completed task. Both flags override;
+ * an underivable `Last Completed` refuses rather than submitting under an invented one.
+ * A non-`Active` source falls to the table's illegal-edge rejection.
  */
 export async function handleSubmit(
   slug: string | undefined,
@@ -1719,8 +1720,8 @@ export async function handleSubmit(
   }
   const result = await runSubmit(executor, {
     name: target,
-    lastCompleted,
-    nextAction: action,
+    ...(lastCompleted === undefined ? {} : { lastCompleted }),
+    ...(action === undefined ? {} : { nextAction: action }),
     candidateId: record.attestation.candidateId,
     candidateSubjectDigest: current.subject.subjectDigest,
     candidateCurrent: currentness.status === "current" && currentness.convergenceVerification === "satisfied",

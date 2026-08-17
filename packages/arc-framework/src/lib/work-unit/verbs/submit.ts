@@ -8,13 +8,16 @@
  * `<type>/` prefix from `activate`) — that fires the render + `user-workspace`
  * side-effects and sets the integration orientation from caller inputs.
  *
- * The verb stays thin: it forwards the two judgment soft-field `input` values the
- * edge requires — `Last Completed` (the work being submitted) and `Next Action`
- * (the integration pointer, e.g. "open the PR") — and dispatches through
- * {@link executeTransition}; the `set-phase` leg, the side-effects, and the
- * soft-field disposition (resetting the now-closed `Next Task`) are the table's. The
- * orientation values are never fabricated here — a missing input is the executor's
- * rejection. A non-`Active` source falls to the table's illegal-edge lookup.
+ * The verb stays thin: it supplies the two soft-field `input` values the edge
+ * requires — `Last Completed` (the work being submitted) and `Next Action` (the
+ * integration pointer) — and dispatches through {@link executeTransition}; the
+ * `set-phase` leg, the side-effects, and the soft-field disposition (resetting the
+ * now-closed `Next Task`) are the table's. Neither value is invented: `Next Action`
+ * is the pointer the transition's own publication boundary carries, and
+ * `Last Completed` is read from the task list's terminal completed task. A caller may
+ * override either, and an underivable `Last Completed` refuses before any mutation
+ * rather than fabricating one. A non-`Active` source falls to the table's
+ * illegal-edge lookup.
  *
  * @module
  */
@@ -22,6 +25,8 @@
 import { join } from "node:path";
 
 import { parseMetaRecord } from "../../active/meta-reader.js";
+import { resolveTaskListPath } from "../../../commands/active/status.js";
+import { resolveLastCompletedTask } from "../../task-list/cursor.js";
 import { spineRemedy, type SpineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import {
   executeTransition,
@@ -77,10 +82,10 @@ export function authorizeSubmission(input: {
 export interface SubmitParams {
   /** Target WU name (the CLI defaults this to the current Active WU). */
   name: string;
-  /** The work being submitted for review — the `Last Completed` `input` the edge requires. */
-  lastCompleted: string;
-  /** The integration pointer (e.g. "open the PR") — the `Next Action` `input` the edge requires. */
-  nextAction: string;
+  /** Override for `Last Completed`; absent reads the task list's terminal completed task. */
+  lastCompleted?: string;
+  /** Override for `Next Action`; absent uses the publication boundary's own pointer. */
+  nextAction?: string;
   /** Exact current Candidate identity read from its managed record. */
   candidateId: string;
   /** Exact reviewable-subject digest the durable review boundary must have been written for. */
@@ -117,6 +122,12 @@ const RECONCILE_REMEDY = (name: string): SpineRemedy => spineRemedy(
   ["arc", "wu", "reconcile", name, "--apply", "--json"],
 );
 
+const LAST_COMPLETED_REMEDY = (name: string): SpineRemedy => spineRemedy(
+  "The submitted work is read from the task list's terminal completed task when no override is given.",
+  "Name the completed work explicitly",
+  ["arc", "submit", name, "--last-completed", "<work>"],
+);
+
 const SUBMIT_RESUME_REMEDY = (name: string): SpineRemedy => spineRemedy(
   "A refused submission leaves the work unit resumable at the same boundary.",
   "Resolve the reported failure, then re-run",
@@ -150,12 +161,37 @@ export type SubmitResult =
     };
 
 /**
+ * Read the work being submitted from the WU's own task list.
+ *
+ * Returns `null` for every unreadable case — no task list, an unreadable file, a malformed marker,
+ * or nothing completed — leaving the caller to require the explicit override rather than submit
+ * under an invented value.
+ */
+async function readLastCompletedWork(
+  ctx: ExecuteTransitionContext,
+  metaPath: string,
+  taskList: string | null,
+): Promise<string | null> {
+  const taskListPath = resolveTaskListPath(metaPath, taskList);
+  if (taskListPath === null) return null;
+  let content: string;
+  try {
+    content = await ctx.indexFs.readFile(join(ctx.cwd, taskListPath));
+  } catch {
+    return null;
+  }
+  const result = resolveLastCompletedTask(content);
+  return result.status === "found" ? `Task ${result.item.id} — ${result.item.title}` : null;
+}
+
+/**
  * Run `submit`: flip the WU's phase `Active → Integrating` and set the
  * integration orientation soft fields. Rejects when the source is not an `Active`
- * WU (the table's illegal-edge lookup).
+ * WU (the table's illegal-edge lookup), and when `Last Completed` is neither supplied
+ * nor readable from the task list.
  *
  * @param ctx - The executor seams (the render + `user-workspace` handlers are registered by the caller).
- * @param params - The target WU and the integration orientation inputs.
+ * @param params - The target WU and any overrides for the integration orientation inputs.
  * @returns A pre-transition reconcile stop, a rejection, or the integrating meta path.
  */
 export async function runSubmit(
@@ -173,6 +209,7 @@ export async function runSubmit(
     allowAdvisories,
   } = params;
   let branch: string | null;
+  let taskList: string | null;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
     return {
@@ -210,6 +247,7 @@ export async function runSubmit(
       };
     }
     branch = meta.branch;
+    taskList = meta.taskList;
   } catch {
     return {
       status: "rejected",
@@ -243,6 +281,25 @@ export async function runSubmit(
       remedy: PRE_PUBLICATION_REMEDY(name),
     };
   }
+  const resolvedLastCompleted = lastCompleted
+    ?? await readLastCompletedWork(ctx, metaPath, taskList);
+  if (resolvedLastCompleted === null) {
+    return {
+      status: "rejected",
+      reason: `Cannot submit \`${name}\`: no completed task is readable from the work unit's task list.`,
+      remedy: LAST_COMPLETED_REMEDY(name),
+    };
+  }
+  const publicationBoundary = projectPublicationBoundary({
+    workUnit: name,
+    branch,
+    candidateId,
+    candidateSubjectDigest,
+    reservation: authorization.reservation,
+    // Submission fires at the head of the publication step, before the change request exists, so a
+    // carried reservation has nothing to run against yet.
+    changeRequest: null,
+  });
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
   if (reconcile.status === "conflict") {
     return {
@@ -279,22 +336,17 @@ export async function runSubmit(
   const outcome = await executeTransition(ctx, {
     verb: "submit",
     slug: name,
-    inputs: { softFields: { lastCompleted, nextAction } },
+    inputs: {
+      softFields: {
+        lastCompleted: resolvedLastCompleted,
+        nextAction: nextAction ?? publicationBoundary.nextAction.interactionText,
+      },
+    },
   });
 
   if (outcome.status !== "ok") {
     return { status: "rejected", reason: outcome.message, remedy: SUBMIT_RESUME_REMEDY(name) };
   }
-  const publicationBoundary = projectPublicationBoundary({
-    workUnit: name,
-    branch,
-    candidateId,
-    candidateSubjectDigest,
-    reservation: authorization.reservation,
-    // Submission fires at the head of the publication step, before the change request exists, so a
-    // carried reservation has nothing to run against yet.
-    changeRequest: null,
-  });
   return {
     status: "submitted",
     outcome,

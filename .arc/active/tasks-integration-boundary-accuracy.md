@@ -1488,20 +1488,32 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
     - Workflow prose needed no change: it already sources `candidate-submit-ready` from the pre-publication
       procedure's envelope rather than from `propose`.
 
-### `[ ]` **11.8 CLI trims: `submit` input defaults and single-source shared shapes**
+### `[x]` **11.8 CLI trims: `submit` input defaults and single-source shared shapes**
 
 - _Goal:_ The transition verb stops demanding judgment-shaped constants, and shapes the code already declares
   exist once.
 
-- _Approach:_ (a) `--action` defaults to the transition's own publication pointer and `--last-completed`
-  derives from the task list's last completed leaf via existing readers — both flags stay as overrides, and a
-  failed derivation still requires the flag; the `unchanged` short-circuit no longer demands either string.
-  (b) Export one `aggregateChecks` (three inline copies: `checkpoint-composition.ts`, `status-composition.ts`,
-  `checks-await.ts`). (c) Derive the checkpoint's merge-method schemas from `merge-method.ts`'s source schema
-  instead of hand-mirroring (`strategy-procedure-evolution.md` Principle 4).
+- _Outcome:_ Both of `submit`'s orientation inputs now default to what the repository already states, with the
+  flags kept as overrides. `--action` takes the pointer off the publication boundary `runSubmit` projects for
+  itself — the projection moves ahead of the transition, so one value feeds both the meta soft field and the
+  returned boundary. `--last-completed` reads the task list's terminal completed task through a new
+  `resolveLastCompletedTask` over the existing scanner. `aggregateChecks` is exported once from `checks-await.ts`
+  and consumed by both compositions and the awaiting loop itself; `checkpoint.ts`'s two merge-method schemas
+  derive from `merge-method.ts`'s `MergeMethodSchema`, and its required-check status from `status.ts`'s
+  `RequiredCheckStatusSchema` — the same hand-mirror one file over, folded in rather than captured.
 
-    - Not in scope: removing the flags; changing `submit`'s authorization or transition semantics; unifying the
-      three bounded-wait timeout policies (captured for follow-up).
+    - The derivation sits after the `unchanged` short-circuit and before the reconcile: an already-submitted work
+      unit resumes with neither string available, and an underivable `Last Completed` refuses before any mutation
+      rather than submitting under an invented one.
+
+    - Document order alone makes `resolveLastCompletedTask` answer with the deepest completed leaf — a completed
+      parent's subtasks follow it — so no depth rule is needed. A `[~]` deferral never answers.
+
+    - Both workflow copies and both `QUICK-REFERENCE` copies drop the hand-composed invocation; the publication
+      step now states what the verb reads for itself and when an override is warranted.
+
+    - Held to the named surface: the flags stay, `submit`'s authorization and transition semantics are untouched,
+      and the three bounded-wait timeout policies remain separate (captured for follow-up).
 
 ### `[ ]` **11.9 Host-evidence honesty: merge-method scope stated exactly; no fabricated conflict paths**
 

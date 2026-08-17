@@ -436,8 +436,8 @@ program
 program
   .command("submit [slug]")
   .description("Schedule publication for an Active work unit: Active → Integrating (defaults to the current WU)")
-  .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
-  .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .option("--last-completed <work>", "Override meta `Last Completed` (default: the task list's last completed task)")
+  .option("--action <action>", "Override meta `Next Action` (default: the publication boundary's own pointer)")
   .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
   .option("--json", "Emit the typed publication-resume boundary as JSON")
   .action(withInteractionContext(

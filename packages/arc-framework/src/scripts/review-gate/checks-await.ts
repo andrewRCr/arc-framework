@@ -24,6 +24,24 @@ export interface RequiredChecksPort {
   readRequiredChecks(repository: string, pullRequest: number, signal: AbortSignal): Promise<RequiredCheck[]>;
 }
 
+/** The status a required-check set reduces to. */
+export type AggregatedCheckStatus = "not-required" | "failed" | "green" | "pending";
+
+/**
+ * Reduce a required-check set to one status.
+ *
+ * @param checks - The observed required checks for one exact head.
+ * @returns `not-required` for an empty set, `failed` on any failure, `green` when all pass, else `pending`.
+ */
+export function aggregateChecks(
+  checks: readonly Pick<RequiredCheck, "state">[],
+): AggregatedCheckStatus {
+  if (checks.length === 0) return "not-required";
+  if (checks.some(({ state }) => state === "failed")) return "failed";
+  if (checks.every(({ state }) => state === "green")) return "green";
+  return "pending";
+}
+
 interface ChecksResultBase {
   schemaVersion: 1;
   mode: "review-checks-await";
@@ -76,16 +94,16 @@ export async function awaitRequiredChecks(
         } };
       }
       latestChecks = await dependencies.port.readRequiredChecks(repository, input.pullRequest, signal);
-      if (latestChecks.length === 0) {
-        return { kind: "return", value: { ...base, state: "not-required", nextAction: "complete", checks: [] } };
+      switch (aggregateChecks(latestChecks)) {
+        case "not-required":
+          return { kind: "return", value: { ...base, state: "not-required", nextAction: "complete", checks: [] } };
+        case "failed":
+          return { kind: "return", value: { ...base, state: "failed", nextAction: "stop", checks: latestChecks } };
+        case "green":
+          return { kind: "return", value: { ...base, state: "green", nextAction: "complete", checks: latestChecks } };
+        default:
+          return { kind: "continue" };
       }
-      if (latestChecks.some((check) => check.state === "failed")) {
-        return { kind: "return", value: { ...base, state: "failed", nextAction: "stop", checks: latestChecks } };
-      }
-      if (latestChecks.every((check) => check.state === "green")) {
-        return { kind: "return", value: { ...base, state: "green", nextAction: "complete", checks: latestChecks } };
-      }
-      return { kind: "continue" };
     },
   });
 }

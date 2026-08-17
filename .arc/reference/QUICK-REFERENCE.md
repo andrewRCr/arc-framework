@@ -354,7 +354,8 @@ arc resume [slug] [--here]
 arc propose <name> --json [--new-root]
 
 # Schedule publication: Active → Integrating, not the merge (integrate-work-unit.md)
-arc submit [slug] --last-completed <work> --action <next action>
+# --last-completed / --action override the task-list and boundary reads the verb makes on its own
+arc submit [slug] [--last-completed <work>] [--action <next action>] [--json]
 # Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
 arc integrate checkpoint <name> [--json]
 arc integrate merge <name> --checkpoint <handle> [--json]
