@@ -14,11 +14,13 @@
 - **Candidate:** `sha256:3fa141286feac603106b245bedcc79c1ad63760883c14adc76a84fcbecd91932`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 11.12 — convergence verification and re-attestation, closing Phase 11 and the task list
+- **Last Completed:** Task 12.2 — the lineage advance carries the same staging precondition as its root, closing
+  Phase 12
 - **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — run pre-publication review
+- **Next Action:** integrate-work-unit Step 1 — enter integration, then run the chunked pre-publication review
+  over the eleven chunks (chunk 11 covers Phase 12)
 
 - **PR URL:** [none]
 - **Completed:** [none]
