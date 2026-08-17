@@ -49,10 +49,16 @@ chunk-to-phase correspondence is no longer positional past chunk 9, and the rena
 § Namespace handover's acceptance still names `arc submit` where the current verb is `arc publish`. That seam's
 substance is unchanged and its original text is retained rather than edited into agreement.
 
+_Amended 2026-08-17 — attest staging precondition._ A silent-wrong-result defect found at integration entry
+remediates as Phase 12, which no chunk covered: the two verbs that record a Candidate subject as authoritative
+accepted a subject the index did not carry. Chunk 11 is added as its review boundary and the projection's count
+moves to eleven. The phase reviews whole: its second task widens the first's boundary after a sweep of every
+subject-collection call site, and the two are one concern decomposed for delivery rather than two lenses.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
-across the ten, and the seam review below carry the review obligation the stack's per-member pull requests would
-have carried.
+across the eleven, and the seam review below carry the review obligation the stack's per-member pull requests
+would have carried.
 
 | #  | Chunk                    | Chunk key                            | Phase | Design elements                  |
 | -- | ------------------------ | ------------------------------------ | ----- | -------------------------------- |
@@ -66,10 +72,11 @@ have carried.
 | 8  | Review-record reduction  | `review-record-reduction`            | 8     | G (amended), B3, E9, D1, B1      |
 | 9  | Composition remediation  | `composition-stratum-remediation`    | 9     | B1–B3, B5, D1–D3, E1–E5, E9      |
 | 10 | Design-audit remediation | `design-audit-remediation`           | 11    | A, B4, B8, C3, D1–D3, E2, E4, E9 |
+| 11 | Attest staging guard     | `attest-staging-precondition`        | 12    | E1, E2, E4                       |
 
 Every chunk covers exactly the phase its row names, so each resolves to a contiguous commit range and no review
-pass needs a hand-assembled diff. Chunks 1–9 sit on the like-numbered phases; chunk 10 sits on Phase 11, since the
-verification task (Phase 10) belongs to no chunk.
+pass needs a hand-assembled diff. Chunks 1–9 sit on the like-numbered phases; chunks 10 and 11 sit on Phases 11
+and 12, since the verification task (Phase 10) belongs to no chunk.
 
 **Named seams** — cross-chunk contracts no single chunk's review covers:
 
@@ -81,7 +88,7 @@ verification task (Phase 10) belongs to no chunk.
 | Primitive reuse    | 3, 5, 6  | 6     | One wait implementation and one PR-resolution logic serve both lanes        |
 
 _Per-chunk procedure_ — stated once, applied to every chunk: review the chunk's commit range against its design
-elements, settling each seam at its owning chunk. One exact-head pull request carries all ten; ordinary
+elements, settling each seam at its owning chunk. One exact-head pull request carries all eleven; ordinary
 repository checks and the ARC merge lock govern the single landing, with no separate delivery proof.
 
 ---
