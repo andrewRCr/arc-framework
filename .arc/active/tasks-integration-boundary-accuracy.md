@@ -1141,6 +1141,10 @@ shape is the recorded F6 failure mode. Remedies are precomposed CLI-side, and ty
 than prose bypass blessed. Tasks are independent of each other except that 9.8 consumes 9.3's boundary-validation
 shape.
 
+_Note:_ Scope guard for every task in this phase: the recorded finding's verified evidence chain is the task's
+scope boundary. Several findings are edge-case-flavored; that is not an invitation to harden adjacent surfaces —
+hardening beyond what a finding's evidence demonstrates is a scope expansion to propose, never to build.
+
 ### `[ ]` **9.1 Pin the settled head on every settlement replay**
 
 - _Goal:_ A defer- or reject-only approved disposition set replays to `already-settled` at merge time; no validly
@@ -1160,6 +1164,8 @@ shape.
 
     - Widen `git-candidate-subject.ts`'s operational classification from the meta path alone to the code-owned
       regenerated projections, resolved by class through the layout (E1's exclusion as amended).
+    - Guard: a code-level predicate over layout-resolved paths — no render-owned-path registry, no manifest, no
+      configuration axis. Exactly one tracked regenerated projection exists today.
     - Test: a submit transition commit (state row churn) followed by a checkpoint currentness read stays
       `current`; a genuine reviewable delta still blocks.
 
@@ -1196,14 +1202,17 @@ shape.
 
     - Enrich the resolver's `ambiguous` envelope with precomposed remedy text for the open-PR-with-moved-
       supplied-head sub-case; the six disposition classes stay unchanged and the resume table consumes the
-      envelope's text.
+      envelope's text. This one sub-case only — every other ambiguous cause keeps the bare stop; no general
+      remediation-suggestion machinery.
 
 ### `[ ]` **9.7 Name where review landed on the composed decision line**
 
 - _Goal:_ A clean candidate's interlock surface renders all three of Criterion 2's decision facts.
 
     - Add the review-landed line — the local carrier or discharged hosted source, from the discharge detail — to
-      the composed decision text; extend the structural test to pin it.
+      the composed decision text; extend the structural test to pin it. G6's attestation discipline applies: the
+      line names the carrier or source and nothing else — no pass counts, no finding summaries, no dispositions;
+      this sits where § G deleted a review record and must not re-grow one.
 
 ### `[ ]` **9.8 Keep the typed publication pointer truthful**
 
@@ -1213,13 +1222,19 @@ shape.
     - The `unchanged` submit envelope and the stored-boundary projections stop pointing back at `arc submit`;
       the pointer routes the publication resume the workflow row actually executes (E9 as amended bounds which
       surfaces reduce evidence).
+    - Guard: the defect is what the stored pointer says, not when it is recomputed — add no live host reads to
+      `arc status` or session initialization (the passive-probe posture E9's amendment records), and no
+      boundary-refresh machinery.
     - Prune the three structurally-unreachable next-action kinds; wire or prune `continue-publication` and
-      `continue-hosted-review` consistently with the pointer fix.
+      `continue-hosted-review` consistently with the pointer fix — prune unless the pointer fix itself needs the
+      kind.
 
 ### `[ ]` **9.9 Close the minor-findings batch**
 
 - _Goal:_ Every recorded minor closes or carries a deliberate residue note in the findings record.
 
+    - Each minor takes its smallest change; a minor that wants to become a refactor (the `--json` refusal
+      consistency especially) is surfaced with the finding's evidence, not built.
     - The dangling "exact-head mutability action" narration; the bounded checks wait naming
       `arc review checks await`; `--json` refusals on propose and submit emitting JSON; the `awaiting-checks`
       prose matching its payload; refusal remedies on the propose active-record guard, `parseLifecycleCommand`,
