@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 8.8 — Pin the routed-obligation derivation
-- **Next Task:** Task 9.1 — Complete verification (line ~1130)
+- **Last Completed:** Verification third entry — findings recorded; Phase 9 remediation planned
+- **Next Task:** Task 9.1 — Pin the settled head on every settlement replay (line ~1144)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 9.1 — load `verify-work-unit.md` and run the verification boundary; Tier 3 has not
-  run since `9baf7d4dd` and is owed first
+- **Next Action:** Start Task 9.1 — the findings baseline and dispositions are in
+  `notes-integration-boundary-accuracy.md` § Verification Findings — third-entry falsification pass
 
 - **PR URL:** [none]
 - **Completed:** [none]
