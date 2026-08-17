@@ -1169,14 +1169,13 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Outcome:_ Durable review boundaries now carry the recognized Candidate revision. Submission rejects an older
   revision before reconcile or lifecycle mutation and routes directly back to `arc review pre-publication`.
 
-### `[ ]` **9.4 Close the merge verb's re-lock and merged-state gaps**
+### `[x]` **9.4 Close the merge verb's re-lock and merged-state gaps**
 
 - _Goal:_ Every approval-voiding exit re-locks, `checkpoint-missing` included, and a landed merge is never
   reported `relock-failed`.
 
-    - Route `checkpoint-missing` through the `invalidated()` helper — safe when no release occurred, since
-      `holdLock` accepts held and no-lock states — and re-read merged state before the catch path holds the
-      lock.
+- _Outcome:_ A missing checkpoint now uses the common re-lock path. Catch recovery re-reads exact pull-request
+  state first, reporting a merge that landed instead of attempting to hold its lock.
 
 ### `[ ]` **9.5 Emit schema-valid typed refusals from the integration handlers**
 

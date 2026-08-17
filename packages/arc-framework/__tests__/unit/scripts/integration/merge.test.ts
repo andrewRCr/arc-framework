@@ -41,6 +41,7 @@ function dependencies() {
       lifecycleComplete: true,
       target: { repository: "owner/repo", pullRequest: 42, headSha: oid("c") },
     }),
+    readMerged: async () => state.merged,
     releaseLock: async () => {
       state.held = false;
       return { state: "released" };
@@ -83,6 +84,32 @@ const request = { schemaVersion: 1 as const, workUnit: "example", checkpointHand
 describe("integration merge", () => {
   it("merges only the checkpointed head", async () => {
     const { value, state } = dependencies();
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "merged",
+      payload: { approvedHead: oid("c"), pullRequest: 42 },
+    });
+    expect(state).toEqual({ held: false, merged: true });
+  });
+
+  it("re-locks when the persisted checkpoint is missing", async () => {
+    const { value, state } = dependencies();
+    state.held = false;
+    value.readCheckpoint = async () => null;
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "checkpoint-missing",
+    });
+    expect(state.held).toBe(true);
+  });
+
+  it("reports success when the host merged before its command failure surfaced", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async () => {
+      state.merged = true;
+      throw new Error("host command lost its response");
+    };
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({
       state: "merged",

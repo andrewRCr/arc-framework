@@ -594,6 +594,7 @@ describe("review-bearing integration checkpoint and merge", () => {
       readCheckpoint: production.readCheckpoint.bind(production),
       executeSettlement: production.executeSettlement.bind(production),
       readStatus: async () => ({ actualHead: approvedHead, lifecycleComplete: true, target }),
+      readMerged: async () => false,
       releaseLock: async () => ({ state: "released" }),
       holdLock: async () => ({ state: "held" }),
       awaitChecks: async () => ({
@@ -631,8 +632,9 @@ describe("review-bearing integration checkpoint and merge", () => {
         readCheckpoint: production.readCheckpoint.bind(production),
         executeSettlement: () => Promise.reject(new Error("unexpected settlement")),
         readStatus: () => Promise.reject(new Error("unexpected status read")),
+        readMerged: () => Promise.reject(new Error("unexpected merged-state read")),
         releaseLock: () => Promise.reject(new Error("unexpected release")),
-        holdLock: () => Promise.reject(new Error("unexpected hold")),
+        holdLock: async () => ({ state: "held" }),
         awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
         readFinalDrift: () => Promise.reject(new Error("unexpected drift read")),

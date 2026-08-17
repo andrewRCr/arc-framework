@@ -45,6 +45,7 @@ export function createIntegrationMergeDependencies(input: {
     return settingsPromise;
   };
   const hostedPort = new GhHostedReviewPort(hostedGhRunner);
+  const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const respondDependencies = createRespondDependencies(input);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
   const lockPort = new GhMergeLockPort(
@@ -66,7 +67,7 @@ export function createIntegrationMergeDependencies(input: {
     })).stdout.trim();
     const changeRequest = await resolveChangeRequest(
       { headRef: branch, headSha },
-      createGhChangeRequestResolutionPort(input.exec, input.cwd),
+      changeRequestPort,
     );
     if (changeRequest.state !== "open") {
       throw new Error(`The current integration head has no reusable open change request (${changeRequest.state}).`);
@@ -122,6 +123,17 @@ export function createIntegrationMergeDependencies(input: {
           && query.position?.phase === "Shipped"
           && query.position.location === "completed";
       return { actualHead: target.headSha, lifecycleComplete, target };
+    },
+    readMerged: async (target) => {
+      const branch = await getCurrentBranch(input.exec);
+      if (branch === null) return false;
+      const resolved = await resolveChangeRequest(
+        { headRef: branch, headSha: target.headSha },
+        changeRequestPort,
+      );
+      return resolved.state === "merged-at-head"
+        && resolved.targetRef.repository === target.repository
+        && resolved.candidate.number === target.pullRequest;
     },
     releaseLock: async (target) => releaseMergeLock(await lockRequest(target), lockPort),
     holdLock: async (target) => holdMergeLock(await lockRequest(target ?? await currentTarget()), lockPort),

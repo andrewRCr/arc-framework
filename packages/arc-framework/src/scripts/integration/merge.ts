@@ -179,6 +179,7 @@ export interface IntegrationMergeDependencies {
     lifecycleComplete: boolean;
     target: IntegrationMergeTarget;
   }>;
+  readMerged(target: IntegrationMergeTarget): Promise<boolean>;
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
@@ -233,14 +234,12 @@ export async function mergeIntegration(
   };
   const checkpoint = await dependencies.readCheckpoint(request.workUnit, request.checkpointHandle);
   if (checkpoint === null) {
-    return IntegrationMergeResultSchema.parse({
-      ...base,
-      state: "invalidated",
-      nextAction: "checkpoint",
-      reason: "checkpoint-missing",
-      remedy: mergeRemedy("checkpoint-missing", request.workUnit),
-      payload: { checkpointHandle: request.checkpointHandle },
-    });
+    return invalidated(
+      base,
+      "checkpoint-missing",
+      { checkpointHandle: request.checkpointHandle },
+      dependencies,
+    );
   }
 
   let target: IntegrationMergeTarget | undefined;
@@ -315,6 +314,20 @@ export async function mergeIntegration(
       payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
     });
   } catch (error) {
+    if (target !== undefined) {
+      try {
+        if (await dependencies.readMerged(target)) {
+          return IntegrationMergeResultSchema.parse({
+            ...base,
+            state: "merged",
+            nextAction: "complete",
+            payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
+          });
+        }
+      } catch {
+        // Without exact merged-state evidence the compensating lock remains the safe fallback.
+      }
+    }
     const result = await invalidated(base, "merge-blocked", {
       detail: error instanceof Error ? error.message : String(error),
     }, dependencies, target);
