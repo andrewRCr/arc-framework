@@ -313,8 +313,61 @@ export const IntegrationCheckpointResultSchema = z.union([
     }),
   }),
   IntegrationCheckpointBlockedResultSchema,
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("integrate-checkpoint"),
+    workUnit: z.null(),
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: z.literal("invalid-input"),
+    remedy: SpineRemedySchema,
+    payload: z.strictObject({ detail: z.string().min(1) }),
+  }),
 ]);
 export type IntegrationCheckpointResult = z.infer<typeof IntegrationCheckpointResultSchema>;
+
+/**
+ * Compose the published checkpoint refusal for invalid CLI input.
+ *
+ * @param detail - Validation detail safe to expose in the result payload.
+ * @returns A schema-valid refusal with the checkpoint help command.
+ */
+export function checkpointInputRefusal(detail: string): IntegrationCheckpointResult {
+  return IntegrationCheckpointResultSchema.parse({
+    schemaVersion: 1,
+    mode: "integrate-checkpoint",
+    workUnit: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "invalid-input",
+    remedy: spineRemedy(
+      "The checkpoint requires a valid work-unit slug.",
+      "Review command usage",
+      ["arc", "integrate", "checkpoint", "--help"],
+    ),
+    payload: { detail },
+  });
+}
+
+/**
+ * Compose a typed checkpoint refusal for a dependency failure at the handler boundary.
+ *
+ * @param workUnit - The validated work-unit slug.
+ * @param detail - Dependency failure detail safe to expose in the result payload.
+ * @returns A schema-valid refusal that routes back through checkpoint composition.
+ */
+export function checkpointOperationRefusal(workUnit: string, detail: string): IntegrationCheckpointResult {
+  return IntegrationCheckpointResultSchema.parse({
+    schemaVersion: 1,
+    mode: "integrate-checkpoint",
+    workUnit,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "composition-unavailable",
+    remedy: checkpointRemedy("composition-unavailable", workUnit),
+    payload: { detail },
+  });
+}
 
 export interface IntegrationCheckpointDependencies {
   readDrift(workUnit: string): Promise<BaseDriftResult>;

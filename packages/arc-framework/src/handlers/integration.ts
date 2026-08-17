@@ -8,13 +8,19 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import { createGitExec } from "../lib/io-context.js";
 import {
   checkpointIntegration,
+  checkpointInputRefusal,
+  checkpointOperationRefusal,
   IntegrationCheckpointRequestSchema,
+  IntegrationCheckpointResultSchema,
   type IntegrationCheckpointResult,
 } from "../scripts/integration/checkpoint.js";
 import { createIntegrationCheckpointDependencies } from "../scripts/integration/checkpoint-composition.js";
 import { createIntegrationMergeDependencies } from "../scripts/integration/merge-composition.js";
 import {
+  IntegrationMergeResultSchema,
   mergeIntegration,
+  mergeInputRefusal,
+  mergeOperationRefusal,
   type IntegrationMergeResult,
 } from "../scripts/integration/merge.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -119,19 +125,24 @@ export async function handleIntegrationCheckpoint(
   };
   const parsed = IntegrationCheckpointCommandInputSchema.safeParse({ name });
   if (!parsed.success) {
-    dependencies.write(`${JSON.stringify({
-      schemaVersion: 1,
-      mode: "integrate-checkpoint",
-      workUnit: name,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "composition-unavailable",
-      payload: { detail: parsed.error.issues.map(({ message }) => message).join("; ") },
-    })}\n`);
+    dependencies.write(`${JSON.stringify(checkpointInputRefusal(
+      parsed.error.issues.map(({ message }) => message).join("; "),
+    ))}\n`);
     dependencies.setExitCode(64);
     return;
   }
-  dependencies.write(`${JSON.stringify(await dependencies.checkpoint(cwd, parsed.data.name))}\n`);
+  try {
+    const result = IntegrationCheckpointResultSchema.parse(
+      await dependencies.checkpoint(cwd, parsed.data.name),
+    );
+    dependencies.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(checkpointOperationRefusal(
+      parsed.data.name,
+      error instanceof Error ? error.message : String(error),
+    ))}\n`);
+    dependencies.setExitCode(1);
+  }
 }
 
 /** Run the exact-checkpoint post-approval integration merge. */
@@ -155,21 +166,24 @@ export async function handleIntegrationMerge(
   };
   const parsed = IntegrationMergeCommandInputSchema.safeParse({ name, checkpoint: options.checkpoint });
   if (!parsed.success) {
-    dependencies.write(`${JSON.stringify({
-      schemaVersion: 1,
-      mode: "integrate-merge",
-      workUnit: name,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "operation-failed",
-      payload: { detail: parsed.error.issues.map(({ message }) => message).join("; ") },
-    })}\n`);
+    dependencies.write(`${JSON.stringify(mergeInputRefusal(
+      parsed.error.issues.map(({ message }) => message).join("; "),
+    ))}\n`);
     dependencies.setExitCode(64);
     return;
   }
-  dependencies.write(`${JSON.stringify(await dependencies.merge(
-    cwd,
-    parsed.data.name,
-    parsed.data.checkpoint,
-  ))}\n`);
+  try {
+    const result = IntegrationMergeResultSchema.parse(await dependencies.merge(
+      cwd,
+      parsed.data.name,
+      parsed.data.checkpoint,
+    ));
+    dependencies.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(mergeOperationRefusal(
+      parsed.data.name,
+      error instanceof Error ? error.message : String(error),
+    ))}\n`);
+    dependencies.setExitCode(1);
+  }
 }

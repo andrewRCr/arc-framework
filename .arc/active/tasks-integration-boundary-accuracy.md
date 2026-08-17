@@ -1177,14 +1177,13 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Outcome:_ A missing checkpoint now uses the common re-lock path. Catch recovery re-reads exact pull-request
   state first, reporting a merge that landed instead of attempting to hold its lock.
 
-### `[ ]` **9.5 Emit schema-valid typed refusals from the integration handlers**
+### `[x]` **9.5 Emit schema-valid typed refusals from the integration handlers**
 
 - _Goal:_ Every refusal `integrate checkpoint` and `integrate merge` emit validates against the published result
   schemas and names a corrective command.
 
-    - Replace the hand-built invalid-input envelopes; add a handler-level catch so checkpoint-store throws on
-      malformed or handle-mismatched records — currently read outside the verb's own try — become typed refusals
-      rather than crashes.
+- _Outcome:_ Both handlers now compose invalid-input and dependency-failure refusals through their published
+  schemas, including corrective command remedies; malformed checkpoint-store reads no longer escape as crashes.
 
 ### `[ ]` **9.6 Precompose the moved-head resolution remedy**
 

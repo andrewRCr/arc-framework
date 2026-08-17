@@ -168,8 +168,60 @@ export const IntegrationMergeResultSchema = z.union([
     remedy: SpineRemedySchema,
     payload: z.record(z.string(), z.unknown()),
   }),
+  z.strictObject({
+    ...ResultBaseShape,
+    workUnit: z.null(),
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: z.literal("invalid-input"),
+    remedy: SpineRemedySchema,
+    payload: z.strictObject({ detail: z.string().min(1) }),
+  }),
 ]);
 export type IntegrationMergeResult = z.infer<typeof IntegrationMergeResultSchema>;
+
+/**
+ * Compose the published merge refusal for invalid CLI input.
+ *
+ * @param detail - Validation detail safe to expose in the result payload.
+ * @returns A schema-valid refusal with the merge help command.
+ */
+export function mergeInputRefusal(detail: string): IntegrationMergeResult {
+  return IntegrationMergeResultSchema.parse({
+    schemaVersion: 1,
+    mode: "integrate-merge",
+    workUnit: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "invalid-input",
+    remedy: spineRemedy(
+      "The merge requires a valid work-unit slug and checkpoint handle.",
+      "Review command usage",
+      ["arc", "integrate", "merge", "--help"],
+    ),
+    payload: { detail },
+  });
+}
+
+/**
+ * Compose a typed merge refusal for a dependency failure at the handler boundary.
+ *
+ * @param workUnit - The validated work-unit slug.
+ * @param detail - Dependency failure detail safe to expose in the result payload.
+ * @returns A schema-valid refusal that routes back through checkpoint composition.
+ */
+export function mergeOperationRefusal(workUnit: string, detail: string): IntegrationMergeResult {
+  return IntegrationMergeResultSchema.parse({
+    schemaVersion: 1,
+    mode: "integrate-merge",
+    workUnit,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "operation-failed",
+    remedy: mergeRemedy("operation-failed", workUnit),
+    payload: { detail },
+  });
+}
 
 export interface IntegrationMergeDependencies {
   readCheckpoint(workUnit: string, handle: string): Promise<IntegrationCheckpointCompositionRecord | null>;

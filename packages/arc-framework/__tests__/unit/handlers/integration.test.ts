@@ -1,7 +1,11 @@
 /** Integration procedure CLI adapter behavior. */
 
 import { describe, expect, it, vi } from "vitest";
-import { checkpointRemedy } from "../../../src/scripts/integration/checkpoint.js";
+import {
+  checkpointRemedy,
+  IntegrationCheckpointResultSchema,
+} from "../../../src/scripts/integration/checkpoint.js";
+import { IntegrationMergeResultSchema } from "../../../src/scripts/integration/merge.js";
 
 import {
   handleIntegrationCheckpoint,
@@ -35,6 +39,44 @@ describe("integration checkpoint handler", () => {
       reason: "candidate-missing",
     });
   });
+
+  it("emits a schema-valid typed refusal for invalid input", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleIntegrationCheckpoint("Bad name", { json: true }, undefined, { write, setExitCode });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    expect(result).toMatchObject({
+      workUnit: null,
+      state: "blocked",
+      reason: "invalid-input",
+      remedy: { argv: ["arc", "integrate", "checkpoint", "--help"] },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(64);
+  });
+
+  it("turns dependency throws into typed refusals", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+      checkpoint: async () => { throw new Error("checkpoint store malformed"); },
+      write,
+      setExitCode,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    expect(result).toMatchObject({
+      workUnit: "example",
+      state: "blocked",
+      reason: "composition-unavailable",
+      remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
 });
 
 describe("integration merge handler", () => {
@@ -59,5 +101,47 @@ describe("integration merge handler", () => {
       state: "merged",
       payload: { approvedHead: oid("a"), pullRequest: 42 },
     });
+  });
+
+  it("emits a schema-valid typed refusal for invalid input", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleIntegrationMerge("Bad name", { checkpoint: "bad", json: true }, undefined, {
+      write,
+      setExitCode,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    expect(result).toMatchObject({
+      workUnit: null,
+      state: "blocked",
+      reason: "invalid-input",
+      remedy: { argv: ["arc", "integrate", "merge", "--help"] },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(64);
+  });
+
+  it("turns checkpoint-store throws into typed refusals", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
+
+    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+      merge: async () => { throw new Error("checkpoint record mismatched"); },
+      write,
+      setExitCode,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    expect(result).toMatchObject({
+      workUnit: "example",
+      state: "blocked",
+      reason: "operation-failed",
+      remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
   });
 });
