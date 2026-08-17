@@ -1573,24 +1573,32 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
     - Held to the named surface: the `arc integrate` namespace, the `Integrating` state name, and every boundary
       semantic are untouched — the words moved and nothing else did.
 
-### `[ ]` **11.11 Record the rationale for audited deviations that stand**
+### `[x]` **11.11 Record the rationale for audited deviations that stand**
 
 - _Goal:_ Each deviation the audit upheld carries its reasoning where the next auditor will look, in appended
   amendment blocks — no settled text edited.
 
-- _Approach:_ (a) Spec § D2/§ B8 amendment: the work-unit lane's in-verb checks wait versus host auto-merge —
-  cross-reference ADR-031 Decision #5 (auto-merge survives write-actor pushes; arming-time matching does not
-  guard merge time) and record the structural chain: the solo operator authors the pull request and cannot
-  approve it host-side, so approval lives in the terminal and the pin rides the host's exact-head merge
-  parameter; required-approvals + dismiss-stale is the industry expression of the same property, unavailable
-  here. (b) § D2 clause: why the bounded wait rather than the host CLI's blocking watch (no deadline, no typed
-  envelope, no stale-head guard). (c) § D1 amendment naming the `change-request` vocabulary collision with the
-  host's "changes requested" review state and why the host-neutral term stands; append the reconciling note to
-  ADR-005 per `strategy-adr-methodology.md` (amendment, not supersession). (d) Cross-cutting note: the
-  dismiss-stale/required-approvals host mechanism was considered; the terminal interlock wins on the
-  self-approval constraint.
+- _Outcome:_ Five appended blocks, no settled text touched: § D2 carries the auto-merge chain and the
+  bounded-wait-versus-`gh pr checks --watch` reasoning, § B8 carries why the lane asymmetry is structural rather
+  than unfinished, § D1 carries the `change-request` collision, and § Cross-cutting carries the host-mechanism
+  consideration. ADR-005 takes a dated `**Amendment**` in Consequences per `strategy-adr-methodology.md`'s Tier 2
+  — the first time its Part 3 host-neutral naming reached a code-level entity.
 
-    - Not in scope: behavior changes; new mechanisms; editing any settled spec or ADR text in place.
+    - Each claim was checked against its source rather than carried from the audit. ADR-031 Decision #5 reads as
+      the audit reported it (native auto-merge survives write-actor pushes; arming-time matching does not guard
+      merge time). The vocabulary collision is real and tighter than described: `change-request-lifecycle.ts`
+      names the pull request as a change request and reads `reviewDecision === "CHANGES_REQUESTED"` in the same
+      file. ADR-005 § Part 3 is the settling authority — host-neutral naming because the three hosts disagree on
+      the noun.
+
+    - The four deviations share one root, so the blocks cross-reference rather than restate it: a solo operator
+      authors the pull request and cannot approve it host-side, which is what makes required-approvals plus
+      dismiss-stale-reviews — the industry expression of the property — unavailable, and the terminal interlock
+      the remaining carrier. § D2 states the chain once; § B8 and § Cross-cutting point at it.
+
+    - ADRs are internal-dev-facing and carry no package mirror, so the ADR-005 amendment lands in one copy.
+
+    - Held to the named surface: no behavior change, no new mechanism, and every original passage retained.
 
 ### `[ ]` **11.12 Convergence verification and re-attestation over the remediated tree**
 

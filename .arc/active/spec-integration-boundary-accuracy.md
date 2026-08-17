@@ -259,6 +259,12 @@ wait to the host. A deferred-CI project therefore runs this boundary unchanged, 
 no new prose; the residual cost is one checks-length wait inside B2, largely absorbed when review approval is
 what starts the deferred run.
 
+_Amended 2026-08-17 — why the wait is the work-unit lane's own._ B8 places the wait inside the merge verb on this
+lane while the errand lane delegates it to the host, and the asymmetry is not an inconsistency to resolve later:
+the errand lane arms auto-merge, and this lane structurally cannot (D2's amendment carries the chain, from
+ADR-031 Decision #5 through the solo operator's inability to approve their own pull request). A deferred-CI
+project therefore pays the wait here because there is nowhere else on this lane to pay it.
+
 _Amended 2026-08-17 — host-evidence scope._ The same shape of residual as B4's sits on the check read itself: an
 empty required-checks result cannot distinguish a repository with no required checks configured from a deferred run
 not yet created, and both reduce to `not-required`. Closing it needs the branch-rules read alongside the check list,
@@ -330,6 +336,15 @@ pre-create head validation, an asymmetry the shared verb settles. Resolution is 
 checkout-anchored: a stale invoking checkout whose local refs cannot see a merged or renamed head still receives
 the correct disposition, which its third consumer (stub launch) specifically requires.
 
+_Amended 2026-08-17 — the `change-request` vocabulary collision._ The host-neutral term collides with GitHub's
+`CHANGES_REQUESTED` review decision, and the two meet in one file: `change-request-lifecycle.ts` names the pull
+request as a change request while reading `reviewDecision === "CHANGES_REQUESTED"` to mean a reviewer asked for
+work. A reader can take "change request" for the review state rather than the request itself. The host-neutral
+term stands anyway: ADR-005 § Part 3 settles that ARC names the entity in host-neutral terms — "Merge Requests /
+Pull Requests" — because GitLab, Bitbucket, and GitHub disagree on the noun, and a verb serving all three cannot
+adopt one host's word. The collision is with a review _state_, which the code always names in the host's own
+screaming case, so the two never appear in the same grammatical position. ADR-005 carries the reconciling note.
+
 **D2. Lock release and the checks wait live inside the merge span, with re-lock as its fail-closed exit.** The
 repository lock is the pull request's draft state (`merge.lock: draft`), operated by the `arc merge lock` family:
 `release` already binds the exact head, gates on lifecycle readiness, and settles the flip verb-side,
@@ -357,6 +372,23 @@ release, re-read checks, merge — plus a re-lock obligation restated across eve
 - **The anti-polling rule is restated once, correctly.** The cost is not polling — the bounded wait polls. It is
   that a poll tick in the agent's turn loop is a full model inference over the whole conversation, where an
   in-process tick costs nothing. The shape is a coarse agent-level loop over a fine in-process one.
+
+_Amended 2026-08-17 — why this lane waits in-verb._ The obvious alternative is the host's own auto-merge: arm it
+and let the host wait. ADR-031 Decision #5 already rejects it for this lane, and the reason is structural rather
+than preferential — native auto-merge survives pushes from write-permission actors, so matching the head at
+arming time guards nothing at merge time, which is exactly what exact-head authorization requires. The chain
+runs deeper than the host mechanism: a solo operator authors the pull request and therefore cannot approve it
+host-side, so the approval lives in the terminal and the pin rides the host's own exact-head merge parameter.
+Required approvals plus dismiss-stale-reviews is the industry expression of the same property, and it is
+unavailable precisely because the author and the approver are one person here. The in-verb wait is what remains
+once that door is closed, not a preference over it.
+
+_Amended 2026-08-17 — why a bounded wait rather than the host CLI's watch._ `gh pr checks --watch` blocks until
+the checks settle and would remove the wait implementation entirely. It is not adopted because it supplies none
+of the three properties this arm's contract rests on: no deadline to yield at, so a hung run holds the session
+indefinitely; no typed envelope, so the outcome would be re-derived by parsing terminal output; and no
+stale-head guard, so it would happily report on checks belonging to a head the approval never covered. The
+bounded wait exists to carry those three, and the same instance already serves the hosted-review wait.
 
 **D3. `arc review merge-method resolve --json`** derives the repository and configured `merge.strategy`, reads the
 repository's live merge-method allowances, and returns `validated / use-method` with the method plus a policy
@@ -796,6 +828,15 @@ state, changed merge policy, failed required checks, and non-clean drift, re-loc
 exit. The lock is the pull request's draft state — a per-PR structural hold, never equated with a required check
 (repo-configured, fail-closed) — and merge safety is never inferred from agent-layer discipline. The lock proves
 no review evidence; it only holds the merge closed while evidence is produced.
+
+**The host mechanism for the same property was considered and does not reach.** GitHub's required-approvals plus
+dismiss-stale-reviews is the industry expression of "approval covers this exact content, and content movement
+voids it" — the same property the terminal interlock and the exact-head pin enforce here, and the reason to
+prefer a host mechanism where one fits. It does not fit this repository: a solo operator authors the pull request
+and cannot approve their own, so the required approval can never be satisfied and the dismiss-stale machinery
+never has an approval to dismiss. The terminal interlock is what holds the property when the host's expression of
+it is structurally unavailable, not a bespoke preference over it. The same constraint decides D2's in-verb checks
+wait and B8's lane asymmetry; both carry the chain in their own amendments.
 
 **Proportionality.** Every persistent mechanism traces to a chartered threat: B3's digest to same-head checkpoint
 ambiguity under B6's retry-safe re-fire (an agent-side failure mode this design itself creates and must close);
