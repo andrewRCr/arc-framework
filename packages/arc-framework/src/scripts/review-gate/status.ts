@@ -33,7 +33,7 @@ interface ReviewStatusBase {
 export type ReviewStatusResult = ReviewStatusBase & (
   | { state: "settled"; nextAction: "continue-reconcile" }
   | { state: "review-required"; nextAction: "run-review" }
-  | { state: "checks-pending"; nextAction: "await-checks" }
+  | { state: "checks-pending"; nextAction: "rerun-checkpoint" }
   | { state: "base-moved"; nextAction: "rerun-checkpoint" }
   | {
       state: "blocked";
@@ -112,7 +112,7 @@ export async function resolveReviewStatus(
     return { ...base, state: "review-required", nextAction: "run-review" };
   }
   if (base.requiredChecks === "pending") {
-    return { ...base, state: "checks-pending", nextAction: "await-checks" };
+    return { ...base, state: "checks-pending", nextAction: "rerun-checkpoint" };
   }
   if (base.requiredChecks === "failed" || base.requiredChecks === "unavailable") {
     return {

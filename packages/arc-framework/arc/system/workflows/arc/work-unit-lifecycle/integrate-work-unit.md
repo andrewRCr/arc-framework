@@ -459,9 +459,8 @@ After a head-changing push, rerun
 `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`, then invoke
 `arc review status --target '{targetRef}' --json` with its fresh `targetRef`. Follow only the typed action:
 `settled / continue-reconcile` proceeds; `review-required / run-review` returns through review applicability;
-`checks-pending / await-checks` invokes
-`arc review checks await --pull-request {pull-request} --head-sha {head-sha} --json`;
-`base-moved / rerun-checkpoint` restarts this step;
+`checks-pending / rerun-checkpoint` and `base-moved / rerun-checkpoint` both restart this step — the checkpoint
+tolerates non-green checks and the merge verb owns the required-checks wait;
 `blocked / stop` stops. Advisory receipts are not merge authority.
 
 Apply the current WU's exact reconcile:
@@ -489,8 +488,7 @@ Repeat the Step 3 push extension contract.
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-Rerun the change-request resolver and `arc review status` with the new `targetRef`, then restart this step. The
-correction invalidates every prior clearance; rebuild from the new head.
+Restart this step. The correction invalidates every prior clearance; rebuild from the new head.
 
 On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.
 

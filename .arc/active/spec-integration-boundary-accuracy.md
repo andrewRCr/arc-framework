@@ -281,6 +281,11 @@ thin orchestration path over stopless procedures:
   re-runs D1 and passes the fresh reference; C3 rejects a stale reference. The call returns required-check status,
   routed review obligation, current base OID, and one of `settled`, `review-required`, `checks-pending`,
   `base-moved`, or `blocked`; the workflow follows its typed next action rather than recomputing the conjunction.
+
+    - _Amended 2026-08-17 — single wait site._ `checks-pending` reports the observed check state; its next action
+      routes back through the checkpoint alongside `base-moved`, never into a wait. B8 places the only work-unit
+      wait inside the merge verb, and the checkpoint tolerates non-green checks, so a second pre-approval wait here
+      would have contradicted B8 and Success Criterion 17 while blocking a deferred-CI project before approval.
 - **C4.** Span 6's dispatch verb already exists; what deletes is the prose validating its envelope. The
   retain-advisories direction leaf remains immediately after the typed dispatch.
 - **C5.** Spans 3, 4, 6, 7, and 8 stay prose — they _are_ the cadence.

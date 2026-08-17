@@ -529,9 +529,8 @@ describe("trusted review-gate workflows", () => {
     expect(reconcile).toBeGreaterThan(status);
     expect(merge).toBeGreaterThan(reconcile);
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
-    expect(gate).toContain(
-      "arc review checks await --pull-request {pull-request} --head-sha {head-sha} --json",
-    );
+    expect(gate).toContain("`checks-pending / rerun-checkpoint`");
+    expect(gate).not.toContain("arc review checks await");
     expect(gate).toContain("after `payload.elapsedMs` milliseconds");
     expect(gate).not.toContain("returned deadline");
     expect(gate).not.toContain("exact-head mutability action");

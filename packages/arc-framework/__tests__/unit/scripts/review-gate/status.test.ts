@@ -60,10 +60,10 @@ describe("review status", () => {
     });
   });
 
-  it("routes pending required checks to the bounded checks wait", async () => {
+  it("routes pending required checks back through the checkpoint rather than waiting here", async () => {
     await expect(resolveReviewStatus({ target }, port({ requiredChecks: "pending" }))).resolves.toMatchObject({
       state: "checks-pending",
-      nextAction: "await-checks",
+      nextAction: "rerun-checkpoint",
       requiredChecks: "pending",
     });
   });

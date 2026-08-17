@@ -1391,20 +1391,25 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
 
     - Not in scope: CLI changes; new flags or derivation arms on the chunking command.
 
-### `[ ]` **11.4 The reconcile arm neither waits on checks pre-approval nor re-reads state nothing consumes**
+### `[x]` **11.4 The reconcile arm neither waits on checks pre-approval nor re-reads state nothing consumes**
 
 - _Goal:_ The merge verb's await is the single place the work-unit lane waits on required checks (§ B8,
   Success Criterion 17), and the reconcile arm carries no dead round-trips.
 
-- _Approach:_ Change `arc review status`'s `checks-pending` next action in this context from `await-checks` to
-  routing back through the checkpoint (`status.ts` reducer + the Step 13 dispatch row, both copies) — the
-  checkpoint tolerates non-green checks and the merge verb owns the wait. Delete the post-`arc wu reconcile`
-  resolver + status pair whose results the prose never dispatches on (the unconditional restart re-reads
-  everything). Append a spec amendment line reconciling § C3's `checks-pending` member with § B8's
-  single-wait-site claim.
+- _Outcome:_ `checks-pending` keeps its state but now carries `nextAction: "rerun-checkpoint"` (`status.ts`),
+  so it joins `base-moved` on the one route Step 13 already had; the dispatch row in both workflow copies drops
+  the `arc review checks await` invocation and names why — the checkpoint never gates on check state (it reads
+  `requiredChecks` only for an interlock-surface signal) and `merge-composition.ts` holds the lane's sole
+  `awaitRequiredChecks` call. `arc review checks await` is now reached from no agent prose, which is what § B8
+  asserts.
 
-    - Not in scope: other `arc review status` states or shapes; the earlier (base-merge) dispatch table beyond
-      the `checks-pending` row; any checkpoint change.
+    - The post-`arc wu reconcile` resolver + status pair is deleted; only "restart this step" remains. Verified
+      dead rather than merely unread: `resolveChangeRequest` is a pure host read with no persistence, and
+      `checkpoint-composition.ts` re-resolves the change request from the current head itself, so the restart
+      already rebuilds everything the pair produced.
+
+    - § C3 gains the amendment reconciling its `checks-pending` member with § B8's single-wait-site claim. The
+      contract test that pinned the old dispatch now pins the new one plus the verb's absence from the gate.
 
 ### `[ ]` **11.5 Small workflow-prose trims: deadline-yield resume, extension-block omission, settlement fold**
 
