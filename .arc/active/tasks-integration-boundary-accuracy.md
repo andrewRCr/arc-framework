@@ -39,25 +39,37 @@ Phase 9's own remediations (V4-B1, V4-M1 in `notes-integration-boundary-accuracy
 third in the adjacent convergence gate (V4-M2). They remediate as Tasks 9.10 through 9.12 inside Phase 9, so chunk
 9's commit range extends to cover them; the chunk table, the count, and every seam are unchanged.
 
+_Amended 2026-08-17 — design-audit remediation._ The pre-integration design audit's confirmed findings remediate
+as Phase 11, which no chunk covered: two Candidate-lifecycle blockers, prose and contract trims, the spine-verb
+rename, rationale-recording amendments, and the phase's own convergence verification. Chunk 10 is added as its
+review boundary and the projection's count moves to ten. Phase 11 reviews whole rather than splitting the
+mechanical rename from the lifecycle blockers — the phase carries one lens, closing the audit's findings, and the
+rename's file count reflects mechanical breadth rather than review depth. Two consequences for the reader: the
+chunk-to-phase correspondence is no longer positional past chunk 9, and the rename postdates the seam table, so
+§ Namespace handover's acceptance still names `arc submit` where the current verb is `arc publish`. That seam's
+substance is unchanged and its original text is retained rather than edited into agreement.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
-across the nine, and the seam review below carry the review obligation the stack's per-member pull requests would
+across the ten, and the seam review below carry the review obligation the stack's per-member pull requests would
 have carried.
 
-| # | Chunk                   | Chunk key                            | Phase | Design elements                |
-| - | ----------------------- | ------------------------------------ | ----- | ------------------------------ |
-| 1 | Candidate attestation   | `candidate-review-attestation`       | 1     | E1–E4, E6, E9                  |
-| 2 | Publication boundary    | `submission-publication-boundary`    | 2     | E3, E5–E9, F1–F4               |
-| 3 | Review primitives       | `integration-review-primitives`      | 3     | B4, B8, D1–D3                  |
-| 4 | Checkpoint composition  | `integration-checkpoint-composition` | 4     | A, B1, B3–B5, B7               |
-| 5 | Settlement and merge    | `integration-settlement-merge`       | 5     | B2–B4, D2, G, H                |
-| 6 | Workflow convergence    | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I |
-| 7 | Production wiring       | `integration-production-wiring`      | 7     | D1, E3–E4, E6, G2, B1–B2, B6   |
-| 8 | Review-record reduction | `review-record-reduction`            | 8     | G (amended), B3, E9, D1, B1    |
-| 9 | Composition remediation | `composition-stratum-remediation`    | 9     | B1–B3, B5, D1–D3, E1–E5, E9    |
+| #  | Chunk                    | Chunk key                            | Phase | Design elements                  |
+| -- | ------------------------ | ------------------------------------ | ----- | -------------------------------- |
+| 1  | Candidate attestation    | `candidate-review-attestation`       | 1     | E1–E4, E6, E9                    |
+| 2  | Publication boundary     | `submission-publication-boundary`    | 2     | E3, E5–E9, F1–F4                 |
+| 3  | Review primitives        | `integration-review-primitives`      | 3     | B4, B8, D1–D3                    |
+| 4  | Checkpoint composition   | `integration-checkpoint-composition` | 4     | A, B1, B3–B5, B7                 |
+| 5  | Settlement and merge     | `integration-settlement-merge`       | 5     | B2–B4, D2, G, H                  |
+| 6  | Workflow convergence     | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I   |
+| 7  | Production wiring        | `integration-production-wiring`      | 7     | D1, E3–E4, E6, G2, B1–B2, B6     |
+| 8  | Review-record reduction  | `review-record-reduction`            | 8     | G (amended), B3, E9, D1, B1      |
+| 9  | Composition remediation  | `composition-stratum-remediation`    | 9     | B1–B3, B5, D1–D3, E1–E5, E9      |
+| 10 | Design-audit remediation | `design-audit-remediation`           | 11    | A, B4, B8, C3, D1–D3, E2, E4, E9 |
 
-Chunk N covers Phase N exactly, so every chunk resolves to a contiguous commit range and no review pass needs a
-hand-assembled diff.
+Every chunk covers exactly the phase its row names, so each resolves to a contiguous commit range and no review
+pass needs a hand-assembled diff. Chunks 1–9 sit on the like-numbered phases; chunk 10 sits on Phase 11, since the
+verification task (Phase 10) belongs to no chunk.
 
 **Named seams** — cross-chunk contracts no single chunk's review covers:
 
@@ -69,7 +81,7 @@ hand-assembled diff.
 | Primitive reuse    | 3, 5, 6  | 6     | One wait implementation and one PR-resolution logic serve both lanes        |
 
 _Per-chunk procedure_ — stated once, applied to every chunk: review the chunk's commit range against its design
-elements, settling each seam at its owning chunk. One exact-head pull request carries all nine; ordinary
+elements, settling each seam at its owning chunk. One exact-head pull request carries all ten; ordinary
 repository checks and the ARC merge lock govern the single landing, with no separate delivery proof.
 
 ---
