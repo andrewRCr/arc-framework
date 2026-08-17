@@ -111,8 +111,8 @@ Every `.arc/**` edit doubles into `packages/arc-framework/arc/**` per the two-co
 - **The rest of `wu-lifecycle-state-model`.** This work pulls forward only its tail-end artifact attestation:
   Candidate is a projection, not a fifth lifecycle `State`. Preactivation `Ready`, readiness decay, activation
   mechanics, placement-as-record, terminal vocabulary, and the general storage substrate remain deferred.
-- **Superseding `merge.strategy`.** It stays authoritative over what the project wants; the ruleset is authoritative
-  over what the host accepts.
+- **Superseding `merge.strategy`.** It stays authoritative over what the project wants; the repository's
+  merge-method allowances are authoritative over what the host accepts.
 - **Re-running full verification after every review fix.** Delta verification is primary-owned and
   consequence-scaled; one converged Tier 3 attests a changed implementation after review, rather than multiplying
   full verification and adversarial passes by the number of fixes.
@@ -218,12 +218,19 @@ routes to composition correction and a fresh checkpoint.
 - **Not carried:** the candidate-tail diff and the seam's extension report — interlock surface, consumed by the
   human before the stop.
 
-**B4. The merge method resolves as a configured preference validated against the repository ruleset.** A selection
-the ruleset disallows stops with both values named rather than being silently rewritten. **The validation belongs on
-both lanes and at both work-unit decision times**: the observed 2026-07-26 failure occurred on the errand lane, while
-host policy may also move between checkpoint and merge. D3 therefore runs in the errand lane before auto-merge, in
-B1 before the interlock, and again inside B2 immediately before the final drift read. B2 requires the revalidated
-method to equal the checkpointed method; policy movement returns `invalidated`, never a silent substitution.
+**B4. The merge method resolves as a configured preference validated against the repository's merge-method
+allowances.** A selection those allowances disallow stops with both values named rather than being silently
+rewritten. **The validation belongs on both lanes and at both work-unit decision times**: the observed 2026-07-26
+failure occurred on the errand lane, while host policy may also move between checkpoint and merge. D3 therefore runs
+in the errand lane before auto-merge, in B1 before the interlock, and again inside B2 immediately before the final
+drift read. B2 requires the revalidated method to equal the checkpointed method; policy movement returns
+`invalidated`, never a silent substitution.
+
+_Amended 2026-08-17 — host-evidence scope._ The validated surface is the repository's own merge-method allowances
+(`allow_merge_commit` / `allow_rebase_merge` / `allow_squash_merge`), which the original "ruleset" wording
+overclaimed. **Residual:** branch-level rules — `required_linear_history` foremost — are unread, so a method these
+allowances admit can still be refused at the merge attempt under a branch-scoped restriction. Closing that needs a
+branch-rules read, which this work unit does not carry.
 
 **B5. Machine-surface discipline lands as precomposed text, not as an instruction.** The checkpoint envelope carries
 its machine-computed interlock surface already composed and exception-filtered — clean signals collapsed to a line,
@@ -251,6 +258,11 @@ on them, yielding `awaiting-checks` at its deadline. The errand lane's auto-merg
 wait to the host. A deferred-CI project therefore runs this boundary unchanged, with no added agent polling and
 no new prose; the residual cost is one checks-length wait inside B2, largely absorbed when review approval is
 what starts the deferred run.
+
+_Amended 2026-08-17 — host-evidence scope._ The same shape of residual as B4's sits on the check read itself: an
+empty required-checks result cannot distinguish a repository with no required checks configured from a deferred run
+not yet created, and both reduce to `not-required`. Closing it needs the branch-rules read alongside the check list,
+which this work unit does not carry.
 
 ### C. The behind-base reconcile arm becomes an orchestration path
 
@@ -347,10 +359,11 @@ release, re-read checks, merge — plus a re-lock obligation restated across eve
   in-process tick costs nothing. The shape is a coarse agent-level loop over a fine in-process one.
 
 **D3. `arc review merge-method resolve --json`** derives the repository and configured `merge.strategy`, reads the
-live ruleset, and returns `validated / use-method` with the method plus a policy fingerprint, or `blocked / stop`
-naming the configured and allowed values. It exists because B4 needs the same read on two lanes that share no other
-surface. The work-unit checkpoint and merge call consume it, and the errand path calls it before arming auto-merge.
-One verb, three call sites, no duplicated resolution logic.
+repository's live merge-method allowances, and returns `validated / use-method` with the method plus a policy
+fingerprint, or `blocked / stop` naming the configured and allowed values. It exists because B4 needs the same read
+on two lanes that share no other surface. The work-unit checkpoint and merge call consume it, and the errand path
+calls it before arming auto-merge. One verb, three call sites, no duplicated resolution logic. The read's scope and
+its branch-rules residual are B4's amendment.
 
 ### E. `propose` attests a Candidate; `submit` schedules publication
 
@@ -697,8 +710,8 @@ stops the workflow from manufacturing the blind leave/re-enter loop.
 - **Validate the merge method inside the checkpoint verb only**, leaving the errand lane as-is. Rejected — the
   errand lane's auto-merge arm is exactly where the observed failure occurred, and it reaches no checkpoint verb,
   so the fix would miss its own motivating case. Duplicating the resolution into the errand step
-  instead was also rejected: two implementations of one config-plus-ruleset read would drift. Hence D3, one verb with
-  two callers.
+  instead was also rejected: two implementations of one config-plus-allowances read would drift. Hence D3, one verb
+  with two callers.
 - **Fold `closed-unmerged` into D1's `ambiguous` stop**, matching the errand table's residual row. Rejected — a
   single closed pull request is an unambiguous match, so reporting it as ambiguous is a verb misdescribing what it
   found, which is the defect class this work unit exists to remove. It also erases the distinction a caller needs:
@@ -931,6 +944,12 @@ requirement.
    verb arm resumable across its deadline; PR resolution returns a typed disposition covering all six classes at
    all 5 inventoried sites; and no lane discovers a disallowed merge method by attempting the merge.
    B2 also rejects host-policy movement after checkpoint.
+    - _Amended 2026-08-17 — host-evidence scope._ The original text is preserved above; it is not edited into
+      agreement with what shipped. **Reads:** _...and no lane discovers a **repository-disallowed** merge method by
+      attempting the merge._ The validation reads the repository's merge-method allowances alone (B4's amendment),
+      so a branch-scoped restriction — `required_linear_history` foremost — is still discovered at the merge
+      attempt. The criterion narrows to what the shipped read can establish; the wider claim returns with a
+      branch-rules read.
 11. **The repository lock cannot misreport approval state.** Release happens only through the verb's lifecycle
    gate inside B2; every approval-voiding exit re-locks before returning; a checks-deadline yield leaves the
    release standing with the required checks as the blocking authority; and no workflow-wide prose invariant

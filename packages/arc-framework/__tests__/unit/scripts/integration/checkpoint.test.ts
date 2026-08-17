@@ -124,6 +124,27 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it("blocks as an unsafe reconcile when the host says the merge conflicts", async () => {
+    // The analyzer half is clean and the only drifted path is regenerable; host mergeability is
+    // still the whole host signal, because a conflict report names no paths to weigh against it.
+    const deps = dependencies();
+    deps.readReconcileHost = async () => ({ state: "conflicting" });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "unsafe-reconcile",
+        payload: {
+          safety: {
+            substantivePaths: [],
+            regenerablePaths: ["ROADMAP.md"],
+            host: { state: "conflicting" },
+            safe: false,
+          },
+        },
+      });
+  });
+
   it("blocks with the unavailable drift payload", async () => {
     const deps = dependencies();
     deps.readDrift = async () => ({

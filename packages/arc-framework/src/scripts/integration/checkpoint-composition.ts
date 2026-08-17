@@ -65,17 +65,6 @@ function parseRecord(text: string, path: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function parseArray(text: string, path: string): unknown[] {
-  let value: unknown;
-  try {
-    value = JSON.parse(text) as unknown;
-  } catch (error) {
-    throw new Error(`${path}: malformed JSON`, { cause: error });
-  }
-  if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
-  return value;
-}
-
 async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string; head: string }> {
   const branch = await getCurrentBranch(exec);
   if (branch === null) throw new Error("The integration checkpoint requires an attached branch.");
@@ -112,16 +101,7 @@ async function readHostFact(exec: GitExec, cwd: string): Promise<ReconcileHostFa
         detail: "The host has not resolved pull-request mergeability.",
       });
     }
-    const files = parseArray(
-      (await hostedGhRunner.run(["api", `repos/${repository}/pulls/${pullRequest}/files`, "--paginate"])).stdout,
-      "pull-request-files",
-    );
-    const conflictingPaths = files.flatMap((entry) => {
-      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return [];
-      const filename = (entry as Record<string, unknown>).filename;
-      return typeof filename === "string" && filename !== "" ? [filename] : [];
-    });
-    return ReconcileHostFactSchema.parse({ state: "conflicting", conflictingPaths });
+    return ReconcileHostFactSchema.parse({ state: "conflicting" });
   } catch (error) {
     return ReconcileHostFactSchema.parse({
       state: "unavailable",

@@ -63,7 +63,7 @@ export type IntegrationLifecycleSummary = z.infer<typeof IntegrationLifecycleSum
 
 export const ReconcileHostFactSchema = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("mergeable") }),
-  z.strictObject({ state: z.literal("conflicting"), conflictingPaths: z.array(z.string().min(1)) }),
+  z.strictObject({ state: z.literal("conflicting") }),
   z.strictObject({ state: z.literal("unavailable"), detail: z.string().min(1) }),
 ]);
 export type ReconcileHostFact = z.infer<typeof ReconcileHostFactSchema>;
@@ -403,9 +403,9 @@ function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): Recon
     && integrationEvidenceComplete
     && overlapAvailable
     && substantivePaths.length === 0;
-  const hostSafe = host.state === "mergeable"
-    || (host.state === "conflicting"
-      && host.conflictingPaths.every((path) => regenerablePaths.includes(path)));
+  // Host mergeability is the whole host signal: the host reports that the merge conflicts, never
+  // which paths conflict, so nothing here can be measured against the regenerable set.
+  const hostSafe = host.state === "mergeable";
   return ReconcileSafetyFactsSchema.parse({
     baseOid: drift.baseOid,
     integrationEvidenceComplete,

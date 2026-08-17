@@ -1515,24 +1515,33 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
     - Held to the named surface: the flags stay, `submit`'s authorization and transition semantics are untouched,
       and the three bounded-wait timeout policies remain separate (captured for follow-up).
 
-### `[ ]` **11.9 Host-evidence honesty: merge-method scope stated exactly; no fabricated conflict paths**
+### `[x]` **11.9 Host-evidence honesty: merge-method scope stated exactly; no fabricated conflict paths**
 
 - _Goal:_ Surfaces describe what they read: the merge-method contract names repository-level allowances (not
   "the ruleset"), and no field labels the PR's changed files as conflicts.
 
-- _Approach:_ (a) Amend spec § D3/§ B4 (and the Non-Goals sentence) to "repository merge-method allowances",
-  recording the residual explicitly: branch-level rules (`required_linear_history` foremost) are unread, so a
-  branch-scoped restriction still surfaces only at the merge attempt; annotate Success Criterion 10
-  accordingly (forward amendment — original text retained). Record the same-shape § B8 residual: an empty
-  required-checks read cannot distinguish an unconfigured host from a deferred run not yet created. Both
-  residuals' code fix is the captured host-evidence accuracy bundle, not this task. (b) In
-  `checkpoint-composition.ts`, stop populating `conflictingPaths` from the PR files listing; drop the field and
-  the `regenerablePaths.every` branch with it (effectively dead — it can pass only for an all-regenerable
-  change set), keeping the fail-closed direction (`hostSafe` = host-mergeable only) and reporting host
-  mergeability without fabricated paths.
+- _Outcome:_ § B4, § D3, and the Non-Goals sentence now say "the repository's merge-method allowances", matching
+  the port's actual read of `allow_merge_commit` / `allow_rebase_merge` / `allow_squash_merge`; § B4 and § B8 each
+  carry an amendment recording their residual, and Success Criterion 10 narrows by forward amendment with its
+  original retained. `conflictingPaths` is gone from `ReconcileHostFactSchema` and from the host fact
+  `checkpoint-composition.ts` builds — the PR's changed-files listing is no longer read at all — so `hostSafe`
+  reduces to host mergeability and the fail-closed direction is what remains.
 
-    - Not in scope: adding a rulesets/branch-protection read; `mergeStateStatus` adoption; any change to the
-      analyzer half of `reconcileSafety`.
+    - The dropped `regenerablePaths.every` branch could only ever have passed for an all-regenerable change set,
+      and no test reached it. Its replacement is pinned instead: a `conflicting` host fact now blocks as
+      `unsafe-reconcile` even with a clean analyzer half and a wholly regenerable overlap.
+
+    - Both residuals are the same shape — a read narrower than the claim it backed. Branch-level rules
+      (`required_linear_history` foremost) are unread, so a branch-scoped restriction still surfaces only at the
+      merge attempt; an empty required-checks result cannot separate an unconfigured repository from a deferred
+      run not yet created. Their code fix is the captured host-evidence accuracy bundle, not this work unit.
+
+    - Folded in as the same concern: the Alternatives entry's "config-plus-ruleset read" carried the identical
+      overclaim one word wide. The rejected alternative that names the ruleset as a hypothetical source of truth
+      keeps its wording — it describes an option, not the shipped read.
+
+    - Held to the named surface: no rulesets or branch-protection read added, no `mergeStateStatus` adoption, and
+      the analyzer half of `reconcileSafety` is untouched.
 
 ### `[ ]` **11.10 Rename the spine verbs: `propose` → `attest`, `submit` → `publish`**
 
