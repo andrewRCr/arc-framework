@@ -874,6 +874,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     });
     const boundary = projectPublicationBoundary({
       workUnit: "foo",
+      branch: "feat/foo",
       candidateId,
       reservation,
       changeRequest: null,

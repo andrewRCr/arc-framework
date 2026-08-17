@@ -1200,20 +1200,14 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Outcome:_ The checkpoint decision now names either the local attestation carrier or the discharged hosted
   source. Discharge detail is reduced to that provenance alone, so the line carries no review-record summary.
 
-### `[ ]` **9.8 Keep the typed publication pointer truthful**
+### `[x]` **9.8 Keep the typed publication pointer truthful**
 
 - _Goal:_ No post-submission surface emits a resume command for a transition that already fired, and the
   next-action vocabulary carries no dead members.
 
-    - The `unchanged` submit envelope and the stored-boundary projections stop pointing back at `arc submit`;
-      the pointer routes the publication resume the workflow row actually executes (E9 as amended bounds which
-      surfaces reduce evidence).
-    - Guard: the defect is what the stored pointer says, not when it is recomputed — add no live host reads to
-      `arc status` or session initialization (the passive-probe posture E9's amendment records), and no
-      boundary-refresh machinery.
-    - Prune the three structurally-unreachable next-action kinds; wire or prune `continue-publication` and
-      `continue-hosted-review` consistently with the pointer fix — prune unless the pointer fix itself needs the
-      kind.
+- _Outcome:_ Stored and unchanged submission boundaries now resume at the workflow's idempotent branch push.
+  Passive status/session projections remain store-only; review continuation uses one live pre-publication action,
+  and the four superseded lane/hosted action kinds are no longer schema members.
 
 ### `[ ]` **9.9 Close the minor-findings batch**
 

@@ -13,13 +13,10 @@ const CandidateRevisionSchema = z.string().regex(/^[a-f0-9]{40}$/u);
 export const IntegrationBoundaryNextActionSchema = z.strictObject({
   kind: z.enum([
     "run-self-review",
-    "continue-frontline-review",
-    "continue-standard-review",
-    "respond-to-findings",
+    "continue-pre-publication-review",
     "run-convergence-verification",
     "submit-candidate",
     "continue-publication",
-    "continue-hosted-review",
   ]),
   command: z.string().trim().min(1),
   interactionText: z.string().trim().min(1),
@@ -77,6 +74,7 @@ export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSc
 
 const PublicationBoundaryInputSchema = z.strictObject({
   workUnit: SlugSchema,
+  branch: z.string().trim().min(1),
   candidateId: CandidateIdSchema,
   candidateRevision: CandidateRevisionSchema.nullable().default(null),
   reservation: StandardReviewReservationV1Schema.nullable(),
@@ -131,13 +129,13 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     candidateRevision: value.candidateRevision,
     locus: hosted ? "hosted-review-pending" : "publication-pending",
     nextAction: {
-      kind: hosted ? "continue-hosted-review" : "continue-publication",
+      kind: hosted ? "continue-pre-publication-review" : "continue-publication",
       command: hosted
         ? `arc review pre-publication ${value.workUnit} --json`
-        : `arc submit ${value.workUnit} --json`,
+        : `git push -u origin ${value.branch}`,
       interactionText: hosted
         ? "Continue the reserved hosted standard review."
-        : "Continue publication from the typed submission resume point.",
+        : "Resume publication at the idempotent push, then resolve or open the change request.",
     },
     policy: null,
     reservation: value.reservation,

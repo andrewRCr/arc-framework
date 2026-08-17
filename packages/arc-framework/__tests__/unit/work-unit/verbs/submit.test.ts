@@ -187,7 +187,7 @@ describe("authorizeSubmission", () => {
         candidateRevision: CANDIDATE_REVISION,
         locus: "candidate-review-pending",
         nextAction: {
-          kind: "continue-standard-review",
+          kind: "continue-pre-publication-review",
           command: "arc review pre-publication foo --json",
           interactionText: "Continue the open standard-review obligation.",
         },
@@ -524,6 +524,13 @@ describe("runSubmit — the set-phase-only move", () => {
     expect(result).toMatchObject({
       status: "submitted",
       reconcile: { status: "applied", stagedPaths: [".arc/active/meta-foo.md"] },
+      boundary: {
+        locus: "publication-pending",
+        nextAction: {
+          kind: "continue-publication",
+          command: "git push -u origin feat/foo",
+        },
+      },
     });
     expect(calls).toContain("setPhase:Integrating");
   });
@@ -538,8 +545,8 @@ describe("runSubmit — the illegal-edge lookup", () => {
       locus: "publication-pending" as const,
       nextAction: {
         kind: "continue-publication" as const,
-        command: "arc submit foo --json",
-        interactionText: "Continue publication from the typed submission resume point.",
+        command: "git push -u origin feat/foo",
+        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
       },
     };
 

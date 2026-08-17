@@ -36,8 +36,8 @@ describe("submission boundary store", () => {
       locus: "publication-pending",
       nextAction: {
         kind: "continue-publication",
-        command: "arc submit example --json",
-        interactionText: "Continue publication from the typed submission resume point.",
+        command: "git push -u origin feat/example",
+        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
       },
       policy: null,
       reservation: null,

@@ -130,6 +130,7 @@ describe("checkout subject active-extension seam", () => {
     });
     const boundary = projectPublicationBoundary({
       workUnit: "demo",
+      branch: "feat/demo",
       candidateId,
       reservation,
       changeRequest: null,

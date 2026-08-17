@@ -56,7 +56,7 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
 export type PrePublicationReviewRequest = z.infer<typeof PrePublicationReviewRequestSchema>;
 
 const PrePublicationNextActionSchema = IntegrationBoundaryNextActionSchema.refine(
-  ({ kind }) => kind !== "continue-publication" && kind !== "continue-hosted-review",
+  ({ kind }) => kind !== "continue-publication",
   "pre-publication action must remain before submission",
 );
 
@@ -213,9 +213,7 @@ function policyEnvelope(
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
     nextAction: action(
       request.workUnit,
-      findings ? "respond-to-findings" : lane === "frontline"
-        ? "continue-frontline-review"
-        : "continue-standard-review",
+      "continue-pre-publication-review",
       findings
         ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
         : `Continue the ${lane} review from the typed policy result '${policy.state}'.`,

@@ -925,8 +925,8 @@ describe("handleSubmit", () => {
       locus: "publication-pending",
       nextAction: {
         kind: "continue-publication",
-        command: "arc submit foo --json",
-        interactionText: "Continue publication from the typed submission resume point.",
+        command: "git push -u origin feat/foo",
+        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
       },
     };
     mockRunSubmit.mockResolvedValueOnce({

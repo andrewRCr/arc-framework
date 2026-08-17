@@ -169,6 +169,7 @@ export async function runSubmit(
     boundary,
     allowAdvisories,
   } = params;
+  let branch: string | null;
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
     return {
@@ -205,10 +206,18 @@ export async function runSubmit(
         remedy: CANDIDATE_REMEDY(name),
       };
     }
+    branch = meta.branch;
   } catch {
     return {
       status: "rejected",
       reason: `\`${name}\` is not an active WU — nothing to submit.`,
+      remedy: NOT_ACTIVE_REMEDY(name),
+    };
+  }
+  if (branch === null) {
+    return {
+      status: "rejected",
+      reason: `Cannot submit \`${name}\`: the active work unit does not name its branch.`,
       remedy: NOT_ACTIVE_REMEDY(name),
     };
   }
@@ -275,6 +284,7 @@ export async function runSubmit(
   }
   const publicationBoundary = projectPublicationBoundary({
     workUnit: name,
+    branch,
     candidateId,
     candidateRevision,
     reservation: authorization.reservation,

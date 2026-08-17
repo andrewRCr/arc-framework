@@ -114,8 +114,9 @@ export async function projectCheckoutSubjectMeta(options: {
       && stored.workUnit === options.subjectKey
       && (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending")
       ? stored
-      : projectPublicationBoundary({
+      : record.branch === null ? null : projectPublicationBoundary({
           workUnit: options.subjectKey,
+          branch: record.branch,
           candidateId: record.candidateId,
           reservation: null,
           changeRequest: null,

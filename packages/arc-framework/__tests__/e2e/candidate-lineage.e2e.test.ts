@@ -660,6 +660,7 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
   expect(candidateId).toBeDefined();
   await writeSubmissionBoundary(root, projectPublicationBoundary({
     workUnit: "example",
+    branch: "feat/example",
     candidateId,
     reservation: createStandardReviewReservation({
       candidateId: candidateId ?? "",

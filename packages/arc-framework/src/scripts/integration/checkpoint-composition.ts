@@ -265,6 +265,7 @@ export function createIntegrationCheckpointDependencies(input: {
       // was derived before the change request existed and no writer clears.
       const publicationLocus = projectPublicationBoundary({
         workUnit,
+        branch: changeRequest.targetRef.headRef,
         candidateId: value.record.attestation.candidateId,
         candidateRevision: currentness.recognizedRevision,
         reservation: boundary.reservation,

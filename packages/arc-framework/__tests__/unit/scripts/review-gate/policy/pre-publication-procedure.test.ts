@@ -6,6 +6,7 @@ import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
+  projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -39,13 +40,14 @@ describe("integration boundary locus", () => {
     expect(projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
       reservation: null,
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     })).toMatchObject({
       locus: "publication-pending",
       nextAction: {
         kind: "continue-publication",
-        command: "arc submit example --json",
+        command: "git push -u origin feat/example",
       },
     });
   });
@@ -54,6 +56,7 @@ describe("integration boundary locus", () => {
     expect(projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
       reservation: reservation(),
       changeRequest: null,
     })).toMatchObject({
@@ -66,15 +69,35 @@ describe("integration boundary locus", () => {
     expect(projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
       reservation: reservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     })).toMatchObject({
       locus: "hosted-review-pending",
       nextAction: {
-        kind: "continue-hosted-review",
+        kind: "continue-pre-publication-review",
         command: "arc review pre-publication example --json",
       },
     });
+  });
+
+  it.each([
+    "continue-frontline-review",
+    "continue-standard-review",
+    "respond-to-findings",
+    "continue-hosted-review",
+  ])("rejects removed next-action kind %s", (kind) => {
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...projectCandidateReviewBoundary({
+        workUnit: "example",
+        candidateId: `sha256:${"c".repeat(64)}`,
+      }),
+      nextAction: {
+        kind,
+        command: "arc review pre-publication example --json",
+        interactionText: "Continue review.",
+      },
+    }).success).toBe(false);
   });
 
   it("rejects a deferred reservation outside candidate submit readiness", () => {
@@ -215,7 +238,7 @@ describe("projectPrePublicationReview", () => {
         nextAction: "hosted-request",
         payload: { sourceId: "codex-pr" },
       },
-      nextAction: { kind: "continue-standard-review" },
+      nextAction: { kind: "continue-pre-publication-review" },
     });
   });
 
@@ -254,7 +277,7 @@ describe("projectPrePublicationReview", () => {
     expect(result).toMatchObject({
       locus: "candidate-fix-pending",
       policy: { state: "findings", payload: { lane: "frontline", consumedPass: true } },
-      nextAction: { kind: "respond-to-findings" },
+      nextAction: { kind: "continue-pre-publication-review" },
     });
   });
 
@@ -315,7 +338,7 @@ describe("projectPrePublicationReview", () => {
     expect(result).toMatchObject({
       locus: "candidate-review-pending",
       policy: { state: "stale-target", nextAction: "select-scope" },
-      nextAction: { kind: "continue-frontline-review" },
+      nextAction: { kind: "continue-pre-publication-review" },
     });
   });
 

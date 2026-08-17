@@ -336,10 +336,12 @@ async function projectCandidateIntegrationBoundary(
       && (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending")) {
       return { ...candidate, integrationBoundary: stored };
     }
+    if (candidate.branch === null) return candidate;
     return {
       ...candidate,
       integrationBoundary: projectPublicationBoundary({
         workUnit: slug,
+        branch: candidate.branch,
         candidateId: candidate.candidateId,
         reservation: null,
         changeRequest: null,
