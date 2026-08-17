@@ -11,7 +11,7 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:4c674cb3a14e67f0a1f64597a3372797aaddc54babf88abc53f4ffdadefa591d`
+- **Candidate:** `sha256:b812be602c55d84f025f30d74b65eb8d83baa47d0537448a68b42975ddb47129`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 11.12 — convergence verification and re-attestation, closing Phase 11 and the task list
