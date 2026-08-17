@@ -584,6 +584,15 @@ than folded into 9.11 as hardening. No spec amendment is owed for any of the thr
 boundary must guarantee, never which identity implements the binding, and each fix moves the delivered code toward
 the recorded E1/E2/E3 doctrine rather than away from it.
 
+**What the three share.** Each was a gate binding a **revision** where its own invariant is about **content**: the
+settlement action demanded a changed revision from a set that changed none, submission demanded the boundary's
+revision equal the current head, and convergence demanded an attestation's revision equal the response's. Every
+fix moved the same direction — key the check to the reviewable subject, keep the revision as provenance — because
+the spine advances the head for its own ceremony writes, so any revision equality it does not own decays. Three
+instances is the signal worth carrying into a fifth entry: prefer suspecting this duality over deriving each
+locus fresh, and if a fourth instance appears, the proportionate response is a design pass over the two notions of
+"same work" rather than a fourth point fix.
+
 ## Resume Procedure
 
 _Superseded 2026-08-15 — the planning-stage procedure below is complete and retained for provenance. The live
