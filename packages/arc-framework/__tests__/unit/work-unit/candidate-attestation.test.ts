@@ -66,6 +66,23 @@ describe("Candidate attestation", () => {
     }).success).toBe(true);
   });
 
+  it("binds the superseded Candidate into the identity of the root that replaces it", () => {
+    const superseded = attestation();
+    const replacement = createCandidateAttestation({
+      workUnit: "example",
+      subject: snapshot(),
+      baseRevision: SHA_A,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-12T12:00:00.000Z",
+      verificationEvidenceRef: "verification://example/initial",
+      supersedes: superseded.candidateId,
+    });
+
+    expect(replacement.supersedes).toBe(superseded.candidateId);
+    expect(replacement.candidateId).not.toBe(superseded.candidateId);
+    expect(superseded.supersedes).toBeUndefined();
+  });
+
   it("round-trips the managed record canonically and rejects unknown fields", () => {
     const record = {
       schemaVersion: 1 as const,

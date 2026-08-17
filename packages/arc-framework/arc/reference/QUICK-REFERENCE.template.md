@@ -252,7 +252,8 @@ arc park [slug] --reason <text> [--land <oid>]
 arc resume [slug] [--here]
 
 # Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
-arc propose <name> --json
+# --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
+arc propose <name> --json [--new-root]
 
 # Schedule publication: Active → Integrating, not the merge (integrate-work-unit.md)
 arc submit [slug] --last-completed <work> --action <next action>

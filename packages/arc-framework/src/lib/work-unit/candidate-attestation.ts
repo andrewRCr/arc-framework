@@ -38,6 +38,8 @@ export const CandidateAttestationV1Schema = z.strictObject({
   attestedBy: z.string().trim().min(1),
   attestedAt: z.iso.datetime(),
   verificationEvidenceRef: z.string().trim().min(1),
+  /** The Candidate this root replaces, present only on a re-rooted lineage. */
+  supersedes: CandidateCanonicalDigestSchema.optional(),
 });
 export type CandidateAttestationV1 = z.infer<typeof CandidateAttestationV1Schema>;
 
@@ -156,12 +158,15 @@ export interface CreateCandidateAttestationInput {
   attestedBy: string;
   attestedAt: string;
   verificationEvidenceRef: string;
+  /** The Candidate this root replaces, supplied only when re-rooting a blocked lineage. */
+  supersedes?: string;
 }
 
 /**
  * Create one deterministic Candidate lineage root from full-verification evidence.
  *
- * @param input - Work-unit identity, normalized subject, revision, actor, time, and evidence reference.
+ * @param input - Work-unit identity, normalized subject, revision, actor, time, evidence reference, and
+ *   any superseded Candidate this root replaces.
  * @returns The strict Candidate attestation.
  */
 export function createCandidateAttestation(input: CreateCandidateAttestationInput): CandidateAttestationV1 {
@@ -175,6 +180,10 @@ export function createCandidateAttestation(input: CreateCandidateAttestationInpu
     attestedBy: input.attestedBy,
     attestedAt: input.attestedAt,
     verificationEvidenceRef: input.verificationEvidenceRef,
+    // Omitted rather than undefined: the digest input is canonical plain data, which has no undefined.
+    ...(input.supersedes === undefined
+      ? {}
+      : { supersedes: CandidateCanonicalDigestSchema.parse(input.supersedes) }),
   };
   return CandidateAttestationV1Schema.parse({
     ...fields,

@@ -48,3 +48,14 @@ export function checkpointResumeArgv(workUnit: string): readonly string[] {
 export function proposeArgv(workUnit: string): readonly string[] {
   return ["arc", "propose", workUnit];
 }
+
+/**
+ * The deliberate re-rooting invocation.
+ *
+ * The escape from a delta no approved response explains: a bare re-attestation reads the same
+ * unexplained delta and refuses again, so the corrective command has to be the one that establishes a
+ * new lineage root over freshly verified content.
+ */
+export function proposeNewRootArgv(workUnit: string): readonly string[] {
+  return ["arc", "propose", workUnit, "--new-root"];
+}

@@ -554,6 +554,10 @@ program
   .command("propose <name>")
   .description("Attest a verified work-unit Candidate while leaving lifecycle State unchanged")
   .option("--json", "Emit the typed pre-publication locus as JSON")
+  .option(
+    "--new-root",
+    "Root a new lineage over the current fully verified subject, superseding a blocked Candidate",
+  )
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, name: string, opts: ProposeOptions) => handlePropose(name, opts, context),

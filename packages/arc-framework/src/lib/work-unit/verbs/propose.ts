@@ -27,7 +27,7 @@ export type CandidatePrePublicationLocus = z.infer<typeof CandidatePrePublicatio
 export const ProposeResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("attested"),
-    operation: z.enum(["root", "convergence"]),
+    operation: z.enum(["root", "re-root", "convergence"]),
     recordPath: z.string().trim().min(1),
     metaPath: z.string().trim().min(1),
     locus: CandidatePrePublicationLocusSchema,
@@ -63,10 +63,19 @@ export interface ProposeContext {
   }): Promise<{ recordPath: string; metaPath: string }>;
 }
 
-/** Attest the current verified work-unit subject or its recognized converged lineage head. */
+/**
+ * Attest the current verified work-unit subject, its recognized converged lineage head, or — on
+ * deliberate `newRoot` invocation over a blocked lineage — a new root that supersedes it.
+ *
+ * `newRoot` is the escape from an unexplained delta, which no lineage advance can absorb: the operator
+ * re-runs full verification and asks for a fresh root. It never repairs the blocked record, and it is
+ * opt-in so the default response to an unexplained delta stays the blocked envelope carrying the exact
+ * delta. A lineage that is not blocked ignores it and takes its ordinary arm, which is what keeps a
+ * repeated same-target invocation a no-op.
+ */
 export async function runPropose(
   context: ProposeContext,
-  params: { name: string },
+  params: { name: string; newRoot?: boolean },
 ): Promise<ProposeResult> {
   const name = SlugSchema.parse(params.name);
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
@@ -75,12 +84,15 @@ export async function runPropose(
     const record = CandidateManagedRecordV1Schema.parse(existing);
     const currentness = projectCandidateCurrentness({ record, current });
     if (currentness.status === "blocked") {
-      return {
-        status: "blocked",
-        candidateId: currentness.candidateId,
-        delta: currentness.delta,
-        nextAction: currentness.nextAction,
-      };
+      if (params.newRoot !== true) {
+        return {
+          status: "blocked",
+          candidateId: currentness.candidateId,
+          delta: currentness.delta,
+          nextAction: currentness.nextAction,
+        };
+      }
+      return establishRoot(context, name, current, currentness.candidateId);
     }
     if (currentness.convergenceVerification === "satisfied") {
       return {
@@ -113,6 +125,16 @@ export async function runPropose(
     return { status: "attested", operation: "convergence", ...published, locus };
   }
 
+  return establishRoot(context, name, current, undefined);
+}
+
+/** Attest one fresh lineage root over the current target, recording any Candidate it supersedes. */
+async function establishRoot(
+  context: ProposeContext,
+  name: string,
+  current: CandidateLineageTarget,
+  supersedes: string | undefined,
+): Promise<ProposeResult> {
   const attestation = createCandidateAttestation({
     workUnit: name,
     subject: current.subject,
@@ -120,6 +142,7 @@ export async function runPropose(
     attestedBy: context.actor,
     attestedAt: context.now(),
     verificationEvidenceRef: context.verificationEvidenceRef(name),
+    ...(supersedes === undefined ? {} : { supersedes }),
   });
   const record = CandidateManagedRecordV1Schema.parse({
     schemaVersion: 1,
@@ -136,7 +159,12 @@ export async function runPropose(
     candidateId: attestation.candidateId,
     nextAction: "Candidate review pending — run pre-publication review",
   });
-  return { status: "attested", operation: "root", ...published, locus };
+  return {
+    status: "attested",
+    operation: supersedes === undefined ? "root" : "re-root",
+    ...published,
+    locus,
+  };
 }
 
 function locusFor(

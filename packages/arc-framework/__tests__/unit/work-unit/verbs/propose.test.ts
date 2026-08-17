@@ -150,4 +150,52 @@ describe("runPropose", () => {
     });
     expect(fixture.state().publicationCount).toBe(1);
   });
+
+  it("establishes a new lineage root over a blocked Candidate on deliberate invocation", async () => {
+    const fixture = harness();
+    await runPropose(fixture.context, { name: "example" });
+    const superseded = fixture.state().storedRecord!.attestation.candidateId;
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+
+    const rerooted = await runPropose(fixture.context, { name: "example", newRoot: true });
+
+    expect(rerooted).toMatchObject({
+      status: "attested",
+      operation: "re-root",
+      locus: { kind: "candidate-review-pending", workUnit: "example" },
+    });
+    expect(fixture.state()).toMatchObject({
+      publicationCount: 2,
+      projectedNextAction: "Candidate review pending — run pre-publication review",
+      storedRecord: {
+        attestation: { supersedes: superseded },
+        responses: [],
+        lineageAttestations: [],
+      },
+    });
+    expect(fixture.state().storedRecord!.attestation.candidateId).not.toBe(superseded);
+    expect(fixture.state().projectedCandidate).toBe(fixture.state().storedRecord!.attestation.candidateId);
+  });
+
+  it("is a no-op when the re-rooted subject is re-proposed at the same target", async () => {
+    const fixture = harness();
+    await runPropose(fixture.context, { name: "example" });
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+    const rerooted = await runPropose(fixture.context, { name: "example", newRoot: true });
+
+    const repeated = await runPropose(fixture.context, { name: "example", newRoot: true });
+
+    expect(rerooted.status).toBe("attested");
+    expect(repeated).toMatchObject({ status: "unchanged", locus: { kind: "candidate-review-pending" } });
+    expect(fixture.state().publicationCount).toBe(2);
+  });
+
+  it("establishes an ordinary root when no Candidate exists to supersede", async () => {
+    const { context, state } = harness();
+
+    const result = await runPropose(context, { name: "example", newRoot: true });
+
+    expect(result).toMatchObject({ status: "attested", operation: "root" });
+    expect(state().storedRecord!.attestation.supersedes).toBeUndefined();
+  });
 });

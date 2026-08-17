@@ -1312,24 +1312,19 @@ unrecoverable (the audit's second blocker). Task ordering after 11.2 is flexible
 11.11 (amendments reference the final verb names) and 11.12 last. Each task carries explicit scope bounds; work
 beyond a task's named surface is out of scope for this phase regardless of adjacency.
 
-### `[ ]` **11.1 `arc propose` establishes a new lineage root over a blocked Candidate**
+### `[x]` **11.1 `arc propose` establishes a new lineage root over a blocked Candidate**
 
 - _Goal:_ A blocked Candidate has the escape § E2 records — full verification followed by re-attestation
   establishes a **new** lineage root that records the superseded `candidateId` — so no Candidate state is
   terminal. The existing record is never repaired, refreshed, or edited in place.
 
-- _Approach:_ Add an explicit re-root arm to `runPropose` (`verbs/propose.ts`), reached only by deliberate
-  invocation (e.g. a `--new-root` flag) so the default blocked envelope — with its exact delta and
-  run-full-verification remedy — is preserved as the first response to an unexplained delta. The re-root arm
-  creates a fresh root attestation over the current target (same preconditions as the initial root) and records
-  the superseded `candidateId` in the new record. Repeated same-target invocation stays a no-op.
-
-    - `checkpoint.ts`'s `candidate-unexplained-delta` remedy text should name the two-step path (full
-      verification, then the explicit re-root invocation), not a bare `arc propose` that would return `blocked`.
-
-    - Not in scope: any standalone refresh/repair command (Success Criterion 5 forbids one — re-rooting is
-      `propose`'s chartered act, not a repair); changes to `projectCandidateCurrentness`; changes to the blocked
-      envelope's shape.
+- _Outcome:_ `arc propose <name> --new-root` reaches a re-root arm in `runPropose`; the root-creation path is
+  now one `establishRoot` helper both arms share, returning `operation: "re-root"` when it supersedes. The
+  superseded `candidateId` lands in the new attestation as `supersedes`, digest-covered rather than free-standing
+  metadata. The arm fires only on a blocked lineage, so a not-blocked target keeps its ordinary arm and a
+  repeated invocation stays a no-op. `checkpoint.ts`'s `candidate-unexplained-delta` remedy now offers
+  `proposeNewRootArgv` and names both routes — the approved response, or full verification plus the re-root —
+  instead of a bare re-attempt that would block again.
 
 ### `[ ]` **11.2 Candidate subject classification survives lifecycle relocation**
 

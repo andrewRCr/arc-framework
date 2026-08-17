@@ -288,6 +288,44 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
+  it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {
+    const root = await fixture();
+    const proposed = await runArc(["propose", "example", "--json"], root);
+    expect(proposed.exitCode, proposed.stderr || proposed.stdout).toBe(0);
+    const superseded = (JSON.parse(proposed.stdout) as { locus: { candidateId: string } }).locus.candidateId;
+    await git(root, ["commit", "-m", "verification"]);
+
+    await writeFile(join(root, "reviewed.txt"), "unexplained implementation\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "unexplained implementation"]);
+
+    // The default re-attestation refuses and the checkpoint refuses with it, so the remedy has to name
+    // the escape rather than the invocation that just failed.
+    const refused = await runArc(["propose", "example", "--json"], root);
+    expect(refused.exitCode).toBe(1);
+    expect(JSON.parse(refused.stdout)).toMatchObject({ status: "blocked", candidateId: superseded });
+    await expect(checkpointOver(root)).resolves.toMatchObject({
+      reason: "candidate-unexplained-delta",
+      remedy: { argv: ["arc", "propose", "example", "--new-root"] },
+    });
+
+    const rerooted = await runArc(["propose", "example", "--new-root", "--json"], root);
+    expect(rerooted.exitCode, rerooted.stderr || rerooted.stdout).toBe(0);
+    expect(JSON.parse(rerooted.stdout)).toMatchObject({
+      status: "attested",
+      operation: "re-root",
+      locus: { kind: "candidate-review-pending" },
+    });
+    await git(root, ["commit", "-m", "re-attest over full verification"]);
+
+    const record = await readCandidateRecord(root, "example");
+    expect(record?.attestation.supersedes).toBe(superseded);
+    expect(record?.attestation.candidateId).not.toBe(superseded);
+    await expect(checkpointOver(root)).resolves.not.toMatchObject({
+      reason: "candidate-unexplained-delta",
+    });
+  });
+
   it("advances the lineage, blocks the checkpoint, and clears through propose", async () => {
     const root = await fixture();
 

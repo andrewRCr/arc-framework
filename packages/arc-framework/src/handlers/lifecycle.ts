@@ -530,6 +530,7 @@ export const FinalizeCommandInputSchema = z.object({
 export const ProposeCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
+  newRoot: z.boolean().optional(),
 }).strict();
 export const RepointDesignCommandInputSchema = z.object({
   event: z.enum(["draft-created", "spec-finalized"]),
@@ -645,7 +646,7 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "propose",
     schema: ProposeCommandInputSchema,
-    schemaFields: { "operand.name": "name", "option.json": "json" },
+    schemaFields: { "operand.name": "name", "option.json": "json", "option.new-root": "newRoot" },
   },
   {
     commandPath: "repoint-design",
@@ -2327,6 +2328,7 @@ export async function handleFinalizeStage(
 
 export interface ProposeOptions {
   json?: boolean;
+  newRoot?: boolean;
 }
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
@@ -2338,7 +2340,7 @@ export async function handlePropose(
   if (opts.json !== true) p.intro("arc propose");
   const input = parseLifecycleCommand(
     ProposeCommandInputSchema,
-    { name: name?.trim(), json: opts.json },
+    { name: name?.trim(), json: opts.json, newRoot: opts.newRoot },
     ["propose"],
     opts.json === true,
   );
@@ -2403,7 +2405,7 @@ export async function handlePropose(
       await base.io.exec("git", ["add", "--", recordPath, metaPath], { cwd: base.cwd });
       return { recordPath, metaPath };
     },
-  }, { name: input.name });
+  }, { name: input.name, newRoot: input.newRoot === true });
 
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(ProposeResultSchema.parse(result))}\n`);

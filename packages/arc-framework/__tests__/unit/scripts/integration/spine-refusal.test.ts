@@ -70,6 +70,13 @@ describe("spine refusal remedies", () => {
     expect(remedy.text).toContain(remedy.invariant);
   });
 
+  it("routes an unexplained delta to the two-step escape rather than a re-attempt that blocks again", () => {
+    const remedy = checkpointRemedy("candidate-unexplained-delta", "example");
+
+    expect(remedy.argv).toEqual(["arc", "propose", "example", "--new-root"]);
+    expect(remedy.text).toMatch(/full verification/iu);
+  });
+
   it("interpolates the refused work unit into slug-bearing commands", () => {
     expect(checkpointRemedy("candidate-convergence-pending", "example").argv)
       .toEqual(["arc", "propose", "example"]);

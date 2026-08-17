@@ -18,6 +18,7 @@ import {
   SpineRemedySchema,
   checkpointResumeArgv,
   proposeArgv,
+  proposeNewRootArgv,
   spineRemedy,
   type SpineRemedy,
 } from "./spine-refusal.js";
@@ -255,8 +256,8 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
   ),
   "candidate-unexplained-delta": (workUnit) => spineRemedy(
     "A Candidate lineage advances only on approved review responses.",
-    "Explain the reported delta through an approved response, then re-attest",
-    proposeArgv(workUnit),
+    "Explain the reported delta through an approved response, or run full verification and root a new lineage over it",
+    proposeNewRootArgv(workUnit),
   ),
   "candidate-convergence-pending": (workUnit) => spineRemedy(
     "An implementation-changing lineage converges before it is checkpointed.",
