@@ -61,12 +61,14 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
+  currentWorkflowWrites: string[];
   withdrawInputs: ("close" | "draft" | undefined)[];
   softWrites: Record<string, string>[];
 }
 
 function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
+  const currentWorkflowWrites: string[] = [];
   const withdrawInputs: Harness["withdrawInputs"] = [];
   const softWrites: Record<string, string>[] = [];
 
@@ -104,8 +106,9 @@ function buildCtx(metas: MetaSpec[]): Harness {
     writeBranchField: async () => {
       calls.push("write:branch");
     },
-    writeCurrentWorkflowField: async () => {
+    writeCurrentWorkflowField: async (_path, workflow) => {
       calls.push("write:current-workflow");
+      currentWorkflowWrites.push(workflow);
     },
     writeDesignField: async () => {
       calls.push("write:design");
@@ -116,7 +119,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
     sideEffects,
   };
 
-  return { ctx, calls, withdrawInputs, softWrites };
+  return { ctx, calls, currentWorkflowWrites, withdrawInputs, softWrites };
 }
 
 const INTEGRATING: MetaSpec = { slug: "foo", state: "Integrating", branch: "feat/foo" };
@@ -126,7 +129,7 @@ const BASE: ReopenParams = { name: "foo", prMerged: false };
 
 describe("runReopen — the set-phase-only move", () => {
   it("flips Integrating back to Active with no location move and no branch rotation", async () => {
-    const { ctx, calls } = buildCtx([INTEGRATING]);
+    const { ctx, calls, currentWorkflowWrites } = buildCtx([INTEGRATING]);
 
     const result = await runReopen(ctx, BASE);
 
@@ -139,6 +142,7 @@ describe("runReopen — the set-phase-only move", () => {
     }
     expect(result.metaPath).toBe(".arc/active/meta-foo.md");
     expect(calls).toContain("setPhase:Active");
+    expect(currentWorkflowWrites).toEqual(["prepare-work-unit"]);
     // No location move and no branch rotation — the working branch already carries its prefix.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
   });

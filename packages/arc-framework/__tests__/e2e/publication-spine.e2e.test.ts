@@ -144,8 +144,9 @@ describe("attest → pre-publication → publish", () => {
       status: "published",
       boundary: { locus: "publication-pending", candidateId: envelope.candidateId },
     });
-    expect(await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8"))
-      .toContain("| `Integrating` | `test-user`");
+    const publishedMeta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
+    expect(publishedMeta).toContain("| `Integrating` | `test-user`");
+    expect(publishedMeta).toContain("- **Current Workflow:** `integrate-work-unit`");
 
     // Submission advanced the boundary past its settle point; repeating reports the resume point
     // rather than re-firing the transition.

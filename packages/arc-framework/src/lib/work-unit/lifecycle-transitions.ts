@@ -154,11 +154,17 @@ export interface MutatorSpec {
    */
   clearBranchField?: boolean;
   /**
+   * Project a live lifecycle workflow into the meta `Current Workflow` field.
+   * Publication writes `integrate-work-unit`; withdrawal returns to
+   * `prepare-work-unit`. Mutually exclusive with `clearCurrentWorkflowField`.
+   */
+  setCurrentWorkflowField?: string;
+  /**
    * Clear the meta `Current Workflow` field to `[none]`. Edges that enter a
-   * terminal or non-planning state use this so stale workflow pointers do not
-   * survive after the phase transition. A logical-only field write (no git op),
-   * mirroring {@link clearBranchField}; re-entry into planning re-sets the
-   * pointer via the stage-entry write.
+   * state with no live workflow pointer use this so stale values do not survive
+   * after the phase transition. A logical-only field write (no git op), mirroring
+   * {@link clearBranchField}; re-entry into planning re-sets the pointer via the
+   * stage-entry write.
    */
   clearCurrentWorkflowField?: boolean;
 }
@@ -389,7 +395,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: INTEGRATING,
     inverse: "reopen",
     guards: [],
-    encodingUpdates: { setPhase: true },
+    encodingUpdates: { setPhase: true, setCurrentWorkflowField: "integrate-work-unit" },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: "input", lastCompleted: "input", blockers: "leave" },
   },
@@ -399,7 +405,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "publish",
     guards: ["pr-unmerged"],
-    encodingUpdates: { setPhase: true },
+    encodingUpdates: { setPhase: true, setCurrentWorkflowField: "prepare-work-unit" },
     sideEffects: withRender("withdraw-pr"),
     // Withdrawal back to Active clears the now-stale integration `Next Action`
     // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `publish`.

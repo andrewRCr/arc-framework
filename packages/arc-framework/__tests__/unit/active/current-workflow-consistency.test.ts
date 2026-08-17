@@ -47,9 +47,17 @@ describe("checkCurrentWorkflowConsistency — encoding-consistency validator", (
     it("a legacy non-planning meta with an absent Current Workflow", () => {
       expect(check("Active", null, ["spec-foo.md"])).toEqual([]);
     });
+
+    it("prepare-work-unit for an Active Candidate", () => {
+      expect(check("Active", "prepare-work-unit", ["spec-foo.md"])).toEqual([]);
+    });
+
+    it("integrate-work-unit for an Integrating work unit", () => {
+      expect(check("Integrating", "integrate-work-unit", ["spec-foo.md"])).toEqual([]);
+    });
   });
 
-  it("fails a non-planning state carrying a live Current Workflow", () => {
+  it("fails an Active work unit carrying a planning workflow", () => {
     const diagnostics = check("Active", "generate-tasks", ["spec-foo.md"]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatch(/non-planning/i);

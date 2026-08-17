@@ -72,6 +72,16 @@ through `arc review pre-publication`, but the handler flattened it to `unexpecte
 idempotent retry that could only fail again. Task 14.2 keeps the refusal on its typed Candidate-currentness path and
 names the deliberate `arc attest --new-root` escape. It remains in chunk 13 with the phase boundary it completes.
 
+_Amended 2026-08-17 — attestation workflow projection._ Author self-review over the first complete prepublication
+target found that typed discovery selected `prepare-work-unit` while the tracked meta still named
+`integrate-work-unit`. Task 14.3 makes the attestation-owned meta projection agree with the typed lifecycle; chunk 13
+retains the fix because it closes the same phase boundary.
+
+_Amended 2026-08-17 — workflow transition closure._ The attestation fix exposed the same field drifting one edge
+later: `arc publish` changed the typed phase but preserved `prepare-work-unit`, and the field's consistency guard
+still rejected both lifecycle workflows as non-planning values. Task 14.3 therefore closes the complete
+attest/publish/reopen projection and its validator rather than moving the contradiction downstream.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
 across the eleven, and the seam review below carry the review obligation the stack's per-member pull requests
@@ -1808,6 +1818,14 @@ later public `Active → Integrating` transition.
   variant whose remedy is `arc attest {name} --new-root`; the real CLI proves that route while conservation coverage
   keeps every other review command on the generic error set.
 
+### `[x]` **14.3 Project the prepublication workflow through Candidate attestation**
+
+- _Goal:_ The attestation ceremony that creates a Candidate and its human-facing meta projection records
+  `prepare-work-unit`, so the typed session locus and tracked `Current Workflow` describe the same lifecycle phase.
+- _Outcome:_ Candidate attestation projects `prepare-work-unit`; publication advances the field to
+  `integrate-work-unit`; withdrawal restores preparation. Real-CLI coverage spans both forward writes, and the
+  consistency guard admits exactly these state-aligned lifecycle values alongside its planning stages.
+
 ---
 
 ## Success Criteria
@@ -1902,6 +1920,11 @@ _Added 2026-08-17 — prepublication phase (forward amendment; the prior sets ar
   the same split without SESSION-NOTES authority
 - `[x]` A prepublication attempt over an unexplained Candidate delta reports the expected typed refusal and names
   `arc attest {name} --new-root` as its one advancing command
+- `[x]` Candidate attestation records `Current Workflow: prepare-work-unit`, keeping the human-facing meta and typed
+  prepublication locus semantically aligned before `arc publish`
+- `[x]` `arc publish` records `Current Workflow: integrate-work-unit`, `arc reopen` restores
+  `prepare-work-unit`, and the consistency guard accepts those lifecycle/state pairs without admitting a planning
+  workflow under `Active`
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI

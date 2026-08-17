@@ -29,6 +29,7 @@ function subject(source = "verified") {
 function harness(record: CandidateManagedRecordV1 | null = null) {
   let storedRecord = record;
   let projectedCandidate: string | null = null;
+  let projectedCurrentWorkflow: string | null = null;
   let projectedNextAction: string | null = null;
   let publicationCount = 0;
   let currentTarget = { revision: REVISION, subject: subject() };
@@ -42,6 +43,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
       publicationCount += 1;
       storedRecord = input.record;
       projectedCandidate = input.candidateId;
+      projectedCurrentWorkflow = input.currentWorkflow;
       projectedNextAction = input.nextAction;
       return {
         recordPath: `.arc/system/.internal/candidates/${input.name}.json`,
@@ -51,14 +53,20 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
   };
   return {
     context,
-    state: () => ({ storedRecord, projectedCandidate, projectedNextAction, publicationCount }),
+    state: () => ({
+      storedRecord,
+      projectedCandidate,
+      projectedCurrentWorkflow,
+      projectedNextAction,
+      publicationCount,
+    }),
     replaceRecord: (next: CandidateManagedRecordV1) => { storedRecord = next; },
     setCurrentTarget: (next: typeof currentTarget) => { currentTarget = next; },
   };
 }
 
 describe("runAttest", () => {
-  it("establishes the initial Candidate root while leaving lifecycle scheduling untouched", async () => {
+  it("establishes the initial Candidate root and projects Candidate preparation", async () => {
     const { context, state } = harness();
 
     const result = await runAttest(context, { name: "example" });
@@ -75,6 +83,7 @@ describe("runAttest", () => {
       },
     });
     expect(state()).toMatchObject({
+      projectedCurrentWorkflow: "prepare-work-unit",
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: {
         schemaVersion: 1,
@@ -133,6 +142,7 @@ describe("runAttest", () => {
     expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
     expect(fixture.state()).toMatchObject({
       publicationCount: 2,
+      projectedCurrentWorkflow: "prepare-work-unit",
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: { lineageAttestations: [{ target: changedTarget }] },
     });
@@ -169,6 +179,7 @@ describe("runAttest", () => {
     });
     expect(fixture.state()).toMatchObject({
       publicationCount: 2,
+      projectedCurrentWorkflow: "prepare-work-unit",
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: {
         attestation: { supersedes: superseded },

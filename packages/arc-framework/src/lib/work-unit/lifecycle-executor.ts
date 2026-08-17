@@ -249,9 +249,9 @@ export interface ExecuteTransitionContext {
 
   /**
    * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
-   * → write). The planning-stage-pointer sibling of {@link writeBranchField}:
-   * `stage` is a planning-stage basename (`draft-design` / `create-spec` /
-   * `generate-tasks`) at a sub-stage entry, or `[none]` when planning exits.
+   * → write). The workflow-pointer sibling of {@link writeBranchField}: `stage`
+   * is a planning-stage basename, a live publication lifecycle workflow, or
+   * `[none]` when the current phase carries no workflow pointer.
    */
   writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;
 
@@ -598,7 +598,7 @@ export async function executeTransition(
   //   `finalize-failed`, distinct from the pre-side-effect `encoding-failed`.
   //   `failedWrite` tracks the in-flight write so the report names which one threw.
   let branchFieldWritten: string | null;
-  let currentWorkflowCleared: string | null;
+  let currentWorkflowWritten: string | null;
   let softFieldsWritten: MetaFieldName[];
   let failedWrite: FinalizeWrite = "branchField";
   try {
@@ -606,9 +606,9 @@ export async function executeTransition(
     branchFieldWritten = inputs.graduationTransaction?.branch
       ?? await applyBranchField(ctx, record, metaPath, inputs);
 
-    // 7.5 Clear the meta `Current Workflow` when the edge declares it stale.
+    // 7.5 Project or clear `Current Workflow` when the edge declares its value.
     failedWrite = "currentWorkflowField";
-    currentWorkflowCleared = inputs.graduationTransaction === undefined
+    currentWorkflowWritten = inputs.graduationTransaction === undefined
       ? await applyCurrentWorkflowField(ctx, record, metaPath, inputs)
       : null;
 
@@ -627,7 +627,7 @@ export async function executeTransition(
       legsFired.includes("setPhase") ||
       branchFieldWritten !== null ||
       inputs.persistClass !== undefined ||
-      currentWorkflowCleared !== null ||
+      currentWorkflowWritten !== null ||
       softFieldsWritten.length > 0;
     if (inputs.graduationTransaction === undefined && wroteMeta && metaPath !== null) {
       await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
@@ -893,10 +893,11 @@ async function applyBranchField(
 }
 
 /**
- * Clear the meta `Current Workflow` field to `[none]` when the edge declares
- * `clearCurrentWorkflowField`. Gated identically to the soft-field pass (skipped
- * for creation / deletion edges) and a no-op on any edge that does not declare
- * the clear. Returns `"[none]"` when the clear fired, else `null`.
+ * Project the meta `Current Workflow` field when the edge declares a live value,
+ * or clear it to `[none]` when the edge declares the pointer stale. Gated
+ * identically to the soft-field pass (skipped for creation / deletion edges) and
+ * a no-op on any edge that declares neither operation. Returns the written value,
+ * else `null`.
  */
 async function applyCurrentWorkflowField(
   ctx: ExecuteTransitionContext,
@@ -905,9 +906,11 @@ async function applyCurrentWorkflowField(
   inputs: TransitionInputs,
 ): Promise<string | null> {
   if (!softFieldsApply(record) || metaPath === null) return null;
-  if (record.encodingUpdates.clearCurrentWorkflowField !== true) return null;
-  await ctx.writeCurrentWorkflowField(effectiveMetaPath(record, metaPath, inputs), "[none]");
-  return "[none]";
+  const workflow = record.encodingUpdates.setCurrentWorkflowField
+    ?? (record.encodingUpdates.clearCurrentWorkflowField === true ? "[none]" : null);
+  if (workflow === null) return null;
+  await ctx.writeCurrentWorkflowField(effectiveMetaPath(record, metaPath, inputs), workflow);
+  return workflow;
 }
 
 /**

@@ -25,6 +25,9 @@ import {
  */
 const ATTESTED_NEXT_ACTION = "Candidate review pending — run pre-publication review";
 
+/** The human-facing workflow pointer written when Candidate attestation ends execution. */
+const ATTESTED_CURRENT_WORKFLOW = "prepare-work-unit";
+
 export const AttestResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("attested"),
@@ -60,6 +63,7 @@ export interface AttestContext {
     name: string;
     record: CandidateManagedRecordV1;
     candidateId: string;
+    currentWorkflow: string;
     nextAction: string;
   }): Promise<{ recordPath: string; metaPath: string }>;
 }
@@ -117,6 +121,7 @@ export async function runAttest(
       name,
       record: nextRecord,
       candidateId: currentness.candidateId,
+      currentWorkflow: ATTESTED_CURRENT_WORKFLOW,
       nextAction: ATTESTED_NEXT_ACTION,
     });
     return { status: "attested", operation: "convergence", ...published, locus };
@@ -154,6 +159,7 @@ async function establishRoot(
     name,
     record,
     candidateId: attestation.candidateId,
+    currentWorkflow: ATTESTED_CURRENT_WORKFLOW,
     nextAction: ATTESTED_NEXT_ACTION,
   });
   return {

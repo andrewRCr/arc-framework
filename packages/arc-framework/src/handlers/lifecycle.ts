@@ -2433,6 +2433,7 @@ export async function handleAttest(
       const recordPath = await writeCandidateRecord(base.cwd, publication.name, publication.record);
       const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
       metaContent = setMetaBulletFields(withCandidate, {
+        "Current Workflow": formatValue(publication.currentWorkflow, "identifier"),
         "Next Action": formatValue(publication.nextAction, "narrative"),
       });
       await base.io.writeFile(absoluteMetaPath, metaContent);

@@ -656,17 +656,16 @@ export function setMetaClass(content: string, value: string): string {
 }
 
 /**
- * Rewrite the `Current Workflow` bullet field in place — the planning-stage
- * pointer's single-field write. The bullet-field sibling of {@link setMetaBranch}
- * (which rewrites the core-table Branch cell): the lifecycle executor projects
- * the meta `Current Workflow` from the planning sub-stage a transition enters
- * (`draft-design` / `create-spec` / `generate-tasks`), or `[none]` when planning
- * exits at activation. Every other field and the prose below stay byte-stable.
+ * Rewrite the `Current Workflow` bullet field in place — the workflow pointer's
+ * single-field write. The bullet-field sibling of {@link setMetaBranch} (which
+ * rewrites the core-table Branch cell): lifecycle ceremonies project the
+ * planning sub-stage, the live publication workflow, or `[none]` when the phase
+ * carries no workflow pointer. Every other field and the prose below stay
+ * byte-stable.
  *
  * A thin wrapper over {@link setMetaBulletFields} fixing the field to
- * `Current Workflow` — the named primitive the executor's stage-pointer writes
- * route through, so the stage-entry command and the activate-exit clear share
- * one write. The `stage` is rendered per the `identifier` value class (backticked,
+ * `Current Workflow` — the named primitive every workflow-pointer write routes
+ * through. The `stage` is rendered per the `identifier` value class (backticked,
  * `[none]` left bare) so the written form matches {@link renderMetaFile}. Inherits
  * {@link setMetaBulletFields}'s fail-loud contract: a meta without the
  * `Current Workflow` bullet throws (structural drift, not a no-op).

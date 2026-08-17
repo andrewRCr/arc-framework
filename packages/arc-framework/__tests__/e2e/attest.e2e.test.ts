@@ -19,7 +19,7 @@ describe("arc attest", () => {
     if (repository !== null) await cleanupTempDir(repository);
   });
 
-  it("writes and stages Candidate evidence without changing Active scheduling", async () => {
+  it("writes and stages Candidate evidence while projecting Candidate preparation", async () => {
     repository = await createTempRepo();
     await mkdir(join(repository, ".arc", "system"), { recursive: true });
     await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
@@ -81,6 +81,7 @@ describe("arc attest", () => {
     const meta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
     expect(meta).toContain("| `Active`  | `test-user`");
     expect(meta).toMatch(/- \*\*Candidate:\*\* `sha256:[0-9a-f]{64}`/u);
+    expect(meta).toContain("- **Current Workflow:** `prepare-work-unit`");
     const record = JSON.parse(await readFile(
       join(repository, ".arc", "system", ".internal", "candidates", "example.json"),
       "utf8",
