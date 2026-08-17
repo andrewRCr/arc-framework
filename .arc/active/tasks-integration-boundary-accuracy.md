@@ -1193,14 +1193,12 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Outcome:_ The open-request/prior-head ambiguity now carries a push-and-re-resolve remedy, and the resume table
   follows emitted remedy text. Multi-candidate and other ambiguous states remain bare stops.
 
-### `[ ]` **9.7 Name where review landed on the composed decision line**
+### `[x]` **9.7 Name where review landed on the composed decision line**
 
 - _Goal:_ A clean candidate's interlock surface renders all three of Criterion 2's decision facts.
 
-    - Add the review-landed line — the local carrier or discharged hosted source, from the discharge detail — to
-      the composed decision text; extend the structural test to pin it. G6's attestation discipline applies: the
-      line names the carrier or source and nothing else — no pass counts, no finding summaries, no dispositions;
-      this sits where § G deleted a review record and must not re-grow one.
+- _Outcome:_ The checkpoint decision now names either the local attestation carrier or the discharged hosted
+  source. Discharge detail is reduced to that provenance alone, so the line carries no review-record summary.
 
 ### `[ ]` **9.8 Keep the typed publication pointer truthful**
 

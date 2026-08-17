@@ -561,6 +561,7 @@ export async function checkpointIntegration(
       pullRequest: composition.statusSummary.changeRequest.pullRequest,
       method: mergeMethod.method,
       candidateTailReference: composition.candidateTailDiff.reference,
+      reviewLanding: hostedReview?.detail ?? "Local carrier `local-attestation`.",
       signals: [
         {
           kind: "base-drift",

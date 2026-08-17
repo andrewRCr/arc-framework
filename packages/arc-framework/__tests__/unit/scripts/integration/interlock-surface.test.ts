@@ -31,6 +31,7 @@ describe("checkpoint interlock surface", () => {
       pullRequest: 42,
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
+      reviewLanding: "Local carrier `local-attestation`.",
       signals: signals(),
     });
 
@@ -47,6 +48,7 @@ describe("checkpoint interlock surface", () => {
       pullRequest: 42,
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
+      reviewLanding: "Local carrier `local-attestation`.",
       signals: signals(),
     });
     const evidence = signals();
@@ -57,11 +59,33 @@ describe("checkpoint interlock surface", () => {
       pullRequest: 42,
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
+      reviewLanding: "Local carrier `local-attestation`.",
       signals: evidence,
     });
 
     for (const result of [clean, exceptions]) {
       expect(result.machineEvidence.text).toContain(`Candidate tail: ${oid("b")}..${oid("a")}`);
+    }
+  });
+
+  it("names only the carrier or hosted source where review landed", () => {
+    for (const reviewLanding of [
+      "Local carrier `local-attestation`.",
+      "Hosted source `coderabbit-pr`.",
+    ]) {
+      const result = composeCheckpointInterlockSurface({
+        approvedHead: oid("a"),
+        repository: "owner/repo",
+        pullRequest: 42,
+        method: "merge",
+        candidateTailReference: `${oid("b")}..${oid("a")}`,
+        reviewLanding,
+        signals: signals(),
+      });
+      const reviewLines = result.machineEvidence.text.split("\n")
+        .filter((line) => line.startsWith("Review landed: "));
+      expect(reviewLines).toEqual([`Review landed: ${reviewLanding}`]);
+      expect(reviewLines[0]).not.toMatch(/passes|findings summary|dispositions/iu);
     }
   });
 
@@ -79,6 +103,7 @@ describe("checkpoint interlock surface", () => {
       pullRequest: 42,
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
+      reviewLanding: "Local carrier `local-attestation`.",
       signals: evidence,
     });
 

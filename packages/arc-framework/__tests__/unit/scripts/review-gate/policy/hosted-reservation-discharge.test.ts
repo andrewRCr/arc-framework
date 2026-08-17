@@ -56,7 +56,7 @@ describe("hosted reservation discharge", () => {
     });
 
     expect(result.discharged).toBe(true);
-    expect(result.detail).toContain("findings");
+    expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
   });
 
   it("leaves the reservation pending when the reserved source reached no verdict", async () => {

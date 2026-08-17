@@ -55,12 +55,14 @@ export function composeCheckpointInterlockSurface(input: {
   pullRequest: number;
   method: "merge" | "rebase" | "squash";
   candidateTailReference: string;
+  reviewLanding: string;
   signals: readonly CheckpointMachineSignal[];
 }): CheckpointInterlockSurface {
   const signals = CheckpointMachineSignalsSchema.parse(input.signals);
   const exceptions = signals.filter(({ clean }) => !clean);
   const decision = `Approve merge of ${input.approvedHead} via ${input.method} for `
-    + `${input.repository}#${input.pullRequest}.\nCandidate tail: ${input.candidateTailReference}`;
+    + `${input.repository}#${input.pullRequest}.\nCandidate tail: ${input.candidateTailReference}`
+    + `\nReview landed: ${input.reviewLanding}`;
   const text = exceptions.length === 0
     ? `${decision}\nMachine evidence: ${signals.length} checks clean.`
     : `${decision}\nMachine evidence exceptions:\n${exceptions

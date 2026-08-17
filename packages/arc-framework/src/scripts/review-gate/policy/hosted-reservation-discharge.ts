@@ -33,7 +33,7 @@ export async function projectHostedReservationDischarge(input: {
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
-    return { discharged: true, detail: "No hosted-review reservation was carried across publication." };
+    return { discharged: true, detail: "Local carrier `local-attestation`." };
   }
   for (const headSha of input.span) {
     const progress = await input.readLaneProgress(headSha);
@@ -44,8 +44,7 @@ export async function projectHostedReservationDischarge(input: {
     if (verdict !== undefined) {
       return {
         discharged: true,
-        detail: `The reserved hosted source \`${reservation.sourceId}\` returned `
-          + `${verdict.outcome} at ${headSha}.`,
+        detail: `Hosted source \`${reservation.sourceId}\`.`,
       };
     }
   }
