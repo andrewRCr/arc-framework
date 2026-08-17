@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Verification third entry — findings recorded; Phase 9 remediation planned
-- **Next Task:** Task 9.1 — Pin the settled head on every settlement replay (line ~1144)
+- **Last Completed:** Phase 9 — composition-stratum remediation (Tasks 9.1–9.9)
+- **Next Task:** Task 10.1 — Complete verification (line ~1231)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 9.1 — the findings baseline and dispositions are in
-  `notes-integration-boundary-accuracy.md` § Verification Findings — third-entry falsification pass
+- **Next Action:** Start Task 10.1 — re-enter verification over the remediated tree
 
 - **PR URL:** [none]
 - **Completed:** [none]
