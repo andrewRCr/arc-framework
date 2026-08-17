@@ -1672,6 +1672,12 @@ verb gap; Principle 6 — refusal text is CLI-composed) and `strategy-storage-ev
 which surfaced a forward-compat obligation routed to `arc-backend` rather than answered here. No new
 configuration axis.
 
+_Amended 2026-08-17 — the phase's scope was drawn too narrowly._ Task 12.1 landed the guard on the attestation
+alone and recorded the lineage advance as an open question for review. That split does not hold: `respond` is the
+same defect on the same lineage surface inside this work unit, so covering it is completion rather than
+expansion. Task 12.2 closes it and records the sweep of every subject-collection call site that settles which
+verbs must gate and which must stay tolerant.
+
 ### `[x]` **12.1 `arc attest` refuses a subject the index does not carry**
 
 - _Goal:_ Attesting cannot silently record a subject that omits verified reviewable content. The refusal names
@@ -1687,8 +1693,24 @@ configuration axis.
   owns, along with its stale instruction to stage the managed record and meta projection — which `attest`
   already stages itself.
 
-    - _Not folded in:_ `arc review respond` writes lineage evidence through the same unguarded window. Recorded
-      as an open question for the review rather than expanded into here.
+### `[x]` **12.2 The lineage advance carries the same precondition as its root**
+
+- _Goal:_ Every verb that records a Candidate subject as authoritative refuses a subject the index does not
+  carry — not the attestation alone. Verbs that only compare against an already-recorded subject stay tolerant,
+  so an ordinary lifecycle tree still reads clean.
+
+- _Outcome:_ A sweep of the five subject-collection call sites found one further exposed writer.
+  `arc review respond` advances the lineage by recording the current index subject as the approved head, so an
+  unstaged fix either landed a head omitting it or — worse — returned `candidate-current`, reporting the fix
+  already explained when it was invisible. `readCandidateLineage` now reads the unstaged reviewable paths
+  alongside the subject, and the advance refuses before the currentness projection, so the wrong-success shape
+  is unreachable.
+
+    - The other three are correctly tolerant and were left alone: the integration checkpoint only reads;
+      `publish` and the pre-publication settle carry forward a digest the guarded attestation already
+      established and require lineage currentness to proceed, so neither mints a subject fact of its own. The
+      review-gate's own `local attest` derives through `deriveLocalReviewTarget`, which already refuses a dirty
+      worktree outright.
 
 ---
 
@@ -1768,6 +1790,9 @@ _Added 2026-08-17 — attest staging precondition (forward amendment; both sets 
 - `[x]` `arc attest` cannot record a subject that omits verified reviewable content: an unstaged, partially
   staged, or untracked reviewable path refuses and is named, while operational writes, the meta, regenerated
   project documents, and the Candidate's own projections attest unchanged
+- `[x]` Every verb that records a Candidate subject as authoritative carries that precondition — the lineage
+  advance refuses an unstaged fix instead of explaining it away as current — and every verb that only compares
+  against an already-recorded subject stays tolerant of an ordinary lifecycle tree
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI

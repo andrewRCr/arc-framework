@@ -286,7 +286,12 @@ function lineageDependencies(
         headTree: objectId("f"),
       }),
     }),
-    readCandidateLineage: async () => ({ workUnit: "example", record, current }),
+    readCandidateLineage: async () => ({
+      workUnit: "example",
+      record,
+      current,
+      unstagedReviewablePaths: [],
+    }),
     appendCandidateResponse: async (input) => {
       appends.push(input);
       return { recordPath: CANDIDATE_RECORD_PATH };
@@ -682,6 +687,42 @@ describe("verified-fix Candidate settlement", () => {
 
     await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
       .rejects.toThrow("managed Candidate record");
+  });
+
+  it("refuses a verified fix the index does not carry, rather than advancing a lineage without it", async () => {
+    const records = fixture();
+    const { deps, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    const lineage = await deps.readCandidateLineage();
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      unstagedReviewablePaths: ["packages/arc-framework/src/fixed.ts"],
+    });
+
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
+      .rejects.toThrow("packages/arc-framework/src/fixed.ts");
+    expect(appends).toHaveLength(0);
+  });
+
+  it("refuses an unstaged fix the recorded subject already matches, rather than reporting it current", async () => {
+    const records = fixture();
+    const { deps, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("root"),
+    });
+    const lineage = await deps.readCandidateLineage();
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      unstagedReviewablePaths: ["packages/arc-framework/src/fixed.ts"],
+    });
+
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
+      .rejects.toThrow("must be staged");
+    expect(appends).toHaveLength(0);
   });
 
   it("refuses a verified fix over dispositions that authorized no fix", async () => {

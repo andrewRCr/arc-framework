@@ -128,6 +128,13 @@ export interface CandidateLineageBinding {
   workUnit: string;
   record: CandidateManagedRecordV1;
   current: CandidateLineageTarget;
+  /**
+   * Reviewable paths the index does not carry, read alongside the subject it does.
+   *
+   * A lineage advance records the current subject as the approved head, so an unstaged fix would
+   * either be explained away as already-current or land a head that omits it.
+   */
+  unstagedReviewablePaths: readonly string[];
 }
 
 export interface RespondCommandDependencies {
@@ -413,6 +420,14 @@ async function persistCandidateResponse(
     throw new RespondCommandError(
       "invalid-input",
       "a verified fix requires an active work unit carrying a managed Candidate record",
+    );
+  }
+  if (lineage.unstagedReviewablePaths.length > 0) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified fix must be staged before it can advance the Candidate lineage; the index does not "
+        + `carry ${lineage.unstagedReviewablePaths.length} reviewable path(s): `
+        + lineage.unstagedReviewablePaths.join(", "),
     );
   }
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;

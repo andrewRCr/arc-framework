@@ -9,7 +9,10 @@ import {
   readCandidateRecord,
   writeCandidateRecord,
 } from "../../../lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../../lib/work-unit/git-candidate-subject.js";
+import {
+  collectGitCandidateTarget,
+  collectUnstagedReviewablePaths,
+} from "../../../lib/work-unit/git-candidate-subject.js";
 import {
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
@@ -70,6 +73,11 @@ export function createRespondDependencies(input: {
           cwd: input.cwd,
           name: active.name,
           baseBranch: settings["branch.base"],
+          exec: input.exec,
+        }),
+        unstagedReviewablePaths: await collectUnstagedReviewablePaths({
+          cwd: input.cwd,
+          name: active.name,
           exec: input.exec,
         }),
       };
