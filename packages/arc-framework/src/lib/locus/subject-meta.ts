@@ -100,10 +100,9 @@ export async function projectCheckoutSubjectMeta(options: {
       metaPath: expectedPath,
     };
   }
-  const sessionType = options.metaRoot.kind === "completed"
+  const inferredSessionType = options.metaRoot.kind === "completed"
     ? "integration"
     : inferSessionType(record.state, record.taskList, record.branch);
-  const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
   let integrationBoundary: IntegrationBoundaryLocus | null = null;
   if (record.candidateId !== null && record.state === "Integrating") {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
@@ -127,6 +126,10 @@ export async function projectCheckoutSubjectMeta(options: {
       candidateId: record.candidateId,
     });
   }
+  const sessionType: SessionType | null = record.state === "Active" && integrationBoundary !== null
+    ? "prepublication"
+    : inferredSessionType;
+  const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null
     ? null
@@ -181,6 +184,7 @@ function normalizePointer(value: string | null): string | null {
 function workflowFor(sessionType: SessionType | null): string | null {
   if (sessionType === "planning") return "planning";
   if (sessionType === "execution") return "process-task-loop";
+  if (sessionType === "prepublication") return "prepare-work-unit";
   if (sessionType === "integration") return "integrate-work-unit";
   return null;
 }

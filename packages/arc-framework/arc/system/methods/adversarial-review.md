@@ -13,7 +13,7 @@ override-active: false
 
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
 >   [generate-tasks.md][generate-tasks], [verify-work-unit.md][verify-work-unit],
->   [integrate-work-unit.md][integrate-work-unit]
+>   [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit]
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >
@@ -326,4 +326,5 @@ source verification, disposition, and exit-gate rules as a standard pass.
 [generate-tasks]: ../workflows/arc/generate-tasks.md
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope

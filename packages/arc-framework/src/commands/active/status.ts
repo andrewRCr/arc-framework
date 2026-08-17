@@ -280,7 +280,10 @@ function classifyResolution(
       resolution: "single",
       path: only.path,
       candidates: [],
-      sessionType: inferSessionType(only.state, only.taskList, currentBranch),
+      sessionType: only.state === "Active" && only.integrationBoundary !== null
+        && only.integrationBoundary !== undefined
+        ? "prepublication"
+        : inferSessionType(only.state, only.taskList, currentBranch),
     };
   }
   return { resolution: "multiple", path: null, candidates: input, sessionType: null };
@@ -311,7 +314,9 @@ async function resolveSessionInit(
       result.taskListPath = taskListPath;
       const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
-      result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
+      result.currentWorkflow = fields.sessionType === "prepublication"
+        ? "prepare-work-unit"
+        : normalizeNullablePointer(only.currentWorkflow);
       result.planningStage = resolvePlanningStage(result.currentWorkflow, fields.sessionType);
       result.integrationBoundary = only.integrationBoundary ?? null;
     }

@@ -86,50 +86,54 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).toContain("`post-pr-open` → review iteration");
   });
 
-  it("submits at the publication-step head before the push review and push release", async () => {
+  it("schedules publication in preparation before the integration push", async () => {
     for (const base of [packageArc, projectArc]) {
-      const workflow = await readFile(
+      const prepare = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
+        "utf8",
+      );
+      const integrate = await readFile(
         resolve(base, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
         "utf8",
       );
-      const publicationStep = workflow.indexOf("### 3) Open the PR");
-      const submit = workflow.indexOf("arc publish {name}", publicationStep);
-      const commitInterlock = workflow.indexOf("`commit-interlock`", submit);
-      const pushExtension = workflow.indexOf("#pre-push-review", commitInterlock);
-      const pushInterlock = workflow.indexOf("`push-interlock`", pushExtension);
-      const push = workflow.indexOf("Push the WU branch upstream", pushInterlock);
+      const publicationStep = prepare.indexOf("## 3) Schedule publication");
+      const submit = prepare.indexOf("arc publish {name}", publicationStep);
+      const commitInterlock = prepare.indexOf("`commit-interlock`", submit);
+      const pushExtension = integrate.indexOf("#pre-push-review");
+      const pushInterlock = integrate.indexOf("`push-interlock`", pushExtension);
+      const push = integrate.indexOf("Push the WU branch upstream", pushInterlock);
 
       expect([publicationStep, submit, commitInterlock, pushExtension, pushInterlock, push]
         .every((index) => index >= 0)).toBe(true);
       expect(publicationStep).toBeLessThan(submit);
       expect(submit).toBeLessThan(commitInterlock);
-      expect(commitInterlock).toBeLessThan(pushExtension);
       expect(pushExtension).toBeLessThan(pushInterlock);
       expect(pushInterlock).toBeLessThan(push);
-      expect(workflow).toContain("Step 3, from the idempotent **push** action");
+      expect(prepare).not.toContain("#pre-push-review");
+      expect(integrate).not.toContain("arc publish {name}");
+      expect(integrate).toContain("Step 1, from the idempotent **push** action");
     }
   });
 
   it("settles routed pre-publication lanes before submit and the final WU push", async () => {
-    const workflow = await readFile(
-      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
-      "utf8",
-    );
-    const prePublication = workflow.indexOf("### 2) Pre-publication review");
-    const resolveFrontline = workflow.indexOf("arc review frontline resolve -", prePublication);
-    const submit = workflow.indexOf("arc publish {name}", resolveFrontline);
-    const push = workflow.indexOf("Push the WU branch upstream");
-    const preOpen = workflow.indexOf("Immediately before creation", resolveFrontline);
-    const create = workflow.indexOf("gh pr create", preOpen);
+    const [prepare, integrate] = await Promise.all([
+      readFile(resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
+      readFile(resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
+    ]);
+    const prePublication = prepare.indexOf("## 2) Settle pre-publication review");
+    const resolveFrontline = prepare.indexOf("arc review frontline resolve -", prePublication);
+    const submit = prepare.indexOf("arc publish {name}", resolveFrontline);
+    const push = integrate.indexOf("Push the WU branch upstream");
+    const preOpen = integrate.indexOf("Immediately before creation");
+    const create = integrate.indexOf("gh pr create", preOpen);
 
     expect([prePublication, resolveFrontline, submit, push, preOpen, create]
       .every((index) => index >= 0)).toBe(true);
     expect(prePublication).toBeLessThan(resolveFrontline);
     expect(resolveFrontline).toBeLessThan(submit);
-    expect(submit).toBeLessThan(push);
     expect(preOpen).toBeLessThan(create);
 
-    const frontlineCycle = workflow.slice(resolveFrontline, submit);
+    const frontlineCycle = prepare.slice(resolveFrontline, submit);
     expect(frontlineCycle).toContain("review-response");
     expect(frontlineCycle).toMatch(/(?:recompose|produce)\s+(?:the\s+exact|a new)\s+target/u);
     expect(frontlineCycle).toContain("arc review frontline run -");

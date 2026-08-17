@@ -56,7 +56,7 @@ export type ActiveSessionInitResolution = "none" | "single" | "multiple";
  * - Orphan: no candidate (or candidate has empty State) and the current
  *   branch does not match the planning-branch pattern.
  */
-export type SessionType = "planning" | "execution" | "integration";
+export type SessionType = "planning" | "execution" | "prepublication" | "integration";
 
 /**
  * One parsed meta file. `path` is always relative to the probe's cwd so

@@ -59,7 +59,7 @@ never commits); they bundle into the archival commit (Step 5). The command repor
 
 **Mergeable sweep only.** `arc archive` does **not** delete the working branch or tear down the worktree: that
 physical teardown is non-mergeable (it cannot ride the ship PR) and stays the integration tail's post-merge
-cleanup ([`integrate-work-unit.md`][integrate-work-unit] Step 13). The sweep itself is protection-agnostic — it
+cleanup ([`integrate-work-unit.md`][integrate-work-unit] Step 11). The sweep itself is protection-agnostic — it
 rides the ship PR under `with-integration` (one PR, full or partial protection), or commits standalone post-merge
 under `manual`.
 
@@ -133,7 +133,7 @@ keep-a-changelog norms). No mechanical enforcement; convention only.
 
 ## Next step
 
-- **Inline under `with-integration`:** Return to [`integrate-work-unit.md`][integrate-work-unit] Step 12 —
+- **Inline under `with-integration`:** Return to [`integrate-work-unit.md`][integrate-work-unit] Step 10 —
   the final integration push covers completion content + sweep + ROADMAP regen as one push.
 - **Standalone under `manual`:** Archival is the terminal step. Push the archive commit per project
   convention (under `branch.protection: full`, route through a housekeeping branch + PR).

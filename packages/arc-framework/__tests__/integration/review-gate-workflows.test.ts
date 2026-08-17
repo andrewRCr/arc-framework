@@ -242,7 +242,7 @@ describe("trusted review-gate workflows", () => {
     const candidate = sectionBetween(
       packaged,
       "## Phase 2: Compose, sweep, ship",
-      "### 12) Behind-base reconcile gate and merge",
+      "### 10) Behind-base reconcile gate and merge",
     );
     expect(candidate).toContain("`review-settled`");
     expect(candidate).toContain("candidate-entry state");
@@ -264,8 +264,8 @@ describe("trusted review-gate workflows", () => {
     );
     const releaseNotes = sectionBetween(
       packaged,
-      "### 7) Compose Release Notes Entry",
-      "### 8) Compose Completion Notes",
+      "### 5) Compose Release Notes Entry",
+      "### 6) Compose Completion Notes",
     );
     expect(releaseNotes).toMatch(/shipped reader\/operator-visible outcomes/u);
     expect(releaseNotes).toMatch(/WU names or slugs[\s\S]*task or phase references[\s\S]*branches/u);
@@ -277,8 +277,8 @@ describe("trusted review-gate workflows", () => {
 
     const completionNotes = sectionBetween(
       packaged,
-      "### 8) Compose Completion Notes",
-      "### 9) Commit completion content",
+      "### 6) Compose Completion Notes",
+      "### 7) Commit completion content",
     );
     expect(completionNotes).toMatch(/delivered scope[\s\S]*material deviations or supersessions/u);
     expect(completionNotes).toContain("verified evidence");
@@ -286,8 +286,8 @@ describe("trusted review-gate workflows", () => {
 
     const finalGate = sectionBetween(
       packaged,
-      "### 12) Behind-base reconcile gate and merge",
-      "### 13) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(finalGate).toContain("**Extension report** · `#pre-merge`");
@@ -306,8 +306,8 @@ describe("trusted review-gate workflows", () => {
 
     const finalGate = sectionBetween(
       packaged,
-      "### 12) Behind-base reconcile gate and merge",
-      "### 13) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
     const interlock = finalGate.slice(finalGate.lastIndexOf("`integration-interlock`"));
     expect(interlock).toMatch(/candidate-tail diff[\s\S]*Release Notes entry and Completion Notes/u);
@@ -319,7 +319,7 @@ describe("trusted review-gate workflows", () => {
 
   it("routes frontline and local review through the public advisory command surface", async () => {
     const paths = [
-      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
       "system/workflows/arc/supplemental/run-errand.md",
     ];
     for (const path of paths) {
@@ -342,7 +342,7 @@ describe("trusted review-gate workflows", () => {
       expect(packaged).toMatch(/runtime-owned bindings/iu);
       expect(packaged).toContain("`findings / respond`");
       expect(packaged).toContain("review applicability");
-      expect(packaged).toContain("targeted verification");
+      expect(packaged).toMatch(/targeted[\s\S]*focused[\s\S]*complete/iu);
       expect(packaged).toMatch(/command error\s+envelope/iu);
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
       expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
@@ -513,8 +513,8 @@ describe("trusted review-gate workflows", () => {
 
     const gate = sectionBetween(
       packageIntegration,
-      "### 12) Behind-base reconcile gate and merge",
-      "### 13) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
@@ -550,13 +550,13 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration).toBe(instanceIntegration);
     const reviewSettlement = sectionBetween(
       packageIntegration,
-      "### 5) Confirm review coordination",
-      "### 6) Spec-presence + alignment checks",
+      "### 3) Confirm review coordination",
+      "### 4) Spec-presence + alignment checks",
     );
     expect(reviewSettlement).not.toContain("git merge");
     expect(reviewSettlement).toContain("`review-settled`");
     const advisory = packageIntegration.indexOf("Before spending a hosted pass");
-    const finalGate = packageIntegration.indexOf("### 12) Behind-base reconcile gate and merge");
+    const finalGate = packageIntegration.indexOf("### 10) Behind-base reconcile gate and merge");
     expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
     expect(packageIntegration.indexOf("arc base merge --expected-base", finalGate)).toBeGreaterThan(finalGate);
     expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
@@ -568,8 +568,8 @@ describe("trusted review-gate workflows", () => {
     );
     const gate = sectionBetween(
       packaged,
-      "### 12) Behind-base reconcile gate and merge",
-      "### 13) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
     expect(gate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(gate).toContain("The integration interlock is the sole merge authority");
@@ -589,15 +589,19 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     );
-    const resume = sectionBetween(packaged, "#### Resume entry", "### 2) Pre-publication review");
-    expect(resume).toMatch(/`shipped` in `completed`; `open`[\s\S]*Step 12/u);
-    expect(resume).toMatch(/`merged-at-head`[\s\S]*Verify Phase 2 products[\s\S]*Step 12 tail/u);
+    const resume = sectionBetween(packaged, "### 1) Push the branch and open the PR", "**Push extension contract**");
+    expect(resume).toMatch(/`shipped` in `completed`; `open`[\s\S]*Step 10/u);
+    expect(resume).toMatch(/`merged-at-head`[\s\S]*Verify Phase 2 products[\s\S]*Step 10 tail/u);
     expect(resume).toContain("`closed-unmerged`");
     expect(resume).toContain("`merged-stale-head`, `ambiguous`, or `blocked`");
     expect(resume).toMatch(/`ambiguous`[\s\S]*emitted remedy text/iu);
     expect(resume).toContain("first incomplete candidate-tail step");
 
-    const creation = sectionBetween(packaged, "### 3) Open the PR", "### 4) Review iteration");
+    const creation = sectionBetween(
+      packaged,
+      "Invoke `arc review change-request resolve --head-ref",
+      "### 2) Review iteration",
+    );
     const resolver = creation.indexOf("arc review change-request resolve --head-ref");
     const proposedTarget = creation.indexOf("proposedChangeRequest =");
     const create = creation.indexOf("gh pr create --base");
@@ -609,8 +613,8 @@ describe("trusted review-gate workflows", () => {
 
     const gate = sectionBetween(
       packaged,
-      "### 12) Behind-base reconcile gate and merge",
-      "### 13) Post-merge worktree cleanup",
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
     );
     expect(gate).toContain("requested composition correction");
     expect(gate).toMatch(/Append[\s\S]*never amend/u);
@@ -672,12 +676,12 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration).toBe(instanceIntegration);
     const resumeEntry = sectionBetween(
       packageIntegration,
-      "#### Resume entry",
-      "### 2) Pre-publication review",
+      "### 1) Push the branch and open the PR",
+      "**Push extension contract**",
     );
     expect(resumeEntry).toContain("A merged PR proves only that the merge ran");
     expect(resumeEntry).toContain("Completion Notes");
-    expect(resumeEntry).toContain("under `with-integration`, the resolver reports `shipped` in `completed`");
+    expect(resumeEntry).toMatch(/under `with-integration`, the resolver reports `shipped` in `completed`/iu);
     expect(resumeEntry).toMatch(/do not\s+invoke `arc user close` or `arc teardown`/u);
     expect(resumeEntry).toContain("lifecycle-only repair change request");
   });

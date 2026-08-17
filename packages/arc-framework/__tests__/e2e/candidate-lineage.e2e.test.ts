@@ -352,6 +352,13 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "unexplained implementation"]);
 
+    const prePublication = await runArc(["review", "pre-publication", "example", "--json"], root);
+    expect(prePublication.exitCode).toBe(1);
+    expect(JSON.parse(prePublication.stdout)).toMatchObject({
+      error: { code: "candidate-unexplained-delta" },
+      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+    });
+
     // The default re-attestation refuses and the checkpoint refuses with it, so the remedy has to name
     // the escape rather than the invocation that just failed.
     const refused = await runArc(["attest", "example", "--json"], root);

@@ -19,7 +19,7 @@ export const RecoverAuditSeedSummarySchema = z.strictObject({
   emittedAt: NON_EMPTY_TEXT,
   head: NON_EMPTY_TEXT,
   branch: NON_EMPTY_TEXT,
-  sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+  sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
   locus: CompactionSeedLocusHintSchema,
 });
 

@@ -6,7 +6,7 @@ override-active: false
 
 # Method: review-triage
 
-> - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
+> - **Workflow:** [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit]
 > - **When:** Agent processes findings from any code review
 >
 > - **Contract:** For every finding, verify it independently against source, record severity and disposition, and
@@ -86,3 +86,4 @@ remains the authority when a channel has a richer durable record.
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md

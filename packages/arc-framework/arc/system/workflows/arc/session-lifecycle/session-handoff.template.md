@@ -328,7 +328,7 @@ longer context elsewhere — commit body, SESSION-NOTES, task-list completion no
 target._
 
 _Workflow step pointer: when Next Action resumes a lifecycle workflow (integrate, archive), use the literal
-format `<workflow-name> Step <N> — <description>` (e.g. "integrate-work-unit Step 7 — push and create PR";
+format `<workflow-name> Step <N> — <description>` (e.g. "integrate-work-unit Step 1 — push and create PR";
 kebab-case name = filename without `.md`) — the pre-commit validator and session-init's sessionType inference
 key on this prefix. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
 ```
@@ -374,7 +374,7 @@ Markers:
 
 **Commit at Handoff:** `{{short-hash}}`
 <!--
-  **Session Type:** {planning | execution | integration}
+  **Session Type:** {planning | execution | prepublication | integration}
   Optional override; absent → inferred from tracked state. Set only when the next session's
   intent diverges from what the active meta file implies. Case-insensitive. Invalid value →
   ignored + warning at session-init.

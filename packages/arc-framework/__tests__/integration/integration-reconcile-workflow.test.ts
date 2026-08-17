@@ -24,8 +24,8 @@ const WORKFLOWS = [
 describe("integration current-WU reconcile workflow", () => {
   it.each(WORKFLOWS)("orders typed procedures around the final integration interlock in %s", async (path) => {
     const content = await readFile(path, "utf8");
-    const start = content.indexOf("### 12) Behind-base reconcile gate and merge");
-    const end = content.indexOf("### 13) Post-merge worktree cleanup", start);
+    const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
+    const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
     const step = content.slice(start, end);
     const orderedSurfaces = [
       "arc integrate checkpoint {name} --json",
@@ -48,7 +48,7 @@ describe("integration current-WU reconcile workflow", () => {
       previous = current;
     }
 
-    expect(step.match(/repeat the Step 3 push extension contract/giu)).toHaveLength(2);
+    expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(2);
     expect(step.match(/`push-interlock` release/gu)).toHaveLength(2);
     expect(step.match(/`commit-interlock` release/gu)).toHaveLength(1);
     expect(step).toContain("review-applicability\njudgment");

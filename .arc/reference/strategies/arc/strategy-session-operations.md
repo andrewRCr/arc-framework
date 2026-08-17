@@ -64,7 +64,7 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 
 - arc-methods defaults and overrides (decision trees, format specs, classification rubrics)
 - Strategy documents (domain-specific patterns and guidance)
-- Workflow documents (prepare-commits, integrate-work-unit)
+- Workflow documents (prepare-commits, prepare-work-unit, integrate-work-unit)
 - arc-extensions steps (post-task-quality, pre-merge, etc.)
 
 ### State-Conditional Promotion
@@ -391,11 +391,11 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | test-first            | process-task-loop   | Conditional — tasks with test-first marker |
 | commit-format         | prepare-commits     | User-triggered commit events               |
 | commit-footer         | prepare-commits     | User-triggered commit events               |
-| self-review           | integrate-work-unit | Integration phase only                     |
-| frontline-review      | integrate-work-unit | Optional advisory pre-publication review   |
-| standard-review       | integrate-work-unit | Satisfying exact-change-set standard       |
-| implementation-audit  | integrate-work-unit | Integration review rubric                  |
-| review-triage         | integrate-work-unit | Integration phase only                     |
+| self-review           | prepare-work-unit   | Prepublication phase only                  |
+| frontline-review      | prepare-work-unit   | Optional advisory prepublication review    |
+| standard-review       | prepare / integrate | Local or hosted exact-change-set standard  |
+| implementation-audit  | prepare / integrate | Prepublication and hosted review rubric    |
+| review-triage         | prepare / integrate | Prepublication and integration findings    |
 | session-state         | session-handoff     | Session end only                           |
 
 ### Review enforcement boundary

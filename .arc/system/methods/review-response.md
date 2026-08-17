@@ -8,7 +8,7 @@ override-active: false
 
 # Method: review-response
 
-> - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
+> - **Workflow:** [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit]
 > - **When:** A local or hosted review returns normalized findings
 >
 > - **Contract:** Given an exact review target, normalized findings, effective routing result, and caller
@@ -89,3 +89,4 @@ capability or satisfy a carrier-native review requirement.
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md

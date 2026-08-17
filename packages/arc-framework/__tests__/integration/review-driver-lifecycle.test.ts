@@ -7,10 +7,10 @@ const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
 
-const workflows = [
-  "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
-  "system/workflows/arc/supplemental/run-errand.md",
-];
+const integrateWorkflow = "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
+const prepareWorkflow = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+const errandWorkflow = "system/workflows/arc/supplemental/run-errand.md";
+const workflows = [integrateWorkflow, errandWorkflow];
 
 describe("lifecycle review driver", () => {
   it.each(workflows)("projects the same typed driver through %s", async (path) => {
@@ -44,17 +44,17 @@ describe("lifecycle review driver", () => {
   });
 
   it("combines WU convergence, exact-head status, and checkpointed merge disclosure", async () => {
-    const workflow = await readFile(
-      resolve(packageArc, workflows[0] ?? ""),
-      "utf8",
-    );
+    const [workflow, preparation] = await Promise.all([
+      readFile(resolve(packageArc, integrateWorkflow), "utf8"),
+      readFile(resolve(packageArc, prepareWorkflow), "utf8"),
+    ]);
     expect(workflow).toContain("arc review change-request resolve --head-ref");
     expect(workflow).toContain("arc review status --target '{targetRef}' --json");
     expect(workflow).toContain("arc merge lock resolve -");
     expect(workflow).toContain("arc integrate checkpoint {name} --json");
     expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
     expect(workflow).toContain("Approve (or redirect)?");
-    expect(workflow).toMatch(/runtime-owned bindings/i);
+    expect(preparation).toMatch(/runtime-owned bindings/i);
     expect(workflow).toContain("no-action record-only");
     expect(workflow).not.toContain("`Coverage`");
     expect(workflow).not.toContain("arc review readiness -");
@@ -64,8 +64,8 @@ describe("lifecycle review driver", () => {
 
   it("keeps attention suppression with the owner of each judgment", async () => {
     const [workUnit, errand] = await Promise.all([
-      readFile(resolve(packageArc, workflows[0] ?? ""), "utf8"),
-      readFile(resolve(packageArc, workflows[1] ?? ""), "utf8"),
+      readFile(resolve(packageArc, prepareWorkflow), "utf8"),
+      readFile(resolve(packageArc, errandWorkflow), "utf8"),
     ]);
     for (const pair of [
       "disabled / none",

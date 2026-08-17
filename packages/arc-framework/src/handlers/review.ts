@@ -40,6 +40,7 @@ import {
   prePublicationTargetRemedy,
   type ReviewCommandErrorCode,
   type ReviewCommandMode,
+  type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
@@ -1635,19 +1636,33 @@ export async function handleReviewPrePublication(
 ): Promise<void> {
   const dependencies = { ...defaultPrePublicationDependencies(), ...overrides };
   const target = SlugSchema.safeParse(name.trim());
-  const remedyFor = (code: ReviewCommandErrorCode): SpineRemedy => target.success
+  const remedyFor = (code: ReviewPrePublicationRefusalCode): SpineRemedy => target.success
     ? prePublicationRemedy(code, target.data)
     : prePublicationTargetRemedy();
-  const emitFailure = (error: unknown, phase: "request" | "execution" | "output"): void => {
-    dependencies.write(`${JSON.stringify(
-      reviewCommandError(
-        "review-pre-publication",
-        error,
-        phase,
-        ReviewCommandErrorEnvelopeSchema,
-        remedyFor,
-      ),
-    )}\n`);
+  const emitFailure = (
+    error: unknown,
+    phase: "request" | "execution" | "output",
+    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">,
+  ): void => {
+    const envelope = code === undefined
+      ? reviewCommandError(
+          "review-pre-publication",
+          error,
+          phase,
+          ReviewCommandErrorEnvelopeSchema,
+          (genericCode: ReviewCommandErrorCode) => remedyFor(genericCode),
+        )
+      : ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: [],
+          error: {
+            code,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          remedy: remedyFor(code),
+        });
+    dependencies.write(`${JSON.stringify(envelope)}\n`);
     dependencies.setExitCode(1);
   };
 
@@ -1691,7 +1706,7 @@ export async function handleReviewPrePublication(
   try {
     const composition = await dependencies.compose(root, input.data, judgment);
     if (composition.status === "refused") {
-      emitFailure(new Error(composition.reason), "execution");
+      emitFailure(new Error(composition.reason), "execution", composition.code);
       return;
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);

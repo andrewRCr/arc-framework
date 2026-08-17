@@ -6,6 +6,7 @@ import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-sch
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
 import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
@@ -108,7 +109,11 @@ export type PrePublicationComposition =
     /** Composition facts the envelope cannot carry and a caller must not lose. */
     advisories: readonly string[];
   }
-  | { status: "refused"; reason: string };
+  | {
+    status: "refused";
+    reason: string;
+    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">;
+  };
 
 /**
  * The routing facts a change set's review obligation turns on are author judgments — content kind,
@@ -200,7 +205,13 @@ export async function composePrePublicationReviewRequest(
   if (candidate.status === "missing") {
     return { status: "refused", reason: `No managed Candidate record exists for \`${input.workUnit}\`.` };
   }
-  if (candidate.status === "blocked") return { status: "refused", reason: candidate.reason };
+  if (candidate.status === "blocked") {
+    return {
+      status: "refused",
+      code: "candidate-unexplained-delta",
+      reason: candidate.reason,
+    };
+  }
 
   const assurance = await dependencies.readAssurance(input.workUnit);
   if (assurance.status === "refused") return { status: "refused", reason: assurance.reason };

@@ -24,7 +24,7 @@ describe("spine refusal remedies", () => {
   it("derives its reason coverage from the refusal schemas", () => {
     expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(9);
     expect(MERGE_REFUSAL_REASONS).toHaveLength(11);
-    expect(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).toHaveLength(3);
+    expect(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).toHaveLength(4);
     expect(new Set(CHECKPOINT_BLOCKED_REASONS).size).toBe(CHECKPOINT_BLOCKED_REASONS.length);
     expect(new Set(MERGE_REFUSAL_REASONS).size).toBe(MERGE_REFUSAL_REASONS.length);
     expect(new Set(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).size)
@@ -71,10 +71,13 @@ describe("spine refusal remedies", () => {
   });
 
   it("routes an unexplained delta to the two-step escape rather than a re-attempt that blocks again", () => {
-    const remedy = checkpointRemedy("candidate-unexplained-delta", "example");
+    const checkpoint = checkpointRemedy("candidate-unexplained-delta", "example");
+    const prePublication = prePublicationRemedy("candidate-unexplained-delta", "example");
 
-    expect(remedy.argv).toEqual(["arc", "attest", "example", "--new-root"]);
-    expect(remedy.text).toMatch(/full verification/iu);
+    for (const remedy of [checkpoint, prePublication]) {
+      expect(remedy.argv).toEqual(["arc", "attest", "example", "--new-root"]);
+      expect(remedy.text).toMatch(/full verification/iu);
+    }
   });
 
   it("interpolates the refused work unit into slug-bearing commands", () => {
@@ -132,5 +135,11 @@ describe("spine refusal remedies", () => {
       diagnostics: [],
       error: { code: "corrupt-state", message: "the durable record is unreadable" },
     })).toMatchObject({ mode: "review-reduce" });
+    expect(() => ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-reduce",
+      diagnostics: [],
+      error: { code: "candidate-unexplained-delta", message: "the Candidate is stale" },
+    })).toThrow();
   });
 });

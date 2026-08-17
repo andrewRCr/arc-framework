@@ -460,7 +460,7 @@ WU `loadSet` or select a workflow from branch shape, `sessionType`, or `process-
 projections over the exact role subject; do not infer either from branch patterns. A selected WU row without the
 expected derived context is a probe mismatch and stops. With no selected entry row, there is no session type.
 
-SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | integration`
+SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | prepublication | integration`
 (case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
 warning in orientation.
 

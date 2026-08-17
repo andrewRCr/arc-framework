@@ -122,6 +122,25 @@ describe("resolveLoadSetManifest", () => {
     );
   });
 
+  it("resolves prepublication sessions with preparation and no task-list slice", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "prepublication",
+      planningStage: null,
+    });
+
+    expect(manifest.entries).not.toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
+    );
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    );
+  });
+
   it("keeps active extension bodies out of the session load set while including the cohort doc", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,

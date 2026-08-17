@@ -1182,7 +1182,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     }
   });
 
-  it("keeps Candidate pre-publication work in execution before submission", async () => {
+  it("does not infer prepublication from Candidate-shaped narration alone", async () => {
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",

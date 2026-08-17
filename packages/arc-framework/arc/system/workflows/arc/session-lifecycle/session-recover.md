@@ -61,12 +61,12 @@ Use the **fresh** report surfaces for context loading:
 - `report.recover.loadSet.value` is the canonical context-load plan. The seed's embedded load set
   is only the audit baseline.
 - For execution sessions, require `report.verdict.taskCursor.match === true` and use
-  `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. For integration sessions,
-  apply the same rule when the report carries a non-null `taskCursor` comparison (seed or fresh
-  recovery found a cursor); a cursorless integration review state is valid when the task list has no open
-  executable checkbox. If a required cursor is absent, malformed, or not `status: "found"`, stop; do not
-  fall back to active-meta `Next Task`. A task-cursor mismatch is an unconditional stop: the harness summary
-  can explain the volatile current leaf, but it does not override durable task-list drift.
+  `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. For prepublication and integration
+  sessions, apply the same rule when the report carries a non-null `taskCursor` comparison (seed or fresh recovery
+  found a cursor); a cursorless phase state is valid when the task list has no open executable checkbox. If a
+  required cursor is absent, malformed, or not `status: "found"`, stop; do not fall back to active-meta `Next Task`.
+  A task-cursor mismatch is an unconditional stop: the harness summary can explain the volatile current leaf, but
+  it does not override durable task-list drift.
 - For planning sessions, use the harness-summary workflow/stage only after the verification above.
 
 Do not stop solely because the seed is old or `HEAD` moved. The recovery audit's structured
@@ -122,7 +122,7 @@ Preserve the manifest order when reconciling loaded content and deciding what pr
 context applies, even when the reads complete out of order.
 
 The load set already includes the session-type lifecycle workflow when the recovered state has
-one. For an execution or integration resume the mapping is a deterministic shipped table, so an
+one. For an execution, prepublication, or integration resume the mapping is a deterministic shipped table, so an
 absent entry is a projection defect rather than a missing decision: load the mapped workflow and
 surface the omission rather than stopping — the gap is itself a signal about the audit that
 produced the load set, so it is reported, never swallowed. A planning resume has no such mapping
@@ -172,7 +172,8 @@ Resume without a routine prompt by dispatching only on `report.recover.recoveryF
   Never persist or reconstruct a third frame.
 - `kind: "none"` — the reader proves a between-WUs frame for the current checkout. Use the harness summary only for the
   volatile current leaf; if it claims an open transient, stop because durable state and summary disagree.
-For a resolved WU, `workflow` selects execution, planning, or integration directly. For a resolved transient, the
+For a resolved WU, `workflow` selects planning, execution, prepublication, or integration directly. For a resolved
+transient, the
 subject workflow owns resume/leave/close and reports the restored frame. Branch prefixes, active-meta fields, and
 the harness summary never select recovery mode.
 

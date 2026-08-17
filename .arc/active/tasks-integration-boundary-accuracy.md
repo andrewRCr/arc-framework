@@ -61,6 +61,17 @@ skip but persisted no progress, so re-entry selected the unwanted carrier again.
 defect and chunk 12 covers the fix. The package default remains unchanged — frontline is inactive with no sources;
 the new judgment applies only when an enabled lane is explicitly skipped and cannot suppress standard review.
 
+_Amended 2026-08-17 — prepublication phase._ The first live run's compaction recovery exposed a deeper lifecycle
+coherence defect: Candidate-bearing `Active` metadata carried the integration boundary but still projected
+`execution` / `process-task-loop`, while SESSION-NOTES supplied an agent-only integration override. Phase 14
+introduces the missing operational phase, extracts private review into `prepare-work-unit`, and leaves
+`integrate-work-unit` aligned with `Integrating` from `arc publish` onward. Chunk 13 covers the complete fix.
+
+_Amended 2026-08-17 — stale-Candidate refusal._ The same live run reached the expected unexplained-delta guard
+through `arc review pre-publication`, but the handler flattened it to `unexpected-failure` and prescribed an
+idempotent retry that could only fail again. Task 14.2 keeps the refusal on its typed Candidate-currentness path and
+names the deliberate `arc attest --new-root` escape. It remains in chunk 13 with the phase boundary it completes.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
 across the eleven, and the seam review below carry the review obligation the stack's per-member pull requests
@@ -80,6 +91,7 @@ would have carried.
 | 10 | Design-audit remediation | `design-audit-remediation`           | 11    | A, B4, B8, C3, D1–D3, E2, E4, E9 |
 | 11 | Attest staging guard     | `attest-staging-precondition`        | 12    | E1, E2, E4                       |
 | 12 | Frontline override       | `frontline-invocation-override`      | 13    | E3, E9                           |
+| 13 | Prepublication phase     | `prepublication-phase`               | 14    | E1–E3, E7, E9, F                 |
 
 Every chunk covers exactly the phase its row names, so each resolves to a contiguous commit range and no review
 pass needs a hand-assembled diff. Chunks 1–9 sit on the like-numbered phases; chunks 10 and 11 sit on Phases 11
@@ -103,6 +115,9 @@ repository checks and the ARC merge lock govern the single landing, with no sepa
 
 _Amended 2026-08-17._ The same procedure applies to all twelve after chunk 12's addition; the original eleven
 remain unchanged and retain their prior boundaries.
+
+_Amended 2026-08-17._ Chunk 13 sits on Phase 14. It covers the session projection, load-set/recovery contract,
+workflow extraction, and the seams on both sides of `arc publish`; the prior twelve boundaries remain unchanged.
 
 ---
 
@@ -1752,6 +1767,49 @@ standard lane without running the unwanted frontline carrier or bypassing the Ca
 
 ---
 
+## **Phase 14:** Prepublication phase coherence
+
+_Purpose:_ Close the live-run lifecycle contradiction in which verification and Candidate attestation had ended
+execution, but typed session discovery and recovery still selected `execution` / `process-task-loop` until the
+later public `Active → Integrating` transition.
+
+### `[x]` **14.1 Introduce the typed prepublication phase and split preparation from integration**
+
+- _Goal:_ Candidate-bearing `Active` work deterministically resumes a dedicated private-review workflow, while
+  `Integrating` and `integrate-work-unit` begin together at `arc publish`; compaction recovery preserves the same
+  boundary without relying on SESSION-NOTES narration.
+
+    - `[x]` **14.1.a Project Candidate-bearing Active work as prepublication**
+        - Session, status, load-set, handoff, seed, and recovery contracts now project Candidate-bearing `Active`
+          work as `prepublication`; non-Candidate `Active` work remains execution and `Integrating` remains
+          integration.
+
+    - `[x]` **14.1.b Extract private review into `prepare-work-unit`**
+        - `prepare-work-unit` now owns author review, chunking, private lanes, finding response, convergence, and
+          publication; verification hands off to it, while `integrate-work-unit` starts only after `arc publish`.
+
+    - `[x]` **14.1.c Recover across the execution-shaped seed emitted by the defect**
+        - Recovery accepts only the exact old execution-seed to prepublication load-set substitution as explained
+          drift, rejects wider changes, and restores cursorless Candidate preparation.
+
+    - `[x]` **14.1.d Re-prove the lifecycle seam**
+        - Active status, session initialization, load-set, seed, recovery, workflow sync, trigger, and procedure
+          contracts pin the split; the fully verified subject is re-rooted before private review resumes.
+
+- _Outcome:_ Candidate attestation now ends execution at a typed, recoverable private-preparation phase; publication
+  begins public integration and hands a smaller, state-coherent tail to `integrate-work-unit`.
+
+### `[x]` **14.2 Preserve the stale-Candidate refusal through prepublication composition**
+
+- _Goal:_ An unexplained Candidate delta reached through `arc review pre-publication` is an expected typed refusal,
+  not an unexpected failure, and its single corrective command is the deliberate re-root invocation rather than an
+  idempotent retry that cannot advance.
+- _Outcome:_ Candidate composition now carries `candidate-unexplained-delta` into a prepublication-only refusal
+  variant whose remedy is `arc attest {name} --new-root`; the real CLI proves that route while conservation coverage
+  keeps every other review command on the generic error set.
+
+---
+
 ## Success Criteria
 
 - `[x]` The final integration step's residual length is a function of its stop inventory; the reconcile arm
@@ -1836,6 +1894,14 @@ _Added 2026-08-17 — first live integration run (forward amendment; the prior s
 
 - `[x]` An enabled frontline lane can be explicitly skipped for one pre-publication invocation without changing
   its configured activity or sources, and the override cannot suppress the standard lane
+
+_Added 2026-08-17 — prepublication phase (forward amendment; the prior sets are unchanged):_
+
+- `[x]` Candidate attestation ends execution: Candidate-bearing `Active` work projects `prepublication` and
+  `prepare-work-unit`, while `arc publish` begins both `Integrating` and `integrate-work-unit`; recovery preserves
+  the same split without SESSION-NOTES authority
+- `[x]` A prepublication attempt over an unexplained Candidate delta reports the expected typed refusal and names
+  `arc attest {name} --new-root` as its one advancing command
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI

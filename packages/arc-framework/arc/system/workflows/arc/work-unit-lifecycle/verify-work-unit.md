@@ -14,10 +14,9 @@ The task description is intentionally thin — this workflow is the authoritativ
 Complete all three steps below, then mark the single verification task `[x]` with completion
 notes covering what was verified (see [Completion Notes](#completion-notes)).
 
-**Relationship to integrate-work-unit:** This is the implementer's validation pass. The
-[integrate-work-unit workflow][integrate-work-unit] performs a second confirmation during
-integration — a lightweight check that works whether the same person or a different team
-member integrates.
+**Relationship to preparation and integration:** This is the implementer's validation pass and the final execution
+task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] for private review and convergence;
+[integrate-work-unit][integrate-work-unit] begins only after `arc publish` starts public integration.
 
 ## Step 1 — Tier 3 Quality Gates
 
@@ -105,4 +104,5 @@ verification-task exception). Cover both:
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[prepare-work-unit]: prepare-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md

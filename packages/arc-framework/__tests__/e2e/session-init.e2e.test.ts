@@ -4,7 +4,7 @@
  * Exercises `arc status --session-init --json` end-to-end against a fresh
  * `arc init` install, verifying that the binary's CLI argument parsing and
  * JSON serialization carry the inferred `sessionType` correctly across the
- * three resolved type variants (planning / execution / integration).
+ * resolved type variants (planning / execution / prepublication / integration).
  *
  * SESSION-NOTES `**Session Type:**` override resolution is intentionally
  * out of scope here — overrides are applied agent-side at SESSION-NOTES
@@ -65,6 +65,7 @@ interface SessionInitEnvelope {
     value?: {
       resolution: string;
       sessionType: string | null;
+      currentWorkflow: string | null;
       integrationBoundary?: {
         candidateId: string;
         locus: string;
@@ -751,6 +752,8 @@ describe("session-init E2E — sessionType across type variants", () => {
     const result = await runArc(["status", "--session-init", "--json"], tmpDir);
     expect(result.exitCode).toBe(0);
     const envelope = parseJsonEnvelope(result.stdout);
+    expect(envelope.active.value?.sessionType).toBe("prepublication");
+    expect(envelope.active.value?.currentWorkflow).toBe("prepare-work-unit");
     expect(envelope.active.value?.integrationBoundary).toMatchObject({
       candidateId,
       locus: "candidate-review-pending",

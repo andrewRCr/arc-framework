@@ -1674,6 +1674,25 @@ describe("handleReviewPrePublication", () => {
     expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
   });
 
+  it("preserves a stale Candidate's typed refusal and deliberate re-root remedy", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused",
+        code: "candidate-unexplained-delta",
+        reason: "Run full work-unit verification to establish a new Candidate lineage root.",
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { code: "candidate-unexplained-delta" },
+      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
   it("reports a repository it cannot resolve as an ARC project", async () => {
     const compose = vi.fn();
     const dependencies = boundary({ resolveRoot: () => null, compose });

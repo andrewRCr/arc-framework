@@ -509,7 +509,7 @@ export const ActiveSessionInitValueViewSchema = z
     mode: z.literal("session-init"),
     layout: z.enum(["full", "lite"]),
     resolution: z.enum(["none", "single", "multiple"]),
-    sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+    sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
     planningStage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),
     integrationBoundary: IntegrationBoundaryLocusSchema.nullable().optional(),
   })
@@ -755,7 +755,7 @@ const DerivedCheckoutRowViewSchema = z.object({
   subject: DerivedSubjectViewSchema.nullable(),
   context: z.object({
     metaPath: LoadSetPathSchema,
-    sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+    sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
     workflow: z.string().nullable(),
     stage: z.string().nullable(),
     taskListPath: LoadSetPathSchema.nullable(),
@@ -1016,9 +1016,10 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
   (value, context) => {
     const taskCursorRequired = value.loadSet.ok
       && value.loadSet.value.entries.some((entry) => entry.readMode.kind === "partial-strategic");
-    const integrationTaskCursorAllowed = value.recoveryFrame.ok
+    const cursorlessPhaseTaskCursorAllowed = value.recoveryFrame.ok
       && value.recoveryFrame.value.kind === "resolved"
-      && value.recoveryFrame.value.sessionType === "integration";
+      && (value.recoveryFrame.value.sessionType === "prepublication"
+        || value.recoveryFrame.value.sessionType === "integration");
     const taskCursorPresent = Object.hasOwn(value, "taskCursor");
     if (!taskCursorPresent && taskCursorRequired) {
       context.addIssue({
@@ -1027,11 +1028,11 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
         message: "required by the locus-derived strategic task-list entry",
       });
     }
-    if (taskCursorPresent && !taskCursorRequired && !integrationTaskCursorAllowed) {
+    if (taskCursorPresent && !taskCursorRequired && !cursorlessPhaseTaskCursorAllowed) {
       context.addIssue({
         code: "custom",
         path: ["taskCursor"],
-        message: "forbidden without a locus-derived strategic task-list entry or resolved integration frame",
+        message: "forbidden without a locus-derived strategic task-list entry or resolved cursorless-phase frame",
       });
     }
   },

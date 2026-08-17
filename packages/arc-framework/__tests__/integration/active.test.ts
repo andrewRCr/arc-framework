@@ -836,6 +836,8 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     expect(full.candidates[0]?.integrationBoundary?.locus).toBe("candidate-review-pending");
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.sessionType).toBe("prepublication");
+    expect(result.currentWorkflow).toBe("prepare-work-unit");
     expect(result.integrationBoundary).toMatchObject({
       candidateId,
       locus: "candidate-review-pending",

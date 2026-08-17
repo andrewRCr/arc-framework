@@ -11,13 +11,14 @@ arc:
 
 # Workflow: Reopen Work Unit
 
-Pull a work unit out of review back to active work — the inverse of [`integrate-work-unit.md`][integrate]. A
-`set-phase`-only move (`Integrating → Active`, no location move and no branch rotation — the working branch keeps the
-`<type>/` prefix it took at activation) that withdraws the open PR.
+Pull a work unit out of public integration back to private Candidate preparation — the inverse of the publication
+transition in [`prepare-work-unit.md`][prepare]. A `set-phase`-only move (`Integrating → Active`, no location move
+and no branch rotation — the working branch keeps the `<type>/` prefix it took at activation) that withdraws the
+open PR.
 
 **When to use:** A WU sits in `**State:** Integrating` (PR open, awaiting review), but it needs substantial rework
-before it can merge — a reviewer requested changes large enough to leave review for, or a problem surfaced that more
-task work must address. Withdrawing returns it to `Active` and pulls the PR out of review.
+before it can merge — a reviewer requested changes large enough to leave public review for, or a problem surfaced
+that needs private convergence. Withdrawing returns it to Candidate-bearing `Active` and pulls the PR out of review.
 
 > [!NOTE]
 > **PR already merged?** `reopen` refuses a merged PR (the `pr-unmerged` guard) — backing out merged work is a new
@@ -39,7 +40,7 @@ task work must address. Withdrawing returns it to `Active` and pulls the PR out 
 
 The judgment `reopen` carries is the withdraw-vs-stay-integrating call: pull out of review only when the remaining work
 is substantial enough that churning the open PR through it is worse than withdrawing. Minor review-driven fixes stay in
-[`integrate-work-unit.md`][integrate] Step 4 (review iteration) — they don't warrant a reopen.
+[`integrate-work-unit.md`][integrate] Step 2 (review iteration) — they don't warrant a reopen.
 
 Then choose how the PR is withdrawn:
 
@@ -95,22 +96,24 @@ under `--keep-pr`, so the draft PR carries it.
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-### 4) Resume task work
+### 4) Resume Candidate preparation
 
-The WU is back in `**State:** Active`. Return to task execution per [`process-task-loop.md`][process-task-loop] and
-address the rework that prompted the withdrawal. `reopen` left `**Next Task:**` / `**Next Action:**` at `[none]`; they
-re-establish at the next handoff, or set them by hand if orientation is needed before then.
+The WU is back in Candidate-bearing `**State:** Active`, which projects `sessionType: prepublication` and
+`workflow: prepare-work-unit`. Return to [`prepare-work-unit.md`][prepare] and converge the private Candidate. The
+Candidate currentness and review procedures account for head-changing fixes; never route from the cleared narrative
+`**Next Action:**` field.
 
 ---
 
 ## Next step
 
-Active task work resumes. When the rework is complete and the WU is ready to ship again, re-enter
-[`integrate-work-unit.md`][integrate] — `arc status {name} --json` reads `active` again, so it enters fresh.
+Private Candidate preparation resumes. When it settles, `arc publish` schedules public integration again and hands
+back to [`integrate-work-unit.md`][integrate].
 
 ## Related workflows
 
-- [`integrate-work-unit.md`][integrate] — the `publish` inverse; Active → Integrating (schedule publication).
+- [`prepare-work-unit.md`][prepare] — owns the inverse `publish` transition; Active → Integrating.
+- [`integrate-work-unit.md`][integrate] — the public integration phase this workflow withdraws from.
 - [`deactivate-work-unit.md`](deactivate-work-unit.md) — the other phase-axis reversal; Active → Planning (own-file
   precedent).
 - Backing out **merged** work has no reopen path: open a new origin-linked follow-up WU (its `**Origin:**` records the
@@ -121,5 +124,5 @@ Active task work resumes. When the rework is complete and the WU is ready to shi
 [branch-format]: ../../../methods/branch-format.md
 [commit-footer]: ../../../methods/commit-footer.md
 [integrate]: integrate-work-unit.md
-[process-task-loop]: ../process-task-loop.md
+[prepare]: prepare-work-unit.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

@@ -14,6 +14,7 @@ import {
   type RecoveryAuditProbeState,
 } from "../../../src/lib/recover/audit.js";
 import type { RecoveryLocusFrame } from "../../../src/lib/recover/locus-context.js";
+import { projectCandidateReviewBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const LOAD_SET = {
   manifestVersion: 1,
@@ -350,6 +351,55 @@ describe("auditRecoveryState", () => {
       recover: recover({ loadSet: ok({ manifestVersion: 1, entries: [] }) }),
     });
     expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "load-set-drift" }));
+  });
+
+  it("recovers an exact execution-shaped seed through the Candidate prepublication projection", async () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const prepublicationLoadSet = {
+      manifestVersion: 1 as const,
+      entries: [
+        LOAD_SET.entries[0]!,
+        {
+          path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+          readMode: { kind: "full" as const },
+        },
+      ],
+    } satisfies LoadSetManifest;
+    const row = workUnitRow({
+      context: {
+        ...workUnitRow().context!,
+        sessionType: "prepublication",
+        workflow: "prepare-work-unit",
+        taskCursor: { status: "no-open-task" },
+        loadSet: prepublicationLoadSet,
+        integrationBoundary: projectCandidateReviewBoundary({ workUnit: "demo", candidateId }),
+      },
+    });
+    const state = derivedFrame({
+      roster: [row],
+      entering: { kind: "selected", row },
+      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: row.context! },
+    });
+
+    const result = await run({
+      seed: seed({ dirty: false, taskCursor: null, uncommittedFiles: [] }),
+      recover: recover({
+        derivedLocusState: ok(state),
+        recoveryFrame: ok(recoveryFrame({ workflow: "prepare-work-unit", sessionType: "prepublication" })),
+        dirty: ok({ state: "clean", fileCount: 0 }),
+        loadSet: ok(prepublicationLoadSet),
+        taskCursor: ok({ status: "no-open-task" }),
+      }),
+      freshUncommittedFiles: [],
+      freshHead: "b".repeat(40),
+      resolveCommittedProgress: async () => ({ advanced: true, files: new Set() }),
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.taskCursor).toBeNull();
+    expect(result.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "load-set-prepublication-projection",
+    }));
   });
 
   it("accepts the exact active-to-completed meta relocation for an archived integration WU", async () => {

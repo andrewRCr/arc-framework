@@ -152,6 +152,46 @@ describe("checkout subject active-extension seam", () => {
     if (result.kind === "resolved") expect(result.integrationBoundary).toEqual(boundary);
   });
 
+  it("projects a Candidate-bearing Active subject as prepublication", async () => {
+    const { options, files } = fixture();
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "prepublication",
+      workflow: "prepare-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: { candidateId, locus: "candidate-review-pending" },
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+      readMode: { kind: "full" },
+    });
+  });
+
   it("makes omission output-identical to an explicit empty extension list", async () => {
     const { options } = fixture();
 

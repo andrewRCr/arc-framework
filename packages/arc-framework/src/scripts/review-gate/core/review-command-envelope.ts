@@ -3,7 +3,12 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
-import { SpineRemedySchema, spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
+import {
+  attestNewRootArgv,
+  SpineRemedySchema,
+  spineRemedy,
+  type SpineRemedy,
+} from "../../integration/spine-refusal.js";
 import {
   FrontlineFailedRepairReasonSchema,
   FrontlineFailedRetryReasonSchema,
@@ -62,16 +67,27 @@ export const ReviewCommandErrorCodeSchema = z.enum([
 ]);
 export type ReviewCommandErrorCode = z.infer<typeof ReviewCommandErrorCodeSchema>;
 
+export const ReviewPrePublicationRefusalCodeSchema = z.enum([
+  ...ReviewCommandErrorCodeSchema.options,
+  "candidate-unexplained-delta",
+]);
+export type ReviewPrePublicationRefusalCode = z.infer<
+  typeof ReviewPrePublicationRefusalCodeSchema
+>;
+
 /** Every shape the pre-publication verb refuses with, for exhaustive iteration. */
-export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewCommandErrorCode[] =
-  ReviewCommandErrorCodeSchema.options;
+export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewPrePublicationRefusalCode[] =
+  ReviewPrePublicationRefusalCodeSchema.options;
 
 /** The idempotent pre-publication re-attempt — the resume point every refusal returns to. */
 function prePublicationResumeArgv(workUnit: string): readonly string[] {
   return ["arc", "review", "pre-publication", workUnit, "--json"];
 }
 
-const PRE_PUBLICATION_REMEDIES: Record<ReviewCommandErrorCode, (workUnit: string) => SpineRemedy> = {
+const PRE_PUBLICATION_REMEDIES: Record<
+  ReviewPrePublicationRefusalCode,
+  (workUnit: string) => SpineRemedy
+> = {
   "invalid-input": (workUnit) => spineRemedy(
     "Pre-publication resolves only a request it can read.",
     "Correct the reported input, then re-run",
@@ -87,6 +103,11 @@ const PRE_PUBLICATION_REMEDIES: Record<ReviewCommandErrorCode, (workUnit: string
     "Resolve the reported failure, then re-run",
     prePublicationResumeArgv(workUnit),
   ),
+  "candidate-unexplained-delta": (workUnit) => spineRemedy(
+    "Pre-publication review requires the current reviewable subject to belong to the verified Candidate lineage.",
+    "Run full verification, then establish a new Candidate root",
+    attestNewRootArgv(workUnit),
+  ),
 };
 
 /**
@@ -96,7 +117,7 @@ const PRE_PUBLICATION_REMEDIES: Record<ReviewCommandErrorCode, (workUnit: string
  * @param workUnit - The refused work unit, interpolated into the resume command.
  * @returns The remedy naming the failed invariant and one corrective command.
  */
-export function prePublicationRemedy(code: ReviewCommandErrorCode, workUnit: string): SpineRemedy {
+export function prePublicationRemedy(code: ReviewPrePublicationRefusalCode, workUnit: string): SpineRemedy {
   return PRE_PUBLICATION_REMEDIES[code](workUnit);
 }
 
@@ -701,12 +722,12 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
     .flatMap((mode) => ReviewCommandErrorCodeSchema.options.map((code) => errorVariant(mode, code))),
   // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
   // corrective guidance the checkpoint and merge verbs do.
-  ...ReviewCommandErrorCodeSchema.options.map(
+  ...ReviewPrePublicationRefusalCodeSchema.options.map(
     (code) => remedialErrorVariant("review-pre-publication", code),
   ),
 ]);
 
-function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewCommandErrorCode>(
+function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
   mode: Mode,
   code: Code,
 ): z.ZodObject<{
@@ -728,7 +749,7 @@ function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewCommand
   });
 }
 
-function remedialErrorVariant<Mode extends ReviewCommandMode, Code extends ReviewCommandErrorCode>(
+function remedialErrorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
   mode: Mode,
   code: Code,
 ): z.ZodObject<{

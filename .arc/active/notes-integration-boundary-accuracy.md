@@ -593,6 +593,27 @@ instances is the signal worth carrying into a fifth entry: prefer suspecting thi
 locus fresh, and if a fourth instance appears, the proportionate response is a design pass over the two notions of
 "same work" rather than a fourth point fix.
 
+## First live integration run — prepublication phase mismatch (2026-08-17)
+
+The first compaction inside the newly minted integration workflow stopped recovery with
+`task-cursor-missing` and `task-cursor-unresolved`. The durable work-unit facts were internally split:
+`State: Active`, a Candidate projecting `candidate-review-pending`, no open task, `Current Workflow:
+integrate-work-unit`, and SESSION-NOTES `Session Type: integration`; the checkout-derived reader nevertheless
+projected `sessionType: execution`, `workflow: process-task-loop`, and its execution load set. Recovery correctly
+refused the resulting cursorless execution frame.
+
+This was not a recovery-only defect. Phase 1 Task 1.4.c deliberately removed narrative `Next Action` authority and
+kept Candidate loci orthogonal to lifecycle `State`, but left no typed operational phase between execution and
+public integration. SESSION-NOTES became the only surface saying the session had left execution, and deterministic
+consumers could not use it. Teaching recovery to special-case the override would preserve the contradiction.
+
+**Disposition:** current-WU fix, approved by the maintainer. Verification stays inside the task list as execution's
+closing proof and `arc attest` remains its durable handoff. Candidate-bearing `Active` work gains
+`prepublication` / `prepare-work-unit`; private review and convergence move there. `arc publish` remains the
+public boundary and `Integrating` / `integrate-work-unit` begin together. No fifth lifecycle State is added because
+the Candidate locus already supplies the durable prepublication substate; `Active` remains the coarse fact that
+public integration has not begun. Phase 14 and review chunk 13 own the implementation.
+
 ## Resume Procedure
 
 _Superseded 2026-08-15 — the planning-stage procedure below is complete and retained for provenance. The live

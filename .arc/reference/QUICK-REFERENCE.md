@@ -353,7 +353,7 @@ arc resume [slug] [--here]
 # --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
 arc attest <name> --json [--new-root]
 
-# Schedule publication: Active → Integrating, not the merge (integrate-work-unit.md)
+# Schedule publication: Active → Integrating, not the merge (prepare-work-unit.md)
 # --last-completed / --action override the task-list and boundary reads the verb makes on its own
 arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
 # Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
@@ -370,7 +370,7 @@ arc abandon <slug> --yes
 
 # Sweep a shipped WU to completed/ (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
-# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 13)
+# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 11)
 arc teardown <name> [--force] [--husk <absolute-path>]
 
 # Safely fast-forward the configured local base from any worktree

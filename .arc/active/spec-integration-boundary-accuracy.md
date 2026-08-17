@@ -531,6 +531,17 @@ and `publish` matches this section's own "schedules publication". The rename car
 E8's no-alias rule applies unchanged. `Integrating` keeps its name (already settled under § Alternatives), the
 `arc integrate` namespace is untouched, and nothing about the boundary's semantics moves with the words.
 
+_Amended 2026-08-17 — prepublication phase._ Candidate attestation closes execution but does not yet begin public
+integration. A Candidate-bearing `Active` work unit therefore projects a distinct `prepublication` session and
+the `prepare-work-unit` workflow; it must never fall back to `execution` / `process-task-loop`. That workflow owns
+author self-review, private review lanes, finding response, convergence verification, and re-attestation through
+`candidate-publish-ready`. `arc publish` remains the exact `Active → Integrating` boundary. The
+`integrate-work-unit` workflow begins there and owns push, change-request creation, hosted review, candidate-tail
+composition, checkpoint, merge, and cleanup. Candidate loci remain typed operational substates rather than a
+fifth lifecycle `State`; `Active` means the work unit has not begun public integration, not that task execution is
+still open. Verification remains the final task-list phase and `arc attest` is its durable handoff into
+prepublication.
+
 ### F. The transition fires at the publication boundary
 
 Verification is not the misplaced part: the task list's verification phase runs Tier 3 gates, success criteria, and
