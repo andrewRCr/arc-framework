@@ -127,7 +127,10 @@ import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
 import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
-import { collectGitCandidateTarget } from "../lib/work-unit/git-candidate-subject.js";
+import {
+  collectGitCandidateTarget,
+  collectUnstagedReviewablePaths,
+} from "../lib/work-unit/git-candidate-subject.js";
 import {
   readCandidateRecord,
   writeCandidateRecord,
@@ -146,7 +149,12 @@ import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-sourc
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
-import { spineRemedy, type SpineRemedy } from "../scripts/integration/spine-refusal.js";
+import {
+  attestArgv,
+  attestNewRootArgv,
+  spineRemedy,
+  type SpineRemedy,
+} from "../scripts/integration/spine-refusal.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
@@ -349,6 +357,12 @@ function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): vo
     return;
   }
   refuse(`${reason}\n${remedy.text}`);
+}
+
+/** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
+function summarizePaths(paths: readonly string[], limit = 5): string {
+  const shown = paths.slice(0, limit).map((path) => `\`${path}\``).join(", ");
+  return paths.length <= limit ? shown : `${shown}, and ${paths.length - limit} more`;
 }
 
 function parseLifecycleCommand<T extends z.ZodType>(
@@ -2379,6 +2393,25 @@ export async function handleAttest(
         "Candidate attestation runs only from an active publication lifecycle.",
         "Inspect the work-unit lifecycle state",
         ["arc", "status", input.name, "--json"],
+      ),
+      input.json === true,
+    );
+    return;
+  }
+
+  const unstaged = await collectUnstagedReviewablePaths({
+    cwd: base.cwd,
+    name: input.name,
+    exec: base.io.exec,
+  });
+  if (unstaged.length > 0) {
+    refuseWithRemedy(
+      `\`arc attest\` attests the staged subject, and ${unstaged.length} reviewable path(s) hold `
+        + `working-tree content the index does not carry: ${summarizePaths(unstaged)}.`,
+      spineRemedy(
+        "A Candidate attests the staged subject, so every verified reviewable change must be staged first.",
+        "Stage the verified content, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
       ),
       input.json === true,
     );

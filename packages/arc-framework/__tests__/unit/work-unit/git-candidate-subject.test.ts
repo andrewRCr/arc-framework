@@ -3,7 +3,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { collectGitCandidateTarget } from "../../../src/lib/work-unit/git-candidate-subject.js";
+import {
+  collectGitCandidateTarget,
+  collectUnstagedReviewablePaths,
+} from "../../../src/lib/work-unit/git-candidate-subject.js";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -123,5 +126,61 @@ describe("Candidate subject classification", () => {
 
     expect(entries.get(".arc/completed/2026-q3/01_sibling/tasks-sibling.md")?.treatment)
       .toBe("reviewable");
+  });
+});
+
+/** Read one worktree-versus-index comparison and one untracked listing. */
+async function collectUnstaged(unstaged: readonly string[], untracked: readonly string[] = []) {
+  const emit = (paths: readonly string[]) => paths.length === 0 ? "" : `${paths.join("\0")}\0`;
+  const exec: GitExec = async (_cmd, args) => {
+    if (args[0] === "diff") return { stdout: emit(unstaged) };
+    if (args[0] === "ls-files") return { stdout: emit(untracked) };
+    throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+  };
+  return collectUnstagedReviewablePaths({ cwd: "/repo", name: "example", exec });
+}
+
+describe("Unstaged reviewable content", () => {
+  it("reports working-tree content the index does not carry", async () => {
+    expect(await collectUnstaged([
+      "packages/arc-framework/src/example.ts",
+      ".arc/active/tasks-example.md",
+    ])).toEqual([
+      ".arc/active/tasks-example.md",
+      "packages/arc-framework/src/example.ts",
+    ]);
+  });
+
+  it("stays silent over the operational and projection writes a lifecycle tree carries", async () => {
+    expect(await collectUnstaged([
+      ".arc/active/meta-example.md",
+      ".arc/backlog/ROADMAP.md",
+      ".arc/system/.internal/candidates/example.json",
+      ".arc/system/.internal/candidates/example.boundary.json",
+    ])).toEqual([]);
+  });
+
+  it("reports an untracked reviewable file the subject would otherwise never see", async () => {
+    expect(await collectUnstaged([], [
+      "packages/arc-framework/src/added.ts",
+      ".arc/active/meta-example.md",
+    ])).toEqual(["packages/arc-framework/src/added.ts"]);
+  });
+
+  it("follows a relocated artifact to the treatment its content receives", async () => {
+    expect(await collectUnstaged([".arc/completed/2026-q3/01_example/tasks-example.md"]))
+      .toEqual([".arc/completed/2026-q3/01_example/tasks-example.md"]);
+    expect(await collectUnstaged([".arc/completed/2026-q3/01_example/meta-example.md"]))
+      .toEqual([]);
+  });
+
+  it("reports each path once when both readings name it", async () => {
+    const path = "packages/arc-framework/src/example.ts";
+
+    expect(await collectUnstaged([path], [path])).toEqual([path]);
+  });
+
+  it("reports nothing when the index carries every reviewable edit", async () => {
+    expect(await collectUnstaged([])).toEqual([]);
   });
 });

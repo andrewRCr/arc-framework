@@ -1652,6 +1652,46 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
 
 ---
 
+## **Phase 12:** Attest staging precondition
+
+_Purpose:_ Close a silent-wrong-result defect on `arc attest`, found at integration entry, before the chunked
+pre-publication review reads the spine verbs. The verb attests the git index; reviewable content left unstaged,
+partially staged, or untracked was excluded from the subject with no signal, while both success shapes —
+`attested` and `unchanged` — read as success. The mismatch surfaced only at the next Candidate-reading verb, by
+which point the verification commit had landed carrying a record whose subject omitted what that same commit
+delivered, and recovery cost a re-root plus a corrective commit.
+
+_Design decisions:_ Appended after the closed verification and remediation phases on the same footing as Phase 11
+— the `verify-work-unit.md` ceremony is not re-entered, and the phase closes through the convergence path § E4
+defines. The guard sits on the attest **write** path rather than in the shared subject collector: `publish`,
+`respond`, pre-publication currentness, and the checkpoint all read that collector to compare, and gating a
+comparison on worktree state would refuse an ordinary lifecycle tree — the position `pre-publication-request.ts`
+already records for the immutable-target read. Checked against `strategy-procedure-evolution` (Principle 1 — the
+precondition was prose the agent had to satisfy by reading; Principle 3 — the workflow's staging narration was a
+verb gap; Principle 6 — refusal text is CLI-composed) and `strategy-storage-evolution` (WU/branch coupling),
+which surfaced a forward-compat obligation routed to `arc-backend` rather than answered here. No new
+configuration axis.
+
+### `[x]` **12.1 `arc attest` refuses a subject the index does not carry**
+
+- _Goal:_ Attesting cannot silently record a subject that omits verified reviewable content. The refusal names
+  what is missing and the re-attempt, and it discriminates: operational writes, the meta, regenerated project
+  documents, and the Candidate's own projections never gate.
+
+- _Outcome:_ `collectUnstagedReviewablePaths` reads worktree-versus-index and untracked paths, keeps those whose
+  content reaches the subject as `reviewable`, and `arc attest` refuses on a non-empty result through the
+  existing `refuseWithRemedy` / `spineRemedy` shape — no new result variant, and the re-attempt argv preserves
+  `--new-root` when re-rooting. Guard and collector now classify through one extracted
+  `classifyCandidateSubjectPath`, so the two cannot drift; the extraction is literal and the pre-existing
+  classification tests pass unchanged. `verify-work-unit.md` Step 3 sheds the staging narration the verb now
+  owns, along with its stale instruction to stage the managed record and meta projection — which `attest`
+  already stages itself.
+
+    - _Not folded in:_ `arc review respond` writes lineage evidence through the same unguarded window. Recorded
+      as an open question for the review rather than expanded into here.
+
+---
+
 ## Success Criteria
 
 - `[x]` The final integration step's residual length is a function of its stop inventory; the reconcile arm
@@ -1722,6 +1762,12 @@ two `[x]` standard items above are re-judged at Task 11.12 over the remediated t
   surface the way Criterion 8 required of `integrate`
     - _Met only after Task 11.12's walk completed the rename: Task 11.10's sweep left the module's own exported
       identifiers, four source comments, and nine test surfaces behind. Verified by re-sweep, not by the record._
+
+_Added 2026-08-17 — attest staging precondition (forward amendment; both sets above are unchanged):_
+
+- `[x]` `arc attest` cannot record a subject that omits verified reviewable content: an unstaged, partially
+  staged, or untracked reviewable path refuses and is named, while operational writes, the meta, regenerated
+  project documents, and the Candidate's own projections attest unchanged
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI

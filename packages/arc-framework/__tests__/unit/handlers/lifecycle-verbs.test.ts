@@ -8,6 +8,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+import {
+  projectCandidateReviewBoundary,
+} from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
@@ -91,8 +95,9 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
   }),
 }));
 
+const mockParseMetaRecord = vi.fn(() => ({ branch: "feat/foo", state: "Active" }));
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ branch: "feat/foo" }),
+  parseMetaRecord: () => mockParseMetaRecord(),
   readActiveMetaCandidates: async () => ({ candidates: [{ filename: "meta-foo.md" }] }),
 }));
 
@@ -232,8 +237,15 @@ vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   writeCandidateRecord: vi.fn(),
 }));
 const mockCollectGitCandidateTarget = vi.fn();
+const mockCollectUnstagedReviewablePaths = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-candidate-subject.js", () => ({
   collectGitCandidateTarget: (...a: unknown[]) => mockCollectGitCandidateTarget(...a),
+  collectUnstagedReviewablePaths: (...a: unknown[]) => mockCollectUnstagedReviewablePaths(...a),
+}));
+const mockRunAttest = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/attest.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/lib/work-unit/verbs/attest.js")>()),
+  runAttest: (...a: unknown[]) => mockRunAttest(...a),
 }));
 const mockProjectCandidateCurrentness = vi.fn();
 vi.mock("../../../src/lib/work-unit/candidate-attestation.js", () => ({
@@ -281,6 +293,7 @@ const {
   handlePublish,
   handleAbandon,
   handleReopen,
+  handleAttest,
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
@@ -330,6 +343,12 @@ beforeEach(() => {
   process.exitCode = undefined;
   mockReadFile.mockResolvedValue("{}");
   mockReadConfigSettings.mockResolvedValue(configResult());
+  mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active" });
+  mockCollectUnstagedReviewablePaths.mockResolvedValue([]);
+  mockRunAttest.mockResolvedValue({
+    status: "unchanged",
+    locus: projectCandidateReviewBoundary({ workUnit: "foo", candidateId: `sha256:${"c".repeat(64)}` }),
+  });
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockBuildLifecycleIndex.mockResolvedValue(new Map([
     ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
@@ -1103,5 +1122,63 @@ describe("handleReopen", () => {
     await handleReopen(undefined, {});
     expect(mockRunReopen).toHaveBeenCalledTimes(1);
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
+  });
+});
+
+describe("handleAttest", () => {
+  it("attests when the index carries every reviewable edit", async () => {
+    await handleAttest("foo", { json: true });
+
+    expect(mockRunAttest).toHaveBeenCalledTimes(1);
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({ name: "foo", newRoot: false });
+  });
+
+  it("refuses without attesting when reviewable content is missing from the index", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectUnstagedReviewablePaths.mockResolvedValueOnce([
+      ".arc/active/tasks-foo.md",
+      "packages/arc-framework/src/foo.ts",
+    ]);
+
+    await handleAttest("foo", { json: true });
+
+    const refusal = JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])) as {
+      status: string;
+      reason: string;
+      remedy: { argv: string[] };
+    };
+    expect(refusal.status).toBe("rejected");
+    expect(refusal.reason).toContain(".arc/active/tasks-foo.md");
+    expect(refusal.reason).toContain("packages/arc-framework/src/foo.ts");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(mockRunAttest).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("names the deliberate re-rooting invocation as the re-attempt when re-rooting", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectUnstagedReviewablePaths.mockResolvedValueOnce(["packages/arc-framework/src/foo.ts"]);
+
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      remedy: { argv: ["arc", "attest", "foo", "--new-root"] },
+    });
+    expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it("bounds a wide refusal's path list while reporting the full scale", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectUnstagedReviewablePaths.mockResolvedValueOnce(
+      Array.from({ length: 8 }, (_value, index) => `src/file-${index}.ts`),
+    );
+
+    await handleAttest("foo", { json: true });
+
+    const { reason } = JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])) as { reason: string };
+    expect(reason).toContain("8 reviewable path(s)");
+    expect(reason).toContain("src/file-4.ts");
+    expect(reason).not.toContain("src/file-5.ts");
+    expect(reason).toContain("and 3 more");
   });
 });
