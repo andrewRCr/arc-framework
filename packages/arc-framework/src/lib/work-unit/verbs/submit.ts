@@ -48,17 +48,20 @@ export type SubmissionAuthorization =
 /** Admit only the exact current Candidate's settled-or-reserved pre-publication boundary. */
 export function authorizeSubmission(input: {
   expectedCandidateId: string;
-  expectedCandidateRevision: string;
+  expectedCandidateSubjectDigest: string;
   boundary: IntegrationBoundaryLocus;
 }): SubmissionAuthorization {
   const boundary = IntegrationBoundaryLocusSchema.parse(input.boundary);
   if (boundary.candidateId !== input.expectedCandidateId) {
     return { status: "refused", reason: "Submission boundary does not match the current Candidate." };
   }
-  if (boundary.candidateRevision !== input.expectedCandidateRevision) {
+  // The reviewable subject rather than the head: what a pre-publication boundary settles is a review
+  // of content, so only changed content can outdate it. Operational-only advances between the two
+  // verbs — a reconcile, the convergence attestation, the staged boundary itself — leave it standing.
+  if (boundary.candidateSubjectDigest !== input.expectedCandidateSubjectDigest) {
     return {
       status: "refused",
-      reason: "Submission boundary was written for an earlier Candidate lineage head.",
+      reason: "Submission boundary was written for different reviewable content.",
     };
   }
   if (boundary.locus !== "candidate-submit-ready") {
@@ -80,8 +83,8 @@ export interface SubmitParams {
   nextAction: string;
   /** Exact current Candidate identity read from its managed record. */
   candidateId: string;
-  /** Exact recognized Candidate revision the durable review boundary must authorize. */
-  candidateRevision: string;
+  /** Exact reviewable-subject digest the durable review boundary must have been written for. */
+  candidateSubjectDigest: string;
   /** Whether the managed Candidate lineage still matches the current reviewable subject. */
   candidateCurrent: boolean;
   /** Durable pre-publication boundary reduced from review evidence. */
@@ -103,7 +106,7 @@ const CANDIDATE_REMEDY = (name: string): SpineRemedy => spineRemedy(
 );
 
 const PRE_PUBLICATION_REMEDY = (name: string): SpineRemedy => spineRemedy(
-  "Submission requires a pre-publication boundary written for the current Candidate lineage head.",
+  "Submission requires a pre-publication boundary written for the current reviewable content.",
   "Re-run pre-publication review",
   ["arc", "review", "pre-publication", name, "--json"],
 );
@@ -164,7 +167,7 @@ export async function runSubmit(
     lastCompleted,
     nextAction,
     candidateId,
-    candidateRevision,
+    candidateSubjectDigest,
     candidateCurrent,
     boundary,
     allowAdvisories,
@@ -230,7 +233,7 @@ export async function runSubmit(
   }
   const authorization = authorizeSubmission({
     expectedCandidateId: candidateId,
-    expectedCandidateRevision: candidateRevision,
+    expectedCandidateSubjectDigest: candidateSubjectDigest,
     boundary,
   });
   if (authorization.status === "refused") {
@@ -286,7 +289,7 @@ export async function runSubmit(
     workUnit: name,
     branch,
     candidateId,
-    candidateRevision,
+    candidateSubjectDigest,
     reservation: authorization.reservation,
     // Submission fires at the head of the publication step, before the change request exists, so a
     // carried reservation has nothing to run against yet.

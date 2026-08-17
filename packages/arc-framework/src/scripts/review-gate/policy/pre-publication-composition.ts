@@ -74,6 +74,7 @@ export function createPrePublicationCompositionDependencies(input: {
         status: "current",
         candidateId: currentness.candidateId,
         headSha: currentness.recognizedRevision,
+        subjectDigest: current.subject.subjectDigest,
         implementationChanged: currentness.implementationChanged,
         convergenceVerification: currentness.convergenceVerification,
       };

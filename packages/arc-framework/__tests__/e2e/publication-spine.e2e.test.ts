@@ -167,6 +167,44 @@ describe("propose → pre-publication → submit", () => {
     });
   });
 
+  it("submits over a boundary an operational-only commit advanced the head past", async () => {
+    repository = await createProposableRepo();
+    expect((await runArc(["propose", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+
+    const reviewed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+    expect(JSON.parse(reviewed.stdout)).toMatchObject({ locus: "candidate-submit-ready" });
+
+    // Committing the staged boundary is the ordinary next keystroke, and it moves the head without
+    // touching a reviewable byte. Submission authorizes on the reviewable subject, so the settled
+    // review evidence still covers this change set and the operator is not sent back through review.
+    const reviewedHead = await git(repository, ["rev-parse", "HEAD"]);
+    await git(repository, ["commit", "-m", "chore(arc): settle the pre-publication boundary"]);
+    expect(await git(repository, ["rev-parse", "HEAD"])).not.toBe(reviewedHead);
+
+    const submitted = await runArc(
+      [
+        "submit", "example",
+        "--last-completed", "verification",
+        "--action", "push and open the PR",
+        "--json",
+      ],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+
+    expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
+    expect(JSON.parse(submitted.stdout)).toMatchObject({
+      status: "submitted",
+      boundary: { locus: "publication-pending" },
+    });
+  });
+
   it("refuses submission while a pre-publication obligation is still open", async () => {
     repository = await createProposableRepo();
     expect((await runArc(["propose", "example", "--json"], repository)).exitCode).toBe(0);

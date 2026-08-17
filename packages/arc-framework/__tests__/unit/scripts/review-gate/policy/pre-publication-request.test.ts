@@ -25,6 +25,7 @@ const currentCandidate: CandidateRead = {
   status: "current",
   candidateId: CANDIDATE_ID,
   headSha: HEAD,
+  subjectDigest: `sha256:${"d".repeat(64)}`,
   implementationChanged: false,
   convergenceVerification: "satisfied",
 };

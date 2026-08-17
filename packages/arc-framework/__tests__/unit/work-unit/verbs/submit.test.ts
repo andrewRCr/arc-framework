@@ -148,21 +148,22 @@ function buildCtx(metas: MetaSpec[]): Harness {
 const ACTIVE: MetaSpec = { slug: "foo", state: "Active", branch: "feat/foo" };
 
 const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
-const CANDIDATE_REVISION = "b".repeat(40);
+const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}`;
+const OTHER_SUBJECT = `sha256:${"c".repeat(64)}`;
 const WORK_UNIT = SlugSchema.parse("foo");
 const BASE: SubmitParams = {
   name: "foo",
   lastCompleted: "Phase 7 — verification",
   nextAction: "open the PR",
   candidateId: CANDIDATE_ID,
-  candidateRevision: CANDIDATE_REVISION,
+  candidateSubjectDigest: CANDIDATE_SUBJECT,
   candidateCurrent: true,
   boundary: {
     schemaVersion: 1,
     mode: "pre-publication-review",
     workUnit: WORK_UNIT,
     candidateId: CANDIDATE_ID,
-    candidateRevision: CANDIDATE_REVISION,
+    candidateSubjectDigest: CANDIDATE_SUBJECT,
     locus: "candidate-submit-ready",
     nextAction: {
       kind: "submit-candidate",
@@ -178,13 +179,13 @@ describe("authorizeSubmission", () => {
   it("refuses an open non-reserved pre-publication obligation", () => {
     expect(authorizeSubmission({
       expectedCandidateId: `sha256:${"a".repeat(64)}`,
-      expectedCandidateRevision: CANDIDATE_REVISION,
+      expectedCandidateSubjectDigest: CANDIDATE_SUBJECT,
       boundary: {
         schemaVersion: 1,
         mode: "pre-publication-review",
         workUnit: WORK_UNIT,
         candidateId: `sha256:${"a".repeat(64)}`,
-        candidateRevision: CANDIDATE_REVISION,
+        candidateSubjectDigest: CANDIDATE_SUBJECT,
         locus: "candidate-review-pending",
         nextAction: {
           kind: "continue-pre-publication-review",
@@ -219,13 +220,13 @@ describe("authorizeSubmission", () => {
 
     expect(authorizeSubmission({
       expectedCandidateId: candidateId,
-      expectedCandidateRevision: CANDIDATE_REVISION,
+      expectedCandidateSubjectDigest: CANDIDATE_SUBJECT,
       boundary: {
         schemaVersion: 1,
         mode: "pre-publication-review",
         workUnit: WORK_UNIT,
         candidateId,
-        candidateRevision: CANDIDATE_REVISION,
+        candidateSubjectDigest: CANDIDATE_SUBJECT,
         locus: "candidate-submit-ready",
         nextAction: {
           kind: "submit-candidate",
@@ -238,17 +239,14 @@ describe("authorizeSubmission", () => {
     })).toEqual({ status: "authorized", reservation });
   });
 
-  it("refuses a boundary written for an earlier lineage head", () => {
+  it("refuses a boundary written for different reviewable content", () => {
     expect(authorizeSubmission({
       expectedCandidateId: CANDIDATE_ID,
-      expectedCandidateRevision: CANDIDATE_REVISION,
-      boundary: {
-        ...BASE.boundary,
-        candidateRevision: "c".repeat(40),
-      },
+      expectedCandidateSubjectDigest: CANDIDATE_SUBJECT,
+      boundary: { ...BASE.boundary, candidateSubjectDigest: OTHER_SUBJECT },
     })).toEqual({
       status: "refused",
-      reason: "Submission boundary was written for an earlier Candidate lineage head.",
+      reason: "Submission boundary was written for different reviewable content.",
     });
   });
 });
@@ -293,12 +291,12 @@ describe("runSubmit — the set-phase-only move", () => {
 
     const result = await runSubmit(ctx, {
       ...BASE,
-      boundary: { ...BASE.boundary, candidateRevision: "c".repeat(40) },
+      boundary: { ...BASE.boundary, candidateSubjectDigest: OTHER_SUBJECT },
     });
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: "Cannot submit `foo`: Submission boundary was written for an earlier Candidate lineage head.",
+      reason: "Cannot submit `foo`: Submission boundary was written for different reviewable content.",
       remedy: { argv: ["arc", "review", "pre-publication", "foo", "--json"] },
     });
     expect(calls).not.toContain("reconcile:prepare");

@@ -1721,7 +1721,7 @@ export async function handleSubmit(
     lastCompleted,
     nextAction: action,
     candidateId: record.attestation.candidateId,
-    candidateRevision: currentness.status === "current" ? currentness.recognizedRevision : current.revision,
+    candidateSubjectDigest: current.subject.subjectDigest,
     candidateCurrent: currentness.status === "current" && currentness.convergenceVerification === "satisfied",
     boundary,
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),

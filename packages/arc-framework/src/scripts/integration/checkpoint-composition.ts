@@ -267,7 +267,7 @@ export function createIntegrationCheckpointDependencies(input: {
         workUnit,
         branch: changeRequest.targetRef.headRef,
         candidateId: value.record.attestation.candidateId,
-        candidateRevision: currentness.recognizedRevision,
+        candidateSubjectDigest: value.current.subject.subjectDigest,
         reservation: boundary.reservation,
         changeRequest: {
           repository: changeRequest.targetRef.repository,

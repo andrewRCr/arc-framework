@@ -27,6 +27,7 @@ import {
 } from "./integration-boundary-locus.js";
 
 const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ReviewEvidenceReferenceSchema = z.string().trim().min(1);
 const FrontlinePolicyRequestSchema = ReviewPolicyRequestSchema.refine(
   ({ lane }) => lane === "frontline",
@@ -45,6 +46,7 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
   candidate: z.strictObject({
+    subjectDigest: CandidateSubjectDigestSchema,
     implementationChanged: z.boolean(),
     convergenceVerification: z.enum(["satisfied", "pending"]),
   }),
@@ -68,7 +70,7 @@ export const PrePublicationReviewEnvelopeSchema = z.strictObject({
   mode: z.literal("pre-publication-review"),
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
-  candidateRevision: z.string().regex(/^[a-f0-9]{40}$/u),
+  candidateSubjectDigest: CandidateSubjectDigestSchema,
   locus: z.enum([
     "candidate-review-pending",
     "candidate-fix-pending",
@@ -232,7 +234,7 @@ function envelope(
     mode: "pre-publication-review",
     workUnit: request.workUnit,
     candidateId: request.candidateId,
-    candidateRevision: request.frontline.target.headSha,
+    candidateSubjectDigest: request.candidate.subjectDigest,
     policy: null,
     reservation: null,
     ...projection,

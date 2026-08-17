@@ -1431,7 +1431,11 @@ describe("handleReviewPrePublication", () => {
     selfReview: "inactive" as const,
     frontline: lane("frontline", []),
     standard: lane("standard", ["codex-pr"]),
-    candidate: { implementationChanged: false, convergenceVerification: "satisfied" as const },
+    candidate: {
+      subjectDigest: `sha256:${"e".repeat(64)}`,
+      implementationChanged: false,
+      convergenceVerification: "satisfied" as const,
+    },
   };
 
   function boundary(overrides: Record<string, unknown> = {}) {
@@ -1474,10 +1478,13 @@ describe("handleReviewPrePublication", () => {
 
     await handleReviewPrePublication("example", { json: true }, dependencies);
 
+    // The digest travels with the boundary because submission authorizes against it: a boundary
+    // recording only its Candidate identity could not tell a settled review from a superseded one.
     expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
       workUnit: "example",
       locus: "candidate-submit-ready",
       candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
     }));
   });
 
@@ -1504,7 +1511,11 @@ describe("handleReviewPrePublication", () => {
         status: "composed",
         request: {
           ...request,
-          candidate: { implementationChanged: true, convergenceVerification: "pending" as const },
+          candidate: {
+            subjectDigest: `sha256:${"e".repeat(64)}`,
+            implementationChanged: true,
+            convergenceVerification: "pending" as const,
+          },
         },
         advisories: [],
       })),

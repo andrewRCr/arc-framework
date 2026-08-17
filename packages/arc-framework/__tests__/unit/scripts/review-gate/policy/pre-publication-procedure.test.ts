@@ -26,6 +26,8 @@ const target = {
   headSha: "a".repeat(40),
 };
 
+const SUBJECT_DIGEST = `sha256:${"e".repeat(64)}`;
+
 const standardReview = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set"] as const,
@@ -150,7 +152,7 @@ function request(overrides: Record<string, unknown> = {}) {
       maxPasses: 2,
       attempts: [],
     },
-    candidate: { implementationChanged: false, convergenceVerification: "satisfied" },
+    candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: false, convergenceVerification: "satisfied" },
     ...overrides,
   };
 }
@@ -284,7 +286,7 @@ describe("projectPrePublicationReview", () => {
   it("requires one final convergence verification only after the review obligations settle", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { implementationChanged: true, convergenceVerification: "pending" },
+      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "pending" },
     });
     const result = projectPrePublicationReview({
       ...base,
@@ -307,7 +309,7 @@ describe("projectPrePublicationReview", () => {
   it("submits a converged implementation-changing lineage after full verification", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { implementationChanged: true, convergenceVerification: "satisfied" },
+      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "satisfied" },
     });
     const result = projectPrePublicationReview({
       ...base,

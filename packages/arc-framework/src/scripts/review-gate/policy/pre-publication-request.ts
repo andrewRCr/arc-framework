@@ -34,6 +34,7 @@ export type CandidateRead =
     status: "current";
     candidateId: string;
     headSha: string;
+    subjectDigest: string;
     implementationChanged: boolean;
     convergenceVerification: "satisfied" | "pending";
   };
@@ -221,6 +222,7 @@ export async function composePrePublicationReviewRequest(
     frontline,
     standard,
     candidate: {
+      subjectDigest: candidate.subjectDigest,
       implementationChanged: candidate.implementationChanged,
       convergenceVerification: candidate.convergenceVerification,
     },

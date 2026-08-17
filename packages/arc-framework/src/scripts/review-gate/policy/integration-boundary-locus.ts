@@ -8,7 +8,7 @@ import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 
 const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const CandidateRevisionSchema = z.string().regex(/^[a-f0-9]{40}$/u);
+const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
 export const IntegrationBoundaryNextActionSchema = z.strictObject({
   kind: z.enum([
@@ -42,7 +42,14 @@ export const IntegrationBoundaryLocusSchema = z.strictObject({
   mode: z.enum(["pre-publication-review", "integration-boundary"]),
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
-  candidateRevision: CandidateRevisionSchema.nullable().default(null),
+  /**
+   * The reviewable subject the boundary was written for — what submission authorizes against.
+   *
+   * The reviewable subject, not the head: operational-only writes advance the head without changing
+   * what review covered, and a boundary invalidated by its own ceremony's churn would send the
+   * operator back through a review whose evidence never went stale.
+   */
+  candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
   locus: z.enum([
     "candidate-review-pending",
     "candidate-fix-pending",
@@ -76,7 +83,7 @@ const PublicationBoundaryInputSchema = z.strictObject({
   workUnit: SlugSchema,
   branch: z.string().trim().min(1),
   candidateId: CandidateIdSchema,
-  candidateRevision: CandidateRevisionSchema.nullable().default(null),
+  candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
   reservation: StandardReviewReservationV1Schema.nullable(),
   changeRequest: z.strictObject({
     repository: z.string().trim().min(1),
@@ -88,7 +95,7 @@ const PublicationBoundaryInputSchema = z.strictObject({
 export function projectCandidateReviewBoundary(input: {
   workUnit: string;
   candidateId: string;
-  candidateRevision?: string | null;
+  candidateSubjectDigest?: string | null;
 }): IntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
@@ -97,7 +104,7 @@ export function projectCandidateReviewBoundary(input: {
     mode: "integration-boundary",
     workUnit,
     candidateId,
-    candidateRevision: input.candidateRevision ?? null,
+    candidateSubjectDigest: input.candidateSubjectDigest ?? null,
     locus: "candidate-review-pending",
     nextAction: {
       kind: "run-self-review",
@@ -126,7 +133,7 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     mode: "integration-boundary",
     workUnit: value.workUnit,
     candidateId: value.candidateId,
-    candidateRevision: value.candidateRevision,
+    candidateSubjectDigest: value.candidateSubjectDigest,
     locus: hosted ? "hosted-review-pending" : "publication-pending",
     nextAction: {
       kind: hosted ? "continue-pre-publication-review" : "continue-publication",
