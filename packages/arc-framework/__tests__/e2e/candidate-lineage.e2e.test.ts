@@ -245,21 +245,39 @@ async function approvedSet(
  * Drift and lifecycle are the host- and artifact-dependent reads ahead of the guard; stubbing them
  * clean is what lets an offline fixture reach the branch the Candidate record actually decides.
  */
-async function checkpointOver(root: string) {
+async function checkpointOver(root: string, cadence: "manual" | "with-integration" = "manual") {
   const production = createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec });
+  const shipped = cadence === "with-integration";
   const dependencies: IntegrationCheckpointDependencies = {
     ...production,
     readDrift: async (workUnit) => ({ ...await production.readDrift(workUnit), verdict: "clean" }),
     readLifecycle: async (workUnit) => ({
       workUnit,
-      archiveCadence: "manual",
-      state: "integrating",
-      position: { phase: "Integrating", location: "active" },
+      archiveCadence: cadence,
+      state: shipped ? "shipped" : "integrating",
+      position: shipped
+        ? { phase: "Shipped", location: "completed" }
+        : { phase: "Integrating", location: "active" },
       artifactFacts: [],
       complete: true,
     }),
   };
   return checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, dependencies);
+}
+
+/** Relocate the work unit's artifacts the way the `with-integration` archive sweep does. */
+async function archiveArtifacts(root: string): Promise<string> {
+  const destination = join(".arc", "completed", "2026-q3", "01_example");
+  await mkdir(join(root, destination), { recursive: true });
+  for (const artifact of ["meta", "tasks"]) {
+    await git(root, [
+      "mv",
+      join(".arc", "active", `${artifact}-example.md`),
+      join(destination, `${artifact}-example.md`),
+    ]);
+  }
+  await git(root, ["commit", "-m", "archive the shipped work unit"]);
+  return destination;
 }
 
 describe("review-fix Candidate lineage", () => {
@@ -285,6 +303,41 @@ describe("review-fix Candidate lineage", () => {
       state: "blocked",
       reason: "candidate-unexplained-delta",
       payload: { candidate: { delta: { changed: ["reviewed.txt"] } } },
+    });
+  });
+
+  it("keeps a Candidate current across the archive relocation a with-integration ship performs", async () => {
+    const root = await fixture();
+    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+
+    // The cadence that ships and archives in one pass relocates the work unit's own artifacts before
+    // the checkpoint reads them, so a path-literal classification sees the move as reviewable content
+    // nobody reviewed — the two preconditions are then mutually exclusive.
+    await archiveArtifacts(root);
+
+    await expect(checkpointOver(root, "with-integration")).resolves.not.toMatchObject({
+      reason: "candidate-unexplained-delta",
+    });
+  });
+
+  it("reads a content change to a relocated work-unit artifact as a reviewable delta", async () => {
+    const root = await fixture();
+    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    const destination = await archiveArtifacts(root);
+
+    await writeFile(
+      join(root, destination, "tasks-example.md"),
+      "# Task List: Example\n\n- [x] Verification complete\n- [x] Unreviewed addition\n",
+      "utf8",
+    );
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "edit the archived task list"]);
+
+    await expect(checkpointOver(root, "with-integration")).resolves.toMatchObject({
+      state: "blocked",
+      reason: "candidate-unexplained-delta",
     });
   });
 

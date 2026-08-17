@@ -1326,28 +1326,39 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
   `proposeNewRootArgv` and names both routes — the approved response, or full verification plus the re-root —
   instead of a bare re-attempt that would block again.
 
-### `[ ]` **11.2 Candidate subject classification survives lifecycle relocation**
+### `[x]` **11.2 Candidate subject classification survives lifecycle relocation**
 
 - _Goal:_ A `with-integration` ship reaches checkpoint `ready`: the archive sweep's content-identical relocation
   of work-unit artifacts (`active/` → `completed/<dated>/…`) and every system-regenerated projection classify as
   operational, while a content **change** to any work-unit artifact remains a reviewable delta.
 
-- _Approach:_ In `git-candidate-subject.ts`, resolve treatment by class through the layout module rather than
-  path literals (the shape § E1's amendment already records): a pure relocation — identical content digest at a
-  path pair the layout identifies as the same work-unit artifact across lifecycle locations — is operational; the
-  meta path resolves through the layout (not the hand-built string); system-regenerated projections resolve by
-  layout kind, not `path === roadmap`.
+- _Outcome:_ `git-candidate-subject.ts` classifies through a new layout inverse
+  (`identifyWorkUnitArtifactPath` / `isProjectDocumentPath` in `lib/layout/identification.ts`), which reads
+  candidate addresses out of a path's segments and confirms them by projecting back — so the projection stays the
+  single authority on path shape. Treatment now resolves by class: the work unit's own `meta` is operational at
+  any placement, project documents come from the layout's document vocabulary rather than a roadmap comparison,
+  and a relocated artifact's new location is operational.
 
-    - Add the missing joint e2e leg: `archiveCadence: "with-integration"` through archive composition →
-      `arc integrate checkpoint` returning `ready` (both `candidate-lineage` e2e legs currently pin `manual`,
-      which is how the blocker escaped verification).
+    - Refinement to the recorded approach, verified against the reproduced blocker: classifying the relocation
+      operational is necessary but not sufficient — dropping the artifact from the reviewable set registers as a
+      `removed` delta and blocks all the same. The relocated content therefore stays keyed to the artifact's
+      canonical `active/` path, so a move alone leaves the reviewable subject byte-identical while an edit made
+      along the way still lands as a `changed` entry. No attestation-schema, digest-algorithm, or record-store
+      change; re-keying reaches work-unit artifacts only, not paths generally.
 
-    - The classification must not assume the Candidate record is tracked in the code repository
-      (`strategy-storage-evolution.md` Principles 1–2); the existing `candidate-projection` exclusion already
-      handles either placement.
+    - The key is the artifact's project-active path because `backlog` → `active` → `completed` are stages one
+      artifact passes through; contributor scope is a different owner, not a stage, so a contributor-scoped
+      artifact keys to its own path rather than collapsing two artifacts onto one entry.
 
-    - Not in scope: re-keying the subject on artifact identity + content digest generally (captured for
-      follow-up); any change to the attestation schema, digest algorithm, or record store.
+    - Forward-compat (`strategy-storage-evolution.md` Principles 1–2): the classifier is a pure path function
+      with no git, I/O, or existence check, and the `candidate-projection` exclusion still carries either
+      placement of the record. Under the materialized target these artifacts leave the code repo's diff entirely
+      and the classification goes inert rather than wrong — the same exposure the two path literals it replaced
+      already carried.
+
+    - The `candidate-lineage` e2e gained the missing `with-integration` legs — relocation through to a checkpoint
+      that no longer refuses, and its negative twin where a post-relocation edit still refuses. Both `manual`
+      legs are unchanged.
 
 ### `[ ]` **11.3 Step 2 executes as written: chunking after its producer, idempotence stated exactly**
 
