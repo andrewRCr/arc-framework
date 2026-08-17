@@ -389,6 +389,31 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
+  it("settles a no-fix set reviewed at the head the checkpoint approves", async () => {
+    const { root } = await settledReviewLineage();
+    const source = await reviewToFindings(root);
+    const deferred = await approvedSet(root, source, "defer");
+    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
+
+    // No fix means no commit of its own, and re-attestation fires only on implementation change, so
+    // a post-submission defer-only review leaves the head exactly where its own review ran. The
+    // settled target it pins is then its origin target, which is the normal case rather than a defect.
+    const approvedHead = await git(root, ["rev-parse", "HEAD"]);
+    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+
+    expect(composed.actions.find(
+      ({ dispositionId }) => dispositionId === deferred.dispositionSet.dispositionSetId,
+    )).toMatchObject({ channel: "review-response", fixTarget: { headSha: approvedHead } });
+
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    await expect(inRepository(root, async () => production.executeSettlement({
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+    } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
+      state: "settled",
+      completedActions: 2,
+    });
+  });
+
   it("scopes to the full Candidate span, keeping a review that ran before a fix landed", async () => {
     const root = await fixture();
     expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);

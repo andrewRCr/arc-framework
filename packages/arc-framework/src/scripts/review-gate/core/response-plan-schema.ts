@@ -108,11 +108,14 @@ export const ReviewResponseSettlementActionSchema = z.strictObject({
   if (hasFix && action.fixTarget === null) {
     context.addIssue({ code: "custom", path: ["fixTarget"], message: "must identify the exact fix target when fixes exist" });
   }
-  if (action.fixTarget !== null && (
-    action.fixTarget.repositoryId !== action.originTarget.repositoryId
-    || action.fixTarget.targetId === action.originTarget.targetId
-  )) {
-    context.addIssue({ code: "custom", path: ["fixTarget"], message: "must be a changed target in the originating repository" });
+  if (action.fixTarget !== null && action.fixTarget.repositoryId !== action.originTarget.repositoryId) {
+    context.addIssue({ code: "custom", path: ["fixTarget"], message: "must be a target in the originating repository" });
+  }
+  // A fix moves the head by definition, so a fix-bearing set that settles at its own origin is
+  // incoherent. A set that authorized no fix settles wherever the head stands when the checkpoint
+  // approves it — the same revision when no ceremony write intervened — so equality is its normal case.
+  if (hasFix && action.fixTarget !== null && action.fixTarget.targetId === action.originTarget.targetId) {
+    context.addIssue({ code: "custom", path: ["fixTarget"], message: "must be a changed target when fixes exist" });
   }
 });
 export type ReviewResponseSettlementAction = z.infer<typeof ReviewResponseSettlementActionSchema>;

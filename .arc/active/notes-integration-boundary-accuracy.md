@@ -506,6 +506,60 @@ site-3 conversion, pre-publication remedies) landed. The reachability census clo
 production importer, every emitted command is registered, provider vocabulary matches the reservation's, and both
 package mirrors are byte-identical to `.arc/system/` for the touched workflows.
 
+## Verification Findings — fourth entry, over the Phase 9 tree
+
+Recorded 2026-08-17 at the fourth entry of the verification boundary. Scope per the Phase 10 preamble: Tier 3 over
+the remediated tree, then a targeted re-validation of the eight criteria the third entry's findings touched, each
+confirmed against its recorded finding at source, plus the four named seams. Tier 3 ran green first at `6668cf53c`:
+md lint over 664 files, the three `lint:arc:*` checks, both lint passes, both type checks, 9987 tests passing
+(1 skipped), clean build.
+
+Both findings below are defects in Phase 9's own remediations, not new strata — the composition-over-time class
+again, and in both cases the remediation bound a **revision** where the invariant it protects is about the
+**reviewable change set**. Criteria 2, 5, 7, 9, 11, and 15 re-validated clean, as did all four seams (the
+`arc integrate` namespace error, the checkpoint handle as the merge's only composition source, and one shared
+wait primitive and PR-resolution path across both lanes, now including the session-handoff finalize pass).
+
+### V4-B1 — a no-fix settlement composed at the approved head refuses composition
+
+Task 9.1 made every composed settlement action pin the settled target, including no-fix sets, and relaxed the
+`response-plan-schema` refinement that forbade a target on those sets. It left the adjacent clause intact:
+`response-plan-schema.ts:108` rejects `fixTarget.targetId === originTarget.targetId` unconditionally. That clause
+was written when the field meant "the target the fix moved to", where a changed target is definitional. Under the
+field's widened meaning a no-fix set's settled target legitimately **equals** its origin, because nothing moved the
+head between the review and the checkpoint — so `composeReviewResponseSettlementAction` throws
+`must be a changed target in the originating repository`, and `checkpointIntegration`'s catch reports
+`composition-unavailable` whose remedy re-runs the same composition.
+
+Reachability is post-submission review specifically: a defer- or reject-only approved set, with no commit after it.
+No fix means no commit of its own, and re-attestation fires only on implementation change, so nothing advances the
+head. Pre-publication is safe for the opposite reason — `arc submit`'s transition commit always moves the head past
+any pre-publication review — which is why Task 9.1's own e2e passes: it inserts an `--allow-empty`
+`submit transition` commit before composing. Verified by real-CLI probe against the 9.1 fixture with that commit
+removed. Same fail-closed shape as V3-B1, relocated from settlement time to composition time. Criterion 3.
+
+### V4-M1 — the submission boundary binds raw `HEAD`, not the reviewed change set
+
+Task 9.3 bound `authorizeSubmission` to `currentness.recognizedRevision`. On the `current` path that value is
+always the current `HEAD`: `projectCandidateCurrentness` returns `current.revision` under an operational-only
+advance and the lineage revision otherwise, and the latter equals `HEAD` whenever the advance flag is false. So the
+check reads "the boundary was written at the current `HEAD`", while the invariant M9 protects is "the boundary
+covers the reviewable change set being submitted" — strictly narrower than E1/E2's own doctrine, under which a
+code-owned operational-only delta preserves Candidate mechanically.
+
+Consequence: any commit between `arc review pre-publication` and `arc submit` that touches only operational
+content — a `chore(arc)` reconcile, the convergence-verification attestation, a task-list update, committing the
+staged boundary itself — refuses submission and sends the operator back through pre-publication to rewrite a
+boundary whose review evidence never went stale. Fail-closed with a one-command remedy rather than a wrong merge,
+which is why it reads as friction; it is still an accuracy defect on a routine path. The reviewable-subject digest
+is the exact statement of the binding, is immune to the `HEAD`-tracking substitution, and is already computed on
+both sides. Criterion 6.
+
+**Fourth-entry disposition.** Tasks 9.10 (V4-B1) and 9.11 (V4-M1) in
+`tasks-integration-boundary-accuracy.md`, both inside chunk 9. No spec amendment is owed: the spec constrains what
+the boundary must guarantee, never which identity implements the binding, and both fixes move the delivered code
+toward the recorded E1/E2/E3 doctrine rather than away from it.
+
 ## Resume Procedure
 
 _Superseded 2026-08-15 — the planning-stage procedure below is complete and retained for provenance. The live

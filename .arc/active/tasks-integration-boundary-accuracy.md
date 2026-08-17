@@ -34,6 +34,11 @@ own ceremony writes feed a later verb's validation. Phase 9 remediates them and 
 Chunk 9 is added as its review boundary; the projection's chunk counts update accordingly. Findings, dispositions,
 and the check-doc constraints that shaped them are recorded in `notes-integration-boundary-accuracy.md`.
 
+_Amended 2026-08-17 — verification re-entry._ The fourth entry's targeted re-validation found two defects inside
+Phase 9's own remediations (V4-B1, V4-M1 in `notes-integration-boundary-accuracy.md`). They remediate as Tasks 9.10
+and 9.11 inside Phase 9, so chunk 9's commit range extends to cover them; the chunk table, the count, and every
+seam are unchanged.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
 across the nine, and the seam review below carry the review obligation the stack's per-member pull requests would
@@ -1218,6 +1223,34 @@ and integration prose/tests pin the executable wait and interlock contracts. Sam
 uses exact-head typed PR resolution; only the hosted settlement composer's authority decision remains deliberate
 residue, as recorded in `notes-integration-boundary-accuracy.md`.
 
+### `[x]` **9.10 Let a no-fix settlement pin the head it settled at**
+
+- _Goal:_ A defer- or reject-only set composes and settles when nothing moved the head after its review; the
+  changed-target requirement applies only where a fix moved one.
+
+    - The changed-target requirement now fires only for fix-bearing sets; the repository-match half stays
+      unconditional and split out, so each clause carries its own message.
+    - Real-CLI settlement of a defer-only set at an unchanged head, plus unit cases pinning both directions of the
+      split clause.
+
+- _Outcome:_ A fix moves the head by definition and a no-fix set does not, so settling at the origin target is the
+  no-fix case's normal shape rather than the incoherence the single clause read it as.
+
+### `[x]` **9.11 Bind the submission boundary to the reviewed change set**
+
+- _Goal:_ Operational-only churn between pre-publication and `arc submit` never invalidates a boundary whose
+  review evidence is current, while a boundary written for different reviewable content still refuses.
+
+    - `candidateSubjectDigest` replaces `candidateRevision` on the boundary, the publication projection, and the
+      pre-publication envelope, sourced from the currentness read each side already performs.
+    - `authorizeSubmission` authorizes against it, keeping the pre-publication remedy; real-CLI coverage submits
+      after an operational-only commit advances the head, and unit coverage refuses changed reviewable content.
+
+- _Outcome:_ Submission binds what review covered rather than where the head stands, which is what makes the
+  binding survive the spine's own ceremony writes — the same read-time-validation shape the phase's other
+  remediations settled on. Changed reviewable content is caught twice over: the candidate gate refuses an
+  unexplained delta before this check, and an explained one (a fix the lineage advanced past) refuses here.
+
 ## **Phase 10:** Verification
 
 _Amended 2026-08-16._ Verification moved here from Phase 9. The boundary has been entered three times; the third
@@ -1227,6 +1260,11 @@ adversarial passes remain spent against the `Heavy` cap. On re-entry after Phase
 remediated tree, re-validate the criteria the findings touched (2, 3, 5, 6, 7, 9, 11, 15) by confirming each
 remediation against its recorded finding, and mark the Success Criteria — the full falsification walk need not
 repeat for criteria the record already closes clean.
+
+_Amended 2026-08-17._ That re-entry ran: Tier 3 green at `6668cf53c`, and the eight-criterion walk plus the four
+seams confirmed all but Criteria 3 and 6, whose remediations carried the two defects recorded as V4-B1 and V4-M1.
+Tasks 9.10 and 9.11 close them. On this re-entry the criteria walk narrows to 3 and 6 and to whatever the two fixes
+reach; Tier 3 re-runs because review-driven fixes landed.
 
 ### `[ ]` **10.1 Complete verification** — load and follow `verify-work-unit.md`
 
