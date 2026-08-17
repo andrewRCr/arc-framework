@@ -1,7 +1,7 @@
 /**
- * The `submit` verb — schedule publication for an `Active` WU (`Active → Integrating`).
+ * The `publish` verb — schedule publication for an `Active` WU (`Active → Integrating`).
  *
- * `submit` is the forward half of the `submit` ⊥ `reopen` phase-axis pair: it
+ * `publish` is the forward half of the `publish` ⊥ `reopen` phase-axis pair: it
  * marks the start of publication, not the merge — the integration-interlock owns
  * merge approval. A `set-phase`-only move — `Active → Integrating`, no
  * location move and no branch rotation (the working branch already carries its
@@ -9,7 +9,7 @@
  * side-effects and sets the integration orientation from caller inputs.
  *
  * The verb stays thin: it supplies the two soft-field `input` values the edge
- * requires — `Last Completed` (the work being submitted) and `Next Action` (the
+ * requires — `Last Completed` (the work being published) and `Next Action` (the
  * integration pointer) — and dispatches through {@link executeTransition}; the
  * `set-phase` leg, the side-effects, and the soft-field disposition (resetting the
  * now-closed `Next Task`) are the table's. Neither value is invented: `Next Action`
@@ -69,7 +69,7 @@ export function authorizeSubmission(input: {
       reason: "Submission boundary was written for different reviewable content.",
     };
   }
-  if (boundary.locus !== "candidate-submit-ready") {
+  if (boundary.locus !== "candidate-publish-ready") {
     return {
       status: "refused",
       reason: `Candidate pre-publication obligations remain open (${boundary.locus}).`,
@@ -78,8 +78,8 @@ export function authorizeSubmission(input: {
   return { status: "authorized", reservation: boundary.reservation };
 }
 
-/** The orientation inputs a `submit` supplies. */
-export interface SubmitParams {
+/** The orientation inputs a `publish` supplies. */
+export interface PublishParams {
   /** Target WU name (the CLI defaults this to the current Active WU). */
   name: string;
   /** Override for `Last Completed`; absent reads the task list's terminal completed task. */
@@ -107,7 +107,7 @@ const NOT_ACTIVE_REMEDY = (name: string): SpineRemedy => spineRemedy(
 const CANDIDATE_REMEDY = (name: string): SpineRemedy => spineRemedy(
   "Submission requires a current Candidate lineage matching the recorded attestation.",
   "Re-attest the candidate",
-  ["arc", "propose", name],
+  ["arc", "attest", name],
 );
 
 const PRE_PUBLICATION_REMEDY = (name: string): SpineRemedy => spineRemedy(
@@ -123,23 +123,23 @@ const RECONCILE_REMEDY = (name: string): SpineRemedy => spineRemedy(
 );
 
 const LAST_COMPLETED_REMEDY = (name: string): SpineRemedy => spineRemedy(
-  "The submitted work is read from the task list's terminal completed task when no override is given.",
+  "The work being published is read from the task list's terminal completed task when no override is given.",
   "Name the completed work explicitly",
-  ["arc", "submit", name, "--last-completed", "<work>"],
+  ["arc", "publish", name, "--last-completed", "<work>"],
 );
 
-const SUBMIT_RESUME_REMEDY = (name: string): SpineRemedy => spineRemedy(
+const PUBLISH_RESUME_REMEDY = (name: string): SpineRemedy => spineRemedy(
   "A refused submission leaves the work unit resumable at the same boundary.",
   "Resolve the reported failure, then re-run",
-  ["arc", "submit", name],
+  ["arc", "publish", name],
 );
 
-/** The outcome of a `submit` attempt, including reconcile stops before phase mutation. */
-export type SubmitResult =
+/** The outcome of a `publish` attempt, including reconcile stops before phase mutation. */
+export type PublishResult =
   | { status: "rejected"; reason: string; remedy: SpineRemedy }
   | { status: "unchanged"; boundary: IntegrationBoundaryLocus }
   | {
-      status: "submitted";
+      status: "published";
       outcome: TransitionOutcome;
       metaPath: string;
       reconcile: Extract<CurrentWuReconcileResult, { status: "clean" | "pending" | "applied" }>;
@@ -161,10 +161,10 @@ export type SubmitResult =
     };
 
 /**
- * Read the work being submitted from the WU's own task list.
+ * Read the work being published from the WU's own task list.
  *
  * Returns `null` for every unreadable case — no task list, an unreadable file, a malformed marker,
- * or nothing completed — leaving the caller to require the explicit override rather than submit
+ * or nothing completed — leaving the caller to require the explicit override rather than publish
  * under an invented value.
  */
 async function readLastCompletedWork(
@@ -185,7 +185,7 @@ async function readLastCompletedWork(
 }
 
 /**
- * Run `submit`: flip the WU's phase `Active → Integrating` and set the
+ * Run `publish`: flip the WU's phase `Active → Integrating` and set the
  * integration orientation soft fields. Rejects when the source is not an `Active`
  * WU (the table's illegal-edge lookup), and when `Last Completed` is neither supplied
  * nor readable from the task list.
@@ -194,10 +194,10 @@ async function readLastCompletedWork(
  * @param params - The target WU and any overrides for the integration orientation inputs.
  * @returns A pre-transition reconcile stop, a rejection, or the integrating meta path.
  */
-export async function runSubmit(
+export async function runPublish(
   ctx: ExecuteTransitionContext & CurrentWuReconcileHost,
-  params: SubmitParams,
-): Promise<SubmitResult> {
+  params: PublishParams,
+): Promise<PublishResult> {
   const {
     name,
     lastCompleted,
@@ -214,7 +214,7 @@ export async function runSubmit(
   if (!slug.success) {
     return {
       status: "rejected",
-      reason: `\`${name}\` is not an active WU — nothing to submit.`,
+      reason: `\`${name}\` is not an active WU — nothing to publish.`,
       remedy: NOT_ACTIVE_REMEDY(name),
     };
   }
@@ -235,14 +235,14 @@ export async function runSubmit(
     if (meta.state !== "Active") {
       return {
       status: "rejected",
-      reason: `\`${name}\` is not an active WU — nothing to submit.`,
+      reason: `\`${name}\` is not an active WU — nothing to publish.`,
       remedy: NOT_ACTIVE_REMEDY(name),
     };
     }
     if (meta.candidateId === null || meta.candidateId !== candidateId) {
       return {
         status: "rejected",
-        reason: `Cannot submit \`${name}\`: the current Candidate identity is absent or stale.`,
+        reason: `Cannot publish \`${name}\`: the current Candidate identity is absent or stale.`,
         remedy: CANDIDATE_REMEDY(name),
       };
     }
@@ -251,21 +251,21 @@ export async function runSubmit(
   } catch {
     return {
       status: "rejected",
-      reason: `\`${name}\` is not an active WU — nothing to submit.`,
+      reason: `\`${name}\` is not an active WU — nothing to publish.`,
       remedy: NOT_ACTIVE_REMEDY(name),
     };
   }
   if (branch === null) {
     return {
       status: "rejected",
-      reason: `Cannot submit \`${name}\`: the active work unit does not name its branch.`,
+      reason: `Cannot publish \`${name}\`: the active work unit does not name its branch.`,
       remedy: NOT_ACTIVE_REMEDY(name),
     };
   }
   if (!candidateCurrent) {
     return {
       status: "rejected",
-      reason: `Cannot submit \`${name}\`: the Candidate lineage is not current.`,
+      reason: `Cannot publish \`${name}\`: the Candidate lineage is not current.`,
       remedy: CANDIDATE_REMEDY(name),
     };
   }
@@ -277,7 +277,7 @@ export async function runSubmit(
   if (authorization.status === "refused") {
     return {
       status: "rejected",
-      reason: `Cannot submit \`${name}\`: ${authorization.reason}`,
+      reason: `Cannot publish \`${name}\`: ${authorization.reason}`,
       remedy: PRE_PUBLICATION_REMEDY(name),
     };
   }
@@ -286,7 +286,7 @@ export async function runSubmit(
   if (resolvedLastCompleted === null) {
     return {
       status: "rejected",
-      reason: `Cannot submit \`${name}\`: no completed task is readable from the work unit's task list.`,
+      reason: `Cannot publish \`${name}\`: no completed task is readable from the work unit's task list.`,
       remedy: LAST_COMPLETED_REMEDY(name),
     };
   }
@@ -304,7 +304,7 @@ export async function runSubmit(
   if (reconcile.status === "conflict") {
     return {
       status: "rejected",
-      reason: `Cannot submit \`${name}\`: current-WU reconcile refused (${reconcile.reason}).`,
+      reason: `Cannot publish \`${name}\`: current-WU reconcile refused (${reconcile.reason}).`,
       remedy: RECONCILE_REMEDY(name),
     };
   }
@@ -314,7 +314,7 @@ export async function runSubmit(
       status: "reconcile-failed",
       reason:
         `Submission preflight for \`${name}\` became stale before mutation (${applied.reason}). `
-        + `Rerun \`arc submit\` after reconciling the current branch.`,
+        + `Rerun \`arc publish\` after reconciling the current branch.`,
       remedy: RECONCILE_REMEDY(name),
       metaPath,
       reconcile: applied,
@@ -325,7 +325,7 @@ export async function runSubmit(
     return {
       status: "reconcile-pending",
       reason:
-        `Cannot submit \`${name}\`: current-WU reconcile has `
+        `Cannot publish \`${name}\`: current-WU reconcile has `
         + `${advisories.length} advisory reference(s) requiring review.`,
       remedy: RECONCILE_REMEDY(name),
       metaPath,
@@ -334,7 +334,7 @@ export async function runSubmit(
   }
 
   const outcome = await executeTransition(ctx, {
-    verb: "submit",
+    verb: "publish",
     slug: name,
     inputs: {
       softFields: {
@@ -345,10 +345,10 @@ export async function runSubmit(
   });
 
   if (outcome.status !== "ok") {
-    return { status: "rejected", reason: outcome.message, remedy: SUBMIT_RESUME_REMEDY(name) };
+    return { status: "rejected", reason: outcome.message, remedy: PUBLISH_RESUME_REMEDY(name) };
   }
   return {
-    status: "submitted",
+    status: "published",
     outcome,
     metaPath,
     reconcile: applied,

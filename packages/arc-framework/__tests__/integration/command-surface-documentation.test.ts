@@ -115,7 +115,7 @@ describe("documented command surface", () => {
     // The scan is derived, so an over-tight filter would pass by finding nothing. The Candidate
     // spine's own next actions are the fixed point that proves it still sees emitted commands.
     expect(emitted.map(({ invocation }) => invocation.line))
-      .toEqual(expect.arrayContaining(["arc review pre-publication", "arc submit", "arc propose"]));
+      .toEqual(expect.arrayContaining(["arc review pre-publication", "arc publish", "arc attest"]));
 
     const unregistered = emitted
       .filter(({ invocation }) => resolveCommandPath(invocation.words, registered) === null)

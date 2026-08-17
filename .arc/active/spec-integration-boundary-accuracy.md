@@ -490,6 +490,15 @@ untruthful pointer: a post-submission surface may not emit a resume command for 
 and the stored boundary's next action must route the publication resume the workflow actually executes (finding
 V3-M10). Original text retained above, not edited into agreement.
 
+_Amended 2026-08-17 — spine-verb rename._ The two verbs ship as **`arc attest`** and **`arc publish`**; § E's text
+above keeps the original names and is not edited into agreement. The names this section chose invert established
+host-VCS vocabulary: in Gerrit "submit" _is_ the merge, and the host's own "propose changes" is what opens the pull
+request — so both read as the opposite of what the verb does. `attest` names what the verb does to the Candidate,
+and `publish` matches this section's own "schedules publication". The rename carries the typed loci with it
+(`candidate-publish-ready`, `publish-candidate`) so no operator-facing surface names a verb that no longer exists;
+E8's no-alias rule applies unchanged. `Integrating` keeps its name (already settled under § Alternatives), the
+`arc integrate` namespace is untouched, and nothing about the boundary's semantics moves with the words.
+
 ### F. The transition fires at the publication boundary
 
 Verification is not the misplaced part: the task list's verification phase runs Tier 3 gates, success criteria, and

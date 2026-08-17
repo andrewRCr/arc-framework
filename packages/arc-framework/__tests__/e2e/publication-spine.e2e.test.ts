@@ -2,7 +2,7 @@
  * Real-CLI coverage for the publication spine's first-call path.
  *
  * `propose → pre-publication → submit` is proven by execution rather than by injected dependencies:
- * the durable boundary the middle verb writes is the one submission reads, and `arc submit`
+ * the durable boundary the middle verb writes is the one submission reads, and `arc publish`
  * succeeds on its first call over it.
  */
 
@@ -92,7 +92,7 @@ describe("propose → pre-publication → submit", () => {
   it("settles the boundary at pre-publication and submits on the first call", async () => {
     repository = await createProposableRepo();
 
-    const proposed = await runArc(["propose", "example", "--json"], repository);
+    const proposed = await runArc(["attest", "example", "--json"], repository);
     expect(proposed.exitCode, JSON.stringify(proposed)).toBe(0);
     expect(JSON.parse(proposed.stdout)).toMatchObject({
       status: "attested",
@@ -112,8 +112,8 @@ describe("propose → pre-publication → submit", () => {
     expect(envelope).toMatchObject({
       mode: "pre-publication-review",
       workUnit: "example",
-      locus: "candidate-submit-ready",
-      nextAction: { kind: "submit-candidate", command: "arc submit example --json" },
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate", command: "arc publish example --json" },
     });
 
     const boundaryPath = join(
@@ -123,14 +123,14 @@ describe("propose → pre-publication → submit", () => {
       locus: string;
       candidateId: string;
     };
-    expect(boundary.locus).toBe("candidate-submit-ready");
+    expect(boundary.locus).toBe("candidate-publish-ready");
     expect(boundary.candidateId).toBe(envelope.candidateId);
     expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n"))
       .toContain(boundaryPath.split("\\").join("/"));
 
     const submitted = await runArc(
       [
-        "submit", "example",
+        "publish", "example",
         "--last-completed", "verification",
         "--action", "push and open the PR",
         "--json",
@@ -141,7 +141,7 @@ describe("propose → pre-publication → submit", () => {
 
     expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
     expect(JSON.parse(submitted.stdout)).toMatchObject({
-      status: "submitted",
+      status: "published",
       boundary: { locus: "publication-pending", candidateId: envelope.candidateId },
     });
     expect(await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8"))
@@ -151,7 +151,7 @@ describe("propose → pre-publication → submit", () => {
     // rather than re-firing the transition.
     const repeated = await runArc(
       [
-        "submit", "example",
+        "publish", "example",
         "--last-completed", "verification",
         "--action", "push and open the PR",
         "--json",
@@ -169,7 +169,7 @@ describe("propose → pre-publication → submit", () => {
 
   it("submits over a boundary an operational-only commit advanced the head past", async () => {
     repository = await createProposableRepo();
-    expect((await runArc(["propose", "example", "--json"], repository)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
     await git(repository, ["commit", "-m", "verification"]);
 
     const reviewed = await runArc(
@@ -178,7 +178,7 @@ describe("propose → pre-publication → submit", () => {
       { env: OFFLINE_ENV },
     );
     expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
-    expect(JSON.parse(reviewed.stdout)).toMatchObject({ locus: "candidate-submit-ready" });
+    expect(JSON.parse(reviewed.stdout)).toMatchObject({ locus: "candidate-publish-ready" });
 
     // Committing the staged boundary is the ordinary next keystroke, and it moves the head without
     // touching a reviewable byte. Submission authorizes on the reviewable subject, so the settled
@@ -189,7 +189,7 @@ describe("propose → pre-publication → submit", () => {
 
     const submitted = await runArc(
       [
-        "submit", "example",
+        "publish", "example",
         "--last-completed", "verification",
         "--action", "push and open the PR",
         "--json",
@@ -200,14 +200,14 @@ describe("propose → pre-publication → submit", () => {
 
     expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
     expect(JSON.parse(submitted.stdout)).toMatchObject({
-      status: "submitted",
+      status: "published",
       boundary: { locus: "publication-pending" },
     });
   });
 
   it("refuses submission while a pre-publication obligation is still open", async () => {
     repository = await createProposableRepo();
-    expect((await runArc(["propose", "example", "--json"], repository)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
 
     // Self-review is active by package default, so the bare procedure stops before settling and
     // writes no boundary — which is the only state submission's refusal can now mean.
@@ -224,7 +224,7 @@ describe("propose → pre-publication → submit", () => {
 
     const submitted = await runArc(
       [
-        "submit", "example",
+        "publish", "example",
         "--last-completed", "verification",
         "--action", "push and open the PR",
       ],

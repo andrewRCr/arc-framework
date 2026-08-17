@@ -85,7 +85,7 @@ export const PrePublicationReviewEnvelopeSchema = z.strictObject({
     "candidate-review-pending",
     "candidate-fix-pending",
     "candidate-convergence-verification-pending",
-    "candidate-submit-ready",
+    "candidate-publish-ready",
   ]),
   nextAction: PrePublicationNextActionSchema,
   policy: ReviewResolveEnvelopeSchema.nullable(),
@@ -144,14 +144,14 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
       nextAction: action(
         request.workUnit,
         "run-convergence-verification",
-        "Run one final Tier 3 over the converged Candidate lineage, then invoke arc propose.",
+        "Run one final Tier 3 over the converged Candidate lineage, then invoke arc attest.",
       ),
       reservation,
     });
   }
   return envelope(request, {
-    locus: "candidate-submit-ready",
-    nextAction: action(request.workUnit, "submit-candidate", "Submit the current Candidate for publication."),
+    locus: "candidate-publish-ready",
+    nextAction: action(request.workUnit, "publish-candidate", "Submit the current Candidate for publication."),
     reservation,
   });
 }
@@ -272,10 +272,10 @@ function action(
   kind: z.infer<typeof PrePublicationNextActionSchema>["kind"],
   interactionText: string,
 ): z.infer<typeof PrePublicationNextActionSchema> {
-  const command = kind === "submit-candidate"
-    ? `arc submit ${workUnit} --json`
+  const command = kind === "publish-candidate"
+    ? `arc publish ${workUnit} --json`
     : kind === "run-convergence-verification"
-      ? `arc propose ${workUnit} --json`
+      ? `arc attest ${workUnit} --json`
       : `arc review pre-publication ${workUnit} --json`;
   return { kind, command, interactionText };
 }

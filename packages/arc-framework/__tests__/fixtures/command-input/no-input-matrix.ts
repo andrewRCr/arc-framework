@@ -52,7 +52,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "finalize", args: ["finalize", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "hook-remedy-roadmap-conflict", args: ["hook-remedy-roadmap-conflict"], fixture: "bare", expected: { exitCode: 0 } },
   { commandPath: "init", args: ["init", "--name", "matrix", "--identity", "matrix"], fixture: "bare", expected: { exitCode: 0, outputIncludes: "Installation complete" } },
-  { commandPath: "submit", args: ["submit", "matrix"], expected: { exitCode: 1 } },
+  { commandPath: "publish", args: ["publish", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "join", args: ["join", "--identity", "matrix"], fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "Workspace setup complete" } },
   { commandPath: "materialize", args: ["materialize", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "park", args: ["park", "matrix"], expected: { exitCode: 1 } },

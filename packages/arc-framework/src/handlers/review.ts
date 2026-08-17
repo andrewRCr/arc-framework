@@ -1696,9 +1696,9 @@ export async function handleReviewPrePublication(
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
     envelope = projectPrePublicationReview(composition.request);
     // The settled locus is where the durable publication boundary is written. Recording it here —
-    // before the result is claimed — is what makes `arc submit` succeed on its first call; an
+    // before the result is claimed — is what makes `arc publish` succeed on its first call; an
     // absent boundary now means genuinely open obligations rather than a write nobody performed.
-    if (envelope.locus === "candidate-submit-ready"
+    if (envelope.locus === "candidate-publish-ready"
       || envelope.locus === "candidate-convergence-verification-pending") {
       await dependencies.persistBoundary(root, prePublicationBoundary(envelope));
     }

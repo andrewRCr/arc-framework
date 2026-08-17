@@ -206,7 +206,7 @@ describe("projectPrePublicationReview", () => {
     });
 
     expect(result).toMatchObject({
-      locus: "candidate-submit-ready",
+      locus: "candidate-publish-ready",
       policy: null,
       reservation: {
         reservationId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
@@ -215,7 +215,7 @@ describe("projectPrePublicationReview", () => {
         target: { repository: target.repository, headSha: target.headSha },
         obligation: standardReview,
       },
-      nextAction: { kind: "submit-candidate" },
+      nextAction: { kind: "publish-candidate" },
     });
   });
 
@@ -239,10 +239,10 @@ describe("projectPrePublicationReview", () => {
     });
 
     expect(result).toMatchObject({
-      locus: "candidate-submit-ready",
+      locus: "candidate-publish-ready",
       policy: null,
       reservation: null,
-      nextAction: { kind: "submit-candidate" },
+      nextAction: { kind: "publish-candidate" },
     });
   });
 
@@ -289,7 +289,7 @@ describe("projectPrePublicationReview", () => {
     });
 
     expect(result).toMatchObject({
-      locus: "candidate-submit-ready",
+      locus: "candidate-publish-ready",
       policy: null,
       reservation: null,
     });
@@ -330,7 +330,7 @@ describe("projectPrePublicationReview", () => {
       reservation: { sourceId: "codex-pr" },
       nextAction: {
         kind: "run-convergence-verification",
-        command: "arc propose example --json",
+        command: "arc attest example --json",
       },
     });
   });
@@ -349,9 +349,9 @@ describe("projectPrePublicationReview", () => {
     });
 
     expect(result).toMatchObject({
-      locus: "candidate-submit-ready",
+      locus: "candidate-publish-ready",
       reservation: { sourceId: "codex-pr" },
-      nextAction: { kind: "submit-candidate" },
+      nextAction: { kind: "publish-candidate" },
     });
   });
 

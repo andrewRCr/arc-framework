@@ -75,7 +75,7 @@ const rawGitCommandPaths = [
   "delivery terminal prepare",
   "demote",
   "finalize",
-  "submit",
+  "publish",
   "materialize",
   "park",
   "promote",

@@ -281,7 +281,7 @@ describe("executeTransition — state resolution", () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -321,12 +321,12 @@ describe("executeTransition — illegal / unknown rejection", () => {
     // `submit` from (Integrating, active) is a marked-illegal cell.
     const { ctx, calls } = buildSpies({ metas: [INTEGRATING_META] });
 
-    const outcome = await executeTransition(ctx, { verb: "submit", slug: "demo", inputs: {} });
+    const outcome = await executeTransition(ctx, { verb: "publish", slug: "demo", inputs: {} });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("lookup");
-    expect(outcome.message).toMatch(/submit.*illegal.*Integrating/i);
+    expect(outcome.message).toMatch(/publish.*illegal.*Integrating/i);
     expect(calls).toEqual([]);
   });
 
@@ -617,7 +617,7 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -633,7 +633,7 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -674,7 +674,7 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "stageMeta" });
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -719,7 +719,7 @@ describe("executeTransition — side-effects after encoding", () => {
     }
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -747,7 +747,7 @@ describe("executeTransition — side-effects after encoding", () => {
     delete ctx.sideEffects?.["user-workspace"];
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "x", lastCompleted: "y" } },
     });
@@ -770,7 +770,7 @@ describe("executeTransition — soft-field disposition", () => {
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7 verified." } },
     });
@@ -836,7 +836,7 @@ describe("executeTransition — soft-field disposition", () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
     // submit needs nextAction + lastCompleted as inputs; supply neither.
-    const outcome = await executeTransition(ctx, { verb: "submit", slug: "demo", inputs: {} });
+    const outcome = await executeTransition(ctx, { verb: "publish", slug: "demo", inputs: {} });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
@@ -873,7 +873,7 @@ describe("executeTransition — ephemeral suggestion", () => {
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "submit",
+      verb: "publish",
       slug: "demo",
       inputs: {
         suggestion: "Open the PR with `gh pr create`.",

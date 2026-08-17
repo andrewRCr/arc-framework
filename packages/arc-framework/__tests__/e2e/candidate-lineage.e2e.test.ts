@@ -283,7 +283,7 @@ async function archiveArtifacts(root: string): Promise<string> {
 describe("review-fix Candidate lineage", () => {
   it("keeps lifecycle-regenerated project state outside Candidate currentness", async () => {
     const root = await fixture();
-    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
 
     await mkdir(join(root, ".arc", "backlog"), { recursive: true });
@@ -308,7 +308,7 @@ describe("review-fix Candidate lineage", () => {
 
   it("keeps a Candidate current across the archive relocation a with-integration ship performs", async () => {
     const root = await fixture();
-    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
 
     // The cadence that ships and archives in one pass relocates the work unit's own artifacts before
@@ -323,7 +323,7 @@ describe("review-fix Candidate lineage", () => {
 
   it("reads a content change to a relocated work-unit artifact as a reviewable delta", async () => {
     const root = await fixture();
-    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
     const destination = await archiveArtifacts(root);
 
@@ -343,7 +343,7 @@ describe("review-fix Candidate lineage", () => {
 
   it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {
     const root = await fixture();
-    const proposed = await runArc(["propose", "example", "--json"], root);
+    const proposed = await runArc(["attest", "example", "--json"], root);
     expect(proposed.exitCode, proposed.stderr || proposed.stdout).toBe(0);
     const superseded = (JSON.parse(proposed.stdout) as { locus: { candidateId: string } }).locus.candidateId;
     await git(root, ["commit", "-m", "verification"]);
@@ -354,15 +354,15 @@ describe("review-fix Candidate lineage", () => {
 
     // The default re-attestation refuses and the checkpoint refuses with it, so the remedy has to name
     // the escape rather than the invocation that just failed.
-    const refused = await runArc(["propose", "example", "--json"], root);
+    const refused = await runArc(["attest", "example", "--json"], root);
     expect(refused.exitCode).toBe(1);
     expect(JSON.parse(refused.stdout)).toMatchObject({ status: "blocked", candidateId: superseded });
     await expect(checkpointOver(root)).resolves.toMatchObject({
       reason: "candidate-unexplained-delta",
-      remedy: { argv: ["arc", "propose", "example", "--new-root"] },
+      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
     });
 
-    const rerooted = await runArc(["propose", "example", "--new-root", "--json"], root);
+    const rerooted = await runArc(["attest", "example", "--new-root", "--json"], root);
     expect(rerooted.exitCode, rerooted.stderr || rerooted.stdout).toBe(0);
     expect(JSON.parse(rerooted.stdout)).toMatchObject({
       status: "attested",
@@ -382,7 +382,7 @@ describe("review-fix Candidate lineage", () => {
   it("advances the lineage, blocks the checkpoint, and clears through propose", async () => {
     const root = await fixture();
 
-    const proposed = await runArc(["propose", "example", "--json"], root);
+    const proposed = await runArc(["attest", "example", "--json"], root);
     expect(proposed.exitCode, proposed.stderr || proposed.stdout).toBe(0);
     expect(JSON.parse(proposed.stdout)).toMatchObject({ status: "attested", operation: "root" });
     await git(root, ["commit", "-m", "verification"]);
@@ -419,7 +419,7 @@ describe("review-fix Candidate lineage", () => {
       payload: { candidate: { status: "current", implementationChanged: true } },
     });
 
-    const converged = await runArc(["propose", "example", "--json"], root);
+    const converged = await runArc(["attest", "example", "--json"], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({
       status: "attested",
@@ -433,7 +433,7 @@ describe("review-fix Candidate lineage", () => {
 
   it("converges when an operational-only commit precedes the re-attestation", async () => {
     const root = await fixture();
-    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
@@ -455,7 +455,7 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "record verified response"]);
     expect(await git(root, ["rev-parse", "HEAD"])).not.toBe(responseHead);
 
-    const converged = await runArc(["propose", "example", "--json"], root);
+    const converged = await runArc(["attest", "example", "--json"], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
 
@@ -540,7 +540,7 @@ describe("review-fix Candidate lineage", () => {
 
   it("scopes to the full Candidate span, keeping a review that ran before a fix landed", async () => {
     const root = await fixture();
-    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
 
     // A defer-only approval first: it appends nothing to the lineage, and every later response
@@ -570,7 +570,7 @@ describe("review-fix Candidate lineage", () => {
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     })).resolves.toMatchObject({ state: "candidate-advanced" });
     await git(root, ["commit", "-m", "record verified response"]);
-    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     expect(approvedHead).not.toBe(deferredHead);
@@ -585,7 +585,7 @@ describe("review-fix Candidate lineage", () => {
 
   it("repeats the settlement pass without appending a second response", async () => {
     const root = await fixture();
-    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
 
     const source = await reviewToFindings(root);
@@ -634,7 +634,7 @@ const MERGE_METHOD: Extract<MergeMethodResolveResult, { state: "validated" }> = 
  */
 async function settledReviewLineage(): Promise<{ root: string; approvedHead: string }> {
   const root = await fixture();
-  expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+  expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
   await git(root, ["commit", "-m", "verification"]);
 
   const source = await reviewToFindings(root);
@@ -652,7 +652,7 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
   })).resolves.toMatchObject({ state: "candidate-advanced" });
   await git(root, ["commit", "-m", "record verified response"]);
 
-  expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+  expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
   await git(root, ["commit", "-m", "convergence verification"]);
   return { root, approvedHead: await git(root, ["rev-parse", "HEAD"]) };
 }

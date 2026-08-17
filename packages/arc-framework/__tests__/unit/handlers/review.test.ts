@@ -1460,8 +1460,8 @@ describe("handleReviewPrePublication", () => {
     expect(envelope).toMatchObject({
       mode: "pre-publication-review",
       workUnit: "example",
-      locus: "candidate-submit-ready",
-      nextAction: { kind: "submit-candidate", command: "arc submit example --json" },
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate", command: "arc publish example --json" },
     });
     expect(envelope.reservation).toMatchObject({
       semanticsVersion: "standard-review-reservation/v1",
@@ -1482,7 +1482,7 @@ describe("handleReviewPrePublication", () => {
     // recording only its Candidate identity could not tell a settled review from a superseded one.
     expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
       workUnit: "example",
-      locus: "candidate-submit-ready",
+      locus: "candidate-publish-ready",
       candidateId: request.candidateId,
       candidateSubjectDigest: request.candidate.subjectDigest,
     }));

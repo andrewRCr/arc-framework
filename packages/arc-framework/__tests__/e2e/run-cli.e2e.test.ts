@@ -32,7 +32,7 @@ describe("runCli", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("`arc integrate` is a procedure namespace");
-    expect(result.stderr).toContain("use `arc submit` to schedule publication");
+    expect(result.stderr).toContain("use `arc publish` to schedule publication");
     expect(result.stderr).toContain("Available subcommands:");
     expect(result.stderr).toContain("arc integrate checkpoint");
   });

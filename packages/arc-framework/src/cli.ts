@@ -82,14 +82,14 @@ import {
   handleMaterialize,
   handleActivate,
   handleDeactivate,
-  handleSubmit,
+  handlePublish,
   handleReopen,
   handleAbandon,
   handleArchive,
   handleTeardown,
   handleSetStage,
   handleFinalizeStage,
-  handlePropose,
+  handleAttest,
   handleRepointDesign,
   handleRename,
   isDecomposeMachineReadableInvocation,
@@ -99,13 +99,13 @@ import {
   type ResumeOptions,
   type MaterializeOptions,
   type ActivateOptions,
-  type SubmitOptions,
+  type PublishOptions,
   type ReopenOptions,
   type AbandonOptions,
   type ArchiveOptions,
   type TeardownOptions,
   type DecomposeOptions,
-  type ProposeOptions,
+  type AttestOptions,
 } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
@@ -434,7 +434,7 @@ program
   ));
 
 program
-  .command("submit [slug]")
+  .command("publish [slug]")
   .description("Schedule publication for an Active work unit: Active → Integrating (defaults to the current WU)")
   .option("--last-completed <work>", "Override meta `Last Completed` (default: the task list's last completed task)")
   .option("--action <action>", "Override meta `Next Action` (default: the publication boundary's own pointer)")
@@ -442,7 +442,7 @@ program
   .option("--json", "Emit the typed publication-resume boundary as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string | undefined, opts: SubmitOptions) => handleSubmit(slug, opts, context),
+    (context, slug: string | undefined, opts: PublishOptions) => handlePublish(slug, opts, context),
   ));
 
 const integrateCmd = program
@@ -450,7 +450,7 @@ const integrateCmd = program
   .description("Run integration checkpoint and merge procedures");
 
 integrateCmd.action(() => {
-  console.error("error: `arc integrate` is a procedure namespace; use `arc submit` to schedule publication.");
+  console.error("error: `arc integrate` is a procedure namespace; use `arc publish` to schedule publication.");
   const subcommands = integrateCmd.commands.map((command) => `arc integrate ${command.name()}`);
   console.error(
     subcommands.length > 0
@@ -551,7 +551,7 @@ program
   ));
 
 program
-  .command("propose <name>")
+  .command("attest <name>")
   .description("Attest a verified work-unit Candidate while leaving lifecycle State unchanged")
   .option("--json", "Emit the typed pre-publication locus as JSON")
   .option(
@@ -560,7 +560,7 @@ program
   )
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, name: string, opts: ProposeOptions) => handlePropose(name, opts, context),
+    (context, name: string, opts: AttestOptions) => handleAttest(name, opts, context),
   ));
 
 program

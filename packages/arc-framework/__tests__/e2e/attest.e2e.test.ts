@@ -12,7 +12,7 @@ import {
   runArc,
 } from "./helpers.js";
 
-describe("arc propose", () => {
+describe("arc attest", () => {
   let repository: string | null = null;
 
   afterEach(async () => {
@@ -70,7 +70,7 @@ describe("arc propose", () => {
     );
     await git(repository, ["add", ".arc/active/tasks-example.md"]);
 
-    const result = await runArc(["propose", "example", "--json"], repository);
+    const result = await runArc(["attest", "example", "--json"], repository);
 
     expect(result.exitCode, JSON.stringify(result)).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({

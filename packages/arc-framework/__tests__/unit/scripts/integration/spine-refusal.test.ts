@@ -73,13 +73,13 @@ describe("spine refusal remedies", () => {
   it("routes an unexplained delta to the two-step escape rather than a re-attempt that blocks again", () => {
     const remedy = checkpointRemedy("candidate-unexplained-delta", "example");
 
-    expect(remedy.argv).toEqual(["arc", "propose", "example", "--new-root"]);
+    expect(remedy.argv).toEqual(["arc", "attest", "example", "--new-root"]);
     expect(remedy.text).toMatch(/full verification/iu);
   });
 
   it("interpolates the refused work unit into slug-bearing commands", () => {
     expect(checkpointRemedy("candidate-convergence-pending", "example").argv)
-      .toEqual(["arc", "propose", "example"]);
+      .toEqual(["arc", "attest", "example"]);
     expect(mergeRemedy("head-mismatch", "example").argv)
       .toEqual(["arc", "integrate", "checkpoint", "example", "--json"]);
     expect(prePublicationRemedy("corrupt-state", "example").argv)

@@ -25,9 +25,9 @@ import type {
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import {
   authorizeSubmission,
-  runSubmit,
-  type SubmitParams,
-} from "../../../../src/lib/work-unit/verbs/submit.js";
+  runPublish,
+  type PublishParams,
+} from "../../../../src/lib/work-unit/verbs/publish.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { createStandardReviewReservation } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -172,7 +172,7 @@ const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
 const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}`;
 const OTHER_SUBJECT = `sha256:${"c".repeat(64)}`;
 const WORK_UNIT = SlugSchema.parse("foo");
-const BASE: SubmitParams = {
+const BASE: PublishParams = {
   name: "foo",
   lastCompleted: "Phase 7 — verification",
   nextAction: "open the PR",
@@ -185,10 +185,10 @@ const BASE: SubmitParams = {
     workUnit: WORK_UNIT,
     candidateId: CANDIDATE_ID,
     candidateSubjectDigest: CANDIDATE_SUBJECT,
-    locus: "candidate-submit-ready",
+    locus: "candidate-publish-ready",
     nextAction: {
-      kind: "submit-candidate",
-      command: "arc submit foo --json",
+      kind: "publish-candidate",
+      command: "arc publish foo --json",
       interactionText: "Submit the current Candidate for publication.",
     },
     policy: null,
@@ -197,7 +197,7 @@ const BASE: SubmitParams = {
 };
 
 /** The same submission with neither orientation override supplied. */
-const DERIVED: SubmitParams = {
+const DERIVED: PublishParams = {
   name: BASE.name,
   candidateId: BASE.candidateId,
   candidateSubjectDigest: BASE.candidateSubjectDigest,
@@ -257,10 +257,10 @@ describe("authorizeSubmission", () => {
         workUnit: WORK_UNIT,
         candidateId,
         candidateSubjectDigest: CANDIDATE_SUBJECT,
-        locus: "candidate-submit-ready",
+        locus: "candidate-publish-ready",
         nextAction: {
-          kind: "submit-candidate",
-          command: "arc submit foo --json",
+          kind: "publish-candidate",
+          command: "arc publish foo --json",
           interactionText: "Submit the current Candidate for publication.",
         },
         policy: null,
@@ -281,16 +281,16 @@ describe("authorizeSubmission", () => {
   });
 });
 
-describe("runSubmit — the set-phase-only move", () => {
+describe("runPublish — the set-phase-only move", () => {
   it("flips Active to Integrating with no location move and no branch rotation", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
-    const result = await runSubmit(ctx, BASE);
+    const result = await runPublish(ctx, BASE);
 
-    expect(result.status).toBe("submitted");
-    if (result.status !== "submitted") return;
+    expect(result.status).toBe("published");
+    if (result.status !== "published") return;
     if (result.outcome.status === "ok") {
-      expect(result.outcome.verb).toBe("submit");
+      expect(result.outcome.verb).toBe("publish");
       expect(result.outcome.from).toEqual({ phase: "Active", location: "active" });
       expect(result.outcome.to).toEqual({ phase: "Integrating", location: "active" });
     }
@@ -305,12 +305,12 @@ describe("runSubmit — the set-phase-only move", () => {
   it("refuses a Candidate lineage that is no longer current", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
-    const result = await runSubmit(ctx, { ...BASE, candidateCurrent: false });
+    const result = await runPublish(ctx, { ...BASE, candidateCurrent: false });
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: "Cannot submit `foo`: the Candidate lineage is not current.",
-      remedy: { argv: ["arc", "propose", "foo"] },
+      reason: "Cannot publish `foo`: the Candidate lineage is not current.",
+      remedy: { argv: ["arc", "attest", "foo"] },
     });
     expect(calls).not.toContain("reconcile:prepare");
     expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);
@@ -319,14 +319,14 @@ describe("runSubmit — the set-phase-only move", () => {
   it("routes a stale review boundary back through pre-publication review", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
-    const result = await runSubmit(ctx, {
+    const result = await runPublish(ctx, {
       ...BASE,
       boundary: { ...BASE.boundary, candidateSubjectDigest: OTHER_SUBJECT },
     });
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: "Cannot submit `foo`: Submission boundary was written for different reviewable content.",
+      reason: "Cannot publish `foo`: Submission boundary was written for different reviewable content.",
       remedy: { argv: ["arc", "review", "pre-publication", "foo", "--json"] },
     });
     expect(calls).not.toContain("reconcile:prepare");
@@ -350,13 +350,13 @@ describe("runSubmit — the set-phase-only move", () => {
       },
     });
 
-    const result = await runSubmit(ctx, {
+    const result = await runPublish(ctx, {
       ...BASE,
       boundary: { ...BASE.boundary, reservation },
     });
 
     expect(result).toMatchObject({
-      status: "submitted",
+      status: "published",
       boundary: {
         mode: "integration-boundary",
         locus: "publication-pending",
@@ -368,7 +368,7 @@ describe("runSubmit — the set-phase-only move", () => {
   it("writes the supplied Last Completed and Next Action, clearing Next Task", async () => {
     const { ctx, softWrites } = buildCtx([ACTIVE]);
 
-    await runSubmit(ctx, BASE);
+    await runPublish(ctx, BASE);
 
     // Phase entry sets the integration orientation from caller inputs; `Next Task`
     // resets to `[none]` (the active task list is closed), `Blockers` is left.
@@ -383,9 +383,9 @@ describe("runSubmit — the set-phase-only move", () => {
   it("derives both orientation inputs when neither override is supplied", async () => {
     const { ctx, softWrites } = buildCtx([ACTIVE_WITH_TASKS]);
 
-    const result = await runSubmit(ctx, DERIVED);
+    const result = await runPublish(ctx, DERIVED);
 
-    expect(result.status).toBe("submitted");
+    expect(result.status).toBe("published");
     expect(softWrites).toEqual([{
       "Last Completed": "Task 1.2 — Verify the composition",
       "Next Task": "[none]",
@@ -396,7 +396,7 @@ describe("runSubmit — the set-phase-only move", () => {
   it("keeps supplied overrides ahead of both derivations", async () => {
     const { ctx, softWrites } = buildCtx([ACTIVE_WITH_TASKS]);
 
-    await runSubmit(ctx, { ...DERIVED, lastCompleted: "Phase 7 — verification", nextAction: "open the PR" });
+    await runPublish(ctx, { ...DERIVED, lastCompleted: "Phase 7 — verification", nextAction: "open the PR" });
 
     expect(softWrites[0]).toMatchObject({
       "Last Completed": "Phase 7 — verification",
@@ -407,12 +407,12 @@ describe("runSubmit — the set-phase-only move", () => {
   it("refuses before any mutation when no completed task is readable", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
-    const result = await runSubmit(ctx, DERIVED);
+    const result = await runPublish(ctx, DERIVED);
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: "Cannot submit `foo`: no completed task is readable from the work unit's task list.",
-      remedy: { argv: ["arc", "submit", "foo", "--last-completed", "<work>"] },
+      reason: "Cannot publish `foo`: no completed task is readable from the work unit's task list.",
+      remedy: { argv: ["arc", "publish", "foo", "--last-completed", "<work>"] },
     });
     expect(calls).not.toContain("reconcile:prepare");
     expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);
@@ -443,7 +443,7 @@ describe("runSubmit — the set-phase-only move", () => {
       reason: "namespace-corrupt",
     });
 
-    const result = await runSubmit(ctx, BASE);
+    const result = await runPublish(ctx, BASE);
 
     expect(result.status).toBe("rejected");
     expect(calls).not.toContain("setPhase:Integrating");
@@ -457,7 +457,7 @@ describe("runSubmit — the set-phase-only move", () => {
       reason: "stale-content",
     });
 
-    const result = await runSubmit(ctx, BASE);
+    const result = await runPublish(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "reconcile-failed",
@@ -489,7 +489,7 @@ describe("runSubmit — the set-phase-only move", () => {
     ctx.currentWuReconcile.prepare = async () => ({ status: "pending", prepared });
     ctx.currentWuReconcile.apply = async () => ({ status: "pending", prepared });
 
-    const result = await runSubmit(ctx, BASE);
+    const result = await runPublish(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "reconcile-pending",
@@ -525,10 +525,10 @@ describe("runSubmit — the set-phase-only move", () => {
     ctx.currentWuReconcile.prepare = async () => ({ status: "pending", prepared });
     ctx.currentWuReconcile.apply = async () => ({ status: "pending", prepared });
 
-    const result = await runSubmit(ctx, { ...BASE, allowAdvisories: true });
+    const result = await runPublish(ctx, { ...BASE, allowAdvisories: true });
 
     expect(result).toMatchObject({
-      status: "submitted",
+      status: "published",
       reconcile: {
         status: "pending",
         prepared: { plan: { advisories: [{ subject: "retired-subject" }] } },
@@ -565,7 +565,7 @@ describe("runSubmit — the set-phase-only move", () => {
       stagedPaths: [".arc/active/meta-foo.md"],
     });
 
-    const result = await runSubmit(ctx, BASE);
+    const result = await runPublish(ctx, BASE);
 
     expect(result).toMatchObject({
       status: "reconcile-pending",
@@ -585,10 +585,10 @@ describe("runSubmit — the set-phase-only move", () => {
       stagedPaths: [".arc/active/meta-foo.md"],
     });
 
-    const result = await runSubmit(ctx, BASE);
+    const result = await runPublish(ctx, BASE);
 
     expect(result).toMatchObject({
-      status: "submitted",
+      status: "published",
       reconcile: { status: "applied", stagedPaths: [".arc/active/meta-foo.md"] },
       boundary: {
         locus: "publication-pending",
@@ -602,7 +602,7 @@ describe("runSubmit — the set-phase-only move", () => {
   });
 });
 
-describe("runSubmit — the illegal-edge lookup", () => {
+describe("runPublish — the illegal-edge lookup", () => {
   it("reports the durable publication resume point when submission already ran", async () => {
     const { ctx, calls } = buildCtx([{ slug: "foo", state: "Integrating", branch: "feat/foo" }]);
     const publicationBoundary = {
@@ -618,7 +618,7 @@ describe("runSubmit — the illegal-edge lookup", () => {
 
     // The short-circuit precedes both orientation reads: an already-submitted WU resumes without
     // needing an override or a task list to derive one from.
-    const result = await runSubmit(ctx, { ...DERIVED, boundary: publicationBoundary });
+    const result = await runPublish(ctx, { ...DERIVED, boundary: publicationBoundary });
 
     expect(result).toEqual({ status: "unchanged", boundary: publicationBoundary });
     expect(calls.some((c) => c.startsWith("setPhase:"))).toBe(false);
@@ -627,7 +627,7 @@ describe("runSubmit — the illegal-edge lookup", () => {
   it("rejects an invalid work-unit name without mutation", async () => {
     const { ctx, calls, softWrites } = buildCtx([ACTIVE]);
 
-    const result = await runSubmit(ctx, { ...BASE, name: "../foo" });
+    const result = await runPublish(ctx, { ...BASE, name: "../foo" });
 
     expect(result.status).toBe("rejected");
     expect(calls).toEqual([]);

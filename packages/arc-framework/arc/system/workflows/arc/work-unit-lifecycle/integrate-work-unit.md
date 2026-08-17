@@ -145,12 +145,12 @@ procedure with it in `--lanes`; the `stale-target / select-scope` arm below is w
 re-selection when the target has moved under a prior one.
 
 A null `policy` means no lane operation is open — follow the envelope's own `nextAction.kind`, one of
-`run-self-review`, `run-convergence-verification`, or `submit-candidate`. Otherwise follow only the `policy`
+`run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 envelope's returned `state` / `nextAction` pair:
 
 - `skipped | no-op | pass-complete / none` — the lane is complete at this boundary.
 - `awaiting-change-request / open-change-request` — retain the exact hosted-first reservation and complete the
-  pre-publication procedure at `candidate-submit-ready`.
+  pre-publication procedure at `candidate-publish-ready`.
 - `ready / run-frontline` — invoke `arc review frontline resolve -`, then
   `arc review frontline run -` with the exact driver selection.
 - `ready / local-prepare` — invoke `arc review local prepare -`.
@@ -177,13 +177,13 @@ record-only set may remain proposed for the final combined gate. Approved fixes 
 review applicability judgment rather than carrying clearance or merge authority.
 
 Never treat advisory receipts, outcomes, reductions, scope recommendations, or disposition proposals as merge
-authority. Proceed to Step 3 only from the typed `candidate-submit-ready` locus; its durable boundary carries any
+authority. Proceed to Step 3 only from the typed `candidate-publish-ready` locus; its durable boundary carries any
 hosted-first reservation into publication without classifying that obligation as settled or no-op.
 
 ### 3) Open the PR
 
 ```bash
-arc submit {name} --json
+arc publish {name} --json
 ```
 
 The verb reads its own orientation inputs rather than taking them as judgment: `Next Action` from the
@@ -203,7 +203,7 @@ Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before com
 > Discipline, meta-file commit shape):
 
 ```text
-chore(arc): submit {name}
+chore(arc): publish {name}
 
 - Flip State: Active → Integrating
 

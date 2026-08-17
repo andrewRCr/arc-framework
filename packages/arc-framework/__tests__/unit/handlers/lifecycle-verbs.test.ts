@@ -222,8 +222,8 @@ vi.mock("../../../src/lib/work-unit/verbs/abandon.js", () => ({
 }));
 
 const mockRunSubmit = vi.fn();
-vi.mock("../../../src/lib/work-unit/verbs/submit.js", () => ({
-  runSubmit: (...a: unknown[]) => mockRunSubmit(...a),
+vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
+  runPublish: (...a: unknown[]) => mockRunSubmit(...a),
 }));
 
 const mockReadCandidateRecord = vi.fn();
@@ -278,7 +278,7 @@ const {
   handleMaterialize,
   handleActivate,
   handleDeactivate,
-  handleSubmit,
+  handlePublish,
   handleAbandon,
   handleReopen,
 } = await import("../../../src/handlers/lifecycle.js");
@@ -378,10 +378,10 @@ beforeEach(() => {
     mode: "pre-publication-review",
     workUnit: "foo",
     candidateId,
-    locus: "candidate-submit-ready",
+    locus: "candidate-publish-ready",
     nextAction: {
-      kind: "submit-candidate",
-      command: "arc submit foo --json",
+      kind: "publish-candidate",
+      command: "arc publish foo --json",
       interactionText: "Submit the current Candidate.",
     },
     policy: null,
@@ -393,7 +393,7 @@ beforeEach(() => {
   mockReadSubmissionBoundary.mockResolvedValue(boundary);
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
   mockRunSubmit.mockResolvedValue({
-    status: "submitted",
+    status: "published",
     outcome: okOutcome,
     metaPath: ".arc/active/meta-foo.md",
     reconcile: cleanReconcile,
@@ -905,9 +905,9 @@ describe("handleAbandon", () => {
   });
 });
 
-describe("handleSubmit", () => {
-  it("dispatches runSubmit, forwarding the orientation inputs", async () => {
-    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+describe("handlePublish", () => {
+  it("dispatches runPublish, forwarding the orientation inputs", async () => {
+    await handlePublish("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
     expect(mockRunSubmit).toHaveBeenCalledTimes(1);
     expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
@@ -934,7 +934,7 @@ describe("handleSubmit", () => {
       boundary: publicationBoundary,
     });
 
-    await handleSubmit("foo", {
+    await handlePublish("foo", {
       lastCompleted: "Phase 7 — verification",
       action: "open the PR",
       json: true,
@@ -947,7 +947,7 @@ describe("handleSubmit", () => {
   });
 
   it("forwards explicit advisory-retention authority", async () => {
-    await handleSubmit("foo", {
+    await handlePublish("foo", {
       lastCompleted: "Phase 7 — verification",
       action: "open the PR",
       allowAdvisories: true,
@@ -961,7 +961,7 @@ describe("handleSubmit", () => {
   });
 
   it("leaves both orientation inputs to the verb when neither flag is given", async () => {
-    await handleSubmit("foo", {});
+    await handlePublish("foo", {});
     expect(mockRunSubmit).toHaveBeenCalledTimes(1);
     const params = mockRunSubmit.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(params).toMatchObject({ name: "foo" });
@@ -970,7 +970,7 @@ describe("handleSubmit", () => {
   });
 
   it("forwards one orientation override without inventing the other", async () => {
-    await handleSubmit("foo", { action: "open the PR" });
+    await handlePublish("foo", { action: "open the PR" });
     const params = mockRunSubmit.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(params).toMatchObject({ nextAction: "open the PR" });
     expect(params).not.toHaveProperty("lastCompleted");
@@ -979,18 +979,18 @@ describe("handleSubmit", () => {
   it("emits a JSON refusal with command usage under --json", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
-    await handleSubmit("../foo", { json: true });
+    await handlePublish("../foo", { json: true });
 
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "rejected",
-      remedy: { argv: ["arc", "submit", "--help"] },
+      remedy: { argv: ["arc", "publish", "--help"] },
     });
     expect(mockRunSubmit).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("defaults a bare invocation to the current worktree's WU", async () => {
-    await handleSubmit(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    await handlePublish(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
     expect(mockRunSubmit).toHaveBeenCalledTimes(1);
     expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
   });
@@ -998,7 +998,7 @@ describe("handleSubmit", () => {
   it("surfaces every pending reconcile advisory and refuses phase entry", async () => {
     mockRunSubmit.mockResolvedValueOnce({
       status: "reconcile-pending",
-      reason: "Cannot submit `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      reason: "Cannot publish `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
       remedy: {
         invariant: "Tracked references reconcile before the publication boundary is written.",
         text: "Tracked references reconcile before the publication boundary is written. "
@@ -1046,7 +1046,7 @@ describe("handleSubmit", () => {
       },
     });
 
-    await handleSubmit("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    await handlePublish("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
 
     expect(mockLogInfo.mock.calls.map(([message]) => message)).toEqual([
       "Reconcile advisory: .arc/active/spec-foo.md:12 — narrative reference to `retired-alpha`; "
@@ -1055,7 +1055,7 @@ describe("handleSubmit", () => {
         + "remove-or-retarget. Context: `notes-retired-beta.md`",
     ]);
     expect(mockLogError).toHaveBeenCalledWith(
-      "Cannot submit `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.\n"
+      "Cannot publish `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.\n"
       + "Tracked references reconcile before the publication boundary is written. "
       + "Apply the current work unit's reconcile: `arc wu reconcile foo --apply --json`.",
     );

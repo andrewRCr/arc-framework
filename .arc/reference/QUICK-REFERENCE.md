@@ -351,11 +351,11 @@ arc resume [slug] [--here]
 
 # Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
 # --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
-arc propose <name> --json [--new-root]
+arc attest <name> --json [--new-root]
 
 # Schedule publication: Active → Integrating, not the merge (integrate-work-unit.md)
 # --last-completed / --action override the task-list and boundary reads the verb makes on its own
-arc submit [slug] [--last-completed <work>] [--action <next action>] [--json]
+arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
 # Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
 arc integrate checkpoint <name> [--json]
 arc integrate merge <name> --checkpoint <handle> [--json]

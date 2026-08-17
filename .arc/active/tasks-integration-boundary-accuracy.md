@@ -1543,25 +1543,35 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
     - Held to the named surface: no rulesets or branch-protection read added, no `mergeStateStatus` adoption, and
       the analyzer half of `reconcileSafety` is untouched.
 
-### `[ ]` **11.10 Rename the spine verbs: `propose` → `attest`, `submit` → `publish`**
+### `[x]` **11.10 Rename the spine verbs: `propose` → `attest`, `submit` → `publish`**
 
 - _Goal:_ The two spine verbs stop inverting established host-VCS vocabulary (Gerrit's "submit" is the merge;
   the host's "propose changes" opens the pull request). `attest` names what the verb does to the Candidate;
   `publish` matches the spec's own "schedules publication."
 
-- _Approach:_ Full sweep, no alias (§ E8 applies; nothing external consumes pre-release, and the fast-follow
-  consumer starts from the landed names): the verb registry and transition edge (`lifecycle-transitions.ts` —
-  the load-bearing one), dispatch, `cli.ts`, handlers, verb modules, emitted command strings in locus
-  next-actions (`integration-boundary-locus.ts`, `verbs/propose.ts`, checkpoint remedies), both workflow
-  copies, `QUICK-REFERENCE`, the `strategy-work-organization.md` `State` table, and every test pinning the old
-  names. Append a spec § E amendment recording the rename and the external-precedent check that motivated it
-  (original § E text retained, per the § G amendment's pattern).
+- _Outcome:_ Full sweep, no alias: `cli.ts` registrations, the transition edge and its verb id, dispatch's
+  context-defaulting set and verb-mode map, the command-input registry, handlers, both verb modules (`verbs/
+  propose.ts` → `verbs/attest.ts`, `verbs/submit.ts` → `verbs/publish.ts`, with their identifiers and test
+  files), every emitted command string and `argv` remedy, and every doc copy. The § E amendment records the
+  rename and the external-precedent reading that motivated it, with § E's original text retained.
 
-    - `arc attest` (lifecycle) and `arc review local attest` (evaluator submission) share a word in distinct
-      namespaces and consistent senses — verify no command-registration collision, and nothing else.
+    - The rename extends to the typed locus vocabulary — `candidate-submit-ready` → `candidate-publish-ready`,
+      `submit-candidate` → `publish-candidate`, and the verb's `submitted` result status → `published` — so no
+      operator-facing surface, prose or envelope, names a verb that no longer exists. The enumerated surfaces
+      alone would have left `integrate-work-unit.md` pointing at `candidate-submit-ready` three times while the
+      command beneath it read `arc publish`. Store and helper names keep "submission" as the noun for the act
+      (`submission-boundary-store`, `authorizeSubmission`), which the rename does not make stale.
 
-    - Not in scope: the `arc integrate` namespace (`checkpoint` / `merge` stay); the `Integrating` state name
-      (rename already rejected in § Alternatives); any semantic change riding the rename.
+    - Both new names collide by word with an existing subcommand and neither collides in fact: `arc attest` sits
+      on `program` while `arc review local attest` sits on the local-review command, and the same holds for
+      `arc publish` against `arc delivery publish`. Commander registers them on different parents.
+
+    - `reopen-work-unit.md` named `submit` twice as its inverse — outside the enumerated list but the same
+      concern, since leaving it would document a verb that no longer exists. The `strategy-work-organization.md`
+      `State` table needed nothing: its `Integrating` row points at the workflow step, never at the verb.
+
+    - Held to the named surface: the `arc integrate` namespace, the `Integrating` state name, and every boundary
+      semantic are untouched — the words moved and nothing else did.
 
 ### `[ ]` **11.11 Record the rationale for audited deviations that stand**
 

@@ -18,8 +18,8 @@ import {
 import {
   SpineRemedySchema,
   checkpointResumeArgv,
-  proposeArgv,
-  proposeNewRootArgv,
+  attestArgv,
+  attestNewRootArgv,
   spineRemedy,
   type SpineRemedy,
 } from "./spine-refusal.js";
@@ -253,17 +253,17 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
   "candidate-missing": (workUnit) => spineRemedy(
     "Integration requires a managed Candidate attestation.",
     "Attest the candidate",
-    proposeArgv(workUnit),
+    attestArgv(workUnit),
   ),
   "candidate-unexplained-delta": (workUnit) => spineRemedy(
     "A Candidate lineage advances only on approved review responses.",
     "Explain the reported delta through an approved response, or run full verification and root a new lineage over it",
-    proposeNewRootArgv(workUnit),
+    attestNewRootArgv(workUnit),
   ),
   "candidate-convergence-pending": (workUnit) => spineRemedy(
     "An implementation-changing lineage converges before it is checkpointed.",
     "Run the converged verification, then re-attest",
-    proposeArgv(workUnit),
+    attestArgv(workUnit),
   ),
   "merge-method-blocked": () => spineRemedy(
     "The configured merge method is allowed by host policy.",

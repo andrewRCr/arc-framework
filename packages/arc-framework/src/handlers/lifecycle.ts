@@ -1,7 +1,7 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
  * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` /
- * `submit` / `reopen` / `abandon`).
+ * `publish` / `reopen` / `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -114,7 +114,7 @@ import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
 } from "../lib/work-unit/transition-record-store.js";
-import { runSubmit } from "../lib/work-unit/verbs/submit.js";
+import { runPublish } from "../lib/work-unit/verbs/publish.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
@@ -126,7 +126,7 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
-import { ProposeResultSchema, runPropose } from "../lib/work-unit/verbs/propose.js";
+import { ProposeResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
 import { collectGitCandidateTarget } from "../lib/work-unit/git-candidate-subject.js";
 import {
   readCandidateRecord,
@@ -479,7 +479,7 @@ export const ActivateCommandInputSchema = z.object({
   task: z.string().trim().min(1),
   action: z.string().trim().min(1),
 }).strict();
-export const SubmitCommandInputSchema = z.object({
+export const PublishCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   lastCompleted: z.string().trim().min(1).optional(),
   action: z.string().trim().min(1).optional(),
@@ -527,7 +527,7 @@ export const FinalizeCommandInputSchema = z.object({
     refinement.addIssue({ code: "custom", path: ["class"], message: "--class is required at this fire-point." });
   }
 });
-export const ProposeCommandInputSchema = z.object({
+export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
@@ -602,8 +602,8 @@ export const lifecycleCommandInputRegistrations = [
   },
   { commandPath: "deactivate", schema: DeactivateCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
   {
-    commandPath: "submit",
-    schema: SubmitCommandInputSchema,
+    commandPath: "publish",
+    schema: PublishCommandInputSchema,
     schemaFields: {
       "operand.slug": "slug",
       "option.last-completed": "lastCompleted",
@@ -644,8 +644,8 @@ export const lifecycleCommandInputRegistrations = [
     schemaFields: { "operand.fire-point": "firePoint", "option.class": "class" },
   },
   {
-    commandPath: "propose",
-    schema: ProposeCommandInputSchema,
+    commandPath: "attest",
+    schema: AttestCommandInputSchema,
     schemaFields: { "operand.name": "name", "option.json": "json", "option.new-root": "newRoot" },
   },
   {
@@ -1643,11 +1643,11 @@ export async function handleMaterialize(
 }
 
 // ---------------------------------------------------------------------------
-// Phase move (publication entry) — `submit`
+// Phase move (publication entry) — `publish`
 // ---------------------------------------------------------------------------
 
-/** Options for `arc submit`. */
-export interface SubmitOptions {
+/** Options for `arc publish`. */
+export interface PublishOptions {
   lastCompleted?: string;
   action?: string;
   allowAdvisories?: boolean;
@@ -1655,7 +1655,7 @@ export interface SubmitOptions {
 }
 
 /**
- * `arc submit [slug]` — schedule publication for an `Active` WU (Active → Integrating),
+ * `arc publish [slug]` — schedule publication for an `Active` WU (Active → Integrating),
  * defaulting to the current WU. Marks publication entry, not the merge — the
  * integration-interlock owns merge approval. The orientation inputs default to what the
  * repository already states: `--action` to the publication boundary's own pointer and
@@ -1663,23 +1663,23 @@ export interface SubmitOptions {
  * an underivable `Last Completed` refuses rather than submitting under an invented one.
  * A non-`Active` source falls to the table's illegal-edge rejection.
  */
-export async function handleSubmit(
+export async function handlePublish(
   slug: string | undefined,
-  opts: SubmitOptions,
+  opts: PublishOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  if (opts.json !== true) p.intro("arc submit");
+  if (opts.json !== true) p.intro("arc publish");
   const input = parseLifecycleCommand(
-    SubmitCommandInputSchema,
+    PublishCommandInputSchema,
     { slug: slug?.trim() || undefined, ...opts },
-    ["submit"],
+    ["publish"],
     opts.json === true,
   );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("submit", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("publish", input.slug, base.cwd);
   if (target === null) return;
 
   const { lastCompleted, action } = input;
@@ -1688,11 +1688,11 @@ export async function handleSubmit(
   const record = await readCandidateRecord(base.cwd, target);
   if (record === null) {
     refuseWithRemedy(
-      `Cannot submit \`${target}\`: no managed Candidate record exists.`,
+      `Cannot publish \`${target}\`: no managed Candidate record exists.`,
       spineRemedy(
         "Submission requires a managed Candidate attestation.",
         "Attest the candidate",
-        ["arc", "propose", target],
+        ["arc", "attest", target],
       ),
       input.json === true,
     );
@@ -1708,7 +1708,7 @@ export async function handleSubmit(
   const boundary = await readSubmissionBoundary(base.cwd, target);
   if (boundary === null) {
     refuseWithRemedy(
-      `Cannot submit \`${target}\`: no durable pre-publication boundary exists.`,
+      `Cannot publish \`${target}\`: no durable pre-publication boundary exists.`,
       spineRemedy(
         "Submission requires a settled pre-publication boundary.",
         "Resolve the pre-publication lanes",
@@ -1718,7 +1718,7 @@ export async function handleSubmit(
     );
     return;
   }
-  const result = await runSubmit(executor, {
+  const result = await runPublish(executor, {
     name: target,
     ...(lastCompleted === undefined ? {} : { lastCompleted }),
     ...(action === undefined ? {} : { nextAction: action }),
@@ -2327,22 +2327,22 @@ export async function handleFinalizeStage(
 // Candidate attestation — `propose`
 // ---------------------------------------------------------------------------
 
-export interface ProposeOptions {
+export interface AttestOptions {
   json?: boolean;
   newRoot?: boolean;
 }
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
-export async function handlePropose(
+export async function handleAttest(
   name: string | undefined,
-  opts: ProposeOptions,
+  opts: AttestOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  if (opts.json !== true) p.intro("arc propose");
+  if (opts.json !== true) p.intro("arc attest");
   const input = parseLifecycleCommand(
-    ProposeCommandInputSchema,
+    AttestCommandInputSchema,
     { name: name?.trim(), json: opts.json, newRoot: opts.newRoot },
-    ["propose"],
+    ["attest"],
     opts.json === true,
   );
   if (input === null) return;
@@ -2361,7 +2361,7 @@ export async function handlePropose(
     metaContent = await base.io.readFile(absoluteMetaPath);
   } catch {
     refuseWithRemedy(
-      `\`arc propose\` requires an active managed record for \`${input.name}\`.`,
+      `\`arc attest\` requires an active managed record for \`${input.name}\`.`,
       spineRemedy(
         "Candidate attestation requires a resolvable active work-unit record.",
         "Inspect the work-unit lifecycle state",
@@ -2374,7 +2374,7 @@ export async function handlePropose(
   const meta = parseMetaRecord(metaContent);
   if (meta.state !== "Active" && meta.state !== "Integrating") {
     refuseWithRemedy(
-      `\`arc propose\` requires \`${input.name}\` to be Active or Integrating.`,
+      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating.`,
       spineRemedy(
         "Candidate attestation runs only from an active publication lifecycle.",
         "Inspect the work-unit lifecycle state",
@@ -2385,7 +2385,7 @@ export async function handlePropose(
     return;
   }
 
-  const result = await runPropose({
+  const result = await runAttest({
     actor: base.identity,
     now: () => new Date().toISOString(),
     verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,

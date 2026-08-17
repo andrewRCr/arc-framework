@@ -81,7 +81,7 @@ adversarial-review:
 ## Step 3 — Attest the Candidate
 
 Complete the verification task's success-criteria and completion-note edits, then stage all verified reviewable
-content. Run `arc propose {name} --json`; it attests that staged subject as a Candidate, leaves lifecycle `State`
+content. Run `arc attest {name} --json`; it attests that staged subject as a Candidate, leaves lifecycle `State`
 unchanged, and returns the typed pre-publication locus. Stage the managed record and meta projection it writes with
 the verification commit. A repeated invocation over the same subject is a no-op.
 

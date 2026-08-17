@@ -93,7 +93,7 @@ describe("PR-open lifecycle extensions", () => {
         "utf8",
       );
       const publicationStep = workflow.indexOf("### 3) Open the PR");
-      const submit = workflow.indexOf("arc submit {name}", publicationStep);
+      const submit = workflow.indexOf("arc publish {name}", publicationStep);
       const commitInterlock = workflow.indexOf("`commit-interlock`", submit);
       const pushExtension = workflow.indexOf("#pre-push-review", commitInterlock);
       const pushInterlock = workflow.indexOf("`push-interlock`", pushExtension);
@@ -117,7 +117,7 @@ describe("PR-open lifecycle extensions", () => {
     );
     const prePublication = workflow.indexOf("### 2) Pre-publication review");
     const resolveFrontline = workflow.indexOf("arc review frontline resolve -", prePublication);
-    const submit = workflow.indexOf("arc submit {name}", resolveFrontline);
+    const submit = workflow.indexOf("arc publish {name}", resolveFrontline);
     const push = workflow.indexOf("Push the WU branch upstream");
     const preOpen = workflow.indexOf("Immediately before creation", resolveFrontline);
     const create = workflow.indexOf("gh pr create", preOpen);

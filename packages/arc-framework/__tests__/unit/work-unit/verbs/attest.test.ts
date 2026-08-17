@@ -9,9 +9,9 @@ import {
   type CandidateManagedRecordV1,
 } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import {
-  runPropose,
+  runAttest,
   type ProposeContext,
-} from "../../../../src/lib/work-unit/verbs/propose.js";
+} from "../../../../src/lib/work-unit/verbs/attest.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
@@ -57,11 +57,11 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
   };
 }
 
-describe("runPropose", () => {
+describe("runAttest", () => {
   it("establishes the initial Candidate root while leaving lifecycle scheduling untouched", async () => {
     const { context, state } = harness();
 
-    const result = await runPropose(context, { name: "example" });
+    const result = await runAttest(context, { name: "example" });
 
     expect(result).toMatchObject({
       status: "attested",
@@ -88,9 +88,9 @@ describe("runPropose", () => {
 
   it("is a no-op when the same verified subject is already attested", async () => {
     const { context, state } = harness();
-    const first = await runPropose(context, { name: "example" });
+    const first = await runAttest(context, { name: "example" });
 
-    const repeated = await runPropose(context, { name: "example" });
+    const repeated = await runAttest(context, { name: "example" });
 
     expect(first.status).toBe("attested");
     expect(repeated).toMatchObject({
@@ -102,7 +102,7 @@ describe("runPropose", () => {
 
   it("re-attests a recognized implementation-changing lineage exactly once", async () => {
     const fixture = harness();
-    await runPropose(fixture.context, { name: "example" });
+    await runAttest(fixture.context, { name: "example" });
     const root = fixture.state().storedRecord!;
     const changedTarget = { revision: CHANGED_REVISION, subject: subject("review-fix") };
     const response = createCandidateReviewResponseEvidence({
@@ -119,8 +119,8 @@ describe("runPropose", () => {
     fixture.replaceRecord({ ...root, responses: [response] });
     fixture.setCurrentTarget(changedTarget);
 
-    const converged = await runPropose(fixture.context, { name: "example" });
-    const repeated = await runPropose(fixture.context, { name: "example" });
+    const converged = await runAttest(fixture.context, { name: "example" });
+    const repeated = await runAttest(fixture.context, { name: "example" });
 
     // Converging a lineage attests content; it does not settle the pre-publication obligations that
     // decide submit-readiness. Both arms therefore land on the conservative locus, and the finer one
@@ -140,10 +140,10 @@ describe("runPropose", () => {
 
   it("rejects an unexplained reviewable delta without replacing the lineage root", async () => {
     const fixture = harness();
-    await runPropose(fixture.context, { name: "example" });
+    await runAttest(fixture.context, { name: "example" });
     fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
 
-    const result = await runPropose(fixture.context, { name: "example" });
+    const result = await runAttest(fixture.context, { name: "example" });
 
     expect(result).toEqual({
       status: "blocked",
@@ -156,11 +156,11 @@ describe("runPropose", () => {
 
   it("establishes a new lineage root over a blocked Candidate on deliberate invocation", async () => {
     const fixture = harness();
-    await runPropose(fixture.context, { name: "example" });
+    await runAttest(fixture.context, { name: "example" });
     const superseded = fixture.state().storedRecord!.attestation.candidateId;
     fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
 
-    const rerooted = await runPropose(fixture.context, { name: "example", newRoot: true });
+    const rerooted = await runAttest(fixture.context, { name: "example", newRoot: true });
 
     expect(rerooted).toMatchObject({
       status: "attested",
@@ -182,11 +182,11 @@ describe("runPropose", () => {
 
   it("is a no-op when the re-rooted subject is re-proposed at the same target", async () => {
     const fixture = harness();
-    await runPropose(fixture.context, { name: "example" });
+    await runAttest(fixture.context, { name: "example" });
     fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
-    const rerooted = await runPropose(fixture.context, { name: "example", newRoot: true });
+    const rerooted = await runAttest(fixture.context, { name: "example", newRoot: true });
 
-    const repeated = await runPropose(fixture.context, { name: "example", newRoot: true });
+    const repeated = await runAttest(fixture.context, { name: "example", newRoot: true });
 
     expect(rerooted.status).toBe("attested");
     expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
@@ -196,7 +196,7 @@ describe("runPropose", () => {
   it("establishes an ordinary root when no Candidate exists to supersede", async () => {
     const { context, state } = harness();
 
-    const result = await runPropose(context, { name: "example", newRoot: true });
+    const result = await runAttest(context, { name: "example", newRoot: true });
 
     expect(result).toMatchObject({ status: "attested", operation: "root" });
     expect(state().storedRecord!.attestation.supersedes).toBeUndefined();

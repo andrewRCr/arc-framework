@@ -45,8 +45,8 @@ export function checkpointResumeArgv(workUnit: string): readonly string[] {
 }
 
 /** The Candidate re-attestation verb. */
-export function proposeArgv(workUnit: string): readonly string[] {
-  return ["arc", "propose", workUnit];
+export function attestArgv(workUnit: string): readonly string[] {
+  return ["arc", "attest", workUnit];
 }
 
 /**
@@ -56,6 +56,6 @@ export function proposeArgv(workUnit: string): readonly string[] {
  * unexplained delta and refuses again, so the corrective command has to be the one that establishes a
  * new lineage root over freshly verified content.
  */
-export function proposeNewRootArgv(workUnit: string): readonly string[] {
-  return ["arc", "propose", workUnit, "--new-root"];
+export function attestNewRootArgv(workUnit: string): readonly string[] {
+  return ["arc", "attest", workUnit, "--new-root"];
 }

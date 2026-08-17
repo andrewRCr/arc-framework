@@ -15,7 +15,7 @@ export const IntegrationBoundaryNextActionSchema = z.strictObject({
     "run-self-review",
     "continue-pre-publication-review",
     "run-convergence-verification",
-    "submit-candidate",
+    "publish-candidate",
     "continue-publication",
   ]),
   command: z.string().trim().min(1),
@@ -54,7 +54,7 @@ export const IntegrationBoundaryLocusSchema = z.strictObject({
     "candidate-review-pending",
     "candidate-fix-pending",
     "candidate-convergence-verification-pending",
-    "candidate-submit-ready",
+    "candidate-publish-ready",
     "publication-pending",
     "hosted-review-pending",
   ]),
@@ -63,7 +63,7 @@ export const IntegrationBoundaryLocusSchema = z.strictObject({
   reservation: StandardReviewReservationV1Schema.nullable(),
 }).superRefine((value, context) => {
   if (value.reservation !== null
-    && value.locus !== "candidate-submit-ready"
+    && value.locus !== "candidate-publish-ready"
     && value.locus !== "candidate-convergence-verification-pending"
     && value.locus !== "publication-pending"
     && value.locus !== "hosted-review-pending") {

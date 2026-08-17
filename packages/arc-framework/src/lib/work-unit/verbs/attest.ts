@@ -21,7 +21,7 @@ import {
  * The narrative pointer written to the meta alongside every attestation.
  *
  * One string for every arm, because every arm lands on the same conservative locus: attesting a
- * Candidate never establishes submit-readiness, so no arm may point at submission.
+ * Candidate never establishes publish-readiness, so no arm may point at submission.
  */
 const ATTESTED_NEXT_ACTION = "Candidate review pending — run pre-publication review";
 
@@ -48,7 +48,7 @@ export const ProposeResultSchema = z.discriminatedUnion("status", [
     nextAction: z.string().trim().min(1),
   }),
 ]);
-export type ProposeResult = z.infer<typeof ProposeResultSchema>;
+export type AttestResult = z.infer<typeof ProposeResultSchema>;
 
 export interface ProposeContext {
   actor: string;
@@ -74,10 +74,10 @@ export interface ProposeContext {
  * delta. A lineage that is not blocked ignores it and takes its ordinary arm, which is what keeps a
  * repeated same-target invocation a no-op.
  */
-export async function runPropose(
+export async function runAttest(
   context: ProposeContext,
   params: { name: string; newRoot?: boolean },
-): Promise<ProposeResult> {
+): Promise<AttestResult> {
   const name = SlugSchema.parse(params.name);
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
   const existing = await context.readRecord(name);
@@ -131,7 +131,7 @@ async function establishRoot(
   name: string,
   current: CandidateLineageTarget,
   supersedes: string | undefined,
-): Promise<ProposeResult> {
+): Promise<AttestResult> {
   const attestation = createCandidateAttestation({
     workUnit: name,
     subject: current.subject,
