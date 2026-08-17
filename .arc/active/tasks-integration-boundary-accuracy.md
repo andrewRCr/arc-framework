@@ -1360,17 +1360,34 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
       that no longer refuses, and its negative twin where a post-relocation edit still refuses. Both `manual`
       legs are unchanged.
 
-### `[ ]` **11.3 Step 2 executes as written: chunking after its producer, idempotence stated exactly**
+### `[x]` **11.3 Step 2 executes as written: chunking after its producer, idempotence stated exactly**
 
 - _Goal:_ `integrate-work-unit.md` Step 2's first chunking invocation has an obtainable input, and its
   re-invocation guidance states the actual contract instead of overpromising idempotence.
 
-- _Approach:_ Prose-only, both copies. Reorder so the first `arc review pre-publication` call precedes chunking
-  resolution — its `policy` envelope carries the composed immutable target the chunking request requires — and
-  route a chunked scope selection back through the procedure's existing re-selection arm. State that
-  re-invocation must re-supply the same `--change-set` and `--self-review` values verbatim (omission silently
-  reroutes lanes); durable CLI-side persistence of those judgment inputs is captured for
-  `review-request-contracts`, not built here.
+- _Amended 2026-08-17 — prose-only was insufficient._ The recorded approach assumed the `policy` envelope
+  carries the composed immutable target. It does not: `policy` targets are `{repository, pullRequest, headSha}`
+  with no `targetId`, and most states carry no target at all, while `arc review chunking resolve` requires the
+  full exact-target identity. The gap is wider than chunking — `arc review frontline run` requires the same
+  identity, and the only surface that composed one was `arc review local prepare`. Reordering alone would have
+  replaced one unobtainable input with another, so the task is amended to prose **plus** the bounded CLI addition
+  that makes the ordering executable. Approved before implementation.
+
+- _Outcome:_ `arc review pre-publication` now composes the exact target and carries it as `target` on its
+  envelope, so the operations it routes to have an obtainable input. It is nullable: derivation refuses on a
+  dirty tree, and the procedure has arms — self-review, convergence verification, submission — that need no
+  target, so unavailability reports through an advisory rather than refusing the whole boundary. The durable
+  submission boundary is unchanged: `prePublicationBoundary` strips the live target before persistence, since a
+  boundary keyed to the reviewable subject must not carry a fact that goes stale when the head moves.
+
+    - Step 2's prose (both copies) now invokes the procedure first, resolves chunking against the envelope's
+      `target`, and routes a selected scope back through `--lanes` and the `stale-target / select-scope` arm.
+      The idempotence sentence is replaced by the actual contract: re-supply `--change-set` and `--self-review`
+      verbatim, because lane progress is recovered from the durable record and author judgment is not.
+
+    - Root cause worth naming: `ReviewPolicyTarget` was documented as "the immutable target both lanes review",
+      which is what the audit read. Its doc comment now distinguishes routing from identity. Durable CLI-side
+      persistence of the judgment inputs remains captured for `review-request-contracts`, not built here.
 
     - Not in scope: CLI changes; new flags or derivation arms on the chunking command.
 

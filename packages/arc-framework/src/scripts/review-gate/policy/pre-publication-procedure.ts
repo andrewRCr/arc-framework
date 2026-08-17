@@ -13,6 +13,7 @@ import {
   type CandidateManagedRecordV1,
   type CandidateReviewResponseEvidenceV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
+import { ReviewTargetSchema } from "../core/gate-contract-v2-schema.js";
 import {
   ReviewPolicyRequestSchema,
   ReviewResolveEnvelopeSchema,
@@ -42,6 +43,15 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
+  /**
+   * The immutable review target composed from repository state, or `null` when it is not derivable.
+   *
+   * Every downstream review operation is exact-target — chunking resolution and a frontline run both
+   * require the full identity, which the lane-policy target does not carry. Composing it here is what
+   * makes those calls reachable from the procedure that routes to them; `null` reports that the
+   * checkout cannot currently produce one rather than refusing a procedure that has other work to do.
+   */
+  target: ReviewTargetSchema.nullable().default(null),
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
@@ -80,8 +90,10 @@ export const PrePublicationReviewEnvelopeSchema = z.strictObject({
   nextAction: PrePublicationNextActionSchema,
   policy: ReviewResolveEnvelopeSchema.nullable(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+  /** The immutable target the exact-target operations this envelope routes to require. */
+  target: ReviewTargetSchema.nullable(),
 }).superRefine((value, context) => {
-  const parsed = IntegrationBoundaryLocusSchema.safeParse(value);
+  const parsed = IntegrationBoundaryLocusSchema.safeParse(prePublicationBoundary(value));
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       context.addIssue({ code: "custom", path: issue.path, message: issue.message });
@@ -89,6 +101,19 @@ export const PrePublicationReviewEnvelopeSchema = z.strictObject({
   }
 });
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
+
+/**
+ * The durable boundary an envelope carries, without the target composed alongside it.
+ *
+ * The target is derived live from the checkout on every call; persisting it would record a fact that
+ * goes stale the moment the head moves, against a boundary deliberately keyed to the reviewable
+ * subject instead.
+ */
+export function prePublicationBoundary<T extends { target?: unknown }>(envelope: T): Omit<T, "target"> {
+  const boundary = { ...envelope };
+  delete boundary.target;
+  return boundary;
+}
 
 /** Project the next pre-publication action while delegating lane mechanics to the review-policy driver. */
 export function projectPrePublicationReview(input: unknown): PrePublicationReviewEnvelope {
@@ -235,6 +260,7 @@ function envelope(
     workUnit: request.workUnit,
     candidateId: request.candidateId,
     candidateSubjectDigest: request.candidate.subjectDigest,
+    target: request.target,
     policy: null,
     reservation: null,
     ...projection,

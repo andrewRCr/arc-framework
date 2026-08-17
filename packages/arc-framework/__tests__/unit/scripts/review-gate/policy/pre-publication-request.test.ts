@@ -12,11 +12,13 @@ import {
   composePrePublicationReviewRequest,
   type AssuranceRead,
   type CandidateRead,
+  type ImmutableTargetRead,
   type PrePublicationCompositionDependencies,
   type ReviewLane,
   type TargetRead,
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
 const HEAD = "a".repeat(40);
 const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
@@ -41,6 +43,21 @@ const resolvedTarget: TargetRead = {
   target: { repository: "arc-framework/example", pullRequest: null, headSha: HEAD },
 };
 
+const immutableTarget: ImmutableTargetRead = {
+  status: "resolved",
+  target: createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "arc-framework/example",
+    baseRef: "main",
+    diffBaseSha: "c".repeat(40),
+    diffBaseTree: "d".repeat(40),
+    headSha: HEAD,
+    headTree: "e".repeat(40),
+  }),
+};
+
 function dependencies(
   overrides: Partial<PrePublicationCompositionDependencies> = {},
 ): PrePublicationCompositionDependencies {
@@ -48,6 +65,7 @@ function dependencies(
     readCandidate: vi.fn(async () => currentCandidate),
     readAssurance: vi.fn(async () => resolvedAssurance),
     resolveTarget: vi.fn(async () => resolvedTarget),
+    deriveImmutableTarget: vi.fn(async () => immutableTarget),
     readLaneProgress: vi.fn(async (): Promise<LaneProgressProjection> => ({
       status: "recorded",
       completedPasses: 0,
@@ -79,6 +97,32 @@ describe("composePrePublicationReviewRequest", () => {
       maxPasses: 2,
     });
     expect(composition.request.candidateId).toBe(CANDIDATE_ID);
+  });
+
+  it("composes the exact target the operations it routes to bind against", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target)
+      .toEqual(immutableTarget.status === "resolved" ? immutableTarget.target : null);
+    // The lane target routes; the exact target identifies. Conflating them is what left the
+    // exact-target operations with no obtainable input.
+    expect(composition.request.frontline.target).not.toHaveProperty("targetId");
+  });
+
+  it("reports an underivable exact target without refusing the work that needs none", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      deriveImmutableTarget: vi.fn(async (): Promise<ImmutableTargetRead> => ({
+        status: "unavailable",
+        reason: "the working tree is dirty",
+      })),
+    }));
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toBeNull();
+    expect(composition.advisories.join(" ")).toContain("the working tree is dirty");
   });
 
   it("routes an unestablished change set to a required standard obligation", async () => {

@@ -20,12 +20,14 @@ import {
   createLocalReviewRubricBindingPort,
 } from "../hosts/local/method-files.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
 import { readLaneProgress } from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import type {
   AssuranceRead,
   CandidateRead,
+  ImmutableTargetRead,
   PrePublicationCompositionDependencies,
   TargetRead,
 } from "./pre-publication-request.js";
@@ -143,6 +145,22 @@ export function createPrePublicationCompositionDependencies(input: {
           headSha,
         },
       };
+    },
+
+    deriveImmutableTarget: async (): Promise<ImmutableTargetRead> => {
+      try {
+        return {
+          status: "resolved",
+          target: await deriveLocalReviewTarget({
+            exec: input.exec,
+            cwd: input.cwd,
+            baseRef: (await settings())["branch.base"],
+            repositoryId: await repositoryId(),
+          }),
+        };
+      } catch (error) {
+        return { status: "unavailable", reason: describe(error) };
+      }
     },
 
     readLaneProgress: async (lane, headSha) => readLaneProgress(store, {

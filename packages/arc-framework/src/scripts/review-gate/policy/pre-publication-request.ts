@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
+import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
@@ -24,7 +25,12 @@ export type PrePublicationLaneJudgments = z.infer<typeof PrePublicationLaneJudgm
 export type PrePublicationSelfReviewState = PrePublicationReviewRequest["selfReview"];
 /** The two lanes a pre-publication request composes. */
 export type ReviewLane = PrePublicationReviewRequest["frontline"]["lane"];
-/** The immutable target both lanes review. */
+/**
+ * The target both lanes route against — repository, pull request, and head.
+ *
+ * Lane routing needs no more than this. It is not the exact-target identity the review operations
+ * themselves bind to; that is {@link ImmutableTargetRead}, composed separately below.
+ */
 export type ReviewPolicyTarget = PrePublicationReviewRequest["frontline"]["target"];
 
 export type CandidateRead =
@@ -47,11 +53,23 @@ export type TargetRead =
   | { status: "resolved"; target: ReviewPolicyTarget }
   | { status: "refused"; reason: string };
 
+/**
+ * The immutable review target, or why the checkout cannot produce one.
+ *
+ * Unavailability is reported rather than refused: the procedure routes to work that needs no exact
+ * target — self-review, convergence verification, submission — and refusing all of it because a
+ * working tree is dirty would gate the whole boundary on a condition only some of it has.
+ */
+export type ImmutableTargetRead =
+  | { status: "resolved"; target: ReviewTarget }
+  | { status: "unavailable"; reason: string };
+
 /** Repository reads the composition needs, each owned by its production binder. */
 export interface PrePublicationCompositionDependencies {
   readCandidate(workUnit: string): Promise<CandidateRead>;
   readAssurance(workUnit: string): Promise<AssuranceRead>;
   resolveTarget(headSha: string): Promise<TargetRead>;
+  deriveImmutableTarget(): Promise<ImmutableTargetRead>;
   readLaneProgress(lane: ReviewLane, headSha: string): Promise<LaneProgressProjection>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
 }
@@ -118,6 +136,17 @@ function unrecordedLaneAdvisory(lane: ReviewLane): string {
  * it produces is the conservative one either way. What the caller loses without this is why: a
  * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
  */
+/**
+ * An absent exact target is reported rather than refused, so what it costs has to be said.
+ *
+ * The lane routing below is unaffected; what becomes unreachable is every exact-target operation the
+ * envelope routes to — chunking resolution and a frontline run alike.
+ */
+function unavailableTargetAdvisory(reason: string): string {
+  return `No exact review target could be composed from this checkout (${reason}); the exact-target `
+    + "operations this procedure routes to cannot be invoked until it resolves.";
+}
+
 function rejectedRoutingAdvisory(paths: readonly string[]): string {
   return `Rejected or missing routing input at ${paths.join(", ")}; the change set routes as `
     + "unestablished, so standard review stays required.";
@@ -169,6 +198,7 @@ export async function composePrePublicationReviewRequest(
   const resolvedTarget = await dependencies.resolveTarget(candidate.headSha);
   if (resolvedTarget.status === "refused") return { status: "refused", reason: resolvedTarget.reason };
   const { target } = resolvedTarget;
+  const immutable = await dependencies.deriveImmutableTarget();
 
   const lanes = PrePublicationLaneJudgmentsSchema.safeParse(input.lanes ?? {});
   if (!lanes.success) {
@@ -186,6 +216,7 @@ export async function composePrePublicationReviewRequest(
 
   const advisories: string[] = [];
   if (routing.diagnostics.length > 0) advisories.push(rejectedRoutingAdvisory(routing.diagnostics));
+  if (immutable.status === "unavailable") advisories.push(unavailableTargetAdvisory(immutable.reason));
   const composeLane = async (lane: ReviewLane) => {
     const [policy, progress] = await Promise.all([
       dependencies.readLanePolicy(lane),
@@ -218,6 +249,7 @@ export async function composePrePublicationReviewRequest(
     schemaVersion: 1,
     workUnit: input.workUnit,
     candidateId: candidate.candidateId,
+    target: immutable.status === "resolved" ? immutable.target : null,
     selfReview: input.selfReview ?? (assurance.activity.selfReview ? "pending" : "inactive"),
     frontline,
     standard,

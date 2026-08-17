@@ -109,15 +109,28 @@ If the [`self-review` method][self-review] is effectively active:
 When inactive, continue with the typed pre-publication procedure.
 
 From the local Candidate branch, compose the change-set routing facts — content kind, risk, determinacy,
-ownership, and surface authority — as the author judgment the repository cannot read. The immutable policy target,
-the routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are
-composed from repository state by the command below; never assemble or restate them here.
+ownership, and surface authority — as the author judgment the repository cannot read. The lane routing target, the
+routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are composed
+from repository state by the command below; never assemble or restate them here.
+
+Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
+mode and any approved ceiling override as `--lanes`, and a completed author self-review as `--self-review settled`.
+One call resolves the frontline lane, then the pre-PR standard lane, and returns the procedure's typed locus.
+Re-invoke it after every lane operation, re-supplying the same `--change-set` and `--self-review` values verbatim:
+the command composes lane progress from the durable record, but those two are author judgment it cannot recover, and
+omitting either silently reroutes the lanes rather than resuming them.
+
+The envelope's `target` is the exact target every exact-target operation below binds against — chunking resolution
+and a frontline run alike. A null `target` means the checkout could not compose one (the command's advisory names
+why, a dirty working tree being the ordinary cause); resolve that before invoking any of them. The lane `target`
+inside `policy` routes lanes and does not identify a review — never substitute it.
 
 Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
 selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` hold-whole decision stays
 silent while the current evidence is semantically unchanged; invocation, elapsed time, and restatement are not
-material deltas. Otherwise invoke `arc review chunking resolve -` once, including an existing exact-target
-`scopeSelection` when one exists, and retain its target statistics. Dispatch only on its closed pair:
+material deltas. Otherwise invoke `arc review chunking resolve -` once with the envelope's `target`, including an
+existing exact-target `scopeSelection` when one exists, and retain its target statistics. Dispatch only on its
+closed pair:
 
 - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
   `evidence-unavailable / continue-review` — render no attention text and continue review.
@@ -127,13 +140,9 @@ material deltas. Otherwise invoke `arc review chunking resolve -` once, includin
   delivery plan; never also offer chunked review.
 
 Select whole-target or chunked scope separately for frontline and standard review. The workflow never recomputes
-thresholds or compares typed delivery state in prose.
-
-Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
-mode and any approved ceiling override as `--lanes`, and a completed author self-review as `--self-review settled`.
-One call resolves the frontline lane, then the pre-PR standard lane, and returns the procedure's typed locus.
-Re-invoke it after every lane operation: it is idempotent, so repeated calls advance or report the same resume
-point.
+thresholds or compares typed delivery state in prose. A selected scope reaches the lanes by re-invoking the
+procedure with it in `--lanes`; the `stale-target / select-scope` arm below is where the procedure asks for that
+re-selection when the target has moved under a prior one.
 
 A null `policy` means no lane operation is open — follow the envelope's own `nextAction.kind`, one of
 `run-self-review`, `run-convergence-verification`, or `submit-candidate`. Otherwise follow only the `policy`

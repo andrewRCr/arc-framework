@@ -15,10 +15,12 @@ import {
   type CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
+  prePublicationBoundary,
   projectCandidateDeltaVerification,
   projectPrePublicationReview,
   recordCandidateVerifiedResponse,
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-procedure.js";
+import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
 const target = {
   repository: "arc-framework/example",
@@ -158,6 +160,33 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 describe("projectPrePublicationReview", () => {
+  it("carries the exact target through to every locus that routes to an exact-target operation", () => {
+    const exact = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "arc-framework/example",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: "c".repeat(40),
+      headTree: "d".repeat(40),
+    });
+
+    const pending = projectPrePublicationReview(request({ target: exact }));
+    const settled = projectPrePublicationReview(request({ target: exact, selfReview: "settled" }));
+
+    expect(pending.target).toEqual(exact);
+    expect(settled.target).toEqual(exact);
+    // The boundary is keyed to the reviewable subject; a live target would go stale under it.
+    expect(prePublicationBoundary(settled)).not.toHaveProperty("target");
+    expect(IntegrationBoundaryLocusSchema.safeParse(prePublicationBoundary(settled)).success).toBe(true);
+  });
+
+  it("projects a null exact target when the checkout could not compose one", () => {
+    expect(projectPrePublicationReview(request()).target).toBeNull();
+  });
+
   it("runs active author self-review before either configured lane", () => {
     expect(projectPrePublicationReview(request())).toMatchObject({
       locus: "candidate-review-pending",

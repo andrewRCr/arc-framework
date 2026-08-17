@@ -56,6 +56,7 @@ import {
 } from "../scripts/review-gate/policy/pre-publication-request.js";
 import {
   PrePublicationReviewEnvelopeSchema,
+  prePublicationBoundary,
   projectPrePublicationReview,
   type PrePublicationReviewEnvelope,
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
@@ -1699,7 +1700,7 @@ export async function handleReviewPrePublication(
     // absent boundary now means genuinely open obligations rather than a write nobody performed.
     if (envelope.locus === "candidate-submit-ready"
       || envelope.locus === "candidate-convergence-verification-pending") {
-      await dependencies.persistBoundary(root, envelope);
+      await dependencies.persistBoundary(root, prePublicationBoundary(envelope));
     }
   } catch (error) {
     emitFailure(error, "execution");
