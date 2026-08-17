@@ -1600,15 +1600,40 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
 
     - Held to the named surface: no behavior change, no new mechanism, and every original passage retained.
 
-### `[ ]` **11.12 Convergence verification and re-attestation over the remediated tree**
+### `[x]` **11.12 Convergence verification and re-attestation over the remediated tree**
 
 - _Goal:_ The remediated tree carries a converged full attestation and the work unit stands at the integration
   boundary with a current Candidate under the renamed verbs.
 
-- _Approach:_ Run Tier 3 whole (code and Markdown both changed); walk the Success Criteria this phase touched —
-  including the four added 2026-08-17 items and Criterion 5's boundary (re-rooting is attestation, not repair)
-  — then run the renamed attestation verb over the recognized lineage. The Candidate will be blocked-stale from
-  this phase's own edits, so the re-attestation exercises Task 11.1's path as its first real consumer.
+- _Amended 2026-08-17 — the criteria walk found its own criterion unmet._ The walk's fourth added item asks that
+  `propose` and `submit` be absent from every source, doc, and test surface "the way Criterion 8 required of
+  `integrate`" — and Criterion 8's bar was met at the identifier level, where `integrate` leaves no
+  `runIntegrate` / `IntegrateResult` / `IntegrateContext` behind. Task 11.10's sweep did not reach that bar:
+  exported `ProposeResultSchema` and `ProposeContext` survived inside the renamed module, along with four source
+  comments, a test helper, five stale test titles, and four test comments — 28 loci across 11 files. Criteria text
+  is pre-commitment text, so the gap closes by completing the rename rather than by re-judging the criterion.
+  Completing it before the attestation rather than after also spends one converged Tier 3 instead of two.
+  Approved before implementation.
+
+- _Outcome:_ Tier 3 ran whole and green on the remediated tree — 793 test files / 10027 tests, both type checks,
+  all four lint gates, and the build. The rename completion is behavior-free and symmetric (30 insertions, 30
+  deletions): `ProposeResultSchema` → `AttestResultSchema` and `ProposeContext` → `AttestContext` in
+  `verbs/attest.ts` and its two consumers, four source comments retargeted at `attest` / `publish`, and the test
+  surfaces' helper, titles, and comments moved with them. The delivery lane's `submitNativeMerge` /
+  `status: "submitted"` and the `submission-boundary-store` / `authorizeSubmission` helpers stay put — Task 11.10
+  reserved "submission" as the noun for the act, which the rename does not stale.
+
+    - The re-attestation ran as designed and exercised Task 11.1's path as its first real consumer: the default
+      invocation refused with the phase's own delta and named the escape, and `--new-root` returned
+      `operation: "re-root"`, rooting `sha256:8fe81d1e…` with `supersedes: sha256:d5b52dc0…` recorded inside the
+      digest-covered attestation. The blocked record was never repaired or refreshed.
+
+    - The other three added criteria hold against source rather than against the record that claimed them: the
+      `with-integration` archive-plus-checkpoint leg and its post-relocation-edit negative twin, the re-root leg
+      that drives refusal → remedy → `--new-root` → cleared checkpoint while recording `supersedes`, and
+      `awaitRequiredChecks` reaching only the merge verb and its own command handler with no agent prose invoking
+      it. Criterion 5's boundary holds with them: the re-root returns `status: "attested"`, `operation: "re-root"`,
+      writing a new record, and no `refresh` or `repair` command exists to be found.
 
     - _Note:_ The `adversarial-review` cap remains spent (see § Additional Context in `SESSION-NOTES` and the
       Phase 10 amendments); no adversarial pass fires here without a fresh, explicit cap-override decision.
@@ -1675,14 +1700,16 @@ beyond a task's named surface is out of scope for this phase regardless of adjac
 _Added 2026-08-17 — design-audit remediation (forward amendment; the original set above is unchanged, and the
 two `[x]` standard items above are re-judged at Task 11.12 over the remediated tree):_
 
-- `[ ]` A `with-integration` ship reaches checkpoint `ready` after archive composition — proven by an e2e leg
+- `[x]` A `with-integration` ship reaches checkpoint `ready` after archive composition — proven by an e2e leg
   exercising archive and checkpoint jointly
-- `[ ]` A blocked Candidate has a deliberate re-root path through full verification that records the superseded
+- `[x]` A blocked Candidate has a deliberate re-root path through full verification that records the superseded
   lineage; no command repairs or refreshes an existing record
-- `[ ]` The reconcile arm waits on required checks nowhere; the merge verb's await remains the work-unit lane's
+- `[x]` The reconcile arm waits on required checks nowhere; the merge verb's await remains the work-unit lane's
   single wait site
-- `[ ]` The renamed spine verbs are complete: `propose` and `submit` are absent from every source, doc, and test
+- `[x]` The renamed spine verbs are complete: `propose` and `submit` are absent from every source, doc, and test
   surface the way Criterion 8 required of `integrate`
+    - _Met only after Task 11.12's walk completed the rename: Task 11.10's sweep left the module's own exported
+      identifiers, four source comments, and nine test surfaces behind. Verified by re-sweep, not by the record._
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI
