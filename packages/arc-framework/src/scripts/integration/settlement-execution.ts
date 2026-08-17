@@ -32,9 +32,9 @@ export type SettlementExecutionResult =
 /**
  * One approved response replayed at settlement time.
  *
- * The fix target travels beside the request because settlement runs after the approved fixes landed:
- * the originating review target is expected to be stale by then, and the head the fixes settled at is
- * what must still be current. The hosted channel pins the same head through its own envelope.
+ * The settled target travels beside the request because settlement runs after the approved response:
+ * the originating review target may be stale by then, and the head the response settled at is what
+ * must still be current. The hosted channel pins the same head through its own envelope.
  */
 export interface ReviewResponseSettlementReplay {
   request: ReviewResponseSettlementRequest;

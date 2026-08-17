@@ -89,10 +89,11 @@ export function createLineageReviewComposer(input: {
     return order;
   };
 
-  // Every approved fix in the lineage settles at the head the checkpoint approves, so one derivation
-  // of the current change set serves the whole plan — and refusing a head that is not the approved
-  // one keeps composition bound to the exact revision the reducer validated.
-  const settledFixTarget = async (approvedHead: string): Promise<ReviewTarget> => {
+  // Every approved response in the lineage settles at the head the checkpoint approves, so one
+  // derivation of the current change set serves the whole plan — including sets that authorized no
+  // fix and therefore moved no implementation themselves. Refusing a different head keeps
+  // composition bound to the exact revision the reducer validated.
+  const settledTarget = async (approvedHead: string): Promise<ReviewTarget> => {
     const { settings } = await readConfigSettings(input.cwd);
     const target = await deriveLocalReviewTarget({
       exec: input.exec,
@@ -141,13 +142,12 @@ export function createLineageReviewComposer(input: {
         - (span.get(right.origin.headSha) ?? Number.MAX_SAFE_INTEGER)
       || leftId.localeCompare(rightId)
     ));
-    const fixTarget = await settledFixTarget(approvedHead);
+    const fixTarget = await settledTarget(approvedHead);
     const actions = scoped.map(([, { approved, origin }]) => {
       const dispositions = approved.approvedDisposition;
-      const hasFix = dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix");
       return composeReviewResponseSettlementAction({
         originTarget: origin,
-        fixTarget: hasFix ? fixTarget : null,
+        fixTarget,
         request: {
           schemaVersion: 1,
           source: approved.source.kind === "attested-local"

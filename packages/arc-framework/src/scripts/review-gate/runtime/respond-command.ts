@@ -475,7 +475,7 @@ function staleTargetEnvelope(
 }
 
 /**
- * Settle one approved set the durable record already carries, at the head its fixes landed at.
+ * Settle one approved set the durable record already carries, at the head the response settled at.
  *
  * The replay decides nothing: approval, the fix, and its verification all completed earlier, and the
  * durable record is what proves it. Re-appending the exact record it read is what makes a repeated
@@ -551,8 +551,8 @@ export async function respondToReviewCommand(
       "a verified fix requires a changed exact target",
     );
   }
-  // A replay pins the head its fixes settled at, not the originating review target, which the same
-  // fixes are expected to have left stale.
+  // A replay pins the head the response settled at, not the originating review target, which later
+  // ceremony writes may have left stale even when the response authorized no fix.
   if (settledFixTarget !== undefined && currentTarget.targetId !== settledFixTarget.targetId) {
     return staleTargetEnvelope(source.operationId, settledFixTarget, currentTarget);
   }

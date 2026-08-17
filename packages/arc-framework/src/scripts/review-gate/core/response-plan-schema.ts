@@ -105,7 +105,7 @@ export const ReviewResponseSettlementActionSchema = z.strictObject({
     context.addIssue({ code: "custom", path: ["findingIds"], message: "must bind every disposition finding" });
   }
   const hasFix = set.findings.some(({ disposition }) => disposition === "fix");
-  if (hasFix !== (action.fixTarget !== null)) {
+  if (hasFix && action.fixTarget === null) {
     context.addIssue({ code: "custom", path: ["fixTarget"], message: "must identify the exact fix target when fixes exist" });
   }
   if (action.fixTarget !== null && (

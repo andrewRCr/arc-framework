@@ -1145,17 +1145,13 @@ _Note:_ Scope guard for every task in this phase: the recorded finding's verifie
 scope boundary. Several findings are edge-case-flavored; that is not an invitation to harden adjacent surfaces —
 hardening beyond what a finding's evidence demonstrates is a scope expansion to propose, never to build.
 
-### `[ ]` **9.1 Pin the settled head on every settlement replay**
+### `[x]` **9.1 Pin the settled head on every settlement replay**
 
 - _Goal:_ A defer- or reject-only approved disposition set replays to `already-settled` at merge time; no validly
   approved settlement invalidates the merge.
 
-    - Carry the settled-at target on every composed settlement action — a no-fix set pins the approved head the
-      way a fix-bearing set pins its fix head — and adjust the `response-plan-schema` refinement that forbids a
-      target on no-fix sets.
-    - The replay path must reach `settleApprovedReplay`'s compare-and-confirm instead of exiting at the
-      stale-target gate. E2e: a defer-only set replayed against a moved head lands `already-settled` and the
-      merge proceeds.
+- _Outcome:_ Every composed review-response settlement now pins the checkpoint-approved head, including no-fix
+  sets. A real-CLI moved-head replay reaches the durable already-settled path and completes the plan.
 
 ### `[ ]` **9.2 Classify system-regenerated projections as operational**
 

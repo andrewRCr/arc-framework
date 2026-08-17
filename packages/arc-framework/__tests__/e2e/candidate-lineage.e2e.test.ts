@@ -33,6 +33,9 @@ import {
 import {
   createIntegrationCheckpointDependencies,
 } from "../../src/scripts/integration/checkpoint-composition.js";
+import type {
+  IntegrationCheckpointCompositionRecord,
+} from "../../src/scripts/integration/checkpoint-store.js";
 import {
   createLineageReviewComposer,
 } from "../../src/scripts/integration/lineage-review-composition.js";
@@ -326,11 +329,12 @@ describe("review-fix Candidate lineage", () => {
   });
 
   it("carries an approved set that authorized no fix into the settlement plan", async () => {
-    const { root, approvedHead } = await settledReviewLineage();
+    const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
     await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
-
+    await git(root, ["commit", "--allow-empty", "-m", "submit transition"]);
+    const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
@@ -346,7 +350,18 @@ describe("review-fix Candidate lineage", () => {
       .toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.actions.find(
       ({ dispositionId }) => dispositionId === deferred.dispositionSet.dispositionSetId,
-    )).toMatchObject({ channel: "review-response", fixTarget: null });
+    )).toMatchObject({
+      channel: "review-response",
+      fixTarget: { headSha: approvedHead },
+    });
+
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    await expect(inRepository(root, async () => production.executeSettlement({
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+    } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
+      state: "settled",
+      completedActions: 2,
+    });
   });
 
   it("scopes to the full Candidate span, keeping a review that ran before a fix landed", async () => {
