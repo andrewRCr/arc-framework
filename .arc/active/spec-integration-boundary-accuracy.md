@@ -380,6 +380,13 @@ code-owned operational-state writes, avoiding self-reference and harmless handof
 remains head-bound in the existing review controller. `candidateId` binds those exact-target operations back to the
 attestation.
 
+_Amended 2026-08-16 — classification clarification._ "Other code-owned operational-state writes" includes the
+system-regenerated projections a lifecycle transition renders and stages — `ROADMAP` foremost — resolved by class
+through the layout, never an enumerated path list. The delivered classification had narrowed the exclusion to the
+meta file alone, which let `submit`'s own ROADMAP render read as an unexplained reviewable delta and block both
+checkpoint and re-attestation (finding V3-B2, third-entry falsification pass). This names what the original
+sentence already intended; it widens no scope.
+
 **E2. Candidate currentness composes existing response evidence.** The initial `arc propose` establishes the
 lineage root. Approved review fixes already persist the old target, new target, disposition identity, applying
 actor, and verification references through `review-response`; those records advance Candidate automatically. A
@@ -411,6 +418,11 @@ increment. The CLI supplies the exact delta and prior evidence; the primary sele
 
 The choice and evidence persist with the response record. A reviewer or adversarial pass never selects the scope.
 Full `verify-work-unit` and its adversarial fire point do not automatically re-run after every fix.
+
+_Amended 2026-08-16 — applicability record status._ The persisted applicability is attested judgment and evidence
+routing for the primary's own verification of that increment; no mechanical consumer reads it back, and none is
+owed. Convergence enforcement remains `implementationChanged` plus this section's re-attestation gate (finding
+V3-M7 — recorded so the write-only field is not later read as an unfinished consumer).
 
 After review converges on an implementation-changing lineage, typed status projects
 `candidate-convergence-verification-pending`. The primary runs one final Tier 3 and then invokes `arc propose` over
@@ -449,6 +461,16 @@ evidence into `candidate-review-pending`, `candidate-fix-pending`,
 not stored lifecycle states. Narrative `Next Action` prefixes are no longer operational authority for this
 boundary. The agent never parses review config, compares Candidate digests, counts passes, clears records, or
 reconstructs resume state.
+
+_Amended 2026-08-16 — projection scope._ `arc status` and session initialization project the conservative entry
+locus for each boundary — `candidate-review-pending` under `Active`, the stored publication boundary under
+`Integrating` — and the finer pre-submission loci (`candidate-fix-pending`,
+`candidate-convergence-verification-pending`, `candidate-submit-ready`) resolve through the idempotent
+pre-publication procedure's envelope, one typed hop away. That bounds which surfaces perform evidence reduction
+while preserving typed discovery without narrative parsing (finding V3-M2). What this does **not** license is an
+untruthful pointer: a post-submission surface may not emit a resume command for a transition that already fired,
+and the stored boundary's next action must route the publication resume the workflow actually executes (finding
+V3-M10). Original text retained above, not edited into agreement.
 
 ### F. The transition fires at the publication boundary
 

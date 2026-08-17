@@ -27,9 +27,16 @@ stratum: completeness gaps rather than reachability gaps. Phase 8 remediates the
 composed review record is cut on external-precedent grounds — so chunk 8's review should read the spec's amendment
 blocks first, since three of its tasks are deletions justified there rather than in this plan.
 
+_Amended 2026-08-16 — composition-stratum remediation._ The verification boundary's third entry — a structured
+falsification pass, not a third adversarial pass — completed the criteria walk and found a further stratum:
+composition-over-time defects, where each verb is locally correct and the failure appears only when the spine's
+own ceremony writes feed a later verb's validation. Phase 9 remediates them and Verification moves to Phase 10.
+Chunk 9 is added as its review boundary; the projection's chunk counts update accordingly. Findings, dispositions,
+and the check-doc constraints that shaped them are recorded in `notes-integration-boundary-accuracy.md`.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
-in ascending order; the verification task (Phase 8) belongs to no chunk. Chunk closure, complete union coverage
-across the seven, and the seam review below carry the review obligation the stack's per-member pull requests would
+in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
+across the nine, and the seam review below carry the review obligation the stack's per-member pull requests would
 have carried.
 
 | # | Chunk                   | Chunk key                            | Phase | Design elements                |
@@ -42,6 +49,7 @@ have carried.
 | 6 | Workflow convergence    | `integration-workflow-convergence`   | 6     | A, B4–B8, C1–C7, D1–D3, G–H, I |
 | 7 | Production wiring       | `integration-production-wiring`      | 7     | D1, E3–E4, E6, G2, B1–B2, B6   |
 | 8 | Review-record reduction | `review-record-reduction`            | 8     | G (amended), B3, E9, D1, B1    |
+| 9 | Composition remediation | `composition-stratum-remediation`    | 9     | B1–B3, B5, D1–D3, E1–E5, E9    |
 
 Chunk N covers Phase N exactly, so every chunk resolves to a contiguous commit range and no review pass needs a
 hand-assembled diff.
@@ -56,7 +64,7 @@ hand-assembled diff.
 | Primitive reuse    | 3, 5, 6  | 6     | One wait implementation and one PR-resolution logic serve both lanes        |
 
 _Per-chunk procedure_ — stated once, applied to every chunk: review the chunk's commit range against its design
-elements, settling each seam at its owning chunk. One exact-head pull request carries all six; ordinary
+elements, settling each seam at its owning chunk. One exact-head pull request carries all nine; ordinary
 repository checks and the ARC merge lock govern the single landing, with no separate delivery proof.
 
 ---
@@ -1119,15 +1127,116 @@ distinction and its reasoning are recorded in the spec's own amendment blocks.
   host-dependent reads around it in `status-composition.ts` are still unreached; this covers the routed-obligation
   path alone.
 
-## **Phase 9:** Verification
+## **Phase 9:** Composition-stratum remediation
 
-_Amended 2026-08-15._ Verification moved here from Phase 8; the boundary was entered twice and closed neither time.
-Both adversarial passes are spent against the `Heavy` cap, so a third is a deliberate override rather than an
-automatic continuation. Apply the falsification method recorded in `notes-integration-boundary-accuracy.md`
-§ Resume Procedure — verification remediation: construct the breaking case before finding the satisfying code, walk
-every § Inventory count as an exhaustive checklist, and trace human-facing criteria to the human.
+_Purpose:_ Close the third verification entry's findings — the composition-over-time stratum, where each verb is
+locally correct and the failure appears only when the spine's own ceremony writes feed a later verb's validation.
+Chunk `composition-stratum-remediation`. The findings, their verified evidence chains, and the adjudications are
+in `notes-integration-boundary-accuracy.md` § Verification Findings — third-entry falsification pass.
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+_Design decisions:_ Three check-doc constraints shaped the dispositions. Classification is by class, not path:
+system-regenerated projections are operational state per the tracked-vs-materialized line, resolved through the
+layout. Stale state is caught by read-time validation, never a discharge write — the write-someone-must-remember
+shape is the recorded F6 failure mode. Remedies are precomposed CLI-side, and typed surfaces are fixed rather
+than prose bypass blessed. Tasks are independent of each other except that 9.8 consumes 9.3's boundary-validation
+shape.
+
+### `[ ]` **9.1 Pin the settled head on every settlement replay**
+
+- _Goal:_ A defer- or reject-only approved disposition set replays to `already-settled` at merge time; no validly
+  approved settlement invalidates the merge.
+
+    - Carry the settled-at target on every composed settlement action — a no-fix set pins the approved head the
+      way a fix-bearing set pins its fix head — and adjust the `response-plan-schema` refinement that forbids a
+      target on no-fix sets.
+    - The replay path must reach `settleApprovedReplay`'s compare-and-confirm instead of exiting at the
+      stale-target gate. E2e: a defer-only set replayed against a moved head lands `already-settled` and the
+      merge proceeds.
+
+### `[ ]` **9.2 Classify system-regenerated projections as operational**
+
+- _Goal:_ The spine's own ceremony writes never read as an unexplained reviewable delta; `submit`'s ROADMAP
+  render blocks neither checkpoint nor re-attestation.
+
+    - Widen `git-candidate-subject.ts`'s operational classification from the meta path alone to the code-owned
+      regenerated projections, resolved by class through the layout (E1's exclusion as amended).
+    - Test: a submit transition commit (state row churn) followed by a checkpoint currentness read stays
+      `current`; a genuine reviewable delta still blocks.
+
+### `[ ]` **9.3 Bind submission authorization to the lineage head**
+
+- _Goal:_ `arc submit` refuses a boundary written for an earlier lineage head, so E3's changed-target re-entry
+  cannot be skipped.
+
+    - Read-time validation in `authorizeSubmission` against the current recognized revision; the refusal names
+      the remedy (re-run `arc review pre-publication`). No invalidation write lands on re-attestation.
+
+### `[ ]` **9.4 Close the merge verb's re-lock and merged-state gaps**
+
+- _Goal:_ Every approval-voiding exit re-locks, `checkpoint-missing` included, and a landed merge is never
+  reported `relock-failed`.
+
+    - Route `checkpoint-missing` through the `invalidated()` helper — safe when no release occurred, since
+      `holdLock` accepts held and no-lock states — and re-read merged state before the catch path holds the
+      lock.
+
+### `[ ]` **9.5 Emit schema-valid typed refusals from the integration handlers**
+
+- _Goal:_ Every refusal `integrate checkpoint` and `integrate merge` emit validates against the published result
+  schemas and names a corrective command.
+
+    - Replace the hand-built invalid-input envelopes; add a handler-level catch so checkpoint-store throws on
+      malformed or handle-mismatched records — currently read outside the verb's own try — become typed refusals
+      rather than crashes.
+
+### `[ ]` **9.6 Precompose the moved-head resolution remedy**
+
+- _Goal:_ An interrupted fix-loop resume — committed, unpushed, PR open at the prior head — projects
+  push-and-re-resolve rather than a bare stop.
+
+    - Enrich the resolver's `ambiguous` envelope with precomposed remedy text for the open-PR-with-moved-
+      supplied-head sub-case; the six disposition classes stay unchanged and the resume table consumes the
+      envelope's text.
+
+### `[ ]` **9.7 Name where review landed on the composed decision line**
+
+- _Goal:_ A clean candidate's interlock surface renders all three of Criterion 2's decision facts.
+
+    - Add the review-landed line — the local carrier or discharged hosted source, from the discharge detail — to
+      the composed decision text; extend the structural test to pin it.
+
+### `[ ]` **9.8 Keep the typed publication pointer truthful**
+
+- _Goal:_ No post-submission surface emits a resume command for a transition that already fired, and the
+  next-action vocabulary carries no dead members.
+
+    - The `unchanged` submit envelope and the stored-boundary projections stop pointing back at `arc submit`;
+      the pointer routes the publication resume the workflow row actually executes (E9 as amended bounds which
+      surfaces reduce evidence).
+    - Prune the three structurally-unreachable next-action kinds; wire or prune `continue-publication` and
+      `continue-hosted-review` consistently with the pointer fix.
+
+### `[ ]` **9.9 Close the minor-findings batch**
+
+- _Goal:_ Every recorded minor closes or carries a deliberate residue note in the findings record.
+
+    - The dangling "exact-head mutability action" narration; the bounded checks wait naming
+      `arc review checks await`; `--json` refusals on propose and submit emitting JSON; the `awaiting-checks`
+      prose matching its payload; refusal remedies on the propose active-record guard, `parseLifecycleCommand`,
+      the errand lane's merge-method resolve, and review status blocked; `persistBoundary` also persisting at
+      the convergence-pending locus; the errand interlock text gaining the content pin the work-unit lane has.
+
+## **Phase 10:** Verification
+
+_Amended 2026-08-16._ Verification moved here from Phase 9. The boundary has been entered three times; the third
+entry's structured falsification pass completed the criteria walk, and its findings are recorded in
+`notes-integration-boundary-accuracy.md` § Verification Findings — third-entry falsification pass. Both
+adversarial passes remain spent against the `Heavy` cap. On re-entry after Phase 9: re-run Tier 3 over the
+remediated tree, re-validate the criteria the findings touched (2, 3, 5, 6, 7, 9, 11, 15) by confirming each
+remediation against its recorded finding, and mark the Success Criteria — the full falsification walk need not
+repeat for criteria the record already closes clean.
+
+### `[ ]` **10.1 Complete verification** — load and follow `verify-work-unit.md`
 
 ---
 

@@ -367,14 +367,15 @@ surfaces as untyped `operation-failed` — the class Tasks 7.9 and 7.12 worked t
 with a typed blocked reason (`hosted-reservation-pending`, remedy `arc review pre-publication <wu> --json`); 7.9
 made both reason sets derive from the refusal schemas, so a reason without a remedy fails to compile.
 
-## Verification Findings — Phase 9 falsification pass
+## Verification Findings — third-entry falsification pass
 
 Recorded 2026-08-16 at the third entry of the verification boundary. Method per the Resume Procedure below:
 falsification over confirmation, structured as eleven delegated read-only lenses — six criterion clusters, three
 failure-class sweeps (reachability, inventory, human-surface), seams, and a configuration-matrix scenario walk —
-with every finding below verified against source by the primary before recording. This is the Phase 9 structured
-self-verify, not a third `adversarial-review` pass; the `Heavy` pass cap remains spent. Tier 3 ran green first at
-`f4cbf34ff`: md lint over 664 files, the three `lint:arc:*` checks, both lint passes, both type checks, 9969 tests
+with every finding below verified against source by the primary before recording. This is the boundary's
+structured self-verify, not a third `adversarial-review` pass; the `Heavy` pass cap remains spent. Tier 3 ran
+green first at `f4cbf34ff`: md lint over 664 files, the three `lint:arc:*` checks, both lint passes, both type
+checks, 9969 tests
 passing (1 skipped), clean build.
 
 **The stratum this pass mined.** Pass one found unreachable code; pass two found incomplete code. This pass's
