@@ -340,6 +340,39 @@ describe("review-fix Candidate lineage", () => {
     expect(cleared).not.toMatchObject({ reason: "candidate-convergence-pending" });
   });
 
+  it("converges when an operational-only commit precedes the re-attestation", async () => {
+    const root = await fixture();
+    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    const source = await reviewToFindings(root);
+    const dispositions = await approvedSet(root, source);
+    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply approved fix"]);
+    await invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
+    });
+
+    // Committing the response record advances the head without touching a reviewable byte, so the
+    // re-attestation lands at a revision the response never named. Convergence is keyed to the
+    // verified content, which is what keeps the attestation the primary just ran from being unusable.
+    const responseHead = await git(root, ["rev-parse", "HEAD"]);
+    await git(root, ["commit", "-m", "record verified response"]);
+    expect(await git(root, ["rev-parse", "HEAD"])).not.toBe(responseHead);
+
+    const converged = await runArc(["propose", "example", "--json"], root);
+    expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
+    expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
+
+    await expect(checkpointOver(root)).resolves.not.toMatchObject({
+      reason: "candidate-convergence-pending",
+    });
+  });
+
   it("composes the settlement plan its approved responses back", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);

@@ -35,9 +35,9 @@ Chunk 9 is added as its review boundary; the projection's chunk counts update ac
 and the check-doc constraints that shaped them are recorded in `notes-integration-boundary-accuracy.md`.
 
 _Amended 2026-08-17 — verification re-entry._ The fourth entry's targeted re-validation found two defects inside
-Phase 9's own remediations (V4-B1, V4-M1 in `notes-integration-boundary-accuracy.md`). They remediate as Tasks 9.10
-and 9.11 inside Phase 9, so chunk 9's commit range extends to cover them; the chunk table, the count, and every
-seam are unchanged.
+Phase 9's own remediations (V4-B1, V4-M1 in `notes-integration-boundary-accuracy.md`), and its adversarial pass a
+third in the adjacent convergence gate (V4-M2). They remediate as Tasks 9.10 through 9.12 inside Phase 9, so chunk
+9's commit range extends to cover them; the chunk table, the count, and every seam are unchanged.
 
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
@@ -1251,6 +1251,21 @@ residue, as recorded in `notes-integration-boundary-accuracy.md`.
   remediations settled on. Changed reviewable content is caught twice over: the candidate gate refuses an
   unexplained delta before this check, and an explained one (a fix the lineage advanced past) refuses here.
 
+### `[x]` **9.12 Key Candidate convergence to the verified content**
+
+- _Goal:_ A re-attestation the primary actually ran satisfies convergence, so no operational-only commit before
+  `arc propose` leaves submission and checkpoint permanently refusing.
+
+    - Convergence matches a lineage attestation by reviewable-subject digest; the revision it was written at stays
+      recorded as provenance rather than serving as the match key.
+    - Real-CLI coverage: an operational-only commit between the verified-fix response and `arc propose`, after
+      which the checkpoint no longer reports `candidate-convergence-pending`.
+
+- _Outcome:_ Closes finding V4-M2. The convergence gate and `arc propose` had disagreed about which revision
+  identified the same verification — propose writes the recognized head, the gate read the response revision — so
+  the two could never meet once the head advanced. Content-keying settles it for every later advance too, rather
+  than moving the mismatch one commit further out.
+
 ## **Phase 10:** Verification
 
 _Amended 2026-08-16._ Verification moved here from Phase 9. The boundary has been entered three times; the third
@@ -1263,8 +1278,9 @@ repeat for criteria the record already closes clean.
 
 _Amended 2026-08-17._ That re-entry ran: Tier 3 green at `6668cf53c`, and the eight-criterion walk plus the four
 seams confirmed all but Criteria 3 and 6, whose remediations carried the two defects recorded as V4-B1 and V4-M1.
-Tasks 9.10 and 9.11 close them. On this re-entry the criteria walk narrows to 3 and 6 and to whatever the two fixes
-reach; Tier 3 re-runs because review-driven fixes landed.
+A scoped adversarial pass over those two criteria and the remediation commits then found V4-M2 in the adjacent
+convergence gate. Tasks 9.10 through 9.12 close all three. On this re-entry the criteria walk narrows to 3, 6, and
+15 and to whatever the three fixes reach; Tier 3 re-runs because review-driven fixes landed.
 
 ### `[ ]` **10.1 Complete verification** — load and follow `verify-work-unit.md`
 
@@ -1272,45 +1288,65 @@ reach; Tier 3 re-runs because review-driven fixes landed.
 
 ## Success Criteria
 
-- `[ ]` The final integration step's residual length is a function of its stop inventory; the reconcile arm
+- `[x]` The final integration step's residual length is a function of its stop inventory; the reconcile arm
   holds five stop-bearing spans containing seven stops
-- `[ ]` A clean candidate's interlock surface renders what the approver decides on, collapsed by the composer;
+    - _Re-counted against the delivered arm after this phase's prose edits: five spans (base merge, the
+      merged-and-gate applicability judgment, review status, the WU reconcile, the commit/push releases) carrying
+      seven stops, two of them judgment — matching § C's table._
+- `[x]` A clean candidate's interlock surface renders what the approver decides on, collapsed by the composer;
   extension evidence renders in a separate labelled block — both tested structurally
-- `[ ]` The posted review record and executed settlement are exactly what approval covered; missing, stale,
+- `[x]` The posted review record and executed settlement are exactly what approval covered; missing, stale,
   ambiguous, or actor-mismatched settlement invalidates before release or merge
     - _Amended 2026-08-15 — see `spec-integration-boundary-accuracy.md` § G and its Criterion 3 amendment. Judge
       against: **the executed settlement is exactly what approval covered**; missing, stale, ambiguous, or
       actor-mismatched settlement invalidates before release or merge. The record clause is withdrawn with the
       composed record. Original text retained above, not edited into agreement._
-- `[ ]` `propose` and `submit` replace their predecessors with zero added happy-path commands, commits,
+    - _Deviation: met against the amended text only. Every approved set now replays at the head it settled at,
+      no-fix sets included, so a defer- or reject-only settlement executes instead of invalidating the merge
+      (Tasks 9.1 and 9.10)._
+- `[x]` `propose` and `submit` replace their predecessors with zero added happy-path commands, commits,
   approvals, or agent judgments
-- `[ ]` Candidate is a typed attestation and verified lineage — advancing on approved responses, surviving
+- `[x]` Candidate is a typed attestation and verified lineage — advancing on approved responses, surviving
   operational-only churn, blocking unexplained deltas — with no refresh or repair command
-- `[ ]` Ordered standard-review sources preserve preference across publication; the deferred hosted-first
+- `[x]` Ordered standard-review sources preserve preference across publication; the deferred hosted-first
   reservation is carried, never reported settled or no-op, and cannot be leapfrogged
-- `[ ]` Review-fix verification is bounded and primary-owned; implementation changes receive one converged
+- `[x]` Review-fix verification is bounded and primary-owned; implementation changes receive one converged
   Tier 3 plus `arc propose`, and checkpoint readiness rejects an unattested lineage head
-- `[ ]` `arc integrate` names no lifecycle transition and survives only as the namespace for `checkpoint` and
+    - _Deviation: the persisted applicability decision is attested judgment and evidence routing, read by no
+      mechanical consumer — recorded in § E4's amendment rather than left as an unfinished consumer. Convergence
+      enforcement is `implementationChanged` plus the re-attestation gate._
+- `[x]` `arc integrate` names no lifecycle transition and survives only as the namespace for `checkpoint` and
   `merge`; the old verb name is absent from every inventoried source, doc, and test surface
-- `[ ]` `Integrating` means submission is underway; transitioned-but-unpushed and pushed-but-uncreated
+- `[x]` `Integrating` means submission is underway; transitioned-but-unpushed and pushed-but-uncreated
   interruptions each project one exact resume action without claiming a PR exists
-- `[ ]` No agent hand-rolls a wait, a parse, or a merge-method discovery; PR resolution covers all six
+- `[x]` No agent hand-rolls a wait, a parse, or a merge-method discovery; PR resolution covers all six
   disposition classes at every inventoried site; the merge verb rejects post-checkpoint policy movement
-- `[ ]` The repository lock cannot misreport approval state: release only through the verb's lifecycle gate,
+- `[x]` The repository lock cannot misreport approval state: release only through the verb's lifecycle gate,
   re-lock on every approval-voiding exit, a deadline yield leaves the release standing, and no workflow-wide
   prose invariant carries the re-lock obligation
-- `[ ]` `Coverage` is absent from the pull-request record at all five inventoried sites, nothing replaces it,
+- `[x]` `Coverage` is absent from the pull-request record at all five inventoried sites, nothing replaces it,
   and the three non-record `Coverage` families are untouched
-- `[ ]` The approval pin is enforced, not narrated: the conditionality clause is gone from all five loci while
+- `[x]` The approval pin is enforced, not narrated: the conditionality clause is gone from all five loci while
   the consequence disclosure remains, and a mismatched-head merge call returns `invalidated`
-- `[ ]` Every logical control obligation survives or names its covering enforcement; only the four authorized
+- `[x]` Every logical control obligation survives or names its covering enforcement; only the four authorized
   relocations move, and every deletion names the host pin or typed reader covering it
-- `[ ]` Agent discovery is typed and idempotent: every locus carries one next action, repeated calls advance
+- `[x]` Agent discovery is typed and idempotent: every locus carries one next action, repeated calls advance
   or report the same observable resume point, and every refusal names the failed invariant and one corrective
   command
-- `[ ]` The errand ship path completes in-session by default; `leave` fires only on a session-ending tail, and
+    - _Deviation: `arc status` and session initialization project the conservative entry locus per § E9's
+      amendment; the finer pre-submission loci resolve one typed hop away through the idempotent pre-publication
+      procedure. The amendment licenses that bound and not an untruthful pointer._
+- `[x]` The errand ship path completes in-session by default; `leave` fires only on a session-ending tail, and
   the unattended-merge replay references no retained checkout
-- `[ ]` No prose step assumes required checks are green before the merge verb's await; the interlock surface
+- `[x]` No prose step assumes required checks are green before the merge verb's await; the interlock surface
   reports check state as observed; a deferred-CI project runs both lanes unchanged
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
+
+**Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
+`invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI
+Candidate-lineage and publication-spine suites drive `propose → review → respond → submit` through the public
+verbs. Host-dependent behavior is proven against typed ports and offline fixtures rather than a live host, so
+CodeRabbit and Codex PR lane behavior is implemented-and-typed, not proven live; the first hosted run is the
+forcing event. One deliberate residue remains owned: the production-uncalled `composeHostedSettlementAction`
+stays census input for `review-source-authority` rather than gaining an artificial caller here.

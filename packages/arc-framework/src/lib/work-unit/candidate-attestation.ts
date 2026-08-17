@@ -289,9 +289,14 @@ export function projectCandidateCurrentness(input: {
     return blockedProjection(record.attestation.candidateId, revision, current, subject);
   }
   const operationalOnlyAdvance = current.revision !== revision;
+  // Convergence is a claim about content: a lineage attestation records that full verification ran
+  // over one exact reviewable subject. Keying it to the subject alone is what lets it survive the
+  // head movement `recognizedRevision` already absorbs — an attestation written at the recognized
+  // head could never equal the response revision it was confirming, and pinning either revision
+  // would break again at the next operational-only advance. The revision stays recorded as
+  // provenance for which head carried the verification.
   const convergenceSatisfied = !implementationChanged || record.lineageAttestations.some((attestation) =>
-    attestation.target.revision === revision
-    && attestation.target.subject.subjectDigest === subject.subjectDigest);
+    attestation.target.subject.subjectDigest === subject.subjectDigest);
   return {
     status: "current",
     candidateId: record.attestation.candidateId,

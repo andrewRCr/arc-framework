@@ -555,10 +555,34 @@ which is why it reads as friction; it is still an accuracy defect on a routine p
 is the exact statement of the binding, is immune to the `HEAD`-tracking substitution, and is already computed on
 both sides. Criterion 6.
 
-**Fourth-entry disposition.** Tasks 9.10 (V4-B1) and 9.11 (V4-M1) in
-`tasks-integration-boundary-accuracy.md`, both inside chunk 9. No spec amendment is owed: the spec constrains what
-the boundary must guarantee, never which identity implements the binding, and both fixes move the delivered code
-toward the recorded E1/E2/E3 doctrine rather than away from it.
+### V4-M2 — a re-attestation the primary ran cannot satisfy the gate it was run for
+
+Found by the fourth entry's adversarial pass — a scoped conformance pass over Criteria 3 and 6 and the two
+remediation commits, run as a deliberate override of the spent `Heavy` cap. The pass cleared both criteria for the
+mechanisms they bind and returned this one finding, in the gate immediately above the one V4-M1 fixed.
+
+`projectCandidateCurrentness` matched a lineage attestation against `revision` — the last approved response's
+`newTarget.revision` — while `runPropose` writes its attestation at `recognizedRevision`, which under an
+operational-only advance is the current head (`candidate-attestation.ts:292`, `propose.ts:97`). So an
+operational-only commit between a verified-fix response and `arc propose` left propose attesting at a revision the
+gate never looked for. Confirmed by real-CLI probe: propose returns `attested` / `convergence` /
+`candidate-submit-ready` at exit 0 while the very next checkpoint still refuses `candidate-convergence-pending`;
+repeating propose appends another attestation and changes nothing. `arc submit` refuses on the same gate with
+`arc propose` as its remedy — the call that just no-opped. Permanent and fail-closed, the shape V3-B1 and V4-B1
+share, and untested because the suite's own fixture commits the response record and then reaches the composer
+directly rather than through the convergence gate.
+
+The two gates had come to disagree about what an operational-only advance means: submission authorization is
+content-bound and tolerant, convergence was revision-bound and intolerant. Criteria 7 and 15 both bear on it;
+Criterion 7's stated claim survives (readiness does reject an unattested head — this was over-rejection), while
+Criterion 15's idempotency clause genuinely failed until Task 9.12 landed.
+
+**Fourth-entry disposition.** Tasks 9.10 (V4-B1), 9.11 (V4-M1), and 9.12 (V4-M2) in
+`tasks-integration-boundary-accuracy.md`, all three inside chunk 9. V4-M2's remedy sits outside both commits and
+outside V4-M1's evidence chain, so it was recorded and dispositioned by the maintainer as a scope decision rather
+than folded into 9.11 as hardening. No spec amendment is owed for any of the three: the spec constrains what the
+boundary must guarantee, never which identity implements the binding, and each fix moves the delivered code toward
+the recorded E1/E2/E3 doctrine rather than away from it.
 
 ## Resume Procedure
 
