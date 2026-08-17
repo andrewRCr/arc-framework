@@ -3,6 +3,7 @@
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
 import { readGitBlobBytes } from "../io-context.js";
+import { resolveArcPath } from "../layout/index.js";
 import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import {
@@ -20,6 +21,11 @@ export interface CollectGitCandidateTargetInput {
   baseBranch: string;
   exec: GitExec;
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
+}
+
+/** Whether a path is a code-owned projection regenerated from tracked lifecycle state. */
+function isSystemRegeneratedProjection(path: string): boolean {
+  return path === resolveArcPath({ kind: "project-document", document: "roadmap" });
 }
 
 /** Collect the staged work-unit subject relative to its configured base. */
@@ -58,7 +64,7 @@ export async function collectGitCandidateTarget(
       digest: bytes === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(bytes),
       treatment: projectionPaths.has(path)
         ? "candidate-projection"
-        : path === metaPath
+        : path === metaPath || isSystemRegeneratedProjection(path)
           ? "operational"
           : "reviewable",
     });

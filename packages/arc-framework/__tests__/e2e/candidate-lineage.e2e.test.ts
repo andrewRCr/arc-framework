@@ -263,6 +263,31 @@ async function checkpointOver(root: string) {
 }
 
 describe("review-fix Candidate lineage", () => {
+  it("keeps lifecycle-regenerated project state outside Candidate currentness", async () => {
+    const root = await fixture();
+    expect((await runArc(["propose", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+
+    await mkdir(join(root, ".arc", "backlog"), { recursive: true });
+    await writeFile(join(root, ".arc", "backlog", "ROADMAP.md"), "# Regenerated transition view\n", "utf8");
+    await git(root, ["add", ".arc/backlog/ROADMAP.md"]);
+    await git(root, ["commit", "-m", "submit transition"]);
+
+    await expect(checkpointOver(root)).resolves.not.toMatchObject({
+      reason: "candidate-unexplained-delta",
+    });
+
+    await writeFile(join(root, "reviewed.txt"), "genuine reviewable delta\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "unexplained implementation"]);
+
+    await expect(checkpointOver(root)).resolves.toMatchObject({
+      state: "blocked",
+      reason: "candidate-unexplained-delta",
+      payload: { candidate: { delta: { changed: ["reviewed.txt"] } } },
+    });
+  });
+
   it("advances the lineage, blocks the checkpoint, and clears through propose", async () => {
     const root = await fixture();
 

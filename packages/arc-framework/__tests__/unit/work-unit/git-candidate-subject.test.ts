@@ -18,6 +18,7 @@ describe("collectGitCandidateTarget", () => {
           stdout: [
             ".arc/active/meta-example.md",
             ".arc/active/tasks-example.md",
+            ".arc/backlog/ROADMAP.md",
             ".arc/system/.internal/candidates/example.json",
             "packages/arc-framework/src/example.ts",
             "",
@@ -29,6 +30,7 @@ describe("collectGitCandidateTarget", () => {
     const bytes = new Map([
       [".arc/active/meta-example.md", new TextEncoder().encode("meta")],
       [".arc/active/tasks-example.md", new TextEncoder().encode("tasks")],
+      [".arc/backlog/ROADMAP.md", new TextEncoder().encode("roadmap")],
       [".arc/system/.internal/candidates/example.json", new TextEncoder().encode("candidate")],
       ["packages/arc-framework/src/example.ts", new TextEncoder().encode("source")],
     ]);
@@ -42,10 +44,11 @@ describe("collectGitCandidateTarget", () => {
     });
 
     expect(target.revision).toBe(HEAD);
-    expect(target.subject.entries).toHaveLength(4);
+    expect(target.subject.entries).toHaveLength(5);
     expect(target.subject.entries).toEqual(expect.arrayContaining([
       { path: ".arc/active/meta-example.md", treatment: "operational" },
       { path: ".arc/active/tasks-example.md", treatment: "reviewable" },
+      { path: ".arc/backlog/ROADMAP.md", treatment: "operational" },
       { path: ".arc/system/.internal/candidates/example.json", treatment: "candidate-projection" },
       { path: "packages/arc-framework/src/example.ts", treatment: "reviewable" },
     ].map((entry) => expect.objectContaining(entry))));

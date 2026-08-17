@@ -1153,17 +1153,13 @@ hardening beyond what a finding's evidence demonstrates is a scope expansion to 
 - _Outcome:_ Every composed review-response settlement now pins the checkpoint-approved head, including no-fix
   sets. A real-CLI moved-head replay reaches the durable already-settled path and completes the plan.
 
-### `[ ]` **9.2 Classify system-regenerated projections as operational**
+### `[x]` **9.2 Classify system-regenerated projections as operational**
 
 - _Goal:_ The spine's own ceremony writes never read as an unexplained reviewable delta; `submit`'s ROADMAP
   render blocks neither checkpoint nor re-attestation.
 
-    - Widen `git-candidate-subject.ts`'s operational classification from the meta path alone to the code-owned
-      regenerated projections, resolved by class through the layout (E1's exclusion as amended).
-    - Guard: a code-level predicate over layout-resolved paths — no render-owned-path registry, no manifest, no
-      configuration axis. Exactly one tracked regenerated projection exists today.
-    - Test: a submit transition commit (state row churn) followed by a checkpoint currentness read stays
-      `current`; a genuine reviewable delta still blocks.
+- _Outcome:_ Candidate collection now classifies the layout-resolved regenerated project document as operational.
+  A real transition-style ROADMAP commit remains current while a subsequent reviewable delta still blocks.
 
 ### `[ ]` **9.3 Bind submission authorization to the lineage head**
 
