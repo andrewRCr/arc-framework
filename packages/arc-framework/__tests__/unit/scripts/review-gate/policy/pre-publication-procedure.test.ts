@@ -104,7 +104,7 @@ describe("integration boundary locus", () => {
     }).success).toBe(false);
   });
 
-  it("rejects a deferred reservation outside candidate submit readiness", () => {
+  it("rejects a deferred reservation outside candidate publish readiness", () => {
     const ready = projectPrePublicationReview(request({
       selfReview: "settled",
       frontline: { ...request().frontline, frontlineActive: false, sources: [] },

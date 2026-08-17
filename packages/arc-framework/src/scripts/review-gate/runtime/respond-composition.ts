@@ -74,7 +74,7 @@ export function createRespondDependencies(input: {
         }),
       };
     },
-    // Staged like the record `propose` publishes: the Candidate's own projection never enters the
+    // Staged like the record `attest` publishes: the Candidate's own projection never enters the
     // reviewable subject, so staging it advances the lineage without disturbing what review sees.
     appendCandidateResponse: async ({ workUnit, record }) => {
       const recordPath = await writeCandidateRecord(input.cwd, workUnit, record);

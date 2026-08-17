@@ -1,7 +1,7 @@
 /**
  * Real-CLI coverage for the Candidate lineage a review fix advances.
  *
- * `propose → local review → respond → propose` is driven through the public verbs, so the response
+ * `attest → local review → respond → attest` is driven through the public verbs, so the response
  * evidence under test is the one the commands actually wrote. The checkpoint's convergence guard then
  * runs over the production Candidate reader rather than a hand-built record: the host-dependent reads
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
@@ -379,7 +379,7 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
-  it("advances the lineage, blocks the checkpoint, and clears through propose", async () => {
+  it("advances the lineage, blocks the checkpoint, and clears through attest", async () => {
     const root = await fixture();
 
     const proposed = await runArc(["attest", "example", "--json"], root);
@@ -606,7 +606,7 @@ describe("review-fix Candidate lineage", () => {
     };
     await expect(invoke(root, ["review", "respond", "-"], request))
       .resolves.toMatchObject({ state: "candidate-advanced" });
-    // The append stages the record the way `propose` stages its own; the review increment commits it
+    // The append stages the record the way `attest` stages its own; the review increment commits it
     // before the lane derives another target, since target derivation requires a clean worktree.
     await git(root, ["commit", "-m", "record verified response"]);
 

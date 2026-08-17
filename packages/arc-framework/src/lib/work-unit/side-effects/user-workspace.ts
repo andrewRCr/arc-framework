@@ -1,7 +1,7 @@
 /**
  * The user-workspace satellite side-effect — open / close the per-WU developer
  * workspace (`user/{identity}/{wuName}/`) across the worktree-touching verbs
- * (`init` / `start` / `activate` / `submit` / `decompose` / `park` / `resume`
+ * (`init` / `start` / `activate` / `publish` / `decompose` / `park` / `resume`
  * / `abandon`). The transition's direction (open vs close) is decided by the
  * executor per edge and passed as `action`; this side-effect only executes it.
  *

@@ -277,7 +277,7 @@ const PROVISIONAL_META: MetaSpec = {
 
 describe("executeTransition — state resolution", () => {
   it("resolves the slug's (phase, location) and matches the legal edge", async () => {
-    // `submit` is legal only from (Active, active); the index places `demo` there.
+    // `publish` is legal only from (Active, active); the index places `demo` there.
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
@@ -318,7 +318,7 @@ describe("executeTransition — stages the rewritten meta", () => {
 
 describe("executeTransition — illegal / unknown rejection", () => {
   it("rejects an explicitly-illegal cell with its reason, no mutation", async () => {
-    // `submit` from (Integrating, active) is a marked-illegal cell.
+    // `publish` from (Integrating, active) is a marked-illegal cell.
     const { ctx, calls } = buildSpies({ metas: [INTEGRATING_META] });
 
     const outcome = await executeTransition(ctx, { verb: "publish", slug: "demo", inputs: {} });

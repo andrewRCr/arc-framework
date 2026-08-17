@@ -1,4 +1,4 @@
-/** Unit coverage for Candidate proposal and converged re-attestation. */
+/** Unit coverage for Candidate attestation and converged re-attestation. */
 
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +10,7 @@ import {
 } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   runAttest,
-  type ProposeContext,
+  type AttestContext,
 } from "../../../../src/lib/work-unit/verbs/attest.js";
 
 const REVISION = "a".repeat(40);
@@ -32,7 +32,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
   let projectedNextAction: string | null = null;
   let publicationCount = 0;
   let currentTarget = { revision: REVISION, subject: subject() };
-  const context: ProposeContext = {
+  const context: AttestContext = {
     actor: "andrew",
     now: () => "2026-08-12T14:00:00.000Z",
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
@@ -180,7 +180,7 @@ describe("runAttest", () => {
     expect(fixture.state().projectedCandidate).toBe(fixture.state().storedRecord!.attestation.candidateId);
   });
 
-  it("is a no-op when the re-rooted subject is re-proposed at the same target", async () => {
+  it("is a no-op when the re-rooted subject is re-attested at the same target", async () => {
     const fixture = harness();
     await runAttest(fixture.context, { name: "example" });
     fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });

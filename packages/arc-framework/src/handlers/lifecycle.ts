@@ -126,7 +126,7 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
-import { ProposeResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
 import { collectGitCandidateTarget } from "../lib/work-unit/git-candidate-subject.js";
 import {
   readCandidateRecord,
@@ -2324,7 +2324,7 @@ export async function handleFinalizeStage(
 }
 
 // ---------------------------------------------------------------------------
-// Candidate attestation — `propose`
+// Candidate attestation — `attest`
 // ---------------------------------------------------------------------------
 
 export interface AttestOptions {
@@ -2409,7 +2409,7 @@ export async function handleAttest(
   }, { name: input.name, newRoot: input.newRoot === true });
 
   if (input.json === true) {
-    process.stdout.write(`${JSON.stringify(ProposeResultSchema.parse(result))}\n`);
+    process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);
   } else if (result.status === "blocked") {
     p.log.error(`${result.nextAction}\n${JSON.stringify(result.delta)}`);
   } else {

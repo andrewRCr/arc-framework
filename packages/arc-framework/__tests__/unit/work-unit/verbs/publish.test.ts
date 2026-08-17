@@ -1,7 +1,7 @@
 /**
- * Unit tests for the `submit` verb — the forward phase move opening review.
+ * Unit tests for the `publish` verb — the forward phase move opening review.
  *
- * `submit` flips an `Active` WU to `Integrating`: a `set-phase`-only move (no
+ * `publish` flips an `Active` WU to `Integrating`: a `set-phase`-only move (no
  * location move, no branch rotation — the working branch already carries its
  * `<type>/` prefix from `activate`) that marks phase entry, not the merge (the
  * integration-interlock owns merge approval). The verb forwards the two judgment

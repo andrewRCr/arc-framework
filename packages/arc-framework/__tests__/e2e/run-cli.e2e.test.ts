@@ -27,7 +27,7 @@ describe("runCli", () => {
     expect(result.stdout).toMatch(/skip the live-default network\s+read/u);
   });
 
-  it("reserves bare integrate for procedures and points publication scheduling to submit", async () => {
+  it("reserves bare integrate for procedures and points publication scheduling to publish", async () => {
     const result = await runCli(["integrate"]);
 
     expect(result.exitCode).toBe(1);

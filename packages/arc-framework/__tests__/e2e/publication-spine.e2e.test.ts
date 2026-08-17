@@ -1,7 +1,7 @@
 /**
  * Real-CLI coverage for the publication spine's first-call path.
  *
- * `propose → pre-publication → submit` is proven by execution rather than by injected dependencies:
+ * `attest → pre-publication → publish` is proven by execution rather than by injected dependencies:
  * the durable boundary the middle verb writes is the one submission reads, and `arc publish`
  * succeeds on its first call over it.
  */
@@ -59,7 +59,7 @@ const META = [
 ].join("\n");
 
 /** Stage one verified Active work unit on its own branch, ready to propose. */
-async function createProposableRepo(): Promise<string> {
+async function createAttestableRepo(): Promise<string> {
   const repository = await createTempRepo();
   await mkdir(join(repository, ".arc", "system"), { recursive: true });
   await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
@@ -82,7 +82,7 @@ async function createProposableRepo(): Promise<string> {
   return repository;
 }
 
-describe("propose → pre-publication → submit", () => {
+describe("attest → pre-publication → publish", () => {
   let repository: string | null = null;
 
   afterEach(async () => {
@@ -90,7 +90,7 @@ describe("propose → pre-publication → submit", () => {
   });
 
   it("settles the boundary at pre-publication and submits on the first call", async () => {
-    repository = await createProposableRepo();
+    repository = await createAttestableRepo();
 
     const proposed = await runArc(["attest", "example", "--json"], repository);
     expect(proposed.exitCode, JSON.stringify(proposed)).toBe(0);
@@ -168,7 +168,7 @@ describe("propose → pre-publication → submit", () => {
   });
 
   it("submits over a boundary an operational-only commit advanced the head past", async () => {
-    repository = await createProposableRepo();
+    repository = await createAttestableRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
     await git(repository, ["commit", "-m", "verification"]);
 
@@ -206,7 +206,7 @@ describe("propose → pre-publication → submit", () => {
   });
 
   it("refuses submission while a pre-publication obligation is still open", async () => {
-    repository = await createProposableRepo();
+    repository = await createAttestableRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
 
     // Self-review is active by package default, so the bare procedure stops before settling and

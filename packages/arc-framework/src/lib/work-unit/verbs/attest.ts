@@ -25,7 +25,7 @@ import {
  */
 const ATTESTED_NEXT_ACTION = "Candidate review pending — run pre-publication review";
 
-export const ProposeResultSchema = z.discriminatedUnion("status", [
+export const AttestResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("attested"),
     operation: z.enum(["root", "re-root", "convergence"]),
@@ -48,9 +48,9 @@ export const ProposeResultSchema = z.discriminatedUnion("status", [
     nextAction: z.string().trim().min(1),
   }),
 ]);
-export type AttestResult = z.infer<typeof ProposeResultSchema>;
+export type AttestResult = z.infer<typeof AttestResultSchema>;
 
-export interface ProposeContext {
+export interface AttestContext {
   actor: string;
   now(): string;
   verificationEvidenceRef(name: string): string;
@@ -75,7 +75,7 @@ export interface ProposeContext {
  * repeated same-target invocation a no-op.
  */
 export async function runAttest(
-  context: ProposeContext,
+  context: AttestContext,
   params: { name: string; newRoot?: boolean },
 ): Promise<AttestResult> {
   const name = SlugSchema.parse(params.name);
@@ -127,7 +127,7 @@ export async function runAttest(
 
 /** Attest one fresh lineage root over the current target, recording any Candidate it supersedes. */
 async function establishRoot(
-  context: ProposeContext,
+  context: AttestContext,
   name: string,
   current: CandidateLineageTarget,
   supersedes: string | undefined,
