@@ -618,3 +618,78 @@ resume path is Phase 9 in `tasks-integration-boundary-accuracy.md`._
 4. The `adversarial-review` pass cap for `Heavy` is 2 and both passes are spent. A third pass is a deliberate
    cap override, not an automatic loop continuation — the exit gate requires surfacing unresolved findings at the
    stage interlock for the user's call instead.
+
+## Design Audit — pre-integration four-lens pass (2026-08-17)
+
+Run between verification close (Task 10.1) and integration entry, at the maintainer's direction: a design
+re-validation of the shipped boundary against four lenses — ceremony/friction cost in routine operation, industry
+idiom, NIH signal, and the `design-audit` method's fit rubric. Four fresh-eyes reviewer passes over the
+design-as-shipped (spec + workflow prose + verb contracts + source), deliberately primed without this WU's working
+narrative; every retained finding was then verified against source by the primary before disposition. Two
+discriminators governed retention: a deviation with recorded rationale (spec § Alternatives, ADRs, strategies) is
+not a finding unless the shipped reality undermines the recorded reasoning, and integrity ceremony (stops that
+hold authority) is never flagged for existing — only bookkeeping ceremony or a needlessly expensive shape.
+
+**Verdict.** The design's core holds: the two-verb spine, checkpoint/merge absorption, rename, record cuts, lock
+model, and re-lock enforcement all survived with recorded rationale. One human stop, three commits, two pushes on
+the happy path — unchanged from before; Goal 6 holds on its letter. Two implementation-versus-spec blockers and a
+trim set did not survive; all are captured as Phase 11 in `tasks-integration-boundary-accuracy.md` (in-WU) or
+routed as `USER-INBOX` captures (follow-up). Agent-judgment count on the happy path stayed flat (~16 points) —
+Goal 6's spirit is met at Step 13 and unmet at Steps 2/3/12, which is where Phase 11's trims and the routed
+follow-ups live.
+
+### Blockers (both verified end-to-end; Phase 11 Tasks 11.1–11.2)
+
+1. **Candidate relocation block.** Under `archive.cadence: with-integration` (default and this repo's setting),
+   the archive sweep relocates `spec-`/`tasks-`/`notes-`/`meta-` into `completed/` before the checkpoint, and the
+   Candidate subject classifies `operational` for only two literal paths (`git-candidate-subject.ts:26-29,65-69`),
+   so the relocation registers as an unexplained reviewable delta → `blocked / candidate-unexplained-delta`
+   (`checkpoint.ts:491`) — while `readLifecycleSummary` under this cadence reports complete only _after_ the
+   relocation. Mutually exclusive preconditions; nothing writes the record between (sole writer: the propose
+   handler). Missed because both `candidate-lineage` e2e legs pin `archiveCadence: "manual"`. Same class as
+   V3-B2; the § E1 amendment's remedy shape (classify by layout class, never enumerated paths) was recorded but
+   not adopted.
+2. **Blocked Candidate is terminal.** `runPropose` returns `blocked` before any write and creates a root only in
+   the `existing === null` arm; no re-root path, no clear/delete anywhere, and the blocked envelope's remedy
+   (run full verification) loops back into the same block. § E2's own sentence ("…establishes a new lineage root
+   rather than repairing the old one") describes the missing escape.
+
+### Findings → dispositions
+
+In-WU (Phase 11): the two blockers (11.1, 11.2); Step 2 executability — chunking ordered before its target
+producer, and non-durable `--change-set`/`--self-review` behind an idempotence promise (11.3); the reconcile
+arm's second pre-approval checks wait (contradicting § B8/SC 17) and its consumed-by-nothing post-reconcile
+resolver+status pair (11.4); the `elapsedMs` retry misread, the added "render `None`" line, and the Steps 5–6
+duplicate settlement confirmation (11.5); `run-errand`'s hand-rolled `git ls-remote` pre-create check four lines
+after the verb built to replace it (11.6); `propose`'s non-conforming private locus schema deriving
+submit-readiness from `responses.length` (11.7); `submit`'s two required prose strings (one a workflow-dictated
+constant) plus three inline `aggregateChecks` copies and hand-mirrored merge-method schemas (11.8);
+merge-method's "ruleset" overclaim (reads only repo-level `allow_*`; misses `required_linear_history`) and
+`conflictingPaths` populated from the PR's _changed_ files (11.9); the `propose`/`submit` → `attest`/`publish`
+rename (11.10); rationale-recording amendments (11.11); convergence verification (11.12).
+
+Routed as captures (see `USER-INBOX`, 2026-08-17 entries): applicability right-sizing →
+`review-activity-contracts`; review-verb input contracts (status head-flags; durable judgment persistence) →
+`review-request-contracts`; interlock-surface right-sizing bundle, status fan-out, hosted-discharge host
+fallback, candidate-subject encoding → `review-orchestration-right-sizing`; host-evidence accuracy bundle
+(branch-rules read, configured-vs-absent required checks, `mergeStateStatus`); errand-lane post-approval merge
+absorption; typed integration resume point; `.github/pull_request_template.md`.
+
+Discharged by recorded rationale (no change; cross-references land via 11.11): the work-unit lane's custom
+checks wait versus host auto-merge — ADR-031 Decision #5 records the incompatibility (native auto-merge survives
+write-actor pushes; arming-time matching does not guard merge time), and the deeper chain is structural: the
+solo operator authors the PR and cannot approve it host-side, so the approval lives in the terminal and rides
+GitHub's own `--match-head-commit` pin. Exact-head is judged load-bearing and idiomatic (the host's
+required-approvals + dismiss-stale machinery is the industry expression of the same property, unavailable to a
+self-authored PR).
+
+### Clean bill (checked and explicitly clear)
+
+Merge lock (ADR-031 retired a bespoke status producer _for_ the native draft flag); no-merge-queue (recorded in
+three places); exact-head merge via the host's own `--match-head-commit`; thread settlement via native resolve;
+thin host adapters (ports for testable reducers, not speculative host abstraction; ADR-005 keeps prose
+gh-concrete); `Reviewed-by:` refusal with external-precedent record; § H narration cut (disclosure retained);
+§ F fire-point placement and resume rows; the rename sweep (no `integrate` residue); D2 re-lock discipline (one
+`holdLock` site, nine invalidation classes); B3 digest (load-bearing per B6 re-fire); B1 readiness shrink
+(forensic posture gone); hosted driver shrank (−81 lines) from wait extraction; both workflow copies
+byte-identical to their packaged mirrors; Goal 3 fully holds.

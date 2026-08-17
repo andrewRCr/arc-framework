@@ -1296,6 +1296,220 @@ convergence gate. Tasks 9.10 through 9.12 close all three. On this re-entry the 
 
 ---
 
+## **Phase 11:** Design-audit remediation
+
+_Purpose:_ Close the confirmed findings of the pre-integration design audit (recorded in
+`notes-integration-boundary-accuracy.md` § Design Audit — pre-integration four-lens pass) before entering
+`integrate-work-unit.md`: two Candidate-lifecycle blockers this work unit would hit on its own ship path, a set
+of prose and contract trims, the spine-verb rename, and rationale-recording amendments. Every `.arc/**` workflow
+or template edit lands in both copies per the two-copy discipline.
+
+_Design decisions:_ Appended after the closed verification phase deliberately: the `verify-work-unit.md` ceremony
+(Task 10.1) is complete and is not re-entered; this phase closes through the design's own convergence path — one
+converged Tier 3 plus re-attestation (Task 11.12) — which § E4 defines for exactly this situation. Task 11.1
+lands first because every later task stales the Candidate, and until re-rooting exists a staled Candidate is
+unrecoverable (the audit's second blocker). Task ordering after 11.2 is flexible except 11.10 (rename) before
+11.11 (amendments reference the final verb names) and 11.12 last. Each task carries explicit scope bounds; work
+beyond a task's named surface is out of scope for this phase regardless of adjacency.
+
+### `[ ]` **11.1 `arc propose` establishes a new lineage root over a blocked Candidate**
+
+- _Goal:_ A blocked Candidate has the escape § E2 records — full verification followed by re-attestation
+  establishes a **new** lineage root that records the superseded `candidateId` — so no Candidate state is
+  terminal. The existing record is never repaired, refreshed, or edited in place.
+
+- _Approach:_ Add an explicit re-root arm to `runPropose` (`verbs/propose.ts`), reached only by deliberate
+  invocation (e.g. a `--new-root` flag) so the default blocked envelope — with its exact delta and
+  run-full-verification remedy — is preserved as the first response to an unexplained delta. The re-root arm
+  creates a fresh root attestation over the current target (same preconditions as the initial root) and records
+  the superseded `candidateId` in the new record. Repeated same-target invocation stays a no-op.
+
+    - `checkpoint.ts`'s `candidate-unexplained-delta` remedy text should name the two-step path (full
+      verification, then the explicit re-root invocation), not a bare `arc propose` that would return `blocked`.
+
+    - Not in scope: any standalone refresh/repair command (Success Criterion 5 forbids one — re-rooting is
+      `propose`'s chartered act, not a repair); changes to `projectCandidateCurrentness`; changes to the blocked
+      envelope's shape.
+
+### `[ ]` **11.2 Candidate subject classification survives lifecycle relocation**
+
+- _Goal:_ A `with-integration` ship reaches checkpoint `ready`: the archive sweep's content-identical relocation
+  of work-unit artifacts (`active/` → `completed/<dated>/…`) and every system-regenerated projection classify as
+  operational, while a content **change** to any work-unit artifact remains a reviewable delta.
+
+- _Approach:_ In `git-candidate-subject.ts`, resolve treatment by class through the layout module rather than
+  path literals (the shape § E1's amendment already records): a pure relocation — identical content digest at a
+  path pair the layout identifies as the same work-unit artifact across lifecycle locations — is operational; the
+  meta path resolves through the layout (not the hand-built string); system-regenerated projections resolve by
+  layout kind, not `path === roadmap`.
+
+    - Add the missing joint e2e leg: `archiveCadence: "with-integration"` through archive composition →
+      `arc integrate checkpoint` returning `ready` (both `candidate-lineage` e2e legs currently pin `manual`,
+      which is how the blocker escaped verification).
+
+    - The classification must not assume the Candidate record is tracked in the code repository
+      (`strategy-storage-evolution.md` Principles 1–2); the existing `candidate-projection` exclusion already
+      handles either placement.
+
+    - Not in scope: re-keying the subject on artifact identity + content digest generally (captured for
+      follow-up); any change to the attestation schema, digest algorithm, or record store.
+
+### `[ ]` **11.3 Step 2 executes as written: chunking after its producer, idempotence stated exactly**
+
+- _Goal:_ `integrate-work-unit.md` Step 2's first chunking invocation has an obtainable input, and its
+  re-invocation guidance states the actual contract instead of overpromising idempotence.
+
+- _Approach:_ Prose-only, both copies. Reorder so the first `arc review pre-publication` call precedes chunking
+  resolution — its `policy` envelope carries the composed immutable target the chunking request requires — and
+  route a chunked scope selection back through the procedure's existing re-selection arm. State that
+  re-invocation must re-supply the same `--change-set` and `--self-review` values verbatim (omission silently
+  reroutes lanes); durable CLI-side persistence of those judgment inputs is captured for
+  `review-request-contracts`, not built here.
+
+    - Not in scope: CLI changes; new flags or derivation arms on the chunking command.
+
+### `[ ]` **11.4 The reconcile arm neither waits on checks pre-approval nor re-reads state nothing consumes**
+
+- _Goal:_ The merge verb's await is the single place the work-unit lane waits on required checks (§ B8,
+  Success Criterion 17), and the reconcile arm carries no dead round-trips.
+
+- _Approach:_ Change `arc review status`'s `checks-pending` next action in this context from `await-checks` to
+  routing back through the checkpoint (`status.ts` reducer + the Step 13 dispatch row, both copies) — the
+  checkpoint tolerates non-green checks and the merge verb owns the wait. Delete the post-`arc wu reconcile`
+  resolver + status pair whose results the prose never dispatches on (the unconditional restart re-reads
+  everything). Append a spec amendment line reconciling § C3's `checks-pending` member with § B8's
+  single-wait-site claim.
+
+    - Not in scope: other `arc review status` states or shapes; the earlier (base-merge) dispatch table beyond
+      the `checks-pending` row; any checkpoint change.
+
+### `[ ]` **11.5 Small workflow-prose trims: deadline-yield resume, extension-block omission, settlement fold**
+
+- _Goal:_ Three bookkeeping-ceremony lines stop costing routine runs: a deadline yield resumes immediately, an
+  inactive extension renders nothing, and review settlement is confirmed once.
+
+- _Approach:_ Both copies where applicable. (a) Step 13: replace "re-invokes this same command after
+  `payload.elapsedMs` milliseconds" with immediate re-invocation; `elapsedMs` is disclosure of the wait already
+  served, not a delay. (b) Restore omit-when-inactive for the extension report block (drop the added
+  "otherwise render `None`" — the composer already models the absent case as a null slot). (c) Fold Step 5 into
+  Step 6's opening so `review-settled` is stated once as the candidate-entry requirement.
+
+    - Not in scope: renumbering later steps beyond what the fold forces; any envelope/schema change (a
+      `retryAfterMs` field is deliberately not added).
+
+### `[ ]` **11.6 Errand pre-create head validation goes through the typed resolver**
+
+- _Goal:_ Goal 4 holds on both lanes: no agent-executed remote parse remains in `run-errand.md`'s pre-create
+  sequence.
+
+- _Approach:_ Both copies: replace the `git ls-remote --heads origin` read and 40-hex comparison with
+  re-invoking `arc review change-request resolve` after the pre-create hook (the only thing that can move the
+  head since the prior call) and dispatching on its typed state — mirroring the work-unit lane's "this resolver
+  call is the pre-create exact-head validation."
+
+    - Not in scope: CLI changes; other errand-lane steps.
+
+### `[ ]` **11.7 `arc propose` returns the shared integration-boundary locus with a truthful pointer**
+
+- _Goal:_ One typed locus union (§ E9) with no untruthful next action: `propose` never points at submission the
+  authoritative projection would refuse.
+
+- _Approach:_ Delete the private `CandidatePrePublicationLocusSchema` in `verbs/propose.ts`; return the shared
+  locus shape, deriving the kind from the same projection the pre-publication procedure uses — or return the
+  conservative `candidate-review-pending` and let one idempotent hop resolve the finer locus (the § E9
+  amendment's own pattern). Submit-readiness is never derived from `record.responses.length`.
+
+    - Not in scope: new locus kinds; changes to `arc status` / session-init projection; `submit`'s
+      authorization checks (already correct).
+
+### `[ ]` **11.8 CLI trims: `submit` input defaults and single-source shared shapes**
+
+- _Goal:_ The transition verb stops demanding judgment-shaped constants, and shapes the code already declares
+  exist once.
+
+- _Approach:_ (a) `--action` defaults to the transition's own publication pointer and `--last-completed`
+  derives from the task list's last completed leaf via existing readers — both flags stay as overrides, and a
+  failed derivation still requires the flag; the `unchanged` short-circuit no longer demands either string.
+  (b) Export one `aggregateChecks` (three inline copies: `checkpoint-composition.ts`, `status-composition.ts`,
+  `checks-await.ts`). (c) Derive the checkpoint's merge-method schemas from `merge-method.ts`'s source schema
+  instead of hand-mirroring (`strategy-procedure-evolution.md` Principle 4).
+
+    - Not in scope: removing the flags; changing `submit`'s authorization or transition semantics; unifying the
+      three bounded-wait timeout policies (captured for follow-up).
+
+### `[ ]` **11.9 Host-evidence honesty: merge-method scope stated exactly; no fabricated conflict paths**
+
+- _Goal:_ Surfaces describe what they read: the merge-method contract names repository-level allowances (not
+  "the ruleset"), and no field labels the PR's changed files as conflicts.
+
+- _Approach:_ (a) Amend spec § D3/§ B4 (and the Non-Goals sentence) to "repository merge-method allowances",
+  recording the residual explicitly: branch-level rules (`required_linear_history` foremost) are unread, so a
+  branch-scoped restriction still surfaces only at the merge attempt; annotate Success Criterion 10
+  accordingly (forward amendment — original text retained). Record the same-shape § B8 residual: an empty
+  required-checks read cannot distinguish an unconfigured host from a deferred run not yet created. Both
+  residuals' code fix is the captured host-evidence accuracy bundle, not this task. (b) In
+  `checkpoint-composition.ts`, stop populating `conflictingPaths` from the PR files listing; drop the field and
+  the `regenerablePaths.every` branch with it (effectively dead — it can pass only for an all-regenerable
+  change set), keeping the fail-closed direction (`hostSafe` = host-mergeable only) and reporting host
+  mergeability without fabricated paths.
+
+    - Not in scope: adding a rulesets/branch-protection read; `mergeStateStatus` adoption; any change to the
+      analyzer half of `reconcileSafety`.
+
+### `[ ]` **11.10 Rename the spine verbs: `propose` → `attest`, `submit` → `publish`**
+
+- _Goal:_ The two spine verbs stop inverting established host-VCS vocabulary (Gerrit's "submit" is the merge;
+  the host's "propose changes" opens the pull request). `attest` names what the verb does to the Candidate;
+  `publish` matches the spec's own "schedules publication."
+
+- _Approach:_ Full sweep, no alias (§ E8 applies; nothing external consumes pre-release, and the fast-follow
+  consumer starts from the landed names): the verb registry and transition edge (`lifecycle-transitions.ts` —
+  the load-bearing one), dispatch, `cli.ts`, handlers, verb modules, emitted command strings in locus
+  next-actions (`integration-boundary-locus.ts`, `verbs/propose.ts`, checkpoint remedies), both workflow
+  copies, `QUICK-REFERENCE`, the `strategy-work-organization.md` `State` table, and every test pinning the old
+  names. Append a spec § E amendment recording the rename and the external-precedent check that motivated it
+  (original § E text retained, per the § G amendment's pattern).
+
+    - `arc attest` (lifecycle) and `arc review local attest` (evaluator submission) share a word in distinct
+      namespaces and consistent senses — verify no command-registration collision, and nothing else.
+
+    - Not in scope: the `arc integrate` namespace (`checkpoint` / `merge` stay); the `Integrating` state name
+      (rename already rejected in § Alternatives); any semantic change riding the rename.
+
+### `[ ]` **11.11 Record the rationale for audited deviations that stand**
+
+- _Goal:_ Each deviation the audit upheld carries its reasoning where the next auditor will look, in appended
+  amendment blocks — no settled text edited.
+
+- _Approach:_ (a) Spec § D2/§ B8 amendment: the work-unit lane's in-verb checks wait versus host auto-merge —
+  cross-reference ADR-031 Decision #5 (auto-merge survives write-actor pushes; arming-time matching does not
+  guard merge time) and record the structural chain: the solo operator authors the pull request and cannot
+  approve it host-side, so approval lives in the terminal and the pin rides the host's exact-head merge
+  parameter; required-approvals + dismiss-stale is the industry expression of the same property, unavailable
+  here. (b) § D2 clause: why the bounded wait rather than the host CLI's blocking watch (no deadline, no typed
+  envelope, no stale-head guard). (c) § D1 amendment naming the `change-request` vocabulary collision with the
+  host's "changes requested" review state and why the host-neutral term stands; append the reconciling note to
+  ADR-005 per `strategy-adr-methodology.md` (amendment, not supersession). (d) Cross-cutting note: the
+  dismiss-stale/required-approvals host mechanism was considered; the terminal interlock wins on the
+  self-approval constraint.
+
+    - Not in scope: behavior changes; new mechanisms; editing any settled spec or ADR text in place.
+
+### `[ ]` **11.12 Convergence verification and re-attestation over the remediated tree**
+
+- _Goal:_ The remediated tree carries a converged full attestation and the work unit stands at the integration
+  boundary with a current Candidate under the renamed verbs.
+
+- _Approach:_ Run Tier 3 whole (code and Markdown both changed); walk the Success Criteria this phase touched —
+  including the four added 2026-08-17 items and Criterion 5's boundary (re-rooting is attestation, not repair)
+  — then run the renamed attestation verb over the recognized lineage. The Candidate will be blocked-stale from
+  this phase's own edits, so the re-attestation exercises Task 11.1's path as its first real consumer.
+
+    - _Note:_ The `adversarial-review` cap remains spent (see § Additional Context in `SESSION-NOTES` and the
+      Phase 10 amendments); no adversarial pass fires here without a fresh, explicit cap-override decision.
+
+---
+
 ## Success Criteria
 
 - `[x]` The final integration step's residual length is a function of its stop inventory; the reconcile arm
@@ -1352,6 +1566,18 @@ convergence gate. Tasks 9.10 through 9.12 close all three. On this re-entry the 
   reports check state as observed; a deferred-CI project runs both lanes unchanged
 - `[x]` All quality gates pass (tests, linting, type checking)
 - `[x]` Ready for integration
+
+_Added 2026-08-17 — design-audit remediation (forward amendment; the original set above is unchanged, and the
+two `[x]` standard items above are re-judged at Task 11.12 over the remediated tree):_
+
+- `[ ]` A `with-integration` ship reaches checkpoint `ready` after archive composition — proven by an e2e leg
+  exercising archive and checkpoint jointly
+- `[ ]` A blocked Candidate has a deliberate re-root path through full verification that records the superseded
+  lineage; no command repairs or refreshes an existing record
+- `[ ]` The reconcile arm waits on required checks nowhere; the merge verb's await remains the work-unit lane's
+  single wait site
+- `[ ]` The renamed spine verbs are complete: `propose` and `submit` are absent from every source, doc, and test
+  surface the way Criterion 8 required of `integrate`
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI
