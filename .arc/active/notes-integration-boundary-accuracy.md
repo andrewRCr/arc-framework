@@ -367,6 +367,134 @@ surfaces as untyped `operation-failed` — the class Tasks 7.9 and 7.12 worked t
 with a typed blocked reason (`hosted-reservation-pending`, remedy `arc review pre-publication <wu> --json`); 7.9
 made both reason sets derive from the refusal schemas, so a reason without a remedy fails to compile.
 
+## Verification Findings — Phase 9 falsification pass
+
+Recorded 2026-08-16 at the third entry of the verification boundary. Method per the Resume Procedure below:
+falsification over confirmation, structured as eleven delegated read-only lenses — six criterion clusters, three
+failure-class sweeps (reachability, inventory, human-surface), seams, and a configuration-matrix scenario walk —
+with every finding below verified against source by the primary before recording. This is the Phase 9 structured
+self-verify, not a third `adversarial-review` pass; the `Heavy` pass cap remains spent. Tier 3 ran green first at
+`f4cbf34ff`: md lint over 664 files, the three `lint:arc:*` checks, both lint passes, both type checks, 9969 tests
+passing (1 skipped), clean build.
+
+**The stratum this pass mined.** Pass one found unreachable code; pass two found incomplete code. This pass's
+blockers are **composition-over-time** defects: each verb is locally correct, and the failure appears only when
+the spine's own ceremony writes (a transition commit, a regenerated projection) become inputs to a later verb's
+validation. Static per-verb review cannot see them; walking the state machine across real sequences can.
+
+### Blockers
+
+**V3-B1 — defer/reject-only settlements permanently invalidate the merge.** Pass two's F3 remediation fixed
+composition and broke execution. A no-fix disposition set composes with `fixTarget: null`
+(`lineage-review-composition.ts:150`); the merge adapter therefore omits `settledFixTarget` from the replay
+(`merge-composition.ts:106`); the replay hits the stale-target gate (`respond-command.ts:559`) **before** the
+already-settled record read (reachable only inside the `settledFixTarget !== undefined` branch, `:601`); the
+executor maps that to `stale` (`settlement-execution.ts:57`) and the merge verb returns `invalidated`. The head
+always moves past the review origin — the `arc submit` transition commit at minimum — and the schema refinement
+(`response-plan-schema.ts:108`) forbids attaching a fix target to no-fix sets, so there is no request-shape
+workaround; re-checkpointing recomposes the identical plan. Any work unit whose review produced one defer- or
+reject-only set can never merge. Fail-closed, no in-band escape. No test executes a defer-only replay against a
+moved head (the e2e covers composition only). Criteria 3 (intent: the executed settlement is exactly what
+approval covered — here a validly approved settlement never executes).
+
+**V3-B2 — `arc submit`'s own ROADMAP render deadlocks the spine under arc-in-git.** The lifecycle executor
+renders ROADMAP on every transition and stages it into the transition commit; the In Flight table's `State`
+column changes on `Active → Integrating`, so the render changes tracked content. `git-candidate-subject.ts:59-63`
+classifies only `meta-{name}.md` as operational and the record/boundary as projections — the regenerated
+`.arc/backlog/ROADMAP.md` is **reviewable**, enters `subjectDigest` (`createCandidateSubjectSnapshot` digests
+reviewable entries only, which is why meta churn survives), and no response explains it →
+`projectCandidateCurrentness` returns `blocked` (`candidate-attestation.ts:288`) → checkpoint blocked. `arc
+propose` runs the same projection first (`propose.ts:77`) so it blocks identically; a new lineage root mints only
+when the record is absent (`propose.ts:116`), i.e. out-of-band deletion of the managed record — which resets
+`responses` to `[]` and drops every prior approved disposition set from the settlement plan (outside both `named`
+and the new span). This repository will hit the deadlock at this work unit's own submit. Criteria 5 (operational
+churn must not block), 3 (coverage loss on the escape path).
+
+### Majors
+
+| #      | Finding                                                                                      | Criteria |
+| ------ | -------------------------------------------------------------------------------------------- | -------- |
+| V3-M1  | `checkpoint-missing` returns `invalidated` without re-locking (`merge.ts:235-244`)           | 11       |
+| V3-M2  | Three of six E9 loci never surface at `arc status` / session-init; dead store-accept branch  | 15       |
+| V3-M3  | Handler-synthesized refusals omit `remedy` and violate the published result schemas          | 15       |
+| V3-M4  | Commit-unpushed fix-loop resume dead-ends at the resolver's `ambiguous / stop`               | 15, 9    |
+| V3-M5  | Clean interlock surface omits "where review landed" from the composed decision line          | 2        |
+| V3-M6  | Merge-failure catch path re-drafts without checking whether the merge landed                 | 11       |
+| V3-M7  | E4 verification applicability is persisted but read by no production path                    | 7        |
+| V3-M8  | Five of eight next-action kinds have no consumer (three unreachable by the prose's own rule) | 15       |
+| V3-M9  | `arc submit` authorizes a stale pre-publication boundary after a lineage advance             | 6        |
+| V3-M10 | Post-PR typed next action stays frozen at `arc submit`; prose recovers by bypassing it       | 15, 6    |
+
+- **V3-M1.** Narrow window: a resume after an `awaiting-checks` yield whose gitignored checkpoint store is gone
+  (machine switch) leaves the release standing while the approval is void. Routing through the `invalidated()`
+  helper is safe in both directions (`holdLock` accepts already-held / no-lock).
+- **V3-M2.** `commands/active/status.ts:349-353` projects `candidate-review-pending` unconditionally for Active,
+  ignoring a persisted `candidate-submit-ready` boundary; `:336` accepts a stored `hosted-review-pending` nothing
+  writes; `changeRequest: null` at `status.ts:345` and `subject-meta.ts:121` means the hosted derivation cannot
+  fire at these surfaces. Deliberate-conservatism reading exists (docstring); E9/SC15's text says otherwise.
+- **V3-M3.** `handlers/integration.ts:122-130, 158-166` — no `remedy`, unvalidated `workUnit` echo; consumers
+  validating the published schemas reject the envelopes. Compounding: `merge.ts:234` calls `readCheckpoint`
+  outside its try and the store **throws** on malformed/mismatched records (`checkpoint-store.ts:126,137`) with
+  no handler catch — a corrupt store file is an unhandled crash, not a typed refusal.
+- **V3-M4.** `change-request.ts:82` classifies an open PR with a moved (locally committed, unpushed) head as
+  `ambiguous / stop`; the resume table maps it to "stop on the resolver's typed action". The remedy — push, then
+  re-resolve — is projected nowhere.
+- **V3-M5.** Criterion 2 enumerates three decision facts; `interlock-surface.ts:62-63` renders head + candidate
+  tail + method + `repo#PR`. On the clean path the hosted-discharge detail collapses into "9 checks clean" and no
+  line names where review landed (local carrier vs which hosted source).
+- **V3-M6.** `merge.ts:307-331` — `mergePinned` throws on a nonzero `gh pr merge`; the catch holds the lock
+  without a merged-state re-read, so a merged-but-command-failed race ends `blocked/relock-failed` against a
+  merged PR. The pre-hold merged-state re-read existed on `main` and was dropped.
+- **V3-M7.** `candidate-attestation.ts:215` persists the primary's targeted/focused/full choice;
+  `projectCandidateCurrentness` (the sole consumer of `record.responses`) reads only `implementationChanged`.
+  A primary could always answer `targeted` and nothing downstream would object.
+- **V3-M8.** `continue-frontline-review` / `continue-standard-review` / `respond-to-findings` are structurally
+  unreachable (the prose's null-policy rule bypasses them whenever they are emitted); `continue-publication` /
+  `continue-hosted-review` appear in no workflow — Step 1/Step 4 re-derive the routing from the resolver and
+  `integrationBoundary.reservation` directly.
+- **V3-M9.** `authorizeSubmission` (`submit.ts:49-64`) validates candidateId + locus only — no head binding; the
+  boundary's only writers are the pre-publication settle (`review.ts:1593`) and submit itself
+  (`lifecycle.ts:1726`); `propose` never touches it and its blocked/convergence arm routes straight to
+  `arc submit` (`propose.ts:111`). After a fix + re-attestation at H2, submit accepts the H1 boundary and the
+  standard lane never re-enters — against E3's changed-target re-entry.
+- **V3-M10.** `submit.ts:248-255` hardcodes `changeRequest: null` (comment acknowledges it) and nothing promotes
+  the stored boundary after the PR opens, so the typed next action reproduces the `arc submit` unchanged-loop
+  forever; the workflow recovers only by reading `.reservation` raw and calling the resolver live.
+
+### Minors
+
+Dangling "exact-head mutability action" narration (`integrate-work-unit.md` Step 13, ~line 476 — the
+`assert-head-mutable` launcher it names was removed before this work unit); the bounded checks wait is invoked by
+prose that never names `arc review checks await`; `--json` refusals on submit/propose emit prose, not JSON; the
+`awaiting-checks` payload carries `elapsedMs` while the prose promises "the returned deadline"; refusals without
+corrective commands on the propose active-record guard, `parseLifecycleCommand`, the errand lane's merge-method
+resolve, and review status blocked; `session-handoff.md:662`'s finalize pass still hand-rolls `gh pr view`;
+`composeHostedSettlementAction` remains production-uncalled (pass-two F2 residue); `persistBoundary` skips the
+convergence-pending locus (one extra pre-publication round-trip); the errand lane's integration-interlock text is
+not content-pinned by tests while the work-unit lane's is.
+
+### Adjudicated not-defects
+
+The errand lane's retained `git ls-remote` pre-create head check (flagged independently by three lenses as a
+hand-rolled parse against Criterion 10) is the deliberate Phase 7 restoration of pass one's third obligation
+loss; spec D1 authorizes folding the work-unit lane's missing check into the resolver and does not authorize
+relocating the errand lane's existing one. The `pre-merge.md` copy divergence predates this branch (project
+instance vs shipped template). `draft-roadmap-tooling.md` and the `reopen.test.ts` docstring remain the
+pass-one-adjudicated non-defects.
+
+### Verified clean
+
+Criteria 8 (verb rename, exhaustive across all inventoried surfaces), 12 (`Coverage` absent at all five sites,
+nothing replaces it, three non-record families untouched), 13 (all five § H loci conditionality-free with the
+disclosure retained; mismatched-head merge returns typed `invalidated`), 16 (leave trigger, replay references no
+retained checkout), and C1's stop count (five spans, seven stops), C4's accounting (`finalize verify` deleted in
+this diff, not dormant; the pre-create resolve is D1-chartered), C9's interruption projections, C10's six
+disposition classes at every inventoried site with one shared wait primitive, and C7's prose side. Every pass-one
+and pass-two remediation checked (F1 residue, F8, G2 disclosure, lock-none lifecycle gate, lane-progress writers,
+site-3 conversion, pre-publication remedies) landed. The reachability census closed clean: every new module has a
+production importer, every emitted command is registered, provider vocabulary matches the reservation's, and both
+package mirrors are byte-identical to `.arc/system/` for the touched workflows.
+
 ## Resume Procedure
 
 _Superseded 2026-08-15 — the planning-stage procedure below is complete and retained for provenance. The live
