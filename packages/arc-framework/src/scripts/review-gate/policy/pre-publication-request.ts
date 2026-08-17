@@ -14,10 +14,18 @@ import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
 
-/** Per-lane scope and ceiling judgment, keyed by the lane it applies to. */
+/** Per-lane scope, frontline invocation, and ceiling judgment, keyed by its lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
   frontline: ReviewLaneJudgmentSchema.optional(),
   standard: ReviewLaneJudgmentSchema.optional(),
+}).superRefine((judgments, context) => {
+  if (judgments.standard?.invocation !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline invocation override cannot be applied to the standard lane",
+      path: ["standard", "invocation"],
+    });
+  }
 }).readonly();
 export type PrePublicationLaneJudgments = z.infer<typeof PrePublicationLaneJudgmentsSchema>;
 
@@ -85,9 +93,10 @@ export interface PrePublicationCompositionInput {
    */
   changeSet?: unknown;
   /**
-   * Per-lane scope and ceiling judgment. Unlike the change-set facts, these refuse rather than
-   * normalize: dropping a malformed bounded scope silently reviews the whole target, and dropping a
-   * malformed ceiling override silently re-blocks a pass the operator already approved.
+   * Per-lane scope, frontline invocation, and ceiling judgment. Unlike the change-set facts, these
+   * refuse rather than normalize: dropping a malformed bounded scope silently reviews the whole
+   * target, dropping a frontline skip invokes an unwanted carrier, and dropping a malformed ceiling
+   * override silently re-blocks a pass the operator already approved.
    */
   lanes?: unknown;
 }
@@ -174,9 +183,10 @@ function routingInput(
  * Per-attempt progress comes from the durable lane record rather than the caller, so source order
  * and pass ceilings stay with the CLI rather than being assembled by whoever invokes the command.
  * The caller's contribution is judgment the repository cannot read — whether self-review ran, what
- * kind of change set this is, and each lane's bounded scope or approved ceiling override. The
- * decisions those facts feed are reduced here rather than by the caller, and the target and lane
- * every per-lane input would otherwise restate are supplied from the resolved composition.
+ * kind of change set this is, and each lane's bounded scope, frontline invocation, or approved
+ * ceiling override. The decisions those facts feed are reduced here rather than by the caller, and
+ * the target and lane every per-lane input would otherwise restate are supplied from the resolved
+ * composition.
  *
  * @param input - The target work unit and the author judgment described above.
  * @param dependencies - The repository reads bound by the production composition root.
@@ -237,6 +247,9 @@ export async function composePrePublicationReviewRequest(
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target } }),
+      ...(lane !== "frontline" || judgment?.invocation === undefined
+        ? {}
+        : { invocation: judgment.invocation }),
       ...(judgment?.ceilingOverride === undefined
         ? {}
         : { ceilingOverride: { ...judgment.ceilingOverride, target, lane } }),

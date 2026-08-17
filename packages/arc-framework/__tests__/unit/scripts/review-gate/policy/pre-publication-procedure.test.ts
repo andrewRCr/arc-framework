@@ -246,6 +246,36 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
+  it("uses an explicit frontline skip to continue into chunked local standard review", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        invocation: { mode: "skip" },
+        scopeSelection: { mode: "chunked", target },
+      },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        scopeSelection: { mode: "chunked", target },
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: {
+        state: "ready",
+        nextAction: "local-prepare",
+        payload: {
+          lane: "standard",
+          scope: "chunked",
+          sourceId: "delegated-agent",
+        },
+      },
+      nextAction: { kind: "continue-pre-publication-review" },
+    });
+  });
+
   it("resumes the reserved hosted source once a pull request exists", () => {
     const hostedTarget = { ...target, pullRequest: 42 };
     const base = request({ selfReview: "settled" });

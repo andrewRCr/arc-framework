@@ -55,6 +55,12 @@ accepted a subject the index did not carry. Chunk 11 is added as its review boun
 moves to eleven. The phase reviews whole: its second task widens the first's boundary after a sweep of every
 subject-collection call site, and the two are one concern decomposed for delivery rather than two lenses.
 
+_Amended 2026-08-17 — first live integration run._ The enabled frontline lane had no typed path for the user's
+one-run skip through the combined pre-publication procedure: standalone frontline resolution could describe the
+skip but persisted no progress, so re-entry selected the unwanted carrier again. Phase 13 closes that current-WU
+defect and chunk 12 covers the fix. The package default remains unchanged — frontline is inactive with no sources;
+the new judgment applies only when an enabled lane is explicitly skipped and cannot suppress standard review.
+
 _Projection:_ one pull request to `main`, reviewed locally in chunks. Each chunk below is one review pass, taken
 in ascending order; the verification task (Phase 10) belongs to no chunk. Chunk closure, complete union coverage
 across the eleven, and the seam review below carry the review obligation the stack's per-member pull requests
@@ -73,10 +79,14 @@ would have carried.
 | 9  | Composition remediation  | `composition-stratum-remediation`    | 9     | B1–B3, B5, D1–D3, E1–E5, E9      |
 | 10 | Design-audit remediation | `design-audit-remediation`           | 11    | A, B4, B8, C3, D1–D3, E2, E4, E9 |
 | 11 | Attest staging guard     | `attest-staging-precondition`        | 12    | E1, E2, E4                       |
+| 12 | Frontline override       | `frontline-invocation-override`      | 13    | E3, E9                           |
 
 Every chunk covers exactly the phase its row names, so each resolves to a contiguous commit range and no review
 pass needs a hand-assembled diff. Chunks 1–9 sit on the like-numbered phases; chunks 10 and 11 sit on Phases 11
 and 12, since the verification task (Phase 10) belongs to no chunk.
+
+_Amended 2026-08-17._ Chunk 12 sits on Phase 13 and extends the complete-union review projection after the first
+live integration run found the combined procedure's missing frontline invocation input.
 
 **Named seams** — cross-chunk contracts no single chunk's review covers:
 
@@ -90,6 +100,9 @@ and 12, since the verification task (Phase 10) belongs to no chunk.
 _Per-chunk procedure_ — stated once, applied to every chunk: review the chunk's commit range against its design
 elements, settling each seam at its owning chunk. One exact-head pull request carries all eleven; ordinary
 repository checks and the ARC merge lock govern the single landing, with no separate delivery proof.
+
+_Amended 2026-08-17._ The same procedure applies to all twelve after chunk 12's addition; the original eleven
+remain unchanged and retain their prior boundaries.
 
 ---
 
@@ -1721,6 +1734,24 @@ verbs must gate and which must stay tolerant.
 
 ---
 
+## **Phase 13:** Frontline invocation override
+
+_Purpose:_ Close the first live integration run's typed-procedure gap: an enabled frontline lane could not carry
+an explicit one-run skip into `arc review pre-publication`, so the procedure could not reach a required local
+standard lane without running the unwanted frontline carrier or bypassing the Candidate boundary.
+
+### `[x]` **13.1 Carry an explicit frontline skip through pre-publication composition**
+
+- _Goal:_ A user-directed frontline skip is a typed, one-run judgment that projects `skipped` while preserving
+  the configured method and source, cannot suppress the standard lane, and resumes the selected standard scope.
+
+- _Outcome:_ `--lanes` now carries a frontline-only `{ invocation: { mode: "skip" } }` judgment into the shared
+  policy request. The driver reports `invocation-skip` before source selection, rejects that override on standard,
+  and the combined procedure advances directly to the selected chunked local standard carrier. Both workflow
+  copies document the override and require all author-carried judgments on every re-entry.
+
+---
+
 ## Success Criteria
 
 - `[x]` The final integration step's residual length is a function of its stop inventory; the reconcile arm
@@ -1800,6 +1831,11 @@ _Added 2026-08-17 — attest staging precondition (forward amendment; both sets 
 - `[x]` Every verb that records a Candidate subject as authoritative carries that precondition — the lineage
   advance refuses an unstaged fix instead of explaining it away as current — and every verb that only compares
   against an already-recorded subject stays tolerant of an ordinary lifecycle tree
+
+_Added 2026-08-17 — first live integration run (forward amendment; the prior sets are unchanged):_
+
+- `[x]` An enabled frontline lane can be explicitly skipped for one pre-publication invocation without changing
+  its configured activity or sources, and the override cannot suppress the standard lane
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI

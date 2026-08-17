@@ -114,11 +114,13 @@ routed `standardReview` projection, the work unit's `Class`, and each lane's eff
 from repository state by the command below; never assemble or restate them here.
 
 Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
-mode and any approved ceiling override as `--lanes`, and a completed author self-review as `--self-review settled`.
-One call resolves the frontline lane, then the pre-PR standard lane, and returns the procedure's typed locus.
-Re-invoke it after every lane operation, re-supplying the same `--change-set` and `--self-review` values verbatim:
-the command composes lane progress from the durable record, but those two are author judgment it cannot recover, and
-omitting either silently reroutes the lanes rather than resuming them.
+mode, the frontline lane's one-run invocation override, and any approved ceiling override as `--lanes`, and a
+completed author self-review as `--self-review settled`. A user-directed skip of an enabled frontline lane is
+`lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. One call resolves the
+frontline lane, then the pre-PR standard lane, and returns the procedure's typed locus. Re-invoke it after every
+lane operation, re-supplying the same `--change-set`, `--lanes`, and `--self-review` values verbatim: the command
+composes lane progress from the durable record, but those values are author judgment it cannot recover, and
+omitting one silently reroutes the lanes rather than resuming them.
 
 The envelope's `target` is the exact target every exact-target operation below binds against — chunking resolution
 and a frontline run alike. A null `target` means the checkout could not compose one (the command's advisory names

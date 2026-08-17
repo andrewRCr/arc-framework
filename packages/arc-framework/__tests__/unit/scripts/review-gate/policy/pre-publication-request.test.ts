@@ -233,6 +233,33 @@ describe("composePrePublicationReviewRequest", () => {
     });
   });
 
+  it("carries an explicit one-run frontline skip beside its bounded scope", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: {
+          frontline: { scopeMode: "chunked", invocation: { mode: "skip" } },
+          standard: { scopeMode: "chunked" },
+        },
+      },
+      dependencies({
+        readAssurance: async () => ({
+          ...resolvedAssurance,
+          activity: { selfReview: true, frontlineReview: true },
+        }),
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline).toMatchObject({
+      frontlineActive: true,
+      invocation: { mode: "skip" },
+      scopeSelection: { mode: "chunked" },
+    });
+    expect(composition.request.standard).not.toHaveProperty("invocation");
+  });
+
   it("omits both per-lane inputs when no judgment is supplied", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
 
@@ -247,6 +274,7 @@ describe("composePrePublicationReviewRequest", () => {
     ["a half-supplied ceiling override", { standard: { ceilingOverride: { nextPass: 3 } } }],
     ["a caller-restated target", { standard: { scopeMode: "chunked", target: { repository: "x/y" } } }],
     ["an unrecognized lane", { hosted: { scopeMode: "chunked" } }],
+    ["a frontline override on the standard lane", { standard: { invocation: { mode: "skip" } } }],
   ])("refuses %s rather than dropping it to the unbounded default", async (_label, lanes) => {
     // Deliberately unlike the change-set facts, which normalize: silently dropping a bounded scope
     // reviews the whole target, and dropping an override re-blocks a pass already approved.

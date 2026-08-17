@@ -1620,7 +1620,8 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
  * repository cannot establish: `--self-review`, whether the author's self-review actually ran, and
  * `--change-set`, the routing facts the standard-review obligation turns on. Omitting the latter
  * routes the change set as unestablished, which is the conservative `required` route. `--lanes`
- * carries each lane's bounded review scope and any approved ceiling override.
+ * carries each lane's bounded review scope, the frontline lane's one-run invocation override,
+ * and any approved ceiling override.
  *
  * @param name - The target work unit's slug.
  * @param options - Parsed command-line options.

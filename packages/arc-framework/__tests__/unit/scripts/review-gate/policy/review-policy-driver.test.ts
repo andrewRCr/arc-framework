@@ -537,6 +537,44 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("honors an explicit one-run frontline skip without disabling the configured lane", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      frontlineActive: true,
+      invocation: { mode: "skip" },
+    })).toMatchObject({
+      state: "skipped",
+      nextAction: "none",
+      payload: {
+        lane: "frontline",
+        scope: "whole-target",
+        attemptedSources: [],
+        reason: "invocation-skip",
+      },
+    });
+  });
+
+  it("rejects a frontline invocation override on the standard lane", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      invocation: { mode: "skip" },
+    })).toThrow(/frontline invocation override/i);
+  });
+
   it("preserves safe attempts when an exempt standard obligation no-ops", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,

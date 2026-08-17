@@ -13,6 +13,9 @@ const ReviewPolicyTargetShape = {
 };
 const ReviewPolicyTargetSchema = z.strictObject(ReviewPolicyTargetShape).readonly();
 const ReviewScopeModeSchema = z.enum(["whole-target", "chunked"]);
+const FrontlinePolicyInvocationSchema = z.strictObject({
+  mode: z.literal("skip"),
+}).readonly();
 const CompletedPassCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const ReviewAttemptOutcomeSchema = z.enum([
   "clean",
@@ -61,11 +64,20 @@ const ReviewPolicyRequestBaseShape = {
     mode: ReviewScopeModeSchema,
     target: ReviewPolicyTargetSchema,
   }).readonly().optional(),
+  invocation: FrontlinePolicyInvocationSchema.optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
 };
 
 export const ReviewPolicyCommandRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
+}).superRefine((request, context) => {
+  if (request.lane === "standard" && request.invocation !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline invocation override cannot be applied to the standard lane",
+      path: ["invocation"],
+    });
+  }
 }).readonly();
 export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandRequestSchema>;
 
@@ -79,6 +91,7 @@ export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandReque
  */
 export const ReviewLaneJudgmentSchema = z.strictObject({
   scopeMode: ReviewScopeModeSchema.optional(),
+  invocation: FrontlinePolicyInvocationSchema.optional(),
   ceilingOverride: z.strictObject({
     exhaustedPassCount: CompletedPassCountSchema,
     nextPass: ReviewPassSchema,
@@ -91,6 +104,13 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   sources: z.array(ReviewSourceIdSchema).readonly(),
   maxPasses: ReviewPassSchema,
 }).superRefine((request, context) => {
+  if (request.lane === "standard" && request.invocation !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline invocation override cannot be applied to the standard lane",
+      path: ["invocation"],
+    });
+  }
   let previousSourceIndex = -1;
   const scope = request.scopeSelection?.mode ?? "whole-target";
   for (const [attemptIndex, attempt] of request.attempts.entries()) {
@@ -151,7 +171,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       scope: ReviewScopeModeSchema,
       consumedPass: z.literal(false),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
-      reason: z.enum(["inactive", "no-source"]),
+      reason: z.enum(["inactive", "no-source", "invocation-skip"]),
     }),
   }),
   z.strictObject({
@@ -388,6 +408,19 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       code: "stale-scope-target",
       message: "The selected review scope does not belong to the current target.",
     }]);
+  }
+  if (request.lane === "frontline" && request.invocation?.mode === "skip") {
+    return resolveEnvelope({
+      state: "skipped",
+      nextAction: "none",
+      payload: {
+        lane: "frontline",
+        scope,
+        consumedPass: false,
+        attemptedSources: request.attempts,
+        reason: "invocation-skip",
+      },
+    });
   }
   if (request.lane === "frontline"
     && (!request.frontlineActive || request.sources.length === 0)) {
