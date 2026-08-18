@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { spineRemedy, type SpineRemedy } from "../integration/spine-refusal.js";
+import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 export const ChangeRequestCandidateSchema = z.object({
   number: z.number().int().positive(),
@@ -10,7 +11,7 @@ export const ChangeRequestCandidateSchema = z.object({
   state: z.enum(["OPEN", "CLOSED", "MERGED"]),
   baseRefName: z.string().min(1),
   headRefName: z.string().min(1),
-  headRefOid: z.string().regex(/^[0-9a-f]{40}$/u),
+  headRefOid: GitObjectIdSchema,
 }).strict();
 
 export type ChangeRequestCandidate = z.infer<typeof ChangeRequestCandidateSchema>;
@@ -30,14 +31,14 @@ export interface ChangeRequestResolveInput {
 
 export const ChangeRequestResolveInputSchema = z.object({
   headRef: z.string().trim().min(1),
-  headSha: z.string().regex(/^[0-9a-f]{40}$/u),
+  headSha: GitObjectIdSchema,
   requireRemote: z.boolean().optional(),
 }).strict();
 
 export const ChangeRequestTargetRefSchema = z.strictObject({
   repository: z.string().trim().min(1),
   headRef: z.string().trim().min(1),
-  headSha: z.string().regex(/^[0-9a-f]{40}$/u),
+  headSha: GitObjectIdSchema,
 });
 export type ChangeRequestTargetRef = z.infer<typeof ChangeRequestTargetRefSchema>;
 

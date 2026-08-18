@@ -195,9 +195,9 @@ The WU stays in `**State:** Integrating` throughout this phase. Composition + sw
 Confirm the public open-PR review protocol has reduced the routed WU obligation to `review-settled` — the
 candidate-entry state, never merge readiness, and never established by a raw local clean report, a launched review
 pass, or an unattested result. Candidate assembly begins only after that reduction. Every mutation- or
-commitment-bearing disposition must already be approved; a complete no-action record-only set may remain proposed
-for the combined final gate. This is not the final-head checkpoint; base freshness belongs only to Step 10, after
-candidate composition.
+disposition set must already be approved for its exact target. An approved no-action record-only set may retain its
+idempotent channel settlement for the checkpointed final transition, but it cannot remain merely proposed. This is
+not the final-head checkpoint; base freshness belongs only to Step 10, after candidate composition.
 
 Only that protocol's settled reduction establishes `review-settled`. Any pre-composition direction to merge once
 review settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is
@@ -318,10 +318,11 @@ arc integrate checkpoint {name} --json
 `blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
 `reconcile / reconcile-base` enters this arm with the checkpoint's validated safety facts.
 
-Invoke `arc base merge --expected-base {payload.safety.baseOid} --json`. `base-moved / rerun-checkpoint` restarts
-this step; `conflict / stop` stops; `skipped-clean / continue-reconcile` proceeds without a push. On `merged /
-run-quality-gates`, run Tier 1 gates, recompose the exact target, and make Step 2's disclosed review-applicability
-judgment. Run the resulting targeted, focused, or full review before continuing. Clearance never carries.
+Invoke `arc base merge --expected-base {payload.safety.baseOid} --json`.
+`base-moved / rerun-checkpoint` restarts this step. `blocked / stop` and `conflict / stop` stop before every later
+fire point. `skipped-clean / continue-reconcile` proceeds without a push. On `merged / run-quality-gates`, run
+Tier 1 gates, recompose the exact target, and make Step 2's disclosed review-applicability judgment. Run the
+resulting targeted, focused, or full review before continuing. Clearance never carries.
 
 For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
 
@@ -374,10 +375,9 @@ No commit or push may occur after `ready`.
 > `integration-interlock`: Stop after the ready evidence and extension report. Surface both, the composed
 > candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated artifacts
 > named rather than diffed, the review applicability calls and targeted verification retained from Step 2, and the
-> proposed final dispositions — the no-action record-only sets that rode here for this combined gate, which the
-> checkpoint payload does not carry; state that approval applies the checkpointed dispositions, decides those
-> proposals, settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and
-> authorizes merge of the checkpointed head. Close with `Approve (or redirect)?`.
+> approved final dispositions carried by the checkpointed settlement plan; state that approval executes that exact
+> plan, settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and authorizes
+> merge of the checkpointed head. Close with `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,

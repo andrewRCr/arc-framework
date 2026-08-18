@@ -35,6 +35,7 @@ import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
 import type { DeliveryMemberLookup } from "./core/delivery-member-lookup.js";
+import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z
@@ -44,14 +45,13 @@ const RepositorySchema = z
     (repository) => repository.split("/").every((segment) => /[^.]/u.test(segment)),
     "repository segments must not consist only of dots",
   );
-const ShaSchema = z.string().regex(/^[a-f0-9]{40}$/u);
 const PlanIdSchema = z.uuid();
 const DeliverableIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
 export const ReviewTargetSchema = z.strictObject({
   repository: RepositorySchema,
   pullRequest: z.number().int().positive(),
-  headSha: ShaSchema,
+  headSha: GitObjectIdSchema,
 });
 
 export const LivePullRequestSchema = z.strictObject({
@@ -59,7 +59,7 @@ export const LivePullRequestSchema = z.strictObject({
   number: z.number().int().positive(),
   state: z.enum(["open", "closed"]),
   headBranch: z.string().min(1),
-  headSha: ShaSchema,
+  headSha: GitObjectIdSchema,
 });
 
 export const ReviewTreeRootSchema = z.string().min(1).refine(isAbsolute, "treeRoot must be absolute");

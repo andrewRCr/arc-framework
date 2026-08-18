@@ -374,10 +374,10 @@ Markers:
 
 **Commit at Handoff:** `{{short-hash}}`
 <!--
-  **Session Type:** {planning | execution | prepublication | integration}
+  **Session Type:** {planning | execution}
   Optional override; absent → inferred from tracked state. Set only when the next session's
-  intent diverges from what the active meta file implies. Case-insensitive. Invalid value →
-  ignored + warning at session-init.
+  discretionary planning/execution intent diverges from what tracked state implies. Typed
+  prepublication/integration phases cannot be overridden. Case-insensitive. Invalid value → ignored + warning.
 -->
 
 ## Uncommitted Work
@@ -399,9 +399,9 @@ Markers:
 **Per-section guidance:**
 
 - **Working On / Session Type override:** Marker vocabulary in the template. `Session Type` is
-  optional; absent → session-init infers. Set only when the next session's intent diverges from
-  what the active meta file implies (e.g., status points at execution, next session will plan
-  a separate concern).
+  optional; absent → session-init infers. Set only when discretionary planning/execution intent diverges from
+  what the active meta file implies (e.g., status points at execution, next session will plan a separate concern).
+  Never author it to enter, leave, or replace a typed prepublication/integration phase.
 - **Uncommitted Work:** Work the next session can only see in `git diff` — committed work is
   already in `git log`. Use commit-level granularity so the next session can reconstruct atomic
   commits. Map accomplishments to logical commits (what changed, which files), include task

@@ -80,6 +80,7 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     target,
     requirement,
     authority,
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -108,6 +109,7 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
+    laneSourceId: admission.laneSourceId,
     attestationRuntimeKind: authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,

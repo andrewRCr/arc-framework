@@ -2,10 +2,11 @@
 
 import { z } from "zod";
 import { boundedWait, type BoundedWaitClock } from "./bounded-wait.js";
+import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 export const ChecksAwaitInputSchema = z.object({
   pullRequest: z.number().int().positive(),
-  headSha: z.string().regex(/^[0-9a-f]{40}$/u),
+  headSha: GitObjectIdSchema,
   timeoutMs: z.number().int().positive().max(30 * 60 * 1_000),
   pollIntervalMs: z.number().int().positive().max(60 * 1_000),
 }).strict().refine((value) => value.pollIntervalMs <= value.timeoutMs, {
@@ -76,13 +77,16 @@ export async function awaitRequiredChecks(
     timeoutMs: input.timeoutMs,
     pollIntervalMs: input.pollIntervalMs,
     clock: dependencies.clock,
-    deadline: (elapsedMs) => ({
-      ...base,
-      state: "pending",
-      nextAction: "await",
-      checks: latestChecks,
-      elapsedMs,
-    }),
+    deadline: async (elapsedMs) => {
+      const actualHeadSha = await dependencies.port.readHead(
+        repository,
+        input.pullRequest,
+        AbortSignal.timeout(input.pollIntervalMs),
+      );
+      return actualHeadSha === input.headSha
+        ? { ...base, state: "pending", nextAction: "await", checks: latestChecks, elapsedMs }
+        : { ...base, state: "stale-target", nextAction: "stop", actualHeadSha };
+    },
     attempt: async ({ signal }) => {
       const actualHeadSha = await dependencies.port.readHead(repository, input.pullRequest, signal);
       if (actualHeadSha !== input.headSha) {

@@ -11,6 +11,7 @@ import {
   type CandidateManagedRecordV1,
   type CandidateLineageTarget,
 } from "../candidate-attestation.js";
+import type { VersionedCandidateRecord } from "../candidate-record-store.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
   IntegrationBoundaryLocusSchema,
@@ -57,7 +58,7 @@ export interface AttestContext {
   actor: string;
   now(): string;
   verificationEvidenceRef(name: string): string;
-  readRecord(name: string): Promise<CandidateManagedRecordV1 | null>;
+  readRecord(name: string): Promise<VersionedCandidateRecord>;
   currentTarget(name: string): Promise<CandidateLineageTarget>;
   publish(input: {
     name: string;
@@ -65,6 +66,7 @@ export interface AttestContext {
     candidateId: string;
     currentWorkflow: string;
     nextAction: string;
+    expectedRecordVersion: string | null;
   }): Promise<{ recordPath: string; metaPath: string }>;
 }
 
@@ -86,8 +88,8 @@ export async function runAttest(
   const orientation = ATTESTED_ORIENTATION[params.lifecycle];
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
   const existing = await context.readRecord(name);
-  if (existing !== null) {
-    const record = CandidateManagedRecordV1Schema.parse(existing);
+  if (existing.record !== null) {
+    const record = CandidateManagedRecordV1Schema.parse(existing.record);
     const currentness = projectCandidateCurrentness({ record, current });
     if (currentness.status === "blocked") {
       if (params.newRoot !== true) {
@@ -98,13 +100,14 @@ export async function runAttest(
           nextAction: currentness.nextAction,
         };
       }
-      return establishRoot(context, name, current, orientation, currentness.candidateId);
+      return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
     if (currentness.convergenceVerification === "satisfied") {
       await context.publish({
         name,
         record,
         candidateId: currentness.candidateId,
+        expectedRecordVersion: existing.version,
         ...orientation,
       });
       return {
@@ -128,12 +131,13 @@ export async function runAttest(
       name,
       record: nextRecord,
       candidateId: currentness.candidateId,
+      expectedRecordVersion: existing.version,
       ...orientation,
     });
     return { status: "attested", operation: "convergence", ...published, locus };
   }
 
-  return establishRoot(context, name, current, orientation, undefined);
+  return establishRoot(context, name, current, orientation, undefined, existing.version);
 }
 
 /** Attest one fresh lineage root over the current target, recording any Candidate it supersedes. */
@@ -143,6 +147,7 @@ async function establishRoot(
   current: CandidateLineageTarget,
   orientation: (typeof ATTESTED_ORIENTATION)[keyof typeof ATTESTED_ORIENTATION],
   supersedes: string | undefined,
+  expectedRecordVersion: string | null,
 ): Promise<AttestResult> {
   const attestation = createCandidateAttestation({
     workUnit: name,
@@ -166,6 +171,7 @@ async function establishRoot(
     name,
     record,
     candidateId: attestation.candidateId,
+    expectedRecordVersion,
     ...orientation,
   });
   return {

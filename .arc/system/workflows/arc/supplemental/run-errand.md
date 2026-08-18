@@ -206,9 +206,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Resume local operations with `arc review local resume -` and reduce with `arc review reduce -`. A command error
    envelope carries no action. Approval is required before any finding-driven fix, durable deferral, channel
-   settlement, or other mutation/commitment; a complete no-action record-only set may ride to the final combined
-   gate. Approved fixes run Tier 1 gates, commit atomically, push, and create a new target. Never carry clearance or
-   merge authority.
+   settlement, or other mutation/commitment. A complete no-action record-only set must be approved for its exact
+   target before continuing. Approved fixes run Tier 1 gates, commit atomically, push, and create a new target.
+   Never carry clearance or merge authority.
 
 3. **Resolve the Errand PR** before creation. Invoke the exact-head resolver:
 
@@ -226,7 +226,8 @@ remote base all name the same exact head. Any tracked change continues through t
    - `ambiguous | blocked / stop` — surface the typed evidence and stop.
 
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
-   one-line Summary plus a one-line Test Plan only when verification is non-obvious. No Spec / Out-of-Scope /
+   one-line Summary plus a one-line Test Plan only when verification is non-obvious. When gated local review ran,
+   include `**Local review:** {carrier identity}`; otherwise omit the field entirely. No Spec / Out-of-Scope /
    Follow-Up sections.
 
    Compose `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }`. If `pre-pr-open` is active,
@@ -286,8 +287,8 @@ remote base all name the same exact head. Any tracked change continues through t
 
    After every target movement, make and disclose a **review applicability** judgment from the exact delta. Use
    targeted verification when prior complete coverage confidently remains applicable to a narrow non-interacting
-   record-only or lifecycle delta; use a focused supplemental check for a bounded interaction; repeat complete
-   review for behavioral, authority, contract, materially interacting, or uncertain change. A confident bounded
+   record-only or lifecycle delta; use a focused supplemental check for a bounded interaction. Repeat full review
+   for behavioral, authority, contract, materially interacting, or uncertain change. A confident bounded
    choice proceeds without a permission stop. An agent-selected supplemental review is disclosed as it runs and
    enters the same disposition loop. A hosted supplemental request uses `coverage: incremental`; if its adapter
    reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only for new
@@ -313,7 +314,7 @@ remote base all name the same exact head. Any tracked change continues through t
 
    After any fix, request action, or append-only base reconcile changes the head, execute the generic push contract,
    rerun chunking, and return through Step 4's review applicability judgment. Use targeted verification only when
-   prior complete coverage confidently remains applicable; otherwise run focused or complete review. Repeat until
+   prior complete coverage confidently remains applicable; otherwise run focused or full review. Repeat until
    base, head, requirements, and review are settled.
 
    Compose the final `openedChangeRequest` and retain `openedChangeRequest.headSha` as `{approved-head-sha}`.

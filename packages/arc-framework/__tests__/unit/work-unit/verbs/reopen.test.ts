@@ -26,6 +26,7 @@ interface MetaSpec {
   slug: string;
   state: string;
   branch?: string;
+  currentWorkflow?: string;
 }
 
 /** Build an injectable index fs over a fixed set of `active/` metas. */
@@ -43,6 +44,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "feat/foo"}\` | \`Novel\` | \`P1\` |\n\n` +
+        `- **Current Workflow:** ${meta.currentWorkflow ?? "[none]"}\n` +
         `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
@@ -114,7 +116,11 @@ function buildCtx(metas: MetaSpec[]): Harness {
       calls.push("write:design");
     },
     writeSoftFields: async (_path, updates) => {
+      calls.push("write:soft-fields");
       softWrites.push(updates as Record<string, string>);
+    },
+    stageMeta: async () => {
+      calls.push("stage:meta");
     },
     sideEffects,
   };
@@ -145,6 +151,25 @@ describe("runReopen — the set-phase-only move", () => {
     expect(currentWorkflowWrites).toEqual(["prepare-work-unit"]);
     // No location move and no branch rotation — the working branch already carries its prefix.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
+  });
+
+  it("finishes only the Active projection when the withdrawal phase already landed", async () => {
+    const { ctx, calls, currentWorkflowWrites, withdrawInputs, softWrites } = buildCtx([{
+      slug: "foo",
+      state: "Active",
+      branch: "feat/foo",
+      currentWorkflow: "integrate-work-unit",
+    }]);
+
+    await expect(runReopen(ctx, BASE)).resolves.toMatchObject({ status: "reopened" });
+    expect(currentWorkflowWrites).toEqual(["prepare-work-unit"]);
+    expect(softWrites).toEqual([{ "Next Action": "[none]" }]);
+    expect(calls).toContain("stage:meta");
+    expect(calls).toContain("side:reconcile-roadmap");
+    expect(calls).not.toContain("setPhase:Active");
+    expect(calls).not.toContain("side:withdraw-pr");
+    expect(calls).not.toContain("side:reconcile-status-user");
+    expect(withdrawInputs).toEqual([]);
   });
 });
 

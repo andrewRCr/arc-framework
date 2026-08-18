@@ -401,7 +401,7 @@ beforeEach(() => {
     nextAction: {
       kind: "publish-candidate",
       command: "arc publish foo --json",
-      interactionText: "Submit the current Candidate.",
+      interactionText: "Publish the current Candidate.",
     },
     policy: null,
     reservation: null,
@@ -1080,6 +1080,50 @@ describe("handlePublish", () => {
     );
     expect(process.exitCode).toBe(1);
     expect(mockNote).not.toHaveBeenCalled();
+  });
+
+  it("emits one structural JSON document for a pending reconcile", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const pending = {
+      status: "reconcile-pending" as const,
+      reason: "Reconcile requires direction.",
+      remedy: {
+        invariant: "Tracked references reconcile before publication.",
+        text: "Resolve the advisory.",
+        argv: ["arc", "wu", "reconcile", "foo", "--apply", "--json"],
+      },
+      metaPath: ".arc/active/meta-foo.md",
+      reconcile: {
+        status: "pending" as const,
+        prepared: {
+          slug: "foo",
+          plan: {
+            status: "ready" as const,
+            dependency: {
+              before: [], after: [], replacements: [], drops: [], discharged: [], live: [], conflicts: [],
+            },
+            trackedReferences: { edits: [] },
+            advisories: [{
+              path: ".arc/active/spec-foo.md",
+              line: 12,
+              context: "Historical reference.",
+              referenceKind: "narrative" as const,
+              subject: "retired-alpha",
+              suggestedDisposition: "review-rename" as const,
+            }],
+          },
+          edits: [],
+        },
+      },
+    };
+    mockRunPublish.mockResolvedValueOnce(pending);
+
+    await handlePublish("foo", { lastCompleted: "verification", action: "open the PR", json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toEqual(pending);
+    expect(mockLogInfo).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });
 

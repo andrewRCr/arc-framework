@@ -460,14 +460,16 @@ WU `loadSet` or select a workflow from branch shape, `sessionType`, or `process-
 projections over the exact role subject; do not infer either from branch patterns. A selected WU row without the
 expected derived context is a probe mismatch and stops. With no selected entry row, there is no session type.
 
-SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | prepublication | integration`
-(case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
-warning in orientation.
+SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution` (case-insensitive), may
+supersede those discretionary envelope values for this session. `prepublication` and `integration` are
+state-determined: an override cannot enter, leave, or replace either phase. Ignore a conflicting or invalid
+override and emit a warning in orientation.
 
 **SESSION-NOTES authority boundary.** SESSION-NOTES may supply roster/context anchors (`**Working On:**`,
-`**Session Type:**`, `**Commit at Handoff:**`) and human working context. It is never authoritative for live git
-facts: HEAD, ahead/behind counts, sync state, and dirty state come from the probe envelope (or the explicit
-freshness-check commands below), not from SESSION-NOTES prose.
+`**Session Type:**`, `**Commit at Handoff:**`) and human working context within that boundary. It is never
+authoritative for typed lifecycle phase, workflow selection, load-set composition, or live git facts: HEAD,
+ahead/behind counts, sync state, and dirty state come from the probe envelope (or the explicit freshness-check
+commands below), not from SESSION-NOTES prose.
 
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.

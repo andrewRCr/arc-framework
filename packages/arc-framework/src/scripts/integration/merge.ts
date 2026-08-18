@@ -239,7 +239,8 @@ export interface IntegrationMergeDependencies {
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
-  resolveMergeMethod(): Promise<MergeMethodResolveResult>;
+  resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
+  readConfiguredBase(): Promise<string>;
   readFinalDrift(): Promise<Pick<BaseDriftResult, "verdict">>;
   mergePinned(target: IntegrationMergeTarget, method: "merge" | "rebase" | "squash"): Promise<{ state: string }>;
 }
@@ -341,6 +342,13 @@ export async function mergeIntegration(
     if (!status.lifecycleComplete) {
       return await invalidated(base, "lifecycle-moved", {}, dependencies, target);
     }
+    const configuredBaseBeforeRelease = await dependencies.readConfiguredBase();
+    if (configuredBaseBeforeRelease !== target.baseRef) {
+      return await invalidated(base, "head-mismatch", {
+        configuredBase: configuredBaseBeforeRelease,
+        targetBase: target.baseRef,
+      }, dependencies, target);
+    }
 
     const release = await dependencies.releaseLock(target);
     if (release.state !== "released" && release.state !== "no-lock") {
@@ -370,9 +378,10 @@ export async function mergeIntegration(
       }, dependencies, target);
     }
 
-    const mergeMethod = await dependencies.resolveMergeMethod();
+    const mergeMethod = await dependencies.resolveMergeMethod(target.repository);
     if (
       mergeMethod.state !== "validated"
+      || mergeMethod.repository?.toLowerCase() !== target.repository.toLowerCase()
       || mergeMethod.method !== checkpoint.mergeMethod.method
       || mergeMethod.policyFingerprint !== checkpoint.mergeMethod.policyFingerprint
     ) {
@@ -382,6 +391,13 @@ export async function mergeIntegration(
     const drift = await dependencies.readFinalDrift();
     if (drift.verdict !== "clean") {
       return await invalidated(base, "drift-reconcile", { verdict: drift.verdict }, dependencies, target);
+    }
+    const configuredBaseBeforeMerge = await dependencies.readConfiguredBase();
+    if (configuredBaseBeforeMerge !== target.baseRef) {
+      return await invalidated(base, "head-mismatch", {
+        configuredBase: configuredBaseBeforeMerge,
+        targetBase: target.baseRef,
+      }, dependencies, target);
     }
 
     const merged = await dependencies.mergePinned(target, mergeMethod.method);

@@ -57,6 +57,7 @@ function dependencies() {
       },
     }),
     readMerged: async () => state.merged,
+    readConfiguredBase: async () => "main",
     refreshTarget: async (target) => target,
     releaseLock: async () => {
       state.held = false;
@@ -198,6 +199,58 @@ describe("integration merge", () => {
       reason: "head-mismatch",
     });
     expect(heldTarget).toEqual(refreshedTarget);
+  });
+
+  it("refuses a configured-base move before releasing the merge lock", async () => {
+    const { value, state } = dependencies();
+    value.readConfiguredBase = async () => "release";
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "head-mismatch",
+      payload: { configuredBase: "release", targetBase: "main" },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("re-locks when the configured base moves after lock release", async () => {
+    const { value, state } = dependencies();
+    let reads = 0;
+    value.readConfiguredBase = async () => {
+      reads += 1;
+      return reads === 1 ? "main" : "release";
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "head-mismatch",
+      payload: { configuredBase: "release", targetBase: "main" },
+    });
+    expect(reads).toBe(2);
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("rejects merge-method policy resolved for a different repository", async () => {
+    const { value, state } = dependencies();
+    value.resolveMergeMethod = async (repository) => {
+      expect(repository).toBe("owner/repo");
+      return {
+        schemaVersion: 1,
+        mode: "review-merge-method-resolve",
+        repository: "other/repo",
+        state: "validated",
+        nextAction: "use-method",
+        method: "merge",
+        allowedMethods: ["merge"],
+        policyFingerprint: digest("d"),
+      };
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "merge-method-moved",
+    });
+    expect(state).toEqual({ held: true, merged: false });
   });
 
   it.each([

@@ -86,6 +86,7 @@ describe("local review preparation request", () => {
     });
     const dependencies = {
       sweep: async () => undefined,
+      laneSourceId: "delegated-agent",
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
       resolveAuthority,
@@ -183,6 +184,7 @@ describe("local review preparation request", () => {
 
       const dependencies = {
         sweep: async () => undefined,
+        laneSourceId: "delegated-agent",
         withSourceLock: async <T>(action: () => Promise<T>) => action(),
         resolveRepositoryId: async () => "repo-1",
         deriveTarget,
@@ -458,6 +460,7 @@ describe("local review preparation request", () => {
     let clockTick = 0;
     const dependencies = {
       sweep: async () => undefined,
+      laneSourceId: "delegated-agent",
       withSourceLock: async <T>(action: () => Promise<T>) => action(),
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
@@ -581,6 +584,7 @@ describe("local review preparation request", () => {
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
       const dependencies = {
         sweep: async () => undefined,
+        laneSourceId: "delegated-agent",
         withSourceLock: async <T>(action: () => Promise<T>) => action(),
         resolveRepositoryId: async () => target.repositoryId,
         deriveTarget: async () => target,

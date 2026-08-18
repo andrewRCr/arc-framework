@@ -35,9 +35,14 @@ export async function readSubmissionBoundary(
   name: string,
   fs: SubmissionBoundaryReader = nodeFs,
 ): Promise<IntegrationBoundaryLocus | null> {
+  const workUnit = SlugSchema.parse(name);
   try {
-    const value = JSON.parse(await fs.readFile(join(cwd, resolveSubmissionBoundaryPath(name)))) as unknown;
-    return IntegrationBoundaryLocusSchema.parse(value);
+    const value = JSON.parse(await fs.readFile(join(cwd, resolveSubmissionBoundaryPath(workUnit)))) as unknown;
+    const boundary = IntegrationBoundaryLocusSchema.parse(value);
+    if (boundary.workUnit !== workUnit) {
+      throw new Error("Submission boundary work unit does not match its path");
+    }
+    return boundary;
   } catch (error) {
     if ((error as { code?: unknown }).code === "ENOENT") return null;
     throw error;

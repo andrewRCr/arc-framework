@@ -22,6 +22,7 @@
 
 import {
   executeTransition,
+  resumeTransitionFinalization,
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
@@ -66,10 +67,18 @@ export async function runReopen(
     inputs: { prMerged, prWithdrawMode: withdrawMode ?? "close" },
   });
 
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  let resolvedOutcome = outcome;
+  if (outcome.status === "rejected" && outcome.stage === "lookup") {
+    resolvedOutcome = await resumeTransitionFinalization(ctx, {
+      verb: "reopen",
+      slug: name,
+      inputs: { prMerged, prWithdrawMode: withdrawMode ?? "close" },
+    }) ?? outcome;
+  }
+  if (resolvedOutcome.status !== "ok") return { status: "rejected", reason: resolvedOutcome.message };
   return {
     status: "reopened",
-    outcome,
+    outcome: resolvedOutcome,
     metaPath: resolveArcPath({
       kind: "work-unit-artifact",
       placement: { kind: "active", scope: { kind: "project" } },

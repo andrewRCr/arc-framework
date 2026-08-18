@@ -39,6 +39,7 @@ interface MetaSpec {
   state: string;
   branch?: string;
   candidateId?: string;
+  currentWorkflow?: string;
   /** Task-list markdown to place beside the meta; absent leaves `Task List` at `[none]`. */
   taskList?: string;
 }
@@ -62,6 +63,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "feat/foo"}\` | \`Novel\` | \`P1\` |\n\n` +
         `- **Candidate:** \`${meta.candidateId ?? `sha256:${"a".repeat(64)}`}\`\n` +
         `- **Task List:** ${taskListName}\n` +
+        `- **Current Workflow:** ${meta.currentWorkflow ?? "[none]"}\n` +
         `- **Last Completed:** [none]\n- **Next Task:** continue.\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
@@ -129,10 +131,16 @@ function buildCtx(metas: MetaSpec[]): Harness {
     },
     reconcileWorkUnitWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
-    writeCurrentWorkflowField: async () => {},
+    writeCurrentWorkflowField: async (_path, workflow) => {
+      calls.push(`workflow:${workflow}`);
+    },
     writeDesignField: async () => {},
     writeSoftFields: async (_path, updates) => {
+      calls.push("soft-fields");
       softWrites.push(updates as Record<string, string>);
+    },
+    stageMeta: async () => {
+      calls.push("stage-meta");
     },
     currentWuReconcile: {
       prepare: async () => {
@@ -610,7 +618,12 @@ describe("runPublish — the set-phase-only move", () => {
 
 describe("runPublish — the illegal-edge lookup", () => {
   it("reports the durable publication resume point when submission already ran", async () => {
-    const { ctx, calls } = buildCtx([{ slug: "foo", state: "Integrating", branch: "feat/foo" }]);
+    const { ctx, calls } = buildCtx([{
+      slug: "foo",
+      state: "Integrating",
+      branch: "feat/foo",
+      currentWorkflow: "integrate-work-unit",
+    }]);
     const publicationBoundary = {
       ...BASE.boundary,
       mode: "integration-boundary" as const,
@@ -628,6 +641,42 @@ describe("runPublish — the illegal-edge lookup", () => {
 
     expect(result).toEqual({ status: "unchanged", boundary: publicationBoundary });
     expect(calls.some((c) => c.startsWith("setPhase:"))).toBe(false);
+  });
+
+  it("finishes only the publication projection after the phase transition already landed", async () => {
+    const { ctx, calls, softWrites } = buildCtx([{
+      slug: "foo",
+      state: "Integrating",
+      branch: "feat/foo",
+      currentWorkflow: "prepare-work-unit",
+    }]);
+    const publicationBoundary = {
+      ...BASE.boundary,
+      mode: "integration-boundary" as const,
+      locus: "publication-pending" as const,
+      nextAction: {
+        kind: "continue-publication" as const,
+        command: "git push -u origin feat/foo",
+        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+      },
+    };
+
+    await expect(runPublish(ctx, { ...BASE, boundary: publicationBoundary })).resolves.toEqual({
+      status: "unchanged",
+      boundary: publicationBoundary,
+    });
+    expect(calls).toContain("workflow:integrate-work-unit");
+    expect(calls).toContain("soft-fields");
+    expect(calls).toContain("stage-meta");
+    expect(calls).toContain("side:reconcile-roadmap");
+    expect(calls).not.toContain("setPhase:Integrating");
+    expect(calls).not.toContain("side:reconcile-status-user");
+    expect(calls).not.toContain("side:user-workspace");
+    expect(softWrites).toEqual([{
+      "Last Completed": "Phase 7 — verification",
+      "Next Task": "[none]",
+      "Next Action": "open the PR",
+    }]);
   });
 
   it("rejects an invalid work-unit name without mutation", async () => {

@@ -104,6 +104,11 @@ export interface IntegrationMergeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
+function stableOperationFailureDetail(error: unknown): string {
+  const detail = (error instanceof Error ? error.message : String(error)).trim();
+  return detail === "" ? "The integration operation failed without diagnostic detail." : detail;
+}
+
 /** Run the integration checkpoint for one exact work-unit name. */
 export async function handleIntegrationCheckpoint(
   name: string,
@@ -139,7 +144,7 @@ export async function handleIntegrationCheckpoint(
   } catch (error) {
     dependencies.write(`${JSON.stringify(checkpointOperationRefusal(
       parsed.data.name,
-      error instanceof Error ? error.message : String(error),
+      stableOperationFailureDetail(error),
     ))}\n`);
     dependencies.setExitCode(1);
   }
@@ -182,7 +187,7 @@ export async function handleIntegrationMerge(
   } catch (error) {
     dependencies.write(`${JSON.stringify(mergeOperationRefusal(
       parsed.data.name,
-      error instanceof Error ? error.message : String(error),
+      stableOperationFailureDetail(error),
     ))}\n`);
     dependencies.setExitCode(1);
   }

@@ -209,6 +209,7 @@ export async function recordFrontlineAttempt(
     sourceId: outcome.source.sourceId,
     outcome: laneOutcome,
     consumedPass: laneOutcome === "clean" || laneOutcome === "findings",
+    chunkSeriesComplete: laneOutcome === "clean" || laneOutcome === "findings",
     now: input.now,
   });
 }

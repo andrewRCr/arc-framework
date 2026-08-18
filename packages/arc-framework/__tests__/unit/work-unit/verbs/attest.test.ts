@@ -20,6 +20,7 @@ function subject(source = "verified") {
   return createCandidateSubjectSnapshot([
     {
       path: "packages/arc-framework/src/example.ts",
+      mode: "100644",
       digest: canonicalDigest({ source }),
       treatment: "reviewable",
     },
@@ -28,6 +29,7 @@ function subject(source = "verified") {
 
 function harness(record: CandidateManagedRecordV1 | null = null) {
   let storedRecord = record;
+  let recordVersion = record === null ? null : canonicalDigest(record);
   let projectedCandidate: string | null = null;
   let projectedCurrentWorkflow: string | null = null;
   let projectedNextAction: string | null = null;
@@ -37,11 +39,12 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
     actor: "andrew",
     now: () => "2026-08-12T14:00:00.000Z",
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
-    readRecord: async () => storedRecord,
+    readRecord: async () => ({ record: storedRecord, version: recordVersion }),
     currentTarget: async () => currentTarget,
     publish: async (input) => {
       publicationCount += 1;
       storedRecord = input.record;
+      recordVersion = canonicalDigest(input.record);
       projectedCandidate = input.candidateId;
       projectedCurrentWorkflow = input.currentWorkflow;
       projectedNextAction = input.nextAction;
@@ -60,7 +63,10 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
       projectedNextAction,
       publicationCount,
     }),
-    replaceRecord: (next: CandidateManagedRecordV1) => { storedRecord = next; },
+    replaceRecord: (next: CandidateManagedRecordV1) => {
+      storedRecord = next;
+      recordVersion = canonicalDigest(next);
+    },
     setCurrentTarget: (next: typeof currentTarget) => { currentTarget = next; },
   };
 }

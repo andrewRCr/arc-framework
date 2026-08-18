@@ -22,6 +22,7 @@ import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
 import { aggregateChecks } from "../review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
+import { GitObjectIdSchema } from "../review-gate/core/gate-contract-v2-schema.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
@@ -52,6 +53,19 @@ interface CachedCandidate {
   current: Awaited<ReturnType<typeof collectGitCandidateTarget>>;
 }
 
+export type IntegrationLifecycleReadFs = NonNullable<
+  Parameters<typeof resolveComposedLifecycleIndex>[0]["fs"]
+>;
+
+export interface IntegrationLifecycleStorageSnapshot {
+  version: string;
+  fs: IntegrationLifecycleReadFs;
+}
+
+export interface IntegrationLifecycleStoragePort {
+  readSnapshot(): Promise<IntegrationLifecycleStorageSnapshot>;
+}
+
 function parseRecord(text: string, path: string): Record<string, unknown> {
   let value: unknown;
   try {
@@ -69,7 +83,7 @@ async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string
   const branch = await getCurrentBranch(exec);
   if (branch === null) throw new Error("The integration checkpoint requires an attached branch.");
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd, objectAccess: "local-only" })).stdout.trim();
-  if (!/^[0-9a-f]{40}$/u.test(head)) throw new Error("The current integration head is invalid.");
+  if (!GitObjectIdSchema.safeParse(head).success) throw new Error("The current integration head is invalid.");
   return { branch, head };
 }
 
@@ -139,7 +153,7 @@ export async function readLifecycleSummary(
   workUnit: string,
   archiveCadence: "with-integration" | "manual",
   storageVersion: string,
-  fs: NonNullable<Parameters<typeof resolveComposedLifecycleIndex>[0]["fs"]>,
+  fs: IntegrationLifecycleReadFs,
 ): Promise<IntegrationLifecycleSummary> {
   const { index } = await resolveComposedLifecycleIndex({ cwd, fs });
   const query = resolveSlugQuery(index, workUnit);
@@ -166,6 +180,7 @@ export async function readLifecycleSummary(
 export function createIntegrationCheckpointDependencies(input: {
   cwd: string;
   exec: GitExec;
+  lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationCheckpointDependencies {
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
@@ -180,6 +195,15 @@ export function createIntegrationCheckpointDependencies(input: {
   };
   const composeLineageReview = createLineageReviewComposer(input);
   const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
+  const lifecycleStorage = input.lifecycleStorage ?? {
+    readSnapshot: async () => {
+      const { head } = await currentHead(input.exec, input.cwd);
+      return {
+        version: head,
+        fs: createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec }),
+      };
+    },
+  };
   const candidate = (workUnit: string): Promise<CachedCandidate | null> => {
     let value = candidates.get(workUnit);
     if (value === undefined) {
@@ -213,24 +237,25 @@ export function createIntegrationCheckpointDependencies(input: {
     readReconcileHost: async () => readHostFact(input.exec, input.cwd),
     readLifecycle: async (workUnit) => {
       const config = await settings();
-      const { head } = await currentHead(input.exec, input.cwd);
+      const snapshot = await lifecycleStorage.readSnapshot();
       return readLifecycleSummary(
         input.cwd,
         workUnit,
         config.settings["archive.cadence"] === "manual" ? "manual" : "with-integration",
-        head,
-        createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec }),
+        snapshot.version,
+        snapshot.fs,
       );
     },
     readCandidate: async (workUnit) => {
       const value = await candidate(workUnit);
       return value === null ? null : projectCandidateCurrentness(value);
     },
-    resolveMergeMethod: async () => {
+    resolveMergeMethod: async (repository) => {
       const config = await settings();
       return resolveMergeMethod(
         MergeMethodSchema.parse(config.settings["merge.strategy"]),
         createGhMergeMethodPolicyPort(hostedGhRunner),
+        repository,
       );
     },
     composeReady: async ({ workUnit, lifecycle, candidate: currentness }) => {
@@ -241,6 +266,17 @@ export function createIntegrationCheckpointDependencies(input: {
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
       if (boundary === null) throw new Error("The durable publication boundary is unavailable.");
+      if (boundary.candidateId !== value.record.attestation.candidateId
+        || boundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+        throw new Error("The durable publication boundary belongs to a different Candidate subject.");
+      }
+      if (boundary.locus !== "publication-pending" && boundary.locus !== "hosted-review-pending") {
+        throw new Error("The durable publication boundary has not entered public integration.");
+      }
+      const configuredBase = (await settings()).settings["branch.base"];
+      if (changeRequest.candidate.baseRefName !== configuredBase) {
+        throw new Error("The open change request targets a different branch than the configured base.");
+      }
       // The boundary's own derivation decides whether a hosted review is due at this exact head;
       // the durable lane record decides whether it ran. Neither is read off the stored locus, which
       // was derived before the change request existed and no writer clears.

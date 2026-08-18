@@ -64,6 +64,7 @@ function fixture() {
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation",
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -92,6 +93,7 @@ function fixture() {
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
+    laneSourceId: admission.laneSourceId,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,

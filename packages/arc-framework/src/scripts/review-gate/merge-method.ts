@@ -42,11 +42,12 @@ export type MergeMethodResolveResult = MergeMethodResultBase & (
 export async function resolveMergeMethod(
   configuredMethod: MergeMethod,
   port: MergeMethodPolicyPort,
+  expectedRepository?: string,
 ): Promise<MergeMethodResolveResult> {
   let repository: string | null = null;
   let policy: Record<MergeMethod, boolean>;
   try {
-    repository = await port.resolveRepository();
+    repository = expectedRepository ?? await port.resolveRepository();
     policy = await port.readPolicy(repository);
   } catch (error) {
     return {

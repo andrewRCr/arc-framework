@@ -90,7 +90,7 @@ const RespondProposalRequestSchema = z.strictObject({
  * Its presence is what distinguishes the post-fix settlement pass from the approval pass — the same
  * approved dispositions and durable source, submitted once the fix has landed and been verified.
  */
-const RespondVerifiedFixSchema = z.strictObject({
+export const RespondVerifiedFixSchema = z.strictObject({
   applicability: CandidateVerificationApplicabilitySchema,
   verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
 });
@@ -130,6 +130,7 @@ interface ResponseActors {
 export interface CandidateLineageBinding {
   workUnit: string;
   record: CandidateManagedRecordV1;
+  recordVersion: string;
   current: CandidateLineageTarget;
   /**
    * Reviewable paths the index does not carry, read alongside the subject it does.
@@ -154,6 +155,7 @@ export interface RespondCommandDependencies {
   appendCandidateResponse(input: {
     workUnit: string;
     record: CandidateManagedRecordV1;
+    expectedRecordVersion: string;
   }): Promise<{ recordPath: string }>;
   settleLaneFindings(input: {
     lane: "frontline" | "standard";
@@ -460,11 +462,15 @@ async function persistCandidateResponse(
   }
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
   const currentness = projectCandidateCurrentness({ record: lineage.record, current: lineage.current });
-  if (currentness.status === "current") {
-    await dependencies.appendCandidateResponse({
-      workUnit: lineage.workUnit,
-      record: lineage.record,
-    });
+  const matchingResponses = lineage.record.responses.filter((response) =>
+    response.dispositionId === dispositions.dispositionSet.dispositionSetId);
+  if (matchingResponses.length > 0) {
+    if (matchingResponses.length !== 1) {
+      throw new RespondCommandError("corrupt-state", "disposition response appears more than once");
+    }
+    if (currentness.status !== "current") {
+      throw new RespondCommandError("invalid-input", "Candidate changed after the recorded disposition response");
+    }
     return RespondEnvelopeSchema.parse({
       ...header,
       state: "candidate-current",
@@ -487,6 +493,7 @@ async function persistCandidateResponse(
   });
   const { recordPath } = await dependencies.appendCandidateResponse({
     workUnit: lineage.workUnit,
+    expectedRecordVersion: lineage.recordVersion,
     record: CandidateManagedRecordV1Schema.parse({
       ...lineage.record,
       responses: [...lineage.record.responses, response],

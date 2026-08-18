@@ -181,11 +181,12 @@ async function attestLocalReviewWithinSourceLock(
       changeRequestId: null,
       headSha: state.target.headSha,
       attemptId: state.operationId,
-      sourceId: state.request.evaluatorIdentity,
+      sourceId: state.laneSourceId,
       outcome: receipt.result === "unavailable"
         ? "transient-unavailable"
         : receipt.result === "failed" ? "terminal-failure" : receipt.result,
       consumedPass: receipt.result === "clean" || receipt.result === "findings",
+      chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
       now: dependencies.now(),
     });
     await dependencies.releaseMaterialization(request.operationId);
@@ -284,11 +285,12 @@ async function attestLocalReviewWithinSourceLock(
     changeRequestId: null,
     headSha: state.target.headSha,
     attemptId: state.operationId,
-    sourceId: state.request.evaluatorIdentity,
+    sourceId: state.laneSourceId,
     outcome: receipt.result === "unavailable"
       ? "transient-unavailable"
       : receipt.result === "failed" ? "terminal-failure" : receipt.result,
     consumedPass: receipt.result === "clean" || receipt.result === "findings",
+    chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
     now: dependencies.now(),
   });
   await dependencies.releaseMaterialization(request.operationId);

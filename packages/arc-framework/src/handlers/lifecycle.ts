@@ -133,6 +133,7 @@ import {
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
   readCandidateRecord,
+  readCandidateRecordVersioned,
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectCandidateCurrentness } from "../lib/work-unit/candidate-attestation.js";
@@ -1788,17 +1789,22 @@ export async function handlePublish(
     return;
   }
   if (result.status === "reconcile-pending") {
-    for (const advisory of result.reconcile.prepared.plan.advisories) {
-      p.log.info(
-        `Reconcile advisory: ${advisory.path}:${advisory.line} — `
-        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
-        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
-      );
+    if (input.json === true) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      process.exitCode = 1;
+    } else {
+      for (const advisory of result.reconcile.prepared.plan.advisories) {
+        p.log.info(
+          `Reconcile advisory: ${advisory.path}:${advisory.line} — `
+          + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
+          + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
+        );
+      }
+      refuseWithRemedy(result.reason, result.remedy);
     }
-    refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;
   }
-  if (result.reconcile.status === "pending") {
+  if (result.reconcile.status === "pending" && input.json !== true) {
     for (const advisory of result.reconcile.prepared.plan.advisories) {
       p.log.info(
         `Accepted reconcile advisory: ${advisory.path}:${advisory.line} — `
@@ -1810,7 +1816,7 @@ export async function handlePublish(
   const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary);
   await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
   if (input.json === true) {
-    process.stdout.write(`${JSON.stringify({ status: result.status, boundary: result.boundary })}\n`);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
@@ -2448,7 +2454,7 @@ export async function handleAttest(
     actor: base.identity,
     now: () => new Date().toISOString(),
     verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
-    readRecord: (slug) => readCandidateRecord(base.cwd, slug),
+    readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
     currentTarget: (slug) => collectGitCandidateTarget({
       cwd: base.cwd,
       name: slug,
@@ -2456,7 +2462,12 @@ export async function handleAttest(
       exec: base.io.exec,
     }),
     publish: async (publication) => {
-      const recordPath = await writeCandidateRecord(base.cwd, publication.name, publication.record);
+      const recordPath = await writeCandidateRecord(
+        base.cwd,
+        publication.name,
+        publication.record,
+        publication.expectedRecordVersion,
+      );
       const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
       metaContent = setMetaBulletFields(withCandidate, {
         "Current Workflow": formatValue(publication.currentWorkflow, "identifier"),

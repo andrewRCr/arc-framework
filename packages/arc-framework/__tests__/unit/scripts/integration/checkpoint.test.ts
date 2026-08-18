@@ -278,6 +278,31 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it("blocks merge-method policy resolved for a different repository", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.resolveMergeMethod = async (repository) => {
+      expect(repository).toBe("owner/repo");
+      return {
+        schemaVersion: 1,
+        mode: "review-merge-method-resolve",
+        repository: "other/repo",
+        state: "validated",
+        nextAction: "use-method",
+        method: "merge",
+        allowedMethods: ["merge"],
+        policyFingerprint: digest("d"),
+      };
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "merge-method-blocked",
+      });
+  });
+
   it("blocks an implementation-changing lineage without its converged full attestation", async () => {
     const deps = dependencies();
     deps.readDrift = async () => ({

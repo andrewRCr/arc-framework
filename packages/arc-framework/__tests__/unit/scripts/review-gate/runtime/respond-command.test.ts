@@ -77,6 +77,7 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
     target,
     requirement,
     authority,
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -105,6 +106,7 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
+    laneSourceId: admission.laneSourceId,
     attestationRuntimeKind: authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,
@@ -240,7 +242,7 @@ const CANDIDATE_RECORD_PATH = ".arc/system/.internal/candidates/example.json";
 
 function candidateSubject(source: string) {
   return createCandidateSubjectSnapshot([
-    { path: "src/index.ts", digest: canonicalDigest({ source }), treatment: "reviewable" },
+    { path: "src/index.ts", mode: "100644", digest: canonicalDigest({ source }), treatment: "reviewable" },
   ]);
 }
 
@@ -269,7 +271,12 @@ function lineageDependencies(
   current: { revision: string; subject: ReturnType<typeof candidateSubject> },
 ) {
   const record = candidateRecord();
-  const appends: { workUnit: string; record: CandidateManagedRecordV1 }[] = [];
+  const recordVersion = canonicalDigest(record);
+  const appends: Array<{
+    workUnit: string;
+    record: CandidateManagedRecordV1;
+    expectedRecordVersion: string;
+  }> = [];
   const deps: RespondCommandDependencies = {
     ...dependencies(records),
     confirmTarget: async (target) => ({
@@ -290,6 +297,7 @@ function lineageDependencies(
     readCandidateLineage: async () => ({
       workUnit: "example",
       record,
+      recordVersion,
       current,
       unstagedReviewablePaths: [],
     }),
@@ -689,7 +697,7 @@ describe("verified-fix Candidate settlement", () => {
     });
   });
 
-  it("re-appends the exact record when the lineage already explains the current subject", async () => {
+  it("records operational-only approved evidence when the lineage subject is unchanged", async () => {
     const records = fixture();
     const { deps, record, appends } = lineageDependencies(records, {
       revision: objectId("e"),
@@ -697,14 +705,52 @@ describe("verified-fix Candidate settlement", () => {
     });
 
     await expect(respondToReviewCommand(verifiedFixRequest(records), deps)).resolves.toMatchObject({
-      state: "candidate-current",
+      state: "candidate-advanced",
       nextAction: "continue-review",
       payload: {
         candidateId: record.attestation.candidateId,
         implementationChanged: false,
       },
     });
-    expect(appends).toEqual([{ workUnit: "example", record }]);
+    expect(appends).toHaveLength(1);
+    expect(appends[0]).toMatchObject({
+      workUnit: "example",
+      expectedRecordVersion: canonicalDigest(record),
+      record: {
+        subject: record.subject,
+        responses: [expect.objectContaining({ implementationChanged: false })],
+      },
+    });
+  });
+
+  it("returns the current Candidate when an identical verified response is replayed", async () => {
+    const records = fixture();
+    const current = {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+    });
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected an appended Candidate record");
+    deps.readCandidateLineage = async () => ({
+      workUnit: "example",
+      record: advanced,
+      recordVersion: canonicalDigest(advanced),
+      current,
+      unstagedReviewablePaths: [],
+    });
+
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "candidate-current",
+      nextAction: "continue-review",
+      payload: { candidateId: advanced.attestation.candidateId },
+    });
+    expect(appends).toHaveLength(1);
   });
 
   it("refuses a verified fix whose exact target never changed", async () => {

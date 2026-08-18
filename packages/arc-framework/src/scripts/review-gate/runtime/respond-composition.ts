@@ -6,7 +6,7 @@ import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
-  readCandidateRecord,
+  readCandidateRecordVersioned,
   writeCandidateRecord,
 } from "../../../lib/work-unit/candidate-record-store.js";
 import {
@@ -64,12 +64,13 @@ export function createRespondDependencies(input: {
     readCandidateLineage: async () => {
       const active = await resolveActiveWu({ cwd: input.cwd });
       if (active.status !== "resolved" || active.name === "") return null;
-      const record = await readCandidateRecord(input.cwd, active.name);
-      if (record === null) return null;
+      const { record, version } = await readCandidateRecordVersioned(input.cwd, active.name);
+      if (record === null || version === null) return null;
       const { settings } = await readConfigSettings(input.cwd);
       return {
         workUnit: active.name,
         record,
+        recordVersion: version,
         current: await collectGitCandidateTarget({
           cwd: input.cwd,
           name: active.name,
@@ -85,8 +86,8 @@ export function createRespondDependencies(input: {
     },
     // Staged like the record `attest` publishes: the Candidate's own projection never enters the
     // reviewable subject, so staging it advances the lineage without disturbing what review sees.
-    appendCandidateResponse: async ({ workUnit, record }) => {
-      const recordPath = await writeCandidateRecord(input.cwd, workUnit, record);
+    appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {
+      const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion);
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },

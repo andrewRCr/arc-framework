@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 
+import type { BaseMergeResult } from "../../src/scripts/base/merge.js";
+import { RespondVerifiedFixSchema } from "../../src/scripts/review-gate/runtime/respond-command.js";
+
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
 const readRepositoryFile = async (path: string): Promise<string> => readFile(resolve(root, path), "utf8");
@@ -291,7 +294,9 @@ describe("trusted review-gate workflows", () => {
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(finalGate).toContain("**Extension report** · `#pre-merge`");
-    expect(finalGate).toMatch(/checkpointed dispositions[\s\S]*review-response channel[\s\S]*ends review/u);
+    expect(finalGate).toMatch(
+      /approved final dispositions[\s\S]*checkpointed settlement plan[\s\S]*review-response channel[\s\S]*ends review/u,
+    );
     expect(finalGate).not.toContain("exact candidate-tail diff");
   });
 
@@ -313,8 +318,16 @@ describe("trusted review-gate workflows", () => {
     expect(interlock).toMatch(/candidate-tail diff[\s\S]*Release Notes entry and Completion Notes/u);
     expect(interlock).toContain("named rather than diffed");
     expect(interlock).toContain("review applicability calls and targeted verification");
-    expect(interlock).toContain("proposed final dispositions");
-    expect(interlock).toContain("no-action record-only sets");
+    expect(interlock).toContain("approved final dispositions");
+    expect(interlock).not.toContain("proposed final dispositions");
+
+    const reviewCoordination = sectionBetween(
+      packaged,
+      "### 3) Confirm review coordination",
+      "### 4) Spec-presence + alignment checks",
+    );
+    expect(reviewCoordination).toContain("approved no-action record-only set");
+    expect(reviewCoordination).toContain("cannot remain merely proposed");
   });
 
   it("routes frontline and local review through the public advisory command surface", async () => {
@@ -342,7 +355,7 @@ describe("trusted review-gate workflows", () => {
       expect(packaged).toMatch(/runtime-owned bindings/iu);
       expect(packaged).toContain("`findings / respond`");
       expect(packaged).toContain("review applicability");
-      expect(packaged).toMatch(/targeted[\s\S]*focused[\s\S]*complete/iu);
+      expect(packaged).toMatch(/targeted[\s\S]*focused[\s\S]*full/iu);
       expect(packaged).toMatch(/command error\s+envelope/iu);
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
       expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
@@ -371,7 +384,11 @@ describe("trusted review-gate workflows", () => {
     const full = sectionBetween(packaged, "### Ship — full protection", "### Ship — partial protection");
     expect(full).toContain("arc base drift --json");
     expect(full).toContain("review applicability");
-    expect(full).toMatch(/targeted verification[\s\S]*focused[\s\S]*complete review/u);
+    expect(full).toMatch(/targeted verification[\s\S]*focused[\s\S]*full review/u);
+    expect(full).toMatch(
+      /When gated local review ran,[\s\S]*include `\*\*Local review:\*\* \{carrier identity\}`/u,
+    );
+    expect(full).toMatch(/otherwise omit the field entirely/u);
     expect(full).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
     expect(full).toMatch(/never infer[\s\S]*absent or\s+malformed WU state/iu);
     expect(full).toMatch(/retain\s+`openedChangeRequest\.headSha` as `\{approved-head-sha\}`/iu);
@@ -413,6 +430,7 @@ describe("trusted review-gate workflows", () => {
     expect(frontline).toMatch(/Approved fixes[\s\S]*Tier 1 gates[\s\S]*new target/iu);
     expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*rerun chunking/iu);
     expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
+    expect(frontline).toMatch(/complete no-action record-only set[\s\S]*approved for its exact\s+target/iu);
 
     const openPr = sectionBetween(
       packaged,
@@ -537,9 +555,64 @@ describe("trusted review-gate workflows", () => {
     expect(gate).not.toContain("otherwise render `None`");
     expect(gate).not.toContain("exact-head mutability action");
     expect(gate).toContain("review applicability");
-    expect(gate).toMatch(/targeted, focused, or full review/u);
+    expect(gate).toMatch(/targeted, focused, or full\s+review/u);
     expect(gate).not.toContain("git merge --no-edit");
     expect(gate).not.toContain("gh pr merge");
+  });
+
+  it("dispatches every exact-base merge result before a later fire point", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    );
+    const gate = sectionBetween(
+      packaged,
+      "### 10) Behind-base reconcile gate and merge",
+      "### 11) Post-merge worktree cleanup",
+    );
+    const actions = {
+      merged: "run-quality-gates",
+      "skipped-clean": "continue-reconcile",
+      "base-moved": "rerun-checkpoint",
+      conflict: "stop",
+      blocked: "stop",
+    } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;
+
+    for (const [state, nextAction] of Object.entries(actions)) {
+      expect(gate).toContain(`\`${state} / ${nextAction}\``);
+    }
+    const stop = gate.search(/`blocked \/ stop` and `conflict \/ stop` stop before every later\s+fire point/u);
+    expect(stop).toBeGreaterThan(-1);
+    expect(gate.indexOf("`push-interlock`", stop)).toBeGreaterThan(stop);
+  });
+
+  it("keeps verification applicability vocabulary aligned with the typed input schema", () => {
+    for (const applicability of ["targeted", "focused", "full"] as const) {
+      expect(RespondVerifiedFixSchema.safeParse({
+        applicability,
+        verificationEvidenceRefs: ["verification://evidence"],
+      }).success).toBe(true);
+    }
+    expect(RespondVerifiedFixSchema.safeParse({
+      applicability: "complete",
+      verificationEvidenceRefs: ["verification://evidence"],
+    }).success).toBe(false);
+  });
+
+  it("limits session-notes overrides to discretionary planning and execution phases", async () => {
+    for (const name of ["session-init", "session-handoff"] as const) {
+      const [packaged, instance] = await Promise.all([
+        readRepositoryFile(
+          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/${name}.template.md`,
+        ),
+        readRepositoryFile(`.arc/system/workflows/arc/session-lifecycle/${name}.md`),
+      ]);
+      for (const content of [packaged, instance]) {
+        expect(content).toMatch(/planning \| execution/u);
+        expect(content).toMatch(
+          /prepublication\/integration phases cannot be overridden|prepublication` and `integration` are\s+state-determined/iu,
+        );
+      }
+    }
   });
 
   it("keeps early drift advisory separate from final authoritative reconciliation", async () => {
@@ -610,6 +683,7 @@ describe("trusted review-gate workflows", () => {
     expect(create).toBeGreaterThan(proposedTarget);
     expect(creation).toContain("`closed-unmerged /\nreopen-change-request`");
     expect(creation).toContain("pre-create exact-head validation");
+    expect(creation).toMatch(/`Local review` field names the carrier[\s\S]*omit it\s+when none ran/u);
 
     const gate = sectionBetween(
       packaged,

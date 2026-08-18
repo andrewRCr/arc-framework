@@ -335,6 +335,7 @@ describe("frontline lane recording", () => {
       attemptId: expect.any(String),
       sourceId: "coderabbit",
       outcome: "rate-limited",
+      chunkSeriesComplete: false,
     }]);
     expect(state?.completedPasses).toBe(0);
   });
@@ -347,6 +348,7 @@ describe("frontline lane recording", () => {
       now: "2026-08-15T12:00:00Z",
     });
     expect(state?.completedPasses).toBe(1);
+    expect(state?.attempts[0]).toMatchObject({ chunkSeriesComplete: true });
   });
 });
 

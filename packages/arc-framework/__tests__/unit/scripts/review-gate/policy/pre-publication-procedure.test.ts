@@ -429,7 +429,7 @@ describe("projectPrePublicationReview", () => {
 
 function subject(source: string) {
   return createCandidateSubjectSnapshot([
-    { path: "src/example.ts", digest: canonicalDigest({ source }), treatment: "reviewable" },
+    { path: "src/example.ts", mode: "100644", digest: canonicalDigest({ source }), treatment: "reviewable" },
   ]);
 }
 

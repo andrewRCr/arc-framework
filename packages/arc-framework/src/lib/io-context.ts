@@ -44,19 +44,25 @@ export function createGitExec(interaction?: InteractionContext["subprocess"]): G
     : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
 }
 
-/** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
-export async function readGitBlobBytes(
+export interface GitBlobEntry {
+  mode: string;
+  bytes: Uint8Array;
+}
+
+/** Read one exact Git tree/index blob together with its canonical tree-entry mode. */
+export async function readGitBlobEntry(
   cwd: string,
   ref: string | null,
   path: string,
   options: { objectAccess?: "local-only" } = {},
-): Promise<Uint8Array | null> {
+): Promise<GitBlobEntry | null> {
   const exec = createRawGitExec(cwd);
   const execOptions = options.objectAccess === undefined
     ? undefined
     : { objectAccess: options.objectAccess };
   const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   let oid: string;
+  let mode: string;
   if (ref === null) {
     const { stdout: stdoutBytes } = await exec(
       ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
@@ -69,26 +75,38 @@ export async function readGitBlobBytes(
       throw new Error(`Cannot resolve an exact index blob for ${path}.`);
     }
     const metadata = decode(stdoutBytes.subarray(0, tab));
-    const match = /^\d+ ([0-9a-f]+) 0$/u.exec(metadata);
-    if (match?.[1] === undefined || !isGitObjectId(match[1])) {
+    const match = /^([0-7]{6}) ([0-9a-f]+) 0$/u.exec(metadata);
+    if (match?.[1] === undefined || match[2] === undefined || !isGitObjectId(match[2])) {
       throw new Error(`Cannot resolve an exact index blob for ${path}.`);
     }
-    oid = match[1];
+    mode = match[1];
+    oid = match[2];
   } else {
     const { stdout: stdoutBytes } = await exec(
-      ["ls-tree", "-z", "--format=%(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
+      ["ls-tree", "-z", "--format=%(objectmode) %(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
       execOptions,
     );
     const stdout = decode(stdoutBytes);
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
-    const match = entries.length === 1 ? /^blob ([0-9a-f]+)$/u.exec(entries[0] ?? "") : null;
-    if (match?.[1] === undefined || !isGitObjectId(match[1])) {
+    const match = entries.length === 1 ? /^([0-7]{6}) blob ([0-9a-f]+)$/u.exec(entries[0] ?? "") : null;
+    if (match?.[1] === undefined || match[2] === undefined || !isGitObjectId(match[2])) {
       throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
     }
-    oid = match[1];
+    mode = match[1];
+    oid = match[2];
   }
-  return (await exec(["cat-file", "blob", oid], execOptions)).stdout;
+  return { mode, bytes: (await exec(["cat-file", "blob", oid], execOptions)).stdout };
+}
+
+/** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
+export async function readGitBlobBytes(
+  cwd: string,
+  ref: string | null,
+  path: string,
+  options: { objectAccess?: "local-only" } = {},
+): Promise<Uint8Array | null> {
+  return (await readGitBlobEntry(cwd, ref, path, options))?.bytes ?? null;
 }
 
 /**

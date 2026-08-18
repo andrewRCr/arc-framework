@@ -70,6 +70,8 @@ import {
   type RunRenameResult,
 } from "../lib/work-unit/verbs/rename.js";
 import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
+import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
+import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 
 /** Production dependencies resolved by the CLI handler. */
 export interface RenameCommandContext {
@@ -95,6 +97,15 @@ export async function runRenameCommand(
     retirement: command.retirement,
     transitionWriter: command.transitionWriter,
     onPrepared: async (plan) => {
+      if (!plan.resuming) {
+        const [candidate, boundary] = await Promise.all([
+          readCandidateRecord(command.cwd, plan.sourceSlug),
+          readSubmissionBoundary(command.cwd, plan.sourceSlug),
+        ]);
+        if (candidate !== null || boundary !== null) {
+          throw new Error("A work unit with Candidate publication state cannot be renamed.");
+        }
+      }
       await command.onPreparedAdvisories?.(plan.coordinationAdvisories);
     },
     preflight: async (request) => {

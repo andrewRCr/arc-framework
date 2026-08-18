@@ -512,6 +512,7 @@ function localReceiptFixture() {
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation",
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: canonicalDigest({ policy: "local" }),
     requestMechanism: "local-attestation",
   });

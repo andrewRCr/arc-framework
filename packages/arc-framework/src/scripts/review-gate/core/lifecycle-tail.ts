@@ -158,7 +158,6 @@ function nonEmpty(value: string): boolean {
   return value.trim().length > 0;
 }
 
-const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 
 /** Check that an adapter returned a structurally complete, diagnostic-free proof. */
@@ -166,9 +165,9 @@ export function isTrustedLifecycleTailProof(proof: LifecycleTailProofCandidate |
   return proof !== null
     && proof.schemaVersion === 1
     && proof.diagnostics.length === 0
-    && SHA.test(proof.reviewedThroughSha)
-    && SHA.test(proof.currentHeadSha)
-    && SHA.test(proof.diffBaseSha)
+    && GitObjectIdSchema.safeParse(proof.reviewedThroughSha).success
+    && GitObjectIdSchema.safeParse(proof.currentHeadSha).success
+    && GitObjectIdSchema.safeParse(proof.diffBaseSha).success
     && DIGEST.test(proof.policyVersion)
     && nonEmpty(proof.predicateId)
     && nonEmpty(proof.baseRef)

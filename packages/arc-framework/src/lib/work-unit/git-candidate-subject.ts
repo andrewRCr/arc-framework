@@ -2,7 +2,7 @@
 
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
-import { readGitBlobBytes } from "../io-context.js";
+import { readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
 import {
   identifyWorkUnitArtifactPath,
   isProjectDocumentPath,
@@ -26,6 +26,7 @@ export interface CollectGitCandidateTargetInput {
   baseBranch: string;
   exec: GitExec;
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
+  readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
 }
 
 /**
@@ -142,41 +143,56 @@ export async function collectGitCandidateTarget(
     options,
   )).stdout.split("\0").filter((path) => path !== "");
   const paths = [...new Set(changed)].sort(compareUtf8);
-  const readBlob = input.readBlob ?? readGitBlobBytes;
+  const readEntry = input.readEntry ?? (input.readBlob === undefined
+    ? readGitBlobEntry
+    : async (cwd: string, ref: string | null, path: string) => {
+        const bytes = await input.readBlob?.(cwd, ref, path) ?? null;
+        return bytes === null ? null : { mode: "100644", bytes };
+      });
   // The Candidate's own record and the publication boundary reduced from it are projections of this
   // subject, so digesting them would make the subject reference itself. The boundary is written
   // where pre-publication settles — before submission reads currentness — so classifying it is what
   // keeps a settled Candidate current rather than blocked by its own settle-point write.
   const projectionPaths = candidateProjectionPaths(name);
   const entries = new Map<string, CandidateSubjectEntryInput>();
-  const relocated = new Map<string, { digest: string; treatment: CandidateSubjectEntryInput["treatment"] }>();
+  const relocated = new Map<string, {
+    digest: string;
+    mode: string;
+    treatment: CandidateSubjectEntryInput["treatment"];
+  }>();
   const absentPaths = new Set<string>();
   for (const path of paths) {
-    const bytes = await readBlob(input.cwd, null, path);
-    const digest = bytes === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(bytes);
+    const entry = await readEntry(input.cwd, null, path);
+    const digest = entry === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(entry.bytes);
+    const mode = entry?.mode ?? "absent";
     const classification = classifyCandidateSubjectPath(name, path, projectionPaths);
     if (classification.key !== path) {
       // Reaching the artifact's new location is a lifecycle write, so the location itself is
       // operational and the content it carries stays keyed to the artifact. The move alone leaves the
       // reviewable subject byte-identical; an edit made along the way still lands as a changed entry.
-      if (bytes !== null) {
+      if (entry !== null) {
         if (relocated.has(classification.key)) {
           throw new Error(`Multiple work-unit artifacts resolve to Candidate key \`${classification.key}\``);
         }
-        relocated.set(classification.key, { digest, treatment: classification.treatment });
+        relocated.set(classification.key, { digest, mode, treatment: classification.treatment });
       }
-      entries.set(path, { path, digest, treatment: "operational" });
-      if (bytes === null) absentPaths.add(path);
+      entries.set(path, { path, digest, mode, treatment: "operational" });
+      if (entry === null) absentPaths.add(path);
       continue;
     }
-    entries.set(path, { path, digest, treatment: classification.treatment });
-    if (bytes === null) absentPaths.add(path);
+    entries.set(path, { path, digest, mode, treatment: classification.treatment });
+    if (entry === null) absentPaths.add(path);
   }
   for (const [path, relocatedEntry] of relocated) {
     if (entries.has(path) && !absentPaths.has(path)) {
       throw new Error(`A relocated work-unit artifact collides with Candidate key \`${path}\``);
     }
-    entries.set(path, { path, digest: relocatedEntry.digest, treatment: relocatedEntry.treatment });
+    entries.set(path, {
+      path,
+      digest: relocatedEntry.digest,
+      mode: relocatedEntry.mode,
+      treatment: relocatedEntry.treatment,
+    });
   }
   return CandidateLineageTargetSchema.parse({
     revision: head,

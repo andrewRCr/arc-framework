@@ -27,9 +27,10 @@ export interface LineageReviewComposition {
 /**
  * Compose the settlement plan from every approved disposition record the Candidate covers.
  *
- * The plan answers which approved fixes still need exact-target replay. Record-only dispositions
- * settle when their approved record lands and never enter the post-approval plan. Fix-bearing records
- * are enumerated and scoped to the **full Candidate span** — `attestation.baseRevision..approvedHead`,
+ * The plan answers which approved responses still need exact-target replay. Record-only and fix-bearing
+ * dispositions both enter the post-approval plan: approval is durable before checkpointing, while replay
+ * performs the channel settlement the approved record authorizes. Records are enumerated and scoped to the
+ * **full Candidate span** — `attestation.baseRevision..approvedHead`,
  * not the candidate-tail span, whose lower bound advances past a review that ran before a fix landed.
  *
  * Records the lineage names are still resolved strictly: anything it names but the repository cannot
@@ -119,9 +120,6 @@ export function createLineageReviewComposer(input: {
 
     const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
     for (const approved of enumerated) {
-      const hasFix = approved.approvedDisposition.dispositionSet.findings
-        .some(({ disposition }) => disposition === "fix");
-      if (!hasFix) continue;
       const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
       const required = named.has(dispositionId);
       const origin = await originTarget(approved, required);

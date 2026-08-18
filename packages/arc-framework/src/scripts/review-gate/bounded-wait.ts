@@ -14,7 +14,7 @@ export interface BoundedWaitInput<T> {
   pollIntervalMs: number;
   clock: BoundedWaitClock;
   attempt(input: { signal: AbortSignal; elapsedMs: number }): Promise<BoundedWaitAttempt<T>>;
-  deadline(elapsedMs: number): T;
+  deadline(elapsedMs: number): T | Promise<T>;
 }
 
 function nextDelay(attempt: number, intervalMs: number, remainingMs: number): number {
@@ -32,19 +32,19 @@ export async function boundedWait<T>(input: BoundedWaitInput<T>): Promise<T> {
   for (;;) {
     const elapsedMs = input.clock.now() - startedAt;
     const remainingMs = input.timeoutMs - elapsedMs;
-    if (remainingMs <= 0) return input.deadline(elapsedMs);
+    if (remainingMs <= 0) return await input.deadline(elapsedMs);
 
     let observation: BoundedWaitAttempt<T>;
     try {
       observation = await input.attempt({ signal: AbortSignal.timeout(remainingMs), elapsedMs });
     } catch (error) {
-      if (isDeadlineAbort(error)) return input.deadline(input.clock.now() - startedAt);
+      if (isDeadlineAbort(error)) return await input.deadline(input.clock.now() - startedAt);
       throw error;
     }
     if (observation.kind === "return") return observation.value;
 
     const afterReadRemaining = input.timeoutMs - (input.clock.now() - startedAt);
-    if (afterReadRemaining <= 0) return input.deadline(input.clock.now() - startedAt);
+    if (afterReadRemaining <= 0) return await input.deadline(input.clock.now() - startedAt);
     await input.clock.sleep(nextDelay(attempt, input.pollIntervalMs, afterReadRemaining));
     attempt += 1;
   }

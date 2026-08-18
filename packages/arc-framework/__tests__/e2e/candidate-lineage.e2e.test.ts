@@ -520,7 +520,7 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
-  it("keeps an approved no-fix set out of the post-approval settlement plan", async () => {
+  it("carries an approved no-fix set into the post-approval settlement plan", async () => {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
@@ -530,46 +530,46 @@ describe("review-fix Candidate lineage", () => {
 
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
-    // The deferred set moves no implementation, so its approved record is already the settlement.
-    // It neither advances the Candidate lineage nor creates an exact-target replay action.
+    // The deferred set moves no implementation and therefore does not advance the Candidate lineage.
+    // Its durable approval still authorizes one exact-target replay action at checkpoint settlement.
     const lineage = await readCandidateRecord(root, "example");
     expect(lineage?.responses.map(({ dispositionId }) => dispositionId))
       .not.toContain(deferred.dispositionSet.dispositionSetId);
-    expect(composed.dispositionIds).toHaveLength(1);
-    expect(composed.dispositionIds).not.toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).toHaveLength(2);
+    expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.actions.map(({ dispositionId }) => dispositionId))
-      .not.toContain(deferred.dispositionSet.dispositionSetId);
+      .toContain(deferred.dispositionSet.dispositionSetId);
 
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
     await expect(inRepository(root, async () => production.executeSettlement({
       settlementPlan: composeCanonicalSettlementPlan(composed.actions),
     } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
       state: "settled",
-      completedActions: 1,
+      completedActions: 2,
     });
   });
 
-  it("treats a no-fix set reviewed at the approved head as already settled", async () => {
+  it("replays a no-fix set reviewed at the approved head during checkpoint settlement", async () => {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
     await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
 
-    // No fix means no commit or re-attestation of its own. The approved record settles the response
-    // at this head without adding another action to the post-approval plan.
+    // No fix means no commit or re-attestation of its own. The approved record remains durable input
+    // to the post-approval plan, whose replay settles the channel at this exact head.
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
-    expect(composed.dispositionIds).not.toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.actions.map(({ dispositionId }) => dispositionId))
-      .not.toContain(deferred.dispositionSet.dispositionSetId);
+      .toContain(deferred.dispositionSet.dispositionSetId);
 
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
     await expect(inRepository(root, async () => production.executeSettlement({
       settlementPlan: composeCanonicalSettlementPlan(composed.actions),
     } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
       state: "settled",
-      completedActions: 1,
+      completedActions: 2,
     });
   });
 
@@ -578,7 +578,7 @@ describe("review-fix Candidate lineage", () => {
     expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
 
-    // A defer-only approval first: it is settled by its record and appends nothing to the lineage.
+    // A defer-only approval first: it appends nothing to the Candidate lineage but remains checkpoint input.
     const deferSource = await reviewToFindings(root);
     const deferred = await approvedSet(root, deferSource, "defer");
     await invoke(root, ["review", "respond", "-"], {
@@ -611,9 +611,12 @@ describe("review-fix Candidate lineage", () => {
 
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
-    expect(composed.dispositionIds).not.toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.dispositionIds).toContain(dispositions.dispositionSet.dispositionSetId);
-    expect(composed.dispositionIds).toEqual([dispositions.dispositionSet.dispositionSetId]);
+    expect(composed.dispositionIds).toEqual([
+      deferred.dispositionSet.dispositionSetId,
+      dispositions.dispositionSet.dispositionSetId,
+    ]);
   });
 
   it("repeats the settlement pass without appending a second response", async () => {
@@ -787,6 +790,7 @@ describe("review-bearing integration checkpoint and merge", () => {
       }),
       refreshTarget: async () => target,
       readMerged: async () => false,
+      readConfiguredBase: async () => "main",
       releaseLock: async () => ({ state: "released" }),
       holdLock: async () => ({ state: "held" }),
       awaitChecks: async () => ({
@@ -825,6 +829,7 @@ describe("review-bearing integration checkpoint and merge", () => {
         executeSettlement: () => Promise.reject(new Error("unexpected settlement")),
         readStatus: () => Promise.reject(new Error("unexpected status read")),
         readMerged: () => Promise.reject(new Error("unexpected merged-state read")),
+        readConfiguredBase: () => Promise.reject(new Error("unexpected configured-base read")),
         refreshTarget: () => Promise.reject(new Error("unexpected target refresh")),
         releaseLock: () => Promise.reject(new Error("unexpected release")),
         holdLock: async () => ({ state: "held" }),

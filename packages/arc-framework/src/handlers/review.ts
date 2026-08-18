@@ -64,7 +64,10 @@ import {
 import type {
   IntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
-import { writeSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
+import {
+  readSubmissionBoundary,
+  writeSubmissionBoundary,
+} from "../lib/work-unit/submission-boundary-store.js";
 import {
   LocalTargetDerivationError,
   type LocalTargetInvalidReason,
@@ -339,9 +342,10 @@ export interface ReviewChangeRequestResolveHandlerDependencies {
 /** Resolve one exact head's host-anchored change-request disposition. */
 export async function handleReviewChangeRequestResolve(
   options: ReviewChangeRequestResolveOptions,
+  interaction?: InteractionContext,
   overrides: Partial<ReviewChangeRequestResolveHandlerDependencies> = {},
 ): Promise<void> {
-  const exec = createGitExec();
+  const exec = createGitExec(interaction?.subprocess);
   const dependencies: ReviewChangeRequestResolveHandlerDependencies = {
     resolve: (input, cwd) => resolveChangeRequest(input, createGhChangeRequestResolutionPort(exec, cwd)),
     write: (text) => process.stdout.write(text),
@@ -1659,7 +1663,15 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
       createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec }),
     ),
     persistBoundary: async (root, settled) => {
-      const path = await writeSubmissionBoundary(root, settled);
+      const existing = await readSubmissionBoundary(root, settled.workUnit);
+      const preservesReservation = existing !== null
+        && existing.candidateId === settled.candidateId
+        && existing.candidateSubjectDigest === settled.candidateSubjectDigest
+        && existing.reservation !== null
+        && settled.reservation === null;
+      const path = await writeSubmissionBoundary(root, preservesReservation
+        ? { ...settled, reservation: existing.reservation }
+        : settled);
       await gitExec("git", ["add", "--", path], { cwd: root });
     },
     write: (text) => {

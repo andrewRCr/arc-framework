@@ -17,9 +17,14 @@ const CandidatePathSchema = z.string().min(1).refine(
   "must be a repository-relative POSIX path",
 );
 const CandidateSubjectTreatmentSchema = z.enum(["reviewable", "operational", "candidate-projection"]);
+const CandidateTreeEntryModeSchema = z.union([
+  z.string().regex(/^[0-7]{6}$/u),
+  z.literal("absent"),
+]);
 const CandidateSubjectEntrySchema = z.strictObject({
   path: CandidatePathSchema,
   digest: CandidateCanonicalDigestSchema,
+  mode: CandidateTreeEntryModeSchema,
   treatment: CandidateSubjectTreatmentSchema,
 });
 export const CandidateSubjectSnapshotSchema = z.strictObject({
@@ -193,6 +198,7 @@ export function serializeCandidateManagedRecord(record: CandidateManagedRecordV1
 export interface CandidateSubjectEntryInput {
   path: string;
   digest: string;
+  mode: string;
   treatment: z.infer<typeof CandidateSubjectTreatmentSchema>;
 }
 
@@ -211,7 +217,7 @@ export function createCandidateSubjectSnapshot(
   const normalized = sortByCanonicalBytes(parsed);
   const reviewable = normalized
     .filter(({ treatment }) => treatment === "reviewable")
-    .map(({ path, digest }) => ({ path, digest }));
+    .map(({ path, digest, mode }) => ({ path, digest, mode }));
   return CandidateSubjectSnapshotSchema.parse({
     entries: normalized,
     subjectDigest: canonicalDigest({ domain: "arc.candidate.subject/v1", entries: reviewable }),
@@ -413,10 +419,14 @@ export function diffCandidateSubjectSnapshots(
   const oldSubject = CandidateSubjectSnapshotSchema.parse(oldSubjectInput);
   const newSubject = CandidateSubjectSnapshotSchema.parse(newSubjectInput);
   const prior = new Map(
-    oldSubject.entries.filter(({ treatment }) => treatment === "reviewable").map((entry) => [entry.path, entry.digest]),
+    oldSubject.entries
+      .filter(({ treatment }) => treatment === "reviewable")
+      .map((entry) => [entry.path, `${entry.mode}\0${entry.digest}`]),
   );
   const next = new Map(
-    newSubject.entries.filter(({ treatment }) => treatment === "reviewable").map((entry) => [entry.path, entry.digest]),
+    newSubject.entries
+      .filter(({ treatment }) => treatment === "reviewable")
+      .map((entry) => [entry.path, `${entry.mode}\0${entry.digest}`]),
   );
   return CandidateSubjectDeltaSchema.parse({
     added: [...next.keys()].filter((path) => !prior.has(path)).sort(),

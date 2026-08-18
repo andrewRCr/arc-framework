@@ -4,8 +4,9 @@ import { z } from "zod";
 
 import { ChangeRequestTargetRefSchema } from "./change-request.js";
 import { spineRemedy, type SpineRemedy } from "../integration/spine-refusal.js";
+import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
-const ObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
+const ObjectIdSchema = GitObjectIdSchema;
 
 export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,

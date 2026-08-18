@@ -23,6 +23,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import {
+  MetaCandidateIdSchema,
   MetaProjectionRecordSchema,
   MetaRecordSchema,
   ParsedMetaRecordSchema,
@@ -166,11 +167,16 @@ async function parseCandidate(
   }
   const rel = relative(cwd, absPath).split(sep).join("/");
   const filename = rel.split("/").pop() ?? rel;
+  let candidateId = parsed.candidateId;
+  if (candidateId !== null && !MetaCandidateIdSchema.safeParse(candidateId).success) {
+    warnings.push(`Malformed Candidate in ${rel}: expected sha256 followed by 64 lowercase hexadecimal characters.`);
+    candidateId = null;
+  }
   return {
     path: rel,
     filename,
     branch: parsed.branch,
-    candidateId: parsed.candidateId,
+    candidateId,
     integrationBoundary: null,
     state: parsed.state,
     nextTask: parsed.nextTask,

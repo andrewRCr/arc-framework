@@ -1462,10 +1462,13 @@ reviewCmd
   .command("resolve")
   .description("Resolve the host disposition for one exact head")
   .requiredOption("--head-ref <branch>", "Proposed branch name")
-  .requiredOption("--head-sha <oid>", "Exact 40-hex proposed head")
+  .requiredOption("--head-sha <oid>", "Exact Git object ID for the proposed head")
   .option("--require-remote", "Require the remote branch to match the exact head")
   .requiredOption("--json", "Emit a typed JSON result")
-  .action((options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options));
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options, context),
+  ));
 
 reviewCmd
   .command("status")
@@ -1615,7 +1618,7 @@ reviewCmd
 reviewCmd
   .command("pre-publication <name>")
   .description("Resolve one work unit's typed pre-publication review procedure as JSON")
-  .option("--self-review <state>", "Report author self-review: inactive | pending | settled")
+  .option("--self-review <state>", "Report completed author self-review: settled")
   .option("--change-set <file | ->", "Change-set routing facts as JSON; omitted routes as unestablished")
   .option(
     "--lanes <file | ->",

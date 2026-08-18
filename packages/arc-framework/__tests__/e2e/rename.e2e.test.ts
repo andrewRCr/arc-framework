@@ -17,6 +17,8 @@ import {
   unwrapPresentationOutput,
 } from "./helpers.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -292,6 +294,30 @@ describe("arc rename", () => {
     );
     expect(await hasUserWorkspace(fixture.repo, "old-name")).toBe(false);
     expect(await hasUserWorkspace(fixture.repo, "new-name")).toBe(true);
+  }, 30_000);
+
+  it("refuses Candidate publication state before mutating any rename surface", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    await startInPlace(fixture);
+    const boundaryPath = await writeSubmissionBoundary(fixture.repo, projectCandidateReviewBoundary({
+      workUnit: "old-name",
+      candidateId: `sha256:${"c".repeat(64)}`,
+    }));
+    await git(fixture.repo, ["add", boundaryPath]);
+    await git(fixture.repo, ["commit", "-m", "chore(test): add Candidate boundary"]);
+    await git(fixture.repo, ["push"]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Candidate publication state cannot be renamed");
+    expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-old-name.md"))).toBe(true);
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-new-name.md"))).toBe(false);
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).not.toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).toBe("");
   }, 30_000);
 
   it("refuses rename when explicit candidate expansion cannot reach origin", async () => {

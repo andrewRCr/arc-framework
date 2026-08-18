@@ -77,6 +77,18 @@ describe("integration checkpoint handler", () => {
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
+
+  it("normalizes an empty dependency error into a schema-valid refusal", async () => {
+    const write = vi.fn();
+    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+      checkpoint: async () => { throw new Error(); },
+      write,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
+  });
 });
 
 describe("integration merge handler", () => {
@@ -143,5 +155,18 @@ describe("integration merge handler", () => {
       remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("normalizes an empty merge error into a schema-valid refusal", async () => {
+    const write = vi.fn();
+    const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
+    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+      merge: async () => { throw new Error(); },
+      write,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
   });
 });

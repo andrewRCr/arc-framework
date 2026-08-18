@@ -2,6 +2,7 @@
 
 import type { HostedProcessRunner } from "../../hosted/gh-process.js";
 import type { RequiredCheck, RequiredChecksPort } from "../../checks-await.js";
+import { GitObjectIdSchema } from "../../core/gate-contract-v2-schema.js";
 
 function parse(text: string, path: string): unknown {
   try {
@@ -46,7 +47,7 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
         "api", `repos/${repository}/pulls/${pullRequest}`,
       ], { signal })).stdout, "pull-request"), "pull-request");
       const head = record(value.head, "pull-request.head");
-      if (typeof head.sha !== "string" || !/^[0-9a-f]{40}$/u.test(head.sha)) {
+      if (typeof head.sha !== "string" || !GitObjectIdSchema.safeParse(head.sha).success) {
         throw new Error("pull-request.head.sha: expected a 40-hex object id");
       }
       return head.sha;

@@ -3,6 +3,7 @@
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
+import { isGitObjectId } from "../../lib/git/object-id.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
@@ -34,7 +35,7 @@ async function readBasePosition(input: {
     ["rev-parse", "--verify", `refs/remotes/origin/${base}`],
     { cwd: input.cwd, objectAccess: "local-only" },
   )).stdout.trim();
-  if (!/^[0-9a-f]{40}$/u.test(currentBaseOid)) throw new Error("invalid base object ID");
+  if (!isGitObjectId(currentBaseOid)) throw new Error("invalid base object ID");
   try {
     await input.exec("git", ["merge-base", "--is-ancestor", currentBaseOid, input.headSha], {
       cwd: input.cwd,

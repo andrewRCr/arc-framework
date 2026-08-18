@@ -214,7 +214,7 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     ...CheckpointBlockedBaseShape,
     reason: z.literal("merge-method-blocked"),
     payload: z.strictObject({
-      mergeMethod: BlockedMergeMethodSchema,
+      mergeMethod: z.union([BlockedMergeMethodSchema, ValidatedMergeMethodSchema]),
     }),
   }),
   z.strictObject({
@@ -379,7 +379,7 @@ export interface IntegrationCheckpointDependencies {
   readReconcileHost(workUnit: string, drift: BaseDriftResult): Promise<ReconcileHostFact>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
   readCandidate(workUnit: string): Promise<CandidateCurrentnessProjection | null>;
-  resolveMergeMethod(): Promise<MergeMethodResolveResult>;
+  resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
   composeReady(input: {
     workUnit: string;
     lifecycle: IntegrationLifecycleSummary;
@@ -507,17 +507,6 @@ export async function checkpointIntegration(
       payload: { candidate },
     });
   }
-  const mergeMethod = await dependencies.resolveMergeMethod();
-  if (mergeMethod.state !== "validated") {
-    return IntegrationCheckpointResultSchema.parse({
-      ...base,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "merge-method-blocked",
-      remedy: checkpointRemedy("merge-method-blocked", request.workUnit),
-      payload: { mergeMethod },
-    });
-  }
   try {
     const composition = CheckpointReadyCompositionSchema.parse(await dependencies.composeReady({
       workUnit: request.workUnit,
@@ -547,6 +536,18 @@ export async function checkpointIntegration(
       || composition.requirementSummary.conclusion !== "satisfied"
     ) {
       throw new Error("ready composition does not bind the exact satisfied Candidate head");
+    }
+    const mergeMethod = await dependencies.resolveMergeMethod(composition.statusSummary.changeRequest.repository);
+    if (mergeMethod.state !== "validated"
+      || mergeMethod.repository?.toLowerCase() !== composition.statusSummary.changeRequest.repository.toLowerCase()) {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "merge-method-blocked",
+        remedy: checkpointRemedy("merge-method-blocked", request.workUnit),
+        payload: { mergeMethod },
+      });
     }
     const settlementPlan = CanonicalSettlementPlanSchema.parse(await dependencies.composeSettlementPlan({
       workUnit: request.workUnit,

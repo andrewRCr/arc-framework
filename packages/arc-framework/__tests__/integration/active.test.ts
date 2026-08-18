@@ -219,6 +219,47 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(beta?.state).toBe("Integrating");
   });
 
+  it("warns per malformed Candidate without hiding a valid sibling", async () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    await writeFile(
+      join(fixture.activeDir, "meta-alpha.md"),
+      statusBody({
+        state: "Active",
+        branch: "main",
+        candidateId,
+      }),
+    );
+    await writeFile(
+      join(fixture.activeDir, "meta-beta.md"),
+      statusBody({
+        state: "Active",
+        branch: "feat/beta",
+        candidateId: "sha256:not-a-candidate",
+      }),
+    );
+
+    const full = await runActiveStatus({ cwd: fixture.root });
+    expect(full.candidates).toHaveLength(2);
+    expect(full.candidates.find(({ filename }) => filename === "meta-alpha.md")).toMatchObject({
+      candidateId,
+      integrationBoundary: expect.objectContaining({ candidateId }),
+    });
+    expect(full.candidates.find(({ filename }) => filename === "meta-beta.md")).toMatchObject({
+      candidateId: null,
+      integrationBoundary: null,
+    });
+    expect(full.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
+
+    const session = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(session).toMatchObject({
+      resolution: "multiple",
+      path: null,
+      sessionType: null,
+      integrationBoundary: null,
+    });
+    expect(session.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
+  });
+
   it("resolves Lite layout's single file as resolution=single", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),

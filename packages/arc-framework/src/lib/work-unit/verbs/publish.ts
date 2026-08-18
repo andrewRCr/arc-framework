@@ -30,6 +30,7 @@ import { resolveLastCompletedTask } from "../../task-list/cursor.js";
 import { spineRemedy, type SpineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import {
   executeTransition,
+  resumeTransitionFinalization,
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
@@ -216,6 +217,7 @@ export async function runPublish(
   } = params;
   let branch: string | null;
   let taskList: string | null;
+  let currentWorkflow: string | null;
   let lifecycle: "Active" | "Integrating";
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
@@ -249,6 +251,7 @@ export async function runPublish(
     }
     branch = meta.branch;
     taskList = meta.taskList;
+    currentWorkflow = meta.currentWorkflow;
     lifecycle = meta.state;
   } catch {
     return {
@@ -273,6 +276,37 @@ export async function runPublish(
   }
   if (lifecycle === "Integrating"
     && (boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending")) {
+    if (boundary.candidateId !== candidateId || boundary.candidateSubjectDigest !== candidateSubjectDigest) {
+      return {
+        status: "rejected",
+        reason: `Cannot publish \`${name}\`: the publication boundary belongs to a different Candidate.`,
+        remedy: PRE_PUBLICATION_REMEDY(name),
+      };
+    }
+    if (currentWorkflow === "integrate-work-unit") {
+      return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
+    }
+    const resolvedLastCompleted = lastCompleted ?? await readLastCompletedWork(ctx, metaPath, taskList);
+    if (resolvedLastCompleted === null) {
+      return {
+        status: "rejected",
+        reason: `Cannot publish \`${name}\`: no completed task is readable from the work unit's task list.`,
+        remedy: LAST_COMPLETED_REMEDY(name),
+      };
+    }
+    const resumed = await resumeTransitionFinalization(ctx, {
+      verb: "publish",
+      slug: name,
+      inputs: {
+        softFields: {
+          lastCompleted: resolvedLastCompleted,
+          nextAction: nextAction ?? boundary.nextAction.interactionText,
+        },
+      },
+    });
+    if (resumed !== null && resumed.status !== "ok") {
+      return { status: "rejected", reason: resumed.message, remedy: PUBLISH_RESUME_REMEDY(name) };
+    }
     return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
   }
   const authorization = authorizeSubmission({
@@ -288,17 +322,39 @@ export async function runPublish(
     };
   }
   if (lifecycle === "Integrating") {
-    return {
-      status: "unchanged",
-      boundary: projectPublicationBoundary({
-        workUnit: name,
-        branch,
-        candidateId,
-        candidateSubjectDigest,
-        reservation: authorization.reservation,
-        changeRequest: null,
-      }),
-    };
+    const publicationBoundary = projectPublicationBoundary({
+      workUnit: name,
+      branch,
+      candidateId,
+      candidateSubjectDigest,
+      reservation: authorization.reservation,
+      changeRequest: null,
+    });
+    if (currentWorkflow === "integrate-work-unit") {
+      return { status: "unchanged", boundary: publicationBoundary };
+    }
+    const resolvedLastCompleted = lastCompleted ?? await readLastCompletedWork(ctx, metaPath, taskList);
+    if (resolvedLastCompleted === null) {
+      return {
+        status: "rejected",
+        reason: `Cannot publish \`${name}\`: no completed task is readable from the work unit's task list.`,
+        remedy: LAST_COMPLETED_REMEDY(name),
+      };
+    }
+    const resumed = await resumeTransitionFinalization(ctx, {
+      verb: "publish",
+      slug: name,
+      inputs: {
+        softFields: {
+          lastCompleted: resolvedLastCompleted,
+          nextAction: nextAction ?? publicationBoundary.nextAction.interactionText,
+        },
+      },
+    });
+    if (resumed !== null && resumed.status !== "ok") {
+      return { status: "rejected", reason: resumed.message, remedy: PUBLISH_RESUME_REMEDY(name) };
+    }
+    return { status: "unchanged", boundary: publicationBoundary };
   }
   const resolvedLastCompleted = lastCompleted
     ?? await readLastCompletedWork(ctx, metaPath, taskList);

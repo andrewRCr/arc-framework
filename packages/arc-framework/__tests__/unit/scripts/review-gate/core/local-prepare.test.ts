@@ -65,6 +65,7 @@ function fixture() {
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation",
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });

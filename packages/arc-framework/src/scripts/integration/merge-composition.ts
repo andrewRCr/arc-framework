@@ -28,7 +28,10 @@ import {
   type IntegrationMergeTarget,
 } from "./merge.js";
 import { executeSettlementPlan } from "./settlement-execution.js";
-import { readLifecycleSummary } from "./checkpoint-composition.js";
+import {
+  readLifecycleSummary,
+  type IntegrationLifecycleStoragePort,
+} from "./checkpoint-composition.js";
 
 const CHECKS_TIMEOUT_MS = 10 * 60 * 1_000;
 const CHECKS_POLL_INTERVAL_MS = 10 * 1_000;
@@ -38,6 +41,7 @@ export function createIntegrationMergeDependencies(input: {
   cwd: string;
   exec: GitExec;
   workUnit: string;
+  lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationMergeDependencies {
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
@@ -64,6 +68,18 @@ export function createIntegrationMergeDependencies(input: {
   const archiveCadence = async () => (await settings()).settings["archive.cadence"] === "manual"
     ? "manual" as const
     : "with-integration" as const;
+  const lifecycleStorage = input.lifecycleStorage ?? {
+    readSnapshot: async () => {
+      const head = (await input.exec("git", ["rev-parse", "HEAD"], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      })).stdout.trim();
+      return {
+        version: head,
+        fs: createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec }),
+      };
+    },
+  };
 
   const currentTarget = async (): Promise<IntegrationMergeTarget> => {
     const branch = await getCurrentBranch(input.exec);
@@ -126,12 +142,13 @@ export function createIntegrationMergeDependencies(input: {
         currentTarget(),
         archiveCadence(),
       ]);
+      const snapshot = await lifecycleStorage.readSnapshot();
       const lifecycle = await readLifecycleSummary(
         input.cwd,
         workUnit,
         cadence,
-        target.headSha,
-        createGitTreeReadFs({ cwd: input.cwd, revision: target.headSha, exec: input.exec }),
+        snapshot.version,
+        snapshot.fs,
       );
       return {
         actualHead: target.headSha,
@@ -175,12 +192,14 @@ export function createIntegrationMergeDependencies(input: {
         sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
       },
     }),
-    resolveMergeMethod: async () => resolveMergeMethod(
+    resolveMergeMethod: async (repository) => resolveMergeMethod(
       MergeMethodSchema.parse((await settings()).settings["merge.strategy"]),
       createGhMergeMethodPolicyPort(hostedGhRunner),
+      repository,
     ),
+    readConfiguredBase: async () => (await readConfigSettings(input.cwd)).settings["branch.base"],
     readFinalDrift: async () => {
-      const config = await settings();
+      const config = await readConfigSettings(input.cwd);
       return runBaseDrift({
         exec: input.exec,
         baseBranch: config.settings["branch.base"],

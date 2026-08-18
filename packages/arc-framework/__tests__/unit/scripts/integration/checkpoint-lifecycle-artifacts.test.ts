@@ -6,7 +6,10 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { readLifecycleSummary } from "../../../../src/scripts/integration/checkpoint-composition.js";
+import {
+  createIntegrationCheckpointDependencies,
+  readLifecycleSummary,
+} from "../../../../src/scripts/integration/checkpoint-composition.js";
 import { lifecycleArtifactFacts } from "../../../../src/scripts/review-gate/readiness.js";
 
 const META_PATH = ".arc/active/meta-example.md";
@@ -87,6 +90,35 @@ describe("checkpoint lifecycle composition", () => {
 
     expect(summary.artifactFacts).toEqual([]);
     expect(summary.complete).toBe(true);
+  });
+
+  it("binds lifecycle evidence to the injected storage snapshot version", async () => {
+    const root = await treeWithMeta(meta(COMPLETION_NOTES));
+    let reads = 0;
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: root,
+      exec: async () => {
+        throw new Error("Git must not define the injected lifecycle storage version");
+      },
+      lifecycleStorage: {
+        readSnapshot: async () => {
+          reads += 1;
+          return {
+            version: "lifecycle-store:v7",
+            fs: {
+              readFile: (path) => readFile(path, "utf8"),
+              readdir: (path) => readdir(path, { withFileTypes: true }),
+            },
+          };
+        },
+      },
+    });
+
+    await expect(dependencies.readLifecycle("example")).resolves.toMatchObject({
+      storageVersion: "lifecycle-store:v7",
+      complete: true,
+    });
+    expect(reads).toBe(1);
   });
 
   it("reads the archived meta under the default with-integration cadence", async () => {

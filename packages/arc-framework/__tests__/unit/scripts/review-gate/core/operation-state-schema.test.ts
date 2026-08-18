@@ -114,6 +114,7 @@ const localReview = {
   requestId: localCarrier.request.requestId,
   policyVersion: localRequirement.policyVersion,
   policyBindingDigest: digest("binding"),
+  laneSourceId: "delegated-agent",
   attestationRuntimeKind: "arc-cli",
   sourceRef: "refs/arc/review/local-1",
   sourceDigest: digest("source"),

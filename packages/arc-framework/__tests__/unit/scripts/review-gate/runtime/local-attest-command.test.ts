@@ -77,6 +77,7 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation",
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -92,6 +93,7 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
+    laneSourceId: admission.laneSourceId,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: digest("source"),
@@ -150,6 +152,7 @@ describe("local attest command", () => {
       ledgerVersion: 1,
       durableEvidenceRef: "receipt.json#1",
     }));
+    const publishOperation = vi.fn();
 
     await expect(attestLocalReviewCommand({
       schemaVersion: 1,
@@ -159,7 +162,7 @@ describe("local attest command", () => {
       withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
-        publishOperation: vi.fn(),
+        publishOperation,
       },
       sourceStore: {
         readSource: async () => records.source,
@@ -184,6 +187,16 @@ describe("local attest command", () => {
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
     }), 0);
+    expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "lane-progress",
+      completedPasses: 1,
+      attempts: [{
+        attemptId: records.operation.operationId,
+        sourceId: records.operation.laneSourceId,
+        outcome: "clean",
+        chunkSeriesComplete: true,
+      }],
+    }), 1);
   });
 
   it("returns not-attestable for a non-terminal result without reading source or receipts", async () => {

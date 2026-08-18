@@ -9,6 +9,7 @@ import {
   validateReviewTarget,
 } from "./gate-contract-v2.js";
 import {
+  GitObjectIdSchema,
   ReviewRequestV2Schema,
   ReviewRequirementV2Schema,
   ReviewTargetSchema,
@@ -76,6 +77,8 @@ export const LocalReviewStateSchema = z.strictObject({
   repositoryId: IdentifierSchema,
   targetId: CanonicalDigestSchema,
   requestId: CanonicalDigestSchema,
+  /** Configured policy source; distinct from the evaluator that produced the attestation. */
+  laneSourceId: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
   policyVersion: CanonicalDigestSchema,
   policyBindingDigest: CanonicalDigestSchema,
   attestationRuntimeKind: IdentifierSchema,
@@ -160,7 +163,7 @@ export const LaneProgressStateSchema = z.strictObject({
   lane: z.enum(["frontline", "standard"]),
   repositoryId: IdentifierSchema,
   changeRequestId: IdentifierSchema.nullable(),
-  headSha: z.string().regex(/^[a-f0-9]{40}$/u),
+  headSha: GitObjectIdSchema,
   completedPasses: z.number().int().nonnegative(),
   attempts: z.array(LaneAttemptSchema),
 });

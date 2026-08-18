@@ -51,7 +51,7 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(2);
     expect(step.match(/`push-interlock` release/gu)).toHaveLength(2);
     expect(step.match(/`commit-interlock` release/gu)).toHaveLength(1);
-    expect(step).toContain("review-applicability\njudgment");
+    expect(step).toMatch(/review-applicability\s+judgment/u);
     expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
 
     for (const invariant of [

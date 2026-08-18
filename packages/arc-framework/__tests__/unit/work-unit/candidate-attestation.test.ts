@@ -20,9 +20,9 @@ const SHA_C = "c".repeat(40);
 
 function snapshot(sourceDigest = canonicalDigest({ source: "one" })) {
   return createCandidateSubjectSnapshot([
-    { path: "packages/arc-framework/src/example.ts", digest: sourceDigest, treatment: "reviewable" },
-    { path: ".arc/active/meta-example.md", digest: canonicalDigest({ handoff: 1 }), treatment: "operational" },
-    { path: ".arc/system/.internal/candidates/example.json", digest: canonicalDigest({ candidate: 1 }), treatment: "candidate-projection" },
+    { path: "packages/arc-framework/src/example.ts", mode: "100644", digest: sourceDigest, treatment: "reviewable" },
+    { path: ".arc/active/meta-example.md", mode: "100644", digest: canonicalDigest({ handoff: 1 }), treatment: "operational" },
+    { path: ".arc/system/.internal/candidates/example.json", mode: "100644", digest: canonicalDigest({ candidate: 1 }), treatment: "candidate-projection" },
   ]);
 }
 
@@ -42,8 +42,8 @@ describe("Candidate attestation", () => {
     const initial = snapshot();
     const churned = createCandidateSubjectSnapshot([
       { ...initial.entries.find(({ treatment }) => treatment === "reviewable")! },
-      { path: ".arc/active/meta-example.md", digest: canonicalDigest({ handoff: 2 }), treatment: "operational" },
-      { path: ".arc/system/.internal/candidates/example.json", digest: canonicalDigest({ candidate: 2 }), treatment: "candidate-projection" },
+      { path: ".arc/active/meta-example.md", mode: "100644", digest: canonicalDigest({ handoff: 2 }), treatment: "operational" },
+      { path: ".arc/system/.internal/candidates/example.json", mode: "100644", digest: canonicalDigest({ candidate: 2 }), treatment: "candidate-projection" },
     ]);
 
     expect(churned.subjectDigest).toBe(initial.subjectDigest);
@@ -272,7 +272,7 @@ describe("Candidate lineage currentness", () => {
     const root = attestation();
     const current = createCandidateSubjectSnapshot([
       { ...snapshot().entries.find(({ treatment }) => treatment === "reviewable")! },
-      { path: ".arc/active/meta-example.md", digest: canonicalDigest({ handoff: 99 }), treatment: "operational" },
+      { path: ".arc/active/meta-example.md", mode: "100644", digest: canonicalDigest({ handoff: 99 }), treatment: "operational" },
     ]);
 
     expect(projectCandidateCurrentness({

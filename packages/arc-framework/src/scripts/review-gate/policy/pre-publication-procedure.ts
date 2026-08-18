@@ -151,7 +151,7 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
   }
   return envelope(request, {
     locus: "candidate-publish-ready",
-    nextAction: action(request.workUnit, "publish-candidate", "Submit the current Candidate for publication."),
+    nextAction: action(request.workUnit, "publish-candidate", "Publish the current Candidate."),
     reservation,
   });
 }

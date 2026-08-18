@@ -25,9 +25,13 @@
  * @module
  */
 
-import { posix } from "node:path";
+import { join, posix } from "node:path";
 
-import type { MetaFieldName, MetaProjectionOverrides } from "../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  type MetaFieldName,
+  type MetaProjectionOverrides,
+} from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   buildLifecycleIndex,
@@ -667,6 +671,76 @@ export async function executeTransition(
     branchFieldWritten,
     suggestion: inputs.suggestion ?? null,
   };
+}
+
+/**
+ * Finish a phase transition whose `Current Workflow` write failed after its phase and side effects landed.
+ *
+ * The phase/workflow contradiction is the durable retry marker. This path writes only the remaining meta
+ * projection and ROADMAP; it never replays encoding legs or non-idempotent side effects.
+ */
+export async function resumeTransitionFinalization(
+  ctx: ExecuteTransitionContext,
+  params: { verb: Verb; slug: string; inputs: TransitionInputs },
+): Promise<TransitionOutcome | null> {
+  const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
+  const position = resolveSlugPosition(index, params.slug);
+  if (position === null) return null;
+  const matches = TRANSITIONS.filter((candidate) =>
+    candidate.verb === params.verb
+    && candidate.to !== null
+    && positionsEqual(candidate.to, position));
+  const record = matches.length === 1 ? matches[0] : undefined;
+  const expectedWorkflow = record?.encodingUpdates.setCurrentWorkflowField;
+  const metaPath = index.get(params.slug)?.path ?? null;
+  if (record === undefined || metaPath === null || expectedWorkflow === undefined) return null;
+  const meta = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
+  if (meta.currentWorkflow === expectedWorkflow) return null;
+
+  let failedWrite: FinalizeWrite = "currentWorkflowField";
+  try {
+    await applyCurrentWorkflowField(ctx, record, metaPath, params.inputs);
+    failedWrite = "softFields";
+    const softFieldsWritten = await applySoftFields(ctx, record, metaPath, params.inputs);
+    failedWrite = "stageMeta";
+    await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, params.inputs));
+    const sideEffectsFired: SideEffectId[] = [];
+    const advisories: string[] = [];
+    if (record.sideEffects.includes("reconcile-roadmap")) {
+      const handler = ctx.sideEffects?.["reconcile-roadmap"];
+      if (handler !== undefined) {
+        const advisory = await handler({
+          cwd: ctx.cwd,
+          slug: params.slug,
+          from: record.from,
+          to: record.to,
+          inputs: params.inputs,
+        });
+        if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+        sideEffectsFired.push("reconcile-roadmap");
+      }
+    }
+    return {
+      status: "ok",
+      verb: params.verb,
+      from: record.from,
+      to: record.to,
+      legsFired: [],
+      sideEffectsFired,
+      advisories,
+      softFieldsWritten,
+      branchFieldWritten: null,
+      suggestion: params.inputs.suggestion ?? null,
+    };
+  } catch (error) {
+    return {
+      status: "finalize-failed",
+      legsFired: [],
+      sideEffectsFired: [],
+      failedWrite,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 /** Compose the rejection message for a `(verb, from)` cell with no legal edge. */

@@ -64,6 +64,30 @@ describe("required-checks await", () => {
     });
   });
 
+  it("re-reads the head after the terminal sleep and stops when it moved", async () => {
+    let now = 0;
+    const terminalClock: BoundedWaitClock = {
+      now: () => now,
+      sleep: async (milliseconds) => { now += milliseconds; },
+    };
+    await expect(awaitRequiredChecks({
+      pullRequest: 42,
+      headSha,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      port: {
+        ...port([{ name: "build", state: "pending" }]),
+        readHead: async () => now < 2_000 ? headSha : "b".repeat(40),
+      },
+      clock: terminalClock,
+    })).resolves.toMatchObject({
+      state: "stale-target",
+      nextAction: "stop",
+      actualHeadSha: "b".repeat(40),
+    });
+  });
+
   it("stops when the pull-request head moves before reading checks", async () => {
     await expect(awaitRequiredChecks({
       pullRequest: 42,

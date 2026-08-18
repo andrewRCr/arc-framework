@@ -206,6 +206,30 @@ describe("attest → pre-publication → publish", () => {
     });
   });
 
+  it("composes a non-null exact target from a clean committed Candidate", async () => {
+    repository = await createAttestableRepo();
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+    const headSha = await git(repository, ["rev-parse", "HEAD"]);
+
+    const reviewed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+
+    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+    expect(JSON.parse(reviewed.stdout)).toMatchObject({
+      locus: "candidate-publish-ready",
+      candidateId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      target: {
+        kind: "change-set",
+        headSha,
+        targetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
+    });
+  });
+
   it("refuses submission while a pre-publication obligation is still open", async () => {
     repository = await createAttestableRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);

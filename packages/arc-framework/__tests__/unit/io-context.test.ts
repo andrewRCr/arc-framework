@@ -87,7 +87,7 @@ describe("readGitBlobBytes", () => {
         throw new Error("object inspection allowed lazy acquisition");
       }
       if (args[1] === "ls-tree") {
-        return { stdout: Buffer.from(`blob ${oid}\0`), stderr: Buffer.alloc(0) };
+        return { stdout: Buffer.from(`100644 blob ${oid}\0`), stderr: Buffer.alloc(0) };
       }
       if (args[1] === "cat-file") {
         return { stdout: bytes, stderr: Buffer.alloc(0) };
