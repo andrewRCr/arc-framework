@@ -501,8 +501,8 @@ The four values below trace the WU lifecycle; the workflow that sets each is lis
 | Value         | Set By                                            | Meaning                                                                       |
 | ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `Planning`    | [init-work-unit][init-work-unit]                  | Spec and task list being authored; task execution not yet begun               |
-| `Active`      | [activate-work-unit][activate-work-unit] Step 4   | Task execution underway (the common case)                                     |
-| `Integrating` | [integrate-work-unit][integrate-work-unit] Step 3 | Submission/public integration underway; stable until merge                    |
+| `Active`      | [activate-work-unit][activate-work-unit] Step 4   | Implementation or private preparation underway; publication has not begun     |
+| `Integrating` | [prepare-work-unit][prepare-work-unit] Step 3     | Publication/public integration underway; stable until merge                   |
 | `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
 
 ### Readiness ladder
@@ -1450,6 +1450,7 @@ installs, routing and promotion flow, inbox routing, and scaling guidance.
 [promote-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/promote-work-unit.md
 [classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
+[prepare-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md

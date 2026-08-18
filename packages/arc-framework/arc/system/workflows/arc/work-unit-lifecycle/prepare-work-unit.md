@@ -96,9 +96,11 @@ run identity to `arc review local attest -`; runtime-owned bindings come from th
 `arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with
 `arc review respond -`. A command error envelope carries no dispatchable state.
 
-For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present reviewer
-severity, ARC re-grade, source locus, and a discrete `Recommended disposition:` line. Approval is required before
-any mutation or commitment. Approved fixes run Tier 1 gates ([`quality-gate-commands`][arc-methods-qg]), commit
+For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present one
+unqualified severity when the reviewer and ARC grades agree, label both only when they differ, and include the source
+locus plus a discrete `Recommended disposition:` line. Approval of the complete unchanged surfaced set is required
+before any mutation or commitment; the approver need not repeat its canonical digest. Approved fixes run Tier 1
+gates ([`quality-gate-commands`][arc-methods-qg]), commit
 atomically, and produce a new target. Disclose review applicability from the exact delta: targeted for confidently
 narrow non-interacting record or lifecycle changes, focused for a bounded interaction, and complete for behavioral,
 authority, contract, materially interacting, or uncertain changes. Clearance never carries.

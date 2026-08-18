@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 
@@ -31,7 +32,7 @@ export const StandardReviewReservationV1Schema = z.strictObject({
   sourceId: z.string().trim().min(1),
   target: z.strictObject({
     repository: z.string().trim().min(1),
-    headSha: z.string().regex(/^[a-f0-9]{40}$/u),
+    headSha: GitObjectIdSchema,
   }),
   obligation: StandardReviewObligationProjectionSchema,
 });

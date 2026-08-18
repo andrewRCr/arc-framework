@@ -1,6 +1,5 @@
 /** Production composition for the typed integration checkpoint. */
 
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
@@ -24,6 +23,7 @@ import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github
 import { aggregateChecks } from "../review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
+import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
 import {
   MergeMethodSchema,
@@ -118,11 +118,12 @@ async function readHostFact(exec: GitExec, cwd: string): Promise<ReconcileHostFa
 async function readLifecycleArtifactFacts(
   cwd: string,
   metaPath: string | null,
+  fs: { readFile(path: string): Promise<string> },
 ): Promise<ReviewReadinessFact[]> {
   if (metaPath === null) return [];
   let content: string;
   try {
-    content = await readFile(resolve(cwd, metaPath), "utf8");
+    content = await fs.readFile(resolve(cwd, metaPath));
   } catch {
     return [{
       code: "unreadable-artifact",
@@ -133,12 +134,14 @@ async function readLifecycleArtifactFacts(
   return lifecycleArtifactFacts(content, metaPath);
 }
 
-async function readLifecycleSummary(
+export async function readLifecycleSummary(
   cwd: string,
   workUnit: string,
   archiveCadence: "with-integration" | "manual",
+  storageVersion: string,
+  fs: NonNullable<Parameters<typeof resolveComposedLifecycleIndex>[0]["fs"]>,
 ): Promise<IntegrationLifecycleSummary> {
-  const { index } = await resolveComposedLifecycleIndex({ cwd });
+  const { index } = await resolveComposedLifecycleIndex({ cwd, fs });
   const query = resolveSlugQuery(index, workUnit);
   const positioned = archiveCadence === "with-integration"
     ? query.state === "shipped"
@@ -147,9 +150,10 @@ async function readLifecycleSummary(
     : query.state === "integrating"
       && query.position?.phase === "Integrating"
       && query.position.location === "active";
-  const artifactFacts = await readLifecycleArtifactFacts(cwd, index.get(workUnit)?.path ?? null);
+  const artifactFacts = await readLifecycleArtifactFacts(cwd, index.get(workUnit)?.path ?? null, fs);
   return IntegrationLifecycleSummarySchema.parse({
     workUnit,
+    storageVersion,
     archiveCadence,
     state: query.state,
     position: query.position,
@@ -209,10 +213,13 @@ export function createIntegrationCheckpointDependencies(input: {
     readReconcileHost: async () => readHostFact(input.exec, input.cwd),
     readLifecycle: async (workUnit) => {
       const config = await settings();
+      const { head } = await currentHead(input.exec, input.cwd);
       return readLifecycleSummary(
         input.cwd,
         workUnit,
         config.settings["archive.cadence"] === "manual" ? "manual" : "with-integration",
+        head,
+        createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec }),
       );
     },
     readCandidate: async (workUnit) => {
@@ -297,6 +304,7 @@ export function createIntegrationCheckpointDependencies(input: {
           changeRequest: {
             repository: changeRequest.targetRef.repository,
             pullRequest: changeRequest.candidate.number,
+            baseRef: changeRequest.candidate.baseRefName,
             headRef: changeRequest.targetRef.headRef,
             headSha: changeRequest.targetRef.headSha,
             state: "open",
@@ -308,7 +316,7 @@ export function createIntegrationCheckpointDependencies(input: {
     composeSettlementPlan: async ({ workUnit, composition }) => composeCanonicalSettlementPlan(
       (await composeLineageReview(workUnit, composition.approvedHead)).actions,
     ),
-    createHandle: async ({ workUnit, approvedHead, settlementPlan, mergeMethod }) => {
+    createHandle: async ({ workUnit, approvedHead, statusSummary, settlementPlan, mergeMethod }) => {
       const resolvedIdentity = await identity();
       if (resolvedIdentity === null) {
         throw new Error("An ARC identity is required to persist the integration checkpoint.");
@@ -319,6 +327,14 @@ export function createIntegrationCheckpointDependencies(input: {
         {
           workUnit,
           approvedHead,
+          target: {
+            repository: statusSummary.changeRequest.repository,
+            pullRequest: statusSummary.changeRequest.pullRequest,
+            baseRef: statusSummary.changeRequest.baseRef,
+            headRef: statusSummary.changeRequest.headRef,
+            headSha: statusSummary.changeRequest.headSha,
+          },
+          lifecycleVersion: statusSummary.lifecycle.storageVersion,
           settlementPlan,
           mergeMethod: ValidatedMergeMethodSchema.parse(mergeMethod),
         },

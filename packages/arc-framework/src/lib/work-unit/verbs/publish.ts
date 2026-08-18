@@ -94,6 +94,12 @@ export interface PublishParams {
   candidateCurrent: boolean;
   /** Durable pre-publication boundary reduced from review evidence. */
   boundary: IntegrationBoundaryLocus;
+  /** Re-read Candidate authority after reconcile has applied every current-WU write. */
+  refreshCandidateAuthorization(): Promise<{
+    candidateId: string;
+    candidateSubjectDigest: string;
+    candidateCurrent: boolean;
+  }>;
   /** Explicit authority to retain advisory-only reconcile findings while entering review. */
   allowAdvisories?: boolean;
 }
@@ -210,6 +216,7 @@ export async function runPublish(
   } = params;
   let branch: string | null;
   let taskList: string | null;
+  let lifecycle: "Active" | "Integrating";
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
     return {
@@ -226,18 +233,12 @@ export async function runPublish(
   });
   try {
     const meta = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
-    if (meta.state === "Integrating"
-      && (boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending")
-      && meta.candidateId === candidateId
-      && boundary.candidateId === candidateId) {
-      return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
-    }
-    if (meta.state !== "Active") {
+    if (meta.state !== "Active" && meta.state !== "Integrating") {
       return {
-      status: "rejected",
-      reason: `\`${name}\` is not an active WU — nothing to publish.`,
-      remedy: NOT_ACTIVE_REMEDY(name),
-    };
+        status: "rejected",
+        reason: `\`${name}\` is not an active WU — nothing to publish.`,
+        remedy: NOT_ACTIVE_REMEDY(name),
+      };
     }
     if (meta.candidateId === null || meta.candidateId !== candidateId) {
       return {
@@ -248,6 +249,7 @@ export async function runPublish(
     }
     branch = meta.branch;
     taskList = meta.taskList;
+    lifecycle = meta.state;
   } catch {
     return {
       status: "rejected",
@@ -269,6 +271,10 @@ export async function runPublish(
       remedy: CANDIDATE_REMEDY(name),
     };
   }
+  if (lifecycle === "Integrating"
+    && (boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending")) {
+    return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
+  }
   const authorization = authorizeSubmission({
     expectedCandidateId: candidateId,
     expectedCandidateSubjectDigest: candidateSubjectDigest,
@@ -281,6 +287,19 @@ export async function runPublish(
       remedy: PRE_PUBLICATION_REMEDY(name),
     };
   }
+  if (lifecycle === "Integrating") {
+    return {
+      status: "unchanged",
+      boundary: projectPublicationBoundary({
+        workUnit: name,
+        branch,
+        candidateId,
+        candidateSubjectDigest,
+        reservation: authorization.reservation,
+        changeRequest: null,
+      }),
+    };
+  }
   const resolvedLastCompleted = lastCompleted
     ?? await readLastCompletedWork(ctx, metaPath, taskList);
   if (resolvedLastCompleted === null) {
@@ -290,16 +309,6 @@ export async function runPublish(
       remedy: LAST_COMPLETED_REMEDY(name),
     };
   }
-  const publicationBoundary = projectPublicationBoundary({
-    workUnit: name,
-    branch,
-    candidateId,
-    candidateSubjectDigest,
-    reservation: authorization.reservation,
-    // Submission fires at the head of the publication step, before the change request exists, so a
-    // carried reservation has nothing to run against yet.
-    changeRequest: null,
-  });
   const reconcile = await ctx.currentWuReconcile.prepare({ slug: name, metaPath });
   if (reconcile.status === "conflict") {
     return {
@@ -332,6 +341,37 @@ export async function runPublish(
       reconcile: applied,
     };
   }
+
+  const refreshed = await params.refreshCandidateAuthorization();
+  if (refreshed.candidateId !== candidateId || !refreshed.candidateCurrent) {
+    return {
+      status: "rejected",
+      reason: `Cannot publish \`${name}\`: reconcile changed or invalidated the Candidate lineage.`,
+      remedy: CANDIDATE_REMEDY(name),
+    };
+  }
+  const refreshedAuthorization = authorizeSubmission({
+    expectedCandidateId: refreshed.candidateId,
+    expectedCandidateSubjectDigest: refreshed.candidateSubjectDigest,
+    boundary,
+  });
+  if (refreshedAuthorization.status === "refused") {
+    return {
+      status: "rejected",
+      reason: `Cannot publish \`${name}\`: ${refreshedAuthorization.reason}`,
+      remedy: PRE_PUBLICATION_REMEDY(name),
+    };
+  }
+  const publicationBoundary = projectPublicationBoundary({
+    workUnit: name,
+    branch,
+    candidateId: refreshed.candidateId,
+    candidateSubjectDigest: refreshed.candidateSubjectDigest,
+    reservation: refreshedAuthorization.reservation,
+    // Submission fires at the head of the publication step, before the change request exists, so a
+    // carried reservation has nothing to run against yet.
+    changeRequest: null,
+  });
 
   const outcome = await executeTransition(ctx, {
     verb: "publish",

@@ -260,6 +260,7 @@ const reviewChangeRequestInputRegistration: CommandInputRegistration = {
   schemaFields: {
     "option.head-ref": "headRef",
     "option.head-sha": "headSha",
+    "option.require-remote": "requireRemote",
   },
 };
 
@@ -279,7 +280,7 @@ export const ReviewStatusCliInputSchema = z.strictObject({ target: z.string().tr
 /** Syntax-owned input for the pre-publication review procedure. */
 export const ReviewPrePublicationInputSchema = z.strictObject({
   name: SlugSchema,
-  selfReview: z.enum(["inactive", "pending", "settled"]).optional(),
+  selfReview: z.literal("settled").optional(),
   changeSet: z.string().trim().min(1, "A JSON change-set file path, or - for stdin, is required.")
     .optional(),
   lanes: z.string().trim().min(1, "A JSON lane-judgment file path, or - for stdin, is required.")
@@ -325,6 +326,7 @@ export const reviewCommandInputRegistrations = [
 export interface ReviewChangeRequestResolveOptions {
   headRef: string;
   headSha: string;
+  requireRemote?: boolean;
   json?: boolean;
 }
 
@@ -349,6 +351,7 @@ export async function handleReviewChangeRequestResolve(
   const parsed = ChangeRequestResolveInputSchema.safeParse({
     headRef: options.headRef,
     headSha: options.headSha,
+    ...(options.requireRemote === true ? { requireRemote: true } : {}),
   });
   if (!parsed.success) {
     dependencies.write(`${JSON.stringify({
@@ -362,7 +365,20 @@ export async function handleReviewChangeRequestResolve(
     dependencies.setExitCode(64);
     return;
   }
-  const result = await dependencies.resolve(parsed.data, process.cwd());
+  let result: ChangeRequestResolveResult;
+  try {
+    result = await dependencies.resolve(parsed.data, process.cwd());
+  } catch (error) {
+    result = {
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-failure",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
   dependencies.write(`${JSON.stringify(result)}\n`);
 }
 
@@ -374,6 +390,7 @@ export interface ReviewMergeMethodResolveHandlerDependencies {
   readConfiguredMethod(cwd: string): Promise<"merge" | "rebase" | "squash">;
   resolve(method: "merge" | "rebase" | "squash"): Promise<MergeMethodResolveResult>;
   write(text: string): void;
+  setExitCode(code: number): void;
 }
 
 /** Validate the configured merge method against live repository policy. */
@@ -388,10 +405,24 @@ export async function handleReviewMergeMethodResolve(
     ),
     resolve: (method) => resolveMergeMethod(method, port),
     write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
-  const configuredMethod = await dependencies.readConfiguredMethod(process.cwd());
-  dependencies.write(`${JSON.stringify(await dependencies.resolve(configuredMethod))}\n`);
+  try {
+    const configuredMethod = await dependencies.readConfiguredMethod(process.cwd());
+    dependencies.write(`${JSON.stringify(await dependencies.resolve(configuredMethod))}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-merge-method-resolve",
+      repository: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "policy-unreadable",
+      detail: error instanceof Error ? error.message : String(error),
+    })}\n`);
+    dependencies.setExitCode(1);
+  }
 }
 
 export interface ReviewChecksAwaitOptions {
@@ -452,7 +483,25 @@ export async function handleReviewStatus(
     dependencies.setExitCode(64);
     return;
   }
-  dependencies.write(`${JSON.stringify(await dependencies.resolve(cwd, parsed.data))}\n`);
+  try {
+    dependencies.write(`${JSON.stringify(await dependencies.resolve(cwd, parsed.data))}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-status",
+      target: parsed.data.target,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail: error instanceof Error ? error.message : String(error),
+      remedy: spineRemedy(
+        "Review status could not read its repository or host evidence.",
+        "Resolve the operational failure, then re-run",
+        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+      ),
+    })}\n`);
+    dependencies.setExitCode(1);
+  }
 }
 
 export interface ReviewChecksAwaitHandlerDependencies {
@@ -494,7 +543,19 @@ export async function handleReviewChecksAwait(
     dependencies.setExitCode(64);
     return;
   }
-  dependencies.write(`${JSON.stringify(await dependencies.awaitChecks(parsed.data))}\n`);
+  try {
+    dependencies.write(`${JSON.stringify(await dependencies.awaitChecks(parsed.data))}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "checks-unavailable",
+      detail: error instanceof Error ? error.message : String(error),
+    })}\n`);
+    dependencies.setExitCode(1);
+  }
 }
 
 /** Input and interaction policies owned by the review command adapters. */

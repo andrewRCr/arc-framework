@@ -179,6 +179,11 @@ const BASE: PublishParams = {
   candidateId: CANDIDATE_ID,
   candidateSubjectDigest: CANDIDATE_SUBJECT,
   candidateCurrent: true,
+  refreshCandidateAuthorization: async () => ({
+    candidateId: CANDIDATE_ID,
+    candidateSubjectDigest: CANDIDATE_SUBJECT,
+    candidateCurrent: true,
+  }),
   boundary: {
     schemaVersion: 1,
     mode: "pre-publication-review",
@@ -202,6 +207,7 @@ const DERIVED: PublishParams = {
   candidateId: BASE.candidateId,
   candidateSubjectDigest: BASE.candidateSubjectDigest,
   candidateCurrent: BASE.candidateCurrent,
+  refreshCandidateAuthorization: BASE.refreshCandidateAuthorization,
   boundary: BASE.boundary,
 };
 

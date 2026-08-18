@@ -36,6 +36,7 @@ export type IntegrationCheckpointRequest = z.infer<typeof IntegrationCheckpointR
 
 export const IntegrationLifecycleSummarySchema = z.strictObject({
   workUnit: SlugSchema,
+  storageVersion: z.string().min(1),
   archiveCadence: z.enum(["with-integration", "manual"]),
   state: z.enum([
     "nonexistent", "provisional", "planned", "planning", "active", "integrating", "parked", "shipped",
@@ -118,6 +119,7 @@ export const CheckpointStatusSummarySchema = z.strictObject({
   changeRequest: z.strictObject({
     repository: z.string().min(1),
     pullRequest: z.number().int().positive(),
+    baseRef: z.string().min(1),
     headRef: z.string().min(1),
     headSha: ObjectIdSchema,
     state: z.literal("open"),

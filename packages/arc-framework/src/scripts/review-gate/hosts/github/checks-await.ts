@@ -19,10 +19,10 @@ function record(value: unknown, path: string): Record<string, unknown> {
 }
 
 function checkState(bucket: unknown, state: unknown, path: string): RequiredCheck["state"] {
-  if (bucket === "pass") return "green";
+  if (bucket === "pass" || bucket === "skipping") return "green";
   if (bucket === "fail" || bucket === "cancel") return "failed";
-  if (bucket === "pending" || bucket === "skipping") return "pending";
-  if (state === "SUCCESS") return "green";
+  if (bucket === "pending") return "pending";
+  if (["SUCCESS", "SKIPPED", "NEUTRAL"].includes(String(state))) return "green";
   if (["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"].includes(String(state))) return "failed";
   if (["PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS"].includes(String(state))) return "pending";
   throw new Error(`${path}: unsupported check state`);
@@ -52,10 +52,12 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
       return head.sha;
     },
     readRequiredChecks: async (repository, pullRequest, signal) => {
-      const value = parse((await runner.run([
+      const result = await runner.run([
         "pr", "checks", String(pullRequest), "--repo", repository, "--required",
         "--json", "name,state,bucket",
-      ], { signal, allowFailure: true })).stdout, "required-checks");
+      ], { signal, allowFailure: true });
+      if (result.stdout.trim() === "" && /no required checks reported/iu.test(result.stderr)) return [];
+      const value = parse(result.stdout, "required-checks");
       if (!Array.isArray(value)) throw new Error("required-checks: expected an array");
       return value.map((item, index) => {
         const check = record(item, `required-checks[${index}]`);

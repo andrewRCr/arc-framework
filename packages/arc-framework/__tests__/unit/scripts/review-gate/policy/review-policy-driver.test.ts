@@ -25,7 +25,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: [],
-      completedPasses: 0,
+      completedPasses: 1,
       maxPasses: 2,
       attempts: [],
     })).toMatchObject({
@@ -49,7 +49,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: ["coderabbit-pr", "codex-pr"],
-      completedPasses: 0,
+      completedPasses: 1,
       maxPasses: 2,
       attempts: [],
       scopeSelection: { mode: "chunked", target },
@@ -292,7 +292,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: ["codex-pr"],
-      completedPasses: 0,
+      completedPasses: 1,
       maxPasses: 2,
       attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
     })).toMatchObject({
@@ -355,6 +355,7 @@ describe("resolveReviewPolicy", () => {
 
     expect(resolveReviewPolicy({
       ...common,
+      completedPasses: 0,
       attempts: [{
         sourceId: "delegated-agent",
         outcome: "clean",
@@ -367,6 +368,7 @@ describe("resolveReviewPolicy", () => {
     });
     expect(resolveReviewPolicy({
       ...common,
+      completedPasses: 1,
       attempts: [{
         sourceId: "delegated-agent",
         outcome: "clean",
@@ -426,7 +428,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: ["delegated-agent"],
-      completedPasses: 2,
+      completedPasses: 3,
       maxPasses: 2,
       attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
       ceilingOverride: approval.payload.consequence,

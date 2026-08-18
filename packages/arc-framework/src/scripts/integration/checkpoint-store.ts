@@ -18,15 +18,34 @@ export const IntegrationCheckpointHandleSchema = z.string().regex(
   /^checkpoint-v1:(?:[0-9a-f]{40}|[0-9a-f]{64}):sha256:[0-9a-f]{64}$/u,
 );
 
+export const IntegrationCheckpointTargetSchema = z.strictObject({
+  repository: z.string().min(1),
+  pullRequest: z.number().int().positive(),
+  baseRef: z.string().min(1),
+  headRef: z.string().min(1),
+  headSha: ObjectIdSchema,
+});
+export type IntegrationCheckpointTarget = z.infer<typeof IntegrationCheckpointTargetSchema>;
+
 export const IntegrationCheckpointCompositionRecordSchema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("integration-checkpoint-composition/v1"),
   checkpointId: z.uuid(),
   workUnit: SlugSchema,
   approvedHead: ObjectIdSchema,
+  target: IntegrationCheckpointTargetSchema,
+  lifecycleVersion: z.string().min(1),
   settlementPlan: CanonicalSettlementPlanSchema,
   mergeMethod: ValidatedMergeMethodSchema,
   compositionDigest: DigestSchema,
+}).superRefine((record, context) => {
+  if (record.target.headSha !== record.approvedHead) {
+    context.addIssue({
+      code: "custom",
+      path: ["target", "headSha"],
+      message: "must match the approved checkpoint head",
+    });
+  }
 });
 export type IntegrationCheckpointCompositionRecord = z.infer<
   typeof IntegrationCheckpointCompositionRecordSchema
@@ -35,6 +54,8 @@ export type IntegrationCheckpointCompositionRecord = z.infer<
 export interface IntegrationCheckpointCompositionInput {
   workUnit: string;
   approvedHead: string;
+  target: IntegrationCheckpointTarget;
+  lifecycleVersion: string;
   settlementPlan: z.infer<typeof CanonicalSettlementPlanSchema>;
   mergeMethod: z.infer<typeof ValidatedMergeMethodSchema>;
 }
@@ -59,12 +80,16 @@ const nodeStoreDependencies: IntegrationCheckpointStoreDependencies = {
 
 function digestComposition(input: {
   checkpointId: string;
+  target: IntegrationCheckpointTarget;
+  lifecycleVersion: string;
   settlementPlan: z.infer<typeof CanonicalSettlementPlanSchema>;
   mergeMethod: z.infer<typeof ValidatedMergeMethodSchema>;
 }): string {
   return canonicalDigest({
     domain: "arc.integration-checkpoint-composition/v1",
     checkpointId: input.checkpointId,
+    target: input.target,
+    lifecycleVersion: input.lifecycleVersion,
     settlementPlan: input.settlementPlan,
     mergeMethod: input.mergeMethod,
   });
@@ -131,6 +156,7 @@ export async function readIntegrationCheckpointComposition(
   if (
     record.workUnit !== SlugSchema.parse(workUnit)
     || record.approvedHead !== parsedHandle.approvedHead
+    || record.target.headSha !== record.approvedHead
     || record.compositionDigest !== parsedHandle.digest
     || record.compositionDigest !== expectedDigest
   ) {

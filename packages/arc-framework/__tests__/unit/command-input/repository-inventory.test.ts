@@ -114,6 +114,14 @@ describe("repository command-input inventory", () => {
         schemaOwnership: "owned",
         schemaField: "json",
       }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-ref",
+        acquisition: "parser-required",
+      }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-sha",
+        acquisition: "parser-required",
+      }),
     ]));
     expect(new Set(inventory.entries.map((entry) => entry.identity)).size).toBe(inventory.entries.length);
     expect(inventory.entries.map((entry) => entry.identity)).toEqual(

@@ -16,6 +16,14 @@ function composition() {
   return {
     workUnit: "example",
     approvedHead: oid("a"),
+    target: {
+      repository: "owner/repo",
+      pullRequest: 42,
+      baseRef: "main",
+      headRef: "feat/example",
+      headSha: oid("a"),
+    },
+    lifecycleVersion: oid("a"),
     settlementPlan: composeCanonicalSettlementPlan([]),
     mergeMethod: {
       schemaVersion: 1 as const,

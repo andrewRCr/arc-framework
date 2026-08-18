@@ -85,8 +85,8 @@ export interface PrePublicationCompositionDependencies {
 
 export interface PrePublicationCompositionInput {
   workUnit: string;
-  /** The author's report that self-review ran; absent, the method's effective activity decides. */
-  selfReview?: PrePublicationSelfReviewState;
+  /** The author's report that an applicable self-review ran; applicability stays repository-owned. */
+  selfReview?: Extract<PrePublicationSelfReviewState, "settled">;
   /**
    * The author's change-set routing facts; absent, the change set routes as unestablished. Only the
    * facts below are read — the work unit's `Class` and effective method activity are supplied from
@@ -215,11 +215,29 @@ export async function composePrePublicationReviewRequest(
 
   const assurance = await dependencies.readAssurance(input.workUnit);
   if (assurance.status === "refused") return { status: "refused", reason: assurance.reason };
+  if (input.selfReview === "settled" && !assurance.activity.selfReview) {
+    return {
+      status: "refused",
+      reason: "Self-review cannot be reported settled while the effective method is inactive.",
+    };
+  }
 
   const resolvedTarget = await dependencies.resolveTarget(candidate.headSha);
   if (resolvedTarget.status === "refused") return { status: "refused", reason: resolvedTarget.reason };
   const { target } = resolvedTarget;
+  if (target.headSha !== candidate.headSha) {
+    return {
+      status: "refused",
+      reason: "The resolved review target does not identify the Candidate head.",
+    };
+  }
   const immutable = await dependencies.deriveImmutableTarget();
+  if (immutable.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
+    return {
+      status: "refused",
+      reason: "The immutable review target does not identify the Candidate head.",
+    };
+  }
 
   const lanes = PrePublicationLaneJudgmentsSchema.safeParse(input.lanes ?? {});
   if (!lanes.success) {
@@ -252,7 +270,13 @@ export async function composePrePublicationReviewRequest(
       frontlineActive: assurance.activity.frontlineReview,
       standardReview,
       completedPasses: progress.status === "recorded" ? progress.completedPasses : 0,
-      attempts: progress.status === "recorded" ? progress.attempts : [],
+      attempts: progress.status === "recorded"
+        ? progress.attempts.map(({ sourceId, outcome, chunkSeriesComplete }) => ({
+            sourceId,
+            outcome,
+            ...(chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete }),
+          }))
+        : [],
       sources: policy.sources,
       maxPasses: policy.maxPasses,
       ...(judgment?.scopeMode === undefined
@@ -274,7 +298,9 @@ export async function composePrePublicationReviewRequest(
     workUnit: input.workUnit,
     candidateId: candidate.candidateId,
     target: immutable.status === "resolved" ? immutable.target : null,
-    selfReview: input.selfReview ?? (assurance.activity.selfReview ? "pending" : "inactive"),
+    selfReview: input.selfReview === "settled"
+      ? "settled"
+      : assurance.activity.selfReview ? "pending" : "inactive",
     frontline,
     standard,
     candidate: {

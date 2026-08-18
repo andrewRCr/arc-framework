@@ -105,8 +105,47 @@ describe("exact-head change-request resolution", () => {
       state: "ambiguous",
       nextAction: "stop",
       candidates: [{ number: 42, headRefOid: headSha }],
-      remedy: `Push ${headRef}, then re-run arc review change-request resolve --head-ref ${headRef} `
-        + `--head-sha ${movedHead} --json.`,
+      remedy: {
+        invariant: "An open change request exists at a different head.",
+        argv: [
+          "arc",
+          "review",
+          "change-request",
+          "resolve",
+          "--head-ref",
+          headRef,
+          "--head-sha",
+          movedHead,
+          "--json",
+        ],
+      },
+    });
+  });
+
+  it("shell-quotes an unusual valid branch name without changing the structured remedy", async () => {
+    const unusualHeadRef = "feat/operator's-review";
+    const movedHead = "b".repeat(40);
+    const result = await resolveChangeRequest({ headRef: unusualHeadRef, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: headSha }),
+      listByHead: async () => [candidate()],
+    }));
+
+    expect(result).toMatchObject({
+      state: "ambiguous",
+      remedy: {
+        argv: [
+          "arc",
+          "review",
+          "change-request",
+          "resolve",
+          "--head-ref",
+          unusualHeadRef,
+          "--head-sha",
+          movedHead,
+          "--json",
+        ],
+        text: expect.stringContaining("'feat/operator'\"'\"'s-review'"),
+      },
     });
   });
 
@@ -138,6 +177,17 @@ describe("exact-head change-request resolution", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "head-mismatch",
+    });
+  });
+
+  it("requires the remote branch itself to carry a pre-create head", async () => {
+    await expect(resolveChangeRequest({ headRef, headSha, requireRemote: true }, port({
+      readHeadRef: async () => ({ local: headSha, remote: null }),
+    }))).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "head-mismatch",
+      detail: expect.stringContaining("remote branch ref"),
     });
   });
 });

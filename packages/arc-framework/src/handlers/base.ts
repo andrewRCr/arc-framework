@@ -103,7 +103,21 @@ export async function handleBaseMerge(
     dependencies.setExitCode(64);
     return;
   }
-  dependencies.write(`${JSON.stringify(await dependencies.merge(cwd, parsed.data.expectedBase))}\n`);
+  let result: BaseMergeResult;
+  try {
+    result = await dependencies.merge(cwd, parsed.data.expectedBase);
+  } catch (error) {
+    result = {
+      schemaVersion: 1,
+      mode: "base-merge",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "operational-failure",
+      detail: error instanceof Error ? error.message : String(error),
+      expectedBase: parsed.data.expectedBase,
+    };
+  }
+  dependencies.write(`${JSON.stringify(result)}\n`);
 }
 
 /** Run the authoritative shared base-drift analyzer. */

@@ -135,6 +135,7 @@ const LaneSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const LaneAttemptOutcomeSchema = z.enum([
   "clean",
   "findings",
+  "settled-findings",
   "rate-limited",
   "transient-unavailable",
   "partial",
@@ -147,6 +148,7 @@ const LaneAttemptOutcomeSchema = z.enum([
   "terminal-failure",
 ]);
 const LaneAttemptSchema = z.strictObject({
+  attemptId: IdentifierSchema,
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
   chunkSeriesComplete: z.boolean().optional(),

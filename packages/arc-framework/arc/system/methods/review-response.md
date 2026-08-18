@@ -48,11 +48,14 @@ authorization over the old target, approved-set identity, and approved fix findi
 target. Past-tense finding actions are settlement evidence, not approval state. The planner does not choose a
 provider, compose a provider command, or infer authority from host state.
 
-When building the disposition set, derive every item's gating from severity plus project policy: `blocker` and
-`major` are blocking, `nit` is record-only, and an ordinary `minor` uses `minorGating`. Keep every finding in the
-set. A blocking recurrence requests another round; a record-only finding does not. Carrier-native requested changes
-and required conversations remain independent blockers outside this planner, so ARC's record-only result cannot
-weaken host authority.
+When building the disposition set, use one unqualified `severity` when the judgments agree; when they differ, use
+the two labeled `reviewerSeverity` and `arcSeverity` fields instead. An unsupported finding carries only
+`reviewerSeverity` plus `sourceVerification: not-supported`; ARC assigns it no effective grade. Derive every
+verified item's gating from ARC's effective severity plus project policy: `blocker` and `major` are blocking, `nit`
+is record-only, and an ordinary `minor` uses `minorGating`. Unsupported findings retain the reviewer's gating grade
+for source fidelity. Keep every finding in the set. A blocking recurrence requests another round; a record-only
+finding does not. Carrier-native requested changes and required conversations remain independent blockers outside
+this planner, so ARC's record-only result cannot weaken host authority.
 
 ### Execute only the selected author leaf
 

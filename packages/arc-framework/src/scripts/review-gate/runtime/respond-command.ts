@@ -16,7 +16,7 @@ import {
   type ApprovedDispositionRecord,
 } from "../core/advisory-records.js";
 import {
-  type DispositionReportItem,
+  reviewerDispositionSeverity,
   type ProposedDispositionSet,
   type ApprovedDispositionSet,
 } from "../core/disposition-records.js";
@@ -25,6 +25,7 @@ import {
   proposeDispositionSet,
   validateDispositionState,
 } from "../core/dispositions.js";
+import { ReviewSeveritySchema } from "../core/review-primitives.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewTargetSchema,
@@ -64,6 +65,8 @@ const AuthorDispositionSchema = z.strictObject({
   findingId: z.string().trim().min(1).max(512),
   sourceVerification: z.enum(["verified", "not-supported"]),
   verificationRefs: z.array(z.string().trim().min(1)).min(1),
+  /** Primary re-grade; omission accepts the reviewer's reported grade. */
+  severity: ReviewSeveritySchema.optional(),
   disposition: z.enum(["fix", "defer", "reject"]),
   rationale: z.string().trim().min(1).max(4096),
   recommendation: z.string().trim().min(1).max(4096),
@@ -152,6 +155,12 @@ export interface RespondCommandDependencies {
     workUnit: string;
     record: CandidateManagedRecordV1;
   }): Promise<{ recordPath: string }>;
+  settleLaneFindings(input: {
+    lane: "frontline" | "standard";
+    repositoryId: string;
+    headSha: string;
+    attemptId: string;
+  }): Promise<void>;
 }
 
 /** Stable durable-authority failure for response source or replay mismatches. */
@@ -229,7 +238,7 @@ function validateFindings(
       return finding !== undefined
         && item.sourceIdentity === source.sourceIdentity
         && item.locus === finding.locus
-        && item.severity === finding.severity
+        && reviewerDispositionSeverity(item) === finding.severity
         && item.nit === finding.nit;
     })) {
     throw new RespondCommandError("invalid-input", "approved dispositions do not match the selected review source");
@@ -252,19 +261,38 @@ function prepareDispositionProposal(
   if (decisions.size !== request.proposal.findings.length) {
     throw new RespondCommandError("invalid-input", "proposal contains duplicate finding identities");
   }
-  const findings: DispositionReportItem[] = source.findings.map((finding) => {
+  const findings = source.findings.map((finding) => {
     const decision = decisions.get(finding.findingId);
     if (decision === undefined) {
       throw new RespondCommandError("invalid-input", "proposal must disposition every selected-source finding");
     }
-    return {
-      ...decision,
+    const {
+      severity: proposedSeverity,
+      sourceVerification,
+      disposition,
+      ...decisionFields
+    } = decision;
+    const severity = proposedSeverity ?? finding.severity;
+    const base = {
+      ...decisionFields,
       sourceIdentity: source.sourceIdentity,
       locus: finding.locus,
-      severity: finding.severity,
       ...(finding.nit === true ? { nit: true as const } : {}),
-      gating: finding.severity === "minor" ? "record-only" : "blocking",
     };
+    if (sourceVerification === "not-supported") {
+      if (disposition !== "reject") {
+        throw new RespondCommandError("invalid-input", "a finding not supported by source must be rejected");
+      }
+      return {
+        ...base,
+        sourceVerification,
+        disposition,
+        reviewerSeverity: finding.severity,
+      };
+    }
+    return severity === finding.severity
+      ? { ...base, sourceVerification, disposition, severity }
+      : { ...base, sourceVerification, disposition, reviewerSeverity: finding.severity, arcSeverity: severity };
   });
   try {
     return proposeDispositionSet(createDispositionSet({
@@ -433,6 +461,10 @@ async function persistCandidateResponse(
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
   const currentness = projectCandidateCurrentness({ record: lineage.record, current: lineage.current });
   if (currentness.status === "current") {
+    await dependencies.appendCandidateResponse({
+      workUnit: lineage.workUnit,
+      record: lineage.record,
+    });
     return RespondEnvelopeSchema.parse({
       ...header,
       state: "candidate-current",
@@ -648,6 +680,14 @@ export async function respondToReviewCommand(
     throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
   }
   const appended = await dependencies.dispositionStore.appendDispositionRecord(record);
+  if (plan.state === "ready-to-close") {
+    await dependencies.settleLaneFindings({
+      lane: source.frontlineOutcome === undefined ? "standard" : "frontline",
+      repositoryId: source.repositoryId,
+      headSha: source.target.headSha,
+      attemptId: source.operationId,
+    });
+  }
   const alreadySettled = existing !== null;
   const frontlineFollowUp = source.frontlineOutcome === undefined
     ? undefined

@@ -211,6 +211,7 @@ export async function runFrontlineReviewCommand(
     }),
   });
   await recordFrontlineAttempt(dependencies.operationStore, {
+    attemptId: terminal.operationId,
     outcome: terminal.outcome,
     now: dependencies.now(),
   });

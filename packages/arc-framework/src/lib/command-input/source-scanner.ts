@@ -31,6 +31,8 @@ export interface DiscoveredOption extends DiscoveredSourceLocus {
   readonly flags: string;
   readonly valueName: string | null;
   readonly required: boolean;
+  /** Whether Commander requires the option itself to be present. */
+  readonly presenceRequired: boolean;
   readonly variadic: boolean;
   readonly choices: readonly string[];
   readonly defaultValue?: string | number | boolean;
@@ -213,16 +215,21 @@ function parseOption(
   let choices: readonly string[] = [];
   let defaultValue: string | number | boolean | undefined;
   let conflicts: readonly string[] = [];
+  let presenceRequired = method.name === "requiredOption";
   for (const decorator of decorators) {
     const decoratorMethod = methodCall(decorator);
     if (decoratorMethod?.name === "choices") choices = stringsFromArray(decorator.arguments[0]);
     if (decoratorMethod?.name === "default") defaultValue = literalValue(decorator.arguments[0]);
     if (decoratorMethod?.name === "conflicts") conflicts = stringsFromArray(decorator.arguments[0]);
+    if (decoratorMethod?.name === "makeOptionMandatory") {
+      presenceRequired = literalValue(decorator.arguments[0]) !== false;
+    }
   }
   return {
     flags,
     valueName: value?.name ?? null,
     required: value?.required ?? false,
+    presenceRequired,
     variadic: value?.variadic ?? false,
     choices,
     ...(defaultValue === undefined ? {} : { defaultValue }),

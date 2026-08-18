@@ -13,6 +13,7 @@ import {
   recordHostedAwaitAttempt,
   readLaneProgress,
   recordLaneAttempt,
+  settleLaneAttempt,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 const objectId = (character: string): string => character.repeat(40);
@@ -45,6 +46,7 @@ const attempt = {
   repositoryId: "repo-1",
   changeRequestId: "pull/42",
   headSha: objectId("c"),
+  attemptId: "attempt-1",
   sourceId: "coderabbit-pr",
   now: "2026-08-15T12:00:00Z",
 };
@@ -62,7 +64,11 @@ describe("lane progress", () => {
     expect(state.repositoryId).toBe("repo-1");
     expect(state.changeRequestId).toBe("pull/42");
     expect(state.headSha).toBe(objectId("c"));
-    expect(state.attempts).toEqual([{ sourceId: "coderabbit-pr", outcome: "rate-limited" }]);
+    expect(state.attempts).toEqual([{
+      attemptId: "attempt-1",
+      sourceId: "coderabbit-pr",
+      outcome: "rate-limited",
+    }]);
   });
 
   it("appends later attempts in the order they were recorded", async () => {
@@ -70,12 +76,14 @@ describe("lane progress", () => {
     await recordLaneAttempt(store, { ...attempt, outcome: "rate-limited", consumedPass: false });
     await recordLaneAttempt(store, {
       ...attempt,
+      attemptId: "attempt-2",
       sourceId: "codex-pr",
       outcome: "transient-unavailable",
       consumedPass: false,
     });
     const state = await recordLaneAttempt(store, {
       ...attempt,
+      attemptId: "attempt-3",
       sourceId: "delegated-agent",
       outcome: "findings",
       consumedPass: true,
@@ -94,6 +102,7 @@ describe("lane progress", () => {
     expect(unavailable.completedPasses).toBe(0);
     const verdict = await recordLaneAttempt(store, {
       ...attempt,
+      attemptId: "attempt-2",
       sourceId: "codex-pr",
       outcome: "clean",
       consumedPass: true,
@@ -120,6 +129,7 @@ describe("lane progress", () => {
       chunkSeriesComplete: true,
     });
     expect(state.attempts[0]).toEqual({
+      attemptId: "attempt-1",
       sourceId: "coderabbit-pr",
       outcome: "clean",
       chunkSeriesComplete: true,
@@ -130,8 +140,42 @@ describe("lane progress", () => {
     const store = createStore();
     await recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true });
     store.drift = 1;
-    await expect(recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true }))
+    await expect(recordLaneAttempt(store, {
+      ...attempt,
+      attemptId: "attempt-2",
+      outcome: "findings",
+      consumedPass: true,
+    }))
       .rejects.toThrow(/version-conflict/u);
+  });
+
+  it("makes an exact terminal-attempt replay idempotent and rejects a conflicting replay", async () => {
+    const store = createStore();
+    const first = await recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true });
+    const replay = await recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true });
+
+    expect(replay).toEqual(first);
+    expect(replay.completedPasses).toBe(1);
+    expect(replay.attempts).toHaveLength(1);
+    await expect(recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true }))
+      .rejects.toThrow(/conflicting lane-attempt replay/u);
+  });
+
+  it("settles one findings attempt once and preserves its pass count on replay", async () => {
+    const store = createStore();
+    await recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true });
+    const settled = await settleLaneAttempt(store, {
+      ...attempt,
+      now: "2026-08-15T12:01:00Z",
+    });
+    const replay = await settleLaneAttempt(store, {
+      ...attempt,
+      now: "2026-08-15T12:02:00Z",
+    });
+
+    expect(settled.attempts[0]?.outcome).toBe("settled-findings");
+    expect(settled.completedPasses).toBe(1);
+    expect(replay).toEqual(settled);
   });
 
   it("maps every concluded hosted await state onto the driver's vocabulary", () => {
@@ -175,7 +219,11 @@ describe("hosted await lane recording", () => {
     expect(state?.lane).toBe("standard");
     expect(state?.repositoryId).toBe("repo-1");
     expect(state?.changeRequestId).toBe("pull/42");
-    expect(state?.attempts).toEqual([{ sourceId: "coderabbit-pr", outcome: "rate-limited" }]);
+    expect(state?.attempts).toEqual([{
+      attemptId: expect.any(String),
+      sourceId: "coderabbit-pr",
+      outcome: "rate-limited",
+    }]);
     expect(state?.completedPasses).toBe(0);
   });
 
@@ -275,6 +323,7 @@ describe("frontline lane recording", () => {
   it("records a concluded frontline attempt against the frontline lane", async () => {
     const store = createStore();
     const state = await recordFrontlineAttempt(store, {
+      attemptId: "frontline-attempt-1",
       outcome: frontlineOutcome("unavailable", { class: "rate-limited" }),
       now: "2026-08-15T12:00:00Z",
     });
@@ -282,13 +331,18 @@ describe("frontline lane recording", () => {
     expect(state?.repositoryId).toBe("repo-1");
     expect(state?.changeRequestId).toBeNull();
     expect(state?.headSha).toBe(objectId("c"));
-    expect(state?.attempts).toEqual([{ sourceId: "coderabbit", outcome: "rate-limited" }]);
+    expect(state?.attempts).toEqual([{
+      attemptId: expect.any(String),
+      sourceId: "coderabbit",
+      outcome: "rate-limited",
+    }]);
     expect(state?.completedPasses).toBe(0);
   });
 
   it("consumes a pass for a verdict-bearing frontline outcome", async () => {
     const store = createStore();
     const state = await recordFrontlineAttempt(store, {
+      attemptId: "frontline-attempt-1",
       outcome: frontlineOutcome("findings", null),
       now: "2026-08-15T12:00:00Z",
     });
@@ -311,6 +365,7 @@ describe("lane progress reader", () => {
     await recordLaneAttempt(store, { ...attempt, outcome: "rate-limited", consumedPass: false });
     await recordLaneAttempt(store, {
       ...attempt,
+      attemptId: "attempt-2",
       sourceId: "codex-pr",
       outcome: "findings",
       consumedPass: true,
@@ -323,8 +378,8 @@ describe("lane progress reader", () => {
       status: "recorded",
       completedPasses: 1,
       attempts: [
-        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
-        { sourceId: "codex-pr", outcome: "findings" },
+        { attemptId: "attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        { attemptId: "attempt-2", sourceId: "codex-pr", outcome: "findings" },
       ],
     });
   });

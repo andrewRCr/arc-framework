@@ -12,7 +12,7 @@ import {
   MERGE_REFUSAL_REASONS,
   mergeRemedy,
 } from "../../../../src/scripts/integration/merge.js";
-import { SpineRemedySchema } from "../../../../src/scripts/integration/spine-refusal.js";
+import { SpineRemedySchema, spineRemedy } from "../../../../src/scripts/integration/spine-refusal.js";
 import {
   REVIEW_PRE_PUBLICATION_REFUSAL_CODES,
   ReviewCommandErrorEnvelopeSchema,
@@ -87,6 +87,15 @@ describe("spine refusal remedies", () => {
       .toEqual(["arc", "integrate", "checkpoint", "example", "--json"]);
     expect(prePublicationRemedy("corrupt-state", "example").argv)
       .toEqual(["arc", "review", "pre-publication", "example", "--json"]);
+  });
+
+  it("renders argv with shell-safe quoting while retaining structured arguments", () => {
+    const remedy = spineRemedy("The target is exact.", "Retry", [
+      "arc", "review", "status", "--target", "owner's target with spaces", "--json",
+    ]);
+
+    expect(remedy.argv[4]).toBe("owner's target with spaces");
+    expect(remedy.text).toContain("'owner'\"'\"'s target with spaces'");
   });
 
   it("rejects a checkpoint refusal envelope carrying no remedy", () => {

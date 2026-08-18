@@ -6,7 +6,6 @@ import { readGitBlobBytes } from "../io-context.js";
 import {
   identifyWorkUnitArtifactPath,
   isProjectDocumentPath,
-  resolveArcPath,
   type WorkUnitArtifactKind,
 } from "../layout/index.js";
 import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
@@ -18,6 +17,7 @@ import {
   type CandidateSubjectEntryInput,
 } from "./candidate-attestation.js";
 import { resolveCandidateRecordRelativePath } from "./candidate-record-store.js";
+import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import { resolveSubmissionBoundaryPath } from "./submission-boundary-store.js";
 
 export interface CollectGitCandidateTargetInput {
@@ -40,19 +40,24 @@ export interface CollectGitCandidateTargetInput {
 function ownArtifactAt(
   name: string,
   path: string,
-): { artifact: WorkUnitArtifactKind; key: string } | null {
-  const identified = identifyWorkUnitArtifactPath(path);
-  if (identified === null || identified.slug !== name) return null;
+): { artifact: WorkUnitArtifactKind | "companion"; key: string } | null {
+  let identified = identifyWorkUnitArtifactPath(path);
+  let artifact: WorkUnitArtifactKind | "companion";
+  const basename = path.slice(path.lastIndexOf("/") + 1);
+  if (identified !== null && identified.slug === name) {
+    artifact = identified.artifact;
+  } else {
+    if (!artifactMatcher(name).test(basename)) return null;
+    const directory = path.slice(0, Math.max(0, path.lastIndexOf("/") + 1));
+    identified = identifyWorkUnitArtifactPath(`${directory}notes-${name}.md`);
+    if (identified === null || identified.slug !== name) return null;
+    artifact = "companion";
+  }
   const contributorScoped = identified.placement.kind === "active"
     && identified.placement.scope.kind === "contributor";
   return {
-    artifact: identified.artifact,
-    key: contributorScoped ? path : resolveArcPath({
-      kind: "work-unit-artifact",
-      placement: { kind: "active", scope: { kind: "project" } },
-      slug: identified.slug,
-      artifact: identified.artifact,
-    }),
+    artifact,
+    key: contributorScoped ? path : `.arc/active/${basename}`,
   };
 }
 
@@ -145,6 +150,7 @@ export async function collectGitCandidateTarget(
   const projectionPaths = candidateProjectionPaths(name);
   const entries = new Map<string, CandidateSubjectEntryInput>();
   const relocated = new Map<string, { digest: string; treatment: CandidateSubjectEntryInput["treatment"] }>();
+  const absentPaths = new Set<string>();
   for (const path of paths) {
     const bytes = await readBlob(input.cwd, null, path);
     const digest = bytes === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(bytes);
@@ -153,13 +159,23 @@ export async function collectGitCandidateTarget(
       // Reaching the artifact's new location is a lifecycle write, so the location itself is
       // operational and the content it carries stays keyed to the artifact. The move alone leaves the
       // reviewable subject byte-identical; an edit made along the way still lands as a changed entry.
-      relocated.set(classification.key, { digest, treatment: classification.treatment });
+      if (bytes !== null) {
+        if (relocated.has(classification.key)) {
+          throw new Error(`Multiple work-unit artifacts resolve to Candidate key \`${classification.key}\``);
+        }
+        relocated.set(classification.key, { digest, treatment: classification.treatment });
+      }
       entries.set(path, { path, digest, treatment: "operational" });
+      if (bytes === null) absentPaths.add(path);
       continue;
     }
     entries.set(path, { path, digest, treatment: classification.treatment });
+    if (bytes === null) absentPaths.add(path);
   }
   for (const [path, relocatedEntry] of relocated) {
+    if (entries.has(path) && !absentPaths.has(path)) {
+      throw new Error(`A relocated work-unit artifact collides with Candidate key \`${path}\``);
+    }
     entries.set(path, { path, digest: relocatedEntry.digest, treatment: relocatedEntry.treatment });
   }
   return CandidateLineageTargetSchema.parse({

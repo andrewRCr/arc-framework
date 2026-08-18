@@ -233,10 +233,11 @@ remote base all name the same exact head. Any tracked change continues through t
    execute numbered actions in authored order immediately before creation; halt before later actions on failure.
    Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
 
-   The `pre-pr-open` hook is the only thing that can move the head since the resolver call above, so when it runs,
-   re-invoke `arc review change-request resolve` with the current head immediately before `gh pr create` and
-   dispatch on its typed state again. That resolver call is the pre-create exact-head validation; never create
-   against a head that changed after it.
+   Immediately before creation, re-invoke
+   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote --json` with the
+   current head and dispatch on its typed state again. Continue only from `none / create-change-request`. This
+   pre-create validation requires the remote branch itself to carry the exact creation head, including after any
+   hook action.
 
    Then invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action:
    `locked / open-locked` creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts

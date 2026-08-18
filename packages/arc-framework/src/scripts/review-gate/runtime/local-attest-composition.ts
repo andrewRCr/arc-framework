@@ -65,5 +65,6 @@ export function createLocalAttestDependencies(input: {
       source,
     }),
     releaseMaterialization: (operationId) => sweepAdapter.releaseWithinLock(operationId),
+    now: () => new Date().toISOString(),
   };
 }

@@ -22,6 +22,14 @@ function dependencies() {
       checkpointId: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
       workUnit: "example",
       approvedHead: oid("c"),
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        baseRef: "main",
+        headRef: "feat/example",
+        headSha: oid("c"),
+      },
+      lifecycleVersion: oid("c"),
       settlementPlan: composeCanonicalSettlementPlan([]),
       mergeMethod: {
         schemaVersion: 1,
@@ -39,9 +47,17 @@ function dependencies() {
     readStatus: async () => ({
       actualHead: oid("c"),
       lifecycleComplete: true,
-      target: { repository: "owner/repo", pullRequest: 42, headSha: oid("c") },
+      lifecycleVersion: oid("c"),
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        baseRef: "main",
+        headRef: "feat/example",
+        headSha: oid("c"),
+      },
     }),
     readMerged: async () => state.merged,
+    refreshTarget: async (target) => target,
     releaseLock: async () => {
       state.held = false;
       return { state: "released" };
@@ -118,6 +134,72 @@ describe("integration merge", () => {
     expect(state).toEqual({ held: false, merged: true });
   });
 
+  it("converges an already-merged retry before replaying settlement", async () => {
+    const { value, state } = dependencies();
+    state.merged = true;
+    value.executeSettlement = async () => {
+      throw new Error("settlement must not replay after the exact target merged");
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "merged",
+      payload: { approvedHead: oid("c"), pullRequest: 42 },
+    });
+  });
+
+  it("compensates a checkpoint read failure with a lock hold", async () => {
+    const { value, state } = dependencies();
+    state.held = false;
+    value.readCheckpoint = async () => {
+      throw new Error("checkpoint storage unavailable");
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      reason: "operation-failed",
+    });
+    expect(state.held).toBe(true);
+  });
+
+  it("refreshes and re-locks the same live change request after a head move", async () => {
+    const { value } = dependencies();
+    const liveTarget = {
+      repository: "owner/repo",
+      pullRequest: 42,
+      baseRef: "main",
+      headRef: "feat/example",
+      headSha: oid("f"),
+    };
+    const refreshedTarget = { ...liveTarget, headSha: oid("g") };
+    let heldTarget: typeof refreshedTarget | undefined;
+    value.readStatus = async () => ({
+      actualHead: liveTarget.headSha,
+      lifecycleComplete: true,
+      lifecycleVersion: liveTarget.headSha,
+      target: liveTarget,
+    });
+    value.refreshTarget = async (target) => {
+      expect(target).toEqual({
+        repository: "owner/repo",
+        pullRequest: 42,
+        baseRef: "main",
+        headRef: "feat/example",
+        headSha: oid("c"),
+      });
+      return refreshedTarget;
+    };
+    value.holdLock = async (target) => {
+      heldTarget = target;
+      return { state: "held" };
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "head-mismatch",
+    });
+    expect(heldTarget).toEqual(refreshedTarget);
+  });
+
   it.each([
     ["settlement-invalidated", (deps: IntegrationMergeDependencies) => {
       deps.executeSettlement = async () => ({
@@ -131,7 +213,14 @@ describe("integration merge", () => {
       deps.readStatus = async () => ({
         actualHead: oid("f"),
         lifecycleComplete: true,
-        target: { repository: "owner/repo", pullRequest: 42, headSha: oid("f") },
+        lifecycleVersion: oid("c"),
+        target: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("f"),
+        },
       });
     }],
     ["merge-method-moved", (deps: IntegrationMergeDependencies) => {

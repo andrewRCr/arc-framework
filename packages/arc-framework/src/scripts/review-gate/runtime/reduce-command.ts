@@ -11,6 +11,7 @@ import {
   type FrontlineOutcomeRecord,
   type ReviewReductionProjection,
 } from "../core/advisory-records.js";
+import { reviewerDispositionSeverity } from "../core/disposition-records.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewIdentifierSchema,
@@ -104,7 +105,10 @@ function validateDisposition(input: {
   const expectedSource = canonicalize(input.source);
   const actualSource = canonicalize(record.source);
   const sourceFindings = findingsIdentity(input.findings);
-  const dispositionFindings = findingsIdentity(set.findings);
+  const dispositionFindings = findingsIdentity(set.findings.map((finding) => ({
+    ...finding,
+    severity: reviewerDispositionSeverity(finding),
+  })));
   if (record.operationId !== input.operationId
     || record.repositoryId !== input.repositoryId
     || actualSource !== expectedSource

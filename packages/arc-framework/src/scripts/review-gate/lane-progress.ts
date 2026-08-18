@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 
+import { canonicalDigest, canonicalize } from "../../lib/kernel/index.js";
 import {
   LaneProgressStateSchema,
   type LaneProgressState,
@@ -72,6 +73,7 @@ export async function recordLaneAttempt(
     repositoryId: string;
     changeRequestId: string | null;
     headSha: string;
+    attemptId: string;
     sourceId: string;
     outcome: LaneAttemptOutcome;
     consumedPass: boolean;
@@ -83,10 +85,19 @@ export async function recordLaneAttempt(
   const { version, state } = await store.readOperation(operationId);
   const existing = state !== null && state.kind === "lane-progress" ? state : null;
   const attempt: LaneAttempt = {
+    attemptId: input.attemptId,
     sourceId: input.sourceId,
     outcome: input.outcome,
     ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
   };
+  const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
+  if (replay !== undefined) {
+    if (canonicalize(replay) !== canonicalize(attempt)) {
+      throw new Error("conflicting lane-attempt replay");
+    }
+    if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
+    return LaneProgressStateSchema.parse(existing);
+  }
   const next = LaneProgressStateSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "review-operation/v1",
@@ -130,6 +141,7 @@ export async function recordHostedAwaitAttempt(
     repositoryId: input.repositoryId,
     changeRequestId: `pull/${handle.target.pullRequest}`,
     headSha: handle.target.headSha,
+    attemptId: `hosted/${canonicalDigest(handle).slice("sha256:".length)}`,
     sourceId: handle.provider,
     outcome,
     consumedPass: outcome === "clean" || outcome === "findings",
@@ -183,7 +195,7 @@ export function frontlineLaneOutcome(outcome: string, reasonClass: string | null
  */
 export async function recordFrontlineAttempt(
   store: ReviewOperationStateStore,
-  input: { outcome: FrontlineExecutionOutcome; now: string },
+  input: { attemptId: string; outcome: FrontlineExecutionOutcome; now: string },
 ): Promise<LaneProgressState | null> {
   const { outcome } = input;
   const laneOutcome = frontlineLaneOutcome(outcome.outcome, outcome.reason?.class ?? null);
@@ -193,11 +205,48 @@ export async function recordFrontlineAttempt(
     repositoryId: outcome.target.repositoryId,
     changeRequestId: null,
     headSha: outcome.target.headSha,
+    attemptId: input.attemptId,
     sourceId: outcome.source.sourceId,
     outcome: laneOutcome,
     consumedPass: laneOutcome === "clean" || laneOutcome === "findings",
     now: input.now,
   });
+}
+
+/** Mark one persisted findings verdict settled after its approved record is durable. */
+export async function settleLaneAttempt(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    attemptId: string;
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  const operationId = laneProgressOperationId(input);
+  const { version, state } = await store.readOperation(operationId);
+  if (state === null
+    || state.kind !== "lane-progress"
+    || state.lane !== input.lane
+    || state.repositoryId !== input.repositoryId
+    || state.headSha !== input.headSha) {
+    throw new Error("lane findings attempt is unavailable");
+  }
+  const index = state.attempts.findIndex((attempt) => attempt.attemptId === input.attemptId);
+  const attempt = state.attempts[index];
+  if (attempt === undefined) throw new Error("lane findings attempt is unavailable");
+  if (attempt.outcome === "settled-findings") return state;
+  if (attempt.outcome !== "findings") throw new Error("lane attempt does not carry findings");
+  const attempts = [...state.attempts];
+  attempts[index] = { ...attempt, outcome: "settled-findings" };
+  const next = LaneProgressStateSchema.parse({
+    ...state,
+    updatedAt: input.now,
+    attempts,
+  });
+  await store.publishOperation(next, version);
+  return next;
 }
 
 export type LaneProgressProjection =

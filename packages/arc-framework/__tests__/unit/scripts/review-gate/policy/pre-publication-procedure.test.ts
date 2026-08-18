@@ -201,6 +201,7 @@ describe("projectPrePublicationReview", () => {
       ...base,
       frontline: {
         ...frontline,
+        completedPasses: 1,
         attempts: [{ sourceId: "coderabbit-cli", outcome: "clean" }],
       },
     });
@@ -314,6 +315,7 @@ describe("projectPrePublicationReview", () => {
       standard: {
         ...(base.standard as Record<string, unknown>),
         sources: ["delegated-agent", "codex-pr"],
+        completedPasses: 1,
         attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
       },
     });
@@ -331,6 +333,7 @@ describe("projectPrePublicationReview", () => {
       ...base,
       frontline: {
         ...(base.frontline as Record<string, unknown>),
+        completedPasses: 1,
         attempts: [{ sourceId: "coderabbit-cli", outcome: "findings" }],
       },
     });

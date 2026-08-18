@@ -55,6 +55,7 @@ function dependencies(): IntegrationCheckpointDependencies {
     readReconcileHost: async () => ({ state: "mergeable" }),
     readLifecycle: async () => ({
       workUnit: "example",
+      storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
       position: { phase: "Integrating", location: "active" },
@@ -91,6 +92,7 @@ function dependencies(): IntegrationCheckpointDependencies {
         changeRequest: {
           repository: "owner/repo",
           pullRequest: 42,
+          baseRef: "main",
           headRef: "feat/example",
           headSha: oid("c"),
           state: "open",
@@ -178,6 +180,7 @@ describe("integration checkpoint", () => {
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
       workUnit: "example",
+      storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
       position: { phase: "Integrating", location: "active" },
@@ -208,6 +211,7 @@ describe("integration checkpoint", () => {
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
       workUnit: "example",
+      storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
       position: { phase: "Integrating", location: "active" },

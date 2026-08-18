@@ -34,7 +34,8 @@ export async function readCandidateRecord(
   name: string,
   fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
 ): Promise<CandidateManagedRecordV1 | null> {
-  const relativePath = resolveCandidateRecordRelativePath(name);
+  const workUnit = SlugSchema.parse(name);
+  const relativePath = resolveCandidateRecordRelativePath(workUnit);
   let content: string;
   try {
     content = await fs.readFile(join(cwd, relativePath));
@@ -44,6 +45,9 @@ export async function readCandidateRecord(
   }
   const record = parseCandidateManagedRecord(content);
   if (record === null) throw new Error(`Candidate record is malformed: ${relativePath}`);
+  if (record.attestation.workUnit !== workUnit) {
+    throw new Error(`Candidate record work unit does not match its path: ${relativePath}`);
+  }
   return record;
 }
 

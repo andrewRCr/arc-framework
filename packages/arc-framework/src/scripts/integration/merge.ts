@@ -30,6 +30,8 @@ export type IntegrationMergeRequest = z.infer<typeof IntegrationMergeRequestSche
 export const IntegrationMergeTargetSchema = z.strictObject({
   repository: z.string().min(1),
   pullRequest: z.number().int().positive(),
+  baseRef: z.string().min(1),
+  headRef: z.string().min(1),
   headSha: ObjectIdSchema,
 });
 export type IntegrationMergeTarget = z.infer<typeof IntegrationMergeTargetSchema>;
@@ -229,9 +231,11 @@ export interface IntegrationMergeDependencies {
   readStatus(workUnit: string): Promise<{
     actualHead: string;
     lifecycleComplete: boolean;
+    lifecycleVersion: string;
     target: IntegrationMergeTarget;
   }>;
   readMerged(target: IntegrationMergeTarget): Promise<boolean>;
+  refreshTarget(target: IntegrationMergeTarget): Promise<IntegrationMergeTarget>;
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
@@ -248,7 +252,10 @@ async function invalidated(
   target?: IntegrationMergeTarget,
 ): Promise<IntegrationMergeResult> {
   try {
-    const hold = await dependencies.holdLock(target);
+    const holdTarget = reason === "head-mismatch" && target !== undefined
+      ? await dependencies.refreshTarget(target)
+      : target;
+    const hold = await dependencies.holdLock(holdTarget);
     if (hold.state !== "held" && hold.state !== "no-lock") throw new Error("lock hold was refused");
   } catch (error) {
     return IntegrationMergeResultSchema.parse({
@@ -284,31 +291,53 @@ export async function mergeIntegration(
     mode: "integrate-merge" as const,
     workUnit: request.workUnit,
   };
-  const checkpoint = await dependencies.readCheckpoint(request.workUnit, request.checkpointHandle);
-  if (checkpoint === null) {
-    return invalidated(
-      base,
-      "checkpoint-missing",
-      { checkpointHandle: request.checkpointHandle },
-      dependencies,
-    );
-  }
-
+  let checkpoint: IntegrationCheckpointCompositionRecord | null = null;
   let target: IntegrationMergeTarget | undefined;
   try {
+    checkpoint = await dependencies.readCheckpoint(request.workUnit, request.checkpointHandle);
+    if (checkpoint === null) {
+      return await invalidated(
+        base,
+        "checkpoint-missing",
+        { checkpointHandle: request.checkpointHandle },
+        dependencies,
+      );
+    }
+    target = IntegrationMergeTargetSchema.parse(checkpoint.target);
+    if (await dependencies.readMerged(target)) {
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "merged",
+        nextAction: "complete",
+        payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
+      });
+    }
     const settlement = await dependencies.executeSettlement(checkpoint);
     if (settlement.state === "invalidated") {
-      return await invalidated(base, "settlement-invalidated", { settlement }, dependencies);
+      return await invalidated(base, "settlement-invalidated", { settlement }, dependencies, target);
     }
 
     const status = await dependencies.readStatus(request.workUnit);
-    target = IntegrationMergeTargetSchema.parse(status.target);
-    if (status.actualHead !== checkpoint.approvedHead || target.headSha !== checkpoint.approvedHead) {
+    const liveTarget = IntegrationMergeTargetSchema.parse(status.target);
+    if (
+      status.actualHead !== checkpoint.approvedHead
+      || liveTarget.headSha !== checkpoint.approvedHead
+      || liveTarget.repository !== checkpoint.target.repository
+      || liveTarget.pullRequest !== checkpoint.target.pullRequest
+      || liveTarget.baseRef !== checkpoint.target.baseRef
+      || liveTarget.headRef !== checkpoint.target.headRef
+      || status.lifecycleVersion !== checkpoint.lifecycleVersion
+    ) {
       return await invalidated(base, "head-mismatch", {
         approvedHead: checkpoint.approvedHead,
         actualHead: status.actualHead,
+        checkpointTarget: checkpoint.target,
+        liveTarget,
+        checkpointLifecycleVersion: checkpoint.lifecycleVersion,
+        liveLifecycleVersion: status.lifecycleVersion,
       }, dependencies, target);
     }
+    target = liveTarget;
     if (!status.lifecycleComplete) {
       return await invalidated(base, "lifecycle-moved", {}, dependencies, target);
     }
@@ -373,7 +402,7 @@ export async function mergeIntegration(
             ...base,
             state: "merged",
             nextAction: "complete",
-            payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
+            payload: { approvedHead: checkpoint?.approvedHead ?? target.headSha, pullRequest: target.pullRequest },
           });
         }
       } catch {

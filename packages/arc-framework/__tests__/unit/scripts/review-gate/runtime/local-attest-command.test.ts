@@ -174,6 +174,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       nextAction: "reduce",
@@ -207,6 +208,7 @@ describe("local attest command", () => {
       confirmTarget: vi.fn(),
       inspectMaterialization: vi.fn(),
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "not-attestable",
       nextAction: "rerun-review",
@@ -251,6 +253,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).rejects.toThrow(/source/iu);
     expect(appendReceipt).not.toHaveBeenCalled();
   });
@@ -282,6 +285,7 @@ describe("local attest command", () => {
       confirmTarget: vi.fn(),
       inspectMaterialization: async () => "absent",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "expired",
       nextAction: "rerun-review",
@@ -329,6 +333,7 @@ describe("local attest command", () => {
       }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
@@ -385,6 +390,7 @@ describe("local attest command", () => {
         }),
         inspectMaterialization: async () => "materialized",
         releaseMaterialization,
+        now: () => "2026-07-23T21:00:00Z",
       })).resolves.toMatchObject({
         state: "stale-target",
         nextAction: "prepare-current-target",
@@ -437,6 +443,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       nextAction: "reduce",
@@ -487,6 +494,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       payload: {
@@ -545,6 +553,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).rejects.toMatchObject({ code: "corrupt-state" });
     expect(appendReceipt).toHaveBeenCalledOnce();
   });
@@ -591,6 +600,7 @@ describe("local attest command", () => {
       confirmTarget,
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
@@ -651,6 +661,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization,
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       payload: {
@@ -705,6 +716,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: vi.fn(),
       releaseMaterialization: vi.fn(),
+      now: () => "2026-07-23T21:00:00Z",
     })).rejects.toMatchObject({
       code: "corrupt-state",
       message: "local review operation has multiple terminal receipts",
@@ -742,6 +754,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     });
 
     it("re-resolves the persisted member vehicle from the head its target pins", async () => {

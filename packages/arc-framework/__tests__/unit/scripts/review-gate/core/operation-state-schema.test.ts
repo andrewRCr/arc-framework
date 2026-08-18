@@ -136,7 +136,7 @@ const laneProgress = {
   changeRequestId: null,
   headSha: objectId("c"),
   completedPasses: 1,
-  attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" as const }],
+  attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const }],
 };
 
 const memberTarget = createReviewTarget({
@@ -295,7 +295,7 @@ describe("review operation state schemas", () => {
     ]) {
       const parsed = LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ sourceId: "coderabbit-pr", outcome }],
+        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome }],
       });
       expect(parsed.attempts[0]?.outcome).toBe(outcome);
     }
@@ -305,16 +305,16 @@ describe("review operation state schemas", () => {
     for (const collapsed of ["unavailable", "failed", "pending"]) {
       expect(() => LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ sourceId: "coderabbit-pr", outcome: collapsed }],
+        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: collapsed }],
       })).toThrow();
     }
   });
 
   it("preserves attempt order as recorded", () => {
     const attempts = [
-      { sourceId: "coderabbit-pr", outcome: "rate-limited" as const },
-      { sourceId: "codex-pr", outcome: "transient-unavailable" as const },
-      { sourceId: "delegated-agent", outcome: "findings" as const },
+      { attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const },
+      { attemptId: "hosted/attempt-2", sourceId: "codex-pr", outcome: "transient-unavailable" as const },
+      { attemptId: "local/attempt-3", sourceId: "delegated-agent", outcome: "findings" as const },
     ];
     expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
   });
@@ -323,13 +323,18 @@ describe("review operation state schemas", () => {
     for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
       expect(() => LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ sourceId, outcome: "clean" }],
+        attempts: [{ attemptId: "hosted/attempt-1", sourceId, outcome: "clean" }],
       })).toThrow();
     }
   });
 
   it("carries a chunk-series completion flag when the attempt had one", () => {
-    const attempts = [{ sourceId: "coderabbit-pr", outcome: "clean" as const, chunkSeriesComplete: true }];
+    const attempts = [{
+      attemptId: "hosted/attempt-1",
+      sourceId: "coderabbit-pr",
+      outcome: "clean" as const,
+      chunkSeriesComplete: true,
+    }];
     expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
   });
 

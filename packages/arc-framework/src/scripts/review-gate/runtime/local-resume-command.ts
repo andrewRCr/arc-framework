@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
+import { reviewerDispositionSeverity } from "../core/disposition-records.js";
 import { ApprovedDispositionRecordSchema } from "../core/advisory-records.js";
 import {
   validateReviewReceipt,
@@ -196,7 +197,7 @@ async function resumeLocalReviewWithinSourceLock(
   const dispositionFindings = approvedSet.findings.map((finding) => ({
     findingId: finding.findingId,
     locus: finding.locus,
-    severity: finding.severity,
+    severity: reviewerDispositionSeverity(finding),
     nit: finding.nit === true,
   }));
   if (approved.repositoryId !== state.repositoryId

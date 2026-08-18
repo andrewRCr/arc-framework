@@ -16,6 +16,7 @@ import {
 import {
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
+import { settleLaneAttempt } from "../lane-progress.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import {
   LocalFrontlineOutcomeStore,
@@ -88,6 +89,12 @@ export function createRespondDependencies(input: {
       const recordPath = await writeCandidateRecord(input.cwd, workUnit, record);
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
+    },
+    settleLaneFindings: async (settlement) => {
+      await settleLaneAttempt(prepare.operationStore, {
+        ...settlement,
+        now: new Date().toISOString(),
+      });
     },
   };
 }

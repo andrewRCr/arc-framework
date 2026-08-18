@@ -23,6 +23,11 @@ export const SpineRemedySchema = z.strictObject({
 });
 export type SpineRemedy = z.infer<typeof SpineRemedySchema>;
 
+function renderArgument(argument: string): string {
+  if (/^[A-Za-z0-9_./:@+-]+$/u.test(argument)) return argument;
+  return `'${argument.replaceAll("'", `'"'"'`)}'`;
+}
+
 /**
  * Compose a remedy from its invariant, corrective sentence, and argv.
  *
@@ -34,7 +39,7 @@ export type SpineRemedy = z.infer<typeof SpineRemedySchema>;
 export function spineRemedy(invariant: string, correction: string, argv: readonly string[]): SpineRemedy {
   return SpineRemedySchema.parse({
     invariant,
-    text: `${invariant} ${correction}: \`${argv.join(" ")}\`.`,
+    text: `${invariant} ${correction}: \`${argv.map(renderArgument).join(" ")}\`.`,
     argv: [...argv],
   });
 }

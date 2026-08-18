@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import { spineRemedy, type SpineRemedy } from "../integration/spine-refusal.js";
+
 export const ChangeRequestCandidateSchema = z.object({
   number: z.number().int().positive(),
   url: z.url(),
@@ -23,11 +25,13 @@ export interface ChangeRequestResolutionPort {
 export interface ChangeRequestResolveInput {
   headRef: string;
   headSha: string;
+  requireRemote?: boolean;
 }
 
 export const ChangeRequestResolveInputSchema = z.object({
   headRef: z.string().trim().min(1),
   headSha: z.string().regex(/^[0-9a-f]{40}$/u),
+  requireRemote: z.boolean().optional(),
 }).strict();
 
 export const ChangeRequestTargetRefSchema = z.strictObject({
@@ -40,22 +44,23 @@ export type ChangeRequestTargetRef = z.infer<typeof ChangeRequestTargetRefSchema
 interface ChangeRequestResultBase {
   schemaVersion: 1;
   mode: "review-change-request-resolve";
-  targetRef: ChangeRequestTargetRef;
 }
 
 export type ChangeRequestResolveResult = ChangeRequestResultBase & (
-  | { state: "none"; nextAction: "create-change-request" }
-  | { state: "open"; nextAction: "reuse-change-request"; candidate: ChangeRequestCandidate }
-  | { state: "merged-at-head"; nextAction: "complete"; candidate: ChangeRequestCandidate }
-  | { state: "merged-stale-head"; nextAction: "reconcile-head"; candidate: ChangeRequestCandidate }
-  | { state: "closed-unmerged"; nextAction: "reopen-change-request"; candidate: ChangeRequestCandidate }
+  | { targetRef: ChangeRequestTargetRef; state: "none"; nextAction: "create-change-request" }
+  | { targetRef: ChangeRequestTargetRef; state: "open"; nextAction: "reuse-change-request"; candidate: ChangeRequestCandidate }
+  | { targetRef: ChangeRequestTargetRef; state: "merged-at-head"; nextAction: "complete"; candidate: ChangeRequestCandidate }
+  | { targetRef: ChangeRequestTargetRef; state: "merged-stale-head"; nextAction: "reconcile-head"; candidate: ChangeRequestCandidate }
+  | { targetRef: ChangeRequestTargetRef; state: "closed-unmerged"; nextAction: "reopen-change-request"; candidate: ChangeRequestCandidate }
   | {
+      targetRef: ChangeRequestTargetRef;
       state: "ambiguous";
       nextAction: "stop";
       candidates: readonly ChangeRequestCandidate[];
-      remedy?: string;
+      remedy?: SpineRemedy;
     }
   | {
+      targetRef: ChangeRequestTargetRef | null;
       state: "blocked";
       nextAction: "stop";
       reason: "head-mismatch" | "host-failure";
@@ -64,7 +69,7 @@ export type ChangeRequestResolveResult = ChangeRequestResultBase & (
 );
 
 function classifyCandidates(
-  targetRef: ChangeRequestResultBase["targetRef"],
+  targetRef: ChangeRequestTargetRef,
   candidates: readonly ChangeRequestCandidate[],
 ): ChangeRequestResolveResult {
   const base = { schemaVersion: 1, mode: "review-change-request-resolve", targetRef } as const;
@@ -90,8 +95,21 @@ function classifyCandidates(
       state: "ambiguous",
       nextAction: "stop",
       candidates,
-      remedy: `Push ${targetRef.headRef}, then re-run arc review change-request resolve --head-ref `
-        + `${targetRef.headRef} --head-sha ${targetRef.headSha} --json.`,
+      remedy: spineRemedy(
+        "An open change request exists at a different head.",
+        "Push the target branch, then re-run exact-head resolution",
+        [
+          "arc",
+          "review",
+          "change-request",
+          "resolve",
+          "--head-ref",
+          targetRef.headRef,
+          "--head-sha",
+          targetRef.headSha,
+          "--json",
+        ],
+      ),
     };
   }
   return { ...base, state: "ambiguous", nextAction: "stop", candidates };
@@ -102,10 +120,26 @@ export async function resolveChangeRequest(
   input: ChangeRequestResolveInput,
   port: ChangeRequestResolutionPort,
 ): Promise<ChangeRequestResolveResult> {
-  const repository = await port.resolveRepository();
-  const targetRef = ChangeRequestTargetRefSchema.parse({ repository, ...input });
+  let targetRef: ChangeRequestTargetRef | null = null;
   try {
+    const repository = await port.resolveRepository();
+    targetRef = ChangeRequestTargetRefSchema.parse({
+      repository,
+      headRef: input.headRef,
+      headSha: input.headSha,
+    });
     const refs = await port.readHeadRef(input.headRef);
+    if (input.requireRemote === true && refs.remote !== input.headSha) {
+      return {
+        schemaVersion: 1,
+        mode: "review-change-request-resolve",
+        targetRef,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "head-mismatch",
+        detail: "The remote branch ref does not match the exact head required for change-request creation.",
+      };
+    }
     const visibleRefs = [refs.local, refs.remote].filter((oid): oid is string => oid !== null);
     if (refs.remote !== null && !visibleRefs.includes(input.headSha)) {
       return {

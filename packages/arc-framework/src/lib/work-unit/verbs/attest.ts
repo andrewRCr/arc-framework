@@ -17,16 +17,16 @@ import {
   projectCandidateReviewBoundary,
 } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
-/**
- * The narrative pointer written to the meta alongside every attestation.
- *
- * One string for every arm, because every arm lands on the same conservative locus: attesting a
- * Candidate never establishes publish-readiness, so no arm may point at submission.
- */
-const ATTESTED_NEXT_ACTION = "Candidate review pending — run pre-publication review";
-
-/** The human-facing workflow pointer written when Candidate attestation ends execution. */
-const ATTESTED_CURRENT_WORKFLOW = "prepare-work-unit";
+const ATTESTED_ORIENTATION = {
+  Active: {
+    currentWorkflow: "prepare-work-unit",
+    nextAction: "Candidate review pending — run pre-publication review",
+  },
+  Integrating: {
+    currentWorkflow: "integrate-work-unit",
+    nextAction: "Candidate review pending — resume integration review",
+  },
+} as const;
 
 export const AttestResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
@@ -80,9 +80,10 @@ export interface AttestContext {
  */
 export async function runAttest(
   context: AttestContext,
-  params: { name: string; newRoot?: boolean },
+  params: { name: string; lifecycle: keyof typeof ATTESTED_ORIENTATION; newRoot?: boolean },
 ): Promise<AttestResult> {
   const name = SlugSchema.parse(params.name);
+  const orientation = ATTESTED_ORIENTATION[params.lifecycle];
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
   const existing = await context.readRecord(name);
   if (existing !== null) {
@@ -97,9 +98,15 @@ export async function runAttest(
           nextAction: currentness.nextAction,
         };
       }
-      return establishRoot(context, name, current, currentness.candidateId);
+      return establishRoot(context, name, current, orientation, currentness.candidateId);
     }
     if (currentness.convergenceVerification === "satisfied") {
+      await context.publish({
+        name,
+        record,
+        candidateId: currentness.candidateId,
+        ...orientation,
+      });
       return {
         status: "unchanged",
         locus: projectCandidateReviewBoundary({ workUnit: name, candidateId: currentness.candidateId }),
@@ -121,13 +128,12 @@ export async function runAttest(
       name,
       record: nextRecord,
       candidateId: currentness.candidateId,
-      currentWorkflow: ATTESTED_CURRENT_WORKFLOW,
-      nextAction: ATTESTED_NEXT_ACTION,
+      ...orientation,
     });
     return { status: "attested", operation: "convergence", ...published, locus };
   }
 
-  return establishRoot(context, name, current, undefined);
+  return establishRoot(context, name, current, orientation, undefined);
 }
 
 /** Attest one fresh lineage root over the current target, recording any Candidate it supersedes. */
@@ -135,6 +141,7 @@ async function establishRoot(
   context: AttestContext,
   name: string,
   current: CandidateLineageTarget,
+  orientation: (typeof ATTESTED_ORIENTATION)[keyof typeof ATTESTED_ORIENTATION],
   supersedes: string | undefined,
 ): Promise<AttestResult> {
   const attestation = createCandidateAttestation({
@@ -159,8 +166,7 @@ async function establishRoot(
     name,
     record,
     candidateId: attestation.candidateId,
-    currentWorkflow: ATTESTED_CURRENT_WORKFLOW,
-    nextAction: ATTESTED_NEXT_ACTION,
+    ...orientation,
   });
   return {
     status: "attested",

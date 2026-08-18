@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import {
@@ -253,6 +254,7 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
     readDrift: async (workUnit) => ({ ...await production.readDrift(workUnit), verdict: "clean" }),
     readLifecycle: async (workUnit) => ({
       workUnit,
+      storageVersion: await git(root, ["rev-parse", "HEAD"]),
       archiveCadence: cadence,
       state: shipped ? "shipped" : "integrating",
       position: shipped
@@ -266,10 +268,10 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
 }
 
 /** Relocate the work unit's artifacts the way the `with-integration` archive sweep does. */
-async function archiveArtifacts(root: string): Promise<string> {
+async function archiveArtifacts(root: string, companions: readonly string[] = []): Promise<string> {
   const destination = join(".arc", "completed", "2026-q3", "01_example");
   await mkdir(join(root, destination), { recursive: true });
-  for (const artifact of ["meta", "tasks"]) {
+  for (const artifact of ["meta", "tasks", ...companions]) {
     await git(root, [
       "mv",
       join(".arc", "active", `${artifact}-example.md`),
@@ -339,6 +341,40 @@ describe("review-fix Candidate lineage", () => {
       state: "blocked",
       reason: "candidate-unexplained-delta",
     });
+  });
+
+  it("keeps an open-ended work-unit companion current across archive relocation", async () => {
+    const root = await fixture();
+    await writeFile(join(root, ".arc", "active", "evidence-example.md"), "# Review evidence\n", "utf8");
+    await git(root, ["add", ".arc/active/evidence-example.md"]);
+    await git(root, ["commit", "-m", "add work-unit companion"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+
+    await archiveArtifacts(root, ["evidence"]);
+
+    await expect(checkpointOver(root, "with-integration")).resolves.not.toMatchObject({
+      reason: "candidate-unexplained-delta",
+    });
+  });
+
+  it("refuses two live artifacts that collapse onto one canonical Candidate key", async () => {
+    const root = await fixture();
+    await mkdir(join(root, ".arc", "completed", "2026-q3", "01_example"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", "evidence-example.md"), "# Active evidence\n", "utf8");
+    await writeFile(
+      join(root, ".arc", "completed", "2026-q3", "01_example", "evidence-example.md"),
+      "# Archived evidence\n",
+      "utf8",
+    );
+    await git(root, ["add", "-A"]);
+
+    await expect(collectGitCandidateTarget({
+      cwd: root,
+      name: "example",
+      baseBranch: "main",
+      exec: gitExec,
+    })).rejects.toThrow(/collides with Candidate key/u);
   });
 
   it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {
@@ -484,7 +520,7 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
-  it("carries an approved set that authorized no fix into the settlement plan", async () => {
+  it("keeps an approved no-fix set out of the post-approval settlement plan", async () => {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
@@ -494,64 +530,55 @@ describe("review-fix Candidate lineage", () => {
 
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
-    // The deferred set moves no implementation, so the Candidate lineage never names it — the
-    // premise the drop rested on. Composing from the lineage lost it; enumerate-then-scope over the
-    // Candidate span reaches it.
+    // The deferred set moves no implementation, so its approved record is already the settlement.
+    // It neither advances the Candidate lineage nor creates an exact-target replay action.
     const lineage = await readCandidateRecord(root, "example");
     expect(lineage?.responses.map(({ dispositionId }) => dispositionId))
       .not.toContain(deferred.dispositionSet.dispositionSetId);
-    expect(composed.dispositionIds).toHaveLength(2);
-    expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).toHaveLength(1);
+    expect(composed.dispositionIds).not.toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.actions.map(({ dispositionId }) => dispositionId))
-      .toContain(deferred.dispositionSet.dispositionSetId);
-    expect(composed.actions.find(
-      ({ dispositionId }) => dispositionId === deferred.dispositionSet.dispositionSetId,
-    )).toMatchObject({
-      channel: "review-response",
-      fixTarget: { headSha: approvedHead },
-    });
+      .not.toContain(deferred.dispositionSet.dispositionSetId);
 
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
     await expect(inRepository(root, async () => production.executeSettlement({
       settlementPlan: composeCanonicalSettlementPlan(composed.actions),
     } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
       state: "settled",
-      completedActions: 2,
+      completedActions: 1,
     });
   });
 
-  it("settles a no-fix set reviewed at the head the checkpoint approves", async () => {
+  it("treats a no-fix set reviewed at the approved head as already settled", async () => {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
     await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
 
-    // No fix means no commit of its own, and re-attestation fires only on implementation change, so
-    // a post-submission defer-only review leaves the head exactly where its own review ran. The
-    // settled target it pins is then its origin target, which is the normal case rather than a defect.
+    // No fix means no commit or re-attestation of its own. The approved record settles the response
+    // at this head without adding another action to the post-approval plan.
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
-    expect(composed.actions.find(
-      ({ dispositionId }) => dispositionId === deferred.dispositionSet.dispositionSetId,
-    )).toMatchObject({ channel: "review-response", fixTarget: { headSha: approvedHead } });
+    expect(composed.dispositionIds).not.toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.actions.map(({ dispositionId }) => dispositionId))
+      .not.toContain(deferred.dispositionSet.dispositionSetId);
 
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
     await expect(inRepository(root, async () => production.executeSettlement({
       settlementPlan: composeCanonicalSettlementPlan(composed.actions),
     } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
       state: "settled",
-      completedActions: 2,
+      completedActions: 1,
     });
   });
 
-  it("scopes to the full Candidate span, keeping a review that ran before a fix landed", async () => {
+  it("scopes fix-bearing responses to the full Candidate span", async () => {
     const root = await fixture();
     expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
 
-    // A defer-only approval first: it appends nothing to the lineage, and every later response
-    // advances a candidate-tail lower bound past the revision it ran on.
+    // A defer-only approval first: it is settled by its record and appends nothing to the lineage.
     const deferSource = await reviewToFindings(root);
     const deferred = await approvedSet(root, deferSource, "defer");
     await invoke(root, ["review", "respond", "-"], {
@@ -584,10 +611,9 @@ describe("review-fix Candidate lineage", () => {
 
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
 
-    expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).not.toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.dispositionIds).toContain(dispositions.dispositionSet.dispositionSetId);
-    // Span position orders the plan, so the earlier review composes first.
-    expect(composed.dispositionIds[0]).toBe(deferred.dispositionSet.dispositionSetId);
+    expect(composed.dispositionIds).toEqual([dispositions.dispositionSet.dispositionSetId]);
   });
 
   it("repeats the settlement pass without appending a second response", async () => {
@@ -701,6 +727,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
     statusSummary: {
       lifecycle: {
         workUnit: "example",
+        storageVersion: approvedHead,
         archiveCadence: "manual",
         state: "integrating",
         position: { phase: "Integrating", location: "active" },
@@ -710,6 +737,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
       changeRequest: {
         repository: "owner/repo",
         pullRequest: 42,
+        baseRef: "main",
         headRef: "feat/example",
         headSha: approvedHead,
         state: "open",
@@ -744,12 +772,20 @@ describe("review-bearing integration checkpoint and merge", () => {
     const target: IntegrationMergeTarget = {
       repository: "owner/repo",
       pullRequest: 42,
+      baseRef: "main",
+      headRef: "feat/example",
       headSha: approvedHead,
     };
     const dependencies: IntegrationMergeDependencies = {
       readCheckpoint: production.readCheckpoint.bind(production),
       executeSettlement: production.executeSettlement.bind(production),
-      readStatus: async () => ({ actualHead: approvedHead, lifecycleComplete: true, target }),
+      readStatus: async () => ({
+        actualHead: approvedHead,
+        lifecycleComplete: true,
+        lifecycleVersion: approvedHead,
+        target,
+      }),
+      refreshTarget: async () => target,
       readMerged: async () => false,
       releaseLock: async () => ({ state: "released" }),
       holdLock: async () => ({ state: "held" }),
@@ -789,6 +825,7 @@ describe("review-bearing integration checkpoint and merge", () => {
         executeSettlement: () => Promise.reject(new Error("unexpected settlement")),
         readStatus: () => Promise.reject(new Error("unexpected status read")),
         readMerged: () => Promise.reject(new Error("unexpected merged-state read")),
+        refreshTarget: () => Promise.reject(new Error("unexpected target refresh")),
         releaseLock: () => Promise.reject(new Error("unexpected release")),
         holdLock: async () => ({ state: "held" }),
         awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
@@ -839,6 +876,7 @@ describe("routed review obligation", () => {
       repositoryId: await resolveRepositoryIdentity(publisher),
       changeRequestId: "pull/42",
       headSha: approvedHead,
+      attemptId: "hosted-attempt-1",
       sourceId: "codex-pr",
       outcome: "findings",
       consumedPass: true,

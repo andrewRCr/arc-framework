@@ -33,7 +33,7 @@ describe("command-input source scanner", () => {
     ]);
     expect(result.commands[0]).toMatchObject({
       operands: [{ name: "name", required: true, variadic: false }],
-      options: [{ flags: "--kind <kind>", valueName: "kind", required: true }],
+      options: [{ flags: "--kind <kind>", valueName: "kind", required: true, presenceRequired: false }],
       action: { symbol: "handleDirect" },
     });
     expect(result.commands[2]).toMatchObject({
@@ -57,7 +57,8 @@ describe("command-input source scanner", () => {
           .alias("publish")
           .argument("[args...]", "opaque")
           .allowUnknownOption(true)
-          .addOption(new Option("--mode <mode>").choices(["one", "two"]).default("one").conflicts("json"))
+          .addOption(new Option("--mode <mode>").choices(["one", "two"]).default("one").conflicts("json")
+            .makeOptionMandatory())
           .requiredOption("--target <ref>", "required target")
           .option("--json", "machine output")
           .action(async (args) => { await handleSend({ args }); });
@@ -73,12 +74,13 @@ describe("command-input source scanner", () => {
           flags: "--mode <mode>",
           valueName: "mode",
           required: true,
+          presenceRequired: true,
           choices: ["one", "two"],
           defaultValue: "one",
           conflicts: ["json"],
         },
-        { flags: "--target <ref>", valueName: "ref", required: true },
-        { flags: "--json", valueName: null, required: false },
+        { flags: "--target <ref>", valueName: "ref", required: true, presenceRequired: true },
+        { flags: "--json", valueName: null, required: false, presenceRequired: false },
       ],
       action: { symbol: "handleSend" },
     });

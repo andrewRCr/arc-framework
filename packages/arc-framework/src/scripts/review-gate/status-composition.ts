@@ -2,6 +2,7 @@
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
+import { isGitProcessError } from "../../lib/git/process-error.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
@@ -25,27 +26,26 @@ async function readBasePosition(input: {
   exec: GitExec;
   headSha: string;
 }): Promise<Pick<ReviewStatusObservation, "currentBaseOid" | "baseContained">> {
+  const { settings } = await readConfigSettings(input.cwd);
+  const base = settings["branch.base"];
+  await input.exec("git", ["fetch", "origin", base], { cwd: input.cwd });
+  const currentBaseOid = (await input.exec(
+    "git",
+    ["rev-parse", "--verify", `refs/remotes/origin/${base}`],
+    { cwd: input.cwd, objectAccess: "local-only" },
+  )).stdout.trim();
+  if (!/^[0-9a-f]{40}$/u.test(currentBaseOid)) throw new Error("invalid base object ID");
   try {
-    const { settings } = await readConfigSettings(input.cwd);
-    const base = settings["branch.base"];
-    await input.exec("git", ["fetch", "origin", base], { cwd: input.cwd });
-    const currentBaseOid = (await input.exec(
-      "git",
-      ["rev-parse", "--verify", `refs/remotes/origin/${base}`],
-      { cwd: input.cwd, objectAccess: "local-only" },
-    )).stdout.trim();
-    if (!/^[0-9a-f]{40}$/u.test(currentBaseOid)) throw new Error("invalid base object ID");
-    try {
-      await input.exec("git", ["merge-base", "--is-ancestor", currentBaseOid, input.headSha], {
-        cwd: input.cwd,
-        objectAccess: "local-only",
-      });
-      return { currentBaseOid, baseContained: true };
-    } catch {
+    await input.exec("git", ["merge-base", "--is-ancestor", currentBaseOid, input.headSha], {
+      cwd: input.cwd,
+      objectAccess: "local-only",
+    });
+    return { currentBaseOid, baseContained: true };
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) {
       return { currentBaseOid, baseContained: false };
     }
-  } catch {
-    return { currentBaseOid: null, baseContained: false };
+    throw error;
   }
 }
 
@@ -102,47 +102,63 @@ export async function readRoutedObligation(
 export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): ReviewStatusPort {
   return {
     observe: async (target) => {
-      const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
-      const refs = await changeRequestPort.readHeadRef(target.headRef);
-      const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
-      const [base, routedObligation] = await Promise.all([
-        readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha }),
-        readRoutedObligation(input.cwd, input.exec, target),
-      ]);
-      const resolution = await resolveChangeRequest(
-        { headRef: target.headRef, headSha: target.headSha },
-        changeRequestPort,
-      );
-      if (
-        resolution.state !== "open"
-        || resolution.targetRef.repository.toLowerCase() !== target.repository.toLowerCase()
-      ) {
+      try {
+        const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
+        const refs = await changeRequestPort.readHeadRef(target.headRef);
+        const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
+        const [base, routedObligation] = await Promise.all([
+          readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha }),
+          readRoutedObligation(input.cwd, input.exec, target),
+        ]);
+        const resolution = await resolveChangeRequest(
+          { headRef: target.headRef, headSha: target.headSha },
+          changeRequestPort,
+        );
+        if (
+          resolution.state !== "open"
+          || resolution.targetRef.repository.toLowerCase() !== target.repository.toLowerCase()
+        ) {
+          return {
+            actualHeadSha,
+            requiredChecks: "unavailable",
+            routedObligation: {
+              state: "blocked",
+              detail: `The exact target has no reusable open change request (${resolution.state}).`,
+            },
+            ...base,
+          };
+        }
+        const checksPort = createGhRequiredChecksPort(hostedGhRunner);
+        const repository = await checksPort.resolveRepository();
+        if (repository.toLowerCase() !== target.repository.toLowerCase()) {
+          return {
+            actualHeadSha,
+            requiredChecks: "unavailable",
+            routedObligation: {
+              state: "blocked",
+              detail: "The required-check repository does not match the target.",
+            },
+            ...base,
+          };
+        }
+        const signal = new AbortController().signal;
+        const checkedHead = await checksPort.readHead(repository, resolution.candidate.number, signal);
+        const requiredChecks = aggregateChecks(
+          await checksPort.readRequiredChecks(repository, resolution.candidate.number, signal),
+        );
+        return { actualHeadSha: checkedHead, requiredChecks, routedObligation, ...base };
+      } catch (error) {
         return {
-          actualHeadSha,
+          actualHeadSha: target.headSha,
           requiredChecks: "unavailable",
           routedObligation: {
             state: "blocked",
-            detail: `The exact target has no reusable open change request (${resolution.state}).`,
+            detail: error instanceof Error ? error.message : String(error),
           },
-          ...base,
+          currentBaseOid: null,
+          baseContained: false,
         };
       }
-      const checksPort = createGhRequiredChecksPort(hostedGhRunner);
-      const repository = await checksPort.resolveRepository();
-      if (repository.toLowerCase() !== target.repository.toLowerCase()) {
-        return {
-          actualHeadSha,
-          requiredChecks: "unavailable",
-          routedObligation: { state: "blocked", detail: "The required-check repository does not match the target." },
-          ...base,
-        };
-      }
-      const signal = new AbortController().signal;
-      const checkedHead = await checksPort.readHead(repository, resolution.candidate.number, signal);
-      const requiredChecks = aggregateChecks(
-        await checksPort.readRequiredChecks(repository, resolution.candidate.number, signal),
-      );
-      return { actualHeadSha: checkedHead, requiredChecks, routedObligation, ...base };
     },
   };
 }

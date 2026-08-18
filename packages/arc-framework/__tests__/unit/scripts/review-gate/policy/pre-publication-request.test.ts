@@ -111,6 +111,37 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.frontline.target).not.toHaveProperty("targetId");
   });
 
+  it("refuses independently resolved targets that do not identify the Candidate head", async () => {
+    const policyMismatch = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      resolveTarget: vi.fn(async (): Promise<TargetRead> => ({
+        status: "resolved",
+        target: { repository: "arc-framework/example", pullRequest: null, headSha: "b".repeat(40) },
+      })),
+    }));
+    expect(policyMismatch).toMatchObject({ status: "refused", reason: expect.stringMatching(/Candidate head/u) });
+
+    const immutableMismatch = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      deriveImmutableTarget: vi.fn(async (): Promise<ImmutableTargetRead> => ({
+        status: "resolved",
+        target: createReviewTarget({
+          schemaVersion: 2,
+          semanticsVersion: "review-gate/v2",
+          kind: "change-set",
+          repositoryId: "arc-framework/example",
+          baseRef: "main",
+          diffBaseSha: "c".repeat(40),
+          diffBaseTree: "d".repeat(40),
+          headSha: "b".repeat(40),
+          headTree: "e".repeat(40),
+        }),
+      })),
+    }));
+    expect(immutableMismatch).toMatchObject({
+      status: "refused",
+      reason: expect.stringMatching(/Candidate head/u),
+    });
+  });
+
   it("reports an underivable exact target without refusing the work that needs none", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       deriveImmutableTarget: vi.fn(async (): Promise<ImmutableTargetRead> => ({
@@ -320,7 +351,11 @@ describe("composePrePublicationReviewRequest", () => {
   it("replays each lane's durable progress rather than accepting caller-supplied attempts", async () => {
     const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> =>
       lane === "standard"
-        ? { status: "recorded", completedPasses: 1, attempts: [{ sourceId: "codex-pr", outcome: "findings" }] }
+        ? {
+            status: "recorded",
+            completedPasses: 1,
+            attempts: [{ attemptId: "attempt-1", sourceId: "codex-pr", outcome: "findings" }],
+          }
         : { status: "recorded", completedPasses: 0, attempts: [] });
 
     const composition = await composePrePublicationReviewRequest(
@@ -347,7 +382,11 @@ describe("composePrePublicationReviewRequest", () => {
     // two reads disagree, and the request schema is what detects it.
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       readLaneProgress: async (lane) => lane === "standard"
-        ? { status: "recorded", completedPasses: 1, attempts: [{ sourceId: "codex-pr", outcome: "findings" }] }
+        ? {
+            status: "recorded",
+            completedPasses: 1,
+            attempts: [{ attemptId: "attempt-1", sourceId: "codex-pr", outcome: "findings" }],
+          }
         : { status: "recorded", completedPasses: 0, attempts: [] },
     }));
 

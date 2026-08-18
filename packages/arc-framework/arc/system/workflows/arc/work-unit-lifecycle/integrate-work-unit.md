@@ -101,6 +101,11 @@ is active, execute its numbered `.actions` in authored order. Halt before later 
 `gh pr create` does not make the hook durable: retry the creation path and its retry-safe actions. Skip this hook
 whenever an open PR already exists.
 
+Immediately before creation, re-resolve the current head with
+`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --require-remote --json`.
+Continue only from `none / create-change-request`; every other typed action dispatches as above. This exact replay
+requires the remote branch itself to carry the creation head, including after any hook action.
+
 Invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action: `locked / open-locked`
 creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts creation before any PR exists.
 

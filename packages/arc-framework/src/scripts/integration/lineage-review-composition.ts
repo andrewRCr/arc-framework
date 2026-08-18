@@ -27,11 +27,10 @@ export interface LineageReviewComposition {
 /**
  * Compose the settlement plan from every approved disposition record the Candidate covers.
  *
- * The plan answers "which approved dispositions exist", which the Candidate lineage cannot: a set
- * that authorized no fix moves no implementation, so it correctly appends nothing to the lineage and
- * would vanish from a plan indexed off it. Approved records are therefore enumerated and then scoped
- * to the **full Candidate span** — `attestation.baseRevision..approvedHead`, not the candidate-tail
- * span, whose lower bound advances past a review that ran before a fix landed.
+ * The plan answers which approved fixes still need exact-target replay. Record-only dispositions
+ * settle when their approved record lands and never enter the post-approval plan. Fix-bearing records
+ * are enumerated and scoped to the **full Candidate span** — `attestation.baseRevision..approvedHead`,
+ * not the candidate-tail span, whose lower bound advances past a review that ran before a fix landed.
  *
  * Records the lineage names are still resolved strictly: anything it names but the repository cannot
  * produce refuses rather than composing a partial plan, because a plan missing an action would settle
@@ -120,6 +119,9 @@ export function createLineageReviewComposer(input: {
 
     const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
     for (const approved of enumerated) {
+      const hasFix = approved.approvedDisposition.dispositionSet.findings
+        .some(({ disposition }) => disposition === "fix");
+      if (!hasFix) continue;
       const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
       const required = named.has(dispositionId);
       const origin = await originTarget(approved, required);

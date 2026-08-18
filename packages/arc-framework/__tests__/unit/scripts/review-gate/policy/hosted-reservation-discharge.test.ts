@@ -50,7 +50,7 @@ describe("hosted reservation discharge", () => {
         [oid("a")]: {
           status: "recorded",
           completedPasses: 1,
-          attempts: [{ sourceId: "coderabbit-pr", outcome: "findings" }],
+          attempts: [{ attemptId: "attempt-1", sourceId: "coderabbit-pr", outcome: "findings" }],
         },
       }),
     });
@@ -68,8 +68,8 @@ describe("hosted reservation discharge", () => {
           status: "recorded",
           completedPasses: 0,
           attempts: [
-            { sourceId: "coderabbit-pr", outcome: "rate-limited" },
-            { sourceId: "codex-pr", outcome: "clean" },
+            { attemptId: "attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" },
+            { attemptId: "attempt-2", sourceId: "codex-pr", outcome: "clean" },
           ],
         },
       }),

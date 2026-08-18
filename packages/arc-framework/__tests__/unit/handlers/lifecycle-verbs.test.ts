@@ -226,9 +226,9 @@ vi.mock("../../../src/lib/work-unit/verbs/abandon.js", () => ({
   planAbandon: (...a: unknown[]) => mockPlanAbandon(...a),
 }));
 
-const mockRunSubmit = vi.fn();
+const mockRunPublish = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
-  runPublish: (...a: unknown[]) => mockRunSubmit(...a),
+  runPublish: (...a: unknown[]) => mockRunPublish(...a),
 }));
 
 const mockReadCandidateRecord = vi.fn();
@@ -411,7 +411,7 @@ beforeEach(() => {
   mockProjectCandidateCurrentness.mockReturnValue({ status: "current", convergenceVerification: "satisfied" });
   mockReadSubmissionBoundary.mockResolvedValue(boundary);
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
-  mockRunSubmit.mockResolvedValue({
+  mockRunPublish.mockResolvedValue({
     status: "published",
     outcome: okOutcome,
     metaPath: ".arc/active/meta-foo.md",
@@ -927,8 +927,8 @@ describe("handleAbandon", () => {
 describe("handlePublish", () => {
   it("dispatches runPublish, forwarding the orientation inputs", async () => {
     await handlePublish("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
-    expect(mockRunSubmit).toHaveBeenCalledTimes(1);
-    expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({
+    expect(mockRunPublish).toHaveBeenCalledTimes(1);
+    expect(mockRunPublish.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
@@ -948,7 +948,7 @@ describe("handlePublish", () => {
         interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
       },
     };
-    mockRunSubmit.mockResolvedValueOnce({
+    mockRunPublish.mockResolvedValueOnce({
       status: "unchanged",
       boundary: publicationBoundary,
     });
@@ -971,7 +971,7 @@ describe("handlePublish", () => {
       action: "open the PR",
       allowAdvisories: true,
     });
-    expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({
+    expect(mockRunPublish.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
@@ -981,8 +981,8 @@ describe("handlePublish", () => {
 
   it("leaves both orientation inputs to the verb when neither flag is given", async () => {
     await handlePublish("foo", {});
-    expect(mockRunSubmit).toHaveBeenCalledTimes(1);
-    const params = mockRunSubmit.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mockRunPublish).toHaveBeenCalledTimes(1);
+    const params = mockRunPublish.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(params).toMatchObject({ name: "foo" });
     expect(params).not.toHaveProperty("lastCompleted");
     expect(params).not.toHaveProperty("nextAction");
@@ -990,7 +990,7 @@ describe("handlePublish", () => {
 
   it("forwards one orientation override without inventing the other", async () => {
     await handlePublish("foo", { action: "open the PR" });
-    const params = mockRunSubmit.mock.calls[0]?.[1] as Record<string, unknown>;
+    const params = mockRunPublish.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(params).toMatchObject({ nextAction: "open the PR" });
     expect(params).not.toHaveProperty("lastCompleted");
   });
@@ -1004,18 +1004,18 @@ describe("handlePublish", () => {
       status: "rejected",
       remedy: { argv: ["arc", "publish", "--help"] },
     });
-    expect(mockRunSubmit).not.toHaveBeenCalled();
+    expect(mockRunPublish).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("defaults a bare invocation to the current worktree's WU", async () => {
     await handlePublish(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
-    expect(mockRunSubmit).toHaveBeenCalledTimes(1);
-    expect(mockRunSubmit.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
+    expect(mockRunPublish).toHaveBeenCalledTimes(1);
+    expect(mockRunPublish.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
   });
 
   it("surfaces every pending reconcile advisory and refuses phase entry", async () => {
-    mockRunSubmit.mockResolvedValueOnce({
+    mockRunPublish.mockResolvedValueOnce({
       status: "reconcile-pending",
       reason: "Cannot publish `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
       remedy: {
@@ -1130,7 +1130,11 @@ describe("handleAttest", () => {
     await handleAttest("foo", { json: true });
 
     expect(mockRunAttest).toHaveBeenCalledTimes(1);
-    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({ name: "foo", newRoot: false });
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      lifecycle: "Active",
+      newRoot: false,
+    });
   });
 
   it("refuses without attesting when reviewable content is missing from the index", async () => {

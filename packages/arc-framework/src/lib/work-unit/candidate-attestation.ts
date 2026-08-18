@@ -86,20 +86,87 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
   responses: z.array(CandidateReviewResponseEvidenceV1Schema),
   lineageAttestations: z.array(CandidateLineageAttestationV1Schema),
 }).superRefine((record, context) => {
+  const validateSubject = (subject: CandidateSubjectSnapshot, path: (string | number)[]) => {
+    const subjectPaths = subject.entries.map(({ path: entryPath }) => entryPath);
+    if (new Set(subjectPaths).size !== subjectPaths.length) {
+      context.addIssue({ code: "custom", path: [...path, "entries"], message: "paths must be unique" });
+      return;
+    }
+    const recomputedSubject = createCandidateSubjectSnapshot(subject.entries);
+    if (recomputedSubject.subjectDigest !== subject.subjectDigest) {
+      context.addIssue({
+        code: "custom",
+        path: [...path, "subjectDigest"],
+        message: "must match the canonical reviewable entries",
+      });
+    }
+  };
+  validateSubject(record.subject, ["subject"]);
   if (record.attestation.subjectDigest !== record.subject.subjectDigest) {
     context.addIssue({ code: "custom", path: ["subject", "subjectDigest"], message: "must match the attestation" });
   }
+  const { candidateId, ...attestationFields } = record.attestation;
+  if (candidateId !== canonicalDigest({ domain: "arc.candidate.attestation/v1", ...attestationFields })) {
+    context.addIssue({
+      code: "custom",
+      path: ["attestation", "candidateId"],
+      message: "must match the canonical attestation payload",
+    });
+  }
+  let priorTarget: CandidateLineageTarget = {
+    revision: record.attestation.baseRevision,
+    subject: record.subject,
+  };
+  const recognizedSubjects = new Set([record.subject.subjectDigest]);
   for (const [index, response] of record.responses.entries()) {
+    validateSubject(response.oldTarget.subject, ["responses", index, "oldTarget", "subject"]);
+    validateSubject(response.newTarget.subject, ["responses", index, "newTarget", "subject"]);
     if (response.candidateId !== record.attestation.candidateId) {
       context.addIssue({ code: "custom", path: ["responses", index, "candidateId"], message: "must match the attestation" });
     }
+    const { responseId, ...responseFields } = response;
+    if (responseId !== canonicalDigest({ domain: "arc.candidate.review-response/v1", ...responseFields })) {
+      context.addIssue({
+        code: "custom",
+        path: ["responses", index, "responseId"],
+        message: "must match the canonical response payload",
+      });
+    }
+    // Operational-only revisions are intentionally absent from the reviewable
+    // lineage. A response may therefore start from a later revision than the
+    // preceding record, but it must start from the exact recognized subject.
+    if (response.oldTarget.subject.subjectDigest !== priorTarget.subject.subjectDigest) {
+      context.addIssue({
+        code: "custom",
+        path: ["responses", index, "oldTarget"],
+        message: "must continue the preceding Candidate lineage subject",
+      });
+    }
+    const changed = candidateSubjectsDiffer(response.oldTarget.subject, response.newTarget.subject);
+    if (response.implementationChanged !== changed) {
+      context.addIssue({
+        code: "custom",
+        path: ["responses", index, "implementationChanged"],
+        message: "must match the canonical reviewable-subject delta",
+      });
+    }
+    priorTarget = response.newTarget;
+    recognizedSubjects.add(response.newTarget.subject.subjectDigest);
   }
   for (const [index, attestation] of record.lineageAttestations.entries()) {
+    validateSubject(attestation.target.subject, ["lineageAttestations", index, "target", "subject"]);
     if (attestation.candidateId !== record.attestation.candidateId) {
       context.addIssue({
         code: "custom",
         path: ["lineageAttestations", index, "candidateId"],
         message: "must match the root attestation",
+      });
+    }
+    if (!recognizedSubjects.has(attestation.target.subject.subjectDigest)) {
+      context.addIssue({
+        code: "custom",
+        path: ["lineageAttestations", index, "target", "subject"],
+        message: "must attest a recognized Candidate lineage subject",
       });
     }
   }
@@ -356,4 +423,12 @@ export function diffCandidateSubjectSnapshots(
     removed: [...prior.keys()].filter((path) => !next.has(path)).sort(),
     changed: [...next.keys()].filter((path) => prior.has(path) && prior.get(path) !== next.get(path)).sort(),
   });
+}
+
+function candidateSubjectsDiffer(
+  left: CandidateSubjectSnapshot,
+  right: CandidateSubjectSnapshot,
+): boolean {
+  const delta = diffCandidateSubjectSnapshots(left, right);
+  return delta.added.length > 0 || delta.removed.length > 0 || delta.changed.length > 0;
 }

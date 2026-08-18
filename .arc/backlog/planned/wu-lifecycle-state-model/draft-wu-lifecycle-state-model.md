@@ -19,7 +19,7 @@
 ### `[ ]` **Model draft-first review as a three-tier audience transition**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
-- _Concern:_ the current propose/submit model assumes private versus public, but draft locking adds a visible,
+- _Concern:_ the current private-Candidate/publication model assumes private versus public, but draft locking adds a visible,
   review-suppressed middle state. Treat release rather than PR creation as the public transition when locked;
   `merge.lock: none` collapses the two events naturally.
 
@@ -462,17 +462,17 @@
 
 - _Approach:_ treat `Candidate` as the tail-end peer of `Ready` on the same attested artifact axis, so the reform
   lands one projection primitive with two instances rather than solving readiness and then rediscovering the shape.
-  The two transitions the vocabulary then supports are **propose** (implementation clears, enter verification and
-  local review — private) and **submit** (verification and local review clear, open the pull request — public).
+  The two transitions the vocabulary then supports are **attest** (implementation clears, enter verification and
+  local review — private) and **publish** (verification and local review clear, open the pull request — public).
 
 - _Related — a live inconsistency the tail state would resolve:_ `integrate-work-unit` Step 1 states that
   "the `Integrating` state covers PR open through review-response," but fires the transition at Step 1 while the
   pull request opens at Step 3, with the local self-review preflight in between. So a work unit is `Integrating`
-  through a window where nothing is public. The lifecycle command is now `arc submit`; its owning boundary work
+  through a window where nothing is public. The lifecycle command is now `arc publish`; its owning boundary work
   moves that fire point to the publication-step head while deliberately minting **no** state and not re-keying
   `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
   change shrinks `Integrating` to the public phase, which is the carve-out a `Candidate` state would make anyway,
   so the two compose rather than collide.
 
 - _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the scheduling
-  verb now named `arc submit`, distinct from the `arc integrate` procedure namespace.
+  verb now named `arc publish`, distinct from the `arc integrate` procedure namespace.

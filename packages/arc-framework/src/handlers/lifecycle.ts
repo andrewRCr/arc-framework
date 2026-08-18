@@ -1699,8 +1699,27 @@ export async function handlePublish(
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
-  const record = await readCandidateRecord(base.cwd, target);
-  if (record === null) {
+  const readCandidateAuthorization = async () => {
+    const record = await readCandidateRecord(base.cwd, target);
+    if (record === null) return null;
+    const current = await collectGitCandidateTarget({
+      cwd: base.cwd,
+      name: target,
+      baseBranch: settings["branch.base"],
+      exec: base.io.exec,
+    });
+    const currentness = projectCandidateCurrentness({ record, current });
+    return {
+      record,
+      current,
+      candidateId: record.attestation.candidateId,
+      candidateSubjectDigest: current.subject.subjectDigest,
+      candidateCurrent: currentness.status === "current"
+        && currentness.convergenceVerification === "satisfied",
+    };
+  };
+  const candidate = await readCandidateAuthorization();
+  if (candidate === null) {
     refuseWithRemedy(
       `Cannot publish \`${target}\`: no managed Candidate record exists.`,
       spineRemedy(
@@ -1712,13 +1731,7 @@ export async function handlePublish(
     );
     return;
   }
-  const current = await collectGitCandidateTarget({
-    cwd: base.cwd,
-    name: target,
-    baseBranch: settings["branch.base"],
-    exec: base.io.exec,
-  });
-  const currentness = projectCandidateCurrentness({ record, current });
+  const record = candidate.record;
   const boundary = await readSubmissionBoundary(base.cwd, target);
   if (boundary === null) {
     refuseWithRemedy(
@@ -1736,10 +1749,21 @@ export async function handlePublish(
     name: target,
     ...(lastCompleted === undefined ? {} : { lastCompleted }),
     ...(action === undefined ? {} : { nextAction: action }),
-    candidateId: record.attestation.candidateId,
-    candidateSubjectDigest: current.subject.subjectDigest,
-    candidateCurrent: currentness.status === "current" && currentness.convergenceVerification === "satisfied",
+    candidateId: candidate.candidateId,
+    candidateSubjectDigest: candidate.candidateSubjectDigest,
+    candidateCurrent: candidate.candidateCurrent,
     boundary,
+    refreshCandidateAuthorization: async () => {
+      const refreshed = await readCandidateAuthorization();
+      if (refreshed === null) {
+        return {
+          candidateId: record.attestation.candidateId,
+          candidateSubjectDigest: candidate.candidateSubjectDigest,
+          candidateCurrent: false,
+        };
+      }
+      return refreshed;
+    },
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   });
   if (result.status === "rejected") {
@@ -1747,6 +1771,8 @@ export async function handlePublish(
     return;
   }
   if (result.status === "unchanged") {
+    const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary);
+    await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     if (input.json === true) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
     } else {
@@ -2440,7 +2466,7 @@ export async function handleAttest(
       await base.io.exec("git", ["add", "--", recordPath, metaPath], { cwd: base.cwd });
       return { recordPath, metaPath };
     },
-  }, { name: input.name, newRoot: input.newRoot === true });
+  }, { name: input.name, lifecycle: meta.state, newRoot: input.newRoot === true });
 
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);

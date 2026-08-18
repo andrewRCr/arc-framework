@@ -1,6 +1,7 @@
 /** Production Git composition for the exact-base merge procedure. */
 
 import type { GitExec } from "../../lib/git/exec.js";
+import { isGitProcessError } from "../../lib/git/process-error.js";
 import type { BaseMergePort } from "./merge.js";
 
 async function resolveOid(exec: GitExec, cwd: string, ref: string): Promise<string> {
@@ -44,8 +45,9 @@ export function createBaseMergePort(input: {
           objectAccess: "local-only",
         });
         return true;
-      } catch {
-        return false;
+      } catch (error) {
+        if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+        throw error;
       }
     },
     mergeAppendOnly: async (baseOid) => {
@@ -59,9 +61,8 @@ export function createBaseMergePort(input: {
         await input.exec("git", ["merge", "--no-edit", baseOid], { cwd: input.cwd });
         return "merged";
       } catch (error) {
-        if (await mergeInProgress(input.exec, input.cwd)) {
-          await input.exec("git", ["merge", "--abort"], { cwd: input.cwd });
-        }
+        if (!await mergeInProgress(input.exec, input.cwd)) throw error;
+        await input.exec("git", ["merge", "--abort"], { cwd: input.cwd });
         const [after, clean, stillMerging] = await Promise.all([
           resolveOid(input.exec, input.cwd, "HEAD"),
           input.exec("git", ["status", "--porcelain=v1"], {

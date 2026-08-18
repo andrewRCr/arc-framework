@@ -231,6 +231,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
     }),
     readCandidateLineage: async () => null,
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
+    settleLaneFindings: async () => undefined,
   };
   return deps;
 }
@@ -406,6 +407,44 @@ describe("review response command", () => {
         },
       },
     });
+  });
+
+  it("collapses matching grades and labels both grades only when ARC re-grades", async () => {
+    const records = fixture();
+    const proposal = async (sourceVerification: "verified" | "not-supported", severity: "blocker") =>
+      respondToReviewCommand({
+        schemaVersion: 1,
+        source: { kind: "attested-local", receiptRef: records.receiptRef },
+        proposal: {
+          findings: [{
+            findingId: records.finding.findingId,
+            sourceVerification,
+            verificationRefs: ["source:src/index.ts:7"],
+            severity,
+            disposition: sourceVerification === "verified" ? "fix" : "reject",
+            rationale: "The selected source determines this disposition.",
+            recommendation: sourceVerification === "verified" ? "Apply the fix." : "Reject the finding.",
+            openQuestions: [],
+          }],
+        },
+      }, dependencies(records));
+
+    const regraded = await proposal("verified", "blocker");
+    if (regraded.state !== "awaiting-approval") throw new Error("regraded proposal was not materialized");
+    const regradedFinding = regraded.payload.proposal.dispositionSet.findings[0];
+    expect(regradedFinding).toMatchObject({ reviewerSeverity: "major", arcSeverity: "blocker" });
+    expect(regradedFinding).not.toHaveProperty("severity");
+
+    const unsupported = await proposal("not-supported", "blocker");
+    if (unsupported.state !== "awaiting-approval") throw new Error("unsupported proposal was not materialized");
+    const unsupportedFinding = unsupported.payload.proposal.dispositionSet.findings[0];
+    expect(unsupportedFinding).toMatchObject({
+      sourceVerification: "not-supported",
+      reviewerSeverity: "major",
+      disposition: "reject",
+    });
+    expect(unsupportedFinding).not.toHaveProperty("severity");
+    expect(unsupportedFinding).not.toHaveProperty("arcSeverity");
   });
 
   it("reloads local receipt and source authority and returns a validated fix authorization", async () => {
@@ -650,7 +689,7 @@ describe("verified-fix Candidate settlement", () => {
     });
   });
 
-  it("appends nothing when the lineage already explains the current subject", async () => {
+  it("re-appends the exact record when the lineage already explains the current subject", async () => {
     const records = fixture();
     const { deps, record, appends } = lineageDependencies(records, {
       revision: objectId("e"),
@@ -665,7 +704,7 @@ describe("verified-fix Candidate settlement", () => {
         implementationChanged: false,
       },
     });
-    expect(appends).toHaveLength(0);
+    expect(appends).toEqual([{ workUnit: "example", record }]);
   });
 
   it("refuses a verified fix whose exact target never changed", async () => {

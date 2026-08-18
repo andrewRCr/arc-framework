@@ -12,6 +12,59 @@ import {
   runArc,
 } from "./helpers.js";
 
+async function createAttestFixture(): Promise<string> {
+  const repository = await createTempRepo();
+  await mkdir(join(repository, ".arc", "system"), { recursive: true });
+  await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+  await writeFile(join(repository, "README.md"), "# Fixture\n");
+  await git(repository, ["add", "-A"]);
+  await git(repository, ["commit", "-m", "base"]);
+  await git(repository, ["checkout", "-b", "feat/example"]);
+  await mkdir(join(repository, ".arc", "active"), { recursive: true });
+  await mkdir(join(repository, "src"), { recursive: true });
+  await writeFile(
+    join(repository, ".arc", "active", "meta-example.md"),
+    [
+      "# Metadata: example",
+      "",
+      "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
+      "| --------- | ----------- | -------------- | --------- | ------------ |",
+      "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
+      "",
+      "- **Cohort:** [none]",
+      "- **Depends On:** [none]",
+      "",
+      "- **Origin:** [internal]",
+      "- **Design:** [none]",
+      "- **Task List:** `tasks-example.md`",
+      "- **Review Rubric:** [none]",
+      "- **Promotion Receipt:** [none]",
+      "",
+      "- **Current Workflow:** [none]",
+      "- **Last Completed:** verification",
+      "- **Next Task:** [none]",
+      "- **Blockers:** [none]",
+      "",
+      "- **Next Action:** verification complete",
+      "",
+      "- **PR URL:** [none]",
+      "- **Completed:** [none]",
+      "",
+      "---",
+      "",
+    ].join("\n"),
+  );
+  await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
+  await git(repository, ["add", "-A"]);
+  await git(repository, ["commit", "-m", "implementation"]);
+  await writeFile(
+    join(repository, ".arc", "active", "tasks-example.md"),
+    "# Task List: Example\n\n- [x] Verification complete\n",
+  );
+  await git(repository, ["add", ".arc/active/tasks-example.md"]);
+  return repository;
+}
+
 describe("arc attest", () => {
   let repository: string | null = null;
 
@@ -20,55 +73,7 @@ describe("arc attest", () => {
   });
 
   it("writes and stages Candidate evidence while projecting Candidate preparation", async () => {
-    repository = await createTempRepo();
-    await mkdir(join(repository, ".arc", "system"), { recursive: true });
-    await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
-    await writeFile(join(repository, "README.md"), "# Fixture\n");
-    await git(repository, ["add", "-A"]);
-    await git(repository, ["commit", "-m", "base"]);
-    await git(repository, ["checkout", "-b", "feat/example"]);
-    await mkdir(join(repository, ".arc", "active"), { recursive: true });
-    await mkdir(join(repository, "src"), { recursive: true });
-    await writeFile(
-      join(repository, ".arc", "active", "meta-example.md"),
-      [
-        "# Metadata: example",
-        "",
-        "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-        "| --------- | ----------- | -------------- | --------- | ------------ |",
-        "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
-        "",
-        "- **Cohort:** [none]",
-        "- **Depends On:** [none]",
-        "",
-        "- **Origin:** [internal]",
-        "- **Design:** [none]",
-        "- **Task List:** `tasks-example.md`",
-        "- **Review Rubric:** [none]",
-        "- **Promotion Receipt:** [none]",
-        "",
-        "- **Current Workflow:** [none]",
-        "- **Last Completed:** verification",
-        "- **Next Task:** [none]",
-        "- **Blockers:** [none]",
-        "",
-        "- **Next Action:** verification complete",
-        "",
-        "- **PR URL:** [none]",
-        "- **Completed:** [none]",
-        "",
-        "---",
-        "",
-      ].join("\n"),
-    );
-    await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
-    await git(repository, ["add", "-A"]);
-    await git(repository, ["commit", "-m", "implementation"]);
-    await writeFile(
-      join(repository, ".arc", "active", "tasks-example.md"),
-      "# Task List: Example\n\n- [x] Verification complete\n",
-    );
-    await git(repository, ["add", ".arc/active/tasks-example.md"]);
+    repository = await createAttestFixture();
 
     const result = await runArc(["attest", "example", "--json"], repository);
 
@@ -94,5 +99,31 @@ describe("arc attest", () => {
       ".arc/active/tasks-example.md",
       ".arc/system/.internal/candidates/example.json",
     ]);
+  });
+
+  it.each([
+    ["unstaged tracked content", async (root: string) => {
+      await writeFile(join(root, "src", "example.ts"), "export const example = false;\n");
+    }, "src/example.ts"],
+    ["partially staged content", async (root: string) => {
+      await writeFile(join(root, "src", "example.ts"), "export const example = 'staged';\n");
+      await git(root, ["add", "src/example.ts"]);
+      await writeFile(join(root, "src", "example.ts"), "export const example = 'unstaged';\n");
+    }, "src/example.ts"],
+    ["untracked reviewable content", async (root: string) => {
+      await writeFile(join(root, "src", "untracked.ts"), "export const untracked = true;\n");
+    }, "src/untracked.ts"],
+  ] as const)("refuses %s that the staged Candidate would omit", async (_label, arrange, expectedPath) => {
+    repository = await createAttestFixture();
+    await arrange(repository);
+
+    const result = await runArc(["attest", "example", "--json"], repository);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining(expectedPath),
+      remedy: { argv: ["arc", "attest", "example"] },
+    });
   });
 });

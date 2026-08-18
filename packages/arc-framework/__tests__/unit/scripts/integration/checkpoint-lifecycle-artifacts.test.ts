@@ -1,12 +1,12 @@
 /** Lifecycle-artifact verification on the checkpoint's own composition path. */
 
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createIntegrationCheckpointDependencies } from "../../../../src/scripts/integration/checkpoint-composition.js";
+import { readLifecycleSummary } from "../../../../src/scripts/integration/checkpoint-composition.js";
 import { lifecycleArtifactFacts } from "../../../../src/scripts/review-gate/readiness.js";
 
 const META_PATH = ".arc/active/meta-example.md";
@@ -39,14 +39,14 @@ function meta(sections: string, state = "Integrating", branch = "feat/example"):
 
 const COMPLETION_NOTES = ["## Completion Notes", "", "Delivered the example work unit.", ""].join("\n");
 
-function readLifecycle(root: string): Promise<{ complete: boolean; artifactFacts: { code: string }[] }> {
-  const dependencies = createIntegrationCheckpointDependencies({
-    cwd: root,
-    exec: async () => {
-      throw new Error("the lifecycle read must not shell out");
-    },
+function readLifecycle(
+  root: string,
+  archiveCadence: "with-integration" | "manual" = "manual",
+): Promise<{ complete: boolean; artifactFacts: { code: string }[] }> {
+  return readLifecycleSummary(root, "example", archiveCadence, "lifecycle-store:v1", {
+    readFile: (path) => readFile(path, "utf8"),
+    readdir: (path) => readdir(path, { withFileTypes: true }),
   });
-  return dependencies.readLifecycle("example");
 }
 
 afterEach(async () => {
@@ -96,7 +96,7 @@ describe("checkpoint lifecycle composition", () => {
     await mkdir(join(root, ".arc", "completed", "2026-Q3", "01_example"), { recursive: true });
     await writeFile(join(root, archived), meta("", "Shipped", "[none]"), "utf8");
 
-    const summary = await readLifecycle(root);
+    const summary = await readLifecycle(root, "with-integration");
 
     expect(summary.complete).toBe(false);
     expect(summary.artifactFacts).toEqual([

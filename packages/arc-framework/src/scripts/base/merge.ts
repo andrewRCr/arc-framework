@@ -20,7 +20,16 @@ export type BaseMergeResult =
       expectedBase: string;
       actualBase: string;
     }
-  | { schemaVersion: 1; mode: "base-merge"; state: "conflict"; nextAction: "stop"; expectedBase: string };
+  | { schemaVersion: 1; mode: "base-merge"; state: "conflict"; nextAction: "stop"; expectedBase: string }
+  | {
+      schemaVersion: 1;
+      mode: "base-merge";
+      state: "blocked";
+      nextAction: "stop";
+      reason: "operational-failure";
+      detail: string;
+      expectedBase: string;
+    };
 
 /** Mutable repository boundary used by the exact-base merge reducer. */
 export interface BaseMergePort {
@@ -35,7 +44,12 @@ export async function mergeExpectedBase(
   port: BaseMergePort,
 ): Promise<BaseMergeResult> {
   const request = BaseMergeInputSchema.parse(input);
-  const actualBase = ObjectIdSchema.parse(await port.refreshBase());
+  let actualBase: string;
+  try {
+    actualBase = ObjectIdSchema.parse(await port.refreshBase());
+  } catch (error) {
+    return blocked(request.expectedBase, error);
+  }
   if (actualBase !== request.expectedBase) {
     return {
       schemaVersion: 1,
@@ -46,7 +60,13 @@ export async function mergeExpectedBase(
       actualBase,
     };
   }
-  if (await port.containsBase(request.expectedBase)) {
+  let containsBase: boolean;
+  try {
+    containsBase = await port.containsBase(request.expectedBase);
+  } catch (error) {
+    return blocked(request.expectedBase, error);
+  }
+  if (containsBase) {
     return {
       schemaVersion: 1,
       mode: "base-merge",
@@ -55,7 +75,12 @@ export async function mergeExpectedBase(
       expectedBase: request.expectedBase,
     };
   }
-  const outcome = await port.mergeAppendOnly(request.expectedBase);
+  let outcome: "merged" | "conflict";
+  try {
+    outcome = await port.mergeAppendOnly(request.expectedBase);
+  } catch (error) {
+    return blocked(request.expectedBase, error);
+  }
   if (outcome === "merged") {
     return {
       schemaVersion: 1,
@@ -71,5 +96,17 @@ export async function mergeExpectedBase(
     state: "conflict",
     nextAction: "stop",
     expectedBase: request.expectedBase,
+  };
+}
+
+function blocked(expectedBase: string, error: unknown): BaseMergeResult {
+  return {
+    schemaVersion: 1,
+    mode: "base-merge",
+    state: "blocked",
+    nextAction: "stop",
+    reason: "operational-failure",
+    detail: error instanceof Error ? error.message : String(error),
+    expectedBase,
   };
 }

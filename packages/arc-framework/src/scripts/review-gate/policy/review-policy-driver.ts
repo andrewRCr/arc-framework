@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewPassSchema } from "../core/review-pass.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 
@@ -9,7 +10,7 @@ const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u
 const ReviewPolicyTargetShape = {
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
   pullRequest: z.int().positive().nullable(),
-  headSha: z.string().regex(/^[a-f0-9]{40}$/u),
+  headSha: GitObjectIdSchema,
 };
 const ReviewPolicyTargetSchema = z.strictObject(ReviewPolicyTargetShape).readonly();
 const ReviewScopeModeSchema = z.enum(["whole-target", "chunked"]);
@@ -20,6 +21,7 @@ const CompletedPassCountSchema = z.number().int().nonnegative().max(Number.MAX_S
 const ReviewAttemptOutcomeSchema = z.enum([
   "clean",
   "findings",
+  "settled-findings",
   "rate-limited",
   "transient-unavailable",
   "partial",
@@ -467,6 +469,78 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }]);
   }
   const ceilingOverrideApplied = request.ceilingOverride !== undefined;
+  const lastAttempt = request.attempts.at(-1);
+  if (lastAttempt !== undefined
+    && !isSafeUnavailable(lastAttempt.outcome)
+    && lastAttempt.outcome !== "clean"
+    && lastAttempt.outcome !== "findings"
+    && lastAttempt.outcome !== "settled-findings") {
+    return resolveEnvelope({
+      state: "blocked",
+      nextAction: "stop",
+      payload: {
+        lane: request.lane,
+        scope,
+        sourceId: lastAttempt.sourceId,
+        outcome: lastAttempt.outcome,
+        consumedPass: false,
+        attemptedSources: request.attempts,
+      },
+    }, [{
+      code: `source-outcome-${lastAttempt.outcome}`,
+      message: `Review source '${lastAttempt.sourceId}' returned ${lastAttempt.outcome}.`,
+    }]);
+  }
+  if (lastAttempt !== undefined
+    && ["clean", "findings", "settled-findings"].includes(lastAttempt.outcome)) {
+    const pass = scope === "chunked" && lastAttempt.chunkSeriesComplete !== true
+      ? request.completedPasses + 1
+      : request.completedPasses;
+    if (scope === "chunked" && lastAttempt.chunkSeriesComplete !== true) {
+      return resolveEnvelope({
+        state: "chunk-pending",
+        nextAction: "continue-chunks",
+        payload: {
+          lane: request.lane,
+          scope,
+          sourceId: lastAttempt.sourceId,
+          pass,
+          completedPasses: request.completedPasses,
+          consumedPass: false,
+          attemptedSources: request.attempts,
+        },
+      });
+    }
+    if (lastAttempt.outcome === "findings") {
+      return resolveEnvelope({
+        state: "findings",
+        nextAction: "respond",
+        payload: {
+          lane: request.lane,
+          scope,
+          sourceId: lastAttempt.sourceId,
+          pass,
+          completedPasses: request.completedPasses,
+          consumedPass: true,
+          attemptedSources: request.attempts,
+          consequence: "disposition-required",
+        },
+      });
+    }
+    return resolveEnvelope({
+      state: "pass-complete",
+      nextAction: "none",
+      payload: {
+        lane: request.lane,
+        scope,
+        sourceId: lastAttempt.sourceId,
+        pass,
+        completedPasses: request.completedPasses,
+        consumedPass: true,
+        attemptedSources: request.attempts,
+      },
+    });
+  }
   if (request.completedPasses >= request.maxPasses
     && !ceilingOverrideApplied) {
     return resolveEnvelope({
@@ -488,76 +562,6 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       code: "review-pass-ceiling-exhausted",
       message: `The ${request.lane} lane has exhausted its configured pass ceiling.`,
     }]);
-  }
-  const lastAttempt = request.attempts.at(-1);
-  if (lastAttempt !== undefined
-    && !isSafeUnavailable(lastAttempt.outcome)
-    && lastAttempt.outcome !== "clean"
-    && lastAttempt.outcome !== "findings") {
-    return resolveEnvelope({
-      state: "blocked",
-      nextAction: "stop",
-      payload: {
-        lane: request.lane,
-        scope,
-        sourceId: lastAttempt.sourceId,
-        outcome: lastAttempt.outcome,
-        consumedPass: false,
-        attemptedSources: request.attempts,
-      },
-    }, [{
-      code: `source-outcome-${lastAttempt.outcome}`,
-      message: `Review source '${lastAttempt.sourceId}' returned ${lastAttempt.outcome}.`,
-    }]);
-  }
-  if (lastAttempt !== undefined
-    && (lastAttempt.outcome === "clean" || lastAttempt.outcome === "findings")) {
-    const pass = request.completedPasses + 1;
-    if (scope === "chunked" && lastAttempt.chunkSeriesComplete !== true) {
-      return resolveEnvelope({
-        state: "chunk-pending",
-        nextAction: "continue-chunks",
-        payload: {
-          lane: request.lane,
-          scope,
-          sourceId: lastAttempt.sourceId,
-          pass,
-          completedPasses: request.completedPasses,
-          consumedPass: false,
-          attemptedSources: request.attempts,
-        },
-      });
-    }
-    const completedPasses = pass;
-    if (lastAttempt.outcome === "findings") {
-      return resolveEnvelope({
-        state: "findings",
-        nextAction: "respond",
-        payload: {
-          lane: request.lane,
-          scope,
-          sourceId: lastAttempt.sourceId,
-          pass,
-          completedPasses,
-          consumedPass: true,
-          attemptedSources: request.attempts,
-          consequence: "disposition-required",
-        },
-      });
-    }
-    return resolveEnvelope({
-      state: "pass-complete",
-      nextAction: "none",
-      payload: {
-        lane: request.lane,
-        scope,
-        sourceId: lastAttempt.sourceId,
-        pass,
-        completedPasses,
-        consumedPass: true,
-        attemptedSources: request.attempts,
-      },
-    });
   }
   const sourceDiagnostics = new Map(request.sources.map((sourceId) => [
     sourceId,
@@ -656,9 +660,15 @@ function resolveInvalidOverrideReason(
   if (override === undefined) return null;
   if (!sameTarget(override.target, request.target)) return "target-mismatch";
   if (override.lane !== request.lane) return "lane-mismatch";
-  if (override.exhaustedPassCount !== request.completedPasses) return "pass-count-mismatch";
-  if (override.nextPass !== request.completedPasses + 1) return "next-pass-mismatch";
-  if (request.completedPasses < request.maxPasses) return "ceiling-not-exhausted";
+  const lastAttempt = request.attempts.at(-1);
+  const scope = request.scopeSelection?.mode ?? "whole-target";
+  const terminalPassRecorded = lastAttempt !== undefined
+    && ["clean", "findings", "settled-findings"].includes(lastAttempt.outcome)
+    && (scope !== "chunked" || lastAttempt.chunkSeriesComplete === true);
+  const overrideBasePasses = request.completedPasses - (terminalPassRecorded ? 1 : 0);
+  if (override.exhaustedPassCount !== overrideBasePasses) return "pass-count-mismatch";
+  if (override.nextPass !== overrideBasePasses + 1) return "next-pass-mismatch";
+  if (overrideBasePasses < request.maxPasses) return "ceiling-not-exhausted";
   return null;
 }
 

@@ -1463,6 +1463,7 @@ reviewCmd
   .description("Resolve the host disposition for one exact head")
   .requiredOption("--head-ref <branch>", "Proposed branch name")
   .requiredOption("--head-sha <oid>", "Exact 40-hex proposed head")
+  .option("--require-remote", "Require the remote branch to match the exact head")
   .requiredOption("--json", "Emit a typed JSON result")
   .action((options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options));
 
