@@ -72,4 +72,28 @@ describe("frontline exact-target materialization", () => {
     await materialized.release();
     await expect(access(materialized.reviewRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it("preserves delivery-member kind and predecessor coordinates", async () => {
+    const records = await fixture();
+    const memberTarget = await deriveLocalReviewTarget({
+      exec,
+      cwd: records.root,
+      baseRef: records.target.baseRef,
+      repositoryId: records.target.repositoryId,
+      memberCoordinates: {
+        headSha: records.target.headSha,
+        diffBaseSha: records.target.diffBaseSha,
+      },
+    });
+
+    const materialized = await prepareFrontlineTargetMaterialization({
+      exec,
+      cwd: records.root,
+      target: memberTarget,
+    });
+    expect(materialized.target).toEqual(memberTarget);
+    expect(materialized.target.kind).toBe("delivery-member");
+    expect(materialized.target.diffBaseSha).toBe(memberTarget.diffBaseSha);
+    await materialized.release();
+  });
 });
