@@ -11,7 +11,7 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:bdca05f87ed7546b127bd8a56c2e5572dfaedff0ed528280361637ea75ac7f93`
+- **Candidate:** `sha256:e99c92a5480be968d2347f2009dc3fdc052c58ceb18f11dd151891c368121fc6`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 12.2 — the lineage advance carries the same staging precondition as its root, closing
