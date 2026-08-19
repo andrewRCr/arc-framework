@@ -67,6 +67,16 @@ function dependencies() {
       state.held = true;
       return { state: "held" };
     },
+    createLockRequest: async (target) => ({
+      schemaVersion: 1,
+      treeRoot: "/candidate",
+      target: {
+        repository: (target?.repository ?? "owner/repo"),
+        pullRequest: (target?.pullRequest ?? 42),
+        headSha: (target?.headSha ?? oid("c")),
+      },
+      vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+    }),
     awaitChecks: async () => ({
       schemaVersion: 1,
       mode: "review-checks-await",
@@ -227,6 +237,77 @@ describe("integration merge", () => {
       payload: { configuredBase: "release", targetBase: "main" },
     });
     expect(reads).toBe(2);
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("keeps a nonterminal host merge response unmerged and re-locks the candidate", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async () => ({ state: "not-merged" });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "merge-blocked",
+      payload: { merge: { state: "not-merged" } },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it.each([
+    ["lifecycle-moved", (deps: IntegrationMergeDependencies) => {
+      deps.readStatus = async () => ({
+        actualHead: oid("c"),
+        lifecycleComplete: false,
+        lifecycleVersion: oid("c"),
+        target: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("c"),
+        },
+      });
+    }],
+    ["release-blocked", (deps: IntegrationMergeDependencies) => {
+      deps.releaseLock = async () => ({ state: "blocked" });
+    }],
+  ] as const)("re-locks the candidate after %s invalidates the merge", async (reason, arrange) => {
+    const { value, state } = dependencies();
+    arrange(value);
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({ state: "invalidated", reason });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns the exact lock request when compensating re-lock fails", async () => {
+    const { value, state } = dependencies();
+    value.readStatus = async () => ({
+      actualHead: oid("c"),
+      lifecycleComplete: false,
+      lifecycleVersion: oid("c"),
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        baseRef: "main",
+        headRef: "feat/example",
+        headSha: oid("c"),
+      },
+    });
+    value.holdLock = async () => {
+      throw new Error("host refused lock hold");
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      reason: "relock-failed",
+      payload: { invalidationReason: "lifecycle-moved" },
+      remedy: {
+        argv: ["arc", "merge", "lock", "hold", "-"],
+        stdin: {
+          target: { repository: "owner/repo", pullRequest: 42, headSha: oid("c") },
+          vehicle: { kind: "work-unit", slug: "example" },
+        },
+      },
+    });
     expect(state).toEqual({ held: true, merged: false });
   });
 

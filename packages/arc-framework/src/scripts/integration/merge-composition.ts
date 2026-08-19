@@ -1,5 +1,7 @@
 /** Production boundaries for the exact-checkpoint integration merge. */
 
+import { z } from "zod";
+
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
@@ -35,6 +37,11 @@ import {
 
 const CHECKS_TIMEOUT_MS = 10 * 60 * 1_000;
 const CHECKS_POLL_INTERVAL_MS = 10 * 1_000;
+const GitHubMergeResponseSchema = z.object({
+  merged: z.boolean(),
+  message: z.string(),
+  sha: z.string().nullable().optional(),
+}).loose();
 
 /** Bind Git, GitHub, review, lifecycle, and checkpoint stores to the merge reducer. */
 export function createIntegrationMergeDependencies(input: {
@@ -180,6 +187,7 @@ export function createIntegrationMergeDependencies(input: {
     },
     releaseLock: async (target) => releaseMergeLock(await lockRequest(target), lockPort),
     holdLock: async (target) => holdMergeLock(await lockRequest(target ?? await currentTarget()), lockPort),
+    createLockRequest: async (target) => lockRequest(target ?? await currentTarget()),
     awaitChecks: async (target) => awaitRequiredChecks({
       pullRequest: target.pullRequest,
       headSha: target.headSha,
@@ -208,12 +216,16 @@ export function createIntegrationMergeDependencies(input: {
       });
     },
     mergePinned: async (target, method) => {
-      const flag = method === "merge" ? "--merge" : method === "rebase" ? "--rebase" : "--squash";
-      await hostedGhRunner.run([
-        "pr", "merge", String(target.pullRequest), "--repo", target.repository,
-        flag, "--match-head-commit", target.headSha,
+      const result = await hostedGhRunner.run([
+        "api", `repos/${target.repository}/pulls/${target.pullRequest}/merge`,
+        "--method", "PUT",
+        "--raw-field", `sha=${target.headSha}`,
+        "--raw-field", `merge_method=${method}`,
       ]);
-      return { state: "merged" };
+      const response = GitHubMergeResponseSchema.parse(JSON.parse(result.stdout) as unknown);
+      return response.merged
+        ? { state: "merged" }
+        : { state: "not-merged", detail: response.message };
     },
   };
 }

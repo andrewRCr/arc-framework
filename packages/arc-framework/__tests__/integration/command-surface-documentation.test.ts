@@ -11,6 +11,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
+import ts from "typescript";
 
 import { loadRepositoryCommandInputSnapshot } from "../../src/lib/command-input/repository-inventory.js";
 
@@ -68,6 +69,22 @@ function emittedInvocations(sourceText: string): DocumentedInvocation[] {
     const words = match[1]?.split(" ") ?? [];
     if (words.length > 0) invocations.push({ line: `arc ${match[1] ?? ""}`, words });
   }
+  const source = ts.createSourceFile("commands.ts", sourceText, ts.ScriptTarget.Latest, true);
+  const visit = (node: ts.Node): void => {
+    if (ts.isArrayLiteralExpression(node)) {
+      const first = node.elements[0];
+      if (first !== undefined && ts.isStringLiteralLike(first) && first.text === "arc") {
+        const words: string[] = [];
+        for (const element of node.elements.slice(1)) {
+          if (!ts.isStringLiteralLike(element) || !/^[a-z][a-z0-9-]*$/u.test(element.text)) break;
+          words.push(element.text);
+        }
+        if (words.length > 0) invocations.push({ line: `arc ${words.join(" ")}`, words });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
   return invocations;
 }
 
@@ -128,6 +145,18 @@ describe("documented command surface", () => {
     const emitted = emittedInvocations("const c = `arc review pre-publication ${workUnit} --json`;");
 
     expect(emitted.map((invocation) => invocation.words)).toEqual([["review", "pre-publication"]]);
+  });
+
+  it("reads a corrective command path out of structured argv", () => {
+    const emitted = emittedInvocations('const remedy = { argv: ["arc", "review", "status", "--json"] };');
+
+    expect(emitted.map((invocation) => invocation.words)).toEqual([["review", "status"]]);
+  });
+
+  it("rejects an unregistered structured argv command", () => {
+    const [emitted] = emittedInvocations('const remedy = { argv: ["arc", "not-registered"] };');
+
+    expect(resolveCommandPath(emitted?.words ?? [], new Set(["review", "status"]))).toBeNull();
   });
 
   it("refuses a documented subcommand whose surviving parent group is all that registers", () => {

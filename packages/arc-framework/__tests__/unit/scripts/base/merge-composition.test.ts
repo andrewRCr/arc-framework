@@ -28,11 +28,42 @@ describe("base merge composition", () => {
         state.merging = false;
         return ok();
       }
+      if (args[0] === "diff" && args.includes("--diff-filter=U")) return ok("conflict.txt\n");
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
     };
     const port = createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec });
 
     await expect(port.mergeAppendOnly(oid("a"))).resolves.toBe("conflict");
+    expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
+  });
+
+  it("restores the repository but preserves a non-conflict merge failure", async () => {
+    const state = { head: oid("c"), clean: true, merging: false };
+    const failure = new Error("commit hook rejected the merge");
+    const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "status") return ok(state.clean ? "" : "merge state");
+      if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
+        if (!state.merging) throw new Error("no merge");
+        return ok(oid("a"));
+      }
+      if (args[0] === "merge" && args[1] === "--no-edit") {
+        state.clean = false;
+        state.merging = true;
+        throw failure;
+      }
+      if (args[0] === "diff" && args.includes("--diff-filter=U")) return ok();
+      if (args[0] === "merge" && args[1] === "--abort") {
+        state.clean = true;
+        state.merging = false;
+        return ok();
+      }
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec }).mergeAppendOnly(oid("a")))
+      .rejects.toBe(failure);
     expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
   });
 });

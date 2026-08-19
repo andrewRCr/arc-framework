@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const { mockExeca } = vi.hoisted(() => ({ mockExeca: vi.fn() }));
+vi.mock("execa", () => ({ execa: mockExeca }));
 
 import {
   GhHostedReviewPort,
+  hostedGhRunner,
   type HostedProcessRunner,
 } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../../../../../src/scripts/review-gate/hosted/coderabbit.js";
@@ -53,6 +57,20 @@ function comment(id: number) {
 }
 
 describe("hosted GitHub process boundary", () => {
+  it("preserves cancellation metadata when allowFailure keeps the process promise resolved", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", isCanceled: true, timedOut: false });
+
+    await expect(hostedGhRunner.run(["pr", "checks"], { allowFailure: true }))
+      .rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("preserves timeout metadata when allowFailure keeps the process promise resolved", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", isCanceled: false, timedOut: true });
+
+    await expect(hostedGhRunner.run(["pr", "checks"], { allowFailure: true }))
+      .rejects.toMatchObject({ name: "TimeoutError" });
+  });
+
   it("preserves a deadline abort through the production port and await composition", async () => {
     const boundary: HostedProcessRunner = {
       run: () => Promise.reject(new DOMException("timed out", "TimeoutError")),

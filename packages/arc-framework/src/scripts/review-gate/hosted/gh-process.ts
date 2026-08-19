@@ -58,11 +58,21 @@ export const hostedGhRunner: HostedProcessRunner = {
         reject: options?.allowFailure !== true,
         ...(options?.signal === undefined ? {} : { cancelSignal: options.signal }),
       });
+      if (options?.signal?.aborted === true || result.isCanceled) {
+        const reason = options?.signal?.reason as unknown;
+        throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
+      }
+      if (result.timedOut) {
+        throw new DOMException("The hosted process timed out.", "TimeoutError");
+      }
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
       if (options?.signal?.aborted === true) {
         const reason = options.signal.reason as unknown;
         throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
+      }
+      if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+        throw error;
       }
       const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
       const stdout = typeof record.stdout === "string" ? record.stdout : "";

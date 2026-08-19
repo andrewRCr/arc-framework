@@ -83,6 +83,18 @@ describe("exact-head change-request resolution", () => {
     });
   });
 
+  it("offers reopening when the sole closed request remains at the prior head", async () => {
+    const movedHead = "b".repeat(40);
+    await expect(resolveChangeRequest({ headRef, headSha: movedHead }, port({
+      readHeadRef: async () => ({ local: movedHead, remote: movedHead }),
+      listByHead: async () => [candidate({ state: "CLOSED", headRefOid: headSha })],
+    }))).resolves.toMatchObject({
+      state: "closed-unmerged",
+      nextAction: "reopen-change-request",
+      candidate: { number: 42, headRefOid: headSha },
+    });
+  });
+
   it("stops with every candidate when host state is ambiguous", async () => {
     const candidates = [candidate(), candidate({ number: 43, url: "https://github.com/owner/repo/pull/43" })];
     const result = await resolveChangeRequest({ headRef, headSha }, port({

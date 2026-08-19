@@ -44,11 +44,19 @@ describe("spine refusal remedies", () => {
 
   it("names an invariant and one corrective command for every merge refusal", () => {
     for (const reason of MERGE_REFUSAL_REASONS) {
-      const remedy = SpineRemedySchema.parse(mergeRemedy(reason, "example"));
+      const remedy = SpineRemedySchema.parse(mergeRemedy(reason, "example", reason === "relock-failed"
+        ? {
+            schemaVersion: 1,
+            treeRoot: "/candidate",
+            target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(40) },
+            vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+          }
+        : undefined));
 
       expect(remedy.invariant, reason).toMatch(/\.$/u);
       expect(remedy.argv[0], reason).toBe("arc");
       expect(remedy.text, reason).toContain(remedy.argv.join(" "));
+      if (reason === "relock-failed") expect(remedy.stdin).toBeDefined();
     }
   });
 

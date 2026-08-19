@@ -20,6 +20,8 @@ export const SpineRemedySchema = z.strictObject({
   text: z.string().min(1),
   /** The corrective command as argv — executable without shell reconstruction. */
   argv: z.array(z.string().min(1)).min(1),
+  /** Exact JSON standard input required by an argv ending in `-`. */
+  stdin: z.json().optional(),
 });
 export type SpineRemedy = z.infer<typeof SpineRemedySchema>;
 
@@ -36,11 +38,18 @@ function renderArgument(argument: string): string {
  * @param argv - The corrective command.
  * @returns The validated remedy.
  */
-export function spineRemedy(invariant: string, correction: string, argv: readonly string[]): SpineRemedy {
+export function spineRemedy(
+  invariant: string,
+  correction: string,
+  argv: readonly string[],
+  stdin?: unknown,
+): SpineRemedy {
   return SpineRemedySchema.parse({
     invariant,
-    text: `${invariant} ${correction}: \`${argv.map(renderArgument).join(" ")}\`.`,
+    text: `${invariant} ${correction}${stdin === undefined ? "" : " with the carried stdin request"}: `
+      + `\`${argv.map(renderArgument).join(" ")}\`.`,
     argv: [...argv],
+    ...(stdin === undefined ? {} : { stdin }),
   });
 }
 

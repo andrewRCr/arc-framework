@@ -87,33 +87,30 @@ function classifyCandidates(
   if (candidate.state === "MERGED") {
     return { ...base, state: "merged-stale-head", nextAction: "reconcile-head", candidate };
   }
-  if (candidate.state === "CLOSED" && candidate.headRefOid === targetRef.headSha) {
+  if (candidate.state === "CLOSED") {
     return { ...base, state: "closed-unmerged", nextAction: "reopen-change-request", candidate };
   }
-  if (candidate.state === "OPEN" && candidate.headRefOid !== targetRef.headSha) {
-    return {
-      ...base,
-      state: "ambiguous",
-      nextAction: "stop",
-      candidates,
-      remedy: spineRemedy(
-        "An open change request exists at a different head.",
-        "Push the target branch, then re-run exact-head resolution",
-        [
-          "arc",
-          "review",
-          "change-request",
-          "resolve",
-          "--head-ref",
-          targetRef.headRef,
-          "--head-sha",
-          targetRef.headSha,
-          "--json",
-        ],
-      ),
-    };
-  }
-  return { ...base, state: "ambiguous", nextAction: "stop", candidates };
+  return {
+    ...base,
+    state: "ambiguous",
+    nextAction: "stop",
+    candidates,
+    remedy: spineRemedy(
+      "An open change request exists at a different head.",
+      "Push the target branch, then re-run exact-head resolution",
+      [
+        "arc",
+        "review",
+        "change-request",
+        "resolve",
+        "--head-ref",
+        targetRef.headRef,
+        "--head-sha",
+        targetRef.headSha,
+        "--json",
+      ],
+    ),
+  };
 }
 
 /** Resolve host change-request state for one exact proposed head. */

@@ -27,6 +27,13 @@ async function mergeInProgress(exec: GitExec, cwd: string): Promise<boolean> {
   }
 }
 
+async function hasUnmergedEntries(exec: GitExec, cwd: string): Promise<boolean> {
+  return (await exec("git", ["diff", "--name-only", "--diff-filter=U"], {
+    cwd,
+    objectAccess: "local-only",
+  })).stdout.trim() !== "";
+}
+
 /** Bind one repository worktree and configured base branch to the merge reducer. */
 export function createBaseMergePort(input: {
   cwd: string;
@@ -62,6 +69,7 @@ export function createBaseMergePort(input: {
         return "merged";
       } catch (error) {
         if (!await mergeInProgress(input.exec, input.cwd)) throw error;
+        const contentConflict = await hasUnmergedEntries(input.exec, input.cwd);
         await input.exec("git", ["merge", "--abort"], { cwd: input.cwd });
         const [after, clean, stillMerging] = await Promise.all([
           resolveOid(input.exec, input.cwd, "HEAD"),
@@ -74,6 +82,7 @@ export function createBaseMergePort(input: {
         if (after !== before || !clean || stillMerging) {
           throw new Error("Git could not restore the pre-merge candidate state.", { cause: error });
         }
+        if (!contentConflict) throw error;
         return "conflict";
       }
     },

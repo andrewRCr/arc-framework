@@ -5,6 +5,10 @@ import { z } from "zod";
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
 import type { ChecksAwaitResult } from "../review-gate/checks-await.js";
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import {
+  MergeLockTransitionRequestSchema,
+  type MergeLockTransitionRequest,
+} from "../review-gate/merge-lock.js";
 import type { IntegrationCheckpointCompositionRecord } from "./checkpoint-store.js";
 import {
   SpineRemedySchema,
@@ -62,7 +66,7 @@ export const MERGE_REFUSAL_REASONS: readonly MergeRefusalReason[] = [
   ...MergeBlockedReasonSchema.options,
 ];
 
-const MERGE_REMEDIES: Record<MergeRefusalReason, (workUnit: string) => SpineRemedy> = {
+const MERGE_REMEDIES: Record<Exclude<MergeRefusalReason, "relock-failed">, (workUnit: string) => SpineRemedy> = {
   "checkpoint-missing": (workUnit) => spineRemedy(
     "A merge executes only a persisted checkpoint composition.",
     "Compose a fresh checkpoint",
@@ -108,11 +112,6 @@ const MERGE_REMEDIES: Record<MergeRefusalReason, (workUnit: string) => SpineReme
     "Resolve the reported host refusal, then re-checkpoint",
     checkpointResumeArgv(workUnit),
   ),
-  "relock-failed": () => spineRemedy(
-    "An invalidated candidate is re-locked before the operator resumes.",
-    "Re-hold the merge lock",
-    ["arc", "merge", "lock", "hold", "-"],
-  ),
   "operation-failed": (workUnit) => spineRemedy(
     "A merge either lands or leaves the candidate resumable.",
     "Resolve the reported operational failure, then re-checkpoint",
@@ -127,7 +126,20 @@ const MERGE_REMEDIES: Record<MergeRefusalReason, (workUnit: string) => SpineReme
  * @param workUnit - The refused work unit, interpolated into slug-bearing commands.
  * @returns The remedy naming the failed invariant and one corrective command.
  */
-export function mergeRemedy(reason: MergeRefusalReason, workUnit: string): SpineRemedy {
+export function mergeRemedy(
+  reason: MergeRefusalReason,
+  workUnit: string,
+  relockRequest?: MergeLockTransitionRequest,
+): SpineRemedy {
+  if (reason === "relock-failed") {
+    const request = MergeLockTransitionRequestSchema.parse(relockRequest);
+    return spineRemedy(
+      "An invalidated candidate is re-locked before the operator resumes.",
+      "Re-hold the merge lock",
+      ["arc", "merge", "lock", "hold", "-"],
+      request,
+    );
+  }
   return MERGE_REMEDIES[reason](workUnit);
 }
 
@@ -238,6 +250,7 @@ export interface IntegrationMergeDependencies {
   refreshTarget(target: IntegrationMergeTarget): Promise<IntegrationMergeTarget>;
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
+  createLockRequest(target?: IntegrationMergeTarget): Promise<MergeLockTransitionRequest>;
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
   resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
   readConfiguredBase(): Promise<string>;
@@ -252,19 +265,24 @@ async function invalidated(
   dependencies: IntegrationMergeDependencies,
   target?: IntegrationMergeTarget,
 ): Promise<IntegrationMergeResult> {
+  let holdRequest: MergeLockTransitionRequest | null = null;
   try {
     const holdTarget = reason === "head-mismatch" && target !== undefined
       ? await dependencies.refreshTarget(target)
       : target;
+    holdRequest = await dependencies.createLockRequest(holdTarget);
     const hold = await dependencies.holdLock(holdTarget);
     if (hold.state !== "held" && hold.state !== "no-lock") throw new Error("lock hold was refused");
   } catch (error) {
+    const relockFailed = holdRequest !== null;
     return IntegrationMergeResultSchema.parse({
       ...base,
       state: "blocked",
       nextAction: "stop",
-      reason: "relock-failed",
-      remedy: mergeRemedy("relock-failed", base.workUnit),
+      reason: relockFailed ? "relock-failed" : "operation-failed",
+      remedy: relockFailed
+        ? mergeRemedy("relock-failed", base.workUnit, holdRequest ?? undefined)
+        : mergeRemedy("operation-failed", base.workUnit),
       payload: {
         invalidationReason: reason,
         detail: error instanceof Error ? error.message : String(error),
