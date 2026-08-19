@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
 import {
   createCandidateAttestation,
+  createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
   projectCandidateCurrentness,
   type CandidateManagedRecordV1,
@@ -764,7 +765,7 @@ describe("verified-fix Candidate settlement", () => {
       applicability: "focused",
       verificationEvidenceRefs: ["verification://focused-fix"],
       implementationChanged: true,
-      oldTarget: { revision: record.attestation.baseRevision },
+      oldTarget: { revision: records.target.headSha },
       newTarget: { revision: objectId("e") },
     });
   });
@@ -864,6 +865,43 @@ describe("verified-fix Candidate settlement", () => {
       ...request,
       verifiedFix: { ...request.verifiedFix, ...verifiedFixPatch },
     }, deps)).rejects.toThrow("replay conflicts");
+  });
+
+  it("rejects a Candidate response replay whose recorded review target moved", async () => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const advanced = appends[0]?.record;
+    const response = advanced?.responses[0];
+    if (advanced === undefined || response === undefined) {
+      throw new Error("expected an appended Candidate response");
+    }
+    const conflictingResponse = createCandidateReviewResponseEvidence({
+      candidateId: response.candidateId,
+      oldTarget: { ...response.oldTarget, revision: objectId("9") },
+      newTarget: response.newTarget,
+      dispositionId: response.dispositionId,
+      approvedBy: response.approvedBy,
+      appliedBy: response.appliedBy,
+      applicability: response.applicability,
+      verificationEvidenceRefs: response.verificationEvidenceRefs,
+      implementationChanged: response.implementationChanged,
+    });
+    const conflicting = {
+      ...advanced,
+      responses: [conflictingResponse],
+    };
+    deps.readCandidateLineage = async () => ({
+      workUnit: "example",
+      record: conflicting,
+      recordVersion: canonicalDigest(conflicting),
+      current,
+      unstagedReviewablePaths: [],
+    });
+
+    await expect(respondToReviewCommand(request, deps)).rejects.toThrow("replay conflicts");
   });
 
   it("repairs staging when the Candidate record write succeeded before git add failed", async () => {

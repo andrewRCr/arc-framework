@@ -492,6 +492,7 @@ async function persistCandidateResponse(
     const matching = matchingResponses[0];
     if (matching === undefined
       || matching.candidateId !== lineage.record.attestation.candidateId
+      || matching.oldTarget.revision !== source.target.headSha
       || matching.approvedBy !== dispositions.approval.approvedBy
       || matching.appliedBy !== dispositions.dispositionSet.proposedBy
       || matching.applicability !== verifiedFix.applicability
@@ -514,7 +515,13 @@ async function persistCandidateResponse(
   }
   const projection = projectCandidateDeltaVerification({ record: lineage.record, current: lineage.current });
   const response = recordCandidateVerifiedResponse({
-    projection,
+    projection: {
+      ...projection,
+      // The prior Candidate subject may have survived ceremony commits after its attestation.
+      // Preserve the exact reviewed revision so lineage-wide review authority can find the pass
+      // record that belongs to the approved response.
+      oldTarget: { ...projection.oldTarget, revision: source.target.headSha },
+    },
     dispositionId: dispositions.dispositionSet.dispositionSetId,
     approvedBy: dispositions.approval.approvedBy,
     appliedBy: dispositions.dispositionSet.proposedBy,

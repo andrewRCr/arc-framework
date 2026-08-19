@@ -30,6 +30,9 @@ import {
   createStandardReviewReservation,
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  createPrePublicationCompositionDependencies,
+} from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
 import {
   checkpointIntegration,
@@ -433,6 +436,7 @@ describe("review-fix Candidate lineage", () => {
     expect(proposed.exitCode, proposed.stderr || proposed.stdout).toBe(0);
     expect(JSON.parse(proposed.stdout)).toMatchObject({ status: "attested", operation: "root" });
     await git(root, ["commit", "-m", "verification"]);
+    const reviewedHead = await git(root, ["rev-parse", "HEAD"]);
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
@@ -457,6 +461,18 @@ describe("review-fix Candidate lineage", () => {
       nextAction: "continue-review",
       payload: { implementationChanged: true },
     });
+    const composition = createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec });
+    const candidate = await composition.readCandidate("example");
+    expect(candidate.status).toBe("current");
+    if (candidate.status !== "current") {
+      throw new Error("expected a current Candidate lineage");
+    }
+    expect(candidate.lineageHeadShas).toContain(reviewedHead);
+    await expect(composition.readLaneProgress(
+      "standard",
+      candidate.headSha,
+      candidate.lineageHeadShas,
+    )).resolves.toMatchObject({ status: "recorded", completedPasses: 1 });
 
     // The lineage now explains the fixed subject, so the Candidate is current — and unverified at its
     // converged head, which is the exact state the checkpoint refuses to approve.
