@@ -73,6 +73,7 @@ export async function runReopen(
       verb: "reopen",
       slug: name,
       inputs: { prMerged, prWithdrawMode: withdrawMode ?? "close" },
+      replayNonRoadmapSideEffects: true,
     }) ?? outcome;
   }
   if (resolvedOutcome.status !== "ok") return { status: "rejected", reason: resolvedOutcome.message };

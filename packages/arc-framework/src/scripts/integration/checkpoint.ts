@@ -419,7 +419,13 @@ function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): Recon
   });
 }
 
-/** Reduce the complete pre-approval span to one typed checkpoint verdict. */
+/**
+ * Reduce the complete pre-approval span to one typed checkpoint verdict.
+ *
+ * @param input - Work-unit checkpoint request.
+ * @param dependencies - Exact repository, lifecycle, review, and persistence boundaries.
+ * @returns A ready, reconcile, or blocked result with its typed next action.
+ */
 export async function checkpointIntegration(
   input: IntegrationCheckpointRequest,
   dependencies: IntegrationCheckpointDependencies,

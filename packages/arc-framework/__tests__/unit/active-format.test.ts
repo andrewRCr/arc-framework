@@ -54,6 +54,7 @@ function sessionInitResult(
     sessionType: "planning",
     currentWorkflow: null,
     planningStage: null,
+    integrationBoundary: null,
     warnings: [],
     ...overrides,
   };

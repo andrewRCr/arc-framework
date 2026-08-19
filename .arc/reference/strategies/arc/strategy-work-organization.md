@@ -498,12 +498,16 @@ The four values below trace the WU lifecycle; the workflow that sets each is lis
 
 ### State Enum
 
-| Value         | Set By                                            | Meaning                                                                       |
-| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `Planning`    | [init-work-unit][init-work-unit]                  | Spec and task list being authored; task execution not yet begun               |
-| `Active`      | [activate-work-unit][activate-work-unit] Step 4   | Implementation or private preparation underway; publication has not begun     |
-| `Integrating` | [prepare-work-unit][prepare-work-unit] Step 3     | Publication/public integration underway; stable until merge                   |
-| `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
+| Value         | Set By                                          | Meaning                                                                      |
+| ------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| `Planning`    | [init-work-unit][init-work-unit]                | Spec and task list being authored; task execution not yet begun              |
+| `Active`      | [activate-work-unit][activate-work-unit] Step 4 | Implementation or private preparation underway; publication has not begun    |
+| `Integrating` | [prepare-work-unit][prepare-work-unit] Step 3   | Publication/public integration underway until the archive transition         |
+| `Shipped`     | [archive-work-unit][archive-work-unit]          | Archived final form; the default cadence may retain an incomplete merge tail |
+
+With the default `archive.cadence: with-integration`, archival produces a mergeable `Shipped` candidate before the
+final push and merge. Under `manual`, the work unit stays `Integrating` through merge and becomes `Shipped` when
+archive runs afterward.
 
 ### Readiness ladder
 

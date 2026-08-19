@@ -5,6 +5,7 @@ import { boundedWait, type BoundedWaitClock } from "./bounded-wait.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 export const ChecksAwaitInputSchema = z.object({
+  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
   pullRequest: z.number().int().positive(),
   headSha: GitObjectIdSchema,
   timeoutMs: z.number().int().positive().max(30 * 60 * 1_000),
@@ -57,6 +58,7 @@ export type ChecksAwaitResult = ChecksResultBase & (
   | { state: "failed"; nextAction: "stop"; checks: RequiredCheck[] }
   | { state: "pending"; nextAction: "await"; checks: RequiredCheck[]; elapsedMs: number }
   | { state: "stale-target"; nextAction: "stop"; actualHeadSha: string }
+  | { state: "target-mismatch"; nextAction: "stop"; actualRepository: string }
 );
 
 /** Await required checks for one exact pull-request head. */
@@ -72,6 +74,9 @@ export async function awaitRequiredChecks(
     pullRequest: input.pullRequest,
     headSha: input.headSha,
   } as const;
+  if (repository.toLowerCase() !== input.repository.toLowerCase()) {
+    return { ...base, state: "target-mismatch", nextAction: "stop", actualRepository: repository };
+  }
   let latestChecks: RequiredCheck[] = [];
   return boundedWait<ChecksAwaitResult>({
     timeoutMs: input.timeoutMs,

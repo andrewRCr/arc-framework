@@ -443,7 +443,8 @@ describe("local resume command", () => {
     const records = fixture();
     const finding = {
       findingId: "finding-1",
-      severity: "major" as const,
+      severity: "minor" as const,
+      nit: true as const,
       locus: "src/index.ts:7",
       evidenceUrlOrId: "review:finding-1",
     };
@@ -486,7 +487,9 @@ describe("local resume command", () => {
       proposedBy: records.operation.attestation.runtimeIdentity,
       findings: [{
         findingId: finding.findingId,
-        severity: finding.severity,
+        reviewerSeverity: finding.severity,
+        reviewerNit: true,
+        arcSeverity: "major",
         locus: finding.locus,
         sourceIdentity: records.operation.request.evaluatorIdentity,
         sourceVerification: "verified",

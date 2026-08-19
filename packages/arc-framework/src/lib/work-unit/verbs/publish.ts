@@ -42,6 +42,7 @@ import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 import {
   IntegrationBoundaryLocusSchema,
+  parseIntegrationBoundaryLocus,
   projectPublicationBoundary,
   type IntegrationBoundaryLocus,
   type StandardReviewReservationV1,
@@ -57,7 +58,7 @@ export function authorizeSubmission(input: {
   expectedCandidateSubjectDigest: string;
   boundary: IntegrationBoundaryLocus;
 }): SubmissionAuthorization {
-  const boundary = IntegrationBoundaryLocusSchema.parse(input.boundary);
+  const boundary = parseIntegrationBoundaryLocus(input.boundary);
   if (boundary.candidateId !== input.expectedCandidateId) {
     return { status: "refused", reason: "Submission boundary does not match the current Candidate." };
   }
@@ -101,6 +102,8 @@ export interface PublishParams {
     candidateSubjectDigest: string;
     candidateCurrent: boolean;
   }>;
+  /** Version-check and persist the exact publication claim before lifecycle mutation begins. */
+  claimPublicationBoundary(boundary: IntegrationBoundaryLocus): Promise<void>;
   /** Explicit authority to retain advisory-only reconcile findings while entering review. */
   allowAdvisories?: boolean;
 }
@@ -217,6 +220,7 @@ export async function runPublish(
   } = params;
   let branch: string | null;
   let taskList: string | null;
+  let currentWorkflow: string | null;
   let lifecycle: "Active" | "Integrating";
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
@@ -250,6 +254,7 @@ export async function runPublish(
     }
     branch = meta.branch;
     taskList = meta.taskList;
+    currentWorkflow = meta.currentWorkflow;
     lifecycle = meta.state;
   } catch {
     return {
@@ -281,6 +286,9 @@ export async function runPublish(
         remedy: PRE_PUBLICATION_REMEDY(name),
       };
     }
+    if (currentWorkflow === "integrate-work-unit") {
+      return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
+    }
     const resolvedLastCompleted = lastCompleted ?? await readLastCompletedWork(ctx, metaPath, taskList);
     if (resolvedLastCompleted === null) {
       return {
@@ -307,11 +315,16 @@ export async function runPublish(
     }
     return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
   }
-  const authorization = authorizeSubmission({
-    expectedCandidateId: candidateId,
-    expectedCandidateSubjectDigest: candidateSubjectDigest,
-    boundary,
-  });
+  const authorization = lifecycle === "Active"
+    && boundary.locus === "publication-pending"
+    && boundary.candidateId === candidateId
+    && boundary.candidateSubjectDigest === candidateSubjectDigest
+    ? { status: "authorized" as const, reservation: boundary.reservation }
+    : authorizeSubmission({
+        expectedCandidateId: candidateId,
+        expectedCandidateSubjectDigest: candidateSubjectDigest,
+        boundary,
+      });
   if (authorization.status === "refused") {
     return {
       status: "rejected",
@@ -328,6 +341,9 @@ export async function runPublish(
       reservation: authorization.reservation,
       changeRequest: null,
     });
+    if (currentWorkflow === "integrate-work-unit") {
+      return { status: "unchanged", boundary: publicationBoundary };
+    }
     const resolvedLastCompleted = lastCompleted ?? await readLastCompletedWork(ctx, metaPath, taskList);
     if (resolvedLastCompleted === null) {
       return {
@@ -404,11 +420,15 @@ export async function runPublish(
       remedy: CANDIDATE_REMEDY(name),
     };
   }
-  const refreshedAuthorization = authorizeSubmission({
-    expectedCandidateId: refreshed.candidateId,
-    expectedCandidateSubjectDigest: refreshed.candidateSubjectDigest,
-    boundary,
-  });
+  const refreshedAuthorization = boundary.locus === "publication-pending"
+    && boundary.candidateId === refreshed.candidateId
+    && boundary.candidateSubjectDigest === refreshed.candidateSubjectDigest
+    ? { status: "authorized" as const, reservation: boundary.reservation }
+    : authorizeSubmission({
+        expectedCandidateId: refreshed.candidateId,
+        expectedCandidateSubjectDigest: refreshed.candidateSubjectDigest,
+        boundary,
+      });
   if (refreshedAuthorization.status === "refused") {
     return {
       status: "rejected",
@@ -426,6 +446,16 @@ export async function runPublish(
     // carried reservation has nothing to run against yet.
     changeRequest: null,
   });
+
+  try {
+    await params.claimPublicationBoundary(publicationBoundary);
+  } catch (error) {
+    return {
+      status: "rejected",
+      reason: `Cannot publish \`${name}\`: the durable publication claim failed (${error instanceof Error ? error.message : String(error)}).`,
+      remedy: PUBLISH_RESUME_REMEDY(name),
+    };
+  }
 
   const outcome = await executeTransition(ctx, {
     verb: "publish",

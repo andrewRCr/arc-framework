@@ -50,6 +50,7 @@ const HostedObservationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("findings"),
     reviewUrl: z.url(),
     findings: z.array(HostedFindingSchema).min(1),
+    responseSourceRef: z.string().trim().min(1).optional(),
   }),
   z.strictObject({ kind: z.literal("rate-limited") }),
   z.strictObject({ kind: z.literal("transient-unavailable") }),

@@ -80,6 +80,12 @@ describe("hosted review request", () => {
       provider: "coderabbit-pr",
       coverage: "provider-default",
     })).toThrow();
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(64) },
+      provider: "codex-pr",
+      coverage: "complete",
+    })).toThrow();
   });
 
   it("returns a typed failure when the selected source is unavailable", async () => {

@@ -11,7 +11,7 @@ import {
   type FrontlineOutcomeRecord,
   type ReviewReductionProjection,
 } from "../core/advisory-records.js";
-import { reviewerDispositionSeverity } from "../core/disposition-records.js";
+import { reviewerDispositionNit, reviewerDispositionSeverity } from "../core/disposition-records.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewIdentifierSchema,
@@ -108,6 +108,7 @@ function validateDisposition(input: {
   const dispositionFindings = findingsIdentity(set.findings.map((finding) => ({
     ...finding,
     severity: reviewerDispositionSeverity(finding),
+    nit: reviewerDispositionNit(finding),
   })));
   if (record.operationId !== input.operationId
     || record.repositoryId !== input.repositoryId

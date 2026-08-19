@@ -1,6 +1,7 @@
 /** Production Git composition for the exact-base merge procedure. */
 
-import type { GitExec } from "../../lib/git/exec.js";
+import { boundedGitInvocation, type GitExec } from "../../lib/git/exec.js";
+import { DEFAULT_NETWORK_TIMEOUT_MS } from "../../lib/git/remote-ref-reader.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import type { BaseMergePort } from "./merge.js";
 
@@ -34,16 +35,37 @@ async function hasUnmergedEntries(exec: GitExec, cwd: string): Promise<boolean> 
   })).stdout.trim() !== "";
 }
 
-/** Bind one repository worktree and configured base branch to the merge reducer. */
+/**
+ * Bind one repository worktree and configured base branch to the merge reducer.
+ *
+ * @param input - Repository, configured branch, Git executor, and optional bounded-fetch timeout.
+ * @returns A production base-merge port pinned to the explicit remote-tracking ref.
+ */
 export function createBaseMergePort(input: {
   cwd: string;
   baseBranch: string;
   exec: GitExec;
+  fetchTimeoutMs?: number;
 }): BaseMergePort {
+  const remoteBaseRef = `refs/remotes/origin/${input.baseBranch}`;
   return {
     refreshBase: async () => {
-      await input.exec("git", ["fetch", "origin", input.baseBranch], { cwd: input.cwd });
-      return resolveOid(input.exec, input.cwd, `refs/remotes/origin/${input.baseBranch}`);
+      await input.exec("git", ["check-ref-format", "--branch", input.baseBranch], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      });
+      const fetched = await boundedGitInvocation(input.exec, [
+        "fetch",
+        "--no-tags",
+        "origin",
+        `+refs/heads/${input.baseBranch}:${remoteBaseRef}`,
+      ], input.fetchTimeoutMs ?? DEFAULT_NETWORK_TIMEOUT_MS, { cwd: input.cwd });
+      if (fetched.outcome !== "ok") {
+        throw new Error(fetched.outcome === "timeout"
+          ? "Fetching the configured base timed out."
+          : "Fetching the configured base failed.", { cause: fetched.error });
+      }
+      return resolveOid(input.exec, input.cwd, `${remoteBaseRef}^{commit}`);
     },
     containsBase: async (baseOid) => {
       try {

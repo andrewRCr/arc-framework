@@ -22,6 +22,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { canonicalize } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
@@ -61,13 +62,19 @@ import {
   projectPrePublicationReview,
   type PrePublicationReviewEnvelope,
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
-import type {
-  IntegrationBoundaryLocus,
+import {
+  parseIntegrationBoundaryLocus,
+  type IntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
+import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
+import {
+  bindReviewSourceReference,
+  parseReviewSourceReference,
+} from "../scripts/review-gate/core/review-source-reference.js";
 import {
   LocalTargetDerivationError,
   type LocalTargetInvalidReason,
@@ -124,9 +131,14 @@ import {
   awaitHostedReview,
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
-import { recordHostedAwaitAttempt } from "../scripts/review-gate/lane-progress.js";
+import {
+  hostedLaneAttemptId,
+  recordHostedAwaitAttempt,
+  settleHostedAttemptFinding,
+} from "../scripts/review-gate/lane-progress.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
+import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import {
   HostedSettleEnvelopeSchema,
   HostedSettleResultSchema,
@@ -177,6 +189,7 @@ import {
   type ChangeRequestResolveResult,
 } from "../scripts/review-gate/change-request.js";
 import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
+import { deriveLocalReviewTarget } from "../scripts/review-gate/hosts/local/repository-target.js";
 import {
   MergeMethodSchema,
   resolveMergeMethod,
@@ -271,6 +284,7 @@ const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
   commandPath: "review checks await",
   schema: ChecksAwaitInputSchema,
   schemaFields: {
+    "option.repository": "repository",
     "option.pull-request": "pullRequest",
     "option.head-sha": "headSha",
     "option.timeout-ms": "timeoutMs",
@@ -288,11 +302,17 @@ export const ReviewPrePublicationInputSchema = z.strictObject({
     .optional(),
   lanes: z.string().trim().min(1, "A JSON lane-judgment file path, or - for stdin, is required.")
     .optional(),
+  resume: z.string().regex(/^[A-Za-z0-9_-]+$/u).optional(),
   json: z.literal(true),
-}).refine(
-  ({ changeSet, lanes }) => changeSet !== "-" || lanes !== "-",
-  "Only one of --change-set and --lanes may read stdin.",
-);
+}).superRefine((input, context) => {
+  if (input.changeSet === "-" && input.lanes === "-") {
+    context.addIssue({ code: "custom", message: "Only one of --change-set and --lanes may read stdin." });
+  }
+  if (input.resume !== undefined
+    && (input.selfReview !== undefined || input.changeSet !== undefined || input.lanes !== undefined)) {
+    context.addIssue({ code: "custom", path: ["resume"], message: "--resume cannot be combined with judgment options." });
+  }
+});
 
 const reviewPrePublicationInputRegistration: CommandInputRegistration = {
   commandPath: "review pre-publication",
@@ -302,6 +322,7 @@ const reviewPrePublicationInputRegistration: CommandInputRegistration = {
     "option.self-review": "selfReview",
     "option.change-set": "changeSet",
     "option.lanes": "lanes",
+    "option.resume": "resume",
     "option.json": "json",
   },
 };
@@ -430,6 +451,7 @@ export async function handleReviewMergeMethodResolve(
 }
 
 export interface ReviewChecksAwaitOptions {
+  repository: string;
   pullRequest: string;
   headSha: string;
   timeoutMs: string;
@@ -553,6 +575,7 @@ export async function handleReviewChecksAwait(
     ...overrides,
   };
   const parsed = ChecksAwaitInputSchema.safeParse({
+    repository: options.repository,
     pullRequest: Number(options.pullRequest),
     headSha: options.headSha,
     timeoutMs: Number(options.timeoutMs),
@@ -1569,7 +1592,7 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
 }
 
 function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
-  const { observers } = createHostedAdapters();
+  const { observers, port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
@@ -1582,14 +1605,71 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
           sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
         },
       });
-      if (publisher !== null) {
-        await recordHostedAwaitAttempt(new LocalReviewOperationStateStore(publisher), {
-          repositoryId: await resolveRepositoryIdentity(publisher),
-          result,
-          now: new Date().toISOString(),
-        });
+      if (publisher === null || root === null || result.state === "pending") return result;
+
+      const active = await resolveActiveWu({ cwd: root });
+      if (active.status !== "resolved" || active.name === "") {
+        throw new Error("Hosted review progress requires one active work unit.");
       }
-      return result;
+      const boundary = (await readSubmissionBoundaryVersioned(root, active.name)).boundary;
+      if (boundary?.reservation === null || boundary?.reservation === undefined) {
+        throw new Error("Hosted review progress requires the carried standard-review reservation.");
+      }
+      const reservation = boundary.reservation;
+      if (!reservation.sources.includes(result.handle.provider)
+        || reservation.target.repository.toLowerCase() !== result.handle.target.repository.toLowerCase()) {
+        throw new Error("Hosted review handle does not match the carried standard-review reservation.");
+      }
+
+      const settings = (await readConfigSettings(root)).settings;
+      const baseRef = settings["branch.base"];
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const reviewTarget = await deriveLocalReviewTarget({
+        exec: gitExec,
+        cwd: root,
+        baseRef,
+        repositoryId,
+      });
+      if (reviewTarget.headSha !== result.handle.target.headSha) {
+        throw new Error("Hosted review handle does not match the current local review target.");
+      }
+      const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
+      if (branch === "" || branch === "HEAD") throw new Error("Hosted review requires an attached branch.");
+      const changeRequest = await resolveChangeRequest(
+        { headRef: branch, headSha: reviewTarget.headSha, requireRemote: true },
+        createGhChangeRequestResolutionPort(gitExec, root),
+      );
+      if (changeRequest.state !== "open"
+        || changeRequest.targetRef.repository.toLowerCase() !== result.handle.target.repository.toLowerCase()
+        || changeRequest.candidate.number !== result.handle.target.pullRequest
+        || changeRequest.candidate.baseRefName !== baseRef) {
+        throw new Error("Hosted review handle does not identify the current open change request.");
+      }
+      const requirement = createReviewRequirement({
+        target: reviewTarget,
+        projection: reservation.obligation,
+        acceptableSources: [{ sourceKind: "hosted", qualifier: result.handle.provider }],
+        initialAdmission: "automatic",
+      });
+      if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
+      const progress = await recordHostedAwaitAttempt(new LocalReviewOperationStateStore(publisher), {
+        repositoryId,
+        result,
+        reviewTarget,
+        requirement,
+        actorIdentity: await port.currentActorIdentity(),
+        now: new Date().toISOString(),
+      });
+      return result.state === "findings" && progress !== null
+        ? {
+            ...result,
+            responseSourceRef: bindReviewSourceReference({
+              kind: "hosted",
+              operationId: progress.operationId,
+              durableRef: hostedLaneAttemptId(result.handle),
+            }),
+          }
+        : result;
     },
   };
 }
@@ -1622,9 +1702,54 @@ export interface ReviewHostedSettleHandlerDependencies extends HostedReviewHandl
 
 function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
   const { port } = createHostedAdapters();
+  const root = resolveArcRoot(process.cwd());
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    settle: (input) => settleHostedFinding(input, { port }),
+    settle: async (input) => {
+      if (root === null || publisher === null) throw new Error("Hosted settlement requires an ARC project.");
+      const request = HostedSettleEnvelopeSchema.parse(input);
+      const reference = parseReviewSourceReference(request.response.attemptRef, "hosted");
+      const operationStore = new LocalReviewOperationStateStore(publisher);
+      const persisted = await operationStore.readOperation(reference.operationId);
+      const attempt = persisted.state?.kind === "lane-progress"
+        ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
+        : undefined;
+      const hosted = attempt?.hosted;
+      const finding = hosted?.findings.find(({ findingId }) => findingId === request.response.findingId);
+      if (persisted.state?.kind !== "lane-progress"
+        || persisted.state.lane !== "standard"
+        || attempt === undefined
+        || hosted === undefined
+        || hosted.dispositionSetId !== request.response.dispositionSetId
+        || finding?.origin !== "review-thread"
+        || finding.commentId !== request.finding.commentId
+        || finding.threadId !== request.finding.threadId
+        || hosted.actorIdentity !== request.actorIdentity
+        || canonicalize(hosted.target) !== canonicalize(request.target)) {
+        throw new Error("Hosted settlement does not match its approved findings attempt.");
+      }
+      const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
+        .readDispositionRecord(attempt.attemptId);
+      const disposition = dispositionRecord?.approvedDisposition.dispositionSet.findings
+        .find(({ findingId }) => findingId === request.response.findingId);
+      if (dispositionRecord?.approvedDisposition.dispositionSet.dispositionSetId
+          !== request.response.dispositionSetId
+        || disposition?.disposition !== request.disposition) {
+        throw new Error("Hosted settlement does not match its approved disposition.");
+      }
+      const result = await settleHostedFinding(request, { port });
+      if (result.state === "settled" || result.state === "already-settled") {
+        await settleHostedAttemptFinding(operationStore, {
+          operationId: reference.operationId,
+          attemptId: reference.durableRef,
+          dispositionSetId: request.response.dispositionSetId,
+          findingId: request.response.findingId,
+          now: new Date().toISOString(),
+        });
+      }
+      return result;
+    },
   };
 }
 
@@ -1648,11 +1773,13 @@ export interface ReviewPrePublicationOptions {
   selfReview?: string;
   changeSet?: string;
   lanes?: string;
+  resume?: string;
   json?: boolean;
 }
 
 /** The caller's parsed judgment inputs, each absent unless its option named a source. */
 export interface ReviewPrePublicationJudgment {
+  selfReview: "settled" | undefined;
   changeSet: unknown;
   lanes: unknown;
 }
@@ -1685,9 +1812,9 @@ function defaultPrePublicationDependencies(
       return composePrePublicationReviewRequest(
         {
           workUnit: input.name,
-          ...(input.selfReview === undefined ? {} : { selfReview: input.selfReview }),
-          ...(input.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
-          ...(input.lanes === undefined ? {} : { lanes: judgment.lanes }),
+          ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
+          ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+          ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
         },
         createPrePublicationCompositionDependencies({ cwd: root, exec }),
       );
@@ -1701,9 +1828,9 @@ function defaultPrePublicationDependencies(
         && existing.candidateSubjectDigest === settled.candidateSubjectDigest
         && existing.reservation !== null
         && settled.reservation === null;
-      const path = await writeSubmissionBoundary(root, preservesReservation
+      const path = await writeSubmissionBoundary(root, parseIntegrationBoundaryLocus(preservesReservation
         ? { ...settled, reservation: existing.reservation }
-        : settled, snapshot.version);
+        : settled), snapshot.version);
       await exec("git", ["add", "--", path], { cwd: root });
     },
     write: (text) => {
@@ -1721,9 +1848,9 @@ function defaultPrePublicationDependencies(
 /**
  * Resolve the typed pre-publication review procedure for one work unit.
  *
- * The command self-composes both lane policy requests from repository state, so the next action
- * every Candidate-bearing locus names is invocable with the slug alone. Two options report what the
- * repository cannot establish: `--self-review`, whether the author's self-review actually ran, and
+ * The command self-composes both lane policy requests from repository state. Its returned re-entry
+ * command carries an opaque replay of caller-owned judgments that repository state cannot recover.
+ * Two options report those judgments initially: `--self-review`, whether the author's self-review actually ran, and
  * `--change-set`, the routing facts the standard-review obligation turns on. Omitting the latter
  * routes the change set as unestablished, which is the conservative `required` route. `--lanes`
  * carries each lane's bounded review scope, the frontline lane's one-run invocation override,
@@ -1777,6 +1904,7 @@ export async function handleReviewPrePublication(
     ...(options.selfReview === undefined ? {} : { selfReview: options.selfReview }),
     ...(options.changeSet === undefined ? {} : { changeSet: options.changeSet }),
     ...(options.lanes === undefined ? {} : { lanes: options.lanes }),
+    ...(options.resume === undefined ? {} : { resume: options.resume }),
     json: options.json,
   });
   if (!input.success) {
@@ -1789,10 +1917,24 @@ export async function handleReviewPrePublication(
 
   let judgment: ReviewPrePublicationJudgment;
   try {
-    judgment = {
-      changeSet: await readJudgment(input.data.changeSet),
-      lanes: await readJudgment(input.data.lanes),
-    };
+    const resumed = input.data.resume === undefined
+      ? null
+      : z.strictObject({
+          selfReview: z.literal("settled").optional(),
+          changeSet: z.json().optional(),
+          lanes: z.json().optional(),
+        }).parse(JSON.parse(Buffer.from(input.data.resume, "base64url").toString("utf8")));
+    judgment = resumed === null
+      ? {
+          selfReview: input.data.selfReview,
+          changeSet: await readJudgment(input.data.changeSet),
+          lanes: await readJudgment(input.data.lanes),
+        }
+      : {
+          selfReview: resumed.selfReview,
+          changeSet: resumed.changeSet,
+          lanes: resumed.lanes,
+        };
   } catch (error) {
     emitFailure(error, "request");
     return;
@@ -1817,6 +1959,26 @@ export async function handleReviewPrePublication(
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
     envelope = projectPrePublicationReview(composition.request);
+    if (envelope.nextAction.kind === "continue-pre-publication-review"
+      || envelope.nextAction.kind === "run-self-review") {
+      // The run-self-review command is the re-entry *after* the method has run, so it carries
+      // that prospective completion while preserving every other caller-owned judgment.
+      const replaySelfReview = envelope.nextAction.kind === "run-self-review"
+        ? "settled"
+        : judgment.selfReview;
+      const resume = Buffer.from(canonicalize({
+        ...(replaySelfReview === undefined ? {} : { selfReview: replaySelfReview }),
+        ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+        ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+      }), "utf8").toString("base64url");
+      envelope = PrePublicationReviewEnvelopeSchema.parse({
+        ...envelope,
+        nextAction: {
+          ...envelope.nextAction,
+          command: `arc review pre-publication ${envelope.workUnit} --resume ${resume} --json`,
+        },
+      });
+    }
     // The settled locus is where the durable publication boundary is written. Recording it here —
     // before the result is claimed — is what makes `arc publish` succeed on its first call; an
     // absent boundary now means genuinely open obligations rather than a write nobody performed.

@@ -43,6 +43,7 @@ describe("required-checks await", () => {
     [[{ name: "build", state: "failed" }] satisfies RequiredCheck[], "failed", "stop"],
   ] as const)("returns typed $state observations", async (checks, state, nextAction) => {
     await expect(awaitRequiredChecks({
+      repository: "owner/repo",
       pullRequest: 42,
       headSha,
       timeoutMs: 2_000,
@@ -52,6 +53,7 @@ describe("required-checks await", () => {
 
   it("returns pending at the deadline instead of classifying the yield as failure", async () => {
     await expect(awaitRequiredChecks({
+      repository: "owner/repo",
       pullRequest: 42,
       headSha,
       timeoutMs: 2_000,
@@ -71,6 +73,7 @@ describe("required-checks await", () => {
       sleep: async (milliseconds) => { now += milliseconds; },
     };
     await expect(awaitRequiredChecks({
+      repository: "owner/repo",
       pullRequest: 42,
       headSha,
       timeoutMs: 2_000,
@@ -90,6 +93,7 @@ describe("required-checks await", () => {
 
   it("stops when the pull-request head moves before reading checks", async () => {
     await expect(awaitRequiredChecks({
+      repository: "owner/repo",
       pullRequest: 42,
       headSha,
       timeoutMs: 2_000,
@@ -103,5 +107,26 @@ describe("required-checks await", () => {
       headSha,
       actualHeadSha: "b".repeat(40),
     });
+  });
+
+  it("rejects checks resolved from a different repository before reading the pull request", async () => {
+    let reads = 0;
+    await expect(awaitRequiredChecks({
+      repository: "owner/expected",
+      pullRequest: 42,
+      headSha,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      port: {
+        ...port([]),
+        readHead: async () => { reads += 1; return headSha; },
+      },
+      clock: clock(),
+    })).resolves.toMatchObject({
+      state: "target-mismatch",
+      actualRepository: "owner/repo",
+    });
+    expect(reads).toBe(0);
   });
 });

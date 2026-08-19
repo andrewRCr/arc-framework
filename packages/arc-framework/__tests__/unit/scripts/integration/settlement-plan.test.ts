@@ -76,6 +76,11 @@ describe("canonical integration settlement plan", () => {
   it("retains every exact hosted-settlement API input", () => {
     const request = {
       schemaVersion: 1 as const,
+      response: {
+        attemptRef: "hosted-attempt",
+        dispositionSetId: digest("c"),
+        findingId: "finding-7",
+      },
       target: { repository: "owner/repo", pullRequest: 42, headSha: oid("a") },
       fixTarget: { repository: "owner/repo", pullRequest: 42, headSha: oid("b") },
       actorIdentity: "andrew",

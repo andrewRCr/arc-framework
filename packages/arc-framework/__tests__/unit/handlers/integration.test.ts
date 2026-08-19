@@ -89,6 +89,24 @@ describe("integration checkpoint handler", () => {
     expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
     expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
   });
+
+  it("emits a typed refusal outside an ARC project without invoking checkpoint", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const checkpoint = vi.fn();
+    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+      resolveRoot: () => null,
+      checkpoint,
+      write,
+      setExitCode,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    expect(result).toMatchObject({ state: "blocked", reason: "composition-unavailable" });
+    expect(checkpoint).not.toHaveBeenCalled();
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
 });
 
 describe("integration merge handler", () => {
@@ -168,5 +186,24 @@ describe("integration merge handler", () => {
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
     expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
     expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
+  });
+
+  it("emits a typed refusal outside an ARC project without invoking merge", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const merge = vi.fn();
+    const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
+    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+      resolveRoot: () => null,
+      merge,
+      write,
+      setExitCode,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    expect(result).toMatchObject({ state: "blocked", reason: "operation-failed" });
+    expect(merge).not.toHaveBeenCalled();
+    expect(setExitCode).toHaveBeenCalledWith(1);
   });
 });

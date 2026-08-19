@@ -253,13 +253,18 @@ export async function boundedGitInvocation(
   exec: GitExec,
   args: string[],
   timeoutMs: number,
+  options?: Pick<GitExecOptions, "cwd">,
 ): Promise<BoundedFetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", args, { signal: controller.signal, diagnosticLocale: "stable" });
+    await exec("git", args, {
+      ...options,
+      signal: controller.signal,
+      diagnosticLocale: "stable",
+    });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args });

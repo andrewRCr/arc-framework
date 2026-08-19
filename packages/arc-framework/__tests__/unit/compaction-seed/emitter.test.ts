@@ -126,6 +126,7 @@ function derivedWorkUnitFrame(options: {
       taskCursor: sessionType === "planning" ? null : CURSOR,
       cohortDocPath: null,
       loadSet,
+      integrationBoundary: null,
     },
     lifecycleLocation: "active" as const,
     diagnostics: [],

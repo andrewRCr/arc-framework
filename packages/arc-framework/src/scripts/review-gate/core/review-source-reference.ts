@@ -8,7 +8,7 @@ const DurableReferenceSchema = z.string().trim().min(1);
 const PREFIX = "arc-review-source:v1:";
 
 export type BoundReviewSourceReference = {
-  kind: "attested-local" | "frontline";
+  kind: "attested-local" | "frontline" | "hosted";
   operationId: string;
   durableRef: string;
 };

@@ -203,13 +203,6 @@ Only that protocol's settled reduction establishes `review-settled`. Any pre-com
 review settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is
 not prospective merge authority over the candidate's not-yet-known head.
 
-After settlement, clean the WU content:
-
-- If `notes-{name}.md` exists, decide its disposition: follow [`clean-work-unit.md`][clean] `§ Notes File
-  Consolidation`, keep it as-is only when already reference-ready, or delete it and remove task-file references.
-- Survey the task list for temporal markers, ad-hoc inline status, or accumulated scratchpad content. When present,
-  apply [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass`.
-
 Candidate assembly now advances without another proceed turn. Stop only for a material alignment disagreement,
 failed quality gate, base conflict, or unexpected state.
 
@@ -324,7 +317,7 @@ fire point. `skipped-clean / continue-reconcile` proceeds without a push. On `me
 Tier 1 gates, recompose the exact target, and make Step 2's disclosed review-applicability judgment. Run the
 resulting targeted, focused, or full review before continuing. Clearance never carries.
 
-For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
+For `merged / run-quality-gates` only, repeat the Step 1 push extension contract and release the push below.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
@@ -471,7 +464,6 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 - [`prepare-work-unit.md`](prepare-work-unit.md) — preceding private-review ceremony; Active → Integrating.
 - [`archive-work-unit.md`](archive-work-unit.md) — cadence-invariant archival; invoked inline under
   `with-integration` or explicitly under `manual`.
-- [`clean-work-unit.md`][clean] — supplemental content-cleanup toolkit invoked from Step 3.
 
 ---
 
@@ -482,7 +474,6 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
-[clean]: ../supplemental/clean-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [create-spec]: ../create-spec.md
 [arc-config]: ../../../arc-config.yml

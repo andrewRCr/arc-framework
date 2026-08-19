@@ -1,8 +1,13 @@
 /** Unit coverage for the typed pre-publication review procedure. */
 
+import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
+import { createKernelRegistry } from "../../../../../src/lib/kernel/index.js";
+import {
+  registerReviewDomainSchemas,
+} from "../../../../../src/scripts/review-gate/core/register-review-schemas.js";
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
@@ -16,6 +21,7 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   prePublicationBoundary,
+  PrePublicationReviewEnvelopeSchema,
   projectCandidateDeltaVerification,
   projectPrePublicationReview,
   recordCandidateVerifiedResponse,
@@ -211,8 +217,7 @@ describe("projectPrePublicationReview", () => {
       policy: null,
       reservation: {
         reservationId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
-        candidateId: `sha256:${"c".repeat(64)}`,
-        sourceId: "codex-pr",
+        sources: ["codex-pr", "delegated-agent"],
         target: { repository: target.repository, headSha: target.headSha },
         obligation: standardReview,
       },
@@ -360,7 +365,7 @@ describe("projectPrePublicationReview", () => {
 
     expect(result).toMatchObject({
       locus: "candidate-convergence-verification-pending",
-      reservation: { sourceId: "codex-pr" },
+      reservation: { sources: ["codex-pr", "delegated-agent"] },
       nextAction: {
         kind: "run-convergence-verification",
         command: "arc attest example --json",
@@ -383,9 +388,76 @@ describe("projectPrePublicationReview", () => {
 
     expect(result).toMatchObject({
       locus: "candidate-publish-ready",
-      reservation: { sourceId: "codex-pr" },
+      reservation: { sources: ["codex-pr", "delegated-agent"] },
       nextAction: { kind: "publish-candidate" },
     });
+  });
+
+  it("keeps generated envelope acceptance aligned with the runtime boundary union", () => {
+    const base = request({ selfReview: "settled" });
+    const valid = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    });
+    expect(valid.reservation).not.toBeNull();
+    if (valid.reservation === null) throw new Error("missing reservation fixture");
+
+    const bundle = registerReviewDomainSchemas(createKernelRegistry()).toJSONSchema();
+    // The composed registry includes unrelated tuple projections that older Ajv rejects at registration.
+    // Compile this target with schema self-validation disabled; acceptance still runs in strict mode.
+    const ajv = new Ajv2020({ allErrors: true, strict: true, validateSchema: false });
+    for (const schema of Object.values(bundle.schemas)) ajv.addSchema(schema as AnySchema);
+    const projected = ajv.getSchema("review-pre-publication-envelope.schema.json");
+    if (projected === undefined) throw new Error("missing projected pre-publication validator");
+
+    const corpus = [{
+      label: "valid publish-ready reservation",
+      value: valid,
+      accepted: true,
+    }, {
+      label: "reservation before review settlement",
+      value: {
+        ...valid,
+        locus: "candidate-review-pending",
+        nextAction: {
+          kind: "run-self-review",
+          command: "arc review pre-publication example --json",
+          interactionText: "Run self-review.",
+        },
+      },
+      accepted: false,
+    }, {
+      label: "publication action on a Candidate locus",
+      value: {
+        ...valid,
+        nextAction: {
+          kind: "continue-publication",
+          command: "git push -u origin feat/example",
+          interactionText: "Continue publication.",
+        },
+      },
+      accepted: false,
+    }, {
+      label: "legacy duplicated reservation coordinates",
+      value: {
+        ...valid,
+        reservation: {
+          ...valid.reservation,
+          candidateId: valid.candidateId,
+          sourceId: "codex-pr",
+        },
+      },
+      accepted: false,
+    }];
+    for (const example of corpus) {
+      expect(PrePublicationReviewEnvelopeSchema.safeParse(example.value).success, `${example.label}: runtime`)
+        .toBe(example.accepted);
+      expect(projected(example.value), `${example.label}: ${JSON.stringify(projected.errors)}`)
+        .toBe(example.accepted);
+    }
   });
 
   it("re-enters the policy driver when an exact target changes", () => {

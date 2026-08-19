@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
-import { reviewerDispositionSeverity } from "../core/disposition-records.js";
+import { reviewerDispositionNit, reviewerDispositionSeverity } from "../core/disposition-records.js";
 import { ApprovedDispositionRecordSchema } from "../core/advisory-records.js";
 import {
   validateReviewReceipt,
@@ -198,7 +198,7 @@ async function resumeLocalReviewWithinSourceLock(
     findingId: finding.findingId,
     locus: finding.locus,
     severity: reviewerDispositionSeverity(finding),
-    nit: finding.nit === true,
+    nit: reviewerDispositionNit(finding) === true,
   }));
   if (approved.repositoryId !== state.repositoryId
     || approved.operationId !== state.operationId

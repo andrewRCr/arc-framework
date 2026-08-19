@@ -1,3 +1,4 @@
+import { Command, Option } from "commander";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -74,7 +75,7 @@ describe("command-input source scanner", () => {
           flags: "--mode <mode>",
           valueName: "mode",
           required: true,
-          presenceRequired: true,
+          presenceRequired: false,
           choices: ["one", "two"],
           defaultValue: "one",
           conflicts: ["json"],
@@ -84,6 +85,30 @@ describe("command-input source scanner", () => {
       ],
       action: { symbol: "handleSend" },
     });
+  });
+
+  it("distinguishes a mandatory value from explicit option presence when a default supplies it", async () => {
+    const result = scanCommanderSource({
+      file: "src/cli.ts",
+      sourceText: `
+        const program = new Command();
+        program.command("send")
+          .requiredOption("--target <ref>", "target", "main")
+          .addOption(new Option("--mode <mode>").makeOptionMandatory().default("safe"));
+      `,
+    });
+
+    expect(result.commands[0]?.options).toMatchObject([
+      { flags: "--target <ref>", required: true, presenceRequired: false, defaultValue: "main" },
+      { flags: "--mode <mode>", required: true, presenceRequired: false, defaultValue: "safe" },
+    ]);
+
+    const parsed = new Command()
+      .exitOverride()
+      .requiredOption("--target <ref>", "target", "main")
+      .addOption(new Option("--mode <mode>").makeOptionMandatory().default("safe"));
+    await expect(parsed.parseAsync(["node", "arc"], { from: "node" })).resolves.toBe(parsed);
+    expect(parsed.opts()).toEqual({ target: "main", mode: "safe" });
   });
 
   it("discovers prompt/helper, explicit stdin, and interaction-capable process sites", () => {

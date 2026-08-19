@@ -205,6 +205,7 @@ const mockRunActiveInFlightExpansion = vi.fn();
 vi.mock("../../../src/commands/active.js", () => ({
   expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
   runActiveInFlightExpansion: (...args: unknown[]) => mockRunActiveInFlightExpansion(...args),
+  resolveTaskListPath: () => null,
 }));
 
 const mockFindMaterializableWorkUnits = vi.fn();

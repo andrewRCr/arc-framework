@@ -267,9 +267,9 @@ async function invalidated(
 ): Promise<IntegrationMergeResult> {
   let holdRequest: MergeLockTransitionRequest | null = null;
   try {
-    const holdTarget = reason === "head-mismatch" && target !== undefined
-      ? await dependencies.refreshTarget(target)
-      : target;
+    const holdTarget = target === undefined
+      ? undefined
+      : await dependencies.refreshTarget(target);
     holdRequest = await dependencies.createLockRequest(holdTarget);
     const hold = await dependencies.holdLock(holdTarget);
     if (hold.state !== "held" && hold.state !== "no-lock") throw new Error("lock hold was refused");
@@ -393,6 +393,12 @@ export async function mergeIntegration(
       return await invalidated(base, "head-mismatch", {
         approvedHead: checkpoint.approvedHead,
         actualHead: checks.actualHeadSha,
+      }, dependencies, target);
+    }
+    if (checks.state === "target-mismatch") {
+      return await invalidated(base, "head-mismatch", {
+        approvedRepository: target.repository,
+        actualRepository: checks.actualRepository,
       }, dependencies, target);
     }
 

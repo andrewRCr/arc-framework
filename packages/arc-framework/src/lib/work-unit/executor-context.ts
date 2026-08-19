@@ -55,6 +55,7 @@ import {
   reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
+import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
 import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import { renderRoadmapFromIndexViewResult } from "../status/roadmap-regeneration-assert.js";
@@ -262,7 +263,11 @@ export function buildExecutorContext(
 
     writeCurrentWorkflowField: async (metaPath, stage) => {
       const content = await io.readFile(at(metaPath));
-      await io.writeFile(at(metaPath), setMetaCurrentWorkflow(content, stage));
+      const next = setMetaCurrentWorkflow(content, stage);
+      const record = parseMetaRecord(next);
+      const diagnostics = checkCurrentWorkflowConsistency(record);
+      if (diagnostics.length > 0) throw new Error(diagnostics[0]);
+      await io.writeFile(at(metaPath), next);
     },
 
     writeDesignField: async (metaPath, value) => {

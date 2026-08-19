@@ -59,7 +59,7 @@ async function createAttestFixture(): Promise<string> {
   await git(repository, ["commit", "-m", "implementation"]);
   await writeFile(
     join(repository, ".arc", "active", "tasks-example.md"),
-    "# Task List: Example\n\n- [x] Verification complete\n",
+    "# Task List: Example\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n",
   );
   await git(repository, ["add", ".arc/active/tasks-example.md"]);
   return repository;
@@ -87,6 +87,7 @@ describe("arc attest", () => {
     expect(meta).toContain("| `Active`  | `test-user`");
     expect(meta).toMatch(/- \*\*Candidate:\*\* `sha256:[0-9a-f]{64}`/u);
     expect(meta).toContain("- **Current Workflow:** `prepare-work-unit`");
+    expect(meta).toContain("- **Last Completed:** Task 1.1 — Verification complete");
     const record = JSON.parse(await readFile(
       join(repository, ".arc", "system", ".internal", "candidates", "example.json"),
       "utf8",
@@ -97,6 +98,7 @@ describe("arc attest", () => {
     expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n").sort()).toEqual([
       ".arc/active/meta-example.md",
       ".arc/active/tasks-example.md",
+      ".arc/system/.internal/candidates/example.boundary.json",
       ".arc/system/.internal/candidates/example.json",
     ]);
   });

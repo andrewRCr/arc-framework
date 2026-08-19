@@ -15,9 +15,11 @@ import type { InteractionContext } from "../lib/command-input/interaction-contex
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
+import { resolveArcRoot } from "../lib/paths.js";
 import { createBaseMergePort } from "../scripts/base/merge-composition.js";
 import {
   BaseMergeInputSchema,
+  BaseMergeResultSchema,
   mergeExpectedBase,
   type BaseMergeResult,
 } from "../scripts/base/merge.js";
@@ -64,6 +66,7 @@ export const baseCommandInputRegistrations = [{
 }] as const satisfies readonly CommandInputRegistration[];
 
 export interface BaseMergeHandlerDependencies {
+  resolveRoot(): string | null;
   merge(cwd: string, expectedBase: string): Promise<BaseMergeResult>;
   write(text: string): void;
   setExitCode(code: number): void;
@@ -75,12 +78,14 @@ export async function handleBaseMerge(
   interaction?: InteractionContext,
   overrides: Partial<BaseMergeHandlerDependencies> = {},
 ): Promise<void> {
-  const cwd = requireArcProjectRoot();
-  if (cwd === null) return;
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: BaseMergeHandlerDependencies = {
+    resolveRoot: () => resolveArcRoot(),
     merge: async (root, expectedBase) => {
-      const { settings } = await readConfigSettings(root);
+      const { settings, warnings } = await readConfigSettings(root);
+      if (warnings.some((warning) => warning.startsWith("Unable to read arc-config.yml:"))) {
+        throw new Error("The configured base branch is unavailable because arc-config.yml could not be read.");
+      }
       return mergeExpectedBase(
         { expectedBase },
         createBaseMergePort({ cwd: root, baseBranch: settings["branch.base"], exec }),
@@ -92,15 +97,30 @@ export async function handleBaseMerge(
   };
   const parsed = BaseMergeInputSchema.safeParse({ expectedBase: options.expectedBase });
   if (!parsed.success) {
-    dependencies.write(`${JSON.stringify({
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
       schemaVersion: 1,
       mode: "base-merge",
       state: "blocked",
       nextAction: "stop",
       reason: "invalid-input",
       detail: parsed.error.issues.map(({ message }) => message).join("; "),
-    })}\n`);
+      expectedBase: null,
+    }))}\n`);
     dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot();
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
+      schemaVersion: 1,
+      mode: "base-merge",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "operational-failure",
+      detail: "Not inside an ARC project.",
+      expectedBase: parsed.data.expectedBase,
+    }))}\n`);
+    dependencies.setExitCode(1);
     return;
   }
   let result: BaseMergeResult;
@@ -117,7 +137,8 @@ export async function handleBaseMerge(
       expectedBase: parsed.data.expectedBase,
     };
   }
-  dependencies.write(`${JSON.stringify(result)}\n`);
+  dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(result))}\n`);
+  if (result.state === "blocked") dependencies.setExitCode(1);
 }
 
 /** Run the authoritative shared base-drift analyzer. */

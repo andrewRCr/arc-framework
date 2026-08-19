@@ -1,7 +1,8 @@
 /** Typed request contract for hosted pull-request review sources. */
 
 import { z } from "zod";
-import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
+
+const GitHubObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
 
 export const HostedProviderIdSchema = z.enum(["coderabbit-pr", "codex-pr"]);
 export type HostedProviderId = z.infer<typeof HostedProviderIdSchema>;
@@ -12,7 +13,7 @@ export type HostedReviewCoverage = z.infer<typeof HostedReviewCoverageSchema>;
 export const HostedTargetSchema = z.strictObject({
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
   pullRequest: z.int().positive(),
-  headSha: GitObjectIdSchema,
+  headSha: GitHubObjectIdSchema,
 });
 export type HostedTarget = z.infer<typeof HostedTargetSchema>;
 

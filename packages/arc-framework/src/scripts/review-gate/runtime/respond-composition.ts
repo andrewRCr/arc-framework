@@ -20,7 +20,10 @@ import {
 import {
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
-import { settleLaneAttempt } from "../lane-progress.js";
+import {
+  bindHostedAttemptDisposition,
+  settleLaneAttempt,
+} from "../lane-progress.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import {
   LocalFrontlineOutcomeStore,
@@ -168,6 +171,12 @@ export function createRespondDependencies(input: {
     settleLaneFindings: async (settlement) => {
       await settleLaneAttempt(prepare.operationStore, {
         ...settlement,
+        now: new Date().toISOString(),
+      });
+    },
+    bindHostedDisposition: async (binding) => {
+      await bindHostedAttemptDisposition(prepare.operationStore, {
+        ...binding,
         now: new Date().toISOString(),
       });
     },

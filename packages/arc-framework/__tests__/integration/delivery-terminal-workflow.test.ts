@@ -15,11 +15,14 @@ describe("delivery terminal integration attachment", () => {
     const attachment = "Invoke the typed delivery terminal post-merge attachment exactly once";
     expect(packaged.split(attachment)).toHaveLength(2);
     expect(packaged.split("arc delivery terminal attach - --json")).toHaveLength(2);
-    const merge = packaged.indexOf("gh pr merge {pr-number}");
+    const merge = packaged.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
     const resume = packaged.indexOf("**Skip the merge when the PR is already merged**");
     const attach = packaged.indexOf(attachment);
     const close = packaged.indexOf("arc user close {name}", attach);
     const teardown = packaged.indexOf("arc teardown <wu-name>", close);
+    for (const position of [merge, resume, attach, close, teardown]) {
+      expect(position).toBeGreaterThan(-1);
+    }
     expect(merge).toBeLessThan(attach);
     expect(resume).toBeLessThan(attach);
     expect(attach).toBeLessThan(close);

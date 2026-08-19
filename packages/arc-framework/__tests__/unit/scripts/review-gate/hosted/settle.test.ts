@@ -8,6 +8,11 @@ import {
 const HEAD = "a".repeat(40);
 const request = {
   schemaVersion: 1 as const,
+  response: {
+    attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+    dispositionSetId: `sha256:${"d".repeat(64)}`,
+    findingId: "finding-1",
+  },
   target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
   fixTarget: null,
   actorIdentity: "1234",

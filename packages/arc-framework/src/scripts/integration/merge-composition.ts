@@ -8,7 +8,10 @@ import { runBaseDrift } from "../../lib/git/base-distance.js";
 import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
-import { resolveChangeRequest } from "../review-gate/change-request.js";
+import {
+  resolveChangeRequest,
+  type ChangeRequestResolutionPort,
+} from "../review-gate/change-request.js";
 import { awaitRequiredChecks } from "../review-gate/checks-await.js";
 import { evaluateReviewReadiness } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
@@ -49,6 +52,7 @@ export function createIntegrationMergeDependencies(input: {
   exec: GitExec;
   workUnit: string;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
+  changeRequestPort?: ChangeRequestResolutionPort;
 }): IntegrationMergeDependencies {
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
@@ -56,7 +60,8 @@ export function createIntegrationMergeDependencies(input: {
     return settingsPromise;
   };
   const hostedPort = new GhHostedReviewPort(hostedGhRunner);
-  const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
+  const changeRequestPort = input.changeRequestPort
+    ?? createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const respondDependencies = createRespondDependencies(input);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
   const lockPort = new GhMergeLockPort(
@@ -91,23 +96,38 @@ export function createIntegrationMergeDependencies(input: {
   const currentTarget = async (): Promise<IntegrationMergeTarget> => {
     const branch = await getCurrentBranch(input.exec);
     if (branch === null) throw new Error("The integration merge requires an attached branch.");
-    const headSha = (await input.exec("git", ["rev-parse", "HEAD"], {
-      cwd: input.cwd,
-      objectAccess: "local-only",
-    })).stdout.trim();
-    const changeRequest = await resolveChangeRequest(
-      { headRef: branch, headSha },
-      changeRequestPort,
-    );
-    if (changeRequest.state !== "open") {
-      throw new Error(`The current integration head has no reusable open change request (${changeRequest.state}).`);
+    const repository = await changeRequestPort.resolveRepository();
+    const candidates = (await changeRequestPort.listByHead(repository, branch))
+      .filter(({ state }) => state === "OPEN");
+    if (candidates.length !== 1 || candidates[0] === undefined) {
+      throw new Error("The current integration branch does not identify one open change request.");
+    }
+    const changeRequest = candidates[0];
+    return {
+      repository,
+      pullRequest: changeRequest.number,
+      baseRef: changeRequest.baseRefName,
+      headRef: changeRequest.headRefName,
+      headSha: changeRequest.headRefOid,
+    };
+  };
+
+  const liveTarget = async (target: IntegrationMergeTarget): Promise<IntegrationMergeTarget> => {
+    const repository = await changeRequestPort.resolveRepository();
+    if (repository.toLowerCase() !== target.repository.toLowerCase()) {
+      throw new Error("The live repository no longer matches the checkpointed target.");
+    }
+    const candidates = await changeRequestPort.listByHead(repository, target.headRef);
+    const candidate = candidates.find(({ number }) => number === target.pullRequest);
+    if (candidate === undefined || candidate.state !== "OPEN") {
+      throw new Error("The checkpointed change request is no longer open.");
     }
     return {
-      repository: changeRequest.targetRef.repository,
-      pullRequest: changeRequest.candidate.number,
-      baseRef: changeRequest.candidate.baseRefName,
-      headRef: changeRequest.candidate.headRefName,
-      headSha,
+      repository,
+      pullRequest: candidate.number,
+      baseRef: candidate.baseRefName,
+      headRef: candidate.headRefName,
+      headSha: candidate.headRefOid,
     };
   };
 
@@ -145,9 +165,13 @@ export function createIntegrationMergeDependencies(input: {
       ),
     }),
     readStatus: async (workUnit) => {
-      const [target, cadence] = await Promise.all([
+      const [target, cadence, actualHead] = await Promise.all([
         currentTarget(),
         archiveCadence(),
+        input.exec("git", ["rev-parse", "HEAD"], {
+          cwd: input.cwd,
+          objectAccess: "local-only",
+        }).then(({ stdout }) => stdout.trim()),
       ]);
       const snapshot = await lifecycleStorage.readSnapshot();
       const lifecycle = await readLifecycleSummary(
@@ -158,7 +182,7 @@ export function createIntegrationMergeDependencies(input: {
         snapshot.fs,
       );
       return {
-        actualHead: target.headSha,
+        actualHead,
         lifecycleComplete: lifecycle.complete,
         lifecycleVersion: lifecycle.storageVersion,
         target,
@@ -174,7 +198,7 @@ export function createIntegrationMergeDependencies(input: {
         && resolved.candidate.number === target.pullRequest;
     },
     refreshTarget: async (target) => {
-      const current = await currentTarget();
+      const current = await liveTarget(target);
       if (
         current.repository !== target.repository
         || current.pullRequest !== target.pullRequest
@@ -189,6 +213,7 @@ export function createIntegrationMergeDependencies(input: {
     holdLock: async (target) => holdMergeLock(await lockRequest(target ?? await currentTarget()), lockPort),
     createLockRequest: async (target) => lockRequest(target ?? await currentTarget()),
     awaitChecks: async (target) => awaitRequiredChecks({
+      repository: target.repository,
       pullRequest: target.pullRequest,
       headSha: target.headSha,
       timeoutMs: CHECKS_TIMEOUT_MS,

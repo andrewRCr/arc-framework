@@ -29,7 +29,12 @@ import {
   type PublishParams,
 } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
-import { createStandardReviewReservation } from
+import {
+  CandidatePublishReadyBoundarySchema,
+  createStandardReviewReservation,
+  projectPublicationBoundary,
+  type IntegrationBoundaryLocus,
+} from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CWD = "/repo";
@@ -192,6 +197,7 @@ const BASE: PublishParams = {
     candidateSubjectDigest: CANDIDATE_SUBJECT,
     candidateCurrent: true,
   }),
+  claimPublicationBoundary: async () => {},
   boundary: {
     schemaVersion: 1,
     mode: "pre-publication-review",
@@ -209,6 +215,19 @@ const BASE: PublishParams = {
   },
 };
 
+function publicationBoundary(
+  reservation: IntegrationBoundaryLocus["reservation"] = null,
+): IntegrationBoundaryLocus {
+  return projectPublicationBoundary({
+    workUnit: "foo",
+    branch: "feat/foo",
+    candidateId: CANDIDATE_ID,
+    candidateSubjectDigest: CANDIDATE_SUBJECT,
+    reservation,
+    changeRequest: null,
+  });
+}
+
 /** The same submission with neither orientation override supplied. */
 const DERIVED: PublishParams = {
   name: BASE.name,
@@ -216,6 +235,7 @@ const DERIVED: PublishParams = {
   candidateSubjectDigest: BASE.candidateSubjectDigest,
   candidateCurrent: BASE.candidateCurrent,
   refreshCandidateAuthorization: BASE.refreshCandidateAuthorization,
+  claimPublicationBoundary: BASE.claimPublicationBoundary,
   boundary: BASE.boundary,
 };
 
@@ -316,6 +336,32 @@ describe("runPublish — the set-phase-only move", () => {
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
   });
 
+  it("persists the exact publication claim before lifecycle mutation", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+
+    await expect(runPublish(ctx, {
+      ...BASE,
+      claimPublicationBoundary: async () => {
+        calls.push("boundary:claim");
+      },
+    })).resolves.toMatchObject({ status: "published" });
+
+    expect(calls.indexOf("boundary:claim")).toBeLessThan(calls.indexOf("setPhase:Integrating"));
+  });
+
+  it("does not mutate lifecycle state when the publication claim conflicts", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+
+    await expect(runPublish(ctx, {
+      ...BASE,
+      claimPublicationBoundary: async () => {
+        throw new Error("boundary version conflict");
+      },
+    })).resolves.toMatchObject({ status: "rejected", reason: expect.stringContaining("boundary version conflict") });
+
+    expect(calls).not.toContain("setPhase:Integrating");
+  });
+
   it("refuses a Candidate lineage that is no longer current", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
@@ -366,7 +412,7 @@ describe("runPublish — the set-phase-only move", () => {
 
     const result = await runPublish(ctx, {
       ...BASE,
-      boundary: { ...BASE.boundary, reservation },
+      boundary: CandidatePublishReadyBoundarySchema.parse({ ...BASE.boundary, reservation }),
     });
 
     expect(result).toMatchObject({
@@ -624,22 +670,13 @@ describe("runPublish — the illegal-edge lookup", () => {
       branch: "feat/foo",
       currentWorkflow: "integrate-work-unit",
     }]);
-    const publicationBoundary = {
-      ...BASE.boundary,
-      mode: "integration-boundary" as const,
-      locus: "publication-pending" as const,
-      nextAction: {
-        kind: "continue-publication" as const,
-        command: "git push -u origin feat/foo",
-        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
-      },
-    };
+    const boundary = publicationBoundary();
 
-    // A retry completes every final meta projection even when the phase write already landed.
-    const result = await runPublish(ctx, { ...BASE, boundary: publicationBoundary });
+    // A repeat over a fully finalized transition is observationally side-effect free.
+    const result = await runPublish(ctx, { ...BASE, boundary });
 
-    expect(result).toEqual({ status: "unchanged", boundary: publicationBoundary });
-    expect(calls.some((c) => c.startsWith("setPhase:"))).toBe(false);
+    expect(result).toEqual({ status: "unchanged", boundary });
+    expect(calls).toEqual([]);
   });
 
   it("finishes only the publication projection after the phase transition already landed", async () => {
@@ -649,20 +686,11 @@ describe("runPublish — the illegal-edge lookup", () => {
       branch: "feat/foo",
       currentWorkflow: "prepare-work-unit",
     }]);
-    const publicationBoundary = {
-      ...BASE.boundary,
-      mode: "integration-boundary" as const,
-      locus: "publication-pending" as const,
-      nextAction: {
-        kind: "continue-publication" as const,
-        command: "git push -u origin feat/foo",
-        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
-      },
-    };
+    const boundary = publicationBoundary();
 
-    await expect(runPublish(ctx, { ...BASE, boundary: publicationBoundary })).resolves.toEqual({
+    await expect(runPublish(ctx, { ...BASE, boundary })).resolves.toEqual({
       status: "unchanged",
-      boundary: publicationBoundary,
+      boundary,
     });
     expect(calls).toContain("workflow:integrate-work-unit");
     expect(calls).toContain("soft-fields");
@@ -681,16 +709,7 @@ describe("runPublish — the illegal-edge lookup", () => {
   it.each(["soft-fields", "stage-meta"] as const)(
     "repairs a %s finalization failure after the phase transition landed",
     async (failure) => {
-      const publicationBoundary = {
-        ...BASE.boundary,
-        mode: "integration-boundary" as const,
-        locus: "publication-pending" as const,
-        nextAction: {
-          kind: "continue-publication" as const,
-          command: "git push -u origin feat/foo",
-          interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
-        },
-      };
+      const boundary = publicationBoundary();
       const first = buildCtx([{
         slug: "foo",
         state: "Integrating",
@@ -706,7 +725,7 @@ describe("runPublish — the illegal-edge lookup", () => {
           throw new Error("meta staging failed");
         };
       }
-      await expect(runPublish(first.ctx, { ...BASE, boundary: publicationBoundary }))
+      await expect(runPublish(first.ctx, { ...BASE, boundary }))
         .resolves.toMatchObject({ status: "rejected" });
 
       const retry = buildCtx([{
@@ -715,8 +734,8 @@ describe("runPublish — the illegal-edge lookup", () => {
         branch: "feat/foo",
         currentWorkflow: "prepare-work-unit",
       }]);
-      await expect(runPublish(retry.ctx, { ...BASE, boundary: publicationBoundary }))
-        .resolves.toEqual({ status: "unchanged", boundary: publicationBoundary });
+      await expect(runPublish(retry.ctx, { ...BASE, boundary }))
+        .resolves.toEqual({ status: "unchanged", boundary });
       expect(retry.calls).toContain("workflow:integrate-work-unit");
       expect(retry.calls).toContain("soft-fields");
       expect(retry.calls).toContain("stage-meta");

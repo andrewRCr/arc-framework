@@ -51,6 +51,14 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(2);
     expect(step.match(/`push-interlock` release/gu)).toHaveLength(2);
     expect(step.match(/`commit-interlock` release/gu)).toHaveLength(1);
+    const skippedClean = step.indexOf("`skipped-clean / continue-reconcile` proceeds without a push");
+    const mergedOnly = step.indexOf("For `merged / run-quality-gates` only");
+    const firstPush = step.indexOf("`push-interlock` release");
+    const postMergePush = step.indexOf("After a head-changing push");
+    expect(skippedClean).toBeGreaterThan(-1);
+    expect(mergedOnly).toBeGreaterThan(skippedClean);
+    expect(firstPush).toBeGreaterThan(mergedOnly);
+    expect(postMergePush).toBeGreaterThan(firstPush);
     expect(step).toMatch(/review-applicability\s+judgment/u);
     expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
 

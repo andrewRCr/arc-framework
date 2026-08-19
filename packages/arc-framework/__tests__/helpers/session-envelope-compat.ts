@@ -6,7 +6,7 @@
  * without importing Vitest or production modules.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -75,7 +75,10 @@ const META = (name: string, fields: {
   `- **Cohort:** ${fields.cohort ?? "[none]"}`,
   "- **Depends On:** [none]",
   `- **Task List:** ${fields.taskList ?? "[none]"}`,
-  "- **Current Workflow:** [none]",
+  "- **Candidate:** [none]",
+  fields.state === "Integrating"
+    ? "- **Current Workflow:** `integrate-work-unit`"
+    : "- **Current Workflow:** [none]",
   "- **Last Completed:** [none]",
   fields.taskList === undefined
     ? "- **Next Task:** [none]"
@@ -194,12 +197,59 @@ async function setupOrientFixture(state: MutableFixture): Promise<void> {
   await git(state.repo, ["branch", "feat/heavy-widget"]);
   await git(state.repo, ["worktree", "add", linked, "feat/heavy-widget"]);
   await writeActiveFixture(linked, "heavy-widget", {
-    state: "Integrating",
+    state: "Active",
     branch: "feat/heavy-widget",
     workClass: "Heavy",
+    taskList: "tasks-heavy-widget.md",
   });
-  await git(linked, ["add", ".arc/active/meta-heavy-widget.md"]);
+  await writeFile(
+    join(linked, ".arc", "active", "tasks-heavy-widget.md"),
+    TASKS.replace("`[ ]`", "`[x]`"),
+  );
+  await git(linked, ["add", ".arc/active"]);
   await git(linked, ["commit", "-m", "feat: add in-flight fixture"]);
+
+  const attested = await runArcNoTty(["attest", "heavy-widget", "--json"], linked);
+  if (attested.exitCode !== 0) {
+    throw new Error(`arc attest failed: ${attested.stderr || attested.stdout}`);
+  }
+  const metaPath = join(linked, ".arc", "active", "meta-heavy-widget.md");
+  const boundaryPath = join(
+    linked,
+    ".arc",
+    "system",
+    ".internal",
+    "candidates",
+    "heavy-widget.boundary.json",
+  );
+  const candidateBoundary = JSON.parse(await readFile(boundaryPath, "utf8")) as {
+    candidateId: string;
+    candidateSubjectDigest: string;
+  };
+  const attestedMeta = await readFile(metaPath, "utf8");
+  await writeFile(
+    metaPath,
+    attestedMeta
+      .replace("- **State:** Active", "- **State:** Integrating")
+      .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+  );
+  await writeFile(boundaryPath, `${JSON.stringify({
+    schemaVersion: 1,
+    mode: "integration-boundary",
+    workUnit: "heavy-widget",
+    candidateId: candidateBoundary.candidateId,
+    candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
+    locus: "publication-pending",
+    nextAction: {
+      kind: "continue-publication",
+      command: "git push -u origin feat/heavy-widget",
+      interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+    },
+    policy: null,
+    reservation: null,
+  })}\n`);
+  await git(linked, ["add", ".arc"]);
+  await git(linked, ["commit", "-m", "chore: publish fixture"]);
 }
 
 async function setupActiveResumeFixture(state: MutableFixture): Promise<string> {

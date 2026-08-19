@@ -39,8 +39,13 @@ import {
   setMetaCandidate,
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
+import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
-import { expandActiveInFlight, runActiveInFlightExpansion } from "../commands/active.js";
+import {
+  expandActiveInFlight,
+  resolveTaskListPath,
+  runActiveInFlightExpansion,
+} from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
@@ -137,10 +142,12 @@ import {
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectCandidateCurrentness } from "../lib/work-unit/candidate-attestation.js";
+import { resolveLastCompletedTask } from "../lib/task-list/cursor.js";
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
+import { projectCandidateReviewBoundary } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
@@ -1772,6 +1779,14 @@ export async function handlePublish(
       }
       return refreshed;
     },
+    claimPublicationBoundary: async (publicationBoundary) => {
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        publicationBoundary,
+        boundarySnapshot.version,
+      );
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    },
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   });
   if (result.status === "rejected") {
@@ -1779,8 +1794,10 @@ export async function handlePublish(
     return;
   }
   if (result.status === "unchanged") {
-    const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
-    await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    if (canonicalize(result.boundary) !== canonicalize(boundary)) {
+      const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    }
     if (input.json === true) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
     } else {
@@ -1820,8 +1837,6 @@ export async function handlePublish(
       );
     }
   }
-  const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
-  await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
@@ -2443,6 +2458,21 @@ export async function handleAttest(
     );
     return;
   }
+  let lastCompleted: string | null = null;
+  const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+  if (taskListPath !== null) {
+    try {
+      const taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
+      const terminal = resolveLastCompletedTask(taskList);
+      if (terminal.status === "found") {
+        lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
+      }
+    } catch {
+      // Candidate attestation does not become unavailable solely because the
+      // human-orientation cursor cannot be refreshed from its task list.
+    }
+  }
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
 
   const unstaged = await collectUnstagedReviewablePaths({
     cwd: base.cwd,
@@ -2482,15 +2512,41 @@ export async function handleAttest(
         publication.expectedRecordVersion,
       );
       const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
-      metaContent = setMetaBulletFields(withCandidate, {
+      const orientation: Record<string, string> = {
         "Current Workflow": formatValue(publication.currentWorkflow, "identifier"),
         "Next Action": formatValue(publication.nextAction, "narrative"),
-      });
+      };
+      if (lastCompleted !== null) orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
+      metaContent = setMetaBulletFields(withCandidate, orientation);
+      const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
+      if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
       await base.io.writeFile(absoluteMetaPath, metaContent);
-      await base.io.exec("git", ["add", "--", recordPath, metaPath], { cwd: base.cwd });
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        projectCandidateReviewBoundary({
+          workUnit: publication.name,
+          candidateId: publication.candidateId,
+          candidateSubjectDigest: publication.candidateSubjectDigest,
+        }),
+        boundarySnapshot.version,
+      );
+      await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
       return { recordPath, metaPath };
     },
   }, { name: input.name, lifecycle: meta.state, newRoot: input.newRoot === true });
+
+  if (result.status === "unchanged") {
+    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+    if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
+      || currentBoundary.boundary.candidateSubjectDigest !== result.locus.candidateSubjectDigest) {
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        result.locus,
+        currentBoundary.version,
+      );
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    }
+  }
 
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);

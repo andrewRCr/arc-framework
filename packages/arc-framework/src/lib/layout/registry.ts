@@ -6,6 +6,7 @@ import {
   ArcPlacementTierSchema,
   ArchiveQuarterSchema,
   ArchiveSequenceSchema,
+  ProjectDocumentKindSchema,
   ProcedureFamilySchema,
   TemplateOutputPathSchema,
   TemplateRelativePathSchema,
@@ -20,6 +21,7 @@ export const LAYOUT_SCHEMA_IDS = {
   archiveSequence: "layout-archive-sequence",
   artifactKind: "layout-artifact-kind",
   placementTier: "layout-placement-tier",
+  projectDocumentKind: "layout-project-document-kind",
   procedureFamily: "layout-procedure-family",
   templateOutputPath: "layout-template-output-path",
   templateRelativePath: "layout-template-relative-path",
@@ -29,7 +31,7 @@ export const LAYOUT_SCHEMA_IDS = {
 const STRICT_CURRENT_V1 = { version: 1, migrationPosture: "strict-current" } as const;
 
 /**
- * Create a fresh kernel registry extended with the nine public layout roots.
+ * Create a fresh kernel registry extended with the public layout roots.
  *
  * @returns Isolated registry containing kernel vocabulary and layout schemas
  */
@@ -41,6 +43,7 @@ export function createLayoutRegistry(): KernelRegistry {
     [LAYOUT_SCHEMA_IDS.archiveSequence, ArchiveSequenceSchema],
     [LAYOUT_SCHEMA_IDS.artifactKind, WorkUnitArtifactKindSchema],
     [LAYOUT_SCHEMA_IDS.placementTier, ArcPlacementTierSchema],
+    [LAYOUT_SCHEMA_IDS.projectDocumentKind, ProjectDocumentKindSchema],
     [LAYOUT_SCHEMA_IDS.procedureFamily, ProcedureFamilySchema],
     [LAYOUT_SCHEMA_IDS.templateOutputPath, TemplateOutputPathSchema],
     [LAYOUT_SCHEMA_IDS.templateRelativePath, TemplateRelativePathSchema],

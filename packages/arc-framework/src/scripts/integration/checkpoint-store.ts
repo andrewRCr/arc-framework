@@ -107,7 +107,14 @@ function recordPath(workUnitRoot: string, handle: string): string {
   return join(workUnitRoot, ".internal", "integration-checkpoints", `${digest.slice("sha256:".length)}.json`);
 }
 
-/** Persist one immutable checkpoint composition and return its opaque approval handle. */
+/**
+ * Persist one immutable checkpoint composition and return its opaque approval handle.
+ *
+ * @param workUnitRoot - Gitignored workspace root that owns the checkpoint record.
+ * @param input - Validated composition fields bound by the returned handle.
+ * @param overrides - Optional deterministic persistence dependencies for tests or alternate hosts.
+ * @returns The opaque handle for the create-only persisted composition.
+ */
 export async function persistIntegrationCheckpointComposition(
   workUnitRoot: string,
   input: IntegrationCheckpointCompositionInput,
@@ -130,7 +137,15 @@ export async function persistIntegrationCheckpointComposition(
   return handle;
 }
 
-/** Read one handle-keyed composition from a work unit's gitignored workspace. */
+/**
+ * Read one handle-keyed composition from a work unit's gitignored workspace.
+ *
+ * @param workUnitRoot - Gitignored workspace root that owns the checkpoint record.
+ * @param workUnit - Work-unit identity the persisted record must match.
+ * @param handle - Opaque handle carrying the expected head and composition digest.
+ * @param fs - Filesystem reader used to load the immutable record.
+ * @returns The validated record, or null when the handle-keyed file is absent.
+ */
 export async function readIntegrationCheckpointComposition(
   workUnitRoot: string,
   workUnit: string,

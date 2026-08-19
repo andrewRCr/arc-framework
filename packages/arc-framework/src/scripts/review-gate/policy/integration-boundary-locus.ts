@@ -11,43 +11,54 @@ import { StandardReviewObligationProjectionSchema } from "./standard-review-proj
 const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
-export const IntegrationBoundaryNextActionSchema = z.strictObject({
-  kind: z.enum([
-    "run-self-review",
-    "continue-pre-publication-review",
-    "run-convergence-verification",
-    "publish-candidate",
-    "continue-publication",
-  ]),
+const ActionFields = {
   command: z.string().trim().min(1),
   interactionText: z.string().trim().min(1),
+};
+export const RunSelfReviewActionSchema = z.strictObject({
+  kind: z.literal("run-self-review"),
+  ...ActionFields,
 });
+export const ContinuePrePublicationActionSchema = z.strictObject({
+  kind: z.literal("continue-pre-publication-review"),
+  ...ActionFields,
+});
+export const RunConvergenceVerificationActionSchema = z.strictObject({
+  kind: z.literal("run-convergence-verification"),
+  ...ActionFields,
+});
+export const PublishCandidateActionSchema = z.strictObject({
+  kind: z.literal("publish-candidate"),
+  ...ActionFields,
+});
+export const ContinuePublicationActionSchema = z.strictObject({
+  kind: z.literal("continue-publication"),
+  ...ActionFields,
+});
+
+export const IntegrationBoundaryNextActionSchema = z.discriminatedUnion("kind", [
+  RunSelfReviewActionSchema,
+  ContinuePrePublicationActionSchema,
+  RunConvergenceVerificationActionSchema,
+  PublishCandidateActionSchema,
+  ContinuePublicationActionSchema,
+]);
 export type IntegrationBoundaryNextAction = z.infer<typeof IntegrationBoundaryNextActionSchema>;
 
 export const StandardReviewReservationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("standard-review-reservation/v1"),
   reservationId: CandidateIdSchema,
-  candidateId: CandidateIdSchema,
-  sourceId: z.string().trim().min(1),
   sources: z.array(z.string().trim().min(1)).min(1),
   target: z.strictObject({
     repository: z.string().trim().min(1),
     headSha: GitObjectIdSchema,
   }),
   obligation: StandardReviewObligationProjectionSchema,
-}).superRefine((reservation, context) => {
-  if (!reservation.sources.includes(reservation.sourceId)) {
-    context.addIssue({
-      code: "custom",
-      path: ["sourceId"],
-      message: "reserved source must belong to the ordered standard-review sources",
-    });
-  }
 });
 export type StandardReviewReservationV1 = z.infer<typeof StandardReviewReservationV1Schema>;
 
-export const IntegrationBoundaryLocusSchema = z.strictObject({
+const BoundaryCommonShape = {
   schemaVersion: z.literal(1),
   mode: z.enum(["pre-publication-review", "integration-boundary"]),
   workUnit: SlugSchema,
@@ -60,34 +71,67 @@ export const IntegrationBoundaryLocusSchema = z.strictObject({
    * operator back through a review whose evidence never went stale.
    */
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
-  locus: z.enum([
-    "candidate-review-pending",
-    "candidate-fix-pending",
-    "candidate-convergence-verification-pending",
-    "candidate-publish-ready",
-    "publication-pending",
-    "hosted-review-pending",
-  ]),
-  nextAction: IntegrationBoundaryNextActionSchema,
+};
+
+export const CandidateReviewBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  locus: z.literal("candidate-review-pending"),
+  nextAction: z.discriminatedUnion("kind", [RunSelfReviewActionSchema, ContinuePrePublicationActionSchema]),
   policy: ReviewResolveEnvelopeSchema.nullable(),
-  reservation: StandardReviewReservationV1Schema.nullable(),
-}).superRefine((value, context) => {
-  if (value.reservation !== null
-    && value.locus !== "candidate-publish-ready"
-    && value.locus !== "candidate-convergence-verification-pending"
-    && value.locus !== "publication-pending"
-    && value.locus !== "hosted-review-pending") {
-    context.addIssue({
-      code: "custom",
-      path: ["reservation"],
-      message: "deferred reservation is valid only after private review obligations settle",
-    });
-  }
-  if (value.reservation !== null && value.reservation.candidateId !== value.candidateId) {
-    context.addIssue({ code: "custom", path: ["reservation", "candidateId"], message: "must match the locus" });
-  }
+  reservation: z.null(),
 });
+export const CandidateFixBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  locus: z.literal("candidate-fix-pending"),
+  nextAction: ContinuePrePublicationActionSchema,
+  policy: ReviewResolveEnvelopeSchema,
+  reservation: z.null(),
+});
+export const CandidateConvergenceBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  locus: z.literal("candidate-convergence-verification-pending"),
+  nextAction: RunConvergenceVerificationActionSchema,
+  policy: z.null(),
+  reservation: StandardReviewReservationV1Schema.nullable(),
+});
+export const CandidatePublishReadyBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  locus: z.literal("candidate-publish-ready"),
+  nextAction: PublishCandidateActionSchema,
+  policy: z.null(),
+  reservation: StandardReviewReservationV1Schema.nullable(),
+});
+export const PublicationPendingBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  mode: z.literal("integration-boundary"),
+  locus: z.literal("publication-pending"),
+  nextAction: ContinuePublicationActionSchema,
+  policy: z.null(),
+  reservation: StandardReviewReservationV1Schema.nullable(),
+});
+export const HostedReviewPendingBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  mode: z.literal("integration-boundary"),
+  locus: z.literal("hosted-review-pending"),
+  nextAction: ContinuePrePublicationActionSchema,
+  policy: z.null(),
+  reservation: StandardReviewReservationV1Schema,
+});
+
+export const IntegrationBoundaryLocusSchema = z.discriminatedUnion("locus", [
+  CandidateReviewBoundarySchema,
+  CandidateFixBoundarySchema,
+  CandidateConvergenceBoundarySchema,
+  CandidatePublishReadyBoundarySchema,
+  PublicationPendingBoundarySchema,
+  HostedReviewPendingBoundarySchema,
+]);
 export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSchema>;
+
+/** Parse one structural integration boundary. */
+export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBoundaryLocus {
+  return IntegrationBoundaryLocusSchema.parse(input);
+}
 
 const PublicationBoundaryInputSchema = z.strictObject({
   workUnit: SlugSchema,
@@ -165,16 +209,20 @@ export function recoverPublicationBoundary(input: {
   workUnit: string;
   branch: string;
   candidateId: string;
+  candidateSubjectDigest: string;
 }): IntegrationBoundaryLocus | null {
   const stored = input.stored;
-  if (stored === null || stored.workUnit !== input.workUnit || stored.candidateId !== input.candidateId) return null;
+  if (stored === null
+    || stored.workUnit !== input.workUnit
+    || stored.candidateId !== input.candidateId
+    || stored.candidateSubjectDigest !== input.candidateSubjectDigest) return null;
   if (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending") return stored;
   if (stored.locus !== "candidate-publish-ready") return null;
   return projectPublicationBoundary({
     workUnit: input.workUnit,
     branch: input.branch,
     candidateId: input.candidateId,
-    candidateSubjectDigest: stored.candidateSubjectDigest,
+    candidateSubjectDigest: input.candidateSubjectDigest,
     reservation: stored.reservation,
     changeRequest: null,
   });
@@ -189,17 +237,28 @@ export function createStandardReviewReservation(input: {
   headSha: string;
   obligation: z.input<typeof StandardReviewObligationProjectionSchema>;
 }): StandardReviewReservationV1 {
+  const candidateId = CandidateIdSchema.parse(input.candidateId);
+  const sourceId = z.string().trim().min(1).parse(input.sourceId);
+  const configuredSources = z.array(z.string().trim().min(1)).min(1).parse(input.sources ?? [sourceId]);
+  const selectedSourceIndex = configuredSources.indexOf(sourceId);
+  if (selectedSourceIndex < 0) {
+    throw new Error("reserved source must belong to the ordered standard-review sources");
+  }
+  const sources = configuredSources.slice(selectedSourceIndex);
   const fields = {
     schemaVersion: 1 as const,
     semanticsVersion: "standard-review-reservation/v1" as const,
-    candidateId: input.candidateId,
-    sourceId: input.sourceId,
-    sources: [...input.sources ?? [input.sourceId]],
+    sources,
     target: { repository: input.repository, headSha: input.headSha },
     obligation: input.obligation,
   };
   return StandardReviewReservationV1Schema.parse({
     ...fields,
-    reservationId: canonicalDigest({ domain: "arc.standard-review.reservation/v1", ...fields }),
+    reservationId: canonicalDigest({
+      domain: "arc.standard-review.reservation/v1",
+      candidateId,
+      selectedSource: sourceId,
+      ...fields,
+    }),
   });
 }

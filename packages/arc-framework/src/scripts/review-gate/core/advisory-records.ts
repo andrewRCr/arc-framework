@@ -37,6 +37,10 @@ export const ApprovedDispositionSourceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("frontline"),
     outcomeRef: OpaqueReferenceSchema,
   }),
+  z.strictObject({
+    kind: z.literal("hosted"),
+    attemptRef: OpaqueReferenceSchema,
+  }),
 ]);
 
 export const ApprovedDispositionRecordSchema = z.strictObject({
@@ -44,7 +48,7 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
   candidate: z.strictObject({
     workUnit: SlugSchema,
     candidateId: ReviewCanonicalDigestSchema,
-  }),
+  }).nullable(),
   source: ApprovedDispositionSourceSchema,
   approvedDisposition: ApprovedDispositionSetSchema,
   fixAuthorization: FixAuthorizationSchema.nullable(),

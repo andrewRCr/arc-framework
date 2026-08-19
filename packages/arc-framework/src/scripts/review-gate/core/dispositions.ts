@@ -16,6 +16,7 @@ import {
   type DispositionSetState,
   type ProposedDispositionSet,
   effectiveDispositionSeverity,
+  reviewerDispositionNit,
   reviewerDispositionSeverity,
 } from "./disposition-records.js";
 import {
@@ -29,6 +30,12 @@ type WithOptionalGating<T> = T extends unknown
   : never;
 type DispositionReportProposalItem = WithOptionalGating<DispositionReportItem>;
 
+function effectiveGatingNit(finding: DispositionReportProposalItem): true | undefined {
+  return finding.sourceVerification === "not-supported"
+    ? reviewerDispositionNit(finding)
+    : finding.nit;
+}
+
 function normalizedFindings(
   findings: readonly DispositionReportProposalItem[],
   policy: SeverityGatingPolicy,
@@ -41,7 +48,7 @@ function normalizedFindings(
           : "arcSeverity" in finding
             ? finding.arcSeverity
             : finding.reviewerSeverity,
-        ...(finding.nit === true ? { nit: true as const } : {}),
+        ...(effectiveGatingNit(finding) === true ? { nit: true as const } : {}),
       }, policy),
     }));
   const unique = new Map(normalized.map((finding) => [finding.findingId, finding]));
@@ -77,7 +84,7 @@ export function validateDispositionSet(input: unknown): DispositionSet {
   const retainedPolicy = {
     minorGating: fields.findings.find((finding) =>
       (effectiveDispositionSeverity(finding) ?? reviewerDispositionSeverity(finding)) === "minor"
-        && finding.nit !== true)?.gating
+        && effectiveGatingNit(finding) !== true)?.gating
       ?? PACKAGE_DEFAULT_SEVERITY_GATING_POLICY.minorGating,
   };
   if (canonicalize(fields.findings) !== canonicalize(normalizedFindings(fields.findings, retainedPolicy))) {

@@ -4,10 +4,15 @@ import {
   LaneProgressStateSchema,
   type ReviewOperationState,
 } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
-import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   frontlineLaneOutcome,
+  bindHostedAttemptDisposition,
   hostedAwaitLaneOutcome,
+  hostedLaneAttemptId,
   laneProgressOperationId,
   recordFrontlineAttempt,
   recordHostedAwaitAttempt,
@@ -15,6 +20,7 @@ import {
   readLaneProgressAcrossLineage,
   recordLaneAttempt,
   settleLaneAttempt,
+  settleHostedAttemptFinding,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 const objectId = (character: string): string => character.repeat(40);
@@ -208,23 +214,54 @@ const handle = {
     createdAt: "2026-08-15T11:00:00Z",
   },
 };
+const hostedReviewTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "change-set",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: objectId("a"),
+  diffBaseTree: objectId("b"),
+  headSha: objectId("c"),
+  headTree: objectId("d"),
+});
+const hostedRequirement = createReviewRequirement({
+  target: hostedReviewTarget,
+  projection: {
+    obligation: "required",
+    reasons: ["sensitive-change-set"],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"e".repeat(64)}`,
+    retrigger: "full-final",
+    count: 1,
+  },
+  acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
+  initialAdmission: "automatic",
+});
+if (hostedRequirement === null) throw new Error("expected hosted review requirement");
+const hostedContext = {
+  reviewTarget: hostedReviewTarget,
+  requirement: hostedRequirement,
+  actorIdentity: "github-user-1",
+};
 
 describe("hosted await lane recording", () => {
   it("records a concluded hosted attempt against the standard lane", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
+      ...hostedContext,
       result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "rate-limited", nextAction: "try-next-source" },
       now: "2026-08-15T12:00:00Z",
     });
     expect(state?.lane).toBe("standard");
     expect(state?.repositoryId).toBe("repo-1");
     expect(state?.changeRequestId).toBe("pull/42");
-    expect(state?.attempts).toEqual([{
+    expect(state?.attempts).toEqual([expect.objectContaining({
       attemptId: expect.any(String),
       sourceId: "coderabbit-pr",
       outcome: "rate-limited",
-    }]);
+    })]);
     expect(state?.completedPasses).toBe(0);
   });
 
@@ -232,6 +269,7 @@ describe("hosted await lane recording", () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
+      ...hostedContext,
       result: {
         schemaVersion: 1,
         mode: "review-hosted-await",
@@ -249,11 +287,82 @@ describe("hosted await lane recording", () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
+      ...hostedContext,
       result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "pending", nextAction: "await", elapsedMs: 10 },
       now: "2026-08-15T12:00:00Z",
     });
     expect(state).toBeNull();
     expect(store.state).toBeNull();
+  });
+
+  it("settles only the approved hosted finding set and is idempotent per finding", async () => {
+    const store = createStore();
+    const findings = [{
+      findingId: "thread-1",
+      origin: "review-thread" as const,
+      commentId: "comment-1",
+      threadId: "thread-1",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "src/index.ts:7",
+      url: "https://example.invalid/thread-1",
+    }, {
+      findingId: "body-1",
+      origin: "review-body" as const,
+      reviewId: "review-1",
+      fingerprint: "body-fingerprint",
+      settlement: "not-applicable" as const,
+      severity: "minor" as const,
+      locus: "pull-request review body",
+      url: "https://example.invalid/review-1",
+      body: "Body finding",
+    }];
+    const progress = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "findings",
+        nextAction: "triage",
+        reviewUrl: "https://example.invalid/review",
+        findings,
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+    if (progress === null) throw new Error("expected hosted lane progress");
+    const attemptId = hostedLaneAttemptId(handle);
+    const bound = await bindHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      findingIds: findings.map(({ findingId }) => findingId),
+      noHostSettlementFindingIds: ["body-1"],
+      now: "2026-08-15T12:01:00Z",
+    });
+    expect(bound.attempts[0]).toMatchObject({
+      outcome: "findings",
+      hosted: { settledFindingIds: ["body-1"] },
+    });
+    const settled = await settleHostedAttemptFinding(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      findingId: "thread-1",
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(settled.attempts[0]).toMatchObject({
+      outcome: "settled-findings",
+      hosted: { settledFindingIds: ["body-1", "thread-1"] },
+    });
+    await expect(settleHostedAttemptFinding(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      findingId: "thread-1",
+      now: "2026-08-15T12:03:00Z",
+    })).resolves.toEqual(settled);
   });
 });
 
@@ -299,6 +408,7 @@ describe("frontline lane recording", () => {
     expect(frontlineLaneOutcome("findings", null)).toBe("findings");
     expect(frontlineLaneOutcome("timed-out", "execution-timeout")).toBe("timed-out");
     expect(frontlineLaneOutcome("stale-target", "head-mismatch")).toBe("stale-target");
+    expect(frontlineLaneOutcome("stale-target", "target-mismatch")).toBe("stale-target");
   });
 
   it("separates a malformed carrier result from a terminal refusal", () => {

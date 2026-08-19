@@ -327,10 +327,10 @@ _Content discipline: keep each field to one line (Next Action may span two for a
 longer context elsewhere — commit body, SESSION-NOTES, task-list completion notes. Wrap to the 120-char
 target._
 
-_Workflow step pointer: when Next Action resumes a lifecycle workflow (integrate, archive), use the literal
-format `<workflow-name> Step <N> — <description>` (e.g. "integrate-work-unit Step 1 — push and create PR";
-kebab-case name = filename without `.md`) — the pre-commit validator and session-init's sessionType inference
-key on this prefix. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
+_Workflow step pointer: when Next Action resumes a lifecycle workflow, use the literal format
+`<workflow-name> Step <N> — <description>` (for example, "integrate-work-unit Step 1 — push and create PR";
+kebab-case name = filename without `.md`). This is a human resume pointer; typed status determines session phase
+and workflow. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
 ```
 
 **Update SESSION-NOTES at `pathSet.value.sessionNotes`** (per-WU session context — gitignored; active-WU path
@@ -659,8 +659,9 @@ Finalize this session's PRs that merged outside an attended ceremony. A no-op un
 that has not been finalized — resolve this session's candidate branches (the WU or `chore/<slug>` branches whose
 PRs this session opened) and return when there are none.
 
-Resolve each candidate branch's exact local head with `git rev-parse "<branch>^{commit}"`, then invoke the typed
-resolver once — never a wait-loop (never block on CI):
+Resolve each candidate branch's exact local head with
+`git rev-parse --verify "refs/heads/<branch>^{commit}"`, then invoke the typed resolver once — never a wait-loop
+(never block on CI):
 
 ```bash
 arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json

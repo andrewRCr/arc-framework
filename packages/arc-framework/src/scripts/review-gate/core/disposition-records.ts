@@ -96,7 +96,7 @@ export function reviewerDispositionSeverity(item: DispositionReportItem): z.infe
 }
 
 /** Resolve the reviewer's nit marker independently from ARC's effective classification. */
-export function reviewerDispositionNit(item: DispositionReportItem): true | undefined {
+export function reviewerDispositionNit(item: { nit?: true; reviewerNit?: true }): true | undefined {
   return "reviewerNit" in item ? item.reviewerNit : item.nit;
 }
 

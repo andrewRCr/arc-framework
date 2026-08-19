@@ -65,6 +65,7 @@ export type ReviewResponsePlan = z.infer<typeof ReviewResponsePlanSchema>;
 export const ReviewResponseSettlementSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("attested-local"), receiptRef: z.string().trim().min(1) }),
   z.strictObject({ kind: z.literal("frontline"), outcomeRef: z.string().trim().min(1) }),
+  z.strictObject({ kind: z.literal("hosted"), attemptRef: z.string().trim().min(1) }),
 ]);
 
 export const ReviewResponseSettlementRequestSchema = z.strictObject({

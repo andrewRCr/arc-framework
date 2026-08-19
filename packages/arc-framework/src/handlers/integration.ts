@@ -6,6 +6,7 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
+import { resolveArcRoot } from "../lib/paths.js";
 import {
   checkpointIntegration,
   checkpointInputRefusal,
@@ -23,7 +24,6 @@ import {
   mergeOperationRefusal,
   type IntegrationMergeResult,
 } from "../scripts/integration/merge.js";
-import { requireArcProjectRoot } from "./shared.js";
 
 export const IntegrationCheckpointCommandInputSchema = z.strictObject({
   name: IntegrationCheckpointRequestSchema.shape.workUnit,
@@ -93,12 +93,14 @@ export interface IntegrationMergeOptions {
 }
 
 export interface IntegrationCheckpointHandlerDependencies {
+  resolveRoot(): string | null;
   checkpoint(cwd: string, workUnit: string): Promise<IntegrationCheckpointResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
 export interface IntegrationMergeHandlerDependencies {
+  resolveRoot(): string | null;
   merge(cwd: string, workUnit: string, checkpoint: string): Promise<IntegrationMergeResult>;
   write(text: string): void;
   setExitCode(code: number): void;
@@ -116,10 +118,9 @@ export async function handleIntegrationCheckpoint(
   interaction?: InteractionContext,
   overrides: Partial<IntegrationCheckpointHandlerDependencies> = {},
 ): Promise<void> {
-  const cwd = requireArcProjectRoot();
-  if (cwd === null) return;
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: IntegrationCheckpointHandlerDependencies = {
+    resolveRoot: () => resolveArcRoot(),
     checkpoint: (root, workUnit) => checkpointIntegration(
       { schemaVersion: 1, workUnit },
       createIntegrationCheckpointDependencies({ cwd: root, exec }),
@@ -134,6 +135,15 @@ export async function handleIntegrationCheckpoint(
       parsed.error.issues.map(({ message }) => message).join("; "),
     ))}\n`);
     dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot();
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(checkpointOperationRefusal(
+      parsed.data.name,
+      "Not inside an ARC project.",
+    ))}\n`);
+    dependencies.setExitCode(1);
     return;
   }
   try {
@@ -157,10 +167,9 @@ export async function handleIntegrationMerge(
   interaction?: InteractionContext,
   overrides: Partial<IntegrationMergeHandlerDependencies> = {},
 ): Promise<void> {
-  const cwd = requireArcProjectRoot();
-  if (cwd === null) return;
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: IntegrationMergeHandlerDependencies = {
+    resolveRoot: () => resolveArcRoot(),
     merge: (root, workUnit, checkpoint) => mergeIntegration(
       { schemaVersion: 1, workUnit, checkpointHandle: checkpoint },
       createIntegrationMergeDependencies({ cwd: root, exec, workUnit }),
@@ -175,6 +184,15 @@ export async function handleIntegrationMerge(
       parsed.error.issues.map(({ message }) => message).join("; "),
     ))}\n`);
     dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot();
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(mergeOperationRefusal(
+      parsed.data.name,
+      "Not inside an ARC project.",
+    ))}\n`);
+    dependencies.setExitCode(1);
     return;
   }
   try {

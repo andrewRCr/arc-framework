@@ -7,7 +7,7 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -17,15 +17,30 @@ import { gitExec } from "../../src/lib/io-context.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
-import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import {
+  readSubmissionBoundaryVersioned,
+  resolveSubmissionBoundaryPath,
+  writeSubmissionBoundary,
+} from "../../src/lib/work-unit/submission-boundary-store.js";
 import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { bindReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
 import {
   LocalReviewOperationStateStore,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import {
   LocalApprovedDispositionRecordStore,
 } from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
-import { recordLaneAttempt } from "../../src/scripts/review-gate/lane-progress.js";
+import {
+  deriveLocalReviewTarget,
+} from "../../src/scripts/review-gate/hosts/local/repository-target.js";
+import {
+  recordLaneAttempt,
+  settleHostedAttemptFinding,
+} from "../../src/scripts/review-gate/lane-progress.js";
 import {
   createStandardReviewReservation,
   projectPublicationBoundary,
@@ -211,7 +226,9 @@ async function reviewToFindings(root: string): Promise<{ kind: "attested-local";
 /** Propose and approve one disposition over the reduced findings. */
 async function approvedSet(
   root: string,
-  source: { kind: "attested-local"; receiptRef: string },
+  source:
+    | { kind: "attested-local"; receiptRef: string }
+    | { kind: "hosted"; attemptRef: string },
   disposition: "fix" | "defer" = "fix",
 ) {
   const prepared = await invoke(root, ["review", "respond", "-"], {
@@ -574,6 +591,112 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
+  it("advances and replays a settled hosted fix through Candidate convergence", async () => {
+    const root = await fixture();
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const operationStore = new LocalReviewOperationStateStore(publisher);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const originTarget = await deriveLocalReviewTarget({
+      cwd: root,
+      exec: gitExec,
+      baseRef: "main",
+      repositoryId,
+    });
+    const requirement = createReviewRequirement({
+      target: originTarget,
+      projection: OBLIGATION,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("missing hosted requirement fixture");
+    const attemptId = "hosted/attempt-fix";
+    const finding = {
+      findingId: "finding-1",
+      origin: "review-thread" as const,
+      commentId: "comment-1",
+      threadId: "thread-1",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "reviewed.txt:1",
+      url: "https://example.test/thread-1",
+    };
+    const operation = await recordLaneAttempt(operationStore, {
+      lane: "standard",
+      repositoryId,
+      changeRequestId: "pull/42",
+      headSha: originTarget.headSha,
+      attemptId,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      consumedPass: true,
+      hosted: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: originTarget.headSha },
+        reviewTarget: originTarget,
+        requirement,
+        actorIdentity: "test-user",
+        findings: [finding],
+        dispositionSetId: null,
+        settledFindingIds: [],
+      },
+      now: "2026-08-19T12:00:00Z",
+    });
+    const source = {
+      kind: "hosted" as const,
+      attemptRef: bindReviewSourceReference({
+        kind: "hosted",
+        operationId: operation.operationId,
+        durableRef: attemptId,
+      }),
+    };
+    const dispositions = await approvedSet(root, source);
+    await expect(invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions }))
+      .resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+
+    await writeFile(join(root, "reviewed.txt"), "hosted finding fixed\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply hosted review fix"]);
+    await settleHostedAttemptFinding(operationStore, {
+      operationId: operation.operationId,
+      attemptId,
+      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      findingId: finding.findingId,
+      now: "2026-08-19T12:01:00Z",
+    });
+
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://hosted-focused-fix"],
+      },
+    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    await git(root, ["commit", "-m", "record hosted verified response"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "hosted convergence verification"]);
+    const approvedHead = await git(root, ["rev-parse", "HEAD"]);
+
+    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+    expect(composed.actions).toHaveLength(1);
+    expect(composed.actions[0]).toMatchObject({
+      channel: "review-response",
+      fixTarget: { headSha: approvedHead },
+      request: { source },
+    });
+
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    await expect(inRepository(root, async () => production.executeSettlement({
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+    } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
+      state: "settled",
+      completedActions: 1,
+    });
+  });
+
   it("refuses a Candidate-bound disposition whose local review source disappeared", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
@@ -612,7 +735,7 @@ describe("review-fix Candidate lineage", () => {
     });
 
     await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
-      .rejects.toThrow(/review operation behind approved dispositions .* moved target/u);
+      .rejects.toThrow(/malformed-local-disposition/u);
   });
 
   it("ignores unrelated disposition residue whose source is unavailable", async () => {
@@ -622,6 +745,7 @@ describe("review-fix Candidate lineage", () => {
     const [approved] = await index.listDispositionRecords();
     expect(approved).toBeDefined();
     if (approved === undefined) throw new Error("missing approved dispositions");
+    if (approved.candidate === null) throw new Error("missing Candidate binding");
     await index.appendDispositionRecord({
       ...approved,
       operationId: "unrelated-missing-operation",
@@ -983,11 +1107,16 @@ const OBLIGATION = {
 async function reserveHostedReview(root: string, approvedHead: string): Promise<void> {
   const record = await readCandidateRecord(root, "example");
   const candidateId = record?.attestation.candidateId;
+  const candidateSubjectDigest = record?.responses.at(-1)?.newTarget.subject.subjectDigest
+    ?? record?.subject.subjectDigest;
   expect(candidateId).toBeDefined();
+  expect(candidateSubjectDigest).toBeDefined();
+  const { version } = await readSubmissionBoundaryVersioned(root, "example");
   await writeSubmissionBoundary(root, projectPublicationBoundary({
     workUnit: "example",
     branch: "feat/example",
     candidateId,
+    candidateSubjectDigest,
     reservation: createStandardReviewReservation({
       candidateId: candidateId ?? "",
       sourceId: "codex-pr",
@@ -996,7 +1125,7 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
       obligation: OBLIGATION,
     }),
     changeRequest: { repository: "owner/repo", pullRequest: 42 },
-  }), null);
+  }), version);
 }
 
 describe("routed review obligation", () => {
@@ -1004,15 +1133,54 @@ describe("routed review obligation", () => {
     const { root, approvedHead } = await settledReviewLineage();
     await reserveHostedReview(root, approvedHead);
     const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const reviewTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId,
+      baseRef: "main",
+      diffBaseSha: "0".repeat(40),
+      diffBaseTree: "1".repeat(40),
+      headSha: approvedHead,
+      headTree: "2".repeat(40),
+    });
+    const requirement = createReviewRequirement({
+      target: reviewTarget,
+      projection: OBLIGATION,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("missing hosted requirement fixture");
+    const finding = {
+      findingId: "finding-1",
+      origin: "review-body" as const,
+      reviewId: "review-1",
+      fingerprint: "fingerprint-1",
+      settlement: "not-applicable" as const,
+      severity: "major" as const,
+      locus: "src/example.ts:1",
+      url: "https://example.test/review-1",
+      body: "Review finding.",
+    };
     await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
       lane: "standard",
-      repositoryId: await resolveRepositoryIdentity(publisher),
+      repositoryId,
       changeRequestId: "pull/42",
       headSha: approvedHead,
       attemptId: "hosted-attempt-1",
       sourceId: "codex-pr",
       outcome: "settled-findings",
       consumedPass: true,
+      hosted: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
+        reviewTarget,
+        requirement,
+        actorIdentity: "test-user",
+        findings: [finding],
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        settledFindingIds: [finding.findingId],
+      },
       now: "2026-08-16T12:00:00Z",
     });
 
@@ -1020,7 +1188,7 @@ describe("routed review obligation", () => {
       repository: "owner/repo",
       headRef: "feat/example",
       headSha: approvedHead,
-    })).resolves.toMatchObject({
+    }, 42)).resolves.toMatchObject({
       state: "settled",
       detail: expect.stringContaining("codex-pr"),
     });
@@ -1034,7 +1202,7 @@ describe("routed review obligation", () => {
       repository: "owner/repo",
       headRef: "feat/example",
       headSha: approvedHead,
-    })).resolves.toMatchObject({
+    }, 42)).resolves.toMatchObject({
       state: "review-required",
       detail: expect.stringContaining("not produced a settled review"),
     });
@@ -1042,11 +1210,12 @@ describe("routed review obligation", () => {
 
   it("reports a work unit with no recorded publication boundary as blocked", async () => {
     const { root, approvedHead } = await settledReviewLineage();
+    await rm(join(root, resolveSubmissionBoundaryPath("example")));
 
     await expect(readRoutedObligation(root, gitExec, {
       repository: "owner/repo",
       headRef: "feat/example",
       headSha: approvedHead,
-    })).resolves.toMatchObject({ state: "blocked" });
+    }, 42)).resolves.toMatchObject({ state: "blocked" });
   });
 });

@@ -547,7 +547,7 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
-      reentryCommand: z.enum(["local-prepare", "frontline-resolve"]),
+      reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
     }),
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),

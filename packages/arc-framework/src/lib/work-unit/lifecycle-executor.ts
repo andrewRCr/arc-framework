@@ -30,6 +30,7 @@ import { posix } from "node:path";
 import {
   type MetaFieldName,
   type MetaProjectionOverrides,
+  parseMetaRecord,
 } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -676,11 +677,17 @@ export async function executeTransition(
  * Finish a phase transition whose meta projection or staging failed after its phase and side effects landed.
  *
  * The phase/workflow contradiction is the durable retry marker. This path writes only the remaining meta
- * projection and ROADMAP; it never replays encoding legs or non-idempotent side effects.
+ * projection and ROADMAP; a caller may also replay the transition's non-ROADMAP side effects when those effects
+ * are idempotent and therefore form part of completing the interrupted transition.
  */
 export async function resumeTransitionFinalization(
   ctx: ExecuteTransitionContext,
-  params: { verb: Verb; slug: string; inputs: TransitionInputs },
+  params: {
+    verb: Verb;
+    slug: string;
+    inputs: TransitionInputs;
+    replayNonRoadmapSideEffects?: boolean;
+  },
 ): Promise<TransitionOutcome | null> {
   const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
   const position = resolveSlugPosition(index, params.slug);
@@ -690,9 +697,35 @@ export async function resumeTransitionFinalization(
     && candidate.to !== null
     && positionsEqual(candidate.to, position));
   const record = matches.length === 1 ? matches[0] : undefined;
-  const expectedWorkflow = record?.encodingUpdates.setCurrentWorkflowField;
   const metaPath = index.get(params.slug)?.path ?? null;
-  if (record === undefined || metaPath === null || expectedWorkflow === undefined) return null;
+  if (record === undefined || metaPath === null) return null;
+  const inverse = TRANSITIONS.find((candidate) =>
+    candidate.verb === record.inverse
+    && candidate.to !== null
+    && positionsEqual(candidate.to, record.from));
+  const sourceWorkflow = inverse?.encodingUpdates.setCurrentWorkflowField;
+  if (sourceWorkflow === undefined) return null;
+  const meta = parseMetaRecord(await ctx.indexFs.readFile(posix.join(ctx.cwd, metaPath)));
+  if (meta.currentWorkflow !== sourceWorkflow) return null;
+
+  const sideEffectsFired: SideEffectId[] = [];
+  const advisories: string[] = [];
+  if (params.replayNonRoadmapSideEffects === true) {
+    for (const id of record.sideEffects) {
+      if (id === "reconcile-roadmap") continue;
+      const handler = ctx.sideEffects?.[id];
+      if (handler === undefined) return null;
+      const advisory = await handler({
+        cwd: ctx.cwd,
+        slug: params.slug,
+        from: record.from,
+        to: record.to,
+        inputs: params.inputs,
+      });
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      sideEffectsFired.push(id);
+    }
+  }
   let failedWrite: FinalizeWrite = "currentWorkflowField";
   try {
     await applyCurrentWorkflowField(ctx, record, metaPath, params.inputs);
@@ -700,8 +733,6 @@ export async function resumeTransitionFinalization(
     const softFieldsWritten = await applySoftFields(ctx, record, metaPath, params.inputs);
     failedWrite = "stageMeta";
     await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, params.inputs));
-    const sideEffectsFired: SideEffectId[] = [];
-    const advisories: string[] = [];
     if (record.sideEffects.includes("reconcile-roadmap")) {
       const handler = ctx.sideEffects?.["reconcile-roadmap"];
       if (handler !== undefined) {
@@ -732,7 +763,7 @@ export async function resumeTransitionFinalization(
     return {
       status: "finalize-failed",
       legsFired: [],
-      sideEffectsFired: [],
+      sideEffectsFired,
       failedWrite,
       message: error instanceof Error ? error.message : String(error),
     };

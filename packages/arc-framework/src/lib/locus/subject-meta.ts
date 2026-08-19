@@ -8,10 +8,15 @@ import {
 } from "../../commands/active/status.js";
 import type { SessionType } from "../../commands/active/types.js";
 import {
+  checkCurrentWorkflowConsistency,
   resolvePlanningStage,
   type PlanningWorkflow,
 } from "../active/current-workflow-consistency.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
+import {
+  parseCandidateManagedRecord,
+} from "../work-unit/candidate-attestation.js";
+import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import { resolveActiveCohortDocPath } from "../session-init/cohort-doc.js";
@@ -48,7 +53,7 @@ export type SubjectMetaProjection =
       taskCursor: TaskListCursorFileResult | null;
       cohortDocPath: string | null;
       loadSet: LoadSetManifest;
-      integrationBoundary?: IntegrationBoundaryLocus | null;
+      integrationBoundary: IntegrationBoundaryLocus | null;
     };
 
 /** Select one exact subject meta and derive its workflow state with reads pinned to its checkout. */
@@ -100,11 +105,42 @@ export async function projectCheckoutSubjectMeta(options: {
       metaPath: expectedPath,
     };
   }
+  const [workflowDiagnostic] = checkCurrentWorkflowConsistency(record);
+  if (workflowDiagnostic !== undefined) {
+    return {
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: workflowDiagnostic,
+      metaPath: expectedPath,
+    };
+  }
+  let candidateSubjectDigest: string | null = null;
+  if (record.candidateId !== null && (record.state === "Active" || record.state === "Integrating")) {
+    try {
+      const candidateContent = await options.io.readFile(join(
+        options.cwd,
+        resolveCandidateRecordRelativePath(options.subjectKey),
+      ));
+      const candidateRecord = parseCandidateManagedRecord(candidateContent);
+      if (candidateRecord === null || candidateRecord.attestation.candidateId !== record.candidateId) {
+        throw new Error("Candidate metadata does not match the managed Candidate record.");
+      }
+      candidateSubjectDigest = candidateRecord.responses.at(-1)?.newTarget.subject.subjectDigest
+        ?? candidateRecord.subject.subjectDigest;
+    } catch (error) {
+      return {
+        kind: "unresolved",
+        code: "subject-unresolved",
+        message: error instanceof Error ? error.message : String(error),
+        metaPath: expectedPath,
+      };
+    }
+  }
   const inferredSessionType = options.metaRoot.kind === "completed"
     ? "integration"
     : inferSessionType(record.state, record.taskList, record.branch);
   let integrationBoundary: IntegrationBoundaryLocus | null = null;
-  if (record.candidateId !== null && record.state === "Integrating") {
+  if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
       readFile: (path) => options.io.readFile(path),
     });
@@ -113,16 +149,20 @@ export async function projectCheckoutSubjectMeta(options: {
       workUnit: options.subjectKey,
       branch: record.branch,
       candidateId: record.candidateId,
+      candidateSubjectDigest,
     });
-  } else if (record.candidateId !== null && record.state === "Active") {
+  } else if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
     integrationBoundary = projectCandidateReviewBoundary({
       workUnit: options.subjectKey,
       candidateId: record.candidateId,
+      candidateSubjectDigest,
     });
   }
-  const sessionType: SessionType | null = record.state === "Active" && integrationBoundary !== null
-    ? "prepublication"
-    : inferredSessionType;
+  const sessionType: SessionType | null = record.state === "Integrating" && integrationBoundary === null
+    ? null
+    : record.state === "Active" && integrationBoundary !== null
+      ? "prepublication"
+      : inferredSessionType;
   const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null

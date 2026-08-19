@@ -7,6 +7,7 @@ import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.
 import type { ApprovedDispositionRecord } from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
+import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
 import {
   LocalApprovedDispositionRecordStore,
 } from "../review-gate/hosts/local/disposition-record-store.js";
@@ -58,13 +59,24 @@ export function createLineageReviewComposer(input: {
     record: ApprovedDispositionRecord,
     required: boolean,
   ): Promise<ReviewTarget | null> => {
-    const resolved = await (record.source.kind === "attested-local"
-      ? operationStore.readOperation(record.operationId).then(({ state }) => (
-          state !== null && state.kind === "local-review" ? state.target : null
-        ))
-      : outcomeStore.readOutcome(record.operationId).then(({ record: outcome }) => (
-          outcome?.outcome.target ?? null
-        )));
+    let resolved: ReviewTarget | null;
+    if (record.source.kind === "attested-local") {
+      const { state } = await operationStore.readOperation(record.operationId);
+      resolved = state !== null && state.kind === "local-review" ? state.target : null;
+    } else if (record.source.kind === "frontline") {
+      const { record: outcome } = await outcomeStore.readOutcome(record.operationId);
+      resolved = outcome?.outcome.target ?? null;
+    } else {
+      const reference = parseReviewSourceReference(record.source.attemptRef, "hosted");
+      if (reference.durableRef !== record.operationId) {
+        throw new Error("The hosted review source reference moved attempt.");
+      }
+      const { state } = await operationStore.readOperation(reference.operationId);
+      const attempt = state !== null && state.kind === "lane-progress"
+        ? state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
+        : undefined;
+      resolved = attempt?.hosted?.reviewTarget ?? null;
+    }
     if (resolved === null) {
       if (!required) return null;
       throw new Error(`The review operation behind approved dispositions ${record.operationId} is unavailable.`);
@@ -122,7 +134,8 @@ export function createLineageReviewComposer(input: {
     const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
     for (const approved of enumerated) {
       const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
-      const required = approved.candidate.workUnit === workUnit
+      const required = approved.candidate !== null
+        && approved.candidate.workUnit === workUnit
         && approved.candidate.candidateId === record.attestation.candidateId;
       if (!required) continue;
       const origin = await originTarget(approved, required);
@@ -155,7 +168,9 @@ export function createLineageReviewComposer(input: {
           schemaVersion: 1,
           source: approved.source.kind === "attested-local"
             ? { kind: "attested-local", receiptRef: approved.source.receiptRef }
-            : { kind: "frontline", outcomeRef: approved.source.outcomeRef },
+            : approved.source.kind === "frontline"
+              ? { kind: "frontline", outcomeRef: approved.source.outcomeRef }
+              : { kind: "hosted", attemptRef: approved.source.attemptRef },
           dispositions,
         },
       });

@@ -14,6 +14,11 @@ import {
   IntegrationBoundaryLocusSchema,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  serializeCandidateManagedRecord,
+} from "../../../src/lib/work-unit/candidate-attestation.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
 
@@ -38,6 +43,30 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     pathExists: async (path) => files.has(path),
     realpath: async (path) => posix.normalize(path),
     lstat: async () => ({ isSymbolicLink: () => false }),
+  };
+}
+
+function candidateRecord(slug: string): { candidateId: string; subjectDigest: string; content: string } {
+  const subject = createCandidateSubjectSnapshot([]);
+  const attestation = createCandidateAttestation({
+    workUnit: slug,
+    subject,
+    baseRevision: "a".repeat(40),
+    attestedBy: "andrew",
+    attestedAt: "2026-08-19T00:00:00.000Z",
+    verificationEvidenceRef: `tasks-${slug}.md#verification`,
+  });
+  return {
+    candidateId: attestation.candidateId,
+    subjectDigest: subject.subjectDigest,
+    content: serializeCandidateManagedRecord({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation,
+      subject,
+      responses: [],
+      lineageAttestations: [],
+    }),
   };
 }
 
@@ -103,7 +132,8 @@ describe("checkout subject active-extension seam", () => {
 
   it("projects the exact durable publication boundary on integration resume", async () => {
     const { options, files } = fixture();
-    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidate = candidateRecord("demo");
+    const { candidateId, subjectDigest } = candidate;
     const meta = `# Metadata: demo
 
 - **State:** \`Integrating\`
@@ -112,7 +142,7 @@ describe("checkout subject active-extension seam", () => {
 - **Cohort:** \`release/core\`
 - **Task List:** \`tasks-demo.md\`
 - **Candidate:** \`${candidateId}\`
-- **Current Workflow:** [none]
+- **Current Workflow:** \`integrate-work-unit\`
 - **Next Action:** stale narrative
 `;
     const reservation = createStandardReviewReservation({
@@ -134,7 +164,7 @@ describe("checkout subject active-extension seam", () => {
       mode: "integration-boundary",
       workUnit: "demo",
       candidateId,
-      candidateSubjectDigest: null,
+      candidateSubjectDigest: subjectDigest,
       locus: "candidate-publish-ready",
       nextAction: {
         kind: "publish-candidate",
@@ -148,11 +178,12 @@ describe("checkout subject active-extension seam", () => {
       workUnit: "demo",
       branch: "feat/demo",
       candidateId,
-      candidateSubjectDigest: null,
+      candidateSubjectDigest: subjectDigest,
       reservation,
       changeRequest: null,
     });
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
     files.set(
       `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
       JSON.stringify(storedBoundary),
@@ -174,7 +205,8 @@ describe("checkout subject active-extension seam", () => {
 
   it("projects a Candidate-bearing Active subject as prepublication", async () => {
     const { options, files } = fixture();
-    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidate = candidateRecord("demo");
+    const { candidateId } = candidate;
     const meta = `# Metadata: demo
 
 - **State:** \`Active\`
@@ -183,11 +215,12 @@ describe("checkout subject active-extension seam", () => {
 - **Cohort:** \`release/core\`
 - **Task List:** \`tasks-demo.md\`
 - **Candidate:** \`${candidateId}\`
-- **Current Workflow:** \`integrate-work-unit\`
+- **Current Workflow:** \`prepare-work-unit\`
 - **Next Action:** stale narrative
 `;
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
     files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
 
     const result = await projectCheckoutSubjectMeta({
       ...options,
@@ -209,6 +242,39 @@ describe("checkout subject active-extension seam", () => {
     expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
       path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
       readMode: { kind: "full" },
+    });
+  });
+
+  it.each([
+    ["Active", "prepare-work-unit"],
+    ["Integrating", "integrate-work-unit"],
+  ])("degrades malformed Candidate metadata in %s instead of throwing", async (state, workflow) => {
+    const { options, files } = fixture();
+    const meta = `# Metadata: demo
+
+- **State:** \`${state}\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`not-a-candidate\`
+- **Current Workflow:** \`${workflow}\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+
+    await expect(projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    })).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      metaPath: ".arc/active/meta-demo.md",
     });
   });
 

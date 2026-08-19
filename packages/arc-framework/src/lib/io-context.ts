@@ -49,7 +49,7 @@ export interface GitBlobEntry {
   bytes: Uint8Array;
 }
 
-/** Read one exact Git tree/index blob together with its canonical tree-entry mode. */
+/** Read one exact Git tree/index leaf together with its canonical tree-entry mode. */
 export async function readGitBlobEntry(
   cwd: string,
   ref: string | null,
@@ -63,6 +63,7 @@ export async function readGitBlobEntry(
   const decode = (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   let oid: string;
   let mode: string;
+  let objectType: "blob" | "commit";
   if (ref === null) {
     const { stdout: stdoutBytes } = await exec(
       ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
@@ -81,6 +82,7 @@ export async function readGitBlobEntry(
     }
     mode = match[1];
     oid = match[2];
+    objectType = mode === "160000" ? "commit" : "blob";
   } else {
     const { stdout: stdoutBytes } = await exec(
       ["ls-tree", "-z", "--format=%(objectmode) %(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
@@ -89,14 +91,24 @@ export async function readGitBlobEntry(
     const stdout = decode(stdoutBytes);
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
-    const match = entries.length === 1 ? /^([0-7]{6}) blob ([0-9a-f]+)$/u.exec(entries[0] ?? "") : null;
-    if (match?.[1] === undefined || match[2] === undefined || !isGitObjectId(match[2])) {
+    const match = entries.length === 1
+      ? /^([0-7]{6}) (blob|commit) ([0-9a-f]+)$/u.exec(entries[0] ?? "")
+      : null;
+    if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined
+      || !isGitObjectId(match[3])
+      || (match[1] === "160000") !== (match[2] === "commit")) {
       throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
     }
     mode = match[1];
-    oid = match[2];
+    objectType = match[2] as "blob" | "commit";
+    oid = match[3];
   }
-  return { mode, bytes: (await exec(["cat-file", "blob", oid], execOptions)).stdout };
+  // A gitlink's content is the referenced commit identity stored in the tree entry. It need not
+  // exist in this repository's object database, so reading the commit object would reject a valid
+  // submodule pointer and would digest unrelated commit bytes rather than the pointer itself.
+  return objectType === "commit"
+    ? { mode, bytes: new TextEncoder().encode(oid) }
+    : { mode, bytes: (await exec(["cat-file", "blob", oid], execOptions)).stdout };
 }
 
 /** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */

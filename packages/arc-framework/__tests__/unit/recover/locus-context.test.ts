@@ -68,6 +68,7 @@ function workUnit(path = "/repo-wu"): DerivedCheckoutRow {
       taskCursor: TASK_CURSOR,
       cohortDocPath: null,
       loadSet: WU_LOAD_SET,
+      integrationBoundary: null,
     },
   });
 }

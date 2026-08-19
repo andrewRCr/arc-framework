@@ -123,7 +123,7 @@ describe("runAttest", () => {
       status: "unchanged",
       locus: { locus: "candidate-review-pending", workUnit: "example" },
     });
-    expect(state().publicationCount).toBe(2);
+    expect(state().publicationCount).toBe(1);
   });
 
   it("re-attests a recognized implementation-changing lineage exactly once", async () => {
@@ -158,7 +158,7 @@ describe("runAttest", () => {
     });
     expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
     expect(fixture.state()).toMatchObject({
-      publicationCount: 3,
+      publicationCount: 2,
       projectedCurrentWorkflow: "prepare-work-unit",
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: { lineageAttestations: [{ target: changedTarget }] },
@@ -218,7 +218,7 @@ describe("runAttest", () => {
 
     expect(rerooted.status).toBe("attested");
     expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
-    expect(fixture.state().publicationCount).toBe(3);
+    expect(fixture.state().publicationCount).toBe(2);
   });
 
   it("establishes an ordinary root when no Candidate exists to supersede", async () => {
@@ -228,5 +228,22 @@ describe("runAttest", () => {
 
     expect(result).toMatchObject({ status: "attested", operation: "root" });
     expect(state().storedRecord!.attestation.supersedes).toBeUndefined();
+  });
+
+  it("preserves terminal workflow orientation when a shipped subject is re-rooted", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("archive-cadence") });
+
+    await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Shipped",
+      newRoot: true,
+    });
+
+    expect(fixture.state()).toMatchObject({
+      projectedCurrentWorkflow: "[none]",
+      projectedNextAction: "[none]",
+    });
   });
 });

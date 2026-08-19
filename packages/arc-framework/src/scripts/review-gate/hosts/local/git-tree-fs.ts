@@ -31,25 +31,42 @@ function statFor(type: string): ReviewReadinessStat {
   };
 }
 
+function unavailable(path: string, error: unknown): Error {
+  return Object.assign(new Error(`Git-tree path is unavailable: ${path || "."}`, { cause: error }), {
+    code: "ENOENT",
+  });
+}
+
 /** Project one immutable repository version through the filesystem interfaces its readers already consume. */
 export function createGitTreeReadFs(input: {
   cwd: string;
   revision: string;
   exec: GitExec;
 }): ReviewReadinessFs & ProjectViewFs {
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(input.revision)) {
+    throw new Error("Git-tree projection requires a full immutable object ID.");
+  }
   const options = { cwd: input.cwd, objectAccess: "local-only" as const };
   return {
     stat: async (path) => {
       const projected = repositoryPath(input.cwd, path);
-      if (projected === "") return statFor("tree");
       try {
+        if (projected === "") {
+          const root = (await input.exec(
+            "git",
+            ["rev-parse", "--verify", `${input.revision}^{tree}`],
+            options,
+          )).stdout.trim();
+          if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(root)) {
+            throw new Error("Git returned a malformed tree object ID.");
+          }
+          return statFor("tree");
+        }
         const type = (await input.exec("git", ["cat-file", "-t", treeish(input.revision, projected)], options))
           .stdout.trim();
         return statFor(type);
       } catch (error) {
-        throw Object.assign(new Error(`Git-tree path is unavailable: ${projected}`, { cause: error }), {
-          code: "ENOENT",
-        });
+        throw unavailable(projected, error);
       }
     },
     readFile: async (path) => {

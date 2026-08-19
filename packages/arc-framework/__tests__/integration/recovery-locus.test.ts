@@ -45,6 +45,7 @@ function workUnit(): DerivedCheckoutRow {
       taskCursor: CURSOR,
       cohortDocPath: null,
       loadSet: LOAD_SET,
+      integrationBoundary: null,
     },
     lifecycleLocation: "active",
     diagnostics: [],

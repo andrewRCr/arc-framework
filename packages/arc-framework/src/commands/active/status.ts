@@ -18,6 +18,7 @@ import { join, posix } from "node:path";
 
 import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
 import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
+import { checkCurrentWorkflowConsistency } from "../../lib/active/current-workflow-consistency.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
@@ -34,6 +35,7 @@ import type {
   MetaFileCandidate,
 } from "./types.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectCandidateReviewBoundary,
   recoverPublicationBoundary,
@@ -276,6 +278,17 @@ function classifyResolution(
     };
   }
   if (input.length === 1) {
+    if (only.state !== "Planning" && checkCurrentWorkflowConsistency({
+      state: only.state,
+      currentWorkflow: only.currentWorkflow ?? null,
+      design: [],
+    }).length > 0) {
+      return { resolution: "single", path: only.path, candidates: [], sessionType: null };
+    }
+    if (only.state === "Integrating"
+      && (only.integrationBoundary === null || only.integrationBoundary === undefined)) {
+      return { resolution: "single", path: only.path, candidates: [], sessionType: null };
+    }
     return {
       resolution: "single",
       path: only.path,
@@ -314,9 +327,7 @@ async function resolveSessionInit(
       result.taskListPath = taskListPath;
       const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
-      result.currentWorkflow = fields.sessionType === "prepublication"
-        ? "prepare-work-unit"
-        : normalizeNullablePointer(only.currentWorkflow);
+      result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
       result.planningStage = resolvePlanningStage(result.currentWorkflow, fields.sessionType);
       result.integrationBoundary = only.integrationBoundary ?? null;
     }
@@ -333,6 +344,12 @@ async function projectCandidateIntegrationBoundary(
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
+  const record = await readCandidateRecord(cwd, slug);
+  if (record === null || record.attestation.candidateId !== candidate.candidateId) {
+    return { ...candidate, integrationBoundary: null };
+  }
+  const candidateSubjectDigest = record.responses.at(-1)?.newTarget.subject.subjectDigest
+    ?? record.subject.subjectDigest;
   if (candidate.state === "Integrating") {
     const stored = await readSubmissionBoundary(cwd, slug);
     if (candidate.branch === null) return candidate;
@@ -341,6 +358,7 @@ async function projectCandidateIntegrationBoundary(
       workUnit: slug,
       branch: candidate.branch,
       candidateId: candidate.candidateId,
+      candidateSubjectDigest,
     });
     return {
       ...candidate,
@@ -350,7 +368,11 @@ async function projectCandidateIntegrationBoundary(
   if (candidate.state !== "Active") return candidate;
   return {
     ...candidate,
-    integrationBoundary: projectCandidateReviewBoundary({ workUnit: slug, candidateId: candidate.candidateId }),
+    integrationBoundary: projectCandidateReviewBoundary({
+      workUnit: slug,
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest,
+    }),
   };
 }
 

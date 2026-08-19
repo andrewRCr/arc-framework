@@ -24,6 +24,11 @@ import {
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { stubGitExec } from "../helpers/integration.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  serializeCandidateManagedRecord,
+} from "../../src/lib/work-unit/candidate-attestation.js";
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
@@ -38,6 +43,29 @@ async function createFixture(): Promise<Fixture> {
   const activeDir = join(root, ".arc", "active");
   await mkdir(activeDir, { recursive: true });
   return { root, activeDir };
+}
+
+async function writeCandidate(root: string, slug: string): Promise<{ candidateId: string; subjectDigest: string }> {
+  const subject = createCandidateSubjectSnapshot([]);
+  const attestation = createCandidateAttestation({
+    workUnit: slug,
+    subject,
+    baseRevision: "a".repeat(40),
+    attestedBy: "andrew",
+    attestedAt: "2026-08-19T00:00:00.000Z",
+    verificationEvidenceRef: `tasks-${slug}.md#verification`,
+  });
+  const directory = join(root, ".arc", "system", ".internal", "candidates");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, `${slug}.json`), serializeCandidateManagedRecord({
+    schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1",
+    attestation,
+    subject,
+    responses: [],
+    lineageAttestations: [],
+  }));
+  return { candidateId: attestation.candidateId, subjectDigest: subject.subjectDigest };
 }
 
 function statusBody(fields: {
@@ -221,7 +249,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
   });
 
   it("warns per malformed Candidate without hiding a valid sibling", async () => {
-    const candidateId = `sha256:${"c".repeat(64)}`;
+    const { candidateId } = await writeCandidate(fixture.root, "alpha");
     await writeFile(
       join(fixture.activeDir, "meta-alpha.md"),
       statusBody({
@@ -862,7 +890,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
   });
 
   it("projects a Candidate review locus independently of narrative fields", async () => {
-    const candidateId = `sha256:${"c".repeat(64)}`;
+    const { candidateId } = await writeCandidate(fixture.root, "foo");
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
       statusBody({
@@ -871,6 +899,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
         taskList: "`.arc/active/tasks-foo.md`",
         nextAction: "archive-work-unit Step 1",
         candidateId,
+        currentWorkflow: "prepare-work-unit",
       }),
     );
 
@@ -891,7 +920,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
   });
 
   it("preserves the durable publication reservation in the session-init resume locus", async () => {
-    const candidateId = `sha256:${"c".repeat(64)}`;
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
       statusBody({
@@ -900,6 +929,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
         taskList: "`.arc/active/tasks-foo.md`",
         nextAction: "stale narrative",
         candidateId,
+        currentWorkflow: "integrate-work-unit",
       }),
     );
     const reservation = createStandardReviewReservation({
@@ -921,7 +951,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       mode: "integration-boundary",
       workUnit: "foo",
       candidateId,
-      candidateSubjectDigest: null,
+      candidateSubjectDigest: subjectDigest,
       locus: "candidate-publish-ready",
       nextAction: {
         kind: "publish-candidate",
@@ -935,7 +965,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       workUnit: "foo",
       branch: "technical/foo",
       candidateId,
-      candidateSubjectDigest: null,
+      candidateSubjectDigest: subjectDigest,
       reservation,
       changeRequest: null,
     });

@@ -9,10 +9,16 @@ import {
 } from "./core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./core/ports.js";
 import type { HostedAwaitResult } from "./hosted/await.js";
+import type { HostedRequestHandle } from "./hosted/request.js";
 import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
+
+/** Resolve the stable identity of one hosted request attempt. */
+export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
+  return `hosted/${canonicalDigest(handle).slice("sha256:".length)}`;
+}
 
 /** Hosted await states that conclude an attempt, keyed to the driver's outcome vocabulary. */
 const HOSTED_AWAIT_OUTCOMES = {
@@ -78,6 +84,7 @@ export async function recordLaneAttempt(
     outcome: LaneAttemptOutcome;
     consumedPass: boolean;
     chunkSeriesComplete?: boolean;
+    hosted?: LaneAttempt["hosted"];
     now: string;
   },
 ): Promise<LaneProgressState> {
@@ -89,6 +96,7 @@ export async function recordLaneAttempt(
     sourceId: input.sourceId,
     outcome: input.outcome,
     ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
+    ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
   };
   const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
   if (replay !== undefined) {
@@ -131,7 +139,14 @@ export async function recordLaneAttempt(
  */
 export async function recordHostedAwaitAttempt(
   store: ReviewOperationStateStore,
-  input: { repositoryId: string; result: HostedAwaitResult; now: string },
+  input: {
+    repositoryId: string;
+    result: HostedAwaitResult;
+    reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
+    requirement: NonNullable<LaneAttempt["hosted"]>["requirement"];
+    actorIdentity: string;
+    now: string;
+  },
 ): Promise<LaneProgressState | null> {
   const outcome = hostedAwaitLaneOutcome(input.result.state);
   if (outcome === null) return null;
@@ -141,12 +156,110 @@ export async function recordHostedAwaitAttempt(
     repositoryId: input.repositoryId,
     changeRequestId: `pull/${handle.target.pullRequest}`,
     headSha: handle.target.headSha,
-    attemptId: `hosted/${canonicalDigest(handle).slice("sha256:".length)}`,
+    attemptId: hostedLaneAttemptId(handle),
     sourceId: handle.provider,
     outcome,
     consumedPass: outcome === "clean" || outcome === "findings",
+    hosted: {
+      target: handle.target,
+      reviewTarget: input.reviewTarget,
+      requirement: input.requirement,
+      actorIdentity: input.actorIdentity,
+      findings: input.result.state === "findings" ? input.result.findings : [],
+      dispositionSetId: null,
+      settledFindingIds: [],
+    },
     now: input.now,
   });
+}
+
+/** Bind approval to one hosted findings attempt and settle findings with no host-side action. */
+export async function bindHostedAttemptDisposition(
+  store: ReviewOperationStateStore,
+  input: {
+    operationId: string;
+    attemptId: string;
+    dispositionSetId: string;
+    findingIds: readonly string[];
+    noHostSettlementFindingIds: readonly string[];
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  const { version, state } = await store.readOperation(input.operationId);
+  if (state === null || state.kind !== "lane-progress" || state.lane !== "standard") {
+    throw new Error("hosted lane findings attempt is unavailable");
+  }
+  const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.attemptId);
+  const attempt = state.attempts[index];
+  if (attempt?.outcome !== "findings" || attempt.hosted === undefined) {
+    throw new Error("hosted lane findings attempt is unavailable");
+  }
+  const recordedFindingIds = attempt.hosted.findings.map(({ findingId }) => findingId).sort();
+  if (canonicalize([...input.findingIds].sort()) !== canonicalize(recordedFindingIds)) {
+    throw new Error("approved dispositions do not cover the hosted finding set");
+  }
+  if (attempt.hosted.dispositionSetId !== null
+    && attempt.hosted.dispositionSetId !== input.dispositionSetId) {
+    throw new Error("hosted lane attempt already binds a different disposition set");
+  }
+  const settledFindingIds = [...new Set([
+    ...attempt.hosted.settledFindingIds,
+    ...input.noHostSettlementFindingIds,
+  ])].sort();
+  if (settledFindingIds.some((findingId) => !recordedFindingIds.includes(findingId))) {
+    throw new Error("hosted settlement references an unknown finding");
+  }
+  const complete = settledFindingIds.length === recordedFindingIds.length;
+  const attempts = [...state.attempts];
+  attempts[index] = {
+    ...attempt,
+    outcome: complete ? "settled-findings" : "findings",
+    hosted: {
+      ...attempt.hosted,
+      dispositionSetId: input.dispositionSetId,
+      settledFindingIds,
+    },
+  };
+  const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
+  await store.publishOperation(next, version);
+  return next;
+}
+
+/** Record successful host-side settlement for one approved finding and close the attempt when complete. */
+export async function settleHostedAttemptFinding(
+  store: ReviewOperationStateStore,
+  input: {
+    operationId: string;
+    attemptId: string;
+    dispositionSetId: string;
+    findingId: string;
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  const { version, state } = await store.readOperation(input.operationId);
+  if (state === null || state.kind !== "lane-progress" || state.lane !== "standard") {
+    throw new Error("hosted lane findings attempt is unavailable");
+  }
+  const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.attemptId);
+  const attempt = state.attempts[index];
+  if (attempt === undefined
+    || attempt.hosted === undefined
+    || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings")
+    || attempt.hosted.dispositionSetId !== input.dispositionSetId
+    || !attempt.hosted.findings.some(({ findingId }) => findingId === input.findingId)) {
+    throw new Error("hosted finding settlement does not match the approved lane attempt");
+  }
+  if (attempt.hosted.settledFindingIds.includes(input.findingId)) return state;
+  const settledFindingIds = [...attempt.hosted.settledFindingIds, input.findingId].sort();
+  const attempts = [...state.attempts];
+  attempts[index] = {
+    ...attempt,
+    outcome: settledFindingIds.length === attempt.hosted.findings.length ? "settled-findings" : "findings",
+    hosted: { ...attempt.hosted, settledFindingIds },
+  };
+  const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
+  await store.publishOperation(next, version);
+  return next;
 }
 
 /**
@@ -163,6 +276,7 @@ const FRONTLINE_REASON_OUTCOMES = {
   "capability-unsupported": "capability-unsupported",
   "execution-timeout": "timed-out",
   "head-mismatch": "stale-target",
+  "target-mismatch": "stale-target",
   "invalid-output": "malformed",
   "authorization-rejected": "terminal-failure",
   "transient-transport": "transient-unavailable",

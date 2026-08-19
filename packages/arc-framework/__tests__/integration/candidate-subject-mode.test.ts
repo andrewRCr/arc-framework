@@ -54,4 +54,46 @@ describe("Git Candidate subject modes", () => {
     expect(executable.subject.entries[0]?.digest).toBe(regular.subject.entries[0]?.digest);
     expect(executable.subject.subjectDigest).not.toBe(regular.subject.subjectDigest);
   });
+
+  it("collects staged and committed gitlink pointer changes without requiring the target objects", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-candidate-gitlink-"));
+    roots.push(root);
+    await git(root, "init", "-b", "main");
+    await git(root, "config", "user.name", "ARC Test");
+    await git(root, "config", "user.email", "arc@example.test");
+    await writeFile(join(root, "README.md"), "base\n", "utf8");
+    await git(root, "add", "README.md");
+    await git(root, "commit", "-m", "base");
+    await git(root, "switch", "-c", "feat/example");
+    const firstOid = "a".repeat(40);
+    const secondOid = "b".repeat(40);
+    await git(root, "update-index", "--add", "--cacheinfo", `160000,${firstOid},vendor/library`);
+
+    const staged = await collectGitCandidateTarget({
+      cwd: root,
+      name: "example",
+      baseBranch: "main",
+      exec,
+    });
+    expect(staged.subject.entries).toEqual([
+      expect.objectContaining({ path: "vendor/library", mode: "160000" }),
+    ]);
+
+    await git(root, "commit", "-m", "add submodule pointer");
+    await git(root, "update-index", "--cacheinfo", `160000,${secondOid},vendor/library`);
+    await git(root, "commit", "-m", "move submodule pointer");
+    const revision = await git(root, "rev-parse", "HEAD");
+    const committed = await collectGitCandidateTarget({
+      cwd: root,
+      name: "example",
+      baseBranch: "main",
+      revision,
+      exec,
+    });
+
+    expect(committed.subject.entries).toEqual([
+      expect.objectContaining({ path: "vendor/library", mode: "160000" }),
+    ]);
+    expect(committed.subject.entries[0]?.digest).not.toBe(staged.subject.entries[0]?.digest);
+  });
 });

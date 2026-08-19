@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -58,17 +58,50 @@ describe("prepublication workflow boundary", () => {
       .toContain("reference/templates/arc/work-unit/template-pull-request.md");
   });
 
+  it("ships every pull-request template reference at its resolved installed path", async () => {
+    const arcRoot = resolve(ROOT, "packages/arc-framework/arc");
+    const templatePath = resolve(arcRoot, "reference/templates/arc/work-unit/template-pull-request.md");
+    const [template, recipeText] = await Promise.all([
+      readFile(templatePath, "utf8"),
+      readFile(resolve(ROOT, "packages/arc-framework/init-recipe.json"), "utf8"),
+    ]);
+    const recipe = JSON.parse(recipeText) as { include_files: string[] };
+    const targets = [...template.matchAll(/^\[[^\]]+\]:\s+([^#\s]+)(?:#\S+)?$/gmu)]
+      .map((match) => match[1])
+      .filter((target): target is string => target !== undefined);
+
+    expect(targets).toHaveLength(4);
+    for (const target of targets) {
+      const installedPath = resolve(dirname(templatePath), target);
+      await expect(readFile(installedPath, "utf8")).resolves.not.toBe("");
+      expect(recipe.include_files).toContain(relative(arcRoot, installedPath));
+    }
+  });
+
   it("closes verification before attestation and hands execution off to preparation", async () => {
     for (const root of ROOTS) {
-      const [verification, taskLoop] = await Promise.all([
+      const [verification, preparation, integration, taskLoop] = await Promise.all([
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
         readFile(resolve(root, root === ROOTS[0]
           ? "system/workflows/arc/process-task-loop.template.md"
           : "system/workflows/arc/process-task-loop.md"), "utf8"),
       ]);
 
+      const cleanup = verification.indexOf("Before the Candidate exists, clean the WU content");
+      const selfReview = verification.indexOf("execute it against the local aggregate diff");
+      const tierThree = verification.indexOf("Run the full quality gate suite");
+      const attest = verification.indexOf("arc attest {name} --json");
+      expect(cleanup).toBeGreaterThan(-1);
+      expect(selfReview).toBeGreaterThan(cleanup);
+      expect(tierThree).toBeGreaterThan(selfReview);
+      expect(attest).toBeGreaterThan(tierThree);
+      expect(preparation).not.toContain("execute it against the local aggregate diff");
+      expect(integration).not.toContain("After settlement, clean the WU content");
+
       expect(verification.indexOf("mark the single verification task `[x]`")).toBeGreaterThan(-1);
-      expect(verification.indexOf("arc attest {name} --json"))
+      expect(attest)
         .toBeGreaterThan(verification.indexOf("mark the single verification task `[x]`"));
       expect(taskLoop).toContain("to prepare-work-unit` (verification complete — execution end)");
       expect(taskLoop).toContain("prepare-work-unit are all valid retargets");

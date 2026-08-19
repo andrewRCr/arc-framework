@@ -8,7 +8,7 @@ import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../user-sync/notes-lock.js";
 import {
-  IntegrationBoundaryLocusSchema,
+  parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -70,7 +70,7 @@ export async function readSubmissionBoundaryVersioned(
   try {
     const content = await fs.readFile(join(cwd, resolveSubmissionBoundaryPath(workUnit)));
     const value = JSON.parse(content) as unknown;
-    const boundary = IntegrationBoundaryLocusSchema.parse(value);
+    const boundary = parseIntegrationBoundaryLocus(value);
     if (boundary.workUnit !== workUnit) {
       throw new Error("Submission boundary work unit does not match its path");
     }
@@ -88,7 +88,7 @@ export async function writeSubmissionBoundary(
   expectedVersion: string | null,
   fs: SubmissionBoundaryStoreFs = nodeFs,
 ): Promise<string> {
-  const value = IntegrationBoundaryLocusSchema.parse(boundary);
+  const value = parseIntegrationBoundaryLocus(boundary);
   const path = resolveSubmissionBoundaryPath(value.workUnit);
   const absolutePath = join(cwd, path);
   await fs.withLock(`${absolutePath}.lock`, async () => {

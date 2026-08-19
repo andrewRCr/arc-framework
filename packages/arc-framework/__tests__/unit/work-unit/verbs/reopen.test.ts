@@ -153,7 +153,7 @@ describe("runReopen — the set-phase-only move", () => {
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
   });
 
-  it("finishes only the Active projection when the withdrawal phase already landed", async () => {
+  it("finishes the exact partial Active projection and idempotently replays withdrawal", async () => {
     const { ctx, calls, currentWorkflowWrites, withdrawInputs, softWrites } = buildCtx([{
       slug: "foo",
       state: "Active",
@@ -167,9 +167,9 @@ describe("runReopen — the set-phase-only move", () => {
     expect(calls).toContain("stage:meta");
     expect(calls).toContain("side:reconcile-roadmap");
     expect(calls).not.toContain("setPhase:Active");
-    expect(calls).not.toContain("side:withdraw-pr");
-    expect(calls).not.toContain("side:reconcile-status-user");
-    expect(withdrawInputs).toEqual([]);
+    expect(calls).toContain("side:withdraw-pr");
+    expect(calls).toContain("side:reconcile-status-user");
+    expect(withdrawInputs).toEqual(["close"]);
   });
 
   it.each(["soft-fields", "stage-meta"] as const)(
@@ -197,9 +197,21 @@ describe("runReopen — the set-phase-only move", () => {
       expect(retry.currentWorkflowWrites).toEqual(["prepare-work-unit"]);
       expect(retry.softWrites).toEqual([{ "Next Action": "[none]" }]);
       expect(retry.calls).toContain("stage:meta");
-      expect(retry.calls).not.toContain("side:withdraw-pr");
+      expect(retry.calls).toContain("side:withdraw-pr");
     },
   );
+
+  it("does not treat an ordinary Active work unit as an interrupted reopen", async () => {
+    const { ctx, calls } = buildCtx([{
+      slug: "foo",
+      state: "Active",
+      branch: "feat/foo",
+      currentWorkflow: "prepare-work-unit",
+    }]);
+
+    await expect(runReopen(ctx, BASE)).resolves.toMatchObject({ status: "rejected" });
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("runReopen — soft-field disposition", () => {

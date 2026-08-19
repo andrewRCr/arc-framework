@@ -160,7 +160,7 @@ export interface ActiveSessionInitResult {
    */
   planningStage: PlanningWorkflow | null;
   /** Exact Candidate/review/publication resume point for the resolved work unit. */
-  integrationBoundary?: IntegrationBoundaryLocus | null;
+  integrationBoundary: IntegrationBoundaryLocus | null;
   warnings: string[];
 }
 

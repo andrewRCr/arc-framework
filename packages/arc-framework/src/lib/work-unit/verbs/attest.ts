@@ -28,8 +28,8 @@ const ATTESTED_ORIENTATION = {
     nextAction: "Candidate review pending — resume integration review",
   },
   Shipped: {
-    currentWorkflow: "integrate-work-unit",
-    nextAction: "Candidate review pending — resume integration review",
+    currentWorkflow: "[none]",
+    nextAction: "[none]",
   },
 } as const;
 
@@ -68,6 +68,7 @@ export interface AttestContext {
     name: string;
     record: CandidateManagedRecordV1;
     candidateId: string;
+    candidateSubjectDigest: string;
     currentWorkflow: string;
     nextAction: string;
     expectedRecordVersion: string | null;
@@ -107,16 +108,13 @@ export async function runAttest(
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
     if (currentness.convergenceVerification === "satisfied") {
-      await context.publish({
-        name,
-        record,
-        candidateId: currentness.candidateId,
-        expectedRecordVersion: existing.version,
-        ...orientation,
-      });
       return {
         status: "unchanged",
-        locus: projectCandidateReviewBoundary({ workUnit: name, candidateId: currentness.candidateId }),
+        locus: projectCandidateReviewBoundary({
+          workUnit: name,
+          candidateId: currentness.candidateId,
+          candidateSubjectDigest: current.subject.subjectDigest,
+        }),
       };
     }
     const lineageAttestation = createCandidateLineageAttestation({
@@ -130,11 +128,16 @@ export async function runAttest(
       ...record,
       lineageAttestations: [...record.lineageAttestations, lineageAttestation],
     });
-    const locus = projectCandidateReviewBoundary({ workUnit: name, candidateId: currentness.candidateId });
+    const locus = projectCandidateReviewBoundary({
+      workUnit: name,
+      candidateId: currentness.candidateId,
+      candidateSubjectDigest: current.subject.subjectDigest,
+    });
     const published = await context.publish({
       name,
       record: nextRecord,
       candidateId: currentness.candidateId,
+      candidateSubjectDigest: current.subject.subjectDigest,
       expectedRecordVersion: existing.version,
       ...orientation,
     });
@@ -170,11 +173,16 @@ async function establishRoot(
     responses: [],
     lineageAttestations: [],
   });
-  const locus = projectCandidateReviewBoundary({ workUnit: name, candidateId: attestation.candidateId });
+  const locus = projectCandidateReviewBoundary({
+    workUnit: name,
+    candidateId: attestation.candidateId,
+    candidateSubjectDigest: current.subject.subjectDigest,
+  });
   const published = await context.publish({
     name,
     record,
     candidateId: attestation.candidateId,
+    candidateSubjectDigest: current.subject.subjectDigest,
     expectedRecordVersion,
     ...orientation,
   });

@@ -7,7 +7,10 @@ import {
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { projectReviewResponse } from "../../../../../src/scripts/review-gate/core/response-plan.js";
+import {
+  composeReviewResponseSettlementAction,
+  projectReviewResponse,
+} from "../../../../../src/scripts/review-gate/core/response-plan.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
@@ -154,6 +157,72 @@ describe("review response planning", () => {
     });
   });
 
+  it("matches approved regraded reviewer nits by their source identity", () => {
+    const dispositionSet = createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: currentTarget.targetId,
+      policyVersion: canonicalDigest({ policy: "review" }),
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
+      proposedBy: "author-1",
+      findings: [{
+        findingId: normalizedFinding.findingId,
+        sourceIdentity: "codex-pr",
+        locus: normalizedFinding.locus,
+        sourceVerification: "verified",
+        verificationRefs: ["source:src/index.ts:7"],
+        reviewerSeverity: "minor",
+        reviewerNit: true,
+        arcSeverity: "major",
+        disposition: "fix",
+        rationale: "The source supports the regraded finding.",
+        recommendation: "Apply the bounded fix.",
+        openQuestions: [],
+      }],
+    });
+    const dispositionState = approveDispositionState({
+      proposed: proposeDispositionSet(dispositionSet),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-07-20T20:00:00Z",
+    });
+
+    expect(projectReviewResponse({
+      ...input(),
+      findings: [{ ...normalizedFinding, severity: "minor", nit: true }],
+      dispositionState,
+    })).toMatchObject({ state: "ready-to-fix", allowedCapabilities: ["fix"] });
+  });
+
+  it("keeps an unsupported reviewer nit record-only under blocking minor policy", () => {
+    const dispositionSet = createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: currentTarget.targetId,
+      policyVersion: canonicalDigest({ policy: "review" }),
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
+      proposedBy: "author-1",
+      findings: [{
+        findingId: normalizedFinding.findingId,
+        sourceIdentity: "codex-pr",
+        locus: normalizedFinding.locus,
+        sourceVerification: "not-supported",
+        verificationRefs: ["source:src/index.ts:7"],
+        reviewerSeverity: "minor",
+        reviewerNit: true,
+        disposition: "reject",
+        rationale: "The source does not support the finding.",
+        recommendation: "Reject the finding.",
+        openQuestions: [],
+      }],
+    }, { minorGating: "blocking" });
+
+    expect(dispositionSet.findings).toEqual([
+      expect.objectContaining({ reviewerNit: true, gating: "record-only" }),
+    ]);
+  });
+
   it("blocks stale findings, failed verification, and unavailable required capabilities", () => {
     const approval = approved();
     expect(projectReviewResponse({
@@ -195,5 +264,21 @@ describe("review response planning", () => {
     expect(() => projectReviewResponse({ ...input(), channel: "hosted" })).toThrow();
     expect(() => projectReviewResponse({ ...input(), conversations: [] })).toThrow();
     expect(() => projectReviewResponse({ ...input(), controllerState: { verdict: "clean" } })).toThrow();
+  });
+
+  it("rejects structurally valid targets whose semantic identity is corrupt", () => {
+    expect(() => projectReviewResponse({
+      ...input(),
+      currentTarget: { ...currentTarget, targetId: canonicalDigest({ forged: true }) },
+    })).toThrow(/target ID/iu);
+    expect(() => composeReviewResponseSettlementAction({
+      originTarget: { ...currentTarget, targetId: canonicalDigest({ forged: true }) },
+      fixTarget: null,
+      request: {
+        schemaVersion: 1,
+        source: { kind: "attested-local", receiptRef: "receipt-1" },
+        dispositions: approved("reject").dispositionState,
+      },
+    })).toThrow(/target ID/iu);
   });
 });

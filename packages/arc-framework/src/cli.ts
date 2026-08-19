@@ -463,7 +463,7 @@ integrateCmd.action(() => {
 integrateCmd
   .command("checkpoint <name>")
   .description("Compose one typed integration-readiness verdict")
-  .option("--json", "Emit the typed checkpoint verdict as JSON")
+  .requiredOption("--json", "Emit the typed checkpoint verdict as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, name: string, opts: IntegrationCheckpointOptions) =>
@@ -474,7 +474,7 @@ integrateCmd
   .command("merge <name>")
   .description("Execute one approved integration checkpoint and merge its exact head")
   .requiredOption("--checkpoint <handle>", "Opaque checkpoint handle returned by integrate checkpoint")
-  .option("--json", "Emit the typed merge verdict as JSON")
+  .requiredOption("--json", "Emit the typed merge verdict as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, name: string, opts: IntegrationMergeOptions) =>
@@ -1493,6 +1493,7 @@ reviewCmd
   .description("Required status-check operations")
   .command("await")
   .description("Await required checks on one exact pull-request head")
+  .requiredOption("--repository <owner/repo>", "Exact repository coordinates")
   .requiredOption("--pull-request <number>", "Pull-request number")
   .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
   .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
@@ -1624,6 +1625,7 @@ reviewCmd
     "--lanes <file | ->",
     "Per-lane review scope, frontline invocation, and approved ceiling override as JSON",
   )
+  .option("--resume <token>", "Replay the exact prior pre-publication judgment inputs")
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: () => true },

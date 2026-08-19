@@ -211,6 +211,32 @@ describe("integration merge", () => {
     expect(heldTarget).toEqual(refreshedTarget);
   });
 
+  it("re-locks the refreshed live head when an unexpected post-release operation fails", async () => {
+    const { value } = dependencies();
+    const movedTarget = {
+      repository: "owner/repo",
+      pullRequest: 42,
+      baseRef: "main",
+      headRef: "feat/example",
+      headSha: oid("f"),
+    };
+    let heldTarget: typeof movedTarget | undefined;
+    value.readFinalDrift = async () => {
+      throw new Error("drift reader unavailable");
+    };
+    value.refreshTarget = async () => movedTarget;
+    value.holdLock = async (target) => {
+      heldTarget = target;
+      return { state: "held" };
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      reason: "operation-failed",
+    });
+    expect(heldTarget).toEqual(movedTarget);
+  });
+
   it("refuses a configured-base move before releasing the merge lock", async () => {
     const { value, state } = dependencies();
     value.readConfiguredBase = async () => "release";

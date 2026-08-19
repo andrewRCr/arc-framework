@@ -245,6 +245,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
     stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
     settleLaneFindings: async () => undefined,
+    bindHostedDisposition: async () => undefined,
   };
   return deps;
 }
@@ -350,6 +351,65 @@ function localRequest(
   };
 }
 
+function hostedResponseFixture(origin: "review-thread" | "review-body") {
+  const records = fixture();
+  const attemptId = "hosted/attempt-1";
+  const operationId = "lane-progress/hosted-1";
+  const hostedFinding = origin === "review-thread"
+    ? {
+        findingId: records.finding.findingId,
+        origin,
+        commentId: "comment-1",
+        threadId: "thread-1",
+        settlement: "reply-and-resolve" as const,
+        severity: records.finding.severity,
+        locus: records.finding.locus,
+        url: "https://example.test/thread-1",
+      }
+    : {
+        findingId: records.finding.findingId,
+        origin,
+        reviewId: "review-1",
+        fingerprint: "fingerprint-1",
+        settlement: "not-applicable" as const,
+        severity: records.finding.severity,
+        locus: records.finding.locus,
+        url: "https://example.test/review-1",
+        body: "Finding body.",
+      };
+  const operation = {
+    schemaVersion: 1 as const,
+    semanticsVersion: "review-operation/v1" as const,
+    operationId,
+    updatedAt: "2026-07-23T17:00:00Z",
+    kind: "lane-progress" as const,
+    lane: "standard" as const,
+    repositoryId: records.target.repositoryId,
+    changeRequestId: "pull/42",
+    headSha: records.target.headSha,
+    completedPasses: 1,
+    attempts: [{
+      attemptId,
+      sourceId: "codex-pr",
+      outcome: "findings" as const,
+      hosted: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+        reviewTarget: records.target,
+        requirement: {
+          ...records.operation.requirement,
+          acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+        },
+        actorIdentity: "host-actor-1",
+        findings: [hostedFinding],
+        dispositionSetId: null,
+        settledFindingIds: [],
+      },
+    }],
+  };
+  const attemptRef = bindReviewSourceReference({ kind: "hosted", operationId, durableRef: attemptId });
+  return { records, operation, attemptRef };
+}
+
 /** The same approved set, approved by an identity that is not the active local one. */
 function foreignApproval(records: ReturnType<typeof fixture>) {
   return approved({
@@ -426,6 +486,62 @@ describe("review response command", () => {
           },
         },
       },
+    });
+  });
+
+  it("settles a hosted body finding through the durable attempt without Candidate authority", async () => {
+    const hosted = hostedResponseFixture("review-body");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.readCandidateLineage = async () => null;
+    const bind = vi.fn(async () => undefined);
+    deps.bindHostedDisposition = bind;
+    const disposition = approved({
+      targetId: hosted.records.target.targetId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+      disposition: "defer",
+    });
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      dispositions: disposition,
+    }, deps)).resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
+    expect(bind).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: hosted.operation.operationId,
+      attemptId: attempt.attemptId,
+      noHostSettlementFindingIds: [hosted.records.finding.findingId],
+    }));
+  });
+
+  it("returns hosted settlement re-entry for an approved thread fix", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    const disposition = approved({
+      targetId: hosted.records.target.targetId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+    });
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      dispositions: disposition,
+    }, deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: { reentryCommand: "hosted-settle" },
     });
   });
 
@@ -731,6 +847,28 @@ describe("review response command", () => {
     expect(resolveLocalActors).toHaveBeenCalledWith(
       records.authority.evaluatorIdentity,
       records.authority.authorIdentity,
+    );
+  });
+
+  it.each([
+    ["fix", "ready-to-fix"],
+    ["reject", "settled"],
+  ] as const)("records an Errand %s response without inventing Candidate authority", async (
+    disposition,
+    state,
+  ) => {
+    const records = fixture(errandVehicle);
+    const deps = dependencies(records);
+    const appendDispositionRecord = vi.fn(async () => ({
+      dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+    }));
+    deps.readCandidateLineage = async () => null;
+    deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
+
+    await expect(respondToReviewCommand(localRequest(records, disposition), deps))
+      .resolves.toMatchObject({ state });
+    expect(appendDispositionRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ candidate: null }),
     );
   });
 });

@@ -234,8 +234,8 @@ describe("attest → pre-publication → publish", () => {
     repository = await createAttestableRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
 
-    // Self-review is active by package default, so the bare procedure stops before settling and
-    // writes no boundary — which is the only state submission's refusal can now mean.
+    // Self-review is active by package default, so the bare procedure leaves the durable
+    // Candidate boundary open rather than authorizing publication.
     const reviewed = await runArc(
       ["review", "pre-publication", "example", "--json"],
       repository,
@@ -258,6 +258,6 @@ describe("attest → pre-publication → publish", () => {
     );
 
     expect(submitted.exitCode).not.toBe(0);
-    expect(`${submitted.stdout}${submitted.stderr}`).toContain("no durable pre-publication boundary");
+    expect(`${submitted.stdout}${submitted.stderr}`).toContain("pre-publication obligations remain open");
   });
 });

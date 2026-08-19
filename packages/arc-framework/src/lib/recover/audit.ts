@@ -441,7 +441,6 @@ function candidatePrepublicationProjection(
     || entering.row.lifecycleLocation !== "active"
     || entering.row.context === null
     || entering.row.context.integrationBoundary === null
-    || entering.row.context.integrationBoundary === undefined
     || entering.row.context.taskCursor?.status !== "no-open-task") return null;
 
   const taskEntries = options.seed.loadSet.entries.filter((entry) => entry.readMode.kind === "partial-strategic");

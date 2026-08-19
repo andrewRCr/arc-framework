@@ -20,10 +20,17 @@ import {
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
 import {
+  CandidateConvergenceBoundarySchema,
+  CandidateFixBoundarySchema,
+  CandidatePublishReadyBoundarySchema,
+  CandidateReviewBoundarySchema,
+  ContinuePrePublicationActionSchema,
   createStandardReviewReservation as buildStandardReviewReservation,
-  IntegrationBoundaryLocusSchema,
-  IntegrationBoundaryNextActionSchema,
-  StandardReviewReservationV1Schema,
+  PublishCandidateActionSchema,
+  RunConvergenceVerificationActionSchema,
+  RunSelfReviewActionSchema,
+  parseIntegrationBoundaryLocus,
+  type IntegrationBoundaryLocus,
   type StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
 
@@ -67,39 +74,27 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
 });
 export type PrePublicationReviewRequest = z.infer<typeof PrePublicationReviewRequestSchema>;
 
-const PrePublicationNextActionSchema = IntegrationBoundaryNextActionSchema.refine(
-  ({ kind }) => kind !== "continue-publication",
-  "pre-publication action must remain before submission",
-);
+type PrePublicationNextAction =
+  | z.infer<typeof RunSelfReviewActionSchema>
+  | z.infer<typeof ContinuePrePublicationActionSchema>
+  | z.infer<typeof RunConvergenceVerificationActionSchema>
+  | z.infer<typeof PublishCandidateActionSchema>;
 
 export { StandardReviewReservationV1Schema } from "./integration-boundary-locus.js";
 export type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
-export const PrePublicationReviewEnvelopeSchema = z.strictObject({
-  schemaVersion: z.literal(1),
+const PrePublicationEnvelopeFields = {
   mode: z.literal("pre-publication-review"),
-  workUnit: SlugSchema,
-  candidateId: CandidateIdSchema,
   candidateSubjectDigest: CandidateSubjectDigestSchema,
-  locus: z.enum([
-    "candidate-review-pending",
-    "candidate-fix-pending",
-    "candidate-convergence-verification-pending",
-    "candidate-publish-ready",
-  ]),
-  nextAction: PrePublicationNextActionSchema,
-  policy: ReviewResolveEnvelopeSchema.nullable(),
-  reservation: StandardReviewReservationV1Schema.nullable(),
   /** The immutable target the exact-target operations this envelope routes to require. */
   target: ReviewTargetSchema.nullable(),
-}).superRefine((value, context) => {
-  const parsed = IntegrationBoundaryLocusSchema.safeParse(prePublicationBoundary(value));
-  if (!parsed.success) {
-    for (const issue of parsed.error.issues) {
-      context.addIssue({ code: "custom", path: issue.path, message: issue.message });
-    }
-  }
-});
+};
+export const PrePublicationReviewEnvelopeSchema = z.discriminatedUnion("locus", [
+  CandidateReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidateFixBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidateConvergenceBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidatePublishReadyBoundarySchema.extend(PrePublicationEnvelopeFields),
+]);
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
 
 /**
@@ -109,10 +104,10 @@ export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEn
  * goes stale the moment the head moves, against a boundary deliberately keyed to the reviewable
  * subject instead.
  */
-export function prePublicationBoundary<T extends { target?: unknown }>(envelope: T): Omit<T, "target"> {
-  const boundary = { ...envelope };
+export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): IntegrationBoundaryLocus {
+  const boundary: Record<string, unknown> = { ...envelope };
   delete boundary.target;
-  return boundary;
+  return parseIntegrationBoundaryLocus(boundary);
 }
 
 /** Project the next pre-publication action while delegating lane mechanics to the review-policy driver. */
@@ -269,9 +264,9 @@ function envelope(
 
 function action(
   workUnit: string,
-  kind: z.infer<typeof PrePublicationNextActionSchema>["kind"],
+  kind: PrePublicationNextAction["kind"],
   interactionText: string,
-): z.infer<typeof PrePublicationNextActionSchema> {
+): PrePublicationNextAction {
   const command = kind === "publish-candidate"
     ? `arc publish ${workUnit} --json`
     : kind === "run-convergence-verification"

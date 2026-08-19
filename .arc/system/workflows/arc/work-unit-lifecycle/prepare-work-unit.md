@@ -40,10 +40,6 @@ advance, leave the Candidate in `Active` and state the exact source change or di
 
 ## 2) Settle pre-publication review
 
-If the [`self-review` method][self-review] is effectively active, execute it against the local aggregate diff vs
-the base branch. Classify findings per [`review-triage`][review-triage] and commit fixes per
-[`commit-footer`][commit-footer]. When inactive, continue with the typed procedure.
-
 From the local Candidate branch, compose the change-set routing facts — content kind, risk, determinacy,
 ownership, and surface authority — as the author judgment the repository cannot read. The lane routing target, the
 routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are composed
@@ -146,9 +142,7 @@ push and change-request creation; do not push from this workflow.
 
 ---
 
-[self-review]: ../../../methods/self-review.md
 [review-chunking]: ../../../methods/review-chunking.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
-[commit-footer]: ../../../methods/commit-footer.md
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md

@@ -78,6 +78,11 @@ function hostedAction(character: string) {
     dispositionId: digest(character),
     request: {
       schemaVersion: 1,
+      response: {
+        attemptRef: `hosted-attempt-${character}`,
+        dispositionSetId: digest(character),
+        findingId: `finding-${character}`,
+      },
       target: { repository: "owner/repo", pullRequest: 42, headSha: oid("a") },
       fixTarget: null,
       actorIdentity: "andrew",
@@ -100,6 +105,7 @@ describe("integration settlement execution", () => {
           return {
             schemaVersion: 1,
             mode: "review-hosted-settle",
+            response: request.response,
             disposition: request.disposition,
             threadId: request.finding.threadId,
             state: "stale-target",
@@ -110,6 +116,7 @@ describe("integration settlement execution", () => {
           return {
             schemaVersion: 1,
             mode: "review-hosted-settle",
+            response: request.response,
             disposition: request.disposition,
             threadId: request.finding.threadId,
             state: "already-settled",
@@ -121,6 +128,7 @@ describe("integration settlement execution", () => {
         return {
           schemaVersion: 1,
           mode: "review-hosted-settle",
+          response: request.response,
           disposition: request.disposition,
           threadId: request.finding.threadId,
           state: "settled",
@@ -153,9 +161,10 @@ describe("integration settlement execution", () => {
   ] as const)("maps hosted %s to the %s invalidation", async (state, reason) => {
     const action = hostedAction("d");
     const dependencies: SettlementExecutionDependencies = {
-      settleHosted: async () => ({
+      settleHosted: async (request) => ({
         schemaVersion: 1,
         mode: "review-hosted-settle",
+        response: request.response,
         disposition: action.request.disposition,
         threadId: action.request.finding.threadId,
         state,

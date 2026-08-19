@@ -202,7 +202,7 @@ naming for traceability. Summary doesn't need to repeat this — they're complem
 
 ---
 
-[task-list-formatting]: ../strategies/arc/strategy-task-list-formatting.md
-[dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md
-[commit-format]: ../../system/methods/commit-format.md
-[arc-config]: ../../system/arc-config.yml
+[task-list-formatting]: ../../../strategies/arc/strategy-task-list-formatting.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[commit-format]: ../../../../system/methods/commit-format.md
+[arc-config]: ../../../../system/arc-config.yml

@@ -135,6 +135,7 @@ describe("handleReviewChecksAwait", () => {
     const setExitCode = vi.fn();
     const awaitChecks = vi.fn();
     await handleReviewChecksAwait({
+      repository: "owner/repo",
       pullRequest: "42",
       headSha: "not-an-oid",
       timeoutMs: "2000",
@@ -736,6 +737,11 @@ describe("hosted review handlers", () => {
       ) => handleReviewHostedSettle("-", {
         readText: async () => JSON.stringify({
           schemaVersion: 1,
+          response: {
+            attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+            dispositionSetId: `sha256:${"d".repeat(64)}`,
+            findingId: "finding-1",
+          },
           target: hostedTarget,
           fixTarget: null,
           actorIdentity: "developer",
@@ -1466,7 +1472,7 @@ describe("handleReviewPrePublication", () => {
     });
     expect(envelope.reservation).toMatchObject({
       semanticsVersion: "standard-review-reservation/v1",
-      sourceId: "codex-pr",
+      sources: ["codex-pr"],
       target: { repository: "arc-framework/example", headSha: "a".repeat(40) },
     });
     expect(dependencies.setExitCode).not.toHaveBeenCalled();
@@ -1558,7 +1564,7 @@ describe("handleReviewPrePublication", () => {
     expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
       name: "example",
       selfReview: "settled",
-    }), { changeSet: undefined, lanes: undefined });
+    }), { selfReview: "settled", changeSet: undefined, lanes: undefined });
   });
 
   it("writes composition advisories to stderr so the JSON envelope stays machine-clean", async () => {
@@ -1610,6 +1616,7 @@ describe("handleReviewPrePublication", () => {
     expect(readText).toHaveBeenCalledWith("-");
     expect(readText).toHaveBeenCalledWith("lanes.json");
     expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      selfReview: undefined,
       changeSet: { changeSetState: "known" },
       lanes: { standard: { scopeMode: "chunked" } },
     });
@@ -1624,8 +1631,49 @@ describe("handleReviewPrePublication", () => {
 
     expect(readText).not.toHaveBeenCalled();
     expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      selfReview: undefined,
       changeSet: undefined,
       lanes: undefined,
+    });
+  });
+
+  it("replays every judgment and records self-review completion on the next hop", async () => {
+    const openRequest = {
+      ...request,
+      selfReview: "pending" as const,
+    };
+    const changeSet = { changeSetState: "known", surfaceAuthority: "repository" };
+    const lanes = { frontline: { invocation: { mode: "skip" } }, standard: { scopeMode: "chunked" } };
+    const first = boundary({
+      readText: async (source: string) => JSON.stringify(source === "change.json" ? changeSet : lanes),
+      compose: vi.fn(async () => ({ status: "composed", request: openRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication(
+      "example",
+      { json: true, changeSet: "change.json", lanes: "lanes.json" },
+      first,
+    );
+
+    const firstEnvelope = JSON.parse(String(first.write.mock.calls[0]?.[0])) as {
+      nextAction: { command: string };
+    };
+    const token = firstEnvelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+    const readText = vi.fn();
+    const second = boundary({ compose, readText });
+
+    await handleReviewPrePublication("example", { json: true, resume: token }, second);
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      name: "example",
+      resume: token,
+    }), { selfReview: "settled", changeSet, lanes });
+    expect(JSON.parse(String(second.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
     });
   });
 

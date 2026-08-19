@@ -62,6 +62,7 @@ export async function readRoutedObligation(
   cwd: string,
   exec: GitExec,
   target: ChangeRequestTargetRef,
+  pullRequest: number,
 ): Promise<RoutedReviewObligation> {
   const workUnit = branchToWorkUnitSlug(target.headRef);
   if (workUnit === null) {
@@ -72,6 +73,16 @@ export async function readRoutedObligation(
     if (boundary === null) {
       return { state: "blocked", detail: "The publication boundary is unavailable." };
     }
+    const record = await readCandidateRecord(cwd, workUnit);
+    if (record === null) {
+      return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
+    }
+    const candidateSubjectDigest = record.responses.at(-1)?.newTarget.subject.subjectDigest
+      ?? record.subject.subjectDigest;
+    if (boundary.candidateId !== record.attestation.candidateId
+      || boundary.candidateSubjectDigest !== candidateSubjectDigest) {
+      return { state: "blocked", detail: "The publication boundary belongs to a different Candidate subject." };
+    }
     // A carried reservation is not itself an unsettled obligation — nothing clears it, so reading it
     // that way reports every hosted-first work unit as forever mid-review. What settles it is the
     // reserved source's own verdict on the lane.
@@ -79,14 +90,11 @@ export async function readRoutedObligation(
     if (reservation === null) {
       return { state: "settled", detail: "No hosted review was reserved across publication." };
     }
-    const record = await readCandidateRecord(cwd, workUnit);
-    if (record === null) {
-      return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
-    }
     const discharge = await createHostedReservationDischargeReader({ cwd, exec })({
       reservation,
       baseRevision: record.attestation.baseRevision,
       approvedHead: target.headSha,
+      changeRequest: { repository: target.repository, pullRequest },
     });
     return discharge.discharged
       ? { state: "settled", detail: discharge.detail }
@@ -107,14 +115,11 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
         const refs = await changeRequestPort.readHeadRef(target.headRef);
         const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
-        const [base, routedObligation] = await Promise.all([
-          readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha }),
-          readRoutedObligation(input.cwd, input.exec, target),
-        ]);
         const resolution = await resolveChangeRequest(
           { headRef: target.headRef, headSha: target.headSha },
           changeRequestPort,
         );
+        const base = await readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha });
         if (
           resolution.state !== "open"
           || resolution.targetRef.repository.toLowerCase() !== target.repository.toLowerCase()
@@ -129,6 +134,12 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
             ...base,
           };
         }
+        const routedObligation = await readRoutedObligation(
+          input.cwd,
+          input.exec,
+          target,
+          resolution.candidate.number,
+        );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const repository = await checksPort.resolveRepository();
         if (repository.toLowerCase() !== target.repository.toLowerCase()) {

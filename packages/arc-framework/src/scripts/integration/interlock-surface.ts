@@ -48,6 +48,9 @@ export type CheckpointInterlockSurface = z.infer<typeof CheckpointInterlockSurfa
  *
  * The tail reference is named rather than expanded: the disclosure at the stop narrows to the
  * artifacts carrying review signal, so the approver reads this to self-serve what it excluded.
+ *
+ * @param input - Exact merge coordinates, candidate-tail reference, review carrier, and machine signals.
+ * @returns The deterministic approval text and empty extension-report slot.
  */
 export function composeCheckpointInterlockSurface(input: {
   approvedHead: string;

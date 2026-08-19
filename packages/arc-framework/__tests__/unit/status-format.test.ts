@@ -264,6 +264,7 @@ function makeSessionInitResult(
         sessionType: "execution",
         currentWorkflow: null,
         planningStage: null,
+        integrationBoundary: null,
         warnings: [],
       },
     },

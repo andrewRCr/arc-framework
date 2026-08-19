@@ -1928,7 +1928,7 @@ _Added 2026-08-17 — prepublication phase (forward amendment; the prior sets ar
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI
-Candidate-lineage and publication-spine suites drive `propose → review → respond → submit` through the public
+Candidate-lineage and publication-spine suites drive `attest → review → respond → publish` through the public
 verbs. Host-dependent behavior is proven against typed ports and offline fixtures rather than a live host, so
 CodeRabbit and Codex PR lane behavior is implemented-and-typed, not proven live; the first hosted run is the
 forcing event. One deliberate residue remains owned: the production-uncalled `composeHostedSettlementAction`

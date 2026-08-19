@@ -6,6 +6,8 @@
  * payload fields remain under their handwritten home-module authorities.
  */
 
+import { isDeepStrictEqual } from "node:util";
+
 import { z } from "zod";
 
 import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
@@ -510,8 +512,9 @@ export const ActiveSessionInitValueViewSchema = z
     layout: z.enum(["full", "lite"]),
     resolution: z.enum(["none", "single", "multiple"]),
     sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
+    currentWorkflow: z.string().nullable(),
     planningStage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),
-    integrationBoundary: IntegrationBoundaryLocusSchema.nullable().optional(),
+    integrationBoundary: IntegrationBoundaryLocusSchema.nullable(),
   })
   .loose();
 
@@ -762,7 +765,7 @@ const DerivedCheckoutRowViewSchema = z.object({
     taskCursor: TaskListCursorFileResultSchema.nullable(),
     cohortDocPath: LoadSetPathSchema.nullable(),
     loadSet: LoadSetManifestSchema,
-    integrationBoundary: IntegrationBoundaryLocusSchema.nullable().optional(),
+    integrationBoundary: IntegrationBoundaryLocusSchema.nullable(),
   }).loose().nullable(),
   diagnostics: z.array(z.object({ code: NON_EMPTY_TEXT, message: z.string() }).loose()),
 }).loose();
@@ -875,11 +878,98 @@ function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown>
   return value.worktree.ok ? value.worktree.value : null;
 }
 
+function phaseAcceptsBoundary(
+  sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
+  boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
+): boolean {
+  if (sessionType === "prepublication") {
+    return boundary !== null && [
+      "candidate-review-pending",
+      "candidate-fix-pending",
+      "candidate-convergence-verification-pending",
+      "candidate-publish-ready",
+    ].includes(boundary.locus);
+  }
+  if (sessionType === "integration") {
+    return boundary !== null && ["publication-pending", "hosted-review-pending"].includes(boundary.locus);
+  }
+  return boundary === null;
+}
+
+function workflowForSessionType(
+  sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
+): string | null {
+  if (sessionType === "planning") return "planning";
+  if (sessionType === "execution") return "process-task-loop";
+  if (sessionType === "prepublication") return "prepare-work-unit";
+  if (sessionType === "integration") return "integrate-work-unit";
+  return null;
+}
+
 const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
   const active = activeValue(value);
   const worktree = worktreeValue(value);
   const rosterSuccessful = value.roster?.ok === true;
   const identityKnown = value.identity.identity !== null;
+
+  if (value.active.ok) {
+    const activeSession = value.active.value;
+    if (!phaseAcceptsBoundary(activeSession.sessionType, activeSession.integrationBoundary)) {
+      context.addIssue({
+        code: "custom",
+        path: ["active", "value", "integrationBoundary"],
+        message: "must match the resolved session phase",
+      });
+    }
+    if (activeSession.currentWorkflow !== workflowForSessionType(activeSession.sessionType)) {
+      context.addIssue({
+        code: "custom",
+        path: ["active", "value", "currentWorkflow"],
+        message: "must match the resolved session phase",
+      });
+    }
+  }
+
+  const derivedActive = value.derivedLocusState.ok
+    ? value.derivedLocusState.value.active
+    : null;
+  if (derivedActive !== null) {
+    const { context: derivedContext, subject } = derivedActive;
+    if (!phaseAcceptsBoundary(derivedContext.sessionType, derivedContext.integrationBoundary)) {
+      context.addIssue({
+        code: "custom",
+        path: ["derivedLocusState", "value", "active", "context", "integrationBoundary"],
+        message: "must match the resolved session phase",
+      });
+    }
+    if (derivedContext.workflow !== workflowForSessionType(derivedContext.sessionType)) {
+      context.addIssue({
+        code: "custom",
+        path: ["derivedLocusState", "value", "active", "context", "workflow"],
+        message: "must match the resolved session phase",
+      });
+    }
+    if (derivedContext.integrationBoundary !== null
+      && (subject.kind !== "work-unit" || derivedContext.integrationBoundary.workUnit !== subject.key)) {
+      context.addIssue({
+        code: "custom",
+        path: ["derivedLocusState", "value", "active", "context", "integrationBoundary", "workUnit"],
+        message: "must match the owning work-unit subject",
+      });
+    }
+    if (value.active.ok) {
+      const projected = value.active.value;
+      if (projected.sessionType !== derivedContext.sessionType
+        || projected.currentWorkflow !== derivedContext.workflow
+        || !isDeepStrictEqual(projected.integrationBoundary, derivedContext.integrationBoundary)) {
+        context.addIssue({
+          code: "custom",
+          path: ["active", "value", "integrationBoundary"],
+          message: "must match the derived active context",
+        });
+      }
+    }
+  }
 
   if (worktree !== null) {
     const worktreeIdentity = worktree.identity as { kind: "primary" | "linked" };

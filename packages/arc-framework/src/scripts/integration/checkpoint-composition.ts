@@ -148,6 +148,16 @@ async function readLifecycleArtifactFacts(
   return lifecycleArtifactFacts(content, metaPath);
 }
 
+/**
+ * Read the exact-tree lifecycle position and required archive products for one checkpoint.
+ *
+ * @param cwd - Repository root used to resolve managed artifact paths.
+ * @param workUnit - Work-unit slug whose lifecycle is being checked.
+ * @param archiveCadence - Cadence selecting the required pre-merge lifecycle position.
+ * @param storageVersion - Immutable version identifying the supplied filesystem view.
+ * @param fs - Exact-version filesystem projection.
+ * @returns A typed summary bound to the supplied storage version.
+ */
 export async function readLifecycleSummary(
   cwd: string,
   workUnit: string,
@@ -176,7 +186,12 @@ export async function readLifecycleSummary(
   });
 }
 
-/** Bind canonical repository, lifecycle, Candidate, host, and policy reads to the checkpoint reducer. */
+/**
+ * Bind canonical repository, lifecycle, Candidate, host, and policy reads to the checkpoint reducer.
+ *
+ * @param input - Repository root, Git adapter, and optional exact-version lifecycle storage.
+ * @returns Production dependencies for checkpoint composition.
+ */
 export function createIntegrationCheckpointDependencies(input: {
   cwd: string;
   exec: GitExec;
@@ -295,6 +310,10 @@ export function createIntegrationCheckpointDependencies(input: {
         reservation: boundary.reservation,
         baseRevision: value.record.attestation.baseRevision,
         approvedHead: currentness.recognizedRevision,
+        changeRequest: {
+          repository: changeRequest.targetRef.repository,
+          pullRequest: changeRequest.candidate.number,
+        },
       });
       const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
         && !discharge.discharged;

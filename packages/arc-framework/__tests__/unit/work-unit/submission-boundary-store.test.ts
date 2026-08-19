@@ -73,7 +73,16 @@ describe("submission boundary store", () => {
     };
     await writeSubmissionBoundary("/repo", original, null, fs);
     const stale = await readSubmissionBoundaryVersioned("/repo", "example", fs);
-    const current = { ...original, locus: "candidate-publish-ready" as const };
+    const current: IntegrationBoundaryLocus = {
+      ...original,
+      locus: "candidate-publish-ready",
+      nextAction: {
+        kind: "publish-candidate",
+        command: "arc publish example --json",
+        interactionText: "Publish the current Candidate.",
+      },
+      policy: null,
+    };
     await writeSubmissionBoundary("/repo", current, stale.version, fs);
 
     await expect(writeSubmissionBoundary("/repo", original, stale.version, fs))

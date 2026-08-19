@@ -279,7 +279,9 @@ async function writeStatusFixture(
   if (fields.taskList !== undefined) {
     lines.push(`- **Task List:** ${fields.taskList}`);
   }
-  if (fields.candidateId !== undefined) lines.push(`- **Candidate:** ${fields.candidateId}`);
+  lines.push(`- **Candidate:** ${fields.candidateId ?? "[none]"}`);
+  lines.push("- **Current Workflow:** [none]");
+  lines.push("- **Last Completed:** [none]");
   lines.push(`- **Next Action:** ${fields.nextAction}`);
   await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
 }
@@ -430,6 +432,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Task List:** tasks-foo.md",
+        "- **Candidate:** [none]",
         "- **Current Workflow:** [none]",
         "- **Next Task:** Task 1.1 — Do seed (line ~12)",
         "- **Next Action:** Start Task 1.1",
@@ -542,12 +545,14 @@ describe("session-init E2E — sessionType across type variants", () => {
       [
         "# Metadata: Foo",
         "",
-        "- **State:** Integrating",
+        "- **State:** Active",
         "- **Owner:** test-user",
         "- **Branch:** feat/foo",
         "- **Depends On:** [none]",
         "- **Task List:** tasks-foo.md",
-        "- **Current Workflow:** integrate-work-unit.md",
+        "- **Candidate:** [none]",
+        "- **Current Workflow:** [none]",
+        "- **Last Completed:** [none]",
         "- **Next Task:** [none]",
         "- **Next Action:** Complete integration",
         "",
@@ -560,8 +565,45 @@ describe("session-init E2E — sessionType across type variants", () => {
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "integrating fixture"], { cwd: tmpDir });
 
-    const adopted = await runArc(["wu", "reconcile", "foo", "--apply", "--json"], tmpDir);
-    expect(adopted.exitCode, adopted.stdout + adopted.stderr).toBe(0);
+    const attested = await runArc(["attest", "foo", "--json"], tmpDir);
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+    const candidateBoundaryPath = join(
+      tmpDir,
+      ".arc",
+      "system",
+      ".internal",
+      "candidates",
+      "foo.boundary.json",
+    );
+    const candidateBoundary = JSON.parse(await readFile(candidateBoundaryPath, "utf8")) as {
+      candidateId: string;
+      candidateSubjectDigest: string;
+    };
+    const attestedMetaPath = join(activeDir, "meta-foo.md");
+    const attestedMeta = await readFile(attestedMetaPath, "utf8");
+    await writeFile(
+      attestedMetaPath,
+      attestedMeta
+        .replace("- **State:** Active", "- **State:** Integrating")
+        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+    );
+    await writeFile(candidateBoundaryPath, `${JSON.stringify({
+      schemaVersion: 1,
+      mode: "integration-boundary",
+      workUnit: "foo",
+      candidateId: candidateBoundary.candidateId,
+      candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
+      locus: "publication-pending",
+      nextAction: {
+        kind: "continue-publication",
+        command: "git push -u origin feat/foo",
+        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+      },
+      policy: null,
+      reservation: null,
+    })}\n`);
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "publish fixture"], { cwd: tmpDir });
 
     const result = await runArc(["status", "--recover", "--json"], tmpDir);
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
@@ -742,12 +784,18 @@ describe("session-init E2E — sessionType across type variants", () => {
   });
 
   it("carries the typed Candidate resume locus through session initialization", async () => {
-    const candidateId = `sha256:${"c".repeat(64)}`;
     await writeStatusFixture(tmpDir, "technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "archive-work-unit Step 1",
-      candidateId,
     });
+    await writeFile(
+      join(tmpDir, ".arc", "active", "tasks-foo.md"),
+      taskListFixture("Complete verification").replace("`[ ]`", "`[x]`"),
+    );
+    await git(tmpDir, ["add", "-A"]);
+    const attested = await runArc(["attest", "foo", "--json"], tmpDir);
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+    const candidateId = (JSON.parse(attested.stdout) as { locus: { candidateId: string } }).locus.candidateId;
 
     const result = await runArc(["status", "--session-init", "--json"], tmpDir);
     expect(result.exitCode).toBe(0);

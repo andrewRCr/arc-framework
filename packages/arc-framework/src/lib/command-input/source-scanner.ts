@@ -213,7 +213,9 @@ function parseOption(
 
   const value = parseOperandSyntax(flags)[0];
   let choices: readonly string[] = [];
-  let defaultValue: string | number | boolean | undefined;
+  let defaultValue = method.name === "option" || method.name === "requiredOption"
+    ? literalValue(call.arguments[2])
+    : undefined;
   let conflicts: readonly string[] = [];
   let presenceRequired = method.name === "requiredOption";
   for (const decorator of decorators) {
@@ -225,6 +227,7 @@ function parseOption(
       presenceRequired = literalValue(decorator.arguments[0]) !== false;
     }
   }
+  if (defaultValue !== undefined) presenceRequired = false;
   return {
     flags,
     valueName: value?.name ?? null,

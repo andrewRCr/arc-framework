@@ -4,10 +4,33 @@ import { describe, expect, it } from "vitest";
 
 import type { ExecResult, GitExec } from "../../../../src/lib/git/exec.js";
 import { createBaseMergePort } from "../../../../src/scripts/base/merge-composition.js";
+import { mergeExpectedBase } from "../../../../src/scripts/base/merge.js";
 
 const oid = (character: string): string => character.repeat(40);
 
 describe("base merge composition", () => {
+  it("turns a bounded fetch timeout into a typed operational refusal", async () => {
+    const exec: GitExec = async (_command, args, options) => {
+      if (args[0] === "check-ref-format") return { stdout: "" };
+      if (args[0] !== "fetch") throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+      await new Promise<void>((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          reject(Object.assign(new Error("aborted"), { name: "AbortError", isCanceled: true }));
+        }, { once: true });
+      });
+      return { stdout: "" };
+    };
+
+    await expect(mergeExpectedBase(
+      { expectedBase: oid("a") },
+      createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec, fetchTimeoutMs: 1 }),
+    )).resolves.toMatchObject({
+      state: "blocked",
+      reason: "operational-failure",
+      detail: "Fetching the configured base timed out.",
+    });
+  });
+
   it("aborts a conflicting merge before exposing the conflict verdict", async () => {
     const state = { head: oid("c"), clean: true, merging: false };
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });

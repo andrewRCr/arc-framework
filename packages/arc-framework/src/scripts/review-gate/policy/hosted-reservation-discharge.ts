@@ -31,20 +31,38 @@ export interface HostedReservationDischarge {
 export async function projectHostedReservationDischarge(input: {
   reservation: StandardReviewReservationV1 | null;
   span: readonly string[];
+  target: { repository: string; pullRequest: number; headSha: string } | null;
   readLaneProgress: (headSha: string) => Promise<LaneProgressProjection>;
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
     return { discharged: true, detail: "Local carrier `local-attestation`." };
   }
-  const attempts: ProjectedLaneAttempt[] = [];
+  if (input.target === null) {
+    return { discharged: false, detail: "The reserved hosted review has no exact open change-request target." };
+  }
+  const target = input.target;
+  const attemptsByHead = new Map<string, ProjectedLaneAttempt[]>();
   for (const headSha of input.span) {
     const progress = await input.readLaneProgress(headSha);
     if (progress.status !== "recorded") continue;
-    attempts.push(...progress.attempts);
+    attemptsByHead.set(headSha, progress.attempts.filter((attempt) => (
+      attempt.hosted !== undefined
+      && attempt.hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
+      && attempt.hosted.target.pullRequest === target.pullRequest
+      && attempt.hosted.target.headSha === headSha
+    )));
   }
+  const allAttempts = [...attemptsByHead.values()].flat();
   for (const sourceId of reservation.sources) {
-    const sourceAttempts = attempts.filter((attempt) => attempt.sourceId === sourceId);
+    if (allAttempts.some((attempt) => attempt.sourceId === sourceId
+      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"))) {
+      return { discharged: true, detail: `Hosted source \`${sourceId}\`.` };
+    }
+  }
+  const currentAttempts = attemptsByHead.get(target.headSha) ?? [];
+  for (const sourceId of reservation.sources) {
+    const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
     const settled = sourceAttempts.some(({ outcome }) => outcome === "clean" || outcome === "settled-findings");
     if (settled) {
       return {
@@ -59,7 +77,7 @@ export async function projectHostedReservationDischarge(input: {
   }
   return {
     discharged: false,
-    detail: `The reserved standard-review source order beginning at \`${reservation.sourceId}\` has not produced `
+    detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
       + "a settled review across the Candidate span.",
   };
 }
@@ -77,6 +95,7 @@ export function createHostedReservationDischargeReader(input: {
   reservation: StandardReviewReservationV1 | null;
   baseRevision: string;
   approvedHead: string;
+  changeRequest: { repository: string; pullRequest: number } | null;
 }) => Promise<HostedReservationDischarge> {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
@@ -86,11 +105,12 @@ export function createHostedReservationDischargeReader(input: {
     return repositoryIdPromise;
   };
 
-  return async ({ reservation, baseRevision, approvedHead }) => {
+  return async ({ reservation, baseRevision, approvedHead, changeRequest }) => {
     if (reservation === null) {
       return projectHostedReservationDischarge({
         reservation,
         span: [],
+        target: null,
         readLaneProgress: () => Promise.resolve({ status: "unrecorded" }),
       });
     }
@@ -102,6 +122,7 @@ export function createHostedReservationDischargeReader(input: {
     return projectHostedReservationDischarge({
       reservation,
       span,
+      target: changeRequest === null ? null : { ...changeRequest, headSha: approvedHead },
       readLaneProgress: async (headSha) => readLaneProgress(store, {
         lane: "standard",
         repositoryId: await repositoryId(),

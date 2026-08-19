@@ -15,6 +15,8 @@ import {
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
+import { HostedFindingSchema } from "../hosted/await.js";
+import { HostedTargetSchema } from "../hosted/request.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -150,11 +152,68 @@ const LaneAttemptOutcomeSchema = z.enum([
   "source-unbound",
   "terminal-failure",
 ]);
+const HostedLaneAttemptBindingSchema = z.strictObject({
+  target: HostedTargetSchema,
+  reviewTarget: ReviewTargetSchema,
+  requirement: ReviewRequirementV2Schema,
+  actorIdentity: IdentifierSchema,
+  findings: z.array(HostedFindingSchema),
+  dispositionSetId: CanonicalDigestSchema.nullable(),
+  settledFindingIds: z.array(z.string().trim().min(1)),
+});
+
 const LaneAttemptSchema = z.strictObject({
   attemptId: IdentifierSchema,
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
   chunkSeriesComplete: z.boolean().optional(),
+  hosted: HostedLaneAttemptBindingSchema.optional(),
+}).superRefine((attempt, context) => {
+  if (attempt.hosted === undefined) return;
+  try {
+    const target = validateReviewTarget(attempt.hosted.reviewTarget);
+    validateReviewRequirement(target, attempt.hosted.requirement);
+    if (target.headSha !== attempt.hosted.target.headSha) {
+      context.addIssue({
+        code: "custom",
+        path: ["hosted", "target", "headSha"],
+        message: "hosted and review targets must identify the same head",
+      });
+    }
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "reviewTarget"],
+      message: error instanceof Error ? error.message : "invalid hosted review binding",
+    });
+  }
+  const findingIds = attempt.hosted.findings.map(({ findingId }) => findingId);
+  if (new Set(findingIds).size !== findingIds.length) {
+    context.addIssue({ code: "custom", path: ["hosted", "findings"], message: "hosted finding IDs must be unique" });
+  }
+  if (new Set(attempt.hosted.settledFindingIds).size !== attempt.hosted.settledFindingIds.length
+    || attempt.hosted.settledFindingIds.some((findingId) => !findingIds.includes(findingId))) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "settledFindingIds"],
+      message: "settled hosted finding IDs must be a unique subset of the attempt findings",
+    });
+  }
+  if (attempt.hosted.dispositionSetId === null && attempt.hosted.settledFindingIds.length > 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "dispositionSetId"],
+      message: "hosted findings cannot settle before an approved disposition set is bound",
+    });
+  }
+  const complete = findingIds.length > 0 && attempt.hosted.settledFindingIds.length === findingIds.length;
+  if ((attempt.outcome === "settled-findings") !== complete) {
+    context.addIssue({
+      code: "custom",
+      path: ["outcome"],
+      message: "settled-findings must exactly match complete hosted finding settlement",
+    });
+  }
 });
 
 export const LaneProgressStateSchema = z.strictObject({
