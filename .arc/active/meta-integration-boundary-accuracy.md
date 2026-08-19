@@ -11,11 +11,10 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:e99c92a5480be968d2347f2009dc3fdc052c58ceb18f11dd151891c368121fc6`
+- **Candidate:** `sha256:136cbbad8cc6b1d74dbcb4bcf7b9c4c4a1304c92839fb1d4adb8cd36bb0e4509`
 
 - **Current Workflow:** `prepare-work-unit`
-- **Last Completed:** Task 12.2 — the lineage advance carries the same staging precondition as its root, closing
-  Phase 12
+- **Last Completed:** Task 14.3 — Project the prepublication workflow through Candidate attestation
 - **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
