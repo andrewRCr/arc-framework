@@ -235,6 +235,58 @@ describe("local attest command", () => {
     expect(readReceipts).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["unavailable", "transient-unavailable"],
+    ["failed", "terminal-failure"],
+  ] as const)("persists and releases a %s evaluator attempt before recomposition", async (status, outcome) => {
+    const records = fixture();
+    const publishOperation = vi.fn();
+    const release = vi.fn(async () => undefined);
+    const readSource = vi.fn();
+    const readReceipts = vi.fn();
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result: {
+        ...records.evaluatorResult,
+        status,
+        result: null,
+        findings: [],
+      },
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation,
+      },
+      sourceStore: { readSource, appendSource: vi.fn() },
+      receiptStore: { readReceipts, appendReceipt: vi.fn() },
+      resolveAuthority: vi.fn(),
+      resolveGuidanceDigest: vi.fn(),
+      confirmTarget: vi.fn(),
+      inspectMaterialization: vi.fn(),
+      releaseMaterialization: release,
+      now: () => "2026-07-23T21:00:00Z",
+    })).resolves.toMatchObject({
+      state: "not-attestable",
+      nextAction: "rerun-review",
+      payload: { result: { status, result: null } },
+    });
+    expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "lane-progress",
+      completedPasses: 0,
+      attempts: [{
+        attemptId: records.operation.operationId,
+        sourceId: records.operation.laneSourceId,
+        outcome,
+      }],
+    }), 1);
+    expect(release).toHaveBeenCalledWith(records.operation.operationId);
+    expect(readSource).not.toHaveBeenCalled();
+    expect(readReceipts).not.toHaveBeenCalled();
+  });
+
   it("rejects a terminal result that echoes a different source digest", async () => {
     const records = fixture();
     const appendReceipt = vi.fn();

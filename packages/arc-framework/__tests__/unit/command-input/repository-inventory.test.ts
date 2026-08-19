@@ -247,6 +247,7 @@ describe("repository command-input inventory", () => {
       "resume",
       "review chunking resolve",
       "review planning-lane",
+      "review pre-publication",
       "set-stage",
       "start",
       "status",

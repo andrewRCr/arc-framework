@@ -303,7 +303,7 @@ describe("arc rename", () => {
     const boundaryPath = await writeSubmissionBoundary(fixture.repo, projectCandidateReviewBoundary({
       workUnit: "old-name",
       candidateId: `sha256:${"c".repeat(64)}`,
-    }));
+    }), null);
     await git(fixture.repo, ["add", boundaryPath]);
     await git(fixture.repo, ["commit", "-m", "chore(test): add Candidate boundary"]);
     await git(fixture.repo, ["push"]);

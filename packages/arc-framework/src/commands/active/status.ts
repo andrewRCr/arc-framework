@@ -36,7 +36,7 @@ import type {
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import {
   projectCandidateReviewBoundary,
-  projectPublicationBoundary,
+  recoverPublicationBoundary,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
@@ -335,22 +335,16 @@ async function projectCandidateIntegrationBoundary(
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
   if (candidate.state === "Integrating") {
     const stored = await readSubmissionBoundary(cwd, slug);
-    if (stored !== null
-      && stored.candidateId === candidate.candidateId
-      && stored.workUnit === slug
-      && (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending")) {
-      return { ...candidate, integrationBoundary: stored };
-    }
     if (candidate.branch === null) return candidate;
+    const recovered = recoverPublicationBoundary({
+      stored,
+      workUnit: slug,
+      branch: candidate.branch,
+      candidateId: candidate.candidateId,
+    });
     return {
       ...candidate,
-      integrationBoundary: projectPublicationBoundary({
-        workUnit: slug,
-        branch: candidate.branch,
-        candidateId: candidate.candidateId,
-        reservation: null,
-        changeRequest: null,
-      }),
+      integrationBoundary: recovered,
     };
   }
   if (candidate.state !== "Active") return candidate;

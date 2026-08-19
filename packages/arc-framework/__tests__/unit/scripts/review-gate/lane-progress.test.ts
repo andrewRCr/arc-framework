@@ -12,6 +12,7 @@ import {
   recordFrontlineAttempt,
   recordHostedAwaitAttempt,
   readLaneProgress,
+  readLaneProgressAcrossLineage,
   recordLaneAttempt,
   settleLaneAttempt,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
@@ -404,5 +405,29 @@ describe("lane progress reader", () => {
       repositoryId: "repo-1",
       headSha: objectId("d"),
     })).resolves.toEqual({ status: "unrecorded" });
+  });
+
+  it("carries consumed passes across Candidate heads while exposing only current-head attempts", async () => {
+    const store = createStore();
+    await recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true });
+    await recordLaneAttempt(store, {
+      ...attempt,
+      headSha: objectId("d"),
+      attemptId: "attempt-2",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    await expect(readLaneProgressAcrossLineage(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("d"),
+      lineageHeadShas: [objectId("c"), objectId("d"), objectId("c")],
+    })).resolves.toEqual({
+      status: "recorded",
+      completedPasses: 2,
+      attempts: [{ attemptId: "attempt-2", sourceId: "codex-pr", outcome: "clean" }],
+    });
   });
 });

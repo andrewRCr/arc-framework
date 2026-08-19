@@ -30,6 +30,7 @@ const currentCandidate: CandidateRead = {
   subjectDigest: `sha256:${"d".repeat(64)}`,
   implementationChanged: false,
   convergenceVerification: "satisfied",
+  lineageHeadShas: [HEAD],
 };
 
 const resolvedAssurance: AssuranceRead = {
@@ -369,12 +370,33 @@ describe("composePrePublicationReviewRequest", () => {
       }),
     );
 
-    expect(readLaneProgress).toHaveBeenCalledWith("frontline", HEAD);
-    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD);
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", HEAD, [HEAD]);
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [HEAD]);
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       completedPasses: 1,
       attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
     });
+  });
+
+  it("carries the review ceiling across a fix-induced Candidate head change", async () => {
+    const priorHead = "9".repeat(40);
+    const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> => ({
+      status: "recorded",
+      completedPasses: lane === "standard" ? 2 : 0,
+      attempts: [],
+    }));
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", selfReview: "settled" },
+      dependencies({
+        readCandidate: async () => ({ ...currentCandidate, lineageHeadShas: [priorHead, HEAD] }),
+        readLaneProgress,
+      }),
+    );
+
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [priorHead, HEAD]);
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.completedPasses).toBe(2);
   });
 
   it("refuses when recorded progress cannot compose against the current target", async () => {

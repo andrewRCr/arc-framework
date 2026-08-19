@@ -88,6 +88,7 @@ const reviewIdentities = [
   "review-method-activity",
   "review-operation-state",
   "review-policy-version-preimage",
+  "review-pre-publication-envelope",
   "review-readiness-envelope",
   "review-receipt",
   "review-receipt-ledger",

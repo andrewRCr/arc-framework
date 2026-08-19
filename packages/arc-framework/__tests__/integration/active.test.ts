@@ -20,6 +20,7 @@ import {
 } from "../../src/commands/active.js";
 import {
   createStandardReviewReservation,
+  IntegrationBoundaryLocusSchema,
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { stubGitExec } from "../helpers/integration.js";
@@ -915,20 +916,39 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
         count: 1,
       },
     });
-    const boundary = projectPublicationBoundary({
+    const storedBoundary = IntegrationBoundaryLocusSchema.parse({
+      schemaVersion: 1,
+      mode: "integration-boundary",
       workUnit: "foo",
-      branch: "feat/foo",
       candidateId,
+      candidateSubjectDigest: null,
+      locus: "candidate-publish-ready",
+      nextAction: {
+        kind: "publish-candidate",
+        command: "arc publish foo --json",
+        interactionText: "Submit the current Candidate for publication.",
+      },
+      policy: null,
+      reservation,
+    });
+    const recoveredBoundary = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "technical/foo",
+      candidateId,
+      candidateSubjectDigest: null,
       reservation,
       changeRequest: null,
     });
     const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
     await mkdir(boundaryDir, { recursive: true });
-    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(boundary));
+    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(storedBoundary));
+
+    const full = await runActiveStatus({ cwd: fixture.root });
+    expect(full.candidates[0]?.integrationBoundary).toEqual(recoveredBoundary);
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
 
-    expect(result.integrationBoundary).toEqual(boundary);
+    expect(result.integrationBoundary).toEqual(recoveredBoundary);
   });
 
   it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {

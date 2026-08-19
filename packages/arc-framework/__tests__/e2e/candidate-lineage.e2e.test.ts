@@ -7,13 +7,14 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { gitExec } from "../../src/lib/io-context.js";
+import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
@@ -21,6 +22,9 @@ import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/l
 import {
   LocalReviewOperationStateStore,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import {
+  LocalApprovedDispositionRecordStore,
+} from "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { recordLaneAttempt } from "../../src/scripts/review-gate/lane-progress.js";
 import {
   createStandardReviewReservation,
@@ -507,6 +511,40 @@ describe("review-fix Candidate lineage", () => {
     });
   });
 
+  it("resolves review responses and deliberate re-rooting from an archived Shipped record", async () => {
+    const root = await fixture();
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    const source = await reviewToFindings(root);
+    const dispositions = await approvedSet(root, source);
+
+    const metaPath = join(root, ".arc", "active", "meta-example.md");
+    const meta = await readFile(metaPath, "utf8");
+    await writeFile(metaPath, meta.replace("| `Active`  |", "| `Shipped` |"), "utf8");
+    await git(root, ["add", ".arc/active/meta-example.md"]);
+    await archiveArtifacts(root);
+    expect(await git(root, ["status", "--porcelain"])).toBe("");
+
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+
+    await writeFile(join(root, "reviewed.txt"), "verified replacement root\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    const rerooted = await runArc(["attest", "example", "--new-root", "--json"], root);
+
+    expect(rerooted.exitCode, rerooted.stderr || rerooted.stdout).toBe(0);
+    expect(JSON.parse(rerooted.stdout)).toMatchObject({
+      status: "attested",
+      operation: "re-root",
+      locus: { workUnit: "example", locus: "candidate-review-pending" },
+    });
+    expect(await git(root, ["status", "--short"]))
+      .toMatch(/completed\/2026-q3\/01_example\/meta-example\.md/u);
+  });
+
   it("composes the settlement plan its approved responses back", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
@@ -518,6 +556,64 @@ describe("review-fix Candidate lineage", () => {
       dispositionId: composed.dispositionIds[0],
       fixTarget: { headSha: approvedHead },
     });
+  });
+
+  it("refuses a Candidate-bound disposition whose local review source disappeared", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const [approved] = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+    expect(approved).toBeDefined();
+    const operationName = `operation-${canonicalDigest({ operationId: approved?.operationId })
+      .slice("sha256:".length)}.json`;
+    await publisher.update({ root: "review-gate", namespace: "operations" }, operationName, () => ({
+      kind: "delete",
+      result: undefined,
+    }));
+
+    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+      .rejects.toThrow(/review operation behind approved dispositions .* is unavailable/u);
+  });
+
+  it("refuses a Candidate-bound disposition whose local review source moved target", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const [approved] = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+    expect(approved).toBeDefined();
+    const recordName = `disposition-${canonicalDigest({ operationId: approved?.operationId })
+      .slice("sha256:".length)}.json`;
+    await publisher.update({ root: "review-gate", namespace: "evidence" }, recordName, (raw) => {
+      if (raw === null) throw new Error("missing disposition record");
+      const record = JSON.parse(raw) as {
+        approvedDisposition: {
+          dispositionSet: { targetId: string };
+          approval: { targetId: string };
+        };
+      };
+      const movedTargetId = `sha256:${"f".repeat(64)}`;
+      record.approvedDisposition.dispositionSet.targetId = movedTargetId;
+      record.approvedDisposition.approval.targetId = movedTargetId;
+      return { kind: "write", content: `${JSON.stringify(record)}\n`, result: undefined };
+    });
+
+    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+      .rejects.toThrow(/review operation behind approved dispositions .* moved target/u);
+  });
+
+  it("ignores unrelated disposition residue whose source is unavailable", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const index = new LocalApprovedDispositionRecordStore(publisher);
+    const [approved] = await index.listDispositionRecords();
+    expect(approved).toBeDefined();
+    if (approved === undefined) throw new Error("missing approved dispositions");
+    await index.appendDispositionRecord({
+      ...approved,
+      operationId: "unrelated-missing-operation",
+      candidate: { workUnit: approved.candidate.workUnit, candidateId: `sha256:${"9".repeat(64)}` },
+    });
+
+    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+      .resolves.toMatchObject({ dispositionIds: [approved.approvedDisposition.dispositionSet.dispositionSetId] });
   });
 
   it("carries an approved no-fix set into the post-approval settlement plan", async () => {
@@ -793,6 +889,16 @@ describe("review-bearing integration checkpoint and merge", () => {
       readConfiguredBase: async () => "main",
       releaseLock: async () => ({ state: "released" }),
       holdLock: async () => ({ state: "held" }),
+      createLockRequest: async (lockTarget) => ({
+        schemaVersion: 1,
+        treeRoot: root,
+        target: {
+          repository: (lockTarget ?? target).repository,
+          pullRequest: (lockTarget ?? target).pullRequest,
+          headSha: (lockTarget ?? target).headSha,
+        },
+        vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+      }),
       awaitChecks: async () => ({
         schemaVersion: 1,
         mode: "review-checks-await",
@@ -833,6 +939,12 @@ describe("review-bearing integration checkpoint and merge", () => {
         refreshTarget: () => Promise.reject(new Error("unexpected target refresh")),
         releaseLock: () => Promise.reject(new Error("unexpected release")),
         holdLock: async () => ({ state: "held" }),
+        createLockRequest: async () => ({
+          schemaVersion: 1,
+          treeRoot: root,
+          target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
+          vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+        }),
         awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
         readFinalDrift: () => Promise.reject(new Error("unexpected drift read")),
@@ -868,7 +980,7 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
       obligation: OBLIGATION,
     }),
     changeRequest: { repository: "owner/repo", pullRequest: 42 },
-  }));
+  }), null);
 }
 
 describe("routed review obligation", () => {
@@ -883,7 +995,7 @@ describe("routed review obligation", () => {
       headSha: approvedHead,
       attemptId: "hosted-attempt-1",
       sourceId: "codex-pr",
-      outcome: "findings",
+      outcome: "settled-findings",
       consumedPass: true,
       now: "2026-08-16T12:00:00Z",
     });
@@ -908,7 +1020,7 @@ describe("routed review obligation", () => {
       headSha: approvedHead,
     })).resolves.toMatchObject({
       state: "review-required",
-      detail: expect.stringContaining("no verdict-bearing"),
+      detail: expect.stringContaining("not produced a settled review"),
     });
   });
 

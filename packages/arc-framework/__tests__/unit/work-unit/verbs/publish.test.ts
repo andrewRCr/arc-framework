@@ -635,9 +635,8 @@ describe("runPublish — the illegal-edge lookup", () => {
       },
     };
 
-    // The short-circuit precedes both orientation reads: an already-submitted WU resumes without
-    // needing an override or a task list to derive one from.
-    const result = await runPublish(ctx, { ...DERIVED, boundary: publicationBoundary });
+    // A retry completes every final meta projection even when the phase write already landed.
+    const result = await runPublish(ctx, { ...BASE, boundary: publicationBoundary });
 
     expect(result).toEqual({ status: "unchanged", boundary: publicationBoundary });
     expect(calls.some((c) => c.startsWith("setPhase:"))).toBe(false);
@@ -678,6 +677,51 @@ describe("runPublish — the illegal-edge lookup", () => {
       "Next Action": "open the PR",
     }]);
   });
+
+  it.each(["soft-fields", "stage-meta"] as const)(
+    "repairs a %s finalization failure after the phase transition landed",
+    async (failure) => {
+      const publicationBoundary = {
+        ...BASE.boundary,
+        mode: "integration-boundary" as const,
+        locus: "publication-pending" as const,
+        nextAction: {
+          kind: "continue-publication" as const,
+          command: "git push -u origin feat/foo",
+          interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+        },
+      };
+      const first = buildCtx([{
+        slug: "foo",
+        state: "Integrating",
+        branch: "feat/foo",
+        currentWorkflow: "prepare-work-unit",
+      }]);
+      if (failure === "soft-fields") {
+        first.ctx.writeSoftFields = async () => {
+          throw new Error("soft-field write failed");
+        };
+      } else {
+        first.ctx.stageMeta = async () => {
+          throw new Error("meta staging failed");
+        };
+      }
+      await expect(runPublish(first.ctx, { ...BASE, boundary: publicationBoundary }))
+        .resolves.toMatchObject({ status: "rejected" });
+
+      const retry = buildCtx([{
+        slug: "foo",
+        state: "Integrating",
+        branch: "feat/foo",
+        currentWorkflow: "prepare-work-unit",
+      }]);
+      await expect(runPublish(retry.ctx, { ...BASE, boundary: publicationBoundary }))
+        .resolves.toEqual({ status: "unchanged", boundary: publicationBoundary });
+      expect(retry.calls).toContain("workflow:integrate-work-unit");
+      expect(retry.calls).toContain("soft-fields");
+      expect(retry.calls).toContain("stage-meta");
+    },
+  );
 
   it("rejects an invalid work-unit name without mutation", async () => {
     const { ctx, calls, softWrites } = buildCtx([ACTIVE]);

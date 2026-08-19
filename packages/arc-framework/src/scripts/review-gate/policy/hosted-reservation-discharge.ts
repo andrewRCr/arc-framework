@@ -7,6 +7,8 @@ import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-s
 import { readLaneProgress, type LaneProgressProjection } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
+type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
+
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
   discharged: boolean;
@@ -16,8 +18,8 @@ export interface HostedReservationDischarge {
 /**
  * Decide whether a carried hosted-review reservation has been discharged.
  *
- * Discharge is a verdict-bearing attempt — `clean` or `findings` — by the reserved source on the
- * standard lane anywhere in the Candidate span. It is read rather than written because a discharge
+ * Discharge is a settled attempt — `clean` or `settled-findings` — by the first ordered source that
+ * was not safely unavailable on the standard lane anywhere in the Candidate span. It is read rather than written because a discharge
  * write needs a caller who remembers to make it, and a reservation nobody cleared is the realized
  * failure this replaces. The span rather than the approved head alone: a review that ran before a
  * later fix landed still discharged the obligation, and gating on the head would replace the
@@ -35,23 +37,30 @@ export async function projectHostedReservationDischarge(input: {
   if (reservation === null) {
     return { discharged: true, detail: "Local carrier `local-attestation`." };
   }
+  const attempts: ProjectedLaneAttempt[] = [];
   for (const headSha of input.span) {
     const progress = await input.readLaneProgress(headSha);
     if (progress.status !== "recorded") continue;
-    const verdict = progress.attempts.find(({ sourceId, outcome }) => (
-      sourceId === reservation.sourceId && (outcome === "clean" || outcome === "findings")
-    ));
-    if (verdict !== undefined) {
+    attempts.push(...progress.attempts);
+  }
+  for (const sourceId of reservation.sources) {
+    const sourceAttempts = attempts.filter((attempt) => attempt.sourceId === sourceId);
+    const settled = sourceAttempts.some(({ outcome }) => outcome === "clean" || outcome === "settled-findings");
+    if (settled) {
       return {
         discharged: true,
-        detail: `Hosted source \`${reservation.sourceId}\`.`,
+        detail: `Hosted source \`${sourceId}\`.`,
       };
     }
+    const safelyUnavailable = sourceAttempts.length > 0 && sourceAttempts.every(({ outcome }) => (
+      outcome === "rate-limited" || outcome === "transient-unavailable"
+    ));
+    if (!safelyUnavailable) break;
   }
   return {
     discharged: false,
-    detail: `The reserved hosted source \`${reservation.sourceId}\` has produced no verdict-bearing `
-      + "review across the Candidate span.",
+    detail: `The reserved standard-review source order beginning at \`${reservation.sourceId}\` has not produced `
+      + "a settled review across the Candidate span.",
   };
 }
 
@@ -89,7 +98,7 @@ export function createHostedReservationDischargeReader(input: {
       cwd: input.cwd,
       objectAccess: "local-only",
     });
-    const span = stdout.trim().split("\n").filter((line) => line !== "");
+    const span = [baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
     return projectHostedReservationDischarge({
       reservation,
       span,

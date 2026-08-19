@@ -6,6 +6,7 @@ import {
   canonicalDigest,
   type KernelRegistry,
 } from "../../../lib/kernel/index.js";
+import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
   FrontlineExecutionOutcomeSchema,
   type FrontlineExecutionOutcome,
@@ -40,6 +41,10 @@ export const ApprovedDispositionSourceSchema = z.discriminatedUnion("kind", [
 
 export const ApprovedDispositionRecordSchema = z.strictObject({
   ...AdvisoryRecordHeaderShape,
+  candidate: z.strictObject({
+    workUnit: SlugSchema,
+    candidateId: ReviewCanonicalDigestSchema,
+  }),
   source: ApprovedDispositionSourceSchema,
   approvedDisposition: ApprovedDispositionSetSchema,
   fixAuthorization: FixAuthorizationSchema.nullable(),

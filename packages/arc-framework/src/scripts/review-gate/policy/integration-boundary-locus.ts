@@ -30,11 +30,20 @@ export const StandardReviewReservationV1Schema = z.strictObject({
   reservationId: CandidateIdSchema,
   candidateId: CandidateIdSchema,
   sourceId: z.string().trim().min(1),
+  sources: z.array(z.string().trim().min(1)).min(1),
   target: z.strictObject({
     repository: z.string().trim().min(1),
     headSha: GitObjectIdSchema,
   }),
   obligation: StandardReviewObligationProjectionSchema,
+}).superRefine((reservation, context) => {
+  if (!reservation.sources.includes(reservation.sourceId)) {
+    context.addIssue({
+      code: "custom",
+      path: ["sourceId"],
+      message: "reserved source must belong to the ordered standard-review sources",
+    });
+  }
 });
 export type StandardReviewReservationV1 = z.infer<typeof StandardReviewReservationV1Schema>;
 
@@ -150,10 +159,32 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
   });
 }
 
+/** Recover the public integration projection without dropping same-Candidate prepublication authority. */
+export function recoverPublicationBoundary(input: {
+  stored: IntegrationBoundaryLocus | null;
+  workUnit: string;
+  branch: string;
+  candidateId: string;
+}): IntegrationBoundaryLocus | null {
+  const stored = input.stored;
+  if (stored === null || stored.workUnit !== input.workUnit || stored.candidateId !== input.candidateId) return null;
+  if (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending") return stored;
+  if (stored.locus !== "candidate-publish-ready") return null;
+  return projectPublicationBoundary({
+    workUnit: input.workUnit,
+    branch: input.branch,
+    candidateId: input.candidateId,
+    candidateSubjectDigest: stored.candidateSubjectDigest,
+    reservation: stored.reservation,
+    changeRequest: null,
+  });
+}
+
 /** Create the exact hosted-first reservation carried across publication. */
 export function createStandardReviewReservation(input: {
   candidateId: string;
   sourceId: string;
+  sources?: readonly string[];
   repository: string;
   headSha: string;
   obligation: z.input<typeof StandardReviewObligationProjectionSchema>;
@@ -163,6 +194,7 @@ export function createStandardReviewReservation(input: {
     semanticsVersion: "standard-review-reservation/v1" as const,
     candidateId: input.candidateId,
     sourceId: input.sourceId,
+    sources: [...input.sources ?? [input.sourceId]],
     target: { repository: input.repository, headSha: input.headSha },
     obligation: input.obligation,
   };

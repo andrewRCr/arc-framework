@@ -83,6 +83,7 @@ export function createLineageReviewComposer(input: {
       objectAccess: "local-only",
     });
     const order = new Map<string, number>();
+    order.set(baseRevision, -1);
     stdout.trim().split("\n").filter((line) => line !== "").reverse().forEach((revision, index) => {
       order.set(revision, index);
     });
@@ -121,11 +122,13 @@ export function createLineageReviewComposer(input: {
     const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
     for (const approved of enumerated) {
       const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
-      const required = named.has(dispositionId);
+      const required = approved.candidate.workUnit === workUnit
+        && approved.candidate.candidateId === record.attestation.candidateId;
+      if (!required) continue;
       const origin = await originTarget(approved, required);
-      // A named record settles a response this Candidate already recorded, so it is covered whatever
-      // the span read says; everything else is covered only by landing inside the span.
-      if (origin === null || !(required || span.has(origin.headSha))) continue;
+      if (origin === null || !span.has(origin.headSha)) {
+        throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
+      }
       if (!covered.has(dispositionId)) covered.set(dispositionId, { approved, origin });
     }
     for (const dispositionId of named) {

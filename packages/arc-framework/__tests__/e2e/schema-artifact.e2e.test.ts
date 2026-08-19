@@ -93,6 +93,7 @@ describe("production schema artifact", () => {
       "review-method-activity",
       "review-operation-state",
       "review-policy-version-preimage",
+      "review-pre-publication-envelope",
       "review-readiness-envelope",
       "review-receipt",
       "review-receipt-ledger",
@@ -125,6 +126,7 @@ describe("production schema artifact", () => {
       "work-class",
       "work-unit-review-assurance",
       "work-unit-state",
+      "__shared",
     ]);
     for (const [id, schema] of Object.entries(bundle.schemas)) {
       expect(schema.$id).toBe(`${id}.schema.json`);

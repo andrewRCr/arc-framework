@@ -19,6 +19,7 @@ import {
 } from "../policy/frontline-outcome.js";
 import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
 import { ReviewResolveEnvelopeSchema } from "../policy/review-policy-driver.js";
+import { PrePublicationReviewEnvelopeSchema } from "../policy/pre-publication-procedure.js";
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
@@ -579,6 +580,7 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       operationId: IdentifierSchema,
       candidateId: CanonicalDigestSchema,
+      recordPath: DurableReferenceSchema,
       implementationChanged: z.boolean(),
     }),
   ),
@@ -781,6 +783,7 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-hosted-request-envelope", HostedRequestResultSchema],
     ["review-hosted-await-envelope", HostedAwaitResultSchema],
     ["review-hosted-settle-envelope", HostedSettleResultSchema],
+    ["review-pre-publication-envelope", PrePublicationReviewEnvelopeSchema],
     ["review-command-error-envelope", ReviewCommandErrorEnvelopeSchema],
   ] as const) {
     registry.register(schema, { id, version: 1, migrationPosture: "strict-current" });

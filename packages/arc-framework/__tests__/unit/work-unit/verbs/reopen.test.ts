@@ -171,6 +171,35 @@ describe("runReopen — the set-phase-only move", () => {
     expect(calls).not.toContain("side:reconcile-status-user");
     expect(withdrawInputs).toEqual([]);
   });
+
+  it.each(["soft-fields", "stage-meta"] as const)(
+    "repairs a %s finalization failure after withdrawal changed the phase",
+    async (failure) => {
+      const first = buildCtx([INTEGRATING]);
+      if (failure === "soft-fields") {
+        first.ctx.writeSoftFields = async () => {
+          throw new Error("soft-field write failed");
+        };
+      } else {
+        first.ctx.stageMeta = async () => {
+          throw new Error("meta staging failed");
+        };
+      }
+      await expect(runReopen(first.ctx, BASE)).resolves.toMatchObject({ status: "rejected" });
+
+      const retry = buildCtx([{
+        slug: "foo",
+        state: "Active",
+        branch: "feat/foo",
+        currentWorkflow: "integrate-work-unit",
+      }]);
+      await expect(runReopen(retry.ctx, BASE)).resolves.toMatchObject({ status: "reopened" });
+      expect(retry.currentWorkflowWrites).toEqual(["prepare-work-unit"]);
+      expect(retry.softWrites).toEqual([{ "Next Action": "[none]" }]);
+      expect(retry.calls).toContain("stage:meta");
+      expect(retry.calls).not.toContain("side:withdraw-pr");
+    },
+  );
 });
 
 describe("runReopen — soft-field disposition", () => {

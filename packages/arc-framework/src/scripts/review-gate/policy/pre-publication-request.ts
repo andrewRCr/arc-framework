@@ -52,6 +52,7 @@ export type CandidateRead =
     subjectDigest: string;
     implementationChanged: boolean;
     convergenceVerification: "satisfied" | "pending";
+    lineageHeadShas: readonly string[];
   };
 
 export type AssuranceRead =
@@ -79,7 +80,11 @@ export interface PrePublicationCompositionDependencies {
   readAssurance(workUnit: string): Promise<AssuranceRead>;
   resolveTarget(headSha: string): Promise<TargetRead>;
   deriveImmutableTarget(): Promise<ImmutableTargetRead>;
-  readLaneProgress(lane: ReviewLane, headSha: string): Promise<LaneProgressProjection>;
+  readLaneProgress(
+    lane: ReviewLane,
+    headSha: string,
+    lineageHeadShas: readonly string[],
+  ): Promise<LaneProgressProjection>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
 }
 
@@ -259,7 +264,7 @@ export async function composePrePublicationReviewRequest(
   const composeLane = async (lane: ReviewLane) => {
     const [policy, progress] = await Promise.all([
       dependencies.readLanePolicy(lane),
-      dependencies.readLaneProgress(lane, candidate.headSha),
+      dependencies.readLaneProgress(lane, candidate.headSha, candidate.lineageHeadShas),
     ]);
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];

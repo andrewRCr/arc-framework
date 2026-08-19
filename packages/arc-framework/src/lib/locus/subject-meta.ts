@@ -23,7 +23,7 @@ import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
 import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
 import {
   projectCandidateReviewBoundary,
-  projectPublicationBoundary,
+  recoverPublicationBoundary,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -108,18 +108,12 @@ export async function projectCheckoutSubjectMeta(options: {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
       readFile: (path) => options.io.readFile(path),
     });
-    integrationBoundary = stored !== null
-      && stored.candidateId === record.candidateId
-      && stored.workUnit === options.subjectKey
-      && (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending")
-      ? stored
-      : record.branch === null ? null : projectPublicationBoundary({
-          workUnit: options.subjectKey,
-          branch: record.branch,
-          candidateId: record.candidateId,
-          reservation: null,
-          changeRequest: null,
-        });
+    integrationBoundary = record.branch === null ? null : recoverPublicationBoundary({
+      stored,
+      workUnit: options.subjectKey,
+      branch: record.branch,
+      candidateId: record.candidateId,
+    });
   } else if (record.candidateId !== null && record.state === "Active") {
     integrationBoundary = projectCandidateReviewBoundary({
       workUnit: options.subjectKey,

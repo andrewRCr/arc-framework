@@ -125,6 +125,20 @@ async function attestLocalReviewWithinSourceLock(
     sourceDigest: state.sourceDigest,
     guidanceDigest: state.guidanceDigest,
   });
+  if (result.status === "unavailable" || result.status === "failed") {
+    await recordLaneAttempt(dependencies.operationStore, {
+      lane: "standard",
+      repositoryId: state.repositoryId,
+      changeRequestId: null,
+      headSha: state.target.headSha,
+      attemptId: state.operationId,
+      sourceId: state.laneSourceId,
+      outcome: result.status === "unavailable" ? "transient-unavailable" : "terminal-failure",
+      consumedPass: false,
+      now: dependencies.now(),
+    });
+    await dependencies.releaseMaterialization(request.operationId);
+  }
   if (result.status !== "complete" || result.result === null) {
     return LocalAttestEnvelopeSchema.parse({
       schemaVersion: 1,

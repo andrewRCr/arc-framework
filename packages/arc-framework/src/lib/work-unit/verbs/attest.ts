@@ -27,6 +27,10 @@ const ATTESTED_ORIENTATION = {
     currentWorkflow: "integrate-work-unit",
     nextAction: "Candidate review pending — resume integration review",
   },
+  Shipped: {
+    currentWorkflow: "integrate-work-unit",
+    nextAction: "Candidate review pending — resume integration review",
+  },
 } as const;
 
 export const AttestResultSchema = z.discriminatedUnion("status", [

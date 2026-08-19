@@ -289,3 +289,30 @@ export async function readLaneProgress(
     attempts: state.attempts,
   };
 }
+
+/** Read exact-head attempts while carrying the consumed-pass count across one authorized Candidate lineage. */
+export async function readLaneProgressAcrossLineage(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineageHeadShas: readonly string[];
+  },
+): Promise<LaneProgressProjection> {
+  const heads = [...new Set([...input.lineageHeadShas, input.headSha])];
+  const records = await Promise.all(heads.map(async (headSha) => ({
+    headSha,
+    progress: await readLaneProgress(store, { ...input, headSha }),
+  })));
+  const current = records.find(({ headSha }) => headSha === input.headSha)?.progress;
+  const completedPasses = records.reduce((total, { progress }) => (
+    total + (progress.status === "recorded" ? progress.completedPasses : 0)
+  ), 0);
+  if (completedPasses === 0 && current?.status !== "recorded") return { status: "unrecorded" };
+  return {
+    status: "recorded",
+    completedPasses,
+    attempts: current?.status === "recorded" ? current.attempts : [],
+  };
+}

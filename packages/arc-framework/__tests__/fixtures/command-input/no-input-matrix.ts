@@ -68,6 +68,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "review chunking resolve", args: ["review", "chunking", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "review frontline run", args: ["review", "frontline", "run", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "review planning-lane", args: ["review", "planning-lane", "invalid", "invalid"], expected: { exitCode: 64 } },
+  { commandPath: "review pre-publication", args: ["review", "pre-publication", "invalid", "--json"], expected: { exitCode: 1 } },
   { commandPath: "set-stage", args: ["set-stage", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "start", args: ["start", "matrix", "--here"], setup: "planned-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "cannot start `matrix`" } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },

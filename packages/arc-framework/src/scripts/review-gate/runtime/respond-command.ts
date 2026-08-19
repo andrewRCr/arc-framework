@@ -17,6 +17,7 @@ import {
 } from "../core/advisory-records.js";
 import {
   reviewerDispositionSeverity,
+  reviewerDispositionNit,
   type ProposedDispositionSet,
   type ApprovedDispositionSet,
 } from "../core/disposition-records.js";
@@ -148,15 +149,19 @@ export interface RespondCommandDependencies {
   dispositionStore: ApprovedDispositionRecordStore;
   readReceipt(reference: string): Promise<ReviewReceiptV2 | null>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
-  resolveLocalActors(evaluatorIdentity: string): Promise<ResponseActors>;
+  resolveLocalActors(
+    evaluatorIdentity: string,
+    admittedAuthorIdentity?: string,
+  ): Promise<ResponseActors>;
   resolveFrontlineActors(): Promise<ResponseActors>;
-  /** Null when no work unit is active or it carries no Candidate record. */
-  readCandidateLineage(): Promise<CandidateLineageBinding | null>;
+  /** Null when the response target identifies no active or archived Candidate lineage. */
+  readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
   appendCandidateResponse(input: {
     workUnit: string;
     record: CandidateManagedRecordV1;
     expectedRecordVersion: string;
   }): Promise<{ recordPath: string }>;
+  stageCandidateResponse(workUnit: string): Promise<{ recordPath: string }>;
   settleLaneFindings(input: {
     lane: "frontline" | "standard";
     repositoryId: string;
@@ -241,7 +246,7 @@ function validateFindings(
         && item.sourceIdentity === source.sourceIdentity
         && item.locus === finding.locus
         && reviewerDispositionSeverity(item) === finding.severity
-        && item.nit === finding.nit;
+        && reviewerDispositionNit(item) === finding.nit;
     })) {
     throw new RespondCommandError("invalid-input", "approved dispositions do not match the selected review source");
   }
@@ -279,7 +284,6 @@ function prepareDispositionProposal(
       ...decisionFields,
       sourceIdentity: source.sourceIdentity,
       locus: finding.locus,
-      ...(finding.nit === true ? { nit: true as const } : {}),
     };
     if (sourceVerification === "not-supported") {
       if (disposition !== "reject") {
@@ -290,11 +294,25 @@ function prepareDispositionProposal(
         sourceVerification,
         disposition,
         reviewerSeverity: finding.severity,
+        ...(finding.nit === true ? { reviewerNit: true as const } : {}),
       };
     }
     return severity === finding.severity
-      ? { ...base, sourceVerification, disposition, severity }
-      : { ...base, sourceVerification, disposition, reviewerSeverity: finding.severity, arcSeverity: severity };
+      ? {
+          ...base,
+          sourceVerification,
+          disposition,
+          severity,
+          ...(finding.nit === true ? { nit: true as const } : {}),
+        }
+      : {
+          ...base,
+          sourceVerification,
+          disposition,
+          reviewerSeverity: finding.severity,
+          ...(finding.nit === true ? { reviewerNit: true as const } : {}),
+          arcSeverity: severity,
+        };
   });
   try {
     return proposeDispositionSet(createDispositionSet({
@@ -330,7 +348,7 @@ async function resolveLocalSource(
   const [receipt, localSource, actors] = await Promise.all([
     dependencies.readReceipt(reference.durableRef),
     dependencies.sourceStore.readSource(state.sourceRef),
-    dependencies.resolveLocalActors(state.request.evaluatorIdentity),
+    dependencies.resolveLocalActors(state.request.evaluatorIdentity, state.request.authorIdentity),
   ]);
   if (receipt === null) throw new RespondCommandError("corrupt-state", "local response receipt is unavailable");
   if (localSource === null
@@ -445,11 +463,11 @@ async function persistCandidateResponse(
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
-  const lineage = await dependencies.readCandidateLineage();
+  const lineage = await dependencies.readCandidateLineage(source.target);
   if (lineage === null) {
     throw new RespondCommandError(
       "invalid-input",
-      "a verified fix requires an active work unit carrying a managed Candidate record",
+      "a verified fix requires a work unit carrying the reviewed managed Candidate record",
     );
   }
   if (lineage.unstagedReviewablePaths.length > 0) {
@@ -471,6 +489,17 @@ async function persistCandidateResponse(
     if (currentness.status !== "current") {
       throw new RespondCommandError("invalid-input", "Candidate changed after the recorded disposition response");
     }
+    const matching = matchingResponses[0];
+    if (matching === undefined
+      || matching.candidateId !== lineage.record.attestation.candidateId
+      || matching.approvedBy !== dispositions.approval.approvedBy
+      || matching.appliedBy !== dispositions.dispositionSet.proposedBy
+      || matching.applicability !== verifiedFix.applicability
+      || canonicalize(matching.verificationEvidenceRefs)
+        !== canonicalize(verifiedFix.verificationEvidenceRefs)) {
+      throw new RespondCommandError("invalid-input", "Candidate response replay conflicts with the recorded response");
+    }
+    const { recordPath } = await dependencies.stageCandidateResponse(lineage.workUnit);
     return RespondEnvelopeSchema.parse({
       ...header,
       state: "candidate-current",
@@ -478,6 +507,7 @@ async function persistCandidateResponse(
       payload: {
         operationId: source.operationId,
         candidateId: currentness.candidateId,
+        recordPath,
         implementationChanged: currentness.implementationChanged,
       },
     });
@@ -596,6 +626,7 @@ export async function respondToReviewCommand(
   const currentTarget = confirmation.state === "stale-target"
     ? confirmation.currentTarget
     : confirmation.target;
+  let unchangedCandidateLineage: CandidateLineageBinding | null = null;
   // A landed fix moves the head, so the settlement pass expects the stale reading its approval pass
   // treats as a dead end. An unchanged head means no fix landed and there is nothing to attest.
   const changedTarget = confirmation.state === "stale-target" ? confirmation.currentTarget : null;
@@ -611,7 +642,17 @@ export async function respondToReviewCommand(
     return staleTargetEnvelope(source.operationId, settledFixTarget, currentTarget);
   }
   if (confirmation.state === "stale-target" && verifiedFix === undefined && settledFixTarget === undefined) {
-    return staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget);
+    const lineage = await dependencies.readCandidateLineage(source.target);
+    const currentness = lineage === null
+      ? null
+      : projectCandidateCurrentness({ record: lineage.record, current: lineage.current });
+    if (currentness?.status !== "current") {
+      return staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget);
+    }
+    // Lifecycle ceremony may commit around an unchanged Candidate after its review target was minted.
+    // The managed Candidate subject, not the stale whole-repository target, is authoritative for whether
+    // that operational-only head move invalidates the approved response.
+    unchangedCandidateLineage = lineage;
   }
   if ("proposal" in request) {
     return RespondEnvelopeSchema.parse({
@@ -673,11 +714,22 @@ export async function respondToReviewCommand(
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {
     throw new RespondCommandError("corrupt-state", `approved response produced unsupported state '${plan.state}'`);
   }
+  const lineage = unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target);
+  if (lineage === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "approved dispositions require a work unit carrying the reviewed managed Candidate record",
+    );
+  }
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "review-advisory/v1",
     repositoryId: source.repositoryId,
     operationId: source.operationId,
+    candidate: {
+      workUnit: lineage.workUnit,
+      candidateId: lineage.record.attestation.candidateId,
+    },
     source: source.source,
     approvedDisposition: dispositions,
     fixAuthorization: plan.fixAuthorization,

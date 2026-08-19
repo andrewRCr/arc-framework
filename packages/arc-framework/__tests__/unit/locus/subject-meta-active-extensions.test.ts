@@ -11,6 +11,7 @@ import {
 } from "../../../src/lib/locus/subject-meta.js";
 import {
   createStandardReviewReservation,
+  IntegrationBoundaryLocusSchema,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -128,15 +129,34 @@ describe("checkout subject active-extension seam", () => {
         count: 1,
       },
     });
-    const boundary = projectPublicationBoundary({
+    const storedBoundary = IntegrationBoundaryLocusSchema.parse({
+      schemaVersion: 1,
+      mode: "integration-boundary",
+      workUnit: "demo",
+      candidateId,
+      candidateSubjectDigest: null,
+      locus: "candidate-publish-ready",
+      nextAction: {
+        kind: "publish-candidate",
+        command: "arc publish demo --json",
+        interactionText: "Submit the current Candidate for publication.",
+      },
+      policy: null,
+      reservation,
+    });
+    const recoveredBoundary = projectPublicationBoundary({
       workUnit: "demo",
       branch: "feat/demo",
       candidateId,
+      candidateSubjectDigest: null,
       reservation,
       changeRequest: null,
     });
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
-    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`, JSON.stringify(boundary));
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(storedBoundary),
+    );
 
     const result = await projectCheckoutSubjectMeta({
       ...options,
@@ -149,7 +169,7 @@ describe("checkout subject active-extension seam", () => {
     });
 
     expect(result.kind).toBe("resolved");
-    if (result.kind === "resolved") expect(result.integrationBoundary).toEqual(boundary);
+    if (result.kind === "resolved") expect(result.integrationBoundary).toEqual(recoveredBoundary);
   });
 
   it("projects a Candidate-bearing Active subject as prepublication", async () => {

@@ -231,8 +231,18 @@ function dependencies(records: ReturnType<typeof fixture>) {
       approverIdentity: records.authority.authorIdentity,
       proposerIdentity: records.authority.runtimeIdentity,
     }),
-    readCandidateLineage: async () => null,
+    readCandidateLineage: async () => {
+      const record = candidateRecord();
+      return {
+        workUnit: "example",
+        record,
+        recordVersion: canonicalDigest(record),
+        current: { revision: records.target.headSha, subject: record.subject },
+        unstagedReviewablePaths: [],
+      };
+    },
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
+    stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
     settleLaneFindings: async () => undefined,
   };
   return deps;
@@ -305,6 +315,7 @@ function lineageDependencies(
       appends.push(input);
       return { recordPath: CANDIDATE_RECORD_PATH };
     },
+    stageCandidateResponse: async () => ({ recordPath: CANDIDATE_RECORD_PATH }),
   };
   return { deps, record, appends };
 }
@@ -455,6 +466,41 @@ describe("review response command", () => {
     expect(unsupportedFinding).not.toHaveProperty("arcSeverity");
   });
 
+  it("preserves a reviewer's nit qualifier when ARC re-grades the finding as non-minor", async () => {
+    const records = fixture();
+    const sourceFinding = records.receipt.findings[0];
+    if (sourceFinding === undefined) throw new Error("expected a source finding");
+    Object.assign(sourceFinding, { severity: "minor", nit: true });
+
+    const proposal = await respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          severity: "major",
+          disposition: "fix",
+          rationale: "The source supports a non-minor primary grade.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records));
+
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
+      payload: {
+        proposal: {
+          dispositionSet: {
+            findings: [{ reviewerSeverity: "minor", reviewerNit: true, arcSeverity: "major" }],
+          },
+        },
+      },
+    });
+  });
+
   it("reloads local receipt and source authority and returns a validated fix authorization", async () => {
     const records = fixture();
     await expect(respondToReviewCommand(localRequest(records), dependencies(records))).resolves.toMatchObject({
@@ -480,7 +526,7 @@ describe("review response command", () => {
     await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({ state: "already-settled" });
   });
 
-  it("returns stale-target before appending dispositions when the reviewed target moved", async () => {
+  it("returns stale-target before appending dispositions when the reviewed Candidate content moved", async () => {
     const records = fixture();
     const deps = dependencies(records);
     const appendDispositionRecord = vi.fn();
@@ -500,6 +546,12 @@ describe("review response command", () => {
       attemptedTarget: records.target,
       currentTarget,
     });
+    const lineage = await deps.readCandidateLineage(records.target);
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      current: { revision: currentTarget.headSha, subject: candidateSubject("changed") },
+    });
     deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
 
     await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
@@ -512,6 +564,39 @@ describe("review response command", () => {
       },
     });
     expect(appendDispositionRecord).not.toHaveBeenCalled();
+  });
+
+  it("accepts an operational-only stale target when the managed Candidate subject is unchanged", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const currentTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: records.target.repositoryId,
+      baseRef: records.target.baseRef,
+      diffBaseSha: records.target.diffBaseSha,
+      diffBaseTree: records.target.diffBaseTree,
+      headSha: objectId("e"),
+      headTree: objectId("f"),
+    });
+    deps.confirmTarget = async () => ({
+      state: "stale-target",
+      attemptedTarget: records.target,
+      currentTarget,
+    });
+    const lineage = await deps.readCandidateLineage(records.target);
+    if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    deps.readCandidateLineage = async () => ({
+      ...lineage,
+      current: { revision: currentTarget.headSha, subject: lineage.record.subject },
+    });
+
+    await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+      payload: { operationId: records.operation.operationId },
+    });
   });
 
   it("refuses actor identities that do not come from the trusted boundary", async () => {
@@ -627,7 +712,7 @@ describe("review response command", () => {
     ["delivery member", memberVehicle],
     ["work unit", workUnitVehicle],
     ["Errand", errandVehicle],
-  ] as const)("resolves actors for a %s operation from the evaluator identity alone", async (
+  ] as const)("resolves actors for a %s operation from its admitted identities", async (
     _label,
     vehicle,
   ) => {
@@ -641,8 +726,11 @@ describe("review response command", () => {
       payload: { operationId: records.operation.operationId },
     });
     // The vehicle never reaches actor resolution, so no member selector exists to
-    // carry: approver and proposer are identical across all three operations.
-    expect(resolveLocalActors).toHaveBeenCalledWith(records.authority.evaluatorIdentity);
+    // carry: the admitted author and evaluator are identical across all three operations.
+    expect(resolveLocalActors).toHaveBeenCalledWith(
+      records.authority.evaluatorIdentity,
+      records.authority.authorIdentity,
+    );
   });
 });
 
@@ -753,6 +841,59 @@ describe("verified-fix Candidate settlement", () => {
     expect(appends).toHaveLength(1);
   });
 
+  it.each([
+    ["applicability", { applicability: "full" as const }],
+    ["verification evidence", { verificationEvidenceRefs: ["verification://different"] }],
+  ])("rejects a Candidate response replay with conflicting %s", async (_label, verifiedFixPatch) => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected an appended Candidate record");
+    deps.readCandidateLineage = async () => ({
+      workUnit: "example",
+      record: advanced,
+      recordVersion: canonicalDigest(advanced),
+      current,
+      unstagedReviewablePaths: [],
+    });
+
+    await expect(respondToReviewCommand({
+      ...request,
+      verifiedFix: { ...request.verifiedFix, ...verifiedFixPatch },
+    }, deps)).rejects.toThrow("replay conflicts");
+  });
+
+  it("repairs staging when the Candidate record write succeeded before git add failed", async () => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, record } = lineageDependencies(records, current);
+    let persisted = record;
+    deps.readCandidateLineage = async () => ({
+      workUnit: "example",
+      record: persisted,
+      recordVersion: canonicalDigest(persisted),
+      current,
+      unstagedReviewablePaths: [],
+    });
+    deps.appendCandidateResponse = async ({ record: next }) => {
+      persisted = next;
+      throw new Error("git add failed after record write");
+    };
+    const stageCandidateResponse = vi.fn(async () => ({ recordPath: CANDIDATE_RECORD_PATH }));
+    deps.stageCandidateResponse = stageCandidateResponse;
+    const request = verifiedFixRequest(records);
+
+    await expect(respondToReviewCommand(request, deps)).rejects.toThrow("git add failed");
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "candidate-current",
+      payload: { recordPath: CANDIDATE_RECORD_PATH },
+    });
+    expect(stageCandidateResponse).toHaveBeenCalledWith("example");
+  });
+
   it("refuses a verified fix whose exact target never changed", async () => {
     const records = fixture();
 
@@ -780,7 +921,7 @@ describe("verified-fix Candidate settlement", () => {
       revision: objectId("e"),
       subject: candidateSubject("fixed"),
     });
-    const lineage = await deps.readCandidateLineage();
+    const lineage = await deps.readCandidateLineage(records.target);
     if (lineage === null) throw new Error("expected a bound Candidate lineage");
     deps.readCandidateLineage = async () => ({
       ...lineage,
@@ -798,7 +939,7 @@ describe("verified-fix Candidate settlement", () => {
       revision: objectId("e"),
       subject: candidateSubject("root"),
     });
-    const lineage = await deps.readCandidateLineage();
+    const lineage = await deps.readCandidateLineage(records.target);
     if (lineage === null) throw new Error("expected a bound Candidate lineage");
     deps.readCandidateLineage = async () => ({
       ...lineage,

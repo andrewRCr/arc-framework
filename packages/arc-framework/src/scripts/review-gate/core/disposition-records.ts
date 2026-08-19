@@ -34,6 +34,8 @@ const RegradedDispositionGradeSchema = DispositionReportItemFieldsSchema.extend(
   sourceVerification: z.literal("verified"),
   /** Reviewer-reported grade when ARC's effective grade differs. */
   reviewerSeverity: ReviewSeveritySchema,
+  /** Reviewer-reported nit marker when ARC's effective classification cannot carry it. */
+  reviewerNit: z.literal(true).optional(),
   /** ARC's effective grade when it differs from the reviewer grade. */
   arcSeverity: ReviewSeveritySchema,
 }).refine((item) => item.reviewerSeverity !== item.arcSeverity, {
@@ -46,6 +48,7 @@ const UnsupportedDispositionGradeSchema = DispositionReportItemFieldsSchema.exte
   disposition: z.literal("reject"),
   /** The reviewer's reported grade; ARC assigns no effective grade to an unsupported finding. */
   reviewerSeverity: ReviewSeveritySchema,
+  reviewerNit: z.literal(true).optional(),
 });
 
 export const DispositionReportItemSchema = z.union([
@@ -68,6 +71,9 @@ export const DispositionReportItemSchema = z.union([
   if (item.nit === true && severity !== "minor") {
     context.addIssue({ code: "custom", message: "nit is valid only for minor findings", path: ["nit"] });
   }
+  if ("reviewerNit" in item && item.reviewerNit === true && item.reviewerSeverity !== "minor") {
+    context.addIssue({ code: "custom", message: "reviewer nit is valid only for reviewer minor findings", path: ["reviewerNit"] });
+  }
   if (item.nit === true && item.gating !== "record-only") {
     context.addIssue({ code: "custom", message: "nit findings are record-only", path: ["gating"] });
   }
@@ -87,6 +93,11 @@ export function effectiveDispositionSeverity(
 /** Resolve the reviewer-reported grade used to bind a disposition to its source finding. */
 export function reviewerDispositionSeverity(item: DispositionReportItem): z.infer<typeof ReviewSeveritySchema> {
   return "severity" in item ? item.severity : item.reviewerSeverity;
+}
+
+/** Resolve the reviewer's nit marker independently from ARC's effective classification. */
+export function reviewerDispositionNit(item: DispositionReportItem): true | undefined {
+  return "reviewerNit" in item ? item.reviewerNit : item.nit;
 }
 
 const DispositionSetFieldsSchema = z.strictObject({

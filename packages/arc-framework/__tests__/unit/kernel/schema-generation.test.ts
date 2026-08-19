@@ -114,6 +114,7 @@ describe("kernel schema artifact generation", () => {
       "review-method-activity",
       "review-operation-state",
       "review-policy-version-preimage",
+      "review-pre-publication-envelope",
       "review-readiness-envelope",
       "review-receipt",
       "review-receipt-ledger",
@@ -142,7 +143,11 @@ describe("kernel schema artifact generation", () => {
       "work-class",
       "work-unit-review-assurance",
       "work-unit-state",
+      "__shared",
     ]);
+    for (const [id, schema] of Object.entries(firstBundle.schemas)) {
+      expect(schema.$id).toBe(`${id}.schema.json`);
+    }
     expect(JSON.stringify(firstBundle.schemas["canonical-change-set"]))
       .toContain('"$ref":"canonical-change.schema.json"');
     expect(firstBundle.schemas["finding-classification"]?.properties?.severity)

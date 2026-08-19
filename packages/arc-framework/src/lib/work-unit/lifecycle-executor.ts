@@ -25,10 +25,9 @@
  * @module
  */
 
-import { join, posix } from "node:path";
+import { posix } from "node:path";
 
 import {
-  parseMetaRecord,
   type MetaFieldName,
   type MetaProjectionOverrides,
 } from "../active/meta-reader.js";
@@ -674,7 +673,7 @@ export async function executeTransition(
 }
 
 /**
- * Finish a phase transition whose `Current Workflow` write failed after its phase and side effects landed.
+ * Finish a phase transition whose meta projection or staging failed after its phase and side effects landed.
  *
  * The phase/workflow contradiction is the durable retry marker. This path writes only the remaining meta
  * projection and ROADMAP; it never replays encoding legs or non-idempotent side effects.
@@ -694,9 +693,6 @@ export async function resumeTransitionFinalization(
   const expectedWorkflow = record?.encodingUpdates.setCurrentWorkflowField;
   const metaPath = index.get(params.slug)?.path ?? null;
   if (record === undefined || metaPath === null || expectedWorkflow === undefined) return null;
-  const meta = parseMetaRecord(await ctx.indexFs.readFile(join(ctx.cwd, metaPath)));
-  if (meta.currentWorkflow === expectedWorkflow) return null;
-
   let failedWrite: FinalizeWrite = "currentWorkflowField";
   try {
     await applyCurrentWorkflowField(ctx, record, metaPath, params.inputs);

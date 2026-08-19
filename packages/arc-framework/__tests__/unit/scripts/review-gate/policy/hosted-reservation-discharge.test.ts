@@ -10,10 +10,11 @@ import type { LaneProgressProjection } from "../../../../../src/scripts/review-g
 
 const oid = (character: string): string => character.repeat(40);
 
-function reservation(sourceId = "coderabbit-pr") {
+function reservation(sourceId = "coderabbit-pr", sources: readonly string[] = [sourceId]) {
   return createStandardReviewReservation({
     candidateId: `sha256:${"c".repeat(64)}`,
     sourceId,
+    sources,
     repository: "arc-framework/example",
     headSha: oid("a"),
     obligation: {
@@ -44,8 +45,25 @@ describe("hosted reservation discharge", () => {
 
   it("discharges from a verdict the reserved source returned earlier in the span", async () => {
     const result = await projectHostedReservationDischarge({
-      reservation: reservation(),
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
       span: [oid("a"), oid("b")],
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [{ attemptId: "attempt-1", sourceId: "coderabbit-pr", outcome: "settled-findings" }],
+        },
+      }),
+    });
+
+    expect(result.discharged).toBe(true);
+    expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
+  });
+
+  it("does not discharge raw findings before their dispositions settle", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("a")],
       readLaneProgress: progress({
         [oid("a")]: {
           status: "recorded",
@@ -55,8 +73,26 @@ describe("hosted reservation discharge", () => {
       }),
     });
 
-    expect(result.discharged).toBe(true);
-    expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
+    expect(result.discharged).toBe(false);
+  });
+
+  it("discharges from the next ordered source only after the preferred source was safely unavailable", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
+      span: [oid("a")],
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [
+            { attemptId: "attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" },
+            { attemptId: "attempt-2", sourceId: "codex-pr", outcome: "clean" },
+          ],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({ discharged: true, detail: "Hosted source `codex-pr`." });
   });
 
   it("leaves the reservation pending when the reserved source reached no verdict", async () => {

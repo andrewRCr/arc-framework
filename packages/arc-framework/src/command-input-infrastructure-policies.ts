@@ -85,6 +85,7 @@ const rawGitCommandPaths = [
   "resume",
   "review chunking resolve",
   "review planning-lane",
+  "review pre-publication",
   "set-stage",
   "start",
   "status",
@@ -123,7 +124,7 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
       rawGitSubprocessPolicy,
     ),
-    ...(nativeDeliveryCommandPaths.has(commandPath) ? [declareInteractionSite(
+    ...(nativeDeliveryCommandPaths.has(commandPath) || commandPath === "review pre-publication" ? [declareInteractionSite(
       { file: "scripts/review-gate/hosted/gh-process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       hostedGhSubprocessPolicy,
     )] : []),

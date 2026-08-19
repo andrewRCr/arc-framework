@@ -21,7 +21,7 @@ import {
 } from "../hosts/local/method-files.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
-import { readLaneProgress } from "../lane-progress.js";
+import { readLaneProgressAcrossLineage } from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import type {
@@ -79,6 +79,12 @@ export function createPrePublicationCompositionDependencies(input: {
         subjectDigest: current.subject.subjectDigest,
         implementationChanged: currentness.implementationChanged,
         convergenceVerification: currentness.convergenceVerification,
+        lineageHeadShas: [...new Set([
+          record.attestation.baseRevision,
+          ...record.responses.flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
+          ...record.lineageAttestations.map((attestation) => attestation.target.revision),
+          currentness.recognizedRevision,
+        ])],
       };
     },
 
@@ -163,10 +169,11 @@ export function createPrePublicationCompositionDependencies(input: {
       }
     },
 
-    readLaneProgress: async (lane, headSha) => readLaneProgress(store, {
+    readLaneProgress: async (lane, headSha, lineageHeadShas) => readLaneProgressAcrossLineage(store, {
       lane,
       repositoryId: await repositoryId(),
       headSha,
+      lineageHeadShas,
     }),
 
     readLanePolicy: async (lane) => resolveConfiguredLanePolicy({

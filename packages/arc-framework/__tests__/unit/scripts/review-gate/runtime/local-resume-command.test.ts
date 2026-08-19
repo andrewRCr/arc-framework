@@ -507,6 +507,7 @@ describe("local resume command", () => {
       semanticsVersion: "review-advisory/v1",
       repositoryId: records.operation.repositoryId,
       operationId: records.operation.operationId,
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
       source: {
         kind: "attested-local",
         receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),

@@ -1625,8 +1625,11 @@ reviewCmd
     "Per-lane review scope, frontline invocation, and approved ceiling override as JSON",
   )
   .requiredOption("--json", "Emit a typed JSON result")
-  .action((name: string, options: ReviewPrePublicationOptions) =>
-    handleReviewPrePublication(name, options));
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, name: string, options: ReviewPrePublicationOptions) =>
+      handleReviewPrePublication(name, options, {}, context),
+  ));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

@@ -251,10 +251,10 @@ const mockProjectCandidateCurrentness = vi.fn();
 vi.mock("../../../src/lib/work-unit/candidate-attestation.js", () => ({
   projectCandidateCurrentness: (...a: unknown[]) => mockProjectCandidateCurrentness(...a),
 }));
-const mockReadSubmissionBoundary = vi.fn();
+const mockReadSubmissionBoundaryVersioned = vi.fn();
 const mockWriteSubmissionBoundary = vi.fn();
 vi.mock("../../../src/lib/work-unit/submission-boundary-store.js", () => ({
-  readSubmissionBoundary: (...a: unknown[]) => mockReadSubmissionBoundary(...a),
+  readSubmissionBoundaryVersioned: (...a: unknown[]) => mockReadSubmissionBoundaryVersioned(...a),
   writeSubmissionBoundary: (...a: unknown[]) => mockWriteSubmissionBoundary(...a),
 }));
 
@@ -409,7 +409,7 @@ beforeEach(() => {
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
   mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
   mockProjectCandidateCurrentness.mockReturnValue({ status: "current", convergenceVerification: "satisfied" });
-  mockReadSubmissionBoundary.mockResolvedValue(boundary);
+  mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: "boundary-version" });
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
   mockRunPublish.mockResolvedValue({
     status: "published",
@@ -937,7 +937,7 @@ describe("handlePublish", () => {
 
   it("reports the unchanged durable publication resume point as JSON", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const boundary = await mockReadSubmissionBoundary();
+    const boundary = (await mockReadSubmissionBoundaryVersioned()).boundary;
     const publicationBoundary = {
       ...boundary,
       mode: "integration-boundary",

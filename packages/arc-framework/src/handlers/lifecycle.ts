@@ -138,7 +138,7 @@ import {
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectCandidateCurrentness } from "../lib/work-unit/candidate-attestation.js";
 import {
-  readSubmissionBoundary,
+  readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
@@ -157,7 +157,13 @@ import {
   type SpineRemedy,
 } from "../scripts/integration/spine-refusal.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import {
+  PrioritySchema,
+  SLUG_PATTERN,
+  SlugSchema,
+  WorkClassSchema,
+  validateManagedPath,
+} from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -1733,7 +1739,8 @@ export async function handlePublish(
     return;
   }
   const record = candidate.record;
-  const boundary = await readSubmissionBoundary(base.cwd, target);
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
+  const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
     refuseWithRemedy(
       `Cannot publish \`${target}\`: no durable pre-publication boundary exists.`,
@@ -1772,7 +1779,7 @@ export async function handlePublish(
     return;
   }
   if (result.status === "unchanged") {
-    const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary);
+    const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
     await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     if (input.json === true) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -1813,7 +1820,7 @@ export async function handlePublish(
       );
     }
   }
-  const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary);
+  const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
   await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -2395,32 +2402,38 @@ export async function handleAttest(
   const base = await resolveVerbBase(context);
   if (base === null) return;
   const { settings } = await buildExecutor(base);
-  const metaPath = resolveArcPath({
+  let metaPath = resolveArcPath({
     kind: "work-unit-artifact",
     placement: { kind: "active", scope: { kind: "project" } },
     slug: input.name,
     artifact: "meta",
   });
-  const absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+  let absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
   let metaContent: string;
   try {
     metaContent = await base.io.readFile(absoluteMetaPath);
   } catch {
-    refuseWithRemedy(
-      `\`arc attest\` requires an active managed record for \`${input.name}\`.`,
-      spineRemedy(
-        "Candidate attestation requires a resolvable active work-unit record.",
-        "Inspect the work-unit lifecycle state",
-        ["arc", "status", input.name, "--json"],
-      ),
-      input.json === true,
-    );
-    return;
+    const archived = (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(input.name);
+    if (input.newRoot !== true || archived?.location !== "completed") {
+      refuseWithRemedy(
+        `\`arc attest\` requires an active record, or an archived record with \`--new-root\`, for \`${input.name}\`.`,
+        spineRemedy(
+          "Candidate attestation requires a resolvable work-unit record.",
+          "Inspect the work-unit lifecycle state",
+          ["arc", "status", input.name, "--json"],
+        ),
+        input.json === true,
+      );
+      return;
+    }
+    metaPath = validateManagedPath(archived.path);
+    absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+    metaContent = await base.io.readFile(absoluteMetaPath);
   }
   const meta = parseMetaRecord(metaContent);
-  if (meta.state !== "Active" && meta.state !== "Integrating") {
+  if (meta.state !== "Active" && meta.state !== "Integrating" && !(meta.state === "Shipped" && input.newRoot === true)) {
     refuseWithRemedy(
-      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating.`,
+      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating, or Shipped with \`--new-root\`.`,
       spineRemedy(
         "Candidate attestation runs only from an active publication lifecycle.",
         "Inspect the work-unit lifecycle state",

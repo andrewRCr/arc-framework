@@ -65,7 +65,7 @@ import type {
   IntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
-  readSubmissionBoundary,
+  readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
 import {
@@ -443,6 +443,7 @@ export interface ReviewStatusOptions {
 }
 
 export interface ReviewStatusHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
   resolve(cwd: string, input: z.infer<typeof ReviewStatusTargetInputSchema>): Promise<ReviewStatusResult>;
   write(text: string): void;
   setExitCode(code: number): void;
@@ -454,10 +455,9 @@ export async function handleReviewStatus(
   interaction?: InteractionContext,
   overrides: Partial<ReviewStatusHandlerDependencies> = {},
 ): Promise<void> {
-  const cwd = resolveArcRoot();
-  if (cwd === null) return;
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: ReviewStatusHandlerDependencies = {
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
     resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec })),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
@@ -485,6 +485,29 @@ export async function handleReviewStatus(
       ),
     })}\n`);
     dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot(process.cwd());
+  if (cwd === null) {
+    const detail = "Review status must run inside an ARC project.";
+    dependencies.write(`${JSON.stringify({
+      schemaVersion: 1,
+      mode: "review-status",
+      target: parsed.data.target,
+      requiredChecks: "unavailable",
+      routedObligation: { state: "blocked", detail },
+      currentBaseOid: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail,
+      remedy: spineRemedy(
+        "Review status requires repository-local ARC state.",
+        "Change to the target ARC project, then re-run",
+        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+      ),
+    })}\n`);
+    dependencies.setExitCode(1);
     return;
   }
   try {
@@ -1648,22 +1671,31 @@ export interface ReviewPrePublicationHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDependencies {
+function defaultPrePublicationDependencies(
+  interaction?: InteractionContext,
+): ReviewPrePublicationHandlerDependencies {
   const boundary = defaultReviewHandlerBoundary();
+  const exec = createGitExec(interaction?.subprocess);
+  const boundarySnapshots = new Map<string, Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>>>();
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
     readText: (source) => boundary.readText(source),
-    compose: (root, input, judgment) => composePrePublicationReviewRequest(
-      {
-        workUnit: input.name,
-        ...(input.selfReview === undefined ? {} : { selfReview: input.selfReview }),
-        ...(input.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
-        ...(input.lanes === undefined ? {} : { lanes: judgment.lanes }),
-      },
-      createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec }),
-    ),
+    compose: async (root, input, judgment) => {
+      boundarySnapshots.set(input.name, await readSubmissionBoundaryVersioned(root, input.name));
+      return composePrePublicationReviewRequest(
+        {
+          workUnit: input.name,
+          ...(input.selfReview === undefined ? {} : { selfReview: input.selfReview }),
+          ...(input.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+          ...(input.lanes === undefined ? {} : { lanes: judgment.lanes }),
+        },
+        createPrePublicationCompositionDependencies({ cwd: root, exec }),
+      );
+    },
     persistBoundary: async (root, settled) => {
-      const existing = await readSubmissionBoundary(root, settled.workUnit);
+      const snapshot = boundarySnapshots.get(settled.workUnit)
+        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit);
+      const existing = snapshot.boundary;
       const preservesReservation = existing !== null
         && existing.candidateId === settled.candidateId
         && existing.candidateSubjectDigest === settled.candidateSubjectDigest
@@ -1671,8 +1703,8 @@ function defaultPrePublicationDependencies(): ReviewPrePublicationHandlerDepende
         && settled.reservation === null;
       const path = await writeSubmissionBoundary(root, preservesReservation
         ? { ...settled, reservation: existing.reservation }
-        : settled);
-      await gitExec("git", ["add", "--", path], { cwd: root });
+        : settled, snapshot.version);
+      await exec("git", ["add", "--", path], { cwd: root });
     },
     write: (text) => {
       boundary.write(text);
@@ -1706,8 +1738,9 @@ export async function handleReviewPrePublication(
   name: string,
   options: ReviewPrePublicationOptions,
   overrides: Partial<ReviewPrePublicationHandlerDependencies> = {},
+  interaction?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultPrePublicationDependencies(), ...overrides };
+  const dependencies = { ...defaultPrePublicationDependencies(interaction), ...overrides };
   const target = SlugSchema.safeParse(name.trim());
   const remedyFor = (code: ReviewPrePublicationRefusalCode): SpineRemedy => target.success
     ? prePublicationRemedy(code, target.data)

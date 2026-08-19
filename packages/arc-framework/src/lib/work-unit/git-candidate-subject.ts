@@ -25,6 +25,8 @@ export interface CollectGitCandidateTargetInput {
   name: string;
   baseBranch: string;
   exec: GitExec;
+  /** An exact committed target to collect instead of the current index. */
+  revision?: string;
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
   readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
 }
@@ -125,7 +127,7 @@ export async function collectUnstagedReviewablePaths(
     .sort(compareUtf8);
 }
 
-/** Collect the staged work-unit subject relative to its configured base. */
+/** Collect the staged work-unit subject, or one exact committed subject, relative to its configured base. */
 export async function collectGitCandidateTarget(
   input: CollectGitCandidateTargetInput,
 ): Promise<CandidateLineageTarget> {
@@ -133,13 +135,16 @@ export async function collectGitCandidateTarget(
   const baseBranch = input.baseBranch.trim();
   if (baseBranch === "") throw new Error("Candidate subject collection requires a configured base branch");
   const options = { cwd: input.cwd, objectAccess: "local-only" as const };
-  const head = (await input.exec("git", ["rev-parse", "HEAD"], options)).stdout.trim();
+  const head = input.revision
+    ?? (await input.exec("git", ["rev-parse", "HEAD"], options)).stdout.trim();
   if (!isGitObjectId(head)) throw new Error("Cannot resolve the Candidate head revision");
-  const base = (await input.exec("git", ["merge-base", "HEAD", baseBranch], options)).stdout.trim();
+  const base = (await input.exec("git", ["merge-base", head, baseBranch], options)).stdout.trim();
   if (!isGitObjectId(base)) throw new Error("Cannot resolve the Candidate base revision");
   const changed = (await input.exec(
     "git",
-    ["diff", "--cached", "--name-only", "-z", base, "--"],
+    input.revision === undefined
+      ? ["diff", "--cached", "--name-only", "-z", base, "--"]
+      : ["diff", "--name-only", "-z", base, head, "--"],
     options,
   )).stdout.split("\0").filter((path) => path !== "");
   const paths = [...new Set(changed)].sort(compareUtf8);
@@ -162,7 +167,7 @@ export async function collectGitCandidateTarget(
   }>();
   const absentPaths = new Set<string>();
   for (const path of paths) {
-    const entry = await readEntry(input.cwd, null, path);
+    const entry = await readEntry(input.cwd, input.revision ?? null, path);
     const digest = entry === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(entry.bytes);
     const mode = entry?.mode ?? "absent";
     const classification = classifyCandidateSubjectPath(name, path, projectionPaths);

@@ -217,7 +217,6 @@ export async function runPublish(
   } = params;
   let branch: string | null;
   let taskList: string | null;
-  let currentWorkflow: string | null;
   let lifecycle: "Active" | "Integrating";
   const slug = SlugSchema.safeParse(name);
   if (!slug.success) {
@@ -251,7 +250,6 @@ export async function runPublish(
     }
     branch = meta.branch;
     taskList = meta.taskList;
-    currentWorkflow = meta.currentWorkflow;
     lifecycle = meta.state;
   } catch {
     return {
@@ -283,9 +281,6 @@ export async function runPublish(
         remedy: PRE_PUBLICATION_REMEDY(name),
       };
     }
-    if (currentWorkflow === "integrate-work-unit") {
-      return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
-    }
     const resolvedLastCompleted = lastCompleted ?? await readLastCompletedWork(ctx, metaPath, taskList);
     if (resolvedLastCompleted === null) {
       return {
@@ -304,7 +299,10 @@ export async function runPublish(
         },
       },
     });
-    if (resumed !== null && resumed.status !== "ok") {
+    if (resumed === null) {
+      return { status: "rejected", reason: "Publication finalization could not be resumed.", remedy: PUBLISH_RESUME_REMEDY(name) };
+    }
+    if (resumed.status !== "ok") {
       return { status: "rejected", reason: resumed.message, remedy: PUBLISH_RESUME_REMEDY(name) };
     }
     return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
@@ -330,9 +328,6 @@ export async function runPublish(
       reservation: authorization.reservation,
       changeRequest: null,
     });
-    if (currentWorkflow === "integrate-work-unit") {
-      return { status: "unchanged", boundary: publicationBoundary };
-    }
     const resolvedLastCompleted = lastCompleted ?? await readLastCompletedWork(ctx, metaPath, taskList);
     if (resolvedLastCompleted === null) {
       return {
@@ -351,7 +346,10 @@ export async function runPublish(
         },
       },
     });
-    if (resumed !== null && resumed.status !== "ok") {
+    if (resumed === null) {
+      return { status: "rejected", reason: "Publication finalization could not be resumed.", remedy: PUBLISH_RESUME_REMEDY(name) };
+    }
+    if (resumed.status !== "ok") {
       return { status: "rejected", reason: resumed.message, remedy: PUBLISH_RESUME_REMEDY(name) };
     }
     return { status: "unchanged", boundary: publicationBoundary };

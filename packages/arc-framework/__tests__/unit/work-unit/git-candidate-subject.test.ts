@@ -38,6 +38,37 @@ async function collect(paths: readonly string[], contents: Readonly<Record<strin
 }
 
 describe("Candidate subject classification", () => {
+  it("collects an exact committed subject without reading the current index", async () => {
+    const revision = "c".repeat(40);
+    const calls: string[][] = [];
+    const refs: Array<string | null> = [];
+    const exec: GitExec = async (_cmd, args) => {
+      calls.push([...args]);
+      if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
+      if (args[0] === "diff") return { stdout: "reviewed.txt\0" };
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    const target = await collectGitCandidateTarget({
+      cwd: "/repo",
+      name: "example",
+      baseBranch: "main",
+      revision,
+      exec,
+      readBlob: async (_cwd, ref) => {
+        refs.push(ref);
+        return new TextEncoder().encode("reviewed content");
+      },
+    });
+
+    expect(target.revision).toBe(revision);
+    expect(calls).toEqual([
+      ["merge-base", revision, "main"],
+      ["diff", "--name-only", "-z", BASE, revision, "--"],
+    ]);
+    expect(refs).toEqual([revision]);
+  });
+
   it("separates reviewable content from the lifecycle writes that accompany it", async () => {
     const staged = [
       "packages/arc-framework/src/example.ts",

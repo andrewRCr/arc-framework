@@ -334,6 +334,7 @@ function createStandardReviewReservation(
   return buildStandardReviewReservation({
     candidateId: fields.candidateId,
     sourceId: fields.sourceId,
+    sources: request.standard.sources,
     repository: fields.target.repository,
     headSha: fields.target.headSha,
     obligation: fields.obligation,
