@@ -2,6 +2,11 @@
 
 **Design:** `spec-integration-boundary-accuracy.md`
 
+> **Forward amendment (2026-08-19):** The Delivery Decision, Stack-Member Seed, and older resume sections below are
+> historical planning provenance. The implemented delivery is one work unit and one pull request with thirteen
+> review chunks; Phase 14 is complete. `tasks-integration-boundary-accuracy.md` is the current delivery/completion
+> record, and `meta-integration-boundary-accuracy.md` is the live resume authority at `prepare-work-unit`.
+
 ## Delivery Decision
 
 This work unit delivers as a **stack**: one concern, one spec, dependency-ordered members each independently

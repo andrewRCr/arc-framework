@@ -52,8 +52,8 @@ code systematically underperforms on error cases and edge conditions.
 
 **Process findings** using the [review-triage method](review-triage.md): verify them against source, propose severity
 and disposition for the complete set, and obtain approval before applying fixes. Run Tier 3 quality gates on modified
-files. Commit fixes using the context footer appropriate to the invoking workflow (e.g., `(prepublication)` when
-called from prepare-work-unit.md).
+files. Commit finding-driven fixes with the canonical `(code review)` context footer; reserve lifecycle-phase
+footers for ceremony commits rather than the fixes review produced.
 
 For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
 preflight as independent evidence.

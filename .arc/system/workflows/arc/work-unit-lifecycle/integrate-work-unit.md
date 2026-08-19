@@ -346,7 +346,8 @@ arc wu reconcile {name} --apply --json
 `pending` surfaces every advisory reference immediately and requires direction to retain them or a correction and
 rerun. `conflict` stops on its typed reason.
 
-`clean` proceeds without a commit. On `applied`, run Tier 1 quality gates over the staged correction, then commit:
+`clean` restarts this step without a commit. On `applied`, run Tier 1 quality gates over the staged correction,
+then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -354,7 +355,7 @@ rerun. `conflict` stops on its typed reason.
 ```text
 chore(arc): reconcile {name} before integration
 
-Context: meta-{name}.md (integration reconcile)
+Context: meta-{name}.md (integration)
 ```
 
 Repeat the Step 1 push extension contract.

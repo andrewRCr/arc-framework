@@ -441,6 +441,11 @@
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
 
+- _Forward amendment (2026-08-19):_ The transition descriptions below are historical input, not the current
+  boundary contract. `arc attest` runs after verification and establishes the private Candidate/prepublication
+  locus; `arc publish` ends private preparation and starts public integration before the first push and change
+  request. Keep Candidate on the attested artifact/projection axis when integrating this item.
+
 - _Observation:_ the core reform names planning-completion as an attested artifact-axis signal that `State`
   flattens into the scheduling axis, with the missing primitive being its projection to an observable field
   (`Ready`). The identical shape exists at the other end of the lifecycle and is not captured. Verification

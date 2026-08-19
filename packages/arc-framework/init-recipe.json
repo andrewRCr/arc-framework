@@ -18,6 +18,7 @@
     "reference/templates/arc/merge-gate/README.md",
     "reference/templates/arc/merge-gate/CODEOWNERS",
     "reference/templates/arc/work-unit/template-draft.md",
+    "reference/templates/arc/work-unit/template-pull-request.md",
     "reference/templates/arc/work-unit/template-tasks.md",
     "reference/templates/arc/work-unit/spec/template-spec-brief.md",
     "reference/templates/arc/work-unit/spec/template-spec-outline.md",

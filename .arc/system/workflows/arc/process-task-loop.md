@@ -125,7 +125,7 @@ arc:
        - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
          Under `Commit and proceed`, the affirmative covers both halves; `y; <redirect>` keeps
          the commit and replaces only the advancement target (handoff, deferred range, and
-         integrate are all valid retargets). A redirect that questions just-finished work
+         prepare-work-unit are all valid retargets). A redirect that questions just-finished work
          (`y; hold the commit`, `y; revisit X first`) breaks the bundle — pause and ask.
        - **Implied permission:** User approval ("looks good", "proceed") implies permission to
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns

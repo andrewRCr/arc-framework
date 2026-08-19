@@ -130,7 +130,7 @@ chore(arc): publish {name}
 
 - Flip State: Active → Integrating
 
-Context: meta-{name}.md (integration)
+Context: meta-{name}.md (prepublication)
 ```
 
 After the transition commit, load [`integrate-work-unit.md`](integrate-work-unit.md). Its Step 1 owns the first

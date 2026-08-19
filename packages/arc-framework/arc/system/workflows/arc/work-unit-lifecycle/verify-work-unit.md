@@ -11,8 +11,8 @@ arc:
 
 Every task list ends with a verification phase containing a single task that points here.
 The task description is intentionally thin — this workflow is the authoritative protocol.
-Complete all three steps below, then mark the single verification task `[x]` with completion
-notes covering what was verified (see [Completion Notes](#completion-notes)).
+Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
+was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
 
 **Relationship to preparation and integration:** This is the implementer's validation pass and the final execution
 task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] for private review and convergence;
