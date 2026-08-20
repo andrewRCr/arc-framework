@@ -75,14 +75,24 @@ exists.
 
 ## Design spine
 
-1. **First-class top member.** Eliminate the retained control branch and the separate terminal request. Every
-   code-bearing member joins the provider stack; the top stack PR is the ordinary terminal work-unit integration
-   vehicle. Repository-materialized completion and archive contribution append to the top member. The owning WU's
-   locus decouples from any single orthogonal control branch — either the top member satisfies that role or the WU
-   owns several first-class authoring branches without minting per-branch work units or session identities.
+1. **First-class top member — the originating WU branch.** Eliminate the retained control branch and the separate
+   terminal request. A WU begins ordinary — one branch, one worktree, artifacts in place — and adopts stacking as a
+   transition: members are cut below the originating branch, which retargets onto the highest member and remains
+   both the WU's branch and the stack's top. "Top" is never a moving designation (new members are always carved
+   from beneath it), the WU locus is untouched — sessions resume as today, and non-stacked WUs are unaffected —
+   and the top member's PR is the ordinary terminal work-unit integration vehicle: repository-materialized
+   completion and archive contribution append where they already do, and the terminal ceremony is the ordinary
+   `arc integrate checkpoint` → interlock → `arc integrate merge` flow. One locus addition only: a checkout of a
+   member branch resolves its owning WU through the delivery state's existing reverse-lookup contract — a narrow
+   fallback in the locus read, never a new roster authority. Lifecycle artifacts riding the top branch is a
+   tracked-tier detail, not a load-bearing contract (`strategy-storage-evolution.md` keeps WU identity decoupled
+   from branch identity; the materialized tiers carry no artifacts on any branch).
 2. **Bottom-up, non-blocking landing.** A member lands when it independently satisfies review and checks; ARC keeps
    its per-member review admission and interlock authority but drops whole-stack serialization. The protected base is
-   never frozen for a delivery.
+   never frozen for a delivery. Lifecycle mapping follows the shipped boundary unchanged: whole-WU attestation
+   (`arc attest`, over the top branch's union tree) precedes the first landing; `arc publish` fires at the
+   publication-step head, where the push arm becomes push-members / register-stack / open-PRs bottom-up;
+   `Integrating` spans the landing window; the top member's merge is the terminal instant.
 3. **Provider-delegated reconciliation.** ARC detects append-only target drift and emits the exact planned suffix
    plus safety and review-invalidation consequences; the stack provider or operator refreshes branches and requests;
    ARC reobserves the complete chain and adopts only when the projection exactly matches the plan. Interruption
@@ -214,22 +224,14 @@ if still wanted then, gets a fresh design against the v2 substrate rather than t
 
 ## Open design questions
 
-- The multi-branch WU locus model: how one work unit owns several first-class authoring branches without per-branch
-  session identities, and whether the top member fully absorbs the control role or a thinner retained identity is
-  needed for attachment and closeout.
-- Where repository-materialized completion and archive contribution append on the top member, and how the
-  `with-integration` archival order changes so nothing the terminal merge needs is removed early.
 - Refresh protocol depth: a minimal pre-landing refresh/adoption arm versus a fully resumable any-boundary protocol
   (compare during design; the capture's field evidence suggests base movement is routine, arguing for the latter).
 - The exact structural-equivalence comparator (reapply-and-compare-trees vs. stable patch identity) and the shape of
   mechanical carry-forward evidence in reports.
 - Whether registration should use the raw Stacks API only, given `gh stack link` porcelain performs mutations beyond
   the presentation-only carve-out.
-- Lifecycle mapping onto the shipped publication boundary: when `arc publish` fires (`Active → Integrating` at the
-  publication-step head, before the push) relative to the first member's push; what `Integrating` spans across a
-  multi-member landing window; how a carried hosted-review reservation reads per member; and whether whole-WU
-  attestation (`arc attest`) still strictly precedes the first landing, as v1 practiced. Couples to the
-  multi-branch locus question above.
+- How a carried hosted-review reservation (`arc publish`'s deferred hosted-first standard obligation) reads across
+  several member pull requests — per member, top-only, or delivery-scoped.
 
 ---
 
