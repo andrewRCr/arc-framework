@@ -2582,13 +2582,14 @@ export async function handleAttest(
             reservation: existingBoundary.reservation,
           })
         : null;
-      const locus = publication.repairCurrent && boundaryMatches
-        ? existingBoundary
-        : convergenceResume ?? projectCandidateReviewBoundary({
+      const locus = convergenceResume
+        ?? (publication.repairCurrent && boundaryMatches
+          ? existingBoundary
+          : projectCandidateReviewBoundary({
             workUnit: publication.name,
             candidateId: publication.candidateId,
             candidateSubjectDigest: publication.candidateSubjectDigest,
-          });
+          }));
       const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
       const orientation: Record<string, string> = {};
       if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
