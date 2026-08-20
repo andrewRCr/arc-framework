@@ -95,7 +95,7 @@ describe("CodeRabbit hosted adapter", () => {
     const findings = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
         state: "changes-requested",
-        body: "**Actionable comments posted: 1**",
+        body: "Review complete.",
       })]),
       readThreads: () => Promise.resolve([findingThread("_🟠 Major_ broken boundary")]),
     }));
@@ -117,6 +117,30 @@ describe("CodeRabbit hosted adapter", () => {
     });
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appOwnerId).toBe("132028505");
+  });
+
+  it.each([
+    ["empty-body", ""],
+    ["prose-only", "Review complete. No actionable comments."],
+  ])("accepts %s approved reviews when structured findings are empty", async (_name, body) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ body })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it.each(["-1", "1.5"])("rejects a present malformed actionable count of %s", async (count) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: ${count}**`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "malformed-provider-actionable-count",
+    });
   });
 
   it.each([
@@ -172,9 +196,7 @@ describe("CodeRabbit hosted adapter", () => {
   it("returns review-body nitpicks as triage-only findings", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
-        body: `**Actionable comments posted: 0**
-
-<details>
+        body: `<details>
 <summary>🧹 Nitpick comments (1)</summary><blockquote>
 
 <details>
