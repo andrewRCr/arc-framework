@@ -147,7 +147,12 @@ exists.
    the whole-WU closeout pass narrows to cross-member seams and union coherence. MVP as procedure over existing
    structures — no new record family, no typed verification store; the instrument upgrades (falsification
    obligation, criteria-authoring constraints, the reachability lint) stay with their own captures and refine
-   this seam without reshaping it.
+   this seam without reshaping it. Criteria slices are task-list structure with one authority: the Success
+   Criteria section groups by member plus one cross-member seam group, each member's boundary task walks its
+   group, and the closeout pass walks the seams — assignment follows "the earliest boundary whose validator can
+   see the evidence," with criteria no member boundary can see defaulting to the seam group. The delivery plan's
+   coverage table keeps binding tasks and design elements only; it never carries criterion content, so no second
+   authority arises.
 8. **Hosted-review reservation fans out per member.** A hosted-first standard reservation carried across
    `arc publish` resumes per member through the delivery-member vehicle: each member pull request receives the
    reserved hosted source's review at its exact head, and the WU obligation discharges as the conjunction of
@@ -303,8 +308,6 @@ if still wanted then, gets a fresh design against the v2 substrate rather than t
 
 - Whether registration should use the raw Stacks API only, given `gh stack link` porcelain performs mutations beyond
   the presentation-only carve-out.
-- Where member criteria slices live and how they render — the delivery plan's member-coverage table, the task
-  list's boundary tasks, or both with one authority.
 
 ---
 
