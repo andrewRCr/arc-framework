@@ -87,12 +87,16 @@ exists.
    fallback in the locus read, never a new roster authority. Lifecycle artifacts riding the top branch is a
    tracked-tier detail, not a load-bearing contract (`strategy-storage-evolution.md` keeps WU identity decoupled
    from branch identity; the materialized tiers carry no artifacts on any branch).
-2. **Bottom-up, non-blocking landing.** A member lands when it independently satisfies review and checks; ARC keeps
-   its per-member review admission and interlock authority but drops whole-stack serialization. The protected base is
-   never frozen for a delivery. Lifecycle mapping follows the shipped boundary unchanged: whole-WU attestation
-   (`arc attest`, over the top branch's union tree) precedes the first landing; `arc publish` fires at the
-   publication-step head, where the push arm becomes push-members / register-stack / open-PRs bottom-up;
-   `Integrating` spans the landing window; the top member's merge is the terminal instant.
+2. **Bottom-up, non-blocking landing — windowed, gated incrementally.** A member lands when it independently
+   satisfies review and checks; ARC keeps its per-member review admission and interlock authority but drops
+   whole-stack serialization. The protected base is never frozen for a delivery. Landing is **windowed**: members
+   gate incrementally during execution (member-boundary verification, point 7) while merges run in one
+   post-publish window, bottom-up — the considered land-as-you-go alternative and the evidence trigger that would
+   reopen that fork are recorded in this WU's ADR (see § Posture record). Lifecycle mapping follows the shipped
+   boundary unchanged: whole-WU attestation (`arc attest`, over the top branch's union tree, composing the
+   member-boundary evidence and the seam pass) precedes `arc publish` at the publication-step head, where the
+   push arm becomes push-members / register-stack / open-PRs bottom-up; `Integrating` spans the landing window;
+   the top member's merge is the terminal instant.
 3. **Provider-delegated reconciliation.** ARC detects append-only target drift and emits the exact planned suffix
    plus safety and review-invalidation consequences; the stack provider or operator refreshes branches and requests;
    ARC reobserves the complete chain and adopts only when the projection exactly matches the plan. Interruption
@@ -117,6 +121,17 @@ exists.
 6. **Bookkeeping posture.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
    from plan, Git, and host authorities at each operation. The cohort's no-second-ledger non-goals carry forward
    unchanged; this member adds no durable record family.
+7. **Member-boundary verification (pulled forward — ship whole).** If a target's breadth already forced a review
+   and delivery split, one whole-target verification pass is compromised for the same reason — field evidence:
+   `integration-boundary-accuracy`'s four verify → adversarial-gap → remediate cycles, each opened by a clean
+   primary self-verify. With task order following member order, the working tree at member k's completion
+   boundary _is_ member k's cumulative tree, so no early branch materialization is needed: the task plan gains a
+   closing verification task per member (criteria slice + bounded member diff + reachability over the cumulative
+   tree, reusing the whole-WU verification walk at member scope), evidence lands as ordinary task completion, and
+   the whole-WU closeout pass narrows to cross-member seams and union coherence. MVP as procedure over existing
+   structures — no new record family, no typed verification store; the instrument upgrades (falsification
+   obligation, criteria-authoring constraints, the reachability lint) stay with their own captures and refine
+   this seam without reshaping it.
 
 ## Ceremony budget — pre-commitment
 
@@ -185,6 +200,28 @@ posture.
 - Frontline review of delivery members (`stale-target` recomposition refusal) is owned by an independent errand
   capture — coordinate, do not duplicate; that fix should land before this WU dogfoods its own delivery.
 
+## Posture record and scope pulls (2026-08-20)
+
+- **ADR — a WU deliverable.** The delivery-and-review posture is canonical, not WU-local: agentic review is the
+  primary review lane, with human review complementing it — as a separate lane where teams run one, or as
+  triage/authority over agent-review dispositions — and landing is windowed: incremental gating during execution,
+  merges deferred to the post-publish window. Record the considered land-as-you-go alternative (the industry norm)
+  and the named reasons for the narrow divergence: amendment freedom until the window (a landed member refuses
+  re-description, converting routine plan amendment into public fix-forward), agent-reviewer latency in minutes
+  removing the pipelining payoff that motivates early landing, restack-triggered re-review churn across open
+  member PRs, and the native stack machinery's current maturity (no auto-merge for stacked PRs, async merge with
+  a residual race). Record the reopening trigger: field use showing late-batched hosted review producing rework
+  that boundary-time landing would have prevented. One ADR or two (posture / landing decision) resolves against
+  `strategy-adr-methodology.md` at authoring.
+- **Strategy touch — a WU deliverable.** Fold the posture into the appropriate adopter-facing strategy; resolve
+  the exact home at spec time with the `init-recipe.json` both-directions check (standing WORKING-MEMORY
+  constraint) before placing content.
+- **Per-deliverable verification ownership** moves here (retargeted from `delivery-review-cardinality` at the
+  2026-08-20 housekeep drain): the member-boundary verification substrate is load-bearing for this topology and
+  ships with it. The falsification-obligation and criteria-authoring instrument upgrades stay with their own
+  captures, and the reachability lint rides its own errand capture — each refines the member boundary without
+  reshaping it.
+
 ## Explicit non-goals
 
 - No ARC-native rebase, restack, conflict-resolution, temporary-base, or provider submission machinery.
@@ -204,7 +241,8 @@ posture.
   minting parallel reads — `arc review change-request resolve` (member PR resolution / reverse lookup),
   `arc review status`, `arc base merge`, `arc review merge-method resolve`, and the provider-neutral bounded wait
   for any stack-merge-API await (its natural third instantiation).
-- `delivery-review-cardinality` — unchanged; still demand-held on its own activation threshold.
+- `delivery-review-cardinality` — narrowed 2026-08-20: retains its review-request-cardinality charter; the
+  per-deliverable verification concern retargeted to this WU (see § Posture record and scope pulls).
 - `review-source-authority` — owns the hosted-lane record-family census; this member adds no new records for that
   census to inherit.
 - `decomposition-doctrine` / the `assess-boundary-fit` chassis — unchanged; delivery still owns the checkpoint
@@ -232,6 +270,8 @@ if still wanted then, gets a fresh design against the v2 substrate rather than t
   the presentation-only carve-out.
 - How a carried hosted-review reservation (`arc publish`'s deferred hosted-first standard obligation) reads across
   several member pull requests — per member, top-only, or delivery-scoped.
+- Where member criteria slices live and how they render — the delivery plan's member-coverage table, the task
+  list's boundary tasks, or both with one authority.
 
 ---
 
