@@ -2,7 +2,12 @@
 
 import { z } from "zod";
 
+import { canonicalize } from "../../../lib/kernel/index.js";
+import { StandardReviewObligationProjectionSchema } from
+  "../policy/standard-review-projection-schema.js";
+
 const GitHubObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
+const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 
 export const HostedProviderIdSchema = z.enum(["coderabbit-pr", "codex-pr"]);
 export type HostedProviderId = z.infer<typeof HostedProviderIdSchema>;
@@ -25,6 +30,22 @@ export const HostedArtifactSchema = z.strictObject({
 });
 export type HostedArtifact = z.infer<typeof HostedArtifactSchema>;
 
+export const HostedErrandRequestVehicleSchema = z.strictObject({
+  kind: z.literal("errand"),
+  standardReview: StandardReviewObligationProjectionSchema,
+});
+export type HostedErrandRequestVehicle = z.infer<typeof HostedErrandRequestVehicleSchema>;
+
+export const HostedErrandProgressBindingSchema = z.strictObject({
+  kind: z.literal("errand"),
+  key: z.string().trim().min(1),
+  claimId: z.string().trim().min(1),
+  branch: z.string().trim().min(1),
+  sources: z.array(ReviewSourceIdSchema).min(1).readonly(),
+  standardReview: StandardReviewObligationProjectionSchema,
+});
+export type HostedErrandProgressBinding = z.infer<typeof HostedErrandProgressBindingSchema>;
+
 export const HostedRequestHandleSchema = z.strictObject({
   schemaVersion: z.literal(1),
   provider: HostedProviderIdSchema,
@@ -32,6 +53,7 @@ export const HostedRequestHandleSchema = z.strictObject({
   effectiveCoverage: HostedReviewCoverageSchema,
   target: HostedTargetSchema,
   artifact: HostedArtifactSchema,
+  vehicle: HostedErrandProgressBindingSchema.optional(),
 }).refine(
   (handle) => handle.requestedCoverage !== "complete" || handle.effectiveCoverage === "complete",
   {
@@ -46,6 +68,7 @@ export const HostedRequestEnvelopeSchema = z.strictObject({
   target: HostedTargetSchema,
   provider: HostedProviderIdSchema,
   coverage: HostedReviewCoverageSchema,
+  vehicle: HostedErrandRequestVehicleSchema.optional(),
 });
 export type HostedRequestEnvelope = z.infer<typeof HostedRequestEnvelopeSchema>;
 
@@ -113,9 +136,19 @@ export type HostedRequestResult = z.infer<typeof HostedRequestResultSchema>;
 /** Request one hosted review without introducing local operation state. */
 export async function requestHostedReview(
   input: unknown,
-  dependencies: { adapters: readonly HostedReviewAdapter[] },
+  dependencies: {
+    adapters: readonly HostedReviewAdapter[];
+    errandBinding?: HostedErrandProgressBinding;
+  },
 ): Promise<HostedRequestResult> {
   const request = HostedRequestEnvelopeSchema.parse(input);
+  const errandBinding = request.vehicle === undefined
+    ? undefined
+    : HostedErrandProgressBindingSchema.parse(dependencies.errandBinding);
+  if (request.vehicle !== undefined
+    && canonicalize(request.vehicle.standardReview) !== canonicalize(errandBinding?.standardReview)) {
+    throw new Error("Hosted Errand progress binding does not match the requested standard-review obligation.");
+  }
   const attemptedProviders = [request.provider];
   const resultBase = {
     schemaVersion: 1 as const,
@@ -146,6 +179,7 @@ export async function requestHostedReview(
         effectiveCoverage: outcome.effectiveCoverage,
         target: request.target,
         artifact: outcome.artifact,
+        ...(errandBinding === undefined ? {} : { vehicle: errandBinding }),
       }),
     };
   }

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
+  assertHostedErrandAdmission,
   assertHostedReservationAdmission,
   firstAdmissibleHostedSource,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
@@ -30,6 +31,14 @@ const CURRENT_HEAD = "e".repeat(40);
 const binding = {
   boundary: { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST },
   candidate: { candidateId: CANDIDATE_ID, subjectDigest: SUBJECT_DIGEST, headSha: CURRENT_HEAD },
+};
+const errandBinding = {
+  kind: "errand" as const,
+  key: "review-errand",
+  claimId: "claim-1",
+  branch: "chore/review-errand",
+  sources: ["coderabbit-pr", "codex-pr"],
+  standardReview: reservation.obligation,
 };
 
 describe("hosted reservation admission", () => {
@@ -90,5 +99,31 @@ describe("hosted reservation admission", () => {
       { sourceId: "coderabbit-pr", outcome: "rate-limited" },
       { sourceId: "coderabbit-pr", outcome: "terminal-failure" },
     ])).toBe("coderabbit-pr");
+  });
+
+  it("admits hosted progress from the exact active Errand without Candidate state", () => {
+    expect(() => assertHostedErrandAdmission({
+      binding: errandBinding,
+      current: {
+        key: "review-errand",
+        claimId: "claim-1",
+        branch: "chore/review-errand",
+      },
+      provider: "coderabbit-pr",
+      attempts: [],
+    })).not.toThrow();
+  });
+
+  it("preserves ordered fallback for Errand-hosted progress", () => {
+    expect(() => assertHostedErrandAdmission({
+      binding: errandBinding,
+      current: {
+        key: "review-errand",
+        claimId: "claim-1",
+        branch: "chore/review-errand",
+      },
+      provider: "codex-pr",
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "transient-unavailable" }],
+    })).not.toThrow();
   });
 });

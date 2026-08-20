@@ -25,6 +25,8 @@ import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { canonicalize } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import { resolveUserIdentity } from "./shared.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
@@ -126,7 +128,10 @@ import {
   HostedRequestEnvelopeSchema,
   HostedRequestResultSchema,
   requestHostedReview,
+  HostedErrandProgressBindingSchema,
   type HostedReviewAdapter,
+  type HostedErrandProgressBinding,
+  type HostedErrandRequestVehicle,
   type HostedProviderId,
   type HostedTarget,
 } from "../scripts/review-gate/hosted/request.js";
@@ -143,7 +148,7 @@ import {
   recordHostedRequestUnavailableAttempt,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
-import { assertHostedReservationAdmission } from
+import { assertHostedErrandAdmission, assertHostedReservationAdmission } from
   "../scripts/review-gate/policy/hosted-reservation-admission.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
@@ -161,6 +166,7 @@ import {
 } from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
+import { resolveActiveHostedReviewErrand } from "../scripts/review-gate/hosted/errand-authority.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
   FrontlineRunRequestSchema,
@@ -1261,29 +1267,15 @@ function createHostedAdapters(): {
   return { adapters, observers: adapters, port };
 }
 
-async function resolveHostedReservationContext(input: {
+type HostedProgressVehicle = HostedErrandRequestVehicle | HostedErrandProgressBinding;
+
+async function resolveHostedProgressContext(input: {
   root: string;
   publisher: RepositoryGitCommonStatePublisher;
-  port: HostedSettlementPort;
   target: HostedTarget;
   provider: HostedProviderId;
+  vehicle?: HostedProgressVehicle;
 }) {
-  const active = await resolveActiveWu({ cwd: input.root });
-  if (active.status !== "resolved" || active.name === "") {
-    throw new Error("Hosted review progress requires one active work unit.");
-  }
-  const boundary = (await readSubmissionBoundaryVersioned(input.root, active.name)).boundary;
-  if (boundary?.reservation === null || boundary?.reservation === undefined) {
-    throw new Error("Hosted review progress requires the carried standard-review reservation.");
-  }
-  const reservation = boundary.reservation;
-  const candidate = await createPrePublicationCompositionDependencies({
-    cwd: input.root,
-    exec: gitExec,
-  }).readCandidate(active.name);
-  if (candidate.status !== "current") {
-    throw new Error("Hosted review reservation requires a current Candidate.");
-  }
   const settings = (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
@@ -1324,6 +1316,63 @@ async function resolveHostedReservationContext(input: {
         && attempt.hosted.target.headSha === input.target.headSha
       ))
     : [];
+  if (input.vehicle !== undefined) {
+    const identity = await resolveUserIdentity(gitExec);
+    const frame = await runDerivedLocusStateProbe({
+      cwd: input.root,
+      identity,
+      baseBranch: baseRef,
+      exec: gitExec,
+    });
+    const current = resolveActiveHostedReviewErrand(frame, branch);
+    const errandBinding = "key" in input.vehicle
+      ? HostedErrandProgressBindingSchema.parse(input.vehicle)
+      : HostedErrandProgressBindingSchema.parse({
+          kind: "errand",
+          ...current,
+          sources: (await resolveConfiguredLanePolicy({
+            lane: "standard",
+            settings,
+            preferences: createLocalFrontlineSourcePreferenceReader({
+              cwd: input.root,
+              exec: gitExec,
+              readFile: (path) => readFile(path, "utf8"),
+            }),
+          })).sources,
+          standardReview: input.vehicle.standardReview,
+        });
+    assertHostedErrandAdmission({
+      binding: errandBinding,
+      current,
+      provider: input.provider,
+      attempts,
+    });
+    const requirement = createReviewRequirement({
+      target: reviewTarget,
+      projection: errandBinding.standardReview,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: input.provider }],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("Hosted Errand progress does not carry an obligation.");
+    return { store, repositoryId, reviewTarget, requirement, errandBinding };
+  }
+
+  const active = await resolveActiveWu({ cwd: input.root });
+  if (active.status !== "resolved" || active.name === "") {
+    throw new Error("Hosted review progress requires one active work unit or an explicit Errand vehicle.");
+  }
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, active.name)).boundary;
+  if (boundary?.reservation === null || boundary?.reservation === undefined) {
+    throw new Error("Hosted review progress requires the carried standard-review reservation.");
+  }
+  const reservation = boundary.reservation;
+  const candidate = await createPrePublicationCompositionDependencies({
+    cwd: input.root,
+    exec: gitExec,
+  }).readCandidate(active.name);
+  if (candidate.status !== "current") {
+    throw new Error("Hosted review reservation requires a current Candidate.");
+  }
   assertHostedReservationAdmission({
     reservation,
     provider: input.provider,
@@ -1347,7 +1396,7 @@ async function resolveHostedReservationContext(input: {
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
-  return { store, repositoryId, reviewTarget, requirement };
+  return { store, repositoryId, reviewTarget, requirement, errandBinding: null };
 }
 
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
@@ -1752,14 +1801,17 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
     request: async (input) => {
       if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedRequestEnvelopeSchema.parse(input);
-      const context = await resolveHostedReservationContext({
+      const context = await resolveHostedProgressContext({
         root,
         publisher,
-        port,
         target: request.target,
         provider: request.provider,
+        ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
       });
-      const result = await requestHostedReview(request, { adapters });
+      const result = await requestHostedReview(request, {
+        adapters,
+        ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
+      });
       if (result.nextAction === "try-next-source") {
         await recordHostedRequestUnavailableAttempt(context.store, {
           repositoryId: context.repositoryId,
@@ -1811,12 +1863,12 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
     awaitResult: async (input) => {
       if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedAwaitEnvelopeSchema.parse(input);
-      const context = await resolveHostedReservationContext({
+      const context = await resolveHostedProgressContext({
         root,
         publisher,
-        port,
         target: request.handle.target,
         provider: request.handle.provider,
+        ...(request.handle.vehicle === undefined ? {} : { vehicle: request.handle.vehicle }),
       });
       const result = await awaitHostedReview(request, {
         observers,
