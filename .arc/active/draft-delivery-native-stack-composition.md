@@ -134,6 +134,13 @@ exists.
    allowances while the platform holds intermediate members to merge commits (only the top member is free); the
    disclosed host-evidence residuals (branch-scoped rules unread, absent-vs-unconfigured required checks) are
    external couplings, not this WU's scope. Native linkage stays provider-observed, never canonical plan authority.
+   Registration is raw Stacks API only (settled 2026-08-20, research-grounded): the API's chained-or-`422`
+   precondition is ARC's own fail-closed refusal expressed host-side, while the `gh stack link` porcelain pushes
+   branch arguments, creates missing PRs, and auto-corrects mismatched PR bases — silent repair of exactly the
+   topology mismatch ARC must surface — and its error layer masks API rejection reasons. The shipped adapter
+   already conforms (`gh api repos/{repo}/stacks`). The porcelain and the host UI remain legitimate operator-side
+   refresh instruments; ARC adopts their results through reobservation and structural equivalence, never as
+   registration or authority.
 6. **Bookkeeping posture.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
    from plan, Git, and host authorities at each operation. The cohort's no-second-ledger non-goals carry forward
    unchanged; this member adds no durable record family.
@@ -217,6 +224,10 @@ posture.
   with the merge-tree arbiter; keep the tree-equality fast path and endpoint pinning. `git merge-tree
   --write-tree` sets a Git ≥ 2.38 floor for the delivery feature — disclose and refuse below it, never degrade.
   Distinct from the plan-semantics fingerprinting in `fingerprint.ts` — the two concepts must not conflate.
+- Stacks API preview churn: the feature is a 2026-07-30 public preview — re-verify endpoint and precondition
+  behavior at implementation time; empirically confirm a successful registration writes no PR timeline events
+  (provider-observed purity is load-bearing and only documented by inference); Stacks-API OAuth-scope
+  requirements are undocumented — establish them at implementation.
 - Terminal attachment: the archival-refusal defect is fixed (PR #511, 2026-08-20 — attachment binds an explicit
   lifecycle-complete work-unit identity, with a typed no-op for ordinary delivery). The remaining seam is the
   amendment's own: retire the attach machinery together with the disconnected terminal request it serves, rather
@@ -255,8 +266,10 @@ posture.
   removing the pipelining payoff that motivates early landing, restack-triggered re-review churn across open
   member PRs, and the native stack machinery's current maturity (no auto-merge for stacked PRs, async merge with
   a residual race). Record the reopening trigger: field use showing late-batched hosted review producing rework
-  that boundary-time landing would have prevented. One ADR or two (posture / landing decision) resolves against
-  `strategy-adr-methodology.md` at authoring.
+  that boundary-time landing would have prevented. The raw-Stacks-API registration decision rides as a worked
+  instance of the same stance — typed fail-closed host surfaces over silently-repairing porcelain — rather than
+  its own record. One ADR or two (posture / landing decision) resolves against `strategy-adr-methodology.md` at
+  authoring.
 - **Strategy touch — a WU deliverable.** Fold the posture into the appropriate adopter-facing strategy; resolve
   the exact home at spec time with the `init-recipe.json` both-directions check (standing WORKING-MEMORY
   constraint) before placing content.
@@ -303,11 +316,6 @@ redesign further shrinks its residual case: structural contribution identity rem
 class, and provider-delegated refresh removes base-movement fragility. If a genuinely stack-ineligible concern ever
 materializes, it routes first to decomposition or feature-flagged incremental landing; a private-target projection,
 if still wanted then, gets a fresh design against the v2 substrate rather than this draft.
-
-## Open design questions
-
-- Whether registration should use the raw Stacks API only, given `gh stack link` porcelain performs mutations beyond
-  the presentation-only carve-out.
 
 ---
 
