@@ -97,10 +97,16 @@ exists.
    member-boundary evidence and the seam pass) precedes `arc publish` at the publication-step head, where the
    push arm becomes push-members / register-stack / open-PRs bottom-up; `Integrating` spans the landing window;
    the top member's merge is the terminal instant.
-3. **Provider-delegated reconciliation.** ARC detects append-only target drift and emits the exact planned suffix
-   plus safety and review-invalidation consequences; the stack provider or operator refreshes branches and requests;
-   ARC reobserves the complete chain and adopts only when the projection exactly matches the plan. Interruption
-   recovers to exact partial adoption. Conflicts, rewritten targets, and ambiguous provider movement refuse.
+3. **Provider-delegated reconciliation — demand-driven, window-scoped.** ARC detects append-only target drift and
+   emits the exact planned suffix plus safety and review-invalidation consequences; the stack provider or operator
+   refreshes branches and requests; ARC reobserves the complete chain and adopts only when the projection exactly
+   matches the plan. The refresh arm fires on a refused landing (genuine conflict, native stale-suffix requirement,
+   host up-to-date policy) or explicit operator choice, never on base movement alone; append-only external drift
+   that blocks nothing is disclosed, not acted on. Interruption recovers to exact partial adoption by riding the
+   existing one-active-operation state — refresh is a guarded operation, not a second protocol family.
+   Execution-time base movement precedes materialization and is ordinary WU base-merge territory; member-boundary
+   verification evidence then follows the ordinary after-base-merge re-run rules. Conflicts, rewritten targets,
+   and ambiguous provider movement refuse.
 4. **Structural contribution identity.** The tree-equality fast path stays. The byte-identical aggregate-patch
    fallback is replaced by a structural equivalence check — reapply-and-compare-trees (the Gerrit trivial-rebase
    test) or stable patch identity ([`git patch-id --stable`][git-patch-id]) — so a mechanically rebased member is
@@ -136,6 +142,9 @@ exists.
 ## Ceremony budget — pre-commitment
 
 - The protected base is never frozen for a delivery, at any stage.
+- Non-interference, both directions: a registered delivery imposes zero coordination cost on work outside it —
+  external landings to the base proceed with no awareness of the delivery — and external base movement never
+  obligates an immediate refresh; the delivery absorbs drift on demand, at its own landing boundaries.
 - Landing an N-member stack costs at most N landing decisions (or one contiguous-prefix decision) plus genuine
   content-conflict resolutions — no manual recuts, no per-member manual suffix adoption, no synthetic reconciliation
   merges.
@@ -155,6 +164,12 @@ exists.
 - **Merge-queue coordination is all-or-nothing.** Field-documented failure mode ([LLVM/Graphite][llvm-graphite-queue-rfc]):
   partial queue adoption with stacks causes infinite rebase/CI loops. The existing no-merge-queue exclusion stands;
   any future adoption must be universal, not optional.
+- **Strict up-to-date branch protection multiplies refresh demand.** A repository requiring branches up to date
+  with the base turns each external landing during the window into a required refresh of the remaining suffix —
+  demand-driven still, but frequent on a busy trunk, and the same tax any stack pays under that policy anywhere.
+  Host-owned: the remedies are repository policy choices (relax strict up-to-date, or a merge queue — excluded for
+  stacks per the constraint above); ARC keeps each forced refresh at the provider baseline — one delegated restack
+  plus reobserve-adopt — and adds nothing on top.
 
 ## Amendment classification against v1
 
@@ -262,8 +277,6 @@ if still wanted then, gets a fresh design against the v2 substrate rather than t
 
 ## Open design questions
 
-- Refresh protocol depth: a minimal pre-landing refresh/adoption arm versus a fully resumable any-boundary protocol
-  (compare during design; the capture's field evidence suggests base movement is routine, arguing for the latter).
 - The exact structural-equivalence comparator (reapply-and-compare-trees vs. stable patch identity) and the shape of
   mechanical carry-forward evidence in reports.
 - Whether registration should use the raw Stacks API only, given `gh stack link` porcelain performs mutations beyond
