@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/delivery-native-stack-composition` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
-- **Depends On:** `integration-boundary-accuracy`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-delivery-native-stack-composition.md`
