@@ -542,6 +542,28 @@ fifth lifecycle `State`; `Active` means the work unit has not begun public integ
 still open. Verification remains the final task-list phase and `arc attest` is its durable handoff into
 prepublication.
 
+_Amended 2026-08-19 — Owner-accepted review terminus._ The first live prepublication run exhausted five complete
+whole-target passes, then used explicitly authorized incremental review to close successive fix deltas without
+claiming whole-target clearance. The configured lane still required another whole-target pass because the typed
+procedure had no truthful representation for the Work Unit Owner's decision that the accumulated review was a
+reasonable terminus. Deferring that representation to the later review-protocol cohort would leave this work unit
+unable to consume it, since this work unit deliberately ships first.
+
+The standard lane therefore admits one additional terminal conclusion: `owner-accepted`. It is an explicit Work
+Unit Owner decision over the current Candidate, not a caller-controlled standard-lane skip, a pass-cap override, or
+a review result. The prepublication composer resolves the active identity and Owner from live ARC state, binds the
+decision to the current Candidate's reviewable subject and observed standard-lane progress, and refuses an identity
+mismatch. An outstanding findings result retains precedence until its approved response is performed. The durable
+version-checked publication boundary carries the accepted conclusion through convergence attestation and
+publication; reviewable Candidate movement invalidates it, while operational-only movement does not.
+
+`owner-accepted` means only that the Owner accepts the residual review risk and authorizes publication preparation.
+It never reports `clean`, convergence, `no-op`, or satisfaction by an evaluator. The existing `--lanes` judgment
+and opaque replay are the invocation seam, so the conversational authorization adds no second human stop or new
+command. `review-signal-convergence` later generalizes completeness, convergence, cap, recommendation, and terminus
+semantics; `review-activity-contracts` later gives the incremental evidence its own explicit non-clearing activity
+contract. Neither future work unit is reimplemented here.
+
 ### F. The transition fires at the publication boundary
 
 Verification is not the misplaced part: the task list's verification phase runs Tier 3 gates, success criteria, and
@@ -839,6 +861,12 @@ state, changed merge policy, failed required checks, and non-clean drift, re-loc
 exit. The lock is the pull request's draft state — a per-PR structural hold, never equated with a required check
 (repo-configured, fail-closed) — and merge safety is never inferred from agent-layer discipline. The lock proves
 no review evidence; it only holds the merge closed while evidence is produced.
+
+_Amended 2026-08-19 — review-terminus authority._ The original paragraph's merge-authority claim stands unchanged.
+The added `owner-accepted` conclusion materializes the Work Unit Owner's existing authority over how much private
+agent-layer review the work unit warrants; it grants no merge authority, cannot satisfy host controls, and cannot be
+asserted by maintainer status alone. The CLI resolves the Owner and active identity from existing authoritative
+state rather than trusting caller-supplied identity text.
 
 **The host mechanism for the same property was considered and does not reach.** GitHub's required-approvals plus
 dismiss-stale-reviews is the industry expression of "approval covers this exact content, and content movement

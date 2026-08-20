@@ -49,7 +49,11 @@ import {
 } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 export type SubmissionAuthorization =
-  | { status: "authorized"; reservation: StandardReviewReservationV1 | null }
+  | {
+    status: "authorized";
+    reservation: StandardReviewReservationV1 | null;
+    terminus: IntegrationBoundaryLocus["terminus"];
+  }
   | { status: "refused"; reason: string };
 
 /** Admit only the exact current Candidate's settled-or-reserved pre-publication boundary. */
@@ -77,7 +81,7 @@ export function authorizeSubmission(input: {
       reason: `Candidate pre-publication obligations remain open (${boundary.locus}).`,
     };
   }
-  return { status: "authorized", reservation: boundary.reservation };
+  return { status: "authorized", reservation: boundary.reservation, terminus: boundary.terminus };
 }
 
 /** The orientation inputs a `publish` supplies. */
@@ -319,7 +323,7 @@ export async function runPublish(
     && boundary.locus === "publication-pending"
     && boundary.candidateId === candidateId
     && boundary.candidateSubjectDigest === candidateSubjectDigest
-    ? { status: "authorized" as const, reservation: boundary.reservation }
+    ? { status: "authorized" as const, reservation: boundary.reservation, terminus: boundary.terminus }
     : authorizeSubmission({
         expectedCandidateId: candidateId,
         expectedCandidateSubjectDigest: candidateSubjectDigest,
@@ -339,6 +343,7 @@ export async function runPublish(
       candidateId,
       candidateSubjectDigest,
       reservation: authorization.reservation,
+      terminus: authorization.terminus,
       changeRequest: null,
     });
     if (currentWorkflow === "integrate-work-unit") {
@@ -423,7 +428,7 @@ export async function runPublish(
   const refreshedAuthorization = boundary.locus === "publication-pending"
     && boundary.candidateId === refreshed.candidateId
     && boundary.candidateSubjectDigest === refreshed.candidateSubjectDigest
-    ? { status: "authorized" as const, reservation: boundary.reservation }
+    ? { status: "authorized" as const, reservation: boundary.reservation, terminus: boundary.terminus }
     : authorizeSubmission({
         expectedCandidateId: refreshed.candidateId,
         expectedCandidateSubjectDigest: refreshed.candidateSubjectDigest,
@@ -442,6 +447,7 @@ export async function runPublish(
     candidateId: refreshed.candidateId,
     candidateSubjectDigest: refreshed.candidateSubjectDigest,
     reservation: refreshedAuthorization.reservation,
+    terminus: refreshedAuthorization.terminus,
     // Submission fires at the head of the publication step, before the change request exists, so a
     // carried reservation has nothing to run against yet.
     changeRequest: null,

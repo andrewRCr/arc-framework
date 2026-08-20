@@ -38,6 +38,15 @@ const target = {
 
 const SUBJECT_DIGEST = `sha256:${"e".repeat(64)}`;
 
+const ownerAcceptedTerminus = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "review-terminus/v1" as const,
+  kind: "owner-accepted" as const,
+  lane: "standard" as const,
+  acceptedBy: "andrew",
+  completedPasses: 5,
+};
+
 const standardReview = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set"] as const,
@@ -115,6 +124,32 @@ describe("integration boundary locus", () => {
     })).toEqual({
       ...carried,
       candidateSubjectDigest: currentSubjectDigest,
+    });
+  });
+
+  it("carries an Owner-accepted terminus through convergence resume and publication", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const resumed = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      reservation: null,
+      terminus: ownerAcceptedTerminus,
+    });
+    expect(resumed).toMatchObject({ terminus: ownerAcceptedTerminus });
+
+    const published = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      branch: "feat/example",
+      reservation: null,
+      terminus: ownerAcceptedTerminus,
+      changeRequest: null,
+    });
+    expect(published).toMatchObject({
+      locus: "publication-pending",
+      terminus: ownerAcceptedTerminus,
     });
   });
 
@@ -298,6 +333,32 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
+  it("projects Owner acceptance as publish-ready without claiming a clean or converged policy result", () => {
+    const base = request({ selfReview: "settled" });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+        sources: [],
+      },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        completedPasses: 5,
+        attempts: [],
+        terminus: ownerAcceptedTerminus,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-publish-ready",
+      policy: null,
+      reservation: null,
+      terminus: ownerAcceptedTerminus,
+      nextAction: { kind: "publish-candidate" },
+    });
+  });
+
   it("uses an explicit frontline skip to continue into chunked local standard review", () => {
     const base = request({ selfReview: "settled" });
     const result = projectPrePublicationReview({
@@ -448,6 +509,23 @@ describe("projectPrePublicationReview", () => {
         frontlineActive: false,
       },
     });
+    const accepted = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+      standard: {
+        ...(base.standard as Record<string, unknown>),
+        completedPasses: 5,
+        terminus: ownerAcceptedTerminus,
+      },
+    });
+    expect(accepted).toMatchObject({
+      locus: "candidate-publish-ready",
+      reservation: null,
+      terminus: ownerAcceptedTerminus,
+    });
     expect(valid.reservation).not.toBeNull();
     if (valid.reservation === null) throw new Error("missing reservation fixture");
     const resumed = {
@@ -471,6 +549,10 @@ describe("projectPrePublicationReview", () => {
     const corpus = [{
       label: "valid publish-ready reservation",
       value: valid,
+      accepted: true,
+    }, {
+      label: "valid Owner-accepted publish readiness",
+      value: accepted,
       accepted: true,
     }, {
       label: "valid post-convergence reservation",

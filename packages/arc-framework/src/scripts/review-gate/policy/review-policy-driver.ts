@@ -3,7 +3,11 @@
 import { z } from "zod";
 
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
-import { ReviewPassSchema } from "../core/review-pass.js";
+import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
+import {
+  OwnerAcceptedReviewTerminusJudgmentSchema,
+  OwnerAcceptedReviewTerminusSchema,
+} from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
@@ -17,7 +21,6 @@ const ReviewScopeModeSchema = z.enum(["whole-target", "chunked"]);
 const FrontlinePolicyInvocationSchema = z.strictObject({
   mode: z.literal("skip"),
 }).readonly();
-const CompletedPassCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const ReviewAttemptOutcomeSchema = z.enum([
   "clean",
   "findings",
@@ -42,7 +45,7 @@ type ReviewAttempt = z.infer<typeof ReviewAttemptSchema>;
 const ReviewCeilingOverrideSchema = z.strictObject({
   target: ReviewPolicyTargetSchema,
   lane: z.enum(["frontline", "standard"]),
-  exhaustedPassCount: CompletedPassCountSchema,
+  exhaustedPassCount: CompletedReviewPassCountSchema,
   nextPass: ReviewPassSchema,
 }).readonly();
 const InvalidOverrideReasonSchema = z.enum([
@@ -60,7 +63,7 @@ const ReviewPolicyRequestBaseShape = {
   lane: z.enum(["frontline", "standard"]),
   frontlineActive: z.boolean().default(false),
   standardReview: StandardReviewObligationProjectionSchema,
-  completedPasses: CompletedPassCountSchema,
+  completedPasses: CompletedReviewPassCountSchema,
   attempts: z.array(ReviewAttemptSchema).readonly(),
   scopeSelection: z.strictObject({
     mode: ReviewScopeModeSchema,
@@ -68,6 +71,7 @@ const ReviewPolicyRequestBaseShape = {
   }).readonly().optional(),
   invocation: FrontlinePolicyInvocationSchema.optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  terminus: OwnerAcceptedReviewTerminusSchema.optional(),
 };
 
 export const ReviewPolicyCommandRequestSchema = z.strictObject({
@@ -78,6 +82,13 @@ export const ReviewPolicyCommandRequestSchema = z.strictObject({
       code: "custom",
       message: "frontline invocation override cannot be applied to the standard lane",
       path: ["invocation"],
+    });
+  }
+  if (request.lane !== "standard" && request.terminus !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "owner-accepted terminus can be applied only to the standard lane",
+      path: ["terminus"],
     });
   }
 }).readonly();
@@ -95,9 +106,10 @@ export const ReviewLaneJudgmentSchema = z.strictObject({
   scopeMode: ReviewScopeModeSchema.optional(),
   invocation: FrontlinePolicyInvocationSchema.optional(),
   ceilingOverride: z.strictObject({
-    exhaustedPassCount: CompletedPassCountSchema,
+    exhaustedPassCount: CompletedReviewPassCountSchema,
     nextPass: ReviewPassSchema,
   }).readonly().optional(),
+  terminus: OwnerAcceptedReviewTerminusJudgmentSchema.optional(),
 }).readonly();
 export type ReviewLaneJudgment = z.infer<typeof ReviewLaneJudgmentSchema>;
 
@@ -111,6 +123,13 @@ export const ReviewPolicyRequestSchema = z.strictObject({
       code: "custom",
       message: "frontline invocation override cannot be applied to the standard lane",
       path: ["invocation"],
+    });
+  }
+  if (request.lane !== "standard" && request.terminus !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "owner-accepted terminus can be applied only to the standard lane",
+      path: ["terminus"],
     });
   }
   let previousSourceIndex = -1;
@@ -166,6 +185,19 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
   }),
   z.strictObject({
     ...ReviewResolveHeaderShape,
+    state: z.literal("owner-accepted"),
+    nextAction: z.literal("none"),
+    payload: z.strictObject({
+      lane: z.literal("standard"),
+      scope: ReviewScopeModeSchema,
+      completedPasses: CompletedReviewPassCountSchema,
+      consumedPass: z.literal(false),
+      attemptedSources: z.array(ReviewAttemptSchema).readonly(),
+      terminus: OwnerAcceptedReviewTerminusSchema,
+    }),
+  }),
+  z.strictObject({
+    ...ReviewResolveHeaderShape,
     state: z.literal("skipped"),
     nextAction: z.literal("none"),
     payload: z.strictObject({
@@ -211,7 +243,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       consequence: z.strictObject({
         target: ReviewPolicyTargetSchema,
         lane: z.enum(["frontline", "standard"]),
-        exhaustedPassCount: CompletedPassCountSchema,
+        exhaustedPassCount: CompletedReviewPassCountSchema,
         nextPass: ReviewPassSchema,
       }).readonly(),
     }),
@@ -225,7 +257,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       scope: z.literal("chunked"),
       sourceId: ReviewSourceIdSchema,
       pass: ReviewPassSchema,
-      completedPasses: CompletedPassCountSchema,
+      completedPasses: CompletedReviewPassCountSchema,
       consumedPass: z.literal(false),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
     }),
@@ -239,7 +271,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       scope: ReviewScopeModeSchema,
       sourceId: ReviewSourceIdSchema,
       pass: ReviewPassSchema,
-      completedPasses: CompletedPassCountSchema,
+      completedPasses: CompletedReviewPassCountSchema,
       consumedPass: z.literal(true),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
     }),
@@ -253,7 +285,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       scope: ReviewScopeModeSchema,
       sourceId: ReviewSourceIdSchema,
       pass: ReviewPassSchema,
-      completedPasses: CompletedPassCountSchema,
+      completedPasses: CompletedReviewPassCountSchema,
       consumedPass: z.literal(true),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
       consequence: z.literal("disposition-required"),
@@ -538,6 +570,20 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         completedPasses: request.completedPasses,
         consumedPass: true,
         attemptedSources: request.attempts,
+      },
+    });
+  }
+  if (request.terminus !== undefined) {
+    return resolveEnvelope({
+      state: "owner-accepted",
+      nextAction: "none",
+      payload: {
+        lane: "standard",
+        scope,
+        completedPasses: request.completedPasses,
+        consumedPass: false,
+        attemptedSources: request.attempts,
+        terminus: request.terminus,
       },
     });
   }

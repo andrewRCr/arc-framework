@@ -135,6 +135,7 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
   const reservation = standard.state === "awaiting-change-request"
     ? createStandardReviewReservation(request, firstWaitingSource(standard.payload.waitingSources))
     : null;
+  const terminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
 
   if (request.candidate.implementationChanged
     && request.candidate.convergenceVerification === "pending") {
@@ -146,12 +147,14 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
         "Run one final Tier 3 over the converged Candidate lineage, then invoke arc attest.",
       ),
       reservation,
+      terminus,
     });
   }
   return envelope(request, {
     locus: "candidate-publish-ready",
     nextAction: action(request.workUnit, "publish-candidate", "Publish the current Candidate."),
     reservation,
+    terminus,
   });
 }
 
@@ -251,7 +254,7 @@ function policyEnvelope(
 function envelope(
   request: PrePublicationReviewRequest,
   projection: Pick<PrePublicationReviewEnvelope, "locus" | "nextAction">
-    & Partial<Pick<PrePublicationReviewEnvelope, "policy" | "reservation">>,
+    & Partial<Pick<PrePublicationReviewEnvelope, "policy" | "reservation" | "terminus">>,
 ): PrePublicationReviewEnvelope {
   return PrePublicationReviewEnvelopeSchema.parse({
     schemaVersion: 1,
@@ -262,6 +265,7 @@ function envelope(
     target: request.target,
     policy: null,
     reservation: null,
+    terminus: null,
     ...projection,
   });
 }
@@ -284,7 +288,10 @@ function isSettledFrontline(state: z.infer<typeof ReviewResolveEnvelopeSchema>["
 }
 
 function isSettledStandard(state: z.infer<typeof ReviewResolveEnvelopeSchema>["state"]): boolean {
-  return state === "no-op" || state === "pass-complete" || state === "awaiting-change-request";
+  return state === "no-op"
+    || state === "pass-complete"
+    || state === "awaiting-change-request"
+    || state === "owner-accepted";
 }
 
 function samePolicyTarget(

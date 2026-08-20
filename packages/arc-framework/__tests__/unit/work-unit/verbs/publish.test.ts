@@ -38,6 +38,14 @@ import {
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CWD = "/repo";
+const OWNER_ACCEPTED_TERMINUS = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "review-terminus/v1" as const,
+  kind: "owner-accepted" as const,
+  lane: "standard" as const,
+  acceptedBy: "andrew",
+  completedPasses: 5,
+};
 
 interface MetaSpec {
   slug: string;
@@ -212,6 +220,7 @@ const BASE: PublishParams = {
     },
     policy: null,
     reservation: null,
+    terminus: null,
   },
 };
 
@@ -258,6 +267,7 @@ describe("authorizeSubmission", () => {
         },
         policy: null,
         reservation: null,
+        terminus: null,
       },
     })).toEqual({
       status: "refused",
@@ -299,8 +309,9 @@ describe("authorizeSubmission", () => {
         },
         policy: null,
         reservation,
+        terminus: null,
       },
-    })).toEqual({ status: "authorized", reservation });
+    })).toEqual({ status: "authorized", reservation, terminus: null });
   });
 
   it("refuses a boundary written for different reviewable content", () => {
@@ -347,6 +358,28 @@ describe("runPublish — the set-phase-only move", () => {
     })).resolves.toMatchObject({ status: "published" });
 
     expect(calls.indexOf("boundary:claim")).toBeLessThan(calls.indexOf("setPhase:Integrating"));
+  });
+
+  it("preserves the Owner-accepted conclusion in the publication claim", async () => {
+    const { ctx } = buildCtx([ACTIVE]);
+    let claimed: IntegrationBoundaryLocus | null = null;
+    const boundary = CandidatePublishReadyBoundarySchema.parse({
+      ...BASE.boundary,
+      terminus: OWNER_ACCEPTED_TERMINUS,
+    });
+
+    await expect(runPublish(ctx, {
+      ...BASE,
+      boundary,
+      claimPublicationBoundary: async (value) => {
+        claimed = value;
+      },
+    })).resolves.toMatchObject({ status: "published" });
+
+    expect(claimed).toMatchObject({
+      locus: "publication-pending",
+      terminus: OWNER_ACCEPTED_TERMINUS,
+    });
   });
 
   it("does not mutate lifecycle state when the publication claim conflicts", async () => {

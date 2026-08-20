@@ -443,6 +443,64 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("lets the Work Unit Owner accept a non-converged terminus without claiming a pass result", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 5,
+      maxPasses: 2,
+      attempts: [],
+      terminus: {
+        schemaVersion: 1,
+        semanticsVersion: "review-terminus/v1",
+        kind: "owner-accepted",
+        lane: "standard",
+        acceptedBy: "andrew",
+        completedPasses: 5,
+      },
+    })).toMatchObject({
+      state: "owner-accepted",
+      nextAction: "none",
+      payload: {
+        lane: "standard",
+        completedPasses: 5,
+        consumedPass: false,
+        terminus: {
+          kind: "owner-accepted",
+          acceptedBy: "andrew",
+        },
+      },
+    });
+  });
+
+  it("does not let Owner acceptance suppress an outstanding findings result", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 5,
+      maxPasses: 2,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings" }],
+      terminus: {
+        schemaVersion: 1,
+        semanticsVersion: "review-terminus/v1",
+        kind: "owner-accepted",
+        lane: "standard",
+        acceptedBy: "andrew",
+        completedPasses: 4,
+      },
+    })).toMatchObject({
+      state: "findings",
+      nextAction: "respond",
+      payload: { consequence: "disposition-required" },
+    });
+  });
+
   it("rejects terminal progress from a source ineligible for the selected scope", () => {
     expect(() => resolveReviewPolicy({
       schemaVersion: 1,
@@ -575,6 +633,28 @@ describe("resolveReviewPolicy", () => {
       attempts: [],
       invocation: { mode: "skip" },
     })).toThrow(/frontline invocation override/i);
+  });
+
+  it("rejects an Owner terminus on the advisory frontline lane", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [],
+      frontlineActive: true,
+      terminus: {
+        schemaVersion: 1,
+        semanticsVersion: "review-terminus/v1",
+        kind: "owner-accepted",
+        lane: "standard",
+        acceptedBy: "andrew",
+        completedPasses: 1,
+      },
+    })).toThrow(/owner-accepted terminus.*standard lane/i);
   });
 
   it("preserves safe attempts when an exempt standard obligation no-ops", () => {

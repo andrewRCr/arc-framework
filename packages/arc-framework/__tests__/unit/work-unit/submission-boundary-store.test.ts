@@ -44,6 +44,7 @@ describe("submission boundary store", () => {
       },
       policy: null,
       reservation: null,
+      terminus: null,
     };
 
     expect(await readSubmissionBoundary("/repo", "example", fs)).toBeNull();
@@ -70,6 +71,7 @@ describe("submission boundary store", () => {
       },
       policy: null,
       reservation: null,
+      terminus: null,
     };
     await writeSubmissionBoundary("/repo", original, null, fs);
     const stale = await readSubmissionBoundaryVersioned("/repo", "example", fs);

@@ -49,9 +49,16 @@ Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `
 mode, the frontline lane's one-run invocation override, and any approved ceiling override as `--lanes`, and a
 completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
 option when the method is inactive. A user-directed skip of an enabled frontline lane is
-`lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. Re-invoke after every lane
-operation with the same `--change-set`, `--lanes`, and `--self-review` values verbatim: the command composes durable
-progress, but those values are author judgment it cannot recover.
+`lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. After the active Work Unit
+Owner explicitly accepts the current review terminus, carry
+`lanes.standard.terminus: { mode: "owner-accepted" }`. The command authenticates that Owner and reports a distinct
+`owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The Owner's
+decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains current.
+
+Re-invoke after every lane operation with the same `--change-set`, `--lanes`, and `--self-review` values: the command
+composes durable progress, but those values are author judgment it cannot recover. Omit `standard.terminus` after a
+`candidate-fix-pending` result; the response changes the reviewable Candidate subject and requires fresh Owner
+direction. Once `owner-accepted` lands, the durable boundary carries it through convergence; do not restate it.
 
 The envelope's `target` is the exact target every exact-target operation below binds against. A null `target`
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
@@ -78,6 +85,7 @@ A null `policy` means no lane operation is open — follow the envelope's `nextA
 state/action pair:
 
 - `skipped | no-op | pass-complete / none` — lane complete.
+- `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
 - `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at
   `candidate-publish-ready`.
 - `ready / run-frontline` — invoke `arc review frontline resolve -`, then `arc review frontline run -`.
@@ -102,8 +110,8 @@ atomically, and produce a new target. Disclose review applicability from the exa
 narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
 authority, contract, materially interacting, or uncertain changes. Clearance never carries.
 
-Proceed only from `candidate-publish-ready`; its durable boundary carries any hosted-first reservation into
-publication without classifying it as settled or no-op.
+Proceed only from `candidate-publish-ready`; its durable boundary carries any hosted-first reservation or exact
+Owner-accepted terminus into publication without classifying either as settled, no-op, or clean.
 
 ## 3) Schedule publication
 

@@ -1699,6 +1699,42 @@ describe("handleReviewPrePublication", () => {
     });
   });
 
+  it("consumes an Owner terminus before findings can advance to another Candidate subject", async () => {
+    const findingsRequest = {
+      ...request,
+      standard: {
+        ...request.standard,
+        completedPasses: 1,
+        sources: ["delegated-agent"],
+        attempts: [{ sourceId: "delegated-agent", outcome: "findings" as const }],
+      },
+    };
+    const lanes = {
+      frontline: { invocation: { mode: "skip" } },
+      standard: { scopeMode: "chunked", terminus: { mode: "owner-accepted" } },
+    };
+    const dependencies = boundary({
+      readText: async () => JSON.stringify(lanes),
+      compose: vi.fn(async () => ({ status: "composed", request: findingsRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true, lanes: "lanes.json" }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      locus: string;
+      nextAction: { command: string };
+    };
+    expect(envelope.locus, JSON.stringify(envelope)).toBe("candidate-fix-pending");
+    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      lanes: {
+        frontline: { invocation: { mode: "skip" } },
+        standard: { scopeMode: "chunked" },
+      },
+    });
+  });
+
   it("refuses to read both judgment inputs from the same stdin stream", async () => {
     const compose = vi.fn();
     const readText = vi.fn();

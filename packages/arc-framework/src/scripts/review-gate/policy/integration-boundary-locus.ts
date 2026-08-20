@@ -7,6 +7,7 @@ import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
+import { OwnerAcceptedReviewTerminusSchema, type OwnerAcceptedReviewTerminus } from "./review-terminus.js";
 
 const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -71,6 +72,7 @@ const BoundaryCommonShape = {
    * operator back through a review whose evidence never went stale.
    */
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
+  terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
 };
 
 const CandidateReviewBoundaryFields = {
@@ -159,6 +161,7 @@ const PublicationBoundaryInputSchema = z.strictObject({
   candidateId: CandidateIdSchema,
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
   reservation: StandardReviewReservationV1Schema.nullable(),
+  terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
   changeRequest: z.strictObject({
     repository: z.string().trim().min(1),
     pullRequest: z.number().int().positive(),
@@ -187,6 +190,7 @@ export function projectCandidateReviewBoundary(input: {
     },
     policy: null,
     reservation: null,
+    terminus: null,
   });
 }
 
@@ -196,6 +200,7 @@ export function projectCandidateReviewResumeBoundary(input: {
   candidateId: string;
   candidateSubjectDigest: string;
   reservation: StandardReviewReservationV1 | null;
+  terminus?: OwnerAcceptedReviewTerminus | null;
 }): IntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
@@ -214,6 +219,7 @@ export function projectCandidateReviewResumeBoundary(input: {
     },
     policy: null,
     reservation: input.reservation,
+    terminus: input.terminus ?? null,
   });
 }
 
@@ -247,6 +253,7 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     },
     policy: null,
     reservation: value.reservation,
+    terminus: value.terminus,
   });
 }
 
@@ -278,6 +285,7 @@ export function recoverPublicationBoundary(input: {
     candidateId: input.candidateId,
     candidateSubjectDigest: input.candidateSubjectDigest,
     reservation: stored.reservation,
+    terminus: stored.terminus,
     changeRequest: null,
   });
 }

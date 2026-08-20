@@ -53,7 +53,9 @@ import {
   createPrePublicationCompositionDependencies,
 } from "../scripts/review-gate/policy/pre-publication-composition.js";
 import {
+  applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
+  consumeOwnerAcceptedTerminus,
   composePrePublicationReviewRequest,
   type PrePublicationComposition,
 } from "../scripts/review-gate/policy/pre-publication-request.js";
@@ -1992,13 +1994,22 @@ function defaultPrePublicationDependencies(
         createPrePublicationCompositionDependencies({ cwd: root, exec }),
       );
       const existing = snapshot.boundary;
-      return existing?.reservation === null || existing?.reservation === undefined
-        ? composition
-        : applyCarriedStandardReviewReservation(composition, {
-            candidateId: existing.candidateId,
-            candidateSubjectDigest: existing.candidateSubjectDigest,
-            reservation: existing.reservation,
-          });
+      let carried = composition;
+      if (existing?.reservation !== null && existing?.reservation !== undefined) {
+        carried = applyCarriedStandardReviewReservation(carried, {
+          candidateId: existing.candidateId,
+          candidateSubjectDigest: existing.candidateSubjectDigest,
+          reservation: existing.reservation,
+        });
+      }
+      if (existing?.terminus !== null && existing?.terminus !== undefined) {
+        carried = applyCarriedOwnerAcceptedTerminus(carried, {
+          candidateId: existing.candidateId,
+          candidateSubjectDigest: existing.candidateSubjectDigest,
+          terminus: existing.terminus,
+        });
+      }
+      return carried;
     },
     persistBoundary: async (root, settled) => {
       const snapshot = boundarySnapshots.get(settled.workUnit)
@@ -2008,7 +2019,8 @@ function defaultPrePublicationDependencies(
         && existing.candidateId === settled.candidateId
         && existing.candidateSubjectDigest !== null
         && existing.reservation !== null
-        && settled.reservation === null;
+        && settled.reservation === null
+        && settled.terminus === null;
       const path = await writeSubmissionBoundary(root, parseIntegrationBoundaryLocus(preservesReservation
         ? { ...settled, reservation: existing.reservation }
         : settled), snapshot.version);
@@ -2035,7 +2047,7 @@ function defaultPrePublicationDependencies(
  * `--change-set`, the routing facts the standard-review obligation turns on. Omitting the latter
  * routes the change set as unestablished, which is the conservative `required` route. `--lanes`
  * carries each lane's bounded review scope, the frontline lane's one-run invocation override,
- * and any approved ceiling override.
+ * any approved ceiling override, and an explicitly Owner-accepted standard-review terminus.
  *
  * @param name - The target work unit's slug.
  * @param options - Parsed command-line options.
@@ -2147,10 +2159,13 @@ export async function handleReviewPrePublication(
       const replaySelfReview = envelope.nextAction.kind === "run-self-review"
         ? "settled"
         : judgment.selfReview;
+      const replayLanes = envelope.locus === "candidate-fix-pending"
+        ? consumeOwnerAcceptedTerminus(judgment.lanes)
+        : judgment.lanes;
       const resume = Buffer.from(canonicalize({
         ...(replaySelfReview === undefined ? {} : { selfReview: replaySelfReview }),
         ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
-        ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+        ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
       }), "utf8").toString("base64url");
       envelope = PrePublicationReviewEnvelopeSchema.parse({
         ...envelope,

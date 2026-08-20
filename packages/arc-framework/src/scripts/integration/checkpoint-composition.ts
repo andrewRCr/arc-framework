@@ -302,6 +302,7 @@ export function createIntegrationCheckpointDependencies(input: {
         candidateId: value.record.attestation.candidateId,
         candidateSubjectDigest: value.current.subject.subjectDigest,
         reservation: boundary.reservation,
+        terminus: boundary.terminus,
         changeRequest: {
           repository: changeRequest.targetRef.repository,
           pullRequest: changeRequest.candidate.number,

@@ -2580,6 +2580,7 @@ export async function handleAttest(
             candidateId: publication.candidateId,
             candidateSubjectDigest: publication.candidateSubjectDigest,
             reservation: existingBoundary.reservation,
+            terminus: existingBoundary.terminus,
           })
         : null;
       const locus = convergenceResume

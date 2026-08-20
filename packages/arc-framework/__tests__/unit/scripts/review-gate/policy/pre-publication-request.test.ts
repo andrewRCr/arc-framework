@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
   composePrePublicationReviewRequest,
   type AssuranceRead,
@@ -26,6 +27,14 @@ import { createStandardReviewReservation } from
 const HEAD = "a".repeat(40);
 const PREPUBLICATION_HEAD = "b".repeat(40);
 const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
+const OWNER_TERMINUS = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "review-terminus/v1" as const,
+  kind: "owner-accepted" as const,
+  lane: "standard" as const,
+  acceptedBy: "andrew",
+  completedPasses: 5,
+};
 
 const currentCandidate: CandidateRead = {
   status: "current",
@@ -71,6 +80,10 @@ function dependencies(
     readAssurance: vi.fn(async () => resolvedAssurance),
     resolveTarget: vi.fn(async () => resolvedTarget),
     deriveImmutableTarget: vi.fn(async () => immutableTarget),
+    readOwnerTerminusAuthority: vi.fn(async () => ({
+      status: "authorized" as const,
+      ownerIdentity: "andrew",
+    })),
     readLaneProgress: vi.fn(async (): Promise<LaneProgressProjection> => ({
       status: "recorded",
       completedPasses: 0,
@@ -114,6 +127,26 @@ describe("composePrePublicationReviewRequest", () => {
     if (rebound.status !== "composed") return;
     expect(rebound.request.standard.target.headSha).toBe(HEAD);
     expect(rebound.request.standard.sources).toEqual(["coderabbit-pr", "codex-pr"]);
+  });
+
+  it("reapplies an Owner terminus only to the exact Candidate subject that accepted it", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
+
+    const current = applyCarriedOwnerAcceptedTerminus(composition, {
+      candidateId: CANDIDATE_ID,
+      candidateSubjectDigest: currentCandidate.status === "current" ? currentCandidate.subjectDigest : null,
+      terminus: OWNER_TERMINUS,
+    });
+    const changed = applyCarriedOwnerAcceptedTerminus(composition, {
+      candidateId: CANDIDATE_ID,
+      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+      terminus: OWNER_TERMINUS,
+    });
+
+    expect(current.status).toBe("composed");
+    if (current.status !== "composed" || changed.status !== "composed") return;
+    expect(current.request.standard.terminus).toEqual(OWNER_TERMINUS);
+    expect(changed.request.standard).not.toHaveProperty("terminus");
   });
 
   it("composes both lanes against one target with CLI-owned sources and ceilings", async () => {
@@ -328,6 +361,54 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.standard).not.toHaveProperty("invocation");
   });
 
+  it("binds a conversational terminus to the authoritative Owner and observed standard progress", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: { standard: { terminus: { mode: "owner-accepted" } } },
+      },
+      dependencies({
+        readLaneProgress: async (lane) => ({
+          status: "recorded",
+          completedPasses: lane === "standard" ? 5 : 0,
+          attempts: [],
+        }),
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.standard.terminus).toEqual({
+      schemaVersion: 1,
+      semanticsVersion: "review-terminus/v1",
+      kind: "owner-accepted",
+      lane: "standard",
+      acceptedBy: "andrew",
+      completedPasses: 5,
+    });
+    expect(composition.request.frontline).not.toHaveProperty("terminus");
+  });
+
+  it("refuses a conversational terminus when the active identity is not the Work Unit Owner", async () => {
+    const composition = await composePrePublicationReviewRequest(
+      {
+        workUnit: "example",
+        lanes: { standard: { terminus: { mode: "owner-accepted" } } },
+      },
+      dependencies({
+        readOwnerTerminusAuthority: async () => ({
+          status: "refused",
+          reason: "The active identity does not match the Work Unit Owner.",
+        }),
+      }),
+    );
+
+    expect(composition).toEqual({
+      status: "refused",
+      reason: "The active identity does not match the Work Unit Owner.",
+    });
+  });
+
   it("omits both per-lane inputs when no judgment is supplied", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
 
@@ -343,6 +424,7 @@ describe("composePrePublicationReviewRequest", () => {
     ["a caller-restated target", { standard: { scopeMode: "chunked", target: { repository: "x/y" } } }],
     ["an unrecognized lane", { hosted: { scopeMode: "chunked" } }],
     ["a frontline override on the standard lane", { standard: { invocation: { mode: "skip" } } }],
+    ["an Owner terminus on frontline", { frontline: { terminus: { mode: "owner-accepted" } } }],
   ])("refuses %s rather than dropping it to the unbounded default", async (_label, lanes) => {
     // Deliberately unlike the change-set facts, which normalize: silently dropping a bounded scope
     // reviews the whole target, and dropping an override re-blocks a pass already approved.

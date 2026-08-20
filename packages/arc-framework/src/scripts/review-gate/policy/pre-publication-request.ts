@@ -12,11 +12,12 @@ import {
   type PrePublicationReviewRequest,
 } from "./pre-publication-procedure.js";
 import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
+import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
-/** Per-lane scope, frontline invocation, and ceiling judgment, keyed by its lane. */
+/** Per-lane scope, frontline invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
   frontline: ReviewLaneJudgmentSchema.optional(),
   standard: ReviewLaneJudgmentSchema.optional(),
@@ -28,8 +29,33 @@ export const PrePublicationLaneJudgmentsSchema = z.strictObject({
       path: ["standard", "invocation"],
     });
   }
+  if (judgments.frontline?.terminus !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "owner-accepted terminus can be applied only to the standard lane",
+      path: ["frontline", "terminus"],
+    });
+  }
 }).readonly();
 export type PrePublicationLaneJudgments = z.infer<typeof PrePublicationLaneJudgmentsSchema>;
+
+/**
+ * Remove a standard-lane Owner terminus from caller-owned replay judgment.
+ *
+ * A findings response changes the reviewable Candidate subject. The old conversational direction
+ * therefore cannot ride the opaque resume token into the new subject; every other lane judgment
+ * remains available for the next composition.
+ *
+ * @param input - The already-composed per-lane judgment, if one was supplied.
+ * @returns The judgment without its standard-lane terminus, or the original value when none exists.
+ */
+export function consumeOwnerAcceptedTerminus(input: unknown): unknown {
+  const parsed = PrePublicationLaneJudgmentsSchema.safeParse(input ?? {});
+  if (!parsed.success || parsed.data.standard?.terminus === undefined) return input;
+  const standard = { ...parsed.data.standard };
+  delete standard.terminus;
+  return { ...parsed.data, standard };
+}
 
 /** The author self-review states the procedure distinguishes. */
 export type PrePublicationSelfReviewState = PrePublicationReviewRequest["selfReview"];
@@ -75,12 +101,18 @@ export type ImmutableTargetRead =
   | { status: "resolved"; target: ReviewTarget }
   | { status: "unavailable"; reason: string };
 
+/** Live identity/ownership result used to bind an Owner-accepted terminus. */
+export type OwnerTerminusAuthorityRead =
+  | { status: "authorized"; ownerIdentity: string }
+  | { status: "refused"; reason: string };
+
 /** Repository reads the composition needs, each owned by its production binder. */
 export interface PrePublicationCompositionDependencies {
   readCandidate(workUnit: string): Promise<CandidateRead>;
   readAssurance(workUnit: string): Promise<AssuranceRead>;
   resolveTarget(headSha: string): Promise<TargetRead>;
   deriveImmutableTarget(): Promise<ImmutableTargetRead>;
+  readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
   readLaneProgress(
     lane: ReviewLane,
     headSha: string,
@@ -100,10 +132,10 @@ export interface PrePublicationCompositionInput {
    */
   changeSet?: unknown;
   /**
-   * Per-lane scope, frontline invocation, and ceiling judgment. Unlike the change-set facts, these
-   * refuse rather than normalize: dropping a malformed bounded scope silently reviews the whole
-   * target, dropping a frontline skip invokes an unwanted carrier, and dropping a malformed ceiling
-   * override silently re-blocks a pass the operator already approved.
+   * Per-lane scope, frontline invocation, ceiling, and Owner-terminus judgment. Unlike the
+   * change-set facts, these refuse rather than normalize: dropping a malformed bounded scope
+   * silently reviews the whole target, dropping a frontline skip invokes an unwanted carrier, and
+   * dropping a malformed ceiling override silently re-blocks a pass the operator already approved.
    */
   lanes?: unknown;
 }
@@ -225,10 +257,10 @@ function routingInput(
  * Per-attempt progress comes from the durable lane record rather than the caller, so source order
  * and pass ceilings stay with the CLI rather than being assembled by whoever invokes the command.
  * The caller's contribution is judgment the repository cannot read — whether self-review ran, what
- * kind of change set this is, and each lane's bounded scope, frontline invocation, or approved
- * ceiling override. The decisions those facts feed are reduced here rather than by the caller, and
- * the target and lane every per-lane input would otherwise restate are supplied from the resolved
- * composition.
+ * kind of change set this is, and each lane's bounded scope, frontline invocation, approved
+ * ceiling override, or explicit Owner terminus. The decisions those facts feed are reduced here
+ * rather than by the caller, and the target and lane every per-lane input would otherwise restate
+ * are supplied from the resolved composition.
  *
  * @param input - The target work unit and the author judgment described above.
  * @param dependencies - The repository reads bound by the production composition root.
@@ -285,6 +317,13 @@ export async function composePrePublicationReviewRequest(
     };
   }
 
+  const ownerTerminusAuthority = lanes.data.standard?.terminus === undefined
+    ? null
+    : await dependencies.readOwnerTerminusAuthority(input.workUnit);
+  if (ownerTerminusAuthority?.status === "refused") {
+    return { status: "refused", reason: ownerTerminusAuthority.reason };
+  }
+
   const routing = resolveReviewRouting(
     routingInput(input.changeSet, assurance.assurance, assurance.activity),
   );
@@ -300,13 +339,14 @@ export async function composePrePublicationReviewRequest(
     ]);
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
+    const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
     return {
       schemaVersion: 1,
       target,
       lane,
       frontlineActive: assurance.activity.frontlineReview,
       standardReview,
-      completedPasses: progress.status === "recorded" ? progress.completedPasses : 0,
+      completedPasses,
       attempts: progress.status === "recorded"
         ? progress.attempts.map(({ sourceId, outcome, chunkSeriesComplete }) => ({
             sourceId,
@@ -325,6 +365,20 @@ export async function composePrePublicationReviewRequest(
       ...(judgment?.ceilingOverride === undefined
         ? {}
         : { ceilingOverride: { ...judgment.ceilingOverride, target, lane } }),
+      ...(lane !== "standard"
+        || judgment?.terminus === undefined
+        || ownerTerminusAuthority?.status !== "authorized"
+        ? {}
+        : {
+            terminus: {
+              schemaVersion: 1,
+              semanticsVersion: "review-terminus/v1",
+              kind: "owner-accepted",
+              lane: "standard",
+              acceptedBy: ownerTerminusAuthority.ownerIdentity,
+              completedPasses,
+            } satisfies OwnerAcceptedReviewTerminus,
+          }),
     };
   };
   const frontline = await composeLane("frontline");
@@ -358,4 +412,28 @@ export async function composePrePublicationReviewRequest(
     };
   }
   return { status: "composed", request: request.data, advisories };
+}
+
+/** Reapply a durable Owner conclusion only to the exact Candidate subject it accepted. */
+export function applyCarriedOwnerAcceptedTerminus(
+  composition: PrePublicationComposition,
+  input: {
+    candidateId: string;
+    candidateSubjectDigest: string | null;
+    terminus: OwnerAcceptedReviewTerminus;
+  },
+): PrePublicationComposition {
+  if (composition.status !== "composed"
+    || input.candidateSubjectDigest === null
+    || composition.request.candidateId !== input.candidateId
+    || composition.request.candidate.subjectDigest !== input.candidateSubjectDigest) {
+    return composition;
+  }
+  return {
+    ...composition,
+    request: PrePublicationReviewRequestSchema.parse({
+      ...composition.request,
+      standard: { ...composition.request.standard, terminus: input.terminus },
+    }),
+  };
 }

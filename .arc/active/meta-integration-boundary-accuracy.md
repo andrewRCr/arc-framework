@@ -11,10 +11,10 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:efc9475ddac228a54023ebb58413dd5cac5c5c34864a27dd993d8c430a9b2e48`
+- **Candidate:** `sha256:47c2ae9e59dd39b25ca0894dd94cf6f0678c92be50d28eba0d13320827fbfc72`
 
 - **Current Workflow:** `prepare-work-unit`
-- **Last Completed:** Task 14.3 — Project the prepublication workflow through Candidate attestation
+- **Last Completed:** Task 15.1.d — Verify the bounded increment
 - **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 

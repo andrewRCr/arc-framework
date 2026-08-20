@@ -21,6 +21,7 @@ import {
 } from "../hosts/local/method-files.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
+import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLaneProgressAcrossLineage } from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
@@ -171,6 +172,26 @@ export function createPrePublicationCompositionDependencies(input: {
       } catch (error) {
         return { status: "unavailable", reason: describe(error) };
       }
+    },
+
+    readOwnerTerminusAuthority: async (workUnit) => {
+      const name = SlugSchema.parse(workUnit);
+      let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
+      try {
+        live = await readLocalReviewLiveContext({ exec: input.exec, cwd: input.cwd });
+      } catch (error) {
+        return { status: "refused", reason: `The Work Unit Owner could not be resolved: ${describe(error)}` };
+      }
+      if (live.context.workUnit?.identity !== name) {
+        return { status: "refused", reason: "The current checkout does not resolve the requested work unit." };
+      }
+      if (live.context.activeIdentity === null) {
+        return { status: "refused", reason: "No active ARC identity is configured for Owner authorization." };
+      }
+      if (live.context.activeIdentity !== live.context.workUnit.owner) {
+        return { status: "refused", reason: "The active identity does not match the Work Unit Owner." };
+      }
+      return { status: "authorized", ownerIdentity: live.context.workUnit.owner };
     },
 
     readLaneProgress: async (lane, headSha, lineageHeadShas) => readLaneProgressAcrossLineage(store, {

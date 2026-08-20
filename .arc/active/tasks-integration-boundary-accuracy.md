@@ -1828,6 +1828,43 @@ later public `Active → Integrating` transition.
 
 ---
 
+## **Phase 15:** Owner-authorized review terminus
+
+_Purpose:_ Close the bootstrap gap exposed by this work unit's own prepublication run: the Work Unit Owner can
+explicitly accept a reasonable review terminus without another whole-target clearance claim, while the typed
+publication boundary remains truthful about what review did and did not establish.
+
+### `[x]` **15.1 Admit and persist an exact Owner-accepted standard-review terminus**
+
+- _Goal:_ One conversational Owner decision can end further standard-lane review for the current Candidate without
+  masquerading as `clean`, convergence, `no-op`, or evaluator satisfaction; outstanding findings still require
+  their approved response, and later reviewable movement invalidates the decision.
+
+- Build `test-first` (one behavior at a time):
+    - `[x]` **15.1.a Add the typed policy conclusion and Owner-bound composition**
+        - Extend the existing standard-lane judgment seam; resolve active identity and WU Owner from live ARC state;
+          let current findings take precedence; emit a distinct `owner-accepted / none` policy conclusion.
+    - `[x]` **15.1.b Carry the conclusion through the version-checked publication boundary**
+        - Bind it to the Candidate subject and observed pass count, preserve it through convergence attestation and
+          publication recovery, and drop it when reviewable Candidate identity changes.
+    - `[x]` **15.1.c Keep the workflow and public contract truthful**
+        - Document the conversational invocation without adding a command or second approval, update generated
+          schema surfaces and both workflow copies, and prove standard-lane skip remains impossible.
+    - `[x]` **15.1.d Verify the bounded increment**
+        - Run the focused policy, composition, boundary, handler, lifecycle, and publication suites plus the
+          relevance-selected project gates; re-attest the resulting Candidate before prepublication resumes.
+
+- _Outcome:_ The existing prepublication command now authenticates an explicit standard-lane terminus against the
+  active Work Unit Owner and records `review-terminus/v1` with observed pass progress. Findings win before that
+  conclusion; a findings replay consumes the raw direction; the durable conclusion survives convergence,
+  publication, checkpoint, and operational-only movement only while its exact Candidate subject remains current.
+  It supersedes any pending hosted reservation and remains distinct from clean, convergence, no-op, or evaluator
+  satisfaction. Both installed workflow copies consume the original Owner decision without another stop. Focused
+  policy/lifecycle/storage coverage, the generated schema acceptance check, 10,245 full-suite tests, every lint and
+  ARC contract check, both typechecks, and the production/declaration build passed before Candidate re-attestation.
+
+---
+
 ## Success Criteria
 
 - `[x]` The final integration step's residual length is a function of its stop inventory; the reconcile arm
@@ -1925,6 +1962,16 @@ _Added 2026-08-17 — prepublication phase (forward amendment; the prior sets ar
 - `[x]` `arc publish` records `Current Workflow: integrate-work-unit`, `arc reopen` restores
   `prepare-work-unit`, and the consistency guard accepts those lifecycle/state pairs without admitting a planning
   workflow under `Active`
+
+_Added 2026-08-19 — Owner-accepted review terminus (forward amendment; the prior sets are unchanged):_
+
+- `[x]` Explicit Work Unit Owner direction can conclude the standard lane for the current Candidate as
+  `owner-accepted`; it cannot be supplied by a non-Owner active identity, suppress an outstanding findings result,
+  or report review as clean, converged, no-op, or evaluator-satisfied
+- `[x]` The conclusion is durable and subject-bound: convergence attestation and publication preserve it,
+  operational-only movement leaves it standing, and reviewable Candidate movement invalidates it
+- `[x]` The existing prepublication invocation consumes the authorization without a new command or redundant human
+  stop; standard-lane invocation skip remains structurally impossible
 
 **Delivery integrity.** Executable checks fail when the spine misses its intent: the merge verb returns
 `invalidated` on a mismatched head, the checkpoint blocks an unattested or unexplained lineage, and the real-CLI
