@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "decouple-coderabbit-review-completion-from-body-text",
+  "claimId": "8a5b830afd0c1a4893977df31e17594c",
+  "createdAt": "2026-08-20T21:39:52.879Z",
+  "updatedAt": "2026-08-20T21:39:52.879Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make hosted CodeRabbit completion rely on structured GitHub review evidence, using review-body text only for supplemental findings and consistency checks.",
+  "branch": "chore/decouple-coderabbit-review-completion-from-body-text",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
