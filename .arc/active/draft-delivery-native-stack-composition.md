@@ -148,6 +148,17 @@ exists.
    structures — no new record family, no typed verification store; the instrument upgrades (falsification
    obligation, criteria-authoring constraints, the reachability lint) stay with their own captures and refine
    this seam without reshaping it.
+8. **Hosted-review reservation fans out per member.** A hosted-first standard reservation carried across
+   `arc publish` resumes per member through the delivery-member vehicle: each member pull request receives the
+   reserved hosted source's review at its exact head, and the WU obligation discharges as the conjunction of
+   member reviews — the same reviews the delivery's per-member admission already requires, so one review system,
+   not two. No PR presents the union delta in a stack, so a top-only resumption would review a sliver while
+   claiming the WU — excluded by construction: a member review claims member scope only, and no whole-WU
+   clearance is derived from the set. Cross-member seams stay covered by the member-boundary verification
+   substrate and the chunked local lane's seam doctrine where it runs; any aggregate hosted review surface
+   remains `delivery-review-cardinality`'s demand-held question, not pre-empted here. The ordering rule fans out
+   with the reservation: the reserved source may not be leapfrogged by a lower-ranked carrier on any member
+   merely because its pull request now exists.
 
 ## Ceremony budget — pre-commitment
 
@@ -292,8 +303,6 @@ if still wanted then, gets a fresh design against the v2 substrate rather than t
 
 - Whether registration should use the raw Stacks API only, given `gh stack link` porcelain performs mutations beyond
   the presentation-only carve-out.
-- How a carried hosted-review reservation (`arc publish`'s deferred hosted-first standard obligation) reads across
-  several member pull requests — per member, top-only, or delivery-scoped.
 - Where member criteria slices live and how they render — the delivery plan's member-coverage table, the task
   list's boundary tasks, or both with one authority.
 
