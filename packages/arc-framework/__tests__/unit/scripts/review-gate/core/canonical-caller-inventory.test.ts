@@ -54,6 +54,7 @@ describe("review-gate canonical serializer inventory", () => {
       "core/gate-contract-v2.ts",
       "core/identity.ts",
       "core/local-operation.ts",
+      "hosted/request.ts",
       "hosts/local/disposition-record-store.ts",
       "hosts/local/frontline-outcome-store.ts",
       "hosts/local/operation-state-store.ts",
