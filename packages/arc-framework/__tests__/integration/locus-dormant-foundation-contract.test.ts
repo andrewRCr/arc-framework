@@ -45,6 +45,7 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
     "src/lib/locus/session-guidance.ts",
     "src/lib/recover/audit.ts",
     "src/lib/recover/locus-context.ts",
+    "src/scripts/review-gate/hosted/errand-authority.ts",
   ],
   "src/lib/locus/derived-roster.ts": [
     "src/commands/locus.ts",
@@ -98,6 +99,7 @@ const expectedTestIncoming: Readonly<Record<(typeof dormantModules)[number], rea
     "__tests__/unit/locus/session-guidance.test.ts",
     "__tests__/unit/recover/audit.test.ts",
     "__tests__/unit/recover/locus-context.test.ts",
+    "__tests__/unit/scripts/review-gate/hosted/errand-authority.test.ts",
     "__tests__/unit/status/run.test.ts",
   ],
   "src/lib/locus/derived-roster.ts": [
