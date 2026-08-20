@@ -169,10 +169,14 @@ review contracts; it does not begin with an assurance-group schema.
 ### `delivery-native-stack-composition`
 
 The v2 topology amendment, consolidated from the v1 self-delivery's field captures: every code-bearing member joins
-the provider stack and the top member is the ordinary terminal integration vehicle (the retained control branch and
-separate terminal request are removed); landing is bottom-up and non-blocking; restack/refresh mechanics delegate to
-the stack provider with ARC adopting the reobserved chain on structural contribution equivalence; native landing is
-the routed path for a registered stack. It preserves the plan/state contracts, member review admission, exact-head
+the stack chain and the top member is the ordinary terminal integration vehicle (the retained control branch and
+separate terminal request are removed); provider registration covers the non-terminal members, keeping the pushed
+WU branch outside provider rewrites; landing is bottom-up and non-blocking; restack/refresh mechanics delegate to
+the stack provider for the registered suffix, with ARC adopting the reobserved chain on structural contribution
+equivalence and the top absorbing movement by append-only predecessor merge; native landing is the routed path for
+a registered stack. It also owns member-boundary verification (member-scoped criteria slices and their firing
+cadence) and the per-member fan-out of a carried hosted-review reservation, the WU obligation discharging as the
+conjunction of member reviews. It preserves the plan/state contracts, member review admission, exact-head
 integration authority, and the complete unlinked landing path.
 
 ## V1 readiness

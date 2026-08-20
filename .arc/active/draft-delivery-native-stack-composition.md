@@ -1,16 +1,16 @@
 # Draft: delivery-native-stack-composition — first-class native stack topology
 
-- **Commitment:** Cohort member (`chunked-delivery`). A deliberate amendment to the v1 goals/non-goals shipped by
-  `delivery-stack-topology` — not a cosmetic fix set. The v1 self-delivery completed on the v1 path; this member
-  redesigns the topology that path exposed as wrong.
+- **Commitment:** Cohort member — the shared review baseline, non-goals, and hardening-admission boundary live in
+  `cohort-chunked-delivery.md`. A deliberate amendment to the v1 goals/non-goals shipped by `delivery-stack-topology` —
+  not a cosmetic fix set. The v1 self-delivery completed on the v1 path; this member redesigns the topology that path
+  exposed as wrong.
 - **Purpose:** Make the provider stack chain itself — including its top code-bearing member — the delivery topology,
   delegate restack/refresh mechanics to the stack provider, and keep ARC's authority at plan intent, review and
   interlock gates, and exact-result validation at the landing instant.
-- **Position:** Consolidates four 2026-08-13/14 field captures from the v1 self-delivery (terminal attachment
-  resolution, first-class stack branches, projection refresh, native landing routing) into one coherent follow-up.
-  Composes with the landed `integration-boundary-accuracy` contracts (dependency discharged 2026-08-20): the
-  `arc attest` / `arc publish` lifecycle verbs and the typed `arc integrate checkpoint` → interlock →
-  `arc integrate merge` spine. Reconciled against the shipped spec at this WU's first planning session.
+- **Position:** Consolidates the v1 self-delivery's four field captures — terminal attachment resolution, first-class
+  stack branches, projection refresh, native landing routing — into one coherent follow-up. Composes with the landed
+  `integration-boundary-accuracy` contracts: the `arc attest` / `arc publish` lifecycle verbs and the typed
+  `arc integrate checkpoint` → interlock → `arc integrate merge` spine.
 - **Boundary fit (2026-08-20 entry read):** stays one WU + delivery-plan candidate. The facets (comparator, refresh,
   native routing, terminal/locus) hang off one design spine; the predecessor's stacked delivery and a comparable
   surface span warrant slice-aware authoring. Topology awareness only — nothing published or bound.
@@ -43,7 +43,7 @@ native stack. Dogfooding (PRs #498–#502 + terminal #507) exposed the cost:
   nothing landing in parallel — versus the industry model where a stack lands in roughly its slowest single member's
   review time.
 
-## External grounding (research synthesis, 2026-08-15)
+## External grounding (research synthesis)
 
 Three-analyst survey of ghstack, spr, Sapling/ReviewStack, jj tooling, Graphite, GitHub native stacks, Gerrit, and
 Meta/Google practice. Convergent findings:
@@ -77,10 +77,16 @@ exists.
 
 1. **First-class top member — the originating WU branch.** Eliminate the retained control branch and the separate
    terminal request. A WU begins ordinary — one branch, one worktree, artifacts in place — and adopts stacking as a
-   transition: members are cut below the originating branch, which retargets onto the highest member and remains
-   both the WU's branch and the stack's top. "Top" is never a moving designation (new members are always carved
-   from beneath it), the WU locus is untouched — sessions resume as today, and non-stacked WUs are unaffected —
-   and the top member's PR is the ordinary terminal work-unit integration vehicle: repository-materialized
+   transition: member branches are authored filtered cuts below the originating branch (content excludes lifecycle
+   artifacts per the existing eligibility contract), published as first-class refs, and the originating branch
+   adopts the chain by an **append-only ancestry merge** of the highest member's head — making the member chain
+   ancestral, so the top PR's diff against the highest member is exactly the residual (terminal slice plus
+   lifecycle artifacts) — while remaining both the WU's branch and the stack's top. The rejected construction —
+   rewriting the WU branch to a residual-only unique range — would force-push a pushed session branch, violating
+   the append-only contract and orphaning SHA-keyed user notes. "Top" is never a moving designation (a later
+   member is carved from beneath it and ancestry-merged the same way), the WU locus is untouched — sessions
+   resume as today, and non-stacked WUs are unaffected — and the top member's PR is the ordinary terminal
+   work-unit integration vehicle: repository-materialized
    completion and archive contribution append where they already do, and the terminal ceremony is the ordinary
    `arc integrate checkpoint` → interlock → `arc integrate merge` flow. One locus addition only: a checkout of a
    member branch resolves its owning WU through the delivery state's existing reverse-lookup contract — a narrow
@@ -95,12 +101,28 @@ exists.
    reopen that fork are recorded in this WU's ADR (see § Posture record). Lifecycle mapping follows the shipped
    boundary unchanged: whole-WU attestation (`arc attest`, over the top branch's union tree, composing the
    member-boundary evidence and the seam pass) precedes `arc publish` at the publication-step head, where the
-   push arm becomes push-members / register-stack / open-PRs bottom-up; `Integrating` spans the landing window;
-   the top member's merge is the terminal instant.
+   push arm becomes push-members / register-stack / open-PRs bottom-up (registration covers the non-terminal
+   members — point 5); `Integrating` spans the landing window; the top member's merge is the terminal instant.
+   **Terminal authorization is a typed delivery arm of the checkpoint spine.** The ancestry-merge construction
+   plus merge-commit member landings advance the recomputed merge-base between the top and the base through each
+   landed member, so the top's freshly computed candidate subject at the terminal is the residual, never the
+   attested union — deterministically, drift or no drift. The union attestation therefore exists once, at the
+   publication head (as above), and the terminal checkpoint gains a delivery arm — extending the shipped spine
+   by composition exactly as the native merge arm does, never rewriting attestation semantics: it verifies that
+   the boundary's candidate is the delivery's bound publication candidate, that every non-terminal member landed
+   at its exact bound head (the delivery state already guards each landing), and that the terminal residual
+   carries no unexplained delta against the plan's terminal member — exact trees/contributions, per the cohort
+   floor. Exact-head pinning, the interlock, and the refusal posture are unchanged. Window-time drift absorbed
+   by the top's predecessor merges is fail-closed at the same seam: drift overlapping the residual's own paths
+   re-fires member-scope verification for the terminal slice (the residual is the terminal member's scope under
+   point 7), never whole-WU re-verification; drift outside those paths reconciles as ordinary absorbed base
+   movement. The reopening trigger for a cheaper carry-forward path is recorded with the ADR (§ Posture record).
 3. **Provider-delegated reconciliation — demand-driven, window-scoped.** ARC detects append-only target drift and
    emits the exact planned suffix plus safety and review-invalidation consequences; the stack provider or operator
-   refreshes branches and requests; ARC reobserves the complete chain and adopts only when the projection exactly
-   matches the plan. The refresh arm fires on a refused landing (genuine conflict, native stale-suffix requirement,
+   refreshes the registered non-terminal suffix — the top is never provider-restacked; it absorbs predecessor
+   movement by another append-only predecessor merge, the same base-merge doctrine pushed branches already
+   follow; ARC reobserves the complete chain and adopts only when the projection exactly matches the plan. The
+   refresh arm fires on a refused landing (genuine conflict, native stale-suffix requirement,
    host up-to-date policy) or explicit operator choice, never on base movement alone; append-only external drift
    that blocks nothing is disclosed, not acted on. Interruption recovers to exact partial adoption by riding the
    existing one-active-operation state — refresh is a guarded operation, not a second protocol family.
@@ -134,32 +156,40 @@ exists.
    allowances while the platform holds intermediate members to merge commits (only the top member is free); the
    disclosed host-evidence residuals (branch-scoped rules unread, absent-vs-unconfigured required checks) are
    external couplings, not this WU's scope. Native linkage stays provider-observed, never canonical plan authority.
-   Registration is raw Stacks API only (settled 2026-08-20, research-grounded): the API's chained-or-`422`
-   precondition is ARC's own fail-closed refusal expressed host-side, while the `gh stack link` porcelain pushes
-   branch arguments, creates missing PRs, and auto-corrects mismatched PR bases — silent repair of exactly the
-   topology mismatch ARC must surface — and its error layer masks API rejection reasons. The shipped adapter
-   already conforms (`gh api repos/{repo}/stacks`). The porcelain and the host UI remain legitimate operator-side
-   refresh instruments; ARC adopts their results through reobservation and structural equivalence, never as
-   registration or authority.
+   Registration is raw Stacks API only (research-grounded), **over the non-terminal member set**: the top chains
+   natively as an ordinary PR based on the highest member branch — connected, presenting the residual delta — but
+   stays outside the registered stack, so no provider-side stack operation (UI "Rebase stack", `gh stack rebase`,
+   native suffix rewrites) can touch the session branch, a structural guarantee rather than operator discipline,
+   and those instruments stay fully usable over the registered set. The tax — the top forfeits stack-UI
+   membership and native retarget machinery, relying on ordinary deleted-base retargeting at the final landing —
+   is tracked-tier substrate cost (§ Substrate seam). The API's chained-or-`422` precondition is ARC's own
+   fail-closed refusal expressed host-side, while the `gh stack link` porcelain pushes branch arguments, creates
+   missing PRs, and auto-corrects mismatched PR bases — silent repair of exactly the topology mismatch ARC must
+   surface — and its error layer masks API rejection reasons. The shipped adapter already conforms
+   (`gh api repos/{repo}/stacks`). The porcelain and the host UI remain legitimate operator-side refresh
+   instruments over the registered set; ARC adopts their results through reobservation and structural
+   equivalence, never as registration or authority.
 6. **Bookkeeping posture.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
    from plan, Git, and host authorities at each operation. The cohort's no-second-ledger non-goals carry forward
    unchanged; this member adds no durable record family.
-7. **Member-boundary verification (pulled forward — ship whole).** If a target's breadth already forced a review
-   and delivery split, one whole-target verification pass is compromised for the same reason — field evidence:
+7. **Member-boundary verification (owned here — ship whole).** If a target's breadth already forced a review and
+   delivery split, one whole-target verification pass is compromised for the same reason — field evidence:
    `integration-boundary-accuracy`'s four verify → adversarial-gap → remediate cycles, each opened by a clean
    primary self-verify. With task order following member order, the working tree at member k's completion
    boundary _is_ member k's cumulative tree, so no early branch materialization is needed: the task plan gains a
    closing verification task per member (criteria slice + bounded member diff + reachability over the cumulative
    tree, reusing the whole-WU verification walk at member scope), evidence lands as ordinary task completion, and
    the whole-WU closeout pass narrows to cross-member seams and union coherence. MVP as procedure over existing
-   structures — no new record family, no typed verification store; the instrument upgrades (falsification
-   obligation, criteria-authoring constraints, the reachability lint) stay with their own captures and refine
-   this seam without reshaping it. Criteria slices are task-list structure with one authority: the Success
-   Criteria section groups by member plus one cross-member seam group, each member's boundary task walks its
-   group, and the closeout pass walks the seams — assignment follows "the earliest boundary whose validator can
-   see the evidence," with criteria no member boundary can see defaulting to the seam group. The delivery plan's
-   coverage table keeps binding tasks and design elements only; it never carries criterion content, so no second
-   authority arises.
+   structures — no new record family, no typed verification store. This WU owns the invocation topology — the
+   member boundaries, criteria slices, and firing cadence; the instrument upgrades refine that seam without
+   reshaping it and live with their owning WUs: `verification-falsification-contract` owns the verification
+   instrument's falsification quality, `planning-iteration-mechanics` owns the planning-time criterion authoring
+   form, and the reachability lint rides its own errand capture. Criteria slices are task-list structure with one
+   authority: the Success Criteria section groups by member plus one cross-member seam group, each member's
+   boundary task walks its group, and the closeout pass walks the seams — assignment follows "the earliest
+   boundary whose validator can see the evidence," with criteria no member boundary can see defaulting to the
+   seam group. The delivery plan's coverage table keeps binding tasks and design elements only; it never carries
+   criterion content, so no second authority arises.
 8. **Hosted-review reservation fans out per member.** A hosted-first standard reservation carried across
    `arc publish` resumes per member through the delivery-member vehicle: each member pull request receives the
    reserved hosted source's review at its exact head, and the WU obligation discharges as the conjunction of
@@ -172,6 +202,38 @@ exists.
    with the reservation: the reserved source may not be leapfrogged by a lower-ranked carrier on any member
    merely because its pull request now exists.
 
+## Substrate seam — why full native composition waits
+
+The design above composes with the native-stack idiom everywhere except one layer, and the divergence is
+substrate-caused, not doctrinal. Two ARC contracts force it:
+
+- **Lifecycle artifacts ride the WU's code history** (tracked tier, arc-in-git): task-list updates ride task
+  commits and ceremony commits interleave with code, so a member cut from the real history would carry
+  `.arc/active/` content and landing it would ship a partial WU's live artifacts to the base — the
+  session-perturbation the cohort floor forbids. This is what forces members to be filtered reconstructions
+  rather than interior refs, and with them the transition construction, the eligibility filtering, and the
+  ancestry merge.
+- **The pushed WU branch is append-only** (SHA-keyed user notes, multi-machine sync): idiomatic stacks rewrite
+  branches freely; ARC's session substrate cannot survive a rewrite of the top, which is why the top is excluded
+  from provider restack and registration.
+
+The projection layer those contracts require — member filtering and reconstruction, the lifecycle-exclusion
+eligibility path, the ancestry-merge transition, registration scoping, top protection — is **substrate tax,
+deliberately separable**: the plan/state schema stays projection-neutral (cohort contract), so nothing durable
+bakes the tracked-tier shape in. Under the storage-evolution endpoint (`strategy-storage-evolution.md`:
+operational state materializes without branches carrying it; WU identity and session anchoring decouple from
+branch/SHA identity), both causes dissolve — members become interior refs, the full stack registers including
+the top, provider restack works end to end, and the projection layer retires. Two elements are survivors, not
+tax — convergence must not dismantle them: the delivery-typed terminal authorization (the merge-base advance
+that collapses the terminal subject is intrinsic to ancestral members landing as merge commits — exactly the
+interior-ref shape — not a tracked-tier artifact) and member-boundary verification (substrate-independent task
+and criteria structure). And to keep the retirement a bounded swap, member materialization is one narrow seam:
+the tracked-tier filtering implements behind a single member-materialization boundary, so convergence replaces
+the materializer while the delivery protocol above it stands. That convergence obligation is captured for
+routing to the storage-evolution consumers (it drains to their stubs); this design records the seam, and the
+surviving contracts — structural identity, registration, landing, refresh, terminal authorization,
+member-boundary verification — carry over unchanged.
+
 ## Ceremony budget — pre-commitment
 
 - The protected base is never frozen for a delivery, at any stage.
@@ -180,7 +242,8 @@ exists.
   obligates an immediate refresh; the delivery absorbs drift on demand, at its own landing boundaries.
 - Landing an N-member stack costs at most N landing decisions (or one contiguous-prefix decision) plus genuine
   content-conflict resolutions — no manual recuts, no per-member manual suffix adoption, no synthetic reconciliation
-  merges.
+  merges. Named top-only costs: append-only predecessor merges to absorb chain movement, and member-scope
+  re-verification of the terminal slice when absorbed drift overlaps the residual's own paths (point 2).
 - Total ceremony must not exceed what a team on Graphite or GitHub native stacks performs for the same topology;
   every ARC-added step must name the chartered failure it guards that the provider baseline does not.
 
@@ -189,11 +252,11 @@ exists.
 - **Merge-commit-only for intermediate members** — confirmed platform fact (see above); only the top member may
   squash or rebase. Compatible with ARC's merge-commit default; bounds any PR-title/commit-promotion policy to the
   top member.
-- **GitHub native stacks are public preview**: subject to change, async merge with a disclosed residual race window
-  (no full-set compare-and-set), auto-merge unsupported for stacked PRs, merge-queue support still rolling out,
-  server-side "Rebase stack" produces unsigned commits, GHES unconfirmed. The v1 posture — provider-observed, never
-  authoritative, with the complete unlinked provider-neutral path retained as default and degrade target — carries
-  forward unchanged.
+- **GitHub native stacks are public preview** (2026-07-30): subject to change, async merge with a disclosed residual
+  race window (no full-set compare-and-set), auto-merge unsupported for stacked PRs, merge-queue support still
+  rolling out, server-side "Rebase stack" produces unsigned commits, GHES unconfirmed. The v1 posture —
+  provider-observed, never authoritative, with the complete unlinked provider-neutral path retained as default and
+  degrade target — carries forward unchanged.
 - **Merge-queue coordination is all-or-nothing.** Field-documented failure mode ([LLVM/Graphite][llvm-graphite-queue-rfc]):
   partial queue adoption with stacks causes infinite rebase/CI loops. The existing no-merge-queue exclusion stands;
   any future adoption must be universal, not optional.
@@ -202,7 +265,8 @@ exists.
   demand-driven still, but frequent on a busy trunk, and the same tax any stack pays under that policy anywhere.
   Host-owned: the remedies are repository policy choices (relax strict up-to-date, or a merge queue — excluded for
   stacks per the constraint above); ARC keeps each forced refresh at the provider baseline — one delegated restack
-  plus reobserve-adopt — and adds nothing on top.
+  of the registered suffix plus reobserve-adopt, plus the top's append-only predecessor merge — and adds nothing
+  beyond them.
 
 ## Amendment classification against v1
 
@@ -216,68 +280,76 @@ head; sequential unlinked landing remains the decline path).
 aggregate-patch identity as a refusal bar for mechanically carried members, and the whole-stack serialized landing
 posture.
 
+## Posture record — WU deliverables
+
+- **ADR.** The delivery-and-review posture is canonical, not WU-local: agentic review is the primary review lane,
+  with human review complementing it — as a separate lane where teams run one, or as triage/authority over
+  agent-review dispositions — and landing is windowed: incremental gating during execution, merges deferred to the
+  post-publish window. Record the considered land-as-you-go alternative (the industry norm) and the named reasons
+  for the narrow divergence: amendment freedom until the window (a landed member refuses re-description, converting
+  routine plan amendment into public fix-forward), agent-reviewer latency in minutes removing the pipelining payoff
+  that motivates early landing, restack-triggered re-review churn across open member PRs, and the native stack
+  machinery's current maturity (no auto-merge for stacked PRs, async merge with a residual race). Record the
+  reopening trigger: field use showing late-batched hosted review producing rework that boundary-time landing would
+  have prevented — and, for terminal authorization, field evidence that residual-overlap re-verification or the
+  delivery-arm composition dominates window ceremony, which would reopen extending structural carry-forward into
+  the attestation lineage as a deliberate authority-semantics amendment. The raw-Stacks-API registration
+  decision rides as a worked instance of the same stance — typed fail-closed host surfaces over
+  silently-repairing porcelain — rather than its own record. One ADR or two
+  (posture / landing decision) resolves against `strategy-adr-methodology.md` at authoring.
+- **Strategy touch.** Fold the posture into the appropriate adopter-facing strategy; resolve the exact home at spec
+  time with the `init-recipe.json` both-directions check (standing WORKING-MEMORY constraint) before placing
+  content.
+
 ## Known implementation seams
 
 - Contribution-proof comparator: `packages/arc-framework/src/lib/delivery/contribution-proof.ts` /
   `git-contribution-proof.ts` — replace the byte-aggregate fallback (its `git diff --binary --full-index` patch
   bytes embed predecessor-dependent blob ids: the mechanical-rebase false-refusal mechanism, named in one flag)
-  with the merge-tree arbiter; keep the tree-equality fast path and endpoint pinning. `git merge-tree
-  --write-tree` sets a Git ≥ 2.38 floor for the delivery feature — disclose and refuse below it, never degrade.
+  with the merge-tree arbiter; keep the tree-equality fast path and endpoint pinning. The arbiter requires the
+  explicit-base form — `git merge-tree --write-tree --merge-base=<old-predecessor>` — because auto-computed merge
+  bases are wrong after provider rewrites; that option sets a Git ≥ 2.40 floor for the delivery feature —
+  disclose and refuse below it, never degrade.
   Distinct from the plan-semantics fingerprinting in `fingerprint.ts` — the two concepts must not conflate.
-- Stacks API preview churn: the feature is a 2026-07-30 public preview — re-verify endpoint and precondition
-  behavior at implementation time; empirically confirm a successful registration writes no PR timeline events
-  (provider-observed purity is load-bearing and only documented by inference); Stacks-API OAuth-scope
-  requirements are undocumented — establish them at implementation.
-- Terminal attachment: the archival-refusal defect is fixed (PR #511, 2026-08-20 — attachment binds an explicit
-  lifecycle-complete work-unit identity, with a typed no-op for ordinary delivery). The remaining seam is the
-  amendment's own: retire the attach machinery together with the disconnected terminal request it serves, rather
-  than leaving a working mechanism whose subject this design removes.
-- Terminal-workflow guard tests: `delivery-terminal-workflow.test.ts`'s whole-file digest pin is already removed (it
-  froze a shared workflow document and its reconstruction literal had gone stale); the twelve retained structural
-  assertions over the terminal-attachment block will fail by name when this design removes the disconnected terminal
-  request — the intended signal. Retire or rewrite them deliberately as part of the amendment; any replacement guard
-  is structural assertions over the specific contract (presence, uniqueness, ordering relative to merge confirmation
-  and close), never a digest over a shared document.
+- Stacks API preview churn: re-verify endpoint and precondition behavior at implementation time; empirically
+  confirm a successful registration writes no PR timeline events (provider-observed purity is load-bearing and
+  only documented by inference); Stacks-API OAuth-scope requirements are undocumented — establish them at
+  implementation. Two verifies from the registration-scope decision: confirm registration tolerates a dependent
+  unregistered PR based on the top registered member's branch, and confirm ordinary deleted-base retargeting
+  covers the top's final retarget (it depends on the repository's branch-deletion-on-merge behavior).
+- Terminal attachment: attachment now binds an explicit lifecycle-complete work-unit identity, with a typed no-op
+  for ordinary delivery (the archival-refusal defect is fixed — PR #511). The live seam is the amendment's own:
+  retire the attach machinery together with the disconnected terminal request it serves, rather than leaving a
+  working mechanism whose subject this design removes.
+- Terminal-workflow guard tests: `delivery-terminal-workflow.test.ts` retains eleven structural assertions over the
+  terminal-attachment block (its whole-file digest pin is gone — it froze a shared workflow document and its
+  reconstruction literal had gone stale); they will fail by name when this design removes the disconnected terminal
+  request — the intended signal. Retire or rewrite them deliberately as part of the amendment; any replacement
+  guard is structural assertions over the specific contract (presence, uniqueness, ordering relative to merge
+  confirmation and close), never a digest over a shared document.
 - Suffix reconciliation: the native reconciler models only the single next-member retarget; native landing rewrites
   the entire remaining suffix, so full-suffix observation and structural reconciliation must be part of the landing
   result.
-- Completed-record retirement: after the first live integration (2026-08-20), `.git/arc/delivery/` still held two
-  canonical plan records and one bound state record for shipped, unoccupied work units — the store exposes
+- Completed-record retirement: after the first live integration, `.git/arc/delivery/` still held two canonical plan
+  records and one bound state record for shipped, unoccupied work units — the store exposes
   publish/enumerate/read/reverse-lookup only, so global member reverse lookup keeps treating historical heads as live
-  delivery-member authority and a reopened same-slug WU rediscovers the old plan. Settle the retention contract with
-  the ephemeral-bookkeeping posture: one idempotent, version-checked retirement path after terminal adoption and
-  ordinary WU closeout (covering a completed bound plan/state pair and an orphan plan with no state), or move
-  completed records out of the live enumeration and reverse-lookup namespaces; refuse while an operation, member ref,
-  or unsettled terminal remains.
+  delivery-member authority and a reopened same-slug WU rediscovers the old plan. Settled to the removal arm, per
+  the ephemeral-bookkeeping posture: one idempotent, version-checked retirement operation after terminal adoption
+  and ordinary WU closeout deletes the completed bound plan/state pair (and any orphan plan with no state
+  belonging to the same work unit) from the store — no archive namespace, which would be a durable record family
+  the non-goals exclude, and pre-release posture clears development state rather than migrating it; refuse while
+  an operation, member ref, or unsettled terminal remains.
+- Delivery-typed terminal checkpoint arm: the shipped currentness projection recomputes the candidate subject
+  against a fresh merge-base (`git-candidate-subject.ts`) and the publication boundary pins the at-publish digest
+  (`checkpoint-composition.ts`), so the delivery arm must compose the terminal claim from the attestation record,
+  the delivery state's exact bound member heads, and a residual comparison against the plan's terminal member —
+  reusing the eligibility comparator's content-comparison machinery — rather than the single-subject digest
+  equality the singleton path uses.
 - Delivery residue reaping: the v1 self-delivery left six candidate refs and six delivery-gate worktrees with no
-  cleanup driver (hand-reaped 2026-08-15); whatever replaces the disposable-projection model owns reaping its own
-  refs and checkouts, or names their cleanup driver.
+  cleanup driver (hand-reaped once); whatever replaces the disposable-projection model owns reaping its own refs
+  and checkouts, or names their cleanup driver.
 - Frontline review of delivery members (`stale-target` recomposition refusal) is owned by an independent errand
   capture — coordinate, do not duplicate; that fix should land before this WU dogfoods its own delivery.
-
-## Posture record and scope pulls (2026-08-20)
-
-- **ADR — a WU deliverable.** The delivery-and-review posture is canonical, not WU-local: agentic review is the
-  primary review lane, with human review complementing it — as a separate lane where teams run one, or as
-  triage/authority over agent-review dispositions — and landing is windowed: incremental gating during execution,
-  merges deferred to the post-publish window. Record the considered land-as-you-go alternative (the industry norm)
-  and the named reasons for the narrow divergence: amendment freedom until the window (a landed member refuses
-  re-description, converting routine plan amendment into public fix-forward), agent-reviewer latency in minutes
-  removing the pipelining payoff that motivates early landing, restack-triggered re-review churn across open
-  member PRs, and the native stack machinery's current maturity (no auto-merge for stacked PRs, async merge with
-  a residual race). Record the reopening trigger: field use showing late-batched hosted review producing rework
-  that boundary-time landing would have prevented. The raw-Stacks-API registration decision rides as a worked
-  instance of the same stance — typed fail-closed host surfaces over silently-repairing porcelain — rather than
-  its own record. One ADR or two (posture / landing decision) resolves against `strategy-adr-methodology.md` at
-  authoring.
-- **Strategy touch — a WU deliverable.** Fold the posture into the appropriate adopter-facing strategy; resolve
-  the exact home at spec time with the `init-recipe.json` both-directions check (standing WORKING-MEMORY
-  constraint) before placing content.
-- **Per-deliverable verification ownership** moves here (retargeted from `delivery-review-cardinality` at the
-  2026-08-20 housekeep drain): the member-boundary verification substrate is load-bearing for this topology and
-  ships with it. The falsification-obligation and criteria-authoring instrument upgrades stay with their own
-  captures, and the reachability lint rides its own errand capture — each refines the member boundary without
-  reshaping it.
 
 ## Explicit non-goals
 
@@ -290,16 +362,26 @@ posture.
 - No automatic resolution of genuine content conflicts — that step stays attended by design.
 - No change to review, interlock, or integration authority semantics (composition with the landed
   `integration-boundary-accuracy` contracts, not a rewrite of them).
+- No pre-implementation of the storage-evolution substrate: no off-branch artifact materialization, no notes
+  re-keying, no session-anchor changes; the projection layer implements as-is on the tracked tier, the top stays
+  unregistered under it, and convergence work routes to its owners (§ Substrate seam).
+- No structural carry-forward into the attestation lineage: the terminal delivery arm composes existing records;
+  extending lineage-continuation semantics is the ADR's recorded reopening trigger, a deliberate future
+  amendment.
 
 ## Coordination
 
-- `integration-boundary-accuracy` — landed dependency, reconciled 2026-08-20: this design composes with the shipped
-  `arc attest` / `arc publish` verbs and checkpoint/merge spine, and consumes its typed substrate rather than
-  minting parallel reads — `arc review change-request resolve` (member PR resolution / reverse lookup),
-  `arc review status`, `arc base merge`, `arc review merge-method resolve`, and the provider-neutral bounded wait
-  for any stack-merge-API await (its natural third instantiation).
-- `delivery-review-cardinality` — narrowed 2026-08-20: retains its review-request-cardinality charter; the
-  per-deliverable verification concern retargeted to this WU (see § Posture record and scope pulls).
+- `integration-boundary-accuracy` — landed dependency: this design composes with the shipped `arc attest` /
+  `arc publish` verbs and checkpoint/merge spine, and consumes its typed substrate rather than minting parallel
+  reads — `arc review change-request resolve` (member PR resolution / reverse lookup), `arc review status`,
+  `arc base merge`, `arc review merge-method resolve`, and the provider-neutral bounded wait for any
+  stack-merge-API await (its natural third instantiation).
+- `delivery-review-cardinality` — retains its review-request-cardinality charter; per-deliverable verification
+  ownership lives here (design spine point 7).
+- `verification-falsification-contract` / `planning-iteration-mechanics` — instrument neighbors: the former owns
+  the verification instrument's falsification quality, the latter the planning-time criterion authoring form; both
+  consume this WU's member-scoped invocation topology (criteria slices, boundary cadence, seam closeout) rather
+  than re-deriving it, per the boundary recorded in their backlog drafts.
 - `review-source-authority` — owns the hosted-lane record-family census; this member adds no new records for that
   census to inherit.
 - `decomposition-doctrine` / the `assess-boundary-fit` chassis — unchanged; delivery still owns the checkpoint
