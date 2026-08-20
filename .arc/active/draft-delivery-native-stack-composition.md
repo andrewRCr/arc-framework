@@ -107,12 +107,22 @@ exists.
    Execution-time base movement precedes materialization and is ordinary WU base-merge territory; member-boundary
    verification evidence then follows the ordinary after-base-merge re-run rules. Conflicts, rewritten targets,
    and ambiguous provider movement refuse.
-4. **Structural contribution identity.** The tree-equality fast path stays. The byte-identical aggregate-patch
-   fallback is replaced by a structural equivalence check — reapply-and-compare-trees (the Gerrit trivial-rebase
-   test) or stable patch identity ([`git patch-id --stable`][git-patch-id]) — so a mechanically rebased member is
-   classified and
-   reported as carried forward without being caller-selected, while any genuine contribution change still refuses
-   closed. Exact-head pinning remains only at the merge instant.
+4. **Structural contribution identity — reapply-and-compare-trees.** The tree-equality fast path stays. The
+   byte-identical aggregate-patch fallback is replaced by one structural arbiter, the Gerrit trivial-rebase test:
+   a single in-core three-way merge per member (merge base = old predecessor, ours = new predecessor, theirs = old
+   member head; `git merge-tree --write-tree`), its result tree compared to the provider's new member tree. Equal
+   trees → carried forward mechanically, review standing preserved, context drift absorbed. A merge conflict
+   during reapply → the contribution genuinely interacts with the base movement — refuse to attended resolution
+   (the failure mode is the detector). Unequal without conflict → the provider's result diverges from clean
+   mechanical application — refuse with the exact divergent paths. Stable patch identity
+   ([`git patch-id --stable`][git-patch-id]) is rejected as arbiter: it hashes context lines, so it false-refuses
+   exactly the adjacent-edit case a busy trunk makes common — the v1 failure mode with different bytes — and a
+   pre-filter role buys nothing over the in-core merge while doubling the refusal vocabulary. Tree comparison
+   ignores commit metadata, so the native "Rebase stack" producing unsigned commits cannot perturb equivalence.
+   Carry-forward evidence is ephemeral operation output — per member: verdict (`tree-equality` /
+   `mechanical-reapply` / refusal class), old and new heads, and for refusals the exact conflicted or divergent
+   paths — surfaced at adoption and recorded only as the state's updated current coordinates; no durable proof
+   ledger. Exact-head pinning remains only at the merge instant.
 5. **Native landing as the routed path.** Reobserve native registration before selecting the singleton arm; a linked
    stack routes through the native observe / select / prepare / submit / status lifecycle. The ordinary merge
    endpoint is the shipped `arc integrate checkpoint` → interlock → `arc integrate merge` spine (exact-head pin,
@@ -185,9 +195,12 @@ posture.
 
 ## Known implementation seams
 
-- Contribution-proof fallback: `packages/arc-framework/src/lib/delivery/contribution-proof.ts` /
-  `git-contribution-proof.ts` — replace the byte-aggregate comparator; keep tree-equality fast path. Distinct from
-  the plan-semantics fingerprinting in `fingerprint.ts` — the two concepts must not conflate.
+- Contribution-proof comparator: `packages/arc-framework/src/lib/delivery/contribution-proof.ts` /
+  `git-contribution-proof.ts` — replace the byte-aggregate fallback (its `git diff --binary --full-index` patch
+  bytes embed predecessor-dependent blob ids: the mechanical-rebase false-refusal mechanism, named in one flag)
+  with the merge-tree arbiter; keep the tree-equality fast path and endpoint pinning. `git merge-tree
+  --write-tree` sets a Git ≥ 2.38 floor for the delivery feature — disclose and refuse below it, never degrade.
+  Distinct from the plan-semantics fingerprinting in `fingerprint.ts` — the two concepts must not conflate.
 - Terminal attachment: the archival-refusal defect is fixed (PR #511, 2026-08-20 — attachment binds an explicit
   lifecycle-complete work-unit identity, with a typed no-op for ordinary delivery). The remaining seam is the
   amendment's own: retire the attach machinery together with the disconnected terminal request it serves, rather
@@ -277,8 +290,6 @@ if still wanted then, gets a fresh design against the v2 substrate rather than t
 
 ## Open design questions
 
-- The exact structural-equivalence comparator (reapply-and-compare-trees vs. stable patch identity) and the shape of
-  mechanical carry-forward evidence in reports.
 - Whether registration should use the raw Stacks API only, given `gh stack link` porcelain performs mutations beyond
   the presentation-only carve-out.
 - How a carried hosted-review reservation (`arc publish`'s deferred hosted-first standard obligation) reads across
