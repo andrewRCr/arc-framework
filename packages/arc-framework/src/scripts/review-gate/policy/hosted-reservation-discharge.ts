@@ -54,22 +54,14 @@ export async function projectHostedReservationDischarge(input: {
     )));
   }
   const allAttempts = [...attemptsByHead.values()].flat();
-  for (const sourceId of reservation.sources) {
-    if (allAttempts.some((attempt) => attempt.sourceId === sourceId
-      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"))) {
-      return { discharged: true, detail: `Hosted source \`${sourceId}\`.` };
-    }
-  }
   const currentAttempts = attemptsByHead.get(target.headSha) ?? [];
   for (const sourceId of reservation.sources) {
-    const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
-    const settled = sourceAttempts.some(({ outcome }) => outcome === "clean" || outcome === "settled-findings");
-    if (settled) {
-      return {
-        discharged: true,
-        detail: `Hosted source \`${sourceId}\`.`,
-      };
+    const settledAcrossSpan = allAttempts.some((attempt) => attempt.sourceId === sourceId
+      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
+    if (settledAcrossSpan) {
+      return { discharged: true, detail: `Hosted source \`${sourceId}\`.` };
     }
+    const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
     const safelyUnavailable = sourceAttempts.length > 0 && sourceAttempts.every(({ outcome }) => (
       outcome === "rate-limited" || outcome === "transient-unavailable"
     ));

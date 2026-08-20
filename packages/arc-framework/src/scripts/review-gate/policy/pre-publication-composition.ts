@@ -142,7 +142,11 @@ export function createPrePublicationCompositionDependencies(input: {
       // disposition — including a host the resolver could not reach — leaves the target unbound,
       // which reserves the hosted source rather than letting a lower-ranked local carrier take its
       // place.
-      const changeRequest = await resolveChangeRequest({ headRef, headSha }, port);
+      const changeRequest = await resolveChangeRequest({
+        headRef,
+        headSha,
+        baseRef: (await settings())["branch.base"],
+      }, port);
       return {
         status: "resolved",
         target: {

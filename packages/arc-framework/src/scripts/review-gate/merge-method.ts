@@ -2,7 +2,11 @@
 
 import { canonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
 import { z } from "zod";
-import { spineRemedy, type SpineRemedy } from "../integration/spine-refusal.js";
+import {
+  SpineRemedySchema,
+  spineRemedy,
+  type SpineRemedy,
+} from "../integration/spine-refusal.js";
 
 export const MergeMethodSchema = z.enum(["merge", "rebase", "squash"]);
 export type MergeMethod = z.infer<typeof MergeMethodSchema>;
@@ -12,31 +16,34 @@ export interface MergeMethodPolicyPort {
   readPolicy(repository: string): Promise<Record<MergeMethod, boolean>>;
 }
 
-interface MergeMethodResultBase {
-  schemaVersion: 1;
-  mode: "review-merge-method-resolve";
-  repository: string | null;
-}
+const MergeMethodResultBaseShape = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("review-merge-method-resolve"),
+  repository: z.string().trim().min(1).nullable(),
+};
 
-export type MergeMethodResolveResult = MergeMethodResultBase & (
-  | {
-      state: "validated";
-      nextAction: "use-method";
-      method: MergeMethod;
-      allowedMethods: MergeMethod[];
-      policyFingerprint: `sha256:${string}`;
-    }
-  | {
-      state: "blocked";
-      nextAction: "stop";
-      reason: "method-disallowed" | "policy-unreadable";
-      configuredMethod: MergeMethod;
-      allowedMethods: MergeMethod[];
-      policyFingerprint?: `sha256:${string}`;
-      detail?: string;
-      remedy: SpineRemedy;
-    }
-);
+export const MergeMethodResolveResultSchema = z.union([
+  z.strictObject({
+    ...MergeMethodResultBaseShape,
+    state: z.literal("validated"),
+    nextAction: z.literal("use-method"),
+    method: MergeMethodSchema,
+    allowedMethods: z.array(MergeMethodSchema),
+    policyFingerprint: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  }),
+  z.strictObject({
+    ...MergeMethodResultBaseShape,
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: z.enum(["method-disallowed", "policy-unreadable"]),
+    configuredMethod: MergeMethodSchema.nullable(),
+    allowedMethods: z.array(MergeMethodSchema),
+    policyFingerprint: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+    detail: z.string().trim().min(1).optional(),
+    remedy: SpineRemedySchema,
+  }),
+]);
+export type MergeMethodResolveResult = z.infer<typeof MergeMethodResolveResultSchema>;
 
 /** Resolve the configured merge method against current host policy. */
 export async function resolveMergeMethod(

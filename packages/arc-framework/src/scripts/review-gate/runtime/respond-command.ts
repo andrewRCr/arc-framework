@@ -788,6 +788,12 @@ export async function respondToReviewCommand(
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {
     throw new RespondCommandError("corrupt-state", `approved response produced unsupported state '${plan.state}'`);
   }
+  const frontlineFollowUp = source.frontlineOutcome === undefined
+    ? undefined
+    : projectFrontlineFollowUpAdvice({
+        outcome: source.frontlineOutcome,
+        dispositionState: dispositions,
+      });
   const lineage = unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target);
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
@@ -824,12 +830,6 @@ export async function respondToReviewCommand(
     });
   }
   const alreadySettled = existing !== null;
-  const frontlineFollowUp = source.frontlineOutcome === undefined
-    ? undefined
-    : projectFrontlineFollowUpAdvice({
-        outcome: source.frontlineOutcome,
-        dispositionState: dispositions,
-      });
   return RespondEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-respond",

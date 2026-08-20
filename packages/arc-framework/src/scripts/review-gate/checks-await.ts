@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { boundedWait, type BoundedWaitClock } from "./bounded-wait.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
+import { SpineRemedySchema } from "../integration/spine-refusal.js";
 
 export const ChecksAwaitInputSchema = z.object({
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
@@ -15,10 +16,11 @@ export const ChecksAwaitInputSchema = z.object({
 });
 export type ChecksAwaitInput = z.infer<typeof ChecksAwaitInputSchema>;
 
-export interface RequiredCheck {
-  name: string;
-  state: "pending" | "green" | "failed";
-}
+export const RequiredCheckSchema = z.strictObject({
+  name: z.string().trim().min(1),
+  state: z.enum(["pending", "green", "failed"]),
+});
+export type RequiredCheck = z.infer<typeof RequiredCheckSchema>;
 
 export interface RequiredChecksPort {
   resolveRepository(): Promise<string>;
@@ -44,22 +46,39 @@ export function aggregateChecks(
   return "pending";
 }
 
-interface ChecksResultBase {
-  schemaVersion: 1;
-  mode: "review-checks-await";
-  repository: string;
-  pullRequest: number;
-  headSha: string;
-}
+const ChecksResultBaseShape = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("review-checks-await"),
+  repository: z.string().trim().min(1),
+  pullRequest: z.number().int().positive(),
+  headSha: GitObjectIdSchema,
+};
 
-export type ChecksAwaitResult = ChecksResultBase & (
-  | { state: "not-required"; nextAction: "complete"; checks: [] }
-  | { state: "green"; nextAction: "complete"; checks: RequiredCheck[] }
-  | { state: "failed"; nextAction: "stop"; checks: RequiredCheck[] }
-  | { state: "pending"; nextAction: "await"; checks: RequiredCheck[]; elapsedMs: number }
-  | { state: "stale-target"; nextAction: "stop"; actualHeadSha: string }
-  | { state: "target-mismatch"; nextAction: "stop"; actualRepository: string }
-);
+export const ChecksAwaitResultSchema = z.union([
+  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("not-required"), nextAction: z.literal("complete"), checks: z.tuple([]) }),
+  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("green"), nextAction: z.literal("complete"), checks: z.array(RequiredCheckSchema) }),
+  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("failed"), nextAction: z.literal("stop"), checks: z.array(RequiredCheckSchema) }),
+  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("pending"), nextAction: z.literal("await"), checks: z.array(RequiredCheckSchema), elapsedMs: z.number().nonnegative() }),
+  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("stale-target"), nextAction: z.literal("stop"), actualHeadSha: GitObjectIdSchema }),
+  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("target-mismatch"), nextAction: z.literal("stop"), actualRepository: z.string().trim().min(1) }),
+]);
+export type ChecksAwaitResult = z.infer<typeof ChecksAwaitResultSchema>;
+
+export const ChecksAwaitCommandResultSchema = z.union([
+  ChecksAwaitResultSchema,
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("review-checks-await"),
+    repository: z.string().trim().min(1).nullable(),
+    pullRequest: z.number().int().positive().nullable(),
+    headSha: GitObjectIdSchema.nullable(),
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: z.enum(["invalid-input", "checks-unavailable"]),
+    detail: z.string().trim().min(1),
+    remedy: SpineRemedySchema,
+  }),
+]);
 
 /** Await required checks for one exact pull-request head. */
 export async function awaitRequiredChecks(

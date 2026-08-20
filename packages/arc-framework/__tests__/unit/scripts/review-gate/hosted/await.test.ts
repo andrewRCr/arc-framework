@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  HostedAwaitResultSchema,
   awaitHostedReview,
   type HostedAwaitClock,
   type HostedReviewObserver,
@@ -42,6 +43,28 @@ function observer(observe: HostedReviewObserver["observe"]): HostedReviewObserve
 }
 
 describe("hosted review await", () => {
+  it("accepts the durable response source attached to a findings result", () => {
+    expect(HostedAwaitResultSchema.safeParse({
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle,
+      state: "findings",
+      nextAction: "triage",
+      reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+      findings: [{
+        findingId: "PRRT_1",
+        origin: "review-thread",
+        commentId: "PRRC_1",
+        threadId: "PRRT_1",
+        settlement: "reply-and-resolve",
+        severity: "major",
+        locus: "src/index.ts:7",
+        url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      }],
+      responseSourceRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+    }).success).toBe(true);
+  });
+
   it("returns a resumable pending state at the bounded deadline", async () => {
     const result = await awaitHostedReview({
       schemaVersion: 1,
@@ -129,19 +152,26 @@ describe("hosted review await", () => {
   it.each(["readHead", "observe"] as const)(
     "returns resumable pending when %s is aborted at the bounded deadline",
     async (boundary) => {
-      const aborted = observer(() => boundary === "observe"
-        ? Promise.reject(new DOMException("timed out", "TimeoutError"))
+      const waitForAbort = (signal: AbortSignal | undefined): Promise<never> => new Promise((_, reject) => {
+        if (signal === undefined) return reject(new Error("missing bounded-wait signal"));
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+      const aborted = observer((_handle, options) => boundary === "observe"
+        ? waitForAbort(options?.signal)
         : Promise.resolve({ kind: "pending" as const }));
       if (boundary === "readHead") {
-        aborted.readHead = () => Promise.reject(new DOMException("timed out", "TimeoutError"));
+        aborted.readHead = (_handle, options) => waitForAbort(options?.signal);
       }
 
       const result = await awaitHostedReview({
         schemaVersion: 1,
         handle,
-        timeoutMs: 2_000,
-        pollIntervalMs: 500,
-      }, { clock: clock(), observers: [aborted] });
+        timeoutMs: 5,
+        pollIntervalMs: 5,
+      }, {
+        clock: { now: () => Date.now(), sleep: async () => undefined },
+        observers: [aborted],
+      });
 
       expect(result).toMatchObject({
         state: "pending",

@@ -73,7 +73,16 @@ describe("hosted GitHub process boundary", () => {
 
   it("preserves a deadline abort through the production port and await composition", async () => {
     const boundary: HostedProcessRunner = {
-      run: () => Promise.reject(new DOMException("timed out", "TimeoutError")),
+      run: (args, options) => {
+        if (args.length === 0) throw new Error("expected a hosted command");
+        return new Promise((_resolve, reject) => {
+          const signal = options?.signal;
+          if (signal === undefined) throw new Error("expected a bounded-wait signal");
+          const rejectWithReason = () => reject(signal.reason);
+          if (signal.aborted) rejectWithReason();
+          else signal.addEventListener("abort", rejectWithReason, { once: true });
+        });
+      },
     };
     const adapter = new CodeRabbitHostedAdapter(new GhHostedReviewPort(boundary));
     const clock: HostedAwaitClock = {
@@ -96,8 +105,8 @@ describe("hosted GitHub process boundary", () => {
           createdAt: "2026-07-24T12:00:00Z",
         },
       },
-      timeoutMs: 1_000,
-      pollIntervalMs: 100,
+      timeoutMs: 10,
+      pollIntervalMs: 5,
     }, {
       observers: [adapter],
       clock,

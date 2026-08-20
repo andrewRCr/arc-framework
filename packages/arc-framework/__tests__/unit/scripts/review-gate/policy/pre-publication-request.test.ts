@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  applyCarriedStandardReviewReservation,
   composePrePublicationReviewRequest,
   type AssuranceRead,
   type CandidateRead,
@@ -19,6 +20,8 @@ import {
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createStandardReviewReservation } from
+  "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const HEAD = "a".repeat(40);
 const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
@@ -80,6 +83,37 @@ function dependencies(
 }
 
 describe("composePrePublicationReviewRequest", () => {
+  it("keeps a carried reservation's source order when live config is reordered", async () => {
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      readLanePolicy: async (lane) => lane === "frontline"
+        ? { sources: [], maxPasses: 2 }
+        : { sources: ["codex-pr", "coderabbit-pr"], maxPasses: 2 },
+    }));
+    const rebound = applyCarriedStandardReviewReservation(composition, {
+      candidateId: CANDIDATE_ID,
+      candidateSubjectDigest: currentCandidate.status === "current" ? currentCandidate.subjectDigest : null,
+      reservation: createStandardReviewReservation({
+        candidateId: CANDIDATE_ID,
+        sourceId: "coderabbit-pr",
+        sources: ["coderabbit-pr", "codex-pr"],
+        repository: "arc-framework/example",
+        headSha: HEAD,
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"e".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      }),
+    });
+
+    expect(rebound.status).toBe("composed");
+    if (rebound.status !== "composed") return;
+    expect(rebound.request.standard.sources).toEqual(["coderabbit-pr", "codex-pr"]);
+  });
+
   it("composes both lanes against one target with CLI-owned sources and ceilings", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
 

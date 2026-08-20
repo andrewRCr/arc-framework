@@ -16,6 +16,7 @@ import {
   laneProgressOperationId,
   recordFrontlineAttempt,
   recordHostedAwaitAttempt,
+  recordHostedRequestUnavailableAttempt,
   readLaneProgress,
   readLaneProgressAcrossLineage,
   recordLaneAttempt,
@@ -246,6 +247,37 @@ const hostedContext = {
 };
 
 describe("hosted await lane recording", () => {
+  it("durably records safe request-time unavailability for fallback after restart", async () => {
+    const store = createStore();
+    const state = await recordHostedRequestUnavailableAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      request: {
+        schemaVersion: 1,
+        target: handle.target,
+        provider: "coderabbit-pr",
+        coverage: "complete",
+      },
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "rate-limited",
+        nextAction: "try-next-source",
+        provider: "coderabbit-pr",
+        requestedCoverage: "complete",
+        attemptedProviders: ["coderabbit-pr"],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    expect(state.attempts).toEqual([expect.objectContaining({
+      sourceId: "coderabbit-pr",
+      outcome: "rate-limited",
+      hosted: expect.objectContaining({ target: handle.target }),
+    })]);
+    expect(state.completedPasses).toBe(0);
+  });
+
   it("records a concluded hosted attempt against the standard lane", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {

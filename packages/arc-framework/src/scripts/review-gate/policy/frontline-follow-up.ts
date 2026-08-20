@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   effectiveDispositionSeverity,
+  reviewerDispositionNit,
   reviewerDispositionSeverity,
   type ApprovedDispositionSet,
 } from "../core/disposition-records.js";
@@ -59,7 +60,7 @@ export function projectFrontlineFollowUpAdvice(input: {
         && item.sourceIdentity === outcome.source.sourceId
         && item.locus === finding.locus
         && reviewerDispositionSeverity(item) === finding.severity
-        && item.nit === finding.nit;
+        && reviewerDispositionNit(item) === finding.nit;
     })) {
     throw new Error("approved dispositions do not match the frontline outcome");
   }

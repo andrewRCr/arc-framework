@@ -21,8 +21,10 @@ function nextDelay(attempt: number, intervalMs: number, remainingMs: number): nu
   return Math.min(intervalMs * (2 ** Math.min(attempt, 4)), remainingMs);
 }
 
-function isDeadlineAbort(error: unknown): boolean {
-  return error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name);
+function isDeadlineAbort(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted
+    && error instanceof Error
+    && ["AbortError", "TimeoutError"].includes(error.name);
 }
 
 /** Run one bounded observation loop. */
@@ -35,10 +37,11 @@ export async function boundedWait<T>(input: BoundedWaitInput<T>): Promise<T> {
     if (remainingMs <= 0) return await input.deadline(elapsedMs);
 
     let observation: BoundedWaitAttempt<T>;
+    const signal = AbortSignal.timeout(remainingMs);
     try {
-      observation = await input.attempt({ signal: AbortSignal.timeout(remainingMs), elapsedMs });
+      observation = await input.attempt({ signal, elapsedMs });
     } catch (error) {
-      if (isDeadlineAbort(error)) return await input.deadline(input.clock.now() - startedAt);
+      if (isDeadlineAbort(error, signal)) return await input.deadline(input.clock.now() - startedAt);
       throw error;
     }
     if (observation.kind === "return") return observation.value;

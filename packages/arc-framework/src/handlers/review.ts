@@ -53,6 +53,7 @@ import {
   createPrePublicationCompositionDependencies,
 } from "../scripts/review-gate/policy/pre-publication-composition.js";
 import {
+  applyCarriedStandardReviewReservation,
   composePrePublicationReviewRequest,
   type PrePublicationComposition,
 } from "../scripts/review-gate/policy/pre-publication-request.js";
@@ -124,6 +125,8 @@ import {
   HostedRequestResultSchema,
   requestHostedReview,
   type HostedReviewAdapter,
+  type HostedProviderId,
+  type HostedTarget,
 } from "../scripts/review-gate/hosted/request.js";
 import {
   HostedAwaitEnvelopeSchema,
@@ -133,9 +136,13 @@ import {
 } from "../scripts/review-gate/hosted/await.js";
 import {
   hostedLaneAttemptId,
+  readLaneProgress,
   recordHostedAwaitAttempt,
+  recordHostedRequestUnavailableAttempt,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
+import { assertHostedReservationAdmission } from
+  "../scripts/review-gate/policy/hosted-reservation-admission.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
@@ -183,7 +190,9 @@ import {
   reduceReviewCommand,
 } from "../scripts/review-gate/runtime/reduce-command.js";
 import {
+  ChangeRequestResolveCliInputSchema,
   ChangeRequestResolveInputSchema,
+  ChangeRequestResolveResultSchema,
   resolveChangeRequest,
   type ChangeRequestResolveInput,
   type ChangeRequestResolveResult,
@@ -192,11 +201,13 @@ import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/host
 import { deriveLocalReviewTarget } from "../scripts/review-gate/hosts/local/repository-target.js";
 import {
   MergeMethodSchema,
+  MergeMethodResolveResultSchema,
   resolveMergeMethod,
   type MergeMethodResolveResult,
 } from "../scripts/review-gate/merge-method.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import {
+  ChecksAwaitCommandResultSchema,
   ChecksAwaitInputSchema,
   awaitRequiredChecks,
   type ChecksAwaitResult,
@@ -205,6 +216,7 @@ import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/
 import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
+  ReviewStatusCommandResultSchema,
   resolveReviewStatus,
   ReviewStatusTargetInputSchema,
   type ReviewStatusResult,
@@ -272,7 +284,7 @@ const MERGE_LOCK_JSON_COMMAND_PATHS = [
 
 const reviewChangeRequestInputRegistration: CommandInputRegistration = {
   commandPath: "review change-request resolve",
-  schema: ChangeRequestResolveInputSchema,
+  schema: ChangeRequestResolveCliInputSchema,
   schemaFields: {
     "option.head-ref": "headRef",
     "option.head-sha": "headSha",
@@ -356,6 +368,8 @@ export interface ReviewChangeRequestResolveOptions {
 
 export interface ReviewChangeRequestResolveHandlerDependencies {
   resolve(input: ChangeRequestResolveInput, cwd: string): Promise<ChangeRequestResolveResult>;
+  resolveRoot(cwd: string): string | null;
+  readBaseRef(cwd: string): Promise<string>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -369,32 +383,61 @@ export async function handleReviewChangeRequestResolve(
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: ReviewChangeRequestResolveHandlerDependencies = {
     resolve: (input, cwd) => resolveChangeRequest(input, createGhChangeRequestResolutionPort(exec, cwd)),
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    readBaseRef: async (cwd) => {
+      const config = await readConfigSettings(cwd);
+      if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
+      return config.settings["branch.base"];
+    },
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
-  const parsed = ChangeRequestResolveInputSchema.safeParse({
+  const parsed = ChangeRequestResolveCliInputSchema.safeParse({
     headRef: options.headRef,
     headSha: options.headSha,
     ...(options.requireRemote === true ? { requireRemote: true } : {}),
   });
   if (!parsed.success) {
-    dependencies.write(`${JSON.stringify({
+    dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse({
       schemaVersion: 1,
       mode: "review-change-request-resolve",
+      targetRef: null,
       state: "blocked",
       nextAction: "stop",
       reason: "invalid-input",
       detail: parsed.error.issues.map((issue) => issue.message).join("; "),
-    })}\n`);
+      remedy: spineRemedy(
+        "Change-request resolution requires an exact branch and head.",
+        "Review command usage",
+        ["arc", "review", "change-request", "resolve", "--help"],
+      ),
+    }))}\n`);
     dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot(process.cwd());
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-failure",
+      detail: "Change-request resolution must run inside an ARC project.",
+    }))}\n`);
+    dependencies.setExitCode(1);
     return;
   }
   let result: ChangeRequestResolveResult;
   try {
-    result = await dependencies.resolve(parsed.data, process.cwd());
+    result = await dependencies.resolve(ChangeRequestResolveInputSchema.parse({
+      ...parsed.data,
+      baseRef: await dependencies.readBaseRef(cwd),
+    }), cwd);
   } catch (error) {
-    result = {
+    result = ChangeRequestResolveResultSchema.parse({
       schemaVersion: 1,
       mode: "review-change-request-resolve",
       targetRef: null,
@@ -402,9 +445,9 @@ export async function handleReviewChangeRequestResolve(
       nextAction: "stop",
       reason: "host-failure",
       detail: error instanceof Error ? error.message : String(error),
-    };
+    });
   }
-  dependencies.write(`${JSON.stringify(result)}\n`);
+  dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse(result))}\n`);
 }
 
 export interface ReviewMergeMethodResolveOptions {
@@ -412,6 +455,7 @@ export interface ReviewMergeMethodResolveOptions {
 }
 
 export interface ReviewMergeMethodResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
   readConfiguredMethod(cwd: string): Promise<"merge" | "rebase" | "squash">;
   resolve(method: "merge" | "rebase" | "squash"): Promise<MergeMethodResolveResult>;
   write(text: string): void;
@@ -425,27 +469,41 @@ export async function handleReviewMergeMethodResolve(
 ): Promise<void> {
   const port = createGhMergeMethodPolicyPort(hostedGhRunner);
   const dependencies: ReviewMergeMethodResolveHandlerDependencies = {
-    readConfiguredMethod: async (cwd) => MergeMethodSchema.parse(
-      (await readConfigSettings(cwd)).settings["merge.strategy"],
-    ),
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    readConfiguredMethod: async (cwd) => {
+      const config = await readConfigSettings(cwd);
+      if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
+      return MergeMethodSchema.parse(config.settings["merge.strategy"]);
+    },
     resolve: (method) => resolveMergeMethod(method, port),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
   try {
-    const configuredMethod = await dependencies.readConfiguredMethod(process.cwd());
-    dependencies.write(`${JSON.stringify(await dependencies.resolve(configuredMethod))}\n`);
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Merge-method resolution must run inside an ARC project.");
+    const configuredMethod = await dependencies.readConfiguredMethod(root);
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse(
+      await dependencies.resolve(configuredMethod),
+    ))}\n`);
   } catch (error) {
-    dependencies.write(`${JSON.stringify({
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
       repository: null,
       state: "blocked",
       nextAction: "stop",
       reason: "policy-unreadable",
+      configuredMethod: null,
+      allowedMethods: [],
       detail: error instanceof Error ? error.message : String(error),
-    })}\n`);
+      remedy: spineRemedy(
+        "The configured merge method must come from readable project and repository policy.",
+        "Run from the target ARC project after repairing its configuration, then re-run",
+        ["arc", "review", "merge-method", "resolve", "--json"],
+      ),
+    }))}\n`);
     dependencies.setExitCode(1);
   }
 }
@@ -493,26 +551,31 @@ export async function handleReviewStatus(
   }
   const parsed = ReviewStatusTargetInputSchema.safeParse({ target: decoded });
   if (!parsed.success) {
-    dependencies.write(`${JSON.stringify({
+    const detail = parsed.error.issues.map(({ message }) => message).join("; ");
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
+      target: null,
+      requiredChecks: "unavailable",
+      routedObligation: { state: "blocked", detail },
+      currentBaseOid: null,
       state: "blocked",
       nextAction: "stop",
       reason: "invalid-input",
-      detail: parsed.error.issues.map(({ message }) => message).join("; "),
+      detail,
       remedy: spineRemedy(
         "Review status requires the exact target emitted by change-request resolution.",
         "Review command usage",
         ["arc", "review", "status", "--help"],
       ),
-    })}\n`);
+    }))}\n`);
     dependencies.setExitCode(64);
     return;
   }
   const cwd = dependencies.resolveRoot(process.cwd());
   if (cwd === null) {
     const detail = "Review status must run inside an ARC project.";
-    dependencies.write(`${JSON.stringify({
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
       target: parsed.data.target,
@@ -528,27 +591,33 @@ export async function handleReviewStatus(
         "Change to the target ARC project, then re-run",
         ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
       ),
-    })}\n`);
+    }))}\n`);
     dependencies.setExitCode(1);
     return;
   }
   try {
-    dependencies.write(`${JSON.stringify(await dependencies.resolve(cwd, parsed.data))}\n`);
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse(
+      await dependencies.resolve(cwd, parsed.data),
+    ))}\n`);
   } catch (error) {
-    dependencies.write(`${JSON.stringify({
+    const detail = error instanceof Error ? error.message : String(error);
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
       target: parsed.data.target,
+      requiredChecks: "unavailable",
+      routedObligation: { state: "blocked", detail },
+      currentBaseOid: null,
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      detail: error instanceof Error ? error.message : String(error),
+      detail,
       remedy: spineRemedy(
         "Review status could not read its repository or host evidence.",
         "Resolve the operational failure, then re-run",
         ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
       ),
-    })}\n`);
+    }))}\n`);
     dependencies.setExitCode(1);
   }
 }
@@ -582,28 +651,54 @@ export async function handleReviewChecksAwait(
     pollIntervalMs: Number(options.pollIntervalMs),
   });
   if (!parsed.success) {
-    dependencies.write(`${JSON.stringify({
+    const detail = parsed.error.issues.map((issue) => issue.message).join("; ");
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-checks-await",
+      repository: null,
+      pullRequest: null,
+      headSha: null,
       state: "blocked",
       nextAction: "stop",
       reason: "invalid-input",
-      detail: parsed.error.issues.map((issue) => issue.message).join("; "),
-    })}\n`);
+      detail,
+      remedy: spineRemedy(
+        "Required-check waiting needs one exact repository, pull request, and head.",
+        "Review command usage",
+        ["arc", "review", "checks", "await", "--help"],
+      ),
+    }))}\n`);
     dependencies.setExitCode(64);
     return;
   }
   try {
-    dependencies.write(`${JSON.stringify(await dependencies.awaitChecks(parsed.data))}\n`);
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(
+      await dependencies.awaitChecks(parsed.data),
+    ))}\n`);
   } catch (error) {
-    dependencies.write(`${JSON.stringify({
+    const detail = error instanceof Error ? error.message : String(error);
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-checks-await",
+      repository: parsed.data.repository,
+      pullRequest: parsed.data.pullRequest,
+      headSha: parsed.data.headSha,
       state: "blocked",
       nextAction: "stop",
       reason: "checks-unavailable",
-      detail: error instanceof Error ? error.message : String(error),
-    })}\n`);
+      detail,
+      remedy: spineRemedy(
+        "Required-check status must be readable for the exact target.",
+        "Resolve the host read failure, then re-run",
+        [
+          "arc", "review", "checks", "await",
+          "--repository", parsed.data.repository,
+          "--pull-request", String(parsed.data.pullRequest),
+          "--head-sha", parsed.data.headSha,
+          "--json",
+        ],
+      ),
+    }))}\n`);
     dependencies.setExitCode(1);
   }
 }
@@ -1164,6 +1259,79 @@ function createHostedAdapters(): {
   return { adapters, observers: adapters, port };
 }
 
+async function resolveHostedReservationContext(input: {
+  root: string;
+  publisher: RepositoryGitCommonStatePublisher;
+  port: HostedSettlementPort;
+  target: HostedTarget;
+  provider: HostedProviderId;
+}) {
+  const active = await resolveActiveWu({ cwd: input.root });
+  if (active.status !== "resolved" || active.name === "") {
+    throw new Error("Hosted review progress requires one active work unit.");
+  }
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, active.name)).boundary;
+  if (boundary?.reservation === null || boundary?.reservation === undefined) {
+    throw new Error("Hosted review progress requires the carried standard-review reservation.");
+  }
+  const reservation = boundary.reservation;
+  const settings = (await readConfigSettings(input.root)).settings;
+  const baseRef = settings["branch.base"];
+  const repositoryId = await resolveRepositoryIdentity(input.publisher);
+  const reviewTarget = await deriveLocalReviewTarget({
+    exec: gitExec,
+    cwd: input.root,
+    baseRef,
+    repositoryId,
+  });
+  if (reviewTarget.headSha !== input.target.headSha) {
+    throw new Error("Hosted review target does not match the current local review target.");
+  }
+  const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: input.root,
+  })).stdout.trim();
+  if (branch === "" || branch === "HEAD") throw new Error("Hosted review requires an attached branch.");
+  const changeRequest = await resolveChangeRequest(
+    { headRef: branch, headSha: reviewTarget.headSha, baseRef, requireRemote: true },
+    createGhChangeRequestResolutionPort(gitExec, input.root),
+  );
+  if (changeRequest.state !== "open"
+    || changeRequest.targetRef.repository.toLowerCase() !== input.target.repository.toLowerCase()
+    || changeRequest.candidate.number !== input.target.pullRequest
+    || changeRequest.candidate.baseRefName !== baseRef) {
+    throw new Error("Hosted review target does not identify the current open change request.");
+  }
+  const store = new LocalReviewOperationStateStore(input.publisher);
+  const progress = await readLaneProgress(store, {
+    lane: "standard",
+    repositoryId,
+    headSha: reviewTarget.headSha,
+  });
+  const attempts = progress.status === "recorded"
+    ? progress.attempts.filter((attempt) => (
+        attempt.hosted !== undefined
+        && attempt.hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
+        && attempt.hosted.target.pullRequest === input.target.pullRequest
+        && attempt.hosted.target.headSha === input.target.headSha
+      ))
+    : [];
+  assertHostedReservationAdmission({
+    reservation,
+    provider: input.provider,
+    repository: input.target.repository,
+    headSha: input.target.headSha,
+    attempts,
+  });
+  const requirement = createReviewRequirement({
+    target: reviewTarget,
+    projection: reservation.obligation,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: input.provider }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
+  return { store, repositoryId, reviewTarget, requirement };
+}
+
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
@@ -1558,10 +1726,35 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
 }
 
 function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
-  const { adapters } = createHostedAdapters();
+  const { adapters, port } = createHostedAdapters();
+  const root = resolveArcRoot(process.cwd());
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    request: (input) => requestHostedReview(input, { adapters }),
+    request: async (input) => {
+      if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
+      const request = HostedRequestEnvelopeSchema.parse(input);
+      const context = await resolveHostedReservationContext({
+        root,
+        publisher,
+        port,
+        target: request.target,
+        provider: request.provider,
+      });
+      const result = await requestHostedReview(request, { adapters });
+      if (result.nextAction === "try-next-source") {
+        await recordHostedRequestUnavailableAttempt(context.store, {
+          repositoryId: context.repositoryId,
+          request,
+          result,
+          reviewTarget: context.reviewTarget,
+          requirement: context.requirement,
+          actorIdentity: await port.currentActorIdentity(),
+          now: new Date().toISOString(),
+        });
+      }
+      return result;
+    },
   };
 }
 
@@ -1598,65 +1791,28 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
   return {
     ...defaultHostedHandlerBoundary(),
     awaitResult: async (input) => {
-      const result = await awaitHostedReview(input, {
+      if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
+      const request = HostedAwaitEnvelopeSchema.parse(input);
+      const context = await resolveHostedReservationContext({
+        root,
+        publisher,
+        port,
+        target: request.handle.target,
+        provider: request.handle.provider,
+      });
+      const result = await awaitHostedReview(request, {
         observers,
         clock: {
           now: () => Date.now(),
           sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
         },
       });
-      if (publisher === null || root === null || result.state === "pending") return result;
-
-      const active = await resolveActiveWu({ cwd: root });
-      if (active.status !== "resolved" || active.name === "") {
-        throw new Error("Hosted review progress requires one active work unit.");
-      }
-      const boundary = (await readSubmissionBoundaryVersioned(root, active.name)).boundary;
-      if (boundary?.reservation === null || boundary?.reservation === undefined) {
-        throw new Error("Hosted review progress requires the carried standard-review reservation.");
-      }
-      const reservation = boundary.reservation;
-      if (!reservation.sources.includes(result.handle.provider)
-        || reservation.target.repository.toLowerCase() !== result.handle.target.repository.toLowerCase()) {
-        throw new Error("Hosted review handle does not match the carried standard-review reservation.");
-      }
-
-      const settings = (await readConfigSettings(root)).settings;
-      const baseRef = settings["branch.base"];
-      const repositoryId = await resolveRepositoryIdentity(publisher);
-      const reviewTarget = await deriveLocalReviewTarget({
-        exec: gitExec,
-        cwd: root,
-        baseRef,
-        repositoryId,
-      });
-      if (reviewTarget.headSha !== result.handle.target.headSha) {
-        throw new Error("Hosted review handle does not match the current local review target.");
-      }
-      const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
-      if (branch === "" || branch === "HEAD") throw new Error("Hosted review requires an attached branch.");
-      const changeRequest = await resolveChangeRequest(
-        { headRef: branch, headSha: reviewTarget.headSha, requireRemote: true },
-        createGhChangeRequestResolutionPort(gitExec, root),
-      );
-      if (changeRequest.state !== "open"
-        || changeRequest.targetRef.repository.toLowerCase() !== result.handle.target.repository.toLowerCase()
-        || changeRequest.candidate.number !== result.handle.target.pullRequest
-        || changeRequest.candidate.baseRefName !== baseRef) {
-        throw new Error("Hosted review handle does not identify the current open change request.");
-      }
-      const requirement = createReviewRequirement({
-        target: reviewTarget,
-        projection: reservation.obligation,
-        acceptableSources: [{ sourceKind: "hosted", qualifier: result.handle.provider }],
-        initialAdmission: "automatic",
-      });
-      if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
-      const progress = await recordHostedAwaitAttempt(new LocalReviewOperationStateStore(publisher), {
-        repositoryId,
+      if (result.state === "pending") return result;
+      const progress = await recordHostedAwaitAttempt(context.store, {
+        repositoryId: context.repositoryId,
         result,
-        reviewTarget,
-        requirement,
+        reviewTarget: context.reviewTarget,
+        requirement: context.requirement,
         actorIdentity: await port.currentActorIdentity(),
         now: new Date().toISOString(),
       });
@@ -1808,8 +1964,9 @@ function defaultPrePublicationDependencies(
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
     readText: (source) => boundary.readText(source),
     compose: async (root, input, judgment) => {
-      boundarySnapshots.set(input.name, await readSubmissionBoundaryVersioned(root, input.name));
-      return composePrePublicationReviewRequest(
+      const snapshot = await readSubmissionBoundaryVersioned(root, input.name);
+      boundarySnapshots.set(input.name, snapshot);
+      const composition = await composePrePublicationReviewRequest(
         {
           workUnit: input.name,
           ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
@@ -1818,6 +1975,14 @@ function defaultPrePublicationDependencies(
         },
         createPrePublicationCompositionDependencies({ cwd: root, exec }),
       );
+      const existing = snapshot.boundary;
+      return existing?.reservation === null || existing?.reservation === undefined
+        ? composition
+        : applyCarriedStandardReviewReservation(composition, {
+            candidateId: existing.candidateId,
+            candidateSubjectDigest: existing.candidateSubjectDigest,
+            reservation: existing.reservation,
+          });
     },
     persistBoundary: async (root, settled) => {
       const snapshot = boundarySnapshots.get(settled.workUnit)

@@ -3,7 +3,11 @@
 import { z } from "zod";
 
 import { ChangeRequestTargetRefSchema } from "./change-request.js";
-import { spineRemedy, type SpineRemedy } from "../integration/spine-refusal.js";
+import {
+  SpineRemedySchema,
+  spineRemedy,
+  type SpineRemedy,
+} from "../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
@@ -22,28 +26,47 @@ export type RoutedReviewObligation = z.infer<typeof RoutedReviewObligationSchema
 export const RequiredCheckStatusSchema = z.enum(["green", "pending", "failed", "not-required", "unavailable"]);
 export type RequiredCheckStatus = z.infer<typeof RequiredCheckStatusSchema>;
 
-interface ReviewStatusBase {
-  schemaVersion: 1;
-  mode: "review-status";
-  target: z.infer<typeof ChangeRequestTargetRefSchema>;
-  requiredChecks: RequiredCheckStatus;
-  routedObligation: RoutedReviewObligation;
-  currentBaseOid: string | null;
-}
+const ReviewStatusBaseShape = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("review-status"),
+  target: ChangeRequestTargetRefSchema,
+  requiredChecks: RequiredCheckStatusSchema,
+  routedObligation: RoutedReviewObligationSchema,
+  currentBaseOid: GitObjectIdSchema.nullable(),
+};
 
-export type ReviewStatusResult = ReviewStatusBase & (
-  | { state: "settled"; nextAction: "continue-reconcile" }
-  | { state: "review-required"; nextAction: "run-review" }
-  | { state: "checks-pending"; nextAction: "rerun-checkpoint" }
-  | { state: "base-moved"; nextAction: "rerun-checkpoint" }
-  | {
-      state: "blocked";
-      nextAction: "stop";
-      reason: "stale-target" | "checks-failed" | "status-unavailable";
-      detail: string;
-      remedy: SpineRemedy;
-    }
-);
+export const ReviewStatusResultSchema = z.union([
+  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("settled"), nextAction: z.literal("continue-reconcile") }),
+  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("review-required"), nextAction: z.literal("run-review") }),
+  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("checks-pending"), nextAction: z.literal("rerun-checkpoint") }),
+  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("base-moved"), nextAction: z.literal("rerun-checkpoint") }),
+  z.strictObject({
+    ...ReviewStatusBaseShape,
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: z.enum(["stale-target", "checks-failed", "status-unavailable"]),
+    detail: z.string().trim().min(1),
+    remedy: SpineRemedySchema,
+  }),
+]);
+export type ReviewStatusResult = z.infer<typeof ReviewStatusResultSchema>;
+
+export const ReviewStatusCommandResultSchema = z.union([
+  ReviewStatusResultSchema,
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("review-status"),
+    target: ChangeRequestTargetRefSchema.nullable(),
+    requiredChecks: z.literal("unavailable"),
+    routedObligation: z.strictObject({ state: z.literal("blocked"), detail: z.string().trim().min(1) }),
+    currentBaseOid: z.null(),
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: z.enum(["invalid-input", "status-unavailable"]),
+    detail: z.string().trim().min(1),
+    remedy: SpineRemedySchema,
+  }),
+]);
 
 export interface ReviewStatusObservation {
   actualHeadSha: string;

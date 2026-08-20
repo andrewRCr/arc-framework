@@ -9,7 +9,11 @@ import {
 } from "./core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./core/ports.js";
 import type { HostedAwaitResult } from "./hosted/await.js";
-import type { HostedRequestHandle } from "./hosted/request.js";
+import type {
+  HostedRequestEnvelope,
+  HostedRequestHandle,
+  HostedRequestResult,
+} from "./hosted/request.js";
 import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
@@ -18,6 +22,19 @@ type LaneAttemptOutcome = LaneAttempt["outcome"];
 /** Resolve the stable identity of one hosted request attempt. */
 export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
   return `hosted/${canonicalDigest(handle).slice("sha256:".length)}`;
+}
+
+/** Resolve the stable identity of one safe request-time unavailability attempt. */
+function hostedRequestUnavailableAttemptId(input: {
+  request: HostedRequestEnvelope;
+  state: "rate-limited" | "transient-unavailable";
+}): string {
+  const digest = canonicalDigest({
+    domain: "arc.review.hosted-request-unavailable/v1",
+    request: input.request,
+    state: input.state,
+  });
+  return `hosted-request/${digest.slice("sha256:".length)}`;
 }
 
 /** Hosted await states that conclude an attempt, keyed to the driver's outcome vocabulary. */
@@ -166,6 +183,44 @@ export async function recordHostedAwaitAttempt(
       requirement: input.requirement,
       actorIdentity: input.actorIdentity,
       findings: input.result.state === "findings" ? input.result.findings : [],
+      dispositionSetId: null,
+      settledFindingIds: [],
+    },
+    now: input.now,
+  });
+}
+
+/** Record safe unavailability returned before a hosted request produced a handle. */
+export async function recordHostedRequestUnavailableAttempt(
+  store: ReviewOperationStateStore,
+  input: {
+    repositoryId: string;
+    request: HostedRequestEnvelope;
+    result: Extract<HostedRequestResult, { nextAction: "try-next-source" }>;
+    reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
+    requirement: NonNullable<LaneAttempt["hosted"]>["requirement"];
+    actorIdentity: string;
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  return recordLaneAttempt(store, {
+    lane: "standard",
+    repositoryId: input.repositoryId,
+    changeRequestId: `pull/${input.request.target.pullRequest}`,
+    headSha: input.request.target.headSha,
+    attemptId: hostedRequestUnavailableAttemptId({
+      request: input.request,
+      state: input.result.state,
+    }),
+    sourceId: input.request.provider,
+    outcome: input.result.state,
+    consumedPass: false,
+    hosted: {
+      target: input.request.target,
+      reviewTarget: input.reviewTarget,
+      requirement: input.requirement,
+      actorIdentity: input.actorIdentity,
+      findings: [],
       dispositionSetId: null,
       settledFindingIds: [],
     },

@@ -236,9 +236,9 @@ describe("local attest command", () => {
   });
 
   it.each([
-    ["unavailable", "transient-unavailable"],
+    ["unavailable", null],
     ["failed", "terminal-failure"],
-  ] as const)("persists and releases a %s evaluator attempt before recomposition", async (status, outcome) => {
+  ] as const)("classifies and releases a %s evaluator attempt before recomposition", async (status, outcome) => {
     const records = fixture();
     const publishOperation = vi.fn();
     const release = vi.fn(async () => undefined);
@@ -273,15 +273,19 @@ describe("local attest command", () => {
       nextAction: "rerun-review",
       payload: { result: { status, result: null } },
     });
-    expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
-      kind: "lane-progress",
-      completedPasses: 0,
-      attempts: [{
-        attemptId: records.operation.operationId,
-        sourceId: records.operation.laneSourceId,
-        outcome,
-      }],
-    }), 1);
+    if (outcome === null) {
+      expect(publishOperation).not.toHaveBeenCalled();
+    } else {
+      expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
+        kind: "lane-progress",
+        completedPasses: 0,
+        attempts: [{
+          attemptId: records.operation.operationId,
+          sourceId: records.operation.laneSourceId,
+          outcome,
+        }],
+      }), 1);
+    }
     expect(release).toHaveBeenCalledWith(records.operation.operationId);
     expect(readSource).not.toHaveBeenCalled();
     expect(readReceipts).not.toHaveBeenCalled();

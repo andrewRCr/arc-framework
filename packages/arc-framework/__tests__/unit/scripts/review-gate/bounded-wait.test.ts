@@ -28,18 +28,33 @@ describe("bounded wait", () => {
     expect(sleeps).toEqual([500, 1_000, 500]);
   });
 
-  it("maps a deadline abort through the same deadline result", async () => {
+  it("maps only its own deadline abort through the deadline result", async () => {
     const clock: BoundedWaitClock = {
-      now: () => 250,
+      now: () => Date.now(),
       sleep: async () => undefined,
     };
 
+    const result = await boundedWait({
+      timeoutMs: 5,
+      pollIntervalMs: 500,
+      clock,
+      attempt: async ({ signal }) => await new Promise((_, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }),
+      deadline: (elapsedMs) => ({ state: "deadline" as const, elapsedMs }),
+    });
+
+    expect(result.state).toBe("deadline");
+  });
+
+  it("does not mistake a provider TimeoutError for its own deadline", async () => {
+    const providerTimeout = new DOMException("provider timed out", "TimeoutError");
     await expect(boundedWait({
       timeoutMs: 2_000,
       pollIntervalMs: 500,
-      clock,
-      attempt: async () => { throw new DOMException("timed out", "TimeoutError"); },
-      deadline: (elapsedMs) => ({ state: "deadline" as const, elapsedMs }),
-    })).resolves.toEqual({ state: "deadline", elapsedMs: 0 });
+      clock: { now: () => 250, sleep: async () => undefined },
+      attempt: async () => { throw providerTimeout; },
+      deadline: () => ({ state: "deadline" as const }),
+    })).rejects.toBe(providerTimeout);
   });
 });

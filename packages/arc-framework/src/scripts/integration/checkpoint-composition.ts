@@ -89,8 +89,9 @@ async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string
 
 async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
   const target = await currentHead(exec, cwd);
+  const baseRef = (await readConfigSettings(cwd)).settings["branch.base"];
   const result = await resolveChangeRequest(
-    { headRef: target.branch, headSha: target.head },
+    { headRef: target.branch, headSha: target.head, baseRef },
     createGhChangeRequestResolutionPort(exec, cwd),
   );
   if (result.state !== "open") {

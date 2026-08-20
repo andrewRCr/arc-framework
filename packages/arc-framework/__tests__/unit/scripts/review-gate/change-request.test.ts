@@ -9,6 +9,7 @@ import {
 
 const headRef = "feat/exact-head";
 const headSha = "a".repeat(40);
+const request = { headRef, headSha, baseRef: "main" } as const;
 
 function candidate(overrides: Record<string, unknown> = {}) {
   return {
@@ -34,7 +35,7 @@ function port(overrides: Partial<ChangeRequestResolutionPort> = {}): ChangeReque
 
 describe("exact-head change-request resolution", () => {
   it("permits creation when the host has no candidate", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port())).resolves.toEqual({
+    await expect(resolveChangeRequest(request, port())).resolves.toEqual({
       schemaVersion: 1,
       mode: "review-change-request-resolve",
       targetRef: { repository: "owner/repo", headRef, headSha },
@@ -44,7 +45,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("reuses one open change request at the exact head", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    await expect(resolveChangeRequest(request, port({
       listByHead: async () => [candidate()],
     }))).resolves.toMatchObject({
       state: "open",
@@ -54,7 +55,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("completes when one merged change request matches the exact head", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    await expect(resolveChangeRequest(request, port({
       listByHead: async () => [candidate({ state: "MERGED" })],
     }))).resolves.toMatchObject({
       state: "merged-at-head",
@@ -64,7 +65,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("reconciles when the branch merged at a different head", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    await expect(resolveChangeRequest(request, port({
       listByHead: async () => [candidate({ state: "MERGED", headRefOid: "b".repeat(40) })],
     }))).resolves.toMatchObject({
       state: "merged-stale-head",
@@ -74,7 +75,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("offers reopening for one exact closed-unmerged change request", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    await expect(resolveChangeRequest(request, port({
       listByHead: async () => [candidate({ state: "CLOSED" })],
     }))).resolves.toMatchObject({
       state: "closed-unmerged",
@@ -85,7 +86,7 @@ describe("exact-head change-request resolution", () => {
 
   it("offers reopening when the sole closed request remains at the prior head", async () => {
     const movedHead = "b".repeat(40);
-    await expect(resolveChangeRequest({ headRef, headSha: movedHead }, port({
+    await expect(resolveChangeRequest({ ...request, headSha: movedHead }, port({
       readHeadRef: async () => ({ local: movedHead, remote: movedHead }),
       listByHead: async () => [candidate({ state: "CLOSED", headRefOid: headSha })],
     }))).resolves.toMatchObject({
@@ -97,7 +98,7 @@ describe("exact-head change-request resolution", () => {
 
   it("stops with every candidate when host state is ambiguous", async () => {
     const candidates = [candidate(), candidate({ number: 43, url: "https://github.com/owner/repo/pull/43" })];
-    const result = await resolveChangeRequest({ headRef, headSha }, port({
+    const result = await resolveChangeRequest(request, port({
       listByHead: async () => candidates,
     }));
     expect(result).toMatchObject({
@@ -110,7 +111,7 @@ describe("exact-head change-request resolution", () => {
 
   it("precomposes push and re-resolution for one open request at the prior head", async () => {
     const movedHead = "b".repeat(40);
-    await expect(resolveChangeRequest({ headRef, headSha: movedHead }, port({
+    await expect(resolveChangeRequest({ ...request, headSha: movedHead }, port({
       readHeadRef: async () => ({ local: movedHead, remote: headSha }),
       listByHead: async () => [candidate()],
     }))).resolves.toMatchObject({
@@ -137,7 +138,7 @@ describe("exact-head change-request resolution", () => {
   it("shell-quotes an unusual valid branch name without changing the structured remedy", async () => {
     const unusualHeadRef = "feat/operator's-review";
     const movedHead = "b".repeat(40);
-    const result = await resolveChangeRequest({ headRef: unusualHeadRef, headSha: movedHead }, port({
+    const result = await resolveChangeRequest({ ...request, headRef: unusualHeadRef, headSha: movedHead }, port({
       readHeadRef: async () => ({ local: movedHead, remote: headSha }),
       listByHead: async () => [candidate()],
     }));
@@ -162,7 +163,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("finds an exact merged head after the local and remote branch refs disappear", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    await expect(resolveChangeRequest(request, port({
       readHeadRef: async () => ({ local: null, remote: null }),
       searchByHeadSha: async () => [candidate({ state: "MERGED", headRefName: "feat/renamed" })],
     }))).resolves.toMatchObject({
@@ -173,7 +174,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("returns a typed stop when the host lookup fails", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    await expect(resolveChangeRequest(request, port({
       listByHead: async () => { throw new Error("authentication required"); },
     }))).resolves.toMatchObject({
       state: "blocked",
@@ -183,7 +184,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("blocks a supplied head that matches neither the local nor remote branch ref", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha }, port({
+    await expect(resolveChangeRequest(request, port({
       readHeadRef: async () => ({ local: "b".repeat(40), remote: "c".repeat(40) }),
     }))).resolves.toMatchObject({
       state: "blocked",
@@ -193,7 +194,7 @@ describe("exact-head change-request resolution", () => {
   });
 
   it("requires the remote branch itself to carry a pre-create head", async () => {
-    await expect(resolveChangeRequest({ headRef, headSha, requireRemote: true }, port({
+    await expect(resolveChangeRequest({ ...request, requireRemote: true }, port({
       readHeadRef: async () => ({ local: headSha, remote: null }),
     }))).resolves.toMatchObject({
       state: "blocked",
@@ -201,5 +202,20 @@ describe("exact-head change-request resolution", () => {
       reason: "head-mismatch",
       detail: expect.stringContaining("remote branch ref"),
     });
+  });
+
+  it("blocks a change request that targets a different configured base", async () => {
+    await expect(resolveChangeRequest(request, port({
+      listByHead: async () => [candidate({ baseRefName: "release" })],
+    }))).resolves.toMatchObject({ state: "blocked", reason: "base-mismatch" });
+  });
+
+  it("selects the configured-base request when another base is also visible", async () => {
+    await expect(resolveChangeRequest(request, port({
+      listByHead: async () => [
+        candidate({ number: 41, baseRefName: "release" }),
+        candidate({ number: 42, baseRefName: "main" }),
+      ],
+    }))).resolves.toMatchObject({ state: "open", candidate: { number: 42, baseRefName: "main" } });
   });
 });

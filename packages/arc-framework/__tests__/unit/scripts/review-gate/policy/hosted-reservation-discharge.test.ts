@@ -167,6 +167,24 @@ describe("hosted reservation discharge", () => {
     expect(result).toMatchObject({ discharged: true, detail: "Hosted source `codex-pr`." });
   });
 
+  it("does not accept a lower source without safe-unavailability evidence for the ordered prefix", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
+      span: [oid("a")],
+      target: target(oid("a")),
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [attempt(oid("a"), "codex-pr", "clean")],
+        },
+      }),
+    });
+
+    expect(result.discharged).toBe(false);
+    expect(result.detail).toContain("coderabbit-pr");
+  });
+
   it("leaves the reservation pending when the reserved source reached no verdict", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation(),

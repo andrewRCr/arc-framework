@@ -190,7 +190,7 @@ export function createIntegrationMergeDependencies(input: {
     },
     readMerged: async (target) => {
       const resolved = await resolveChangeRequest(
-        { headRef: target.headRef, headSha: target.headSha },
+        { headRef: target.headRef, headSha: target.headSha, baseRef: target.baseRef },
         changeRequestPort,
       );
       return resolved.state === "merged-at-head"

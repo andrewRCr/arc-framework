@@ -14,6 +14,7 @@ import {
 import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
+import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
 /** Per-lane scope, frontline invocation, and ceiling judgment, keyed by its lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
@@ -119,6 +120,36 @@ export type PrePublicationComposition =
     reason: string;
     code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">;
   };
+
+/** Keep post-publication source routing on the ordered reservation rather than live config order. */
+export function applyCarriedStandardReviewReservation(
+  composition: PrePublicationComposition,
+  input: {
+    candidateId: string;
+    candidateSubjectDigest: string | null;
+    reservation: StandardReviewReservationV1;
+  },
+): PrePublicationComposition {
+  if (composition.status !== "composed"
+    || input.candidateSubjectDigest === null
+    || composition.request.candidateId !== input.candidateId
+    || composition.request.candidate.subjectDigest !== input.candidateSubjectDigest
+    || composition.request.standard.target.repository.toLowerCase()
+      !== input.reservation.target.repository.toLowerCase()
+    || composition.request.standard.target.headSha !== input.reservation.target.headSha) {
+    return composition;
+  }
+  return {
+    ...composition,
+    request: PrePublicationReviewRequestSchema.parse({
+      ...composition.request,
+      standard: {
+        ...composition.request.standard,
+        sources: input.reservation.sources,
+      },
+    }),
+  };
+}
 
 /**
  * The routing facts a change set's review obligation turns on are author judgments — content kind,

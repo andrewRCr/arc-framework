@@ -106,8 +106,10 @@ const frontlineRunRequest = {
 describe("handleReviewMergeMethodResolve", () => {
   it("emits the live validation result for the configured method", async () => {
     const write = vi.fn();
+    const readConfiguredMethod = vi.fn(async () => "squash" as const);
     await handleReviewMergeMethodResolve({ json: true }, {
-      readConfiguredMethod: async () => "squash",
+      resolveRoot: () => "/repo",
+      readConfiguredMethod,
       resolve: async (method) => ({
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
@@ -125,6 +127,26 @@ describe("handleReviewMergeMethodResolve", () => {
       state: "validated",
       nextAction: "use-method",
       method: "squash",
+    });
+    expect(readConfiguredMethod).toHaveBeenCalledWith("/repo");
+  });
+
+  it("fails closed with a schema-valid result outside an ARC project", async () => {
+    const write = vi.fn();
+    const readConfiguredMethod = vi.fn();
+    await handleReviewMergeMethodResolve({ json: true }, {
+      resolveRoot: () => null,
+      readConfiguredMethod,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(readConfiguredMethod).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "blocked",
+      reason: "policy-unreadable",
+      configuredMethod: null,
+      allowedMethods: [],
     });
   });
 });

@@ -113,10 +113,11 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
     observe: async (target) => {
       try {
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
+        const baseRef = (await readConfigSettings(input.cwd)).settings["branch.base"];
         const refs = await changeRequestPort.readHeadRef(target.headRef);
         const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
         const resolution = await resolveChangeRequest(
-          { headRef: target.headRef, headSha: target.headSha },
+          { headRef: target.headRef, headSha: target.headSha, baseRef },
           changeRequestPort,
         );
         const base = await readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha });

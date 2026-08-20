@@ -101,6 +101,7 @@ export const HostedAwaitResultSchema = z.union([
     nextAction: z.literal("triage"),
     reviewUrl: z.url(),
     findings: z.array(HostedFindingSchema).min(1),
+    responseSourceRef: z.string().trim().min(1).optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,

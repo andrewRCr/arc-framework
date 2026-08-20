@@ -125,7 +125,7 @@ async function attestLocalReviewWithinSourceLock(
     sourceDigest: state.sourceDigest,
     guidanceDigest: state.guidanceDigest,
   });
-  if (result.status === "unavailable" || result.status === "failed") {
+  if (result.status === "failed") {
     await recordLaneAttempt(dependencies.operationStore, {
       lane: "standard",
       repositoryId: state.repositoryId,
@@ -133,10 +133,12 @@ async function attestLocalReviewWithinSourceLock(
       headSha: state.target.headSha,
       attemptId: state.operationId,
       sourceId: state.laneSourceId,
-      outcome: result.status === "unavailable" ? "transient-unavailable" : "terminal-failure",
+      outcome: "terminal-failure",
       consumedPass: false,
       now: dependencies.now(),
     });
+  }
+  if (result.status === "unavailable" || result.status === "failed") {
     await dependencies.releaseMaterialization(request.operationId);
   }
   if (result.status !== "complete" || result.result === null) {
