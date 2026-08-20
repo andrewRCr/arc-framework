@@ -244,6 +244,10 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       writeThrow("currentWorkflowField");
       currentWorkflowWrites.push({ path, stage });
     },
+    writeCurrentWorkflowRecoveryMarker: async (path, stage) => {
+      calls.push(`recovery-current-workflow:${stage}`);
+      currentWorkflowWrites.push({ path, stage });
+    },
     writeDesignField: async (path, value) => {
       calls.push(`design:${value}`);
     },
@@ -672,7 +676,10 @@ describe("executeTransition — post-side-effect finalize failure", () => {
   });
 
   it("names the failing write when the meta staging throws (last write)", async () => {
-    const { ctx, currentWorkflowWrites } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "stageMeta" });
+    const { ctx, calls, currentWorkflowWrites } = buildSpies({
+      metas: [ACTIVE_META],
+      throwOnWrite: "stageMeta",
+    });
 
     const outcome = await executeTransition(ctx, {
       verb: "publish",
@@ -687,6 +694,8 @@ describe("executeTransition — post-side-effect finalize failure", () => {
       "integrate-work-unit",
       "prepare-work-unit",
     ]);
+    expect(ctx.writeCurrentWorkflowRecoveryMarker).toBeDefined();
+    expect(calls).toContain("recovery-current-workflow:prepare-work-unit");
   });
 
   it("a pre-side-effect leg throw still reports `encoding-failed` — no side-effects, distinct arm", async () => {

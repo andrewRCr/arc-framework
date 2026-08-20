@@ -270,6 +270,11 @@ export function buildExecutorContext(
       await io.writeFile(at(metaPath), next);
     },
 
+    writeCurrentWorkflowRecoveryMarker: async (metaPath, stage) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaCurrentWorkflow(content, stage));
+    },
+
     writeDesignField: async (metaPath, value) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaDesign(content, value));

@@ -183,6 +183,48 @@ describe("buildExecutorContext — current-workflow consistency", () => {
       expect.stringContaining("- **Current Workflow:** `integrate-work-unit`"),
     );
   });
+
+  it("writes an intentional source-workflow recovery marker after the phase has moved", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("integrate-work-unit"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowRecoveryMarker?.(
+      ".arc/active/meta-foo.md",
+      "prepare-work-unit",
+    );
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `prepare-work-unit`"),
+    );
+  });
+
+  it("writes the inverse recovery marker after reopen has moved back to Active", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("prepare-work-unit").replace("Integrating", "Active"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowRecoveryMarker?.(
+      ".arc/active/meta-foo.md",
+      "integrate-work-unit",
+    );
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `integrate-work-unit`"),
+    );
+  });
 });
 
 describe("buildExecutorContext — withdraw-pr binding", () => {

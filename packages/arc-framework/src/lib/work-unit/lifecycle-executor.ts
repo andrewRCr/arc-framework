@@ -260,6 +260,15 @@ export interface ExecuteTransitionContext {
   writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;
 
   /**
+   * Persist the source workflow as an intentional interrupted-transition marker after the phase
+   * has already moved. Unlike the ordinary workflow writer, this recovery-only seam may encode
+   * the temporary phase/workflow contradiction that {@link resumeTransitionFinalization} consumes.
+   * Production contexts provide it whenever meta staging is enabled; the fallback keeps narrow
+   * test contexts and adapters compatible.
+   */
+  writeCurrentWorkflowRecoveryMarker?: (metaPath: string, stage: string) => Promise<void>;
+
+  /**
    * Write the meta `Design` bullet field at `metaPath` (read → rewrite → write).
    * The identifier-list sibling of {@link writeCurrentWorkflowField}: `value` is
    * the fully composed field value the event-driven repoint resolved — a single
@@ -650,7 +659,7 @@ export async function executeTransition(
         const sourceWorkflow = sourceWorkflowFor(record);
         if (currentWorkflowWritten !== null && sourceWorkflow !== undefined) {
           try {
-            await ctx.writeCurrentWorkflowField(
+            await (ctx.writeCurrentWorkflowRecoveryMarker ?? ctx.writeCurrentWorkflowField)(
               effectiveMetaPath(record, metaPath, inputs),
               sourceWorkflow,
             );
@@ -769,7 +778,7 @@ export async function resumeTransitionFinalization(
       } catch (error) {
         if (currentWorkflowWritten !== null) {
           try {
-            await ctx.writeCurrentWorkflowField(
+            await (ctx.writeCurrentWorkflowRecoveryMarker ?? ctx.writeCurrentWorkflowField)(
               effectiveMetaPath(record, metaPath, params.inputs),
               sourceWorkflow,
             );
