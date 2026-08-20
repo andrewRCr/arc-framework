@@ -397,6 +397,42 @@ describe("attest → pre-publication → publish", () => {
     });
   });
 
+  it("routes named status through publication finalization while its recovery marker is present", async () => {
+    repository = await createAttestableRepo();
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+    expect((await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    )).exitCode).toBe(0);
+    expect((await runArc(
+      ["publish", "example", "--last-completed", "verification", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    )).exitCode).toBe(0);
+
+    const metaPath = join(repository, ".arc", "active", "meta-example.md");
+    const publishedMeta = await readFile(metaPath, "utf8");
+    await writeFile(metaPath, publishedMeta.replace(
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Current Workflow:** `prepare-work-unit`",
+    ));
+
+    const status = await runArc(["status", "example", "--json"], repository);
+    expect(status.exitCode, JSON.stringify(status)).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({
+      state: "integrating",
+      integrationBoundary: {
+        locus: "publication-pending",
+        nextAction: {
+          kind: "continue-publication",
+          command: "arc publish example --json",
+        },
+      },
+    });
+  });
+
   it("composes a non-null exact target from a clean committed Candidate", async () => {
     repository = await createAttestableRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);

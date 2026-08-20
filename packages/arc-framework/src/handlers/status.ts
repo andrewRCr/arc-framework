@@ -167,8 +167,10 @@ import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecyc
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
-import type { IntegrationBoundaryLocus } from
-  "../scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  parseIntegrationBoundaryLocus,
+  type IntegrationBoundaryLocus,
+} from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
@@ -503,10 +505,12 @@ export async function handleStatus(
     });
     const query = resolveSlugQuery(composed.index, slug);
     const worktreePath = composed.worktreePathBySlug.get(slug);
+    const operationalReadPath = worktreePath
+      ?? (composed.recordsBySlug.get(slug)?.writablePath === undefined ? undefined : cwd);
     const operational = await resolveSlugOperationalBoundary({
       slug,
       state: query.state,
-      worktreePath,
+      worktreePath: operationalReadPath,
     });
     const warnings = [
       ...composed.qualityFacts.warnings.map(renderInFlightWarning),
@@ -1598,9 +1602,18 @@ async function resolveSlugOperationalBoundary(options: {
   integrationBoundary: IntegrationBoundaryLocus | null;
   warnings: string[];
 }> {
-  if (options.worktreePath === undefined
-    || (options.state !== "active" && options.state !== "integrating")) {
+  if (options.state !== "active" && options.state !== "integrating") {
     return { integrationBoundary: null, warnings: [] };
+  }
+  if (options.worktreePath === undefined) {
+    return {
+      integrationBoundary: null,
+      warnings: [
+        `Operational boundary for ${options.slug} is unavailable without a materialized worktree. `
+        + `Run \`arc materialize ${options.slug}\` for remote-only work (or check out its local branch), `
+        + `then rerun \`arc status ${options.slug} --json\`.`,
+      ],
+    };
   }
   const active = await runActiveStatus({ cwd: options.worktreePath });
   const expectedFilename = `meta-${options.slug}.md`;
@@ -1615,8 +1628,18 @@ async function resolveSlugOperationalBoundary(options: {
       ],
     };
   }
-  return {
-    integrationBoundary: candidate.integrationBoundary ?? null,
-    warnings: active.warnings,
-  };
+  const integrationBoundary = candidate.integrationBoundary ?? null;
+  const publicationRecovery = options.state === "integrating"
+    && candidate.currentWorkflow === "prepare-work-unit"
+    && integrationBoundary?.locus === "publication-pending"
+      ? parseIntegrationBoundaryLocus({
+          ...integrationBoundary,
+          nextAction: {
+            kind: "continue-publication",
+            command: `arc publish ${options.slug} --json`,
+            interactionText: "Finish interrupted publication finalization before pushing.",
+          },
+        })
+      : integrationBoundary;
+  return { integrationBoundary: publicationRecovery, warnings: active.warnings };
 }
