@@ -8,9 +8,12 @@
   interlock gates, and exact-result validation at the landing instant.
 - **Position:** Consolidates four 2026-08-13/14 field captures from the v1 self-delivery (terminal attachment
   resolution, first-class stack branches, projection refresh, native landing routing) into one coherent follow-up.
-  Depends on `integration-boundary-accuracy`: that WU rewrites the integration seam this design composes with
-  (`submit`/`propose` verbs, checkpoint/merge lifecycle), so drafting grooms against its settled spec and execution
-  waits for its landed contracts.
+  Composes with the landed `integration-boundary-accuracy` contracts (dependency discharged 2026-08-20): the
+  `arc attest` / `arc publish` lifecycle verbs and the typed `arc integrate checkpoint` → interlock →
+  `arc integrate merge` spine. Reconciled against the shipped spec at this WU's first planning session.
+- **Boundary fit (2026-08-20 entry read):** stays one WU + delivery-plan candidate. The facets (comparator, refresh,
+  native routing, terminal/locus) hang off one design spine; the predecessor's stacked delivery and a comparable
+  surface span warrant slice-aware authoring. Topology awareness only — nothing published or bound.
 
 ---
 
@@ -91,11 +94,16 @@ exists.
    reported as carried forward without being caller-selected, while any genuine contribution change still refuses
    closed. Exact-head pinning remains only at the merge instant.
 5. **Native landing as the routed path.** Reobserve native registration before selecting the singleton arm; a linked
-   stack routes through the native observe / select / prepare / submit / status lifecycle. The host adapter preserves
-   a typed `native-stack-required` refusal from the ordinary merge endpoint, uses the
+   stack routes through the native observe / select / prepare / submit / status lifecycle. The ordinary merge
+   endpoint is the shipped `arc integrate checkpoint` → interlock → `arc integrate merge` spine (exact-head pin,
+   in-verb lock release, bounded checks await, merge-method revalidation); the native arm extends that spine — the
+   host adapter preserves a typed `native-stack-required` refusal from its merge attempt, uses the
    [asynchronous stack-merge API][gh-stack-merge-api], and returns the complete settled suffix; every
-   provider-retargeted member reconciles by structural equivalence
-   before its new head is admitted to review. Native linkage stays provider-observed, never canonical plan authority.
+   provider-retargeted member reconciles by structural equivalence before its new head is admitted to review.
+   Merge-method validation must become stack-aware: `arc review merge-method resolve` reads repository-level
+   allowances while the platform holds intermediate members to merge commits (only the top member is free); the
+   disclosed host-evidence residuals (branch-scoped rules unread, absent-vs-unconfigured required checks) are
+   external couplings, not this WU's scope. Native linkage stays provider-observed, never canonical plan authority.
 6. **Bookkeeping posture.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
    from plan, Git, and host authorities at each operation. The cohort's no-second-ledger non-goals carry forward
    unchanged; this member adds no durable record family.
@@ -140,10 +148,10 @@ posture.
 - Contribution-proof fallback: `packages/arc-framework/src/lib/delivery/contribution-proof.ts` /
   `git-contribution-proof.ts` — replace the byte-aggregate comparator; keep tree-equality fast path. Distinct from
   the plan-semantics fingerprinting in `fingerprint.ts` — the two concepts must not conflate.
-- Terminal attachment: `arc delivery terminal attach` resolves its owner via `resolveActiveWu()` over `.arc/active`,
-  which `with-integration` archival has already emptied — consume an explicit retained identity or resolve the
-  shipped archive safely; check the integration workflow's call order so the terminal identity survives exactly
-  until attachment.
+- Terminal attachment: the archival-refusal defect is fixed (PR #511, 2026-08-20 — attachment binds an explicit
+  lifecycle-complete work-unit identity, with a typed no-op for ordinary delivery). The remaining seam is the
+  amendment's own: retire the attach machinery together with the disconnected terminal request it serves, rather
+  than leaving a working mechanism whose subject this design removes.
 - Terminal-workflow guard tests: `delivery-terminal-workflow.test.ts`'s whole-file digest pin is already removed (it
   froze a shared workflow document and its reconstruction literal had gone stale); the twelve retained structural
   assertions over the terminal-attachment block will fail by name when this design removes the disconnected terminal
@@ -181,9 +189,11 @@ posture.
 
 ## Coordination
 
-- `integration-boundary-accuracy` — recorded dependency: this design composes with its landed `submit`/`propose`
-  verbs and checkpoint/merge lifecycle; reconcile against the shipped contracts at first session, not the pre-ship
-  assumption.
+- `integration-boundary-accuracy` — landed dependency, reconciled 2026-08-20: this design composes with the shipped
+  `arc attest` / `arc publish` verbs and checkpoint/merge spine, and consumes its typed substrate rather than
+  minting parallel reads — `arc review change-request resolve` (member PR resolution / reverse lookup),
+  `arc review status`, `arc base merge`, `arc review merge-method resolve`, and the provider-neutral bounded wait
+  for any stack-merge-API await (its natural third instantiation).
 - `delivery-review-cardinality` — unchanged; still demand-held on its own activation threshold.
 - `review-source-authority` — owns the hosted-lane record-family census; this member adds no new records for that
   census to inherit.
@@ -215,6 +225,11 @@ if still wanted then, gets a fresh design against the v2 substrate rather than t
   mechanical carry-forward evidence in reports.
 - Whether registration should use the raw Stacks API only, given `gh stack link` porcelain performs mutations beyond
   the presentation-only carve-out.
+- Lifecycle mapping onto the shipped publication boundary: when `arc publish` fires (`Active → Integrating` at the
+  publication-step head, before the push) relative to the first member's push; what `Integrating` spans across a
+  multi-member landing window; how a carried hosted-review reservation reads per member; and whether whole-WU
+  attestation (`arc attest`) still strictly precedes the first landing, as v1 practiced. Couples to the
+  multi-branch locus question above.
 
 ---
 
