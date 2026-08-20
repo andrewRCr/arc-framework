@@ -1,7 +1,6 @@
 # Draft: Verification Falsification Contract
 
 - **Origin:** `USER-INBOX § Work Unit`, housekeep drain (2026-08-20).
-- **Cohort:** `verification-integrity`
 - **Purpose:** Make verification search for missing and broken behavior rather than confirm only what is present.
 
 ## Problem / Motivation
@@ -18,6 +17,10 @@ weak at absent paths, incomplete inventories, missing producers, and human-facin
 - Trace criteria naming a human-facing surface through to the human-visible consumer.
 - Preserve explicit not-met and partial evidence rather than resolving bundled assertions optimistically.
 - Keep success-criteria authoring shape with `planning-iteration-mechanics` and review-pass calibration with
-  `review-activity-contracts`; this work owns the verification method itself.
+  `review-activity-contracts`; this work owns the `verify-work-unit` instrument's falsification quality.
+
+`delivery-native-stack-composition` owns the scope-parameterized invocation topology: member-completion verification,
+member-scoped criteria slices, and one whole-WU closeout over cross-member seams. This WU may strengthen the
+instrument that topology invokes, but must not re-derive its boundaries, records, or firing cadence.
 
 ---

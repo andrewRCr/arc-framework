@@ -30,7 +30,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-conservation-coverage     | P1       | andrew | —          | decompose-core-hardening      |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment     |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment     |
-| verification-falsification-contract | P1       | andrew | —          | verification-integrity        |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                             |
 | delivery-intent-integrity           | P1       | andrew | —          | —                             |
 | locus-claim-revalidation            | P1       | andrew | —          | —                             |
@@ -38,6 +37,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                             |
 | roadmap-tooling                     | P1       | andrew | —          | —                             |
 | session-init-performance            | P1       | andrew | —          | —                             |
+| verification-falsification-contract | P1       | andrew | —          | —                             |
 | wu-lifecycle-state-model            | P1       | andrew | —          | —                             |
 | composable-workflows                | P2       | andrew | —          | agent-context-optimization    |
 | loadset-composition                 | P2       | andrew | —          | agent-context-optimization    |
@@ -48,7 +48,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | method-conventions                  | P2       | andrew | —          | doc-conventions               |
 | naming-conventions                  | P2       | andrew | —          | doc-conventions               |
 | pull-request-surface-policy         | P2       | andrew | —          | doc-conventions               |
-| verification-scope-scaling          | P2       | andrew | —          | verification-integrity        |
 | cross-wu-coordination               | P2       | andrew | —          | —                             |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                             |
 | frictionless-capture                | P2       | andrew | —          | —                             |

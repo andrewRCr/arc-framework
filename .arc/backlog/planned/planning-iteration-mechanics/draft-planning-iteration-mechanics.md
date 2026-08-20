@@ -26,7 +26,8 @@
   not-met, and unknown; a partially satisfied bundle becomes inexpressible and tends to resolve optimistically.
 - _Fold-in:_ require one independently falsifiable assertion per criterion or add a truthful partial representation.
   Coordinate the authoring shape with `verification-falsification-contract`; this WU owns the planning-time
-  criterion form, not the verification method.
+  criterion form, not the verification method. `delivery-native-stack-composition` owns member-scoped criteria
+  slices and their boundary cadence, so consume that topology rather than re-deriving it here.
 
 ### `[ ]` **Run a source-grounded planning pre-flight before adversarial review**
 

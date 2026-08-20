@@ -1,14 +1,14 @@
-# Metadata: verification-scope-scaling
+# Metadata: verification-falsification-contract
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P1`         |
 
-- **Cohort:** `verification-integrity`
+- **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-verification-scope-scaling.md`
+- **Design:** `draft-verification-falsification-contract.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
