@@ -47,7 +47,8 @@ from repository state by the command below; never assemble or restate them here.
 
 Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
 mode, the frontline lane's one-run invocation override, and any approved ceiling override as `--lanes`, and a
-completed author self-review as `--self-review settled`. A user-directed skip of an enabled frontline lane is
+completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
+option when the method is inactive. A user-directed skip of an enabled frontline lane is
 `lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. Re-invoke after every lane
 operation with the same `--change-set`, `--lanes`, and `--self-review` values verbatim: the command composes durable
 progress, but those values are author judgment it cannot recover.

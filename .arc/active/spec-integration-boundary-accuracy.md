@@ -1045,5 +1045,9 @@ Implementation detail, resolved during the work:
 - **The storage locus and serialization format for checkpoint persistence.** B3 fixes that it is verb-side,
   gitignored, per-WU, and keyed by the handle; which file under the per-WU user workspace and what encoding is a
   tactical call.
+  _Resolved 2026-08-19:_ Task 4.3 placed immutable canonical JSON records in the work unit's dot-prefixed user
+  workspace and keyed retrieval by the digest-bound checkpoint handle.
 - **Module placement for the extracted wait primitive** and how much of `awaitHostedReview`'s envelope vocabulary
   becomes shared schema versus per-instantiation.
+  _Resolved 2026-08-19:_ Task 3.3 placed the provider-neutral loop in `bounded-wait.ts`; only its generic
+  attempt/deadline seam is shared, while each instantiation retains its own result vocabulary.
