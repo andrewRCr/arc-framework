@@ -24,6 +24,13 @@ const reservation = createStandardReviewReservation({
     count: 1,
   },
 });
+const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
+const SUBJECT_DIGEST = `sha256:${"d".repeat(64)}`;
+const CURRENT_HEAD = "e".repeat(40);
+const binding = {
+  boundary: { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST },
+  candidate: { candidateId: CANDIDATE_ID, subjectDigest: SUBJECT_DIGEST, headSha: CURRENT_HEAD },
+};
 
 describe("hosted reservation admission", () => {
   it("admits the preferred source before any attempt", () => {
@@ -37,8 +44,21 @@ describe("hosted reservation admission", () => {
       reservation,
       provider: "codex-pr",
       repository: "owner/repo",
-      headSha: "b".repeat(40),
+      headSha: CURRENT_HEAD,
       attempts,
+      ...binding,
+    })).not.toThrow();
+  });
+
+  it("admits a current Candidate after the publication-only head advance", () => {
+    expect(reservation.target.headSha).not.toBe(CURRENT_HEAD);
+    expect(() => assertHostedReservationAdmission({
+      reservation,
+      provider: "coderabbit-pr",
+      repository: "owner/repo",
+      headSha: CURRENT_HEAD,
+      attempts: [],
+      ...binding,
     })).not.toThrow();
   });
 
@@ -47,9 +67,22 @@ describe("hosted reservation admission", () => {
       reservation,
       provider: "codex-pr",
       repository: "owner/repo",
-      headSha: "b".repeat(40),
+      headSha: CURRENT_HEAD,
       attempts: [],
+      ...binding,
     })).toThrow(/requires `coderabbit-pr` next/u);
+  });
+
+  it("rejects a carried reservation after the Candidate subject changes", () => {
+    expect(() => assertHostedReservationAdmission({
+      reservation,
+      provider: "coderabbit-pr",
+      repository: "owner/repo",
+      headSha: CURRENT_HEAD,
+      attempts: [],
+      ...binding,
+      candidate: { ...binding.candidate, subjectDigest: `sha256:${"f".repeat(64)}` },
+    })).toThrow(/current Candidate/u);
   });
 
   it("does not treat a mixed or terminal history as safe fallback evidence", () => {

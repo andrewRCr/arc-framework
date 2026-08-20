@@ -28,11 +28,18 @@ export function assertHostedReservationAdmission(input: {
   provider: string;
   repository: string;
   headSha: string;
+  boundary: { candidateId: string; candidateSubjectDigest: string | null };
+  candidate: { candidateId: string; subjectDigest: string; headSha: string };
   attempts: readonly ReservationAttempt[];
 }): void {
-  if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()
-    || input.reservation.target.headSha !== input.headSha) {
+  if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()) {
     throw new Error("Hosted review target does not match the carried standard-review reservation.");
+  }
+  if (input.boundary.candidateSubjectDigest === null
+    || input.boundary.candidateId !== input.candidate.candidateId
+    || input.boundary.candidateSubjectDigest !== input.candidate.subjectDigest
+    || input.candidate.headSha !== input.headSha) {
+    throw new Error("Hosted review reservation does not match the current Candidate.");
   }
   const expected = firstAdmissibleHostedSource(input.reservation, input.attempts);
   if (expected === null) {

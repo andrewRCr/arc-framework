@@ -135,8 +135,7 @@ export function applyCarriedStandardReviewReservation(
     || composition.request.candidateId !== input.candidateId
     || composition.request.candidate.subjectDigest !== input.candidateSubjectDigest
     || composition.request.standard.target.repository.toLowerCase()
-      !== input.reservation.target.repository.toLowerCase()
-    || composition.request.standard.target.headSha !== input.reservation.target.headSha) {
+      !== input.reservation.target.repository.toLowerCase()) {
     return composition;
   }
   return {

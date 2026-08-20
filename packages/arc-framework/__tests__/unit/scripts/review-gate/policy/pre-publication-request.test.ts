@@ -24,6 +24,7 @@ import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const HEAD = "a".repeat(40);
+const PREPUBLICATION_HEAD = "b".repeat(40);
 const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
 
 const currentCandidate: CandidateRead = {
@@ -97,7 +98,7 @@ describe("composePrePublicationReviewRequest", () => {
         sourceId: "coderabbit-pr",
         sources: ["coderabbit-pr", "codex-pr"],
         repository: "arc-framework/example",
-        headSha: HEAD,
+        headSha: PREPUBLICATION_HEAD,
         obligation: {
           obligation: "required",
           reasons: ["sensitive-change-set"],
@@ -111,6 +112,7 @@ describe("composePrePublicationReviewRequest", () => {
 
     expect(rebound.status).toBe("composed");
     if (rebound.status !== "composed") return;
+    expect(rebound.request.standard.target.headSha).toBe(HEAD);
     expect(rebound.request.standard.sources).toEqual(["coderabbit-pr", "codex-pr"]);
   });
 

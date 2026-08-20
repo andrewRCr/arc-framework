@@ -1275,6 +1275,13 @@ async function resolveHostedReservationContext(input: {
     throw new Error("Hosted review progress requires the carried standard-review reservation.");
   }
   const reservation = boundary.reservation;
+  const candidate = await createPrePublicationCompositionDependencies({
+    cwd: input.root,
+    exec: gitExec,
+  }).readCandidate(active.name);
+  if (candidate.status !== "current") {
+    throw new Error("Hosted review reservation requires a current Candidate.");
+  }
   const settings = (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
@@ -1320,6 +1327,15 @@ async function resolveHostedReservationContext(input: {
     provider: input.provider,
     repository: input.target.repository,
     headSha: input.target.headSha,
+    boundary: {
+      candidateId: boundary.candidateId,
+      candidateSubjectDigest: boundary.candidateSubjectDigest,
+    },
+    candidate: {
+      candidateId: candidate.candidateId,
+      subjectDigest: candidate.subjectDigest,
+      headSha: candidate.headSha,
+    },
     attempts,
   });
   const requirement = createReviewRequirement({
