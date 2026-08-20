@@ -11,7 +11,7 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:7ae23ab05eefcce63161eead3bd8ccf9971f5d02505135ea75ee107bc9c05fb7`
+- **Candidate:** `sha256:14037e08a2a64fd5e186d5ad2c7140a7525be30ec0984dd2d229965028fa456d`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 14.3 — Project the prepublication workflow through Candidate attestation
