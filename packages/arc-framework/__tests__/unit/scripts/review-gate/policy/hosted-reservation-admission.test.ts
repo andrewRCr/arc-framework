@@ -73,7 +73,7 @@ describe("hosted reservation admission", () => {
     })).toThrow(/requires `coderabbit-pr` next/u);
   });
 
-  it("rejects a carried reservation after the Candidate subject changes", () => {
+  it("admits a carried reservation after an approved Candidate subject advance", () => {
     expect(() => assertHostedReservationAdmission({
       reservation,
       provider: "coderabbit-pr",
@@ -82,7 +82,7 @@ describe("hosted reservation admission", () => {
       attempts: [],
       ...binding,
       candidate: { ...binding.candidate, subjectDigest: `sha256:${"f".repeat(64)}` },
-    })).toThrow(/current Candidate/u);
+    })).not.toThrow();
   });
 
   it("does not treat a mixed or terminal history as safe fallback evidence", () => {

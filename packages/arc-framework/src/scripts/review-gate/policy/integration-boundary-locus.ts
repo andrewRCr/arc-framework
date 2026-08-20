@@ -215,8 +215,15 @@ export function recoverPublicationBoundary(input: {
   if (stored === null
     || stored.workUnit !== input.workUnit
     || stored.candidateId !== input.candidateId
-    || stored.candidateSubjectDigest !== input.candidateSubjectDigest) return null;
-  if (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending") return stored;
+    || stored.candidateSubjectDigest === null) return null;
+  if (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending") {
+    // The Candidate record's latest response subject is authoritative for the current lineage.
+    // Rebind the carried publication authority instead of treating that approved advance as stale.
+    return IntegrationBoundaryLocusSchema.parse({
+      ...stored,
+      candidateSubjectDigest: input.candidateSubjectDigest,
+    });
+  }
   if (stored.locus !== "candidate-publish-ready") return null;
   return projectPublicationBoundary({
     workUnit: input.workUnit,

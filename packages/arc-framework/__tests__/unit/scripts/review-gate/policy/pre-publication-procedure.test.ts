@@ -13,6 +13,7 @@ import {
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
+  recoverPublicationBoundary,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createCandidateAttestation,
@@ -88,6 +89,31 @@ describe("integration boundary locus", () => {
         kind: "continue-pre-publication-review",
         command: "arc review pre-publication example --json",
       },
+    });
+  });
+
+  it("rebinds a carried publication boundary to an approved Candidate response subject", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const priorSubjectDigest = `sha256:${"d".repeat(64)}`;
+    const currentSubjectDigest = `sha256:${"e".repeat(64)}`;
+    const carried = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: priorSubjectDigest,
+      branch: "feat/example",
+      reservation: reservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+
+    expect(recoverPublicationBoundary({
+      stored: carried,
+      workUnit: "example",
+      branch: "feat/example",
+      candidateId,
+      candidateSubjectDigest: currentSubjectDigest,
+    })).toEqual({
+      ...carried,
+      candidateSubjectDigest: currentSubjectDigest,
     });
   });
 

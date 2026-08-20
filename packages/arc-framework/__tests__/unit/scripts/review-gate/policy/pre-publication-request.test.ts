@@ -84,7 +84,7 @@ function dependencies(
 }
 
 describe("composePrePublicationReviewRequest", () => {
-  it("keeps a carried reservation's source order when live config is reordered", async () => {
+  it("keeps a carried reservation's source order after an approved Candidate subject advance", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       readLanePolicy: async (lane) => lane === "frontline"
         ? { sources: [], maxPasses: 2 }
@@ -92,7 +92,7 @@ describe("composePrePublicationReviewRequest", () => {
     }));
     const rebound = applyCarriedStandardReviewReservation(composition, {
       candidateId: CANDIDATE_ID,
-      candidateSubjectDigest: currentCandidate.status === "current" ? currentCandidate.subjectDigest : null,
+      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
       reservation: createStandardReviewReservation({
         candidateId: CANDIDATE_ID,
         sourceId: "coderabbit-pr",

@@ -6,8 +6,10 @@
  * succeeds on its first call over it.
  */
 
+import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -19,6 +21,19 @@ import {
 } from "./helpers.js";
 import { createStandardReviewReservation } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  CandidateManagedRecordV1Schema,
+  parseCandidateManagedRecord,
+  serializeCandidateManagedRecord,
+} from "../../src/lib/work-unit/candidate-attestation.js";
+import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import {
+  projectCandidateDeltaVerification,
+  recordCandidateVerifiedResponse,
+} from "../../src/scripts/review-gate/policy/pre-publication-procedure.js";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Origin coordinates that parse as `owner/repo` but reach no host.
@@ -292,6 +307,94 @@ describe("attest → pre-publication → publish", () => {
     const meta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
     expect(meta).toContain("- **Current Workflow:** `integrate-work-unit`");
     expect(meta).toContain("- **Next Action:** push and open the PR");
+  });
+
+  it("rebinds a carried reservation after an approved Candidate response advances the subject", async () => {
+    repository = await createAttestableRepo();
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+
+    const reviewed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+    const reviewedEnvelope = JSON.parse(reviewed.stdout) as {
+      candidateId: string;
+      candidateSubjectDigest: string;
+      target: { headSha: string };
+    };
+    const candidatePath = join(
+      repository,
+      ".arc", "system", ".internal", "candidates", "example.json",
+    );
+    const boundaryPath = join(
+      repository,
+      ".arc", "system", ".internal", "candidates", "example.boundary.json",
+    );
+    const priorBoundary = JSON.parse(await readFile(boundaryPath, "utf8")) as Record<string, unknown>;
+    const reservation = createStandardReviewReservation({
+      candidateId: reviewedEnvelope.candidateId,
+      sourceId: "coderabbit-pr",
+      sources: ["coderabbit-pr", "codex-pr"],
+      repository: "arc-framework/example",
+      headSha: reviewedEnvelope.target.headSha,
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    await writeFile(boundaryPath, `${JSON.stringify({ ...priorBoundary, reservation }, null, 2)}\n`);
+    await writeFile(join(repository, "src", "example.ts"), "export const example = 'fixed';\n");
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "-m", "fix review finding"]);
+
+    const record = parseCandidateManagedRecord(await readFile(candidatePath, "utf8"));
+    expect(record).not.toBeNull();
+    if (record === null) return;
+    const current = await collectGitCandidateTarget({
+      cwd: repository,
+      name: "example",
+      baseBranch: "main",
+      exec: async (cmd, args, options) => {
+        const result = await execFileAsync(cmd, args, {
+          cwd: options?.cwd ?? repository ?? undefined,
+          encoding: "utf8",
+        });
+        return { stdout: result.stdout, stderr: result.stderr };
+      },
+    });
+    const projection = projectCandidateDeltaVerification({ record, current });
+    const response = recordCandidateVerifiedResponse({
+      projection,
+      dispositionId: canonicalDigest({ disposition: "approved" }),
+      approvedBy: "test-user",
+      appliedBy: "test-agent",
+      applicability: "focused",
+      verificationEvidenceRefs: ["test://focused"],
+    });
+    await writeFile(candidatePath, serializeCandidateManagedRecord(CandidateManagedRecordV1Schema.parse({
+      ...record,
+      responses: [...record.responses, response],
+    })));
+    await git(repository, ["add", candidatePath]);
+
+    const resumed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(resumed.exitCode, JSON.stringify(resumed)).toBe(0);
+    expect(JSON.parse(await readFile(boundaryPath, "utf8"))).toMatchObject({
+      candidateId: reviewedEnvelope.candidateId,
+      candidateSubjectDigest: current.subject.subjectDigest,
+      reservation: { sources: ["coderabbit-pr", "codex-pr"] },
+    });
   });
 
   it("composes a non-null exact target from a clean committed Candidate", async () => {

@@ -130,10 +130,12 @@ export function applyCarriedStandardReviewReservation(
     reservation: StandardReviewReservationV1;
   },
 ): PrePublicationComposition {
+  // A current Candidate may have advanced through an approved response while retaining its
+  // Candidate id. The composition read established that lineage currentness; the stored subject
+  // remains useful as a non-null binding witness, but is not a second currentness authority.
   if (composition.status !== "composed"
     || input.candidateSubjectDigest === null
     || composition.request.candidateId !== input.candidateId
-    || composition.request.candidate.subjectDigest !== input.candidateSubjectDigest
     || composition.request.standard.target.repository.toLowerCase()
       !== input.reservation.target.repository.toLowerCase()) {
     return composition;

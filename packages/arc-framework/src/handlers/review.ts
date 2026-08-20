@@ -2006,7 +2006,7 @@ function defaultPrePublicationDependencies(
       const existing = snapshot.boundary;
       const preservesReservation = existing !== null
         && existing.candidateId === settled.candidateId
-        && existing.candidateSubjectDigest === settled.candidateSubjectDigest
+        && existing.candidateSubjectDigest !== null
         && existing.reservation !== null
         && settled.reservation === null;
       const path = await writeSubmissionBoundary(root, parseIntegrationBoundaryLocus(preservesReservation

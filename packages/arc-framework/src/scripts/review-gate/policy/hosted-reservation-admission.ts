@@ -35,9 +35,10 @@ export function assertHostedReservationAdmission(input: {
   if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()) {
     throw new Error("Hosted review target does not match the carried standard-review reservation.");
   }
+  // The caller supplies only a Candidate already proven current. Approved responses advance its
+  // subject without changing its identity, so admission binds the lineage id and current host head.
   if (input.boundary.candidateSubjectDigest === null
     || input.boundary.candidateId !== input.candidate.candidateId
-    || input.boundary.candidateSubjectDigest !== input.candidate.subjectDigest
     || input.candidate.headSha !== input.headSha) {
     throw new Error("Hosted review reservation does not match the current Candidate.");
   }
