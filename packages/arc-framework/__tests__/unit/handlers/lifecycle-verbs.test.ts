@@ -21,6 +21,9 @@ const mockIoExecInput = vi.fn();
 const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
+const mockResolveUserIdentity = vi.fn<(exec?: unknown) => Promise<string>>(async () => "andrew");
+const mockRequireArcProjectRoot = vi.fn<(startDir?: string) => string | null>(() => "/repo");
+const mockResolveArcRoot = vi.fn<(startDir?: string) => string | null>(() => "/repo");
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
@@ -32,8 +35,8 @@ vi.mock("@clack/prompts", () => ({
 }));
 
 vi.mock("../../../src/handlers/shared.js", () => ({
-  resolveUserIdentity: async () => "andrew",
-  requireArcProjectRoot: () => "/repo",
+  resolveUserIdentity: (exec?: unknown) => mockResolveUserIdentity(exec),
+  requireArcProjectRoot: (startDir?: string) => mockRequireArcProjectRoot(startDir),
   isHandledError: () => false,
 }));
 
@@ -77,7 +80,7 @@ vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutor
 vi.mock("../../../src/lib/paths.js", () => ({
   getArcTemplatePath: () => "/arc",
   getInternalTemplatePath: () => "/tpl",
-  resolveArcRoot: () => "/repo",
+  resolveArcRoot: (startDir?: string) => mockResolveArcRoot(startDir),
 }));
 
 vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
@@ -96,9 +99,14 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
 }));
 
 const mockParseMetaRecord = vi.fn(() => ({ branch: "feat/foo", state: "Active" }));
+const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates: { filename: string }[] }>>(
+  async () => ({
+    candidates: [{ filename: "meta-foo.md" }],
+  }),
+);
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
   parseMetaRecord: () => mockParseMetaRecord(),
-  readActiveMetaCandidates: async () => ({ candidates: [{ filename: "meta-foo.md" }] }),
+  readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
 }));
 
 const mockBuildLifecycleIndex = vi.fn();
@@ -295,6 +303,7 @@ const {
   handleAbandon,
   handleReopen,
   handleAttest,
+  LifecycleCommandRefusalSchema,
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
@@ -342,6 +351,10 @@ const cleanReconcile = {
 beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
+  mockResolveUserIdentity.mockResolvedValue("andrew");
+  mockRequireArcProjectRoot.mockReturnValue("/repo");
+  mockResolveArcRoot.mockReturnValue("/repo");
+  mockReadActiveMetaCandidates.mockResolvedValue({ candidates: [{ filename: "meta-foo.md" }] });
   mockReadFile.mockResolvedValue("{}");
   mockReadConfigSettings.mockResolvedValue(configResult());
   mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active" });
@@ -1009,6 +1022,36 @@ describe("handlePublish", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("emits one typed JSON refusal when the ARC root is unavailable", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockResolveArcRoot.mockReturnValueOnce(null);
+
+    await handlePublish("foo", { json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(mockRunPublish).not.toHaveBeenCalled();
+  });
+
+  it("emits one typed JSON refusal when a context-defaulted target is unavailable", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockReadActiveMetaCandidates.mockResolvedValueOnce({ candidates: [] });
+
+    await handlePublish(undefined, { json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(mockRunPublish).not.toHaveBeenCalled();
+  });
+
   it("defaults a bare invocation to the current worktree's WU", async () => {
     await handlePublish(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
     expect(mockRunPublish).toHaveBeenCalledTimes(1);
@@ -1171,6 +1214,21 @@ describe("handleReopen", () => {
 });
 
 describe("handleAttest", () => {
+  it("emits one typed JSON refusal when identity resolution fails", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockResolveUserIdentity.mockRejectedValueOnce(new Error("identity unavailable"));
+
+    await handleAttest("foo", { json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.remedy.argv).toEqual(["arc", "init"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
   it("attests when the index carries every reviewable edit", async () => {
     await handleAttest("foo", { json: true });
 

@@ -212,6 +212,25 @@ describe("runReopen — the set-phase-only move", () => {
     await expect(runReopen(ctx, BASE)).resolves.toMatchObject({ status: "rejected" });
     expect(calls).toEqual([]);
   });
+
+  it.each([
+    [true, /merged/iu],
+    [undefined, /can't be confirmed|unverifiable|unavailable/iu],
+  ] as const)("reapplies the PR guard before recovering a partial Active projection", async (prMerged, reason) => {
+    const { ctx, calls } = buildCtx([{
+      slug: "foo",
+      state: "Active",
+      branch: "feat/foo",
+      currentWorkflow: "integrate-work-unit",
+    }]);
+
+    const result = await runReopen(ctx, { name: "foo", prMerged });
+
+    expect(result).toMatchObject({ status: "rejected" });
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(reason);
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("runReopen — soft-field disposition", () => {

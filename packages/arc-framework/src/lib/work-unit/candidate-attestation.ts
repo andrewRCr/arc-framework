@@ -12,10 +12,12 @@ import { SlugSchema } from "../kernel/schema/slug.js";
 const CandidateSemanticsSchema = z.literal("candidate-attestation/v1");
 const CandidateCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const CandidateGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const CandidatePathSchema = z.string().min(1).refine(
-  (value) => !value.startsWith("/") && !value.includes("\\") && !value.split("/").includes(".."),
-  "must be a repository-relative POSIX path",
-);
+const CandidatePathSchema = z.string().min(1)
+  .refine(
+    (value) => !value.startsWith("/") && !value.includes("\\") && !value.split("/").includes(".."),
+    "must be a repository-relative POSIX path",
+  )
+  .refine((value) => value.normalize("NFC") === value, "must use NFC-normalized repository path bytes");
 const CandidateSubjectTreatmentSchema = z.enum(["reviewable", "operational", "candidate-projection"]);
 const CandidateTreeEntryModeSchema = z.union([
   z.string().regex(/^[0-7]{6}$/u),

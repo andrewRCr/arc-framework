@@ -38,6 +38,22 @@ function attestation() {
 }
 
 describe("Candidate attestation", () => {
+  it("rejects repository paths whose Unicode spelling is not NFC-normalized", () => {
+    expect(() => createCandidateSubjectSnapshot([{
+      path: "packages/cafe\u0301.ts",
+      mode: "100644",
+      digest: canonicalDigest({ source: "decomposed" }),
+      treatment: "reviewable",
+    }])).toThrow(/NFC-normalized/u);
+
+    expect(createCandidateSubjectSnapshot([{
+      path: "packages/caf\u00e9.ts",
+      mode: "100644",
+      digest: canonicalDigest({ source: "composed" }),
+      treatment: "reviewable",
+    }]).entries[0]?.path).toBe("packages/caf\u00e9.ts");
+  });
+
   it("excludes operational and Candidate-projection writes from the subject digest", () => {
     const initial = snapshot();
     const churned = createCandidateSubjectSnapshot([

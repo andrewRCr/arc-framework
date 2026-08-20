@@ -881,6 +881,7 @@ function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown>
 function phaseAcceptsBoundary(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
   boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
+  completedRecovery = false,
 ): boolean {
   if (sessionType === "prepublication") {
     return boundary !== null && [
@@ -891,7 +892,9 @@ function phaseAcceptsBoundary(
     ].includes(boundary.locus);
   }
   if (sessionType === "integration") {
-    return boundary !== null && ["publication-pending", "hosted-review-pending"].includes(boundary.locus);
+    return completedRecovery
+      ? boundary === null
+      : boundary !== null && ["publication-pending", "hosted-review-pending"].includes(boundary.locus);
   }
   return boundary === null;
 }
@@ -911,10 +914,21 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
   const worktree = worktreeValue(value);
   const rosterSuccessful = value.roster?.ok === true;
   const identityKnown = value.identity.identity !== null;
+  const derivedActive = value.derivedLocusState.ok
+    ? value.derivedLocusState.value.active
+    : null;
+  const completedIntegrationRecovery = derivedActive !== null
+    && value.derivedLocusState.ok
+    && value.derivedLocusState.value.roster.some((row) =>
+      row.checkout.path === derivedActive.checkoutPath && row.lifecycleLocation === "completed");
 
   if (value.active.ok) {
     const activeSession = value.active.value;
-    if (!phaseAcceptsBoundary(activeSession.sessionType, activeSession.integrationBoundary)) {
+    if (!phaseAcceptsBoundary(
+      activeSession.sessionType,
+      activeSession.integrationBoundary,
+      completedIntegrationRecovery,
+    )) {
       context.addIssue({
         code: "custom",
         path: ["active", "value", "integrationBoundary"],
@@ -930,12 +944,13 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     }
   }
 
-  const derivedActive = value.derivedLocusState.ok
-    ? value.derivedLocusState.value.active
-    : null;
   if (derivedActive !== null) {
     const { context: derivedContext, subject } = derivedActive;
-    if (!phaseAcceptsBoundary(derivedContext.sessionType, derivedContext.integrationBoundary)) {
+    if (!phaseAcceptsBoundary(
+      derivedContext.sessionType,
+      derivedContext.integrationBoundary,
+      completedIntegrationRecovery,
+    )) {
       context.addIssue({
         code: "custom",
         path: ["derivedLocusState", "value", "active", "context", "integrationBoundary"],

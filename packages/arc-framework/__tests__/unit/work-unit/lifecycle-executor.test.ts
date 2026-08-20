@@ -614,7 +614,7 @@ describe("executeTransition — post-side-effect finalize failure", () => {
   it("reports `finalize-failed` (not `encoding-failed`) when a soft-field write throws", async () => {
     // submit fires its side-effects, then writes soft fields; force the soft
     // write to throw — after the side-effects already landed.
-    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
+    const { ctx, calls } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
 
     const outcome = await executeTransition(ctx, {
       verb: "publish",
@@ -627,6 +627,7 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     expect(outcome.failedWrite).toBe("softFields");
     expect(outcome.legsFired).toContain("setPhase");
     expect(outcome.message).toMatch(/boom:softFields/);
+    expect(calls).not.toContain("current-workflow:integrate-work-unit");
   });
 
   it("payload names the side-effects that already landed (forward-only recovery context)", async () => {
@@ -671,7 +672,7 @@ describe("executeTransition — post-side-effect finalize failure", () => {
   });
 
   it("names the failing write when the meta staging throws (last write)", async () => {
-    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "stageMeta" });
+    const { ctx, currentWorkflowWrites } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "stageMeta" });
 
     const outcome = await executeTransition(ctx, {
       verb: "publish",
@@ -682,6 +683,10 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     expect(outcome.status).toBe("finalize-failed");
     if (outcome.status !== "finalize-failed") return;
     expect(outcome.failedWrite).toBe("stageMeta");
+    expect(currentWorkflowWrites.map(({ stage }) => stage)).toEqual([
+      "integrate-work-unit",
+      "prepare-work-unit",
+    ]);
   });
 
   it("a pre-side-effect leg throw still reports `encoding-failed` — no side-effects, distinct arm", async () => {

@@ -110,7 +110,7 @@ export async function runActiveStatus(
 ): Promise<ActiveStatusResult> {
   const { layout, candidates: rawCandidates, warnings } = await readActiveMetaCandidates(options.cwd);
   const candidates = await Promise.all(rawCandidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate)));
+    projectCandidateIntegrationBoundary(options.cwd, candidate, warnings)));
   return {
     mode: "full",
     layout,
@@ -175,7 +175,7 @@ export async function runActiveSessionInitStatusInternal(
     getCurrentBranch(options.exec),
   ]);
   const projected = await Promise.all(scan.candidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate)));
+    projectCandidateIntegrationBoundary(options.cwd, candidate, scan.warnings)));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
   const resolved = result.resolution === "single"
@@ -289,6 +289,12 @@ function classifyResolution(
       && (only.integrationBoundary === null || only.integrationBoundary === undefined)) {
       return { resolution: "single", path: only.path, candidates: [], sessionType: null };
     }
+    if (only.state === "Active"
+      && only.candidateId !== null
+      && only.candidateId !== undefined
+      && (only.integrationBoundary === null || only.integrationBoundary === undefined)) {
+      return { resolution: "single", path: only.path, candidates: [], sessionType: null };
+    }
     return {
       resolution: "single",
       path: only.path,
@@ -339,6 +345,7 @@ async function resolveSessionInit(
 async function projectCandidateIntegrationBoundary(
   cwd: string,
   candidate: MetaFileCandidate,
+  warnings: string[],
 ): Promise<MetaFileCandidate> {
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
@@ -346,6 +353,9 @@ async function projectCandidateIntegrationBoundary(
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
   const record = await readCandidateRecord(cwd, slug);
   if (record === null || record.attestation.candidateId !== candidate.candidateId) {
+    warnings.push(
+      `Candidate authority for ${candidate.filename} is unavailable or does not match its managed record.`,
+    );
     return { ...candidate, integrationBoundary: null };
   }
   const candidateSubjectDigest = record.responses.at(-1)?.newTarget.subject.subjectDigest

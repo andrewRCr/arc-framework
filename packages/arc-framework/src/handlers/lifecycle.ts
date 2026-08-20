@@ -161,6 +161,7 @@ import {
   attestArgv,
   attestNewRootArgv,
   spineRemedy,
+  SpineRemedySchema,
   type SpineRemedy,
 } from "../scripts/integration/spine-refusal.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
@@ -233,6 +234,7 @@ export async function resolveVerbTargetOrReport(
   verb: TransitionVerb,
   slugArg: string | undefined,
   cwd: string,
+  json = false,
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
   const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd) : null;
@@ -241,8 +243,21 @@ export async function resolveVerbTargetOrReport(
   if (target.kind === "resolved") return target.slug;
 
   const index = await buildLifecycleIndex({ cwd, fs: lifecycleFs });
-  p.log.error(formatVerbCandidates(verb, findVerbCandidates(index, verb)));
-  process.exitCode = 1;
+  const reason = formatVerbCandidates(verb, findVerbCandidates(index, verb));
+  if (json) {
+    refuseWithRemedy(
+      reason,
+      spineRemedy(
+        "Lifecycle commands require one resolvable work-unit target.",
+        "Inspect the current lifecycle state, then retry with an explicit target",
+        ["arc", "status", "--json"],
+      ),
+      true,
+    );
+  } else {
+    p.log.error(reason);
+    process.exitCode = 1;
+  }
   return null;
 }
 
@@ -258,7 +273,38 @@ interface VerbBase {
 }
 
 /** Resolve identity, repo root, and the I/O context; `null` when a guard already reported. */
-async function resolveVerbBase(context?: InteractionContext): Promise<VerbBase | null> {
+async function resolveVerbBase(context?: InteractionContext, json = false): Promise<VerbBase | null> {
+  const io = createUserIOContext(context?.subprocess);
+  if (json) {
+    const cwd = resolveArcRoot();
+    if (cwd === null) {
+      refuseWithRemedy(
+        "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
+        spineRemedy(
+          "Lifecycle commands require an ARC project root.",
+          "Enter an ARC project, then inspect its lifecycle state",
+          ["arc", "status", "--json"],
+        ),
+        true,
+      );
+      return null;
+    }
+    try {
+      const identity = await resolveUserIdentity(io.exec);
+      return { identity, cwd, io };
+    } catch {
+      refuseWithRemedy(
+        "No identity configured.",
+        spineRemedy(
+          "Lifecycle commands require a configured ARC identity.",
+          "Initialize the project identity",
+          ["arc", "init"],
+        ),
+        true,
+      );
+      return null;
+    }
+  }
   let identity: string;
   try {
     identity = await resolveUserIdentity();
@@ -268,7 +314,7 @@ async function resolveVerbBase(context?: InteractionContext): Promise<VerbBase |
   }
   const cwd = requireArcProjectRoot();
   if (!cwd) return null;
-  return { identity, cwd, io: createUserIOContext(context?.subprocess) };
+  return { identity, cwd, io };
 }
 
 /** Read config once and build the production executor context, returning both. */
@@ -364,9 +410,16 @@ function refuse(reason: string): void {
 }
 
 /** Refuse with the failed invariant and the one command that advances from it. */
+export const LifecycleCommandRefusalSchema = z.strictObject({
+  status: z.literal("rejected"),
+  reason: z.string().min(1),
+  remedy: SpineRemedySchema,
+});
+
 function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): void {
   if (json) {
-    process.stdout.write(`${JSON.stringify({ status: "rejected", reason, remedy })}\n`);
+    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy });
+    process.stdout.write(`${JSON.stringify(refusal)}\n`);
     process.exitCode = 1;
     return;
   }
@@ -1704,10 +1757,10 @@ export async function handlePublish(
     opts.json === true,
   );
   if (input === null) return;
-  const base = await resolveVerbBase(context);
+  const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("publish", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("publish", input.slug, base.cwd, input.json === true);
   if (target === null) return;
 
   const { lastCompleted, action } = input;
@@ -2414,7 +2467,7 @@ export async function handleAttest(
     opts.json === true,
   );
   if (input === null) return;
-  const base = await resolveVerbBase(context);
+  const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
   const { settings } = await buildExecutor(base);
   let metaPath = resolveArcPath({

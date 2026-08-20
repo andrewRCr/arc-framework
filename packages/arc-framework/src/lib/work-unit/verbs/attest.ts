@@ -108,6 +108,14 @@ export async function runAttest(
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
     if (currentness.convergenceVerification === "satisfied") {
+      await context.publish({
+        name,
+        record,
+        candidateId: currentness.candidateId,
+        candidateSubjectDigest: current.subject.subjectDigest,
+        expectedRecordVersion: existing.version,
+        ...orientation,
+      });
       return {
         status: "unchanged",
         locus: projectCandidateReviewBoundary({

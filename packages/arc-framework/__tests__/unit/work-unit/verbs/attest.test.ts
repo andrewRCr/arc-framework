@@ -112,7 +112,7 @@ describe("runAttest", () => {
     });
   });
 
-  it("is a no-op when the same verified subject is already attested", async () => {
+  it("republishes an unchanged attestation so interrupted projections can be repaired", async () => {
     const { context, state } = harness();
     const first = await runAttest(context, { name: "example", lifecycle: "Active" });
 
@@ -123,7 +123,7 @@ describe("runAttest", () => {
       status: "unchanged",
       locus: { locus: "candidate-review-pending", workUnit: "example" },
     });
-    expect(state().publicationCount).toBe(1);
+    expect(state().publicationCount).toBe(2);
   });
 
   it("re-attests a recognized implementation-changing lineage exactly once", async () => {
@@ -158,7 +158,7 @@ describe("runAttest", () => {
     });
     expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
     expect(fixture.state()).toMatchObject({
-      publicationCount: 2,
+      publicationCount: 3,
       projectedCurrentWorkflow: "prepare-work-unit",
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: { lineageAttestations: [{ target: changedTarget }] },
@@ -218,7 +218,7 @@ describe("runAttest", () => {
 
     expect(rerooted.status).toBe("attested");
     expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
-    expect(fixture.state().publicationCount).toBe(2);
+    expect(fixture.state().publicationCount).toBe(3);
   });
 
   it("establishes an ordinary root when no Candidate exists to supersede", async () => {

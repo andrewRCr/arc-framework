@@ -919,6 +919,31 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     });
   });
 
+  it("does not fall back to execution when a Candidate record is unavailable", async () => {
+    const candidateId = `sha256:${"1".repeat(64)}`;
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+
+    expect(result).toMatchObject({
+      resolution: "single",
+      sessionType: null,
+      currentWorkflow: "prepare-work-unit",
+      integrationBoundary: null,
+    });
+    expect(result.warnings).toContainEqual(expect.stringMatching(/Candidate.*unavailable|unavailable.*Candidate/iu));
+  });
+
   it("preserves the durable publication reservation in the session-init resume locus", async () => {
     const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
     await writeFile(

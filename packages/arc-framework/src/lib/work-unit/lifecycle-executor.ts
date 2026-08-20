@@ -444,6 +444,13 @@ function positionsEqual(a: LifecyclePosition | null, b: LifecyclePosition | null
   return a.phase === b.phase && a.location === b.location;
 }
 
+function sourceWorkflowFor(record: TransitionRecord): string | undefined {
+  return TRANSITIONS.find((candidate) =>
+    candidate.verb === record.inverse
+    && candidate.to !== null
+    && positionsEqual(candidate.to, record.from))?.encodingUpdates.setCurrentWorkflowField;
+}
+
 /**
  * Resolve the single legal edge for `(verb, from)`. When more than one edge
  * shares that source — `stub` is the case today, with `provisional` and
@@ -610,17 +617,19 @@ export async function executeTransition(
     branchFieldWritten = inputs.graduationTransaction?.branch
       ?? await applyBranchField(ctx, record, metaPath, inputs);
 
-    // 7.5 Project or clear `Current Workflow` when the edge declares its value.
-    failedWrite = "currentWorkflowField";
-    currentWorkflowWritten = inputs.graduationTransaction === undefined
-      ? await applyCurrentWorkflowField(ctx, record, metaPath, inputs)
-      : null;
-
     // 8. Apply the soft-field disposition (reset constants + supplied inputs).
     failedWrite = "softFields";
     softFieldsWritten = inputs.graduationTransaction === undefined
       ? await applySoftFields(ctx, record, metaPath, inputs)
       : [];
+
+    // 8.25 Project or clear `Current Workflow` only after every other content
+    // write has landed. The source workflow is the durable interrupted-transition
+    // marker consumed by `resumeTransitionFinalization`.
+    failedWrite = "currentWorkflowField";
+    currentWorkflowWritten = inputs.graduationTransaction === undefined
+      ? await applyCurrentWorkflowField(ctx, record, metaPath, inputs)
+      : null;
 
     // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
     //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
@@ -633,8 +642,25 @@ export async function executeTransition(
       inputs.persistClass !== undefined ||
       currentWorkflowWritten !== null ||
       softFieldsWritten.length > 0;
-    if (inputs.graduationTransaction === undefined && wroteMeta && metaPath !== null) {
-      await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
+    const stageMeta = ctx.stageMeta;
+    if (inputs.graduationTransaction === undefined && wroteMeta && metaPath !== null && stageMeta !== undefined) {
+      try {
+        await stageMeta(effectiveMetaPath(record, metaPath, inputs));
+      } catch (error) {
+        const sourceWorkflow = sourceWorkflowFor(record);
+        if (currentWorkflowWritten !== null && sourceWorkflow !== undefined) {
+          try {
+            await ctx.writeCurrentWorkflowField(
+              effectiveMetaPath(record, metaPath, inputs),
+              sourceWorkflow,
+            );
+          } catch {
+            // Preserve the staging failure as the actionable error. A second
+            // write failure remains visible in the unstaged worktree.
+          }
+        }
+        throw error;
+      }
     }
   } catch (err) {
     return {
@@ -699,14 +725,18 @@ export async function resumeTransitionFinalization(
   const record = matches.length === 1 ? matches[0] : undefined;
   const metaPath = index.get(params.slug)?.path ?? null;
   if (record === undefined || metaPath === null) return null;
-  const inverse = TRANSITIONS.find((candidate) =>
-    candidate.verb === record.inverse
-    && candidate.to !== null
-    && positionsEqual(candidate.to, record.from));
-  const sourceWorkflow = inverse?.encodingUpdates.setCurrentWorkflowField;
+  const sourceWorkflow = sourceWorkflowFor(record);
   if (sourceWorkflow === undefined) return null;
   const meta = parseMetaRecord(await ctx.indexFs.readFile(posix.join(ctx.cwd, metaPath)));
   if (meta.currentWorkflow !== sourceWorkflow) return null;
+
+  const validators = { ...DEFAULT_GUARD_VALIDATORS, ...ctx.guardValidators };
+  for (const guard of record.guards) {
+    const validator = validators[guard];
+    if (validator === undefined) return null;
+    const result = await validator({ index, slug: params.slug, position, inputs: params.inputs });
+    if (!result.ok) return { status: "rejected", stage: "guard", message: result.message };
+  }
 
   const sideEffectsFired: SideEffectId[] = [];
   const advisories: string[] = [];
@@ -726,13 +756,30 @@ export async function resumeTransitionFinalization(
       sideEffectsFired.push(id);
     }
   }
-  let failedWrite: FinalizeWrite = "currentWorkflowField";
+  let failedWrite: FinalizeWrite = "softFields";
   try {
-    await applyCurrentWorkflowField(ctx, record, metaPath, params.inputs);
-    failedWrite = "softFields";
     const softFieldsWritten = await applySoftFields(ctx, record, metaPath, params.inputs);
+    failedWrite = "currentWorkflowField";
+    const currentWorkflowWritten = await applyCurrentWorkflowField(ctx, record, metaPath, params.inputs);
     failedWrite = "stageMeta";
-    await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, params.inputs));
+    const stageMeta = ctx.stageMeta;
+    if (stageMeta !== undefined) {
+      try {
+        await stageMeta(effectiveMetaPath(record, metaPath, params.inputs));
+      } catch (error) {
+        if (currentWorkflowWritten !== null) {
+          try {
+            await ctx.writeCurrentWorkflowField(
+              effectiveMetaPath(record, metaPath, params.inputs),
+              sourceWorkflow,
+            );
+          } catch {
+            // Keep the original staging failure as the recovery result.
+          }
+        }
+        throw error;
+      }
+    }
     if (record.sideEffects.includes("reconcile-roadmap")) {
       const handler = ctx.sideEffects?.["reconcile-roadmap"];
       if (handler !== undefined) {
