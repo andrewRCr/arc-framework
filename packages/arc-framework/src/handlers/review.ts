@@ -51,6 +51,7 @@ import {
   createLocalFrontlineSourcePreferenceReader,
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import { resolveConfiguredLanePolicy } from "../scripts/review-gate/policy/lane-policy-config.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../scripts/review-gate/policy/standard-review.js";
 import {
   createPrePublicationCompositionDependencies,
 } from "../scripts/review-gate/policy/pre-publication-composition.js";
@@ -148,7 +149,11 @@ import {
   recordHostedRequestUnavailableAttempt,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
-import { assertHostedErrandAdmission, assertHostedReservationAdmission } from
+import {
+  assertHostedErrandAdmission,
+  assertHostedErrandBindingAuthority,
+  assertHostedReservationAdmission,
+} from
   "../scripts/review-gate/policy/hosted-reservation-admission.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
@@ -1325,22 +1330,28 @@ async function resolveHostedProgressContext(input: {
       exec: gitExec,
     });
     const current = resolveActiveHostedReviewErrand(frame, branch);
+    const configuredSources = (await resolveConfiguredLanePolicy({
+      lane: "standard",
+      settings,
+      preferences: createLocalFrontlineSourcePreferenceReader({
+        cwd: input.root,
+        exec: gitExec,
+        readFile: (path) => readFile(path, "utf8"),
+      }),
+    })).sources;
     const errandBinding = "key" in input.vehicle
       ? HostedErrandProgressBindingSchema.parse(input.vehicle)
       : HostedErrandProgressBindingSchema.parse({
           kind: "errand",
           ...current,
-          sources: (await resolveConfiguredLanePolicy({
-            lane: "standard",
-            settings,
-            preferences: createLocalFrontlineSourcePreferenceReader({
-              cwd: input.root,
-              exec: gitExec,
-              readFile: (path) => readFile(path, "utf8"),
-            }),
-          })).sources,
+          sources: configuredSources,
           standardReview: input.vehicle.standardReview,
         });
+    assertHostedErrandBindingAuthority({
+      binding: errandBinding,
+      configuredSources,
+      rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
+    });
     assertHostedErrandAdmission({
       binding: errandBinding,
       current,

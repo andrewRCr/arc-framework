@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
+  assertHostedErrandBindingAuthority,
   assertHostedErrandAdmission,
   assertHostedReservationAdmission,
   firstAdmissibleHostedSource,
@@ -125,5 +126,33 @@ describe("hosted reservation admission", () => {
       provider: "codex-pr",
       attempts: [{ sourceId: "coderabbit-pr", outcome: "transient-unavailable" }],
     })).not.toThrow();
+  });
+
+  it("rejects an Errand handle whose source snapshot differs from current configuration", () => {
+    expect(() => assertHostedErrandBindingAuthority({
+      binding: { ...errandBinding, sources: ["codex-pr"] },
+      configuredSources: errandBinding.sources,
+      rubricIdentity: {
+        version: errandBinding.standardReview.rubricVersion,
+        digest: errandBinding.standardReview.rubricDigest,
+      },
+    })).toThrow(/source binding does not match/u);
+  });
+
+  it("rejects an Errand handle whose rubric identity differs from the current rubric", () => {
+    expect(() => assertHostedErrandBindingAuthority({
+      binding: {
+        ...errandBinding,
+        standardReview: {
+          ...errandBinding.standardReview,
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+        },
+      },
+      configuredSources: errandBinding.sources,
+      rubricIdentity: {
+        version: errandBinding.standardReview.rubricVersion,
+        digest: errandBinding.standardReview.rubricDigest,
+      },
+    })).toThrow(/rubric binding does not match/u);
   });
 });
