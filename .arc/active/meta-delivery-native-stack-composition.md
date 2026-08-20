@@ -1,8 +1,8 @@
 # Metadata: delivery-native-stack-composition
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                               | **Class** | **Priority** |
+| ---------- | --------- | ---------------------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/delivery-native-stack-composition` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** `integration-boundary-accuracy`
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Groom the draft to design maturity (`arc-session --plan delivery-native-stack-composition`);
-  begin execution only after `integration-boundary-accuracy` lands its integration contracts
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
