@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design derivation settled — locus, landing, verification, refresh, comparator, registration
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** draft-design § Capture — coherence-consolidation rewrite, then proportionality re-run + readiness read
 
 - **PR URL:** [none]
 - **Completed:** [none]
