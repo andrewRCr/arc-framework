@@ -12,6 +12,7 @@ import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewBoundary,
+  projectCandidateReviewResumeBoundary,
   projectPublicationBoundary,
   recoverPublicationBoundary,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -146,6 +147,25 @@ describe("integration boundary locus", () => {
       ...ready,
       locus: "candidate-review-pending",
     })).toThrow();
+  });
+
+  it("resumes pre-publication after convergence with the carried reservation", () => {
+    const carried = reservation();
+
+    expect(projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      reservation: carried,
+    })).toMatchObject({
+      locus: "candidate-review-pending",
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      reservation: carried,
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: "arc review pre-publication example --json",
+      },
+    });
   });
 });
 
@@ -430,6 +450,15 @@ describe("projectPrePublicationReview", () => {
     });
     expect(valid.reservation).not.toBeNull();
     if (valid.reservation === null) throw new Error("missing reservation fixture");
+    const resumed = {
+      ...projectCandidateReviewResumeBoundary({
+        workUnit: valid.workUnit,
+        candidateId: valid.candidateId,
+        candidateSubjectDigest: valid.candidateSubjectDigest,
+        reservation: valid.reservation,
+      }),
+      target: valid.target,
+    };
 
     const bundle = registerReviewDomainSchemas(createKernelRegistry()).toJSONSchema();
     // The composed registry includes unrelated tuple projections that older Ajv rejects at registration.
@@ -442,6 +471,10 @@ describe("projectPrePublicationReview", () => {
     const corpus = [{
       label: "valid publish-ready reservation",
       value: valid,
+      accepted: true,
+    }, {
+      label: "valid post-convergence reservation",
+      value: resumed,
       accepted: true,
     }, {
       label: "reservation before review settlement",

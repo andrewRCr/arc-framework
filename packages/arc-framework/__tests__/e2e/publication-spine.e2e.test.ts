@@ -393,7 +393,47 @@ describe("attest → pre-publication → publish", () => {
     expect(JSON.parse(await readFile(boundaryPath, "utf8"))).toMatchObject({
       candidateId: reviewedEnvelope.candidateId,
       candidateSubjectDigest: current.subject.subjectDigest,
+      locus: "candidate-convergence-verification-pending",
       reservation: { sources: ["coderabbit-pr", "codex-pr"] },
+    });
+
+    const converged = await runArc(["attest", "example", "--json"], repository);
+    expect(converged.exitCode, JSON.stringify(converged)).toBe(0);
+    expect(JSON.parse(converged.stdout)).toMatchObject({
+      status: "attested",
+      operation: "convergence",
+      locus: {
+        locus: "candidate-review-pending",
+        candidateId: reviewedEnvelope.candidateId,
+        candidateSubjectDigest: current.subject.subjectDigest,
+        reservation: { sources: ["coderabbit-pr", "codex-pr"] },
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: "arc review pre-publication example --json",
+        },
+      },
+    });
+
+    const convergedBoundary = JSON.parse(await readFile(boundaryPath, "utf8"));
+    expect(convergedBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      candidateId: reviewedEnvelope.candidateId,
+      candidateSubjectDigest: current.subject.subjectDigest,
+      reservation: { sources: ["coderabbit-pr", "codex-pr"] },
+    });
+
+    const rereviewed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(rereviewed.exitCode, JSON.stringify(rereviewed)).toBe(0);
+    expect(JSON.parse(rereviewed.stdout)).toMatchObject({
+      locus: "candidate-publish-ready",
+      candidateId: reviewedEnvelope.candidateId,
+      candidateSubjectDigest: current.subject.subjectDigest,
+      reservation: { sources: ["coderabbit-pr", "codex-pr"] },
+      nextAction: { kind: "publish-candidate", command: "arc publish example --json" },
     });
   });
 

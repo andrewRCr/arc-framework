@@ -22,8 +22,10 @@ import {
 import {
   CandidateConvergenceBoundarySchema,
   CandidateFixBoundarySchema,
+  CandidatePolicyReviewBoundarySchema,
   CandidatePublishReadyBoundarySchema,
-  CandidateReviewBoundarySchema,
+  CandidateReviewResumeBoundarySchema,
+  CandidateSelfReviewBoundarySchema,
   ContinuePrePublicationActionSchema,
   createStandardReviewReservation as buildStandardReviewReservation,
   PublishCandidateActionSchema,
@@ -89,8 +91,10 @@ const PrePublicationEnvelopeFields = {
   /** The immutable target the exact-target operations this envelope routes to require. */
   target: ReviewTargetSchema.nullable(),
 };
-export const PrePublicationReviewEnvelopeSchema = z.discriminatedUnion("locus", [
-  CandidateReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
+export const PrePublicationReviewEnvelopeSchema = z.union([
+  CandidateSelfReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidatePolicyReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidateReviewResumeBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateFixBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateConvergenceBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidatePublishReadyBoundarySchema.extend(PrePublicationEnvelopeFields),

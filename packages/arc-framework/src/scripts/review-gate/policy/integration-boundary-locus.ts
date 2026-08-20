@@ -73,13 +73,33 @@ const BoundaryCommonShape = {
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
 };
 
-export const CandidateReviewBoundarySchema = z.strictObject({
+const CandidateReviewBoundaryFields = {
   ...BoundaryCommonShape,
   locus: z.literal("candidate-review-pending"),
-  nextAction: z.discriminatedUnion("kind", [RunSelfReviewActionSchema, ContinuePrePublicationActionSchema]),
-  policy: ReviewResolveEnvelopeSchema.nullable(),
+};
+export const CandidateSelfReviewBoundarySchema = z.strictObject({
+  ...CandidateReviewBoundaryFields,
+  nextAction: RunSelfReviewActionSchema,
+  policy: z.null(),
   reservation: z.null(),
 });
+export const CandidatePolicyReviewBoundarySchema = z.strictObject({
+  ...CandidateReviewBoundaryFields,
+  nextAction: ContinuePrePublicationActionSchema,
+  policy: ReviewResolveEnvelopeSchema,
+  reservation: z.null(),
+});
+export const CandidateReviewResumeBoundarySchema = z.strictObject({
+  ...CandidateReviewBoundaryFields,
+  nextAction: ContinuePrePublicationActionSchema,
+  policy: z.null(),
+  reservation: StandardReviewReservationV1Schema.nullable(),
+});
+export const CandidateReviewBoundarySchema = z.union([
+  CandidateSelfReviewBoundarySchema,
+  CandidatePolicyReviewBoundarySchema,
+  CandidateReviewResumeBoundarySchema,
+]);
 export const CandidateFixBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
   locus: z.literal("candidate-fix-pending"),
@@ -118,7 +138,7 @@ export const HostedReviewPendingBoundarySchema = z.strictObject({
   reservation: StandardReviewReservationV1Schema,
 });
 
-export const IntegrationBoundaryLocusSchema = z.discriminatedUnion("locus", [
+export const IntegrationBoundaryLocusSchema = z.union([
   CandidateReviewBoundarySchema,
   CandidateFixBoundarySchema,
   CandidateConvergenceBoundarySchema,
@@ -167,6 +187,33 @@ export function projectCandidateReviewBoundary(input: {
     },
     policy: null,
     reservation: null,
+  });
+}
+
+/** Resume pre-publication after convergence without discarding its carried hosted-review authority. */
+export function projectCandidateReviewResumeBoundary(input: {
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+  reservation: StandardReviewReservationV1 | null;
+}): IntegrationBoundaryLocus {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  const candidateId = CandidateIdSchema.parse(input.candidateId);
+  const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
+  return IntegrationBoundaryLocusSchema.parse({
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit,
+    candidateId,
+    candidateSubjectDigest,
+    locus: "candidate-review-pending",
+    nextAction: {
+      kind: "continue-pre-publication-review",
+      command: `arc review pre-publication ${workUnit} --json`,
+      interactionText: "Resume pre-publication review over the converged Candidate.",
+    },
+    policy: null,
+    reservation: input.reservation,
   });
 }
 

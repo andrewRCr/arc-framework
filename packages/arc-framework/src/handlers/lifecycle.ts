@@ -147,7 +147,10 @@ import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
-import { projectCandidateReviewBoundary } from "../scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  projectCandidateReviewBoundary,
+  projectCandidateReviewResumeBoundary,
+} from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
@@ -2569,9 +2572,19 @@ export async function handleAttest(
       const boundaryMatches = existingBoundary !== null
         && existingBoundary.candidateId === publication.candidateId
         && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
+      const convergenceResume = existingBoundary !== null
+        && boundaryMatches
+        && existingBoundary.locus === "candidate-convergence-verification-pending"
+        ? projectCandidateReviewResumeBoundary({
+            workUnit: publication.name,
+            candidateId: publication.candidateId,
+            candidateSubjectDigest: publication.candidateSubjectDigest,
+            reservation: existingBoundary.reservation,
+          })
+        : null;
       const locus = publication.repairCurrent && boundaryMatches
         ? existingBoundary
-        : projectCandidateReviewBoundary({
+        : convergenceResume ?? projectCandidateReviewBoundary({
             workUnit: publication.name,
             candidateId: publication.candidateId,
             candidateSubjectDigest: publication.candidateSubjectDigest,
