@@ -86,9 +86,11 @@ import {
   submitReservedNativeDeliveryMerge,
 } from "../lib/delivery/native-landing.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { validateManagedPath } from "../lib/kernel/index.js";
+import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -216,6 +218,7 @@ const TerminalPrepareSchema = z.strictObject({
   protectedTargetRef: RefSchema,
 });
 const TerminalAttachSchema = z.strictObject({
+  workUnitId: SlugSchema,
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
   retainedControlRef: RefSchema,
@@ -1317,11 +1320,20 @@ async function executeDeliveryCommand(
   }
   if (command === "terminal-attach") {
     const parsed = TerminalAttachSchema.parse(request);
-    const active = await resolveActiveWu({ cwd });
-    if (active.status !== "resolved") return { status: "refused", reason: "work-unit-unavailable" };
+    const lifecycle = await buildLifecycleIndex({
+      cwd,
+      fs: {
+        readdir: (path) => readdir(path, { withFileTypes: true }),
+        readFile: (path) => readFile(path, "utf8"),
+      },
+    });
+    const lifecycleState = resolveSlugState(lifecycle, parsed.workUnitId);
+    if (lifecycleState !== "integrating" && lifecycleState !== "shipped") {
+      return { status: "refused", reason: "work-unit-unavailable" };
+    }
     const plans = await planStore.enumerateCurrentReadOnly();
     if (plans.status !== "ok") return { status: "blocked", reason: "plan-unavailable" };
-    const matches = plans.value.filter((plan) => plan.workUnitId === active.name);
+    const matches = plans.value.filter((plan) => plan.workUnitId === parsed.workUnitId);
     if (matches.length === 0) {
       return adoptDeliveryTerminalMerge({
         resolution: { status: "ordinary" },

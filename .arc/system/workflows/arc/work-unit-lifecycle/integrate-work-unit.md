@@ -391,10 +391,11 @@ stops. The integration interlock is the sole merge authority.
 **Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the
 merge already landed (attended elsewhere, or unattended on the auto-merge lane); enter the same attachment below.
 
-Invoke the typed delivery terminal post-merge attachment exactly once with the freshly observed merged request and
-retained control identity. `attached`, `already-attached`, and `not-applicable` continue; `blocked` stops before
-user-workspace close or branch teardown. This call only adopts an exact terminal result through the delivery-state
-CAS: it takes no reservation, adds no authorization, and runs identically after a fresh merge or merged-PR resume.
+Invoke the typed delivery terminal post-merge attachment exactly once with `workUnitId: {name}`, the freshly
+observed merged request, and retained control identity. `attached`, `already-attached`, and `not-applicable`
+continue; `blocked` and `refused` stop before user-workspace close or branch teardown. This call only adopts an exact
+terminal result through the delivery-state CAS: it takes no reservation, adds no authorization, and runs identically
+after a fresh merge or merged-PR resume.
 
 ```bash
 arc delivery terminal attach - --json
