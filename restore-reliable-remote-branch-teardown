@@ -3,7 +3,7 @@
   "slug": "restore-reliable-remote-branch-teardown",
   "claimId": "cccee520fb4c52bc2d99c3f8032c1bc7",
   "createdAt": "2026-08-20T19:39:52.345Z",
-  "updatedAt": "2026-08-20T19:42:52.310Z",
+  "updatedAt": "2026-08-20T20:35:41.849Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Restore reliable remote branch teardown when errands close",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Restore reliable remote branch teardown when errands close",
   "originEntrySourceDigest": "sha256:1bfc532b63dfa4607262fc46f4680e746baa269f92c46b713090fc4d4873993d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/restore-reliable-remote-branch-teardown",
+    "headSha": "006686ac333c584f4f16a13ed9e9fc981a54c5f6"
+  }
 }
