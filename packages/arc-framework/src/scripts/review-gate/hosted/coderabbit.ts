@@ -72,7 +72,7 @@ type SupplementalCategory = "nitpick" | "outside-diff";
 export type CodeRabbitReviewBodyParseResult =
   | {
     kind: "parsed";
-    actionableCount: number;
+    actionableCount: number | null;
     findings: ReviewBodyFinding[];
   }
   | { kind: "malformed"; reason: string };
@@ -179,7 +179,7 @@ function parseSupplementalSection(
   return { kind: "parsed", findings };
 }
 
-/** Parse CodeRabbit's review-body completeness claims and non-thread findings. */
+/** Parse CodeRabbit's optional review-thread count claim and non-thread findings. */
 export function parseCodeRabbitReviewBody(
   review: HostedGitHubReview,
 ): CodeRabbitReviewBodyParseResult {
@@ -187,11 +187,15 @@ export function parseCodeRabbitReviewBody(
     /^\*\*Actionable comments posted:\s*(\d+)\*\*\s*$/gmu,
   )];
   const actionableText = actionableMatches[0]?.[1];
-  if (actionableMatches.length !== 1 || actionableText === undefined) {
+  if (actionableMatches.length > 1) {
     return malformed("malformed-provider-actionable-count");
   }
-  const actionableCount = nonNegativeInteger(actionableText);
-  if (actionableCount === null) return malformed("malformed-provider-actionable-count");
+  const actionableCount = actionableText === undefined
+    ? null
+    : nonNegativeInteger(actionableText);
+  if (actionableText !== undefined && actionableCount === null) {
+    return malformed("malformed-provider-actionable-count");
+  }
 
   const promptStart = review.body.search(/<summary>[^<\r\n]*Prompt for all review comments/iu);
   const detailBody = review.body.slice(0, promptStart === -1 ? review.body.length : promptStart);
@@ -323,14 +327,14 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       if (candidateComments.length !== findings.length) {
         return { kind: "terminal-failure", reason: "malformed-provider-finding" };
       }
-      if (findings.length !== parsedBody.actionableCount) {
+      if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
         return { kind: "terminal-failure", reason: "provider-actionable-finding-count-mismatch" };
       }
       const allFindings = [...findings, ...parsedBody.findings];
       if (allFindings.length > 0) {
         return { kind: "findings", reviewUrl: review.url, findings: allFindings };
       }
-      if (review.state === "approved" && parsedBody.actionableCount === 0) {
+      if (review.state === "approved") {
         return { kind: "clean", reviewUrl: review.url };
       }
       return review.state === "changes-requested"
