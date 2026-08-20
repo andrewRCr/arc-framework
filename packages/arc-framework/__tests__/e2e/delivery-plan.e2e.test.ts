@@ -446,7 +446,7 @@ describe("arc delivery", () => {
       writeFile(join(repository, ".arc", "active", "meta-delivery-plan-record.md"), [
         "# Metadata: delivery-plan-record",
         "",
-        "- **State:** Active",
+        "- **State:** Integrating",
         "- **Owner:** test-user",
         "- **Branch:** main",
         "- **Task List:** `tasks-delivery-plan-record.md`",
@@ -503,6 +503,7 @@ describe("arc delivery", () => {
     expect(JSON.parse(prepared.stdout)).toMatchObject({ status: "terminal-ready" });
 
     const attachInput = `${JSON.stringify({
+      workUnitId: "delivery-plan-record",
       repository: "owner/repo",
       remote: "origin",
       retainedControlRef: "refs/heads/main",
@@ -541,6 +542,35 @@ describe("arc delivery", () => {
     );
     expect(repeated.exitCode, repeated.stderr).toBe(0);
     expect(JSON.parse(repeated.stdout)).toMatchObject({ status: "already-attached" });
+  });
+
+  it("returns not-applicable for a swept ordinary work unit with no current delivery plan", async () => {
+    const completed = join(repository, ".arc", "completed", "2026-q3", "01_ordinary");
+    await mkdir(completed, { recursive: true });
+    await writeFile(join(completed, "meta-ordinary.md"), [
+      "# Metadata: ordinary",
+      "",
+      "- **State:** Shipped",
+      "- **Owner:** test-user",
+      "- **Branch:** [none]",
+      "- **Depends On:** [none]",
+      "",
+    ].join("\n"));
+
+    const result = await runArcWithStdin(
+      ["delivery", "terminal", "attach", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        workUnitId: "ordinary",
+        repository: "owner/repo",
+        remote: "origin",
+        retainedControlRef: "refs/heads/feat/ordinary",
+        changeRequestId: "99",
+      })}\n`,
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "not-applicable" });
   });
 
   it("validates design input before writing task-derived authoring state", async () => {

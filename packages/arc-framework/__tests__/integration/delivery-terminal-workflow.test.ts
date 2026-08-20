@@ -27,6 +27,7 @@ describe("delivery terminal integration attachment", () => {
     expect(resume).toBeLessThan(attach);
     expect(attach).toBeLessThan(close);
     expect(close).toBeLessThan(teardown);
+    expect(packaged.slice(attach, close)).toContain("workUnitId: {name}");
     expect(packaged.slice(attach, close)).toMatch(/attached.*already-attached.*not-applicable.*blocked/su);
     expect(packaged.slice(attach, close)).toMatch(/no reservation.*no authorization/su);
   });

@@ -315,6 +315,7 @@ describe("delivery execution handler", () => {
     const attach = vi.fn().mockResolvedValue({ status: "not-applicable" });
     await handleDeliveryExecution("terminal-attach", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
+        workUnitId: "example",
         repository: "andrewRCr/arc-framework",
         remote: "origin",
         retainedControlRef: "refs/heads/feat/example",
