@@ -28,6 +28,7 @@ import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
 import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
 import {
   projectCandidateReviewBoundary,
+  recoverPrePublicationBoundary,
   recoverPublicationBoundary,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
@@ -152,7 +153,16 @@ export async function projectCheckoutSubjectMeta(options: {
       candidateSubjectDigest,
     });
   } else if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
-    integrationBoundary = projectCandidateReviewBoundary({
+    const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
+      readFile: (path) => options.io.readFile(path),
+    });
+    const recovered = recoverPrePublicationBoundary({
+      stored,
+      workUnit: options.subjectKey,
+      candidateId: record.candidateId,
+      candidateSubjectDigest,
+    });
+    integrationBoundary = recovered ?? projectCandidateReviewBoundary({
       workUnit: options.subjectKey,
       candidateId: record.candidateId,
       candidateSubjectDigest,

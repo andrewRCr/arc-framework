@@ -11,10 +11,10 @@
 - **Design:** `spec-integration-boundary-accuracy.md`
 - **Task List:** `tasks-integration-boundary-accuracy.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:47c2ae9e59dd39b25ca0894dd94cf6f0678c92be50d28eba0d13320827fbfc72`
+- **Candidate:** `sha256:73f9d59b4b1ab247830d50d5a2af92b9fdba0680f5948dbeac0d91d9ce40687b`
 
 - **Current Workflow:** `prepare-work-unit`
-- **Last Completed:** Task 15.1.d — Verify the bounded increment
+- **Last Completed:** Task 15.2.c — Verify and re-attest the corrected Candidate
 - **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 

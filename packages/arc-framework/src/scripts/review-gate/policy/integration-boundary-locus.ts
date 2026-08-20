@@ -224,6 +224,31 @@ export function projectCandidateReviewResumeBoundary(input: {
 }
 
 /**
+ * Recover an exact Active prepublication locus without reviving stale review authority.
+ *
+ * @param input - Stored boundary and the authoritative current Candidate identity.
+ * @returns The exact stored prepublication locus when every binding matches; otherwise `null`.
+ */
+export function recoverPrePublicationBoundary(input: {
+  stored: IntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+}): IntegrationBoundaryLocus | null {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  const candidateId = CandidateIdSchema.parse(input.candidateId);
+  const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
+  const stored = input.stored;
+  if (stored === null
+    || stored.workUnit !== workUnit
+    || stored.candidateId !== candidateId
+    || stored.candidateSubjectDigest !== candidateSubjectDigest
+    || stored.locus === "publication-pending"
+    || stored.locus === "hosted-review-pending") return null;
+  return stored;
+}
+
+/**
  * Project one post-submission resume point from the evidence that decides it.
  *
  * The locus is derived rather than supplied, because a caller asserting it can only repeat what it

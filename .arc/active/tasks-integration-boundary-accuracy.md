@@ -1863,6 +1863,29 @@ publication boundary remains truthful about what review did and did not establis
   policy/lifecycle/storage coverage, the generated schema acceptance check, 10,245 full-suite tests, every lint and
   ARC contract check, both typechecks, and the production/declaration build passed before Candidate re-attestation.
 
+### `[x]` **15.2 Recover the exact Active prepublication boundary**
+
+- _Goal:_ Status and session recovery preserve a stored prepublication locus only while its Work Unit, Candidate,
+  and reviewable subject exactly match live authority, so an ordinary pause before publication neither loses an
+  Owner-accepted terminus nor revives stale review state.
+
+- Build `test-first` (one behavior at a time):
+    - `[x]` **15.2.a Prove exact-boundary preservation in both readers**
+        - Cover full/session-init status and checkout-directed recovery with an exact `candidate-publish-ready`
+          boundary carrying the Owner terminus.
+    - `[x]` **15.2.b Fall back conservatively when the stored subject is stale**
+        - Reject the stored locus when its Candidate subject differs and project the initial self-review boundary.
+    - `[x]` **15.2.c Verify and re-attest the corrected Candidate**
+        - Run the focused locus, status, recovery, and public-procedure suites plus the relevance-selected project
+          gates before re-entering prepublication.
+
+- _Outcome:_ Active status and checkout-directed recovery now retain a stored prepublication locus only when its
+  Work Unit, Candidate, and subject digest exactly match live Candidate authority; stale subjects and public-only
+  loci fall back conservatively. Full and session-init status plus checkout recovery cover both the retained
+  Owner-accepted publish boundary and stale-subject rejection. The production probe reports the exact stored
+  terminus. The 189-test focused recovery/procedure matrix and the 10,249-test full suite passed, as did every lint,
+  ARC contract, shell, typecheck, and production/declaration build gate.
+
 ---
 
 ## Success Criteria

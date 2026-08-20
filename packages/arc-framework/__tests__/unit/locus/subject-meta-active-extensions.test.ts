@@ -70,6 +70,36 @@ function candidateRecord(slug: string): { candidateId: string; subjectDigest: st
   };
 }
 
+function ownerAcceptedPublishBoundary(input: {
+  slug: string;
+  candidateId: string;
+  subjectDigest: string;
+}) {
+  return IntegrationBoundaryLocusSchema.parse({
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit: input.slug,
+    candidateId: input.candidateId,
+    candidateSubjectDigest: input.subjectDigest,
+    locus: "candidate-publish-ready",
+    nextAction: {
+      kind: "publish-candidate",
+      command: `arc publish ${input.slug} --json`,
+      interactionText: "Publish the current Candidate.",
+    },
+    policy: null,
+    reservation: null,
+    terminus: {
+      schemaVersion: 1,
+      semanticsVersion: "review-terminus/v1",
+      kind: "owner-accepted",
+      lane: "standard",
+      acceptedBy: "andrew",
+      completedPasses: 5,
+    },
+  });
+}
+
 function fixture() {
   const cwd = "/repo-wt";
   const metaPath = `${cwd}/.arc/active/meta-demo.md`;
@@ -242,6 +272,92 @@ describe("checkout subject active-extension seam", () => {
     expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
       path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
       readMode: { kind: "full" },
+    });
+  });
+
+  it("preserves the exact durable Active prepublication boundary on recovery", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId, subjectDigest } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = ownerAcceptedPublishBoundary({ slug: "demo", candidateId, subjectDigest });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`, JSON.stringify(boundary));
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "prepublication",
+      workflow: "prepare-work-unit",
+      integrationBoundary: boundary,
+    });
+  });
+
+  it("does not recover an Active prepublication boundary for a stale Candidate subject", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId, subjectDigest } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const stale = ownerAcceptedPublishBoundary({
+      slug: "demo",
+      candidateId,
+      subjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`, JSON.stringify(stale));
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      integrationBoundary: {
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        terminus: null,
+        locus: "candidate-review-pending",
+        nextAction: { kind: "run-self-review" },
+      },
     });
   });
 

@@ -68,6 +68,36 @@ async function writeCandidate(root: string, slug: string): Promise<{ candidateId
   return { candidateId: attestation.candidateId, subjectDigest: subject.subjectDigest };
 }
 
+function ownerAcceptedPublishBoundary(input: {
+  slug: string;
+  candidateId: string;
+  subjectDigest: string;
+}) {
+  return IntegrationBoundaryLocusSchema.parse({
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit: input.slug,
+    candidateId: input.candidateId,
+    candidateSubjectDigest: input.subjectDigest,
+    locus: "candidate-publish-ready",
+    nextAction: {
+      kind: "publish-candidate",
+      command: `arc publish ${input.slug} --json`,
+      interactionText: "Publish the current Candidate.",
+    },
+    policy: null,
+    reservation: null,
+    terminus: {
+      schemaVersion: 1,
+      semanticsVersion: "review-terminus/v1",
+      kind: "owner-accepted",
+      lane: "standard",
+      acceptedBy: "andrew",
+      completedPasses: 5,
+    },
+  });
+}
+
 function statusBody(fields: {
   state: string;
   branch: string;
@@ -916,6 +946,65 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
         kind: "run-self-review",
         command: "arc review pre-publication foo --json",
       },
+    });
+  });
+
+  it("preserves the exact Active prepublication boundary in full and session-init status", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+    const boundary = ownerAcceptedPublishBoundary({ slug: "foo", candidateId, subjectDigest });
+    await writeFile(
+      join(fixture.root, ".arc", "system", ".internal", "candidates", "foo.boundary.json"),
+      JSON.stringify(boundary),
+    );
+
+    const full = await runActiveStatus({ cwd: fixture.root });
+    expect(full.candidates[0]?.integrationBoundary).toEqual(boundary);
+
+    const session = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(session.integrationBoundary).toEqual(boundary);
+  });
+
+  it("falls back to initial review when an Active prepublication boundary names a stale subject", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+    const boundary = ownerAcceptedPublishBoundary({
+      slug: "foo",
+      candidateId,
+      subjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    await writeFile(
+      join(fixture.root, ".arc", "system", ".internal", "candidates", "foo.boundary.json"),
+      JSON.stringify(boundary),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.integrationBoundary).toMatchObject({
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      terminus: null,
+      locus: "candidate-review-pending",
+      nextAction: { kind: "run-self-review" },
     });
   });
 

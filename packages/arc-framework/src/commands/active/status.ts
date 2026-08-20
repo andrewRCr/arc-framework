@@ -38,6 +38,7 @@ import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectCandidateReviewBoundary,
+  recoverPrePublicationBoundary,
   recoverPublicationBoundary,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -376,9 +377,16 @@ async function projectCandidateIntegrationBoundary(
     };
   }
   if (candidate.state !== "Active") return candidate;
+  const stored = await readSubmissionBoundary(cwd, slug);
+  const recovered = recoverPrePublicationBoundary({
+    stored,
+    workUnit: slug,
+    candidateId: candidate.candidateId,
+    candidateSubjectDigest,
+  });
   return {
     ...candidate,
-    integrationBoundary: projectCandidateReviewBoundary({
+    integrationBoundary: recovered ?? projectCandidateReviewBoundary({
       workUnit: slug,
       candidateId: candidate.candidateId,
       candidateSubjectDigest,
