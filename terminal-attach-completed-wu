@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "terminal-attach-completed-wu",
+  "claimId": "6812c5ec471fa19ea7f7fb168609111f",
+  "createdAt": "2026-08-20T13:24:57.622Z",
+  "updatedAt": "2026-08-20T13:24:57.622Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make post-merge delivery terminal attachment resolve swept ordinary work units and return the typed no-op before cleanup.",
+  "branch": "chore/terminal-attach-completed-wu",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
