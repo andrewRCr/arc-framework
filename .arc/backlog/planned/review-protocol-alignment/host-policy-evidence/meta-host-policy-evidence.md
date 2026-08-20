@@ -1,14 +1,14 @@
-# Metadata: review-orchestration-right-sizing
+# Metadata: host-policy-evidence
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
-- **Cohort:** [none]
+- **Cohort:** `review-protocol-alignment`
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-review-orchestration-right-sizing.md`
+- **Design:** `draft-host-policy-evidence.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

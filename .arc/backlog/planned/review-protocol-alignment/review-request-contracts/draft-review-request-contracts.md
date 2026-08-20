@@ -12,6 +12,29 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Bind local review targets to the current protected-base identity**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ local review accepted a stale local `main` as authoritative and prepared a 178-commit target for a
+  one-commit Errand. Derive or verify the base against the current protected-base identity, while retaining an
+  explicit provenance-bearing historical-SHA arm and returning the established base identity in the envelope.
+
+### `[ ]` **Make local dispositions round-trip through public response re-entry**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ the emitted local source reference contains a runtime-only field rejected by `review respond`, and the
+  clean-tree/attestation ordering can destroy the reviewed Candidate lineage before response settlement.
+- _Fold-in:_ make emitted references directly acceptable at the public boundary and expose one typed next action
+  that preserves the reviewed Candidate while composing response, cleanliness, and re-attestation safely.
+
+### `[ ]` **Make review-verb judgment inputs durable and status inputs derivable**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ prepublication routing/self-review facts disappear across reinvocation, while `review status` requires
+  an opaque target reference derivable from the same head flags its caller already holds.
+- _Fold-in:_ persist judgment inputs by Candidate/subject identity, invalidate them on exact movement, move rejected
+  fact diagnostics into JSON, and add a head-flag derivation arm for status.
+
 ### `[ ]` **Expose a review-owned per-requirement qualification projection**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-07-28);

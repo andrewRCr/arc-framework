@@ -1,14 +1,14 @@
-# Metadata: review-orchestration-right-sizing
+# Metadata: pull-request-surface-policy
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
 
-- **Cohort:** [none]
+- **Cohort:** `doc-conventions`
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-review-orchestration-right-sizing.md`
+- **Design:** `draft-pull-request-surface-policy.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

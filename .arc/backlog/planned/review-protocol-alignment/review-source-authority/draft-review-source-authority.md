@@ -12,6 +12,25 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Remove the pre-PR ordered-reservation item now owned by the shipped integration design**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain (2026-08-20).
+- _Concern:_ this draft's pending ordered-reservation item duplicated the fix owned by
+  `integration-boundary-accuracy`. Drop it or reduce it to a landed-contract revalidation pointer instead of
+  re-deriving the behavior beside this WU's one-run source-override design.
+
+### `[ ]` **Census the hosted record family against native authorities and standards**
+
+- _Routed from:_ three `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-20).
+- _Concern:_ fix tokens, applicability proofs, lifecycle-tail digests, forward receipts, and a composed PR-body
+  review ledger may duplicate Git, host review, or interlock evidence. The hosted settlement composer also exposes
+  a dead executable channel with no production caller.
+- _Precedent input:_ use SARIF/code-scanning disposition vocabulary instead of inventing another hosted finding
+  standard; treat gittuf's signed reference-state log as the long-horizon precedent for portable local-review
+  evidence; account for PR-body collisions with bots that regenerate summaries on every push.
+- _Fold-in:_ test every record and composer against the failure it uniquely witnesses, retain the local lane's only
+  evidence chain, and retire hosted records or dead capabilities that merely shadow another authority.
+
 ### `[ ]` **Preserve hosted-source priority while PR coordinates are pending**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain

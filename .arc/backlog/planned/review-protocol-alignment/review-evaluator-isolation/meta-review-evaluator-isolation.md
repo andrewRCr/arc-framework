@@ -1,14 +1,14 @@
-# Metadata: review-orchestration-right-sizing
+# Metadata: review-evaluator-isolation
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
-- **Cohort:** [none]
+- **Cohort:** `review-protocol-alignment`
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-review-orchestration-right-sizing.md`
+- **Design:** `draft-review-evaluator-isolation.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

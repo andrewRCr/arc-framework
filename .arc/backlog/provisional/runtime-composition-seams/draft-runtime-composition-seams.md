@@ -11,6 +11,23 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Make named seams produce wiring obligations and detect unproducible production states**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20).
+- _Concern:_ several blocker-class defects shipped as typed, unit-tested modules or enum/literal arms with no
+  production producer. Planning's named-seams table identified the boundaries but emitted only review obligations,
+  never executable wiring tasks.
+- _Fold-in:_ convert named seam ownership into task obligations and design deterministic analysis for exported
+  symbols with no non-test importer, enum members no production path can emit, and hard-coded satisfied literals
+  standing where computed facts belong. Coordinate task-generation convention with `planning-iteration-mechanics`.
+
+### `[ ]` **Inject host adapters into the three untested composition modules**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: runtime-composition-seams`), housekeep drain (2026-08-20).
+- _Concern:_ `status-composition.ts`, `pre-publication-composition.ts`, and `frontline-run-composition.ts` construct
+  their own host ports and receive no test coverage, despite owning real blocked/settled/target decisions.
+- _Fold-in:_ accept the ports at the composition seam and cover each decision directly without mocking internals.
+
 ### `[ ]` **Refresh the retired runtime seam example**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: runtime-composition-seams`), housekeep drain (2026-08-10).

@@ -14,6 +14,27 @@
 > _Routed-in concern pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`)._
 
+### `[ ]` **Bind compaction recovery to the live directed-worktree locus**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-20); observed during nested directed-worktree
+  recovery on 2026-08-13 and reproduced on 2026-08-20.
+- _Concern:_ Codex PreCompact can write its seed and marker under the harness-root checkout while directed commands
+  execute in another registered checkout. Recovery then reads the wrong seed; marker clearing can independently
+  rebind to invocation cwd and reject the marker-owning root.
+- _Fold-in:_ preserve same-checkout behavior and bind seed emission, marker ownership, audit discovery, and clear
+  composition to one ephemeral harness-session locus. Cover parent WU plus spawned Errand, expiry, teardown, and a
+  clear refusal if an exact binding cannot be established; do not mint a canonical locus store.
+
+### `[ ]` **Reconcile provably self-produced post-seed drift without weakening recovery**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-20); captured during a live RED/GREEN marker race.
+- _Concern:_ a seed emitted between a test-first RED edit and its GREEN source edit can stop on one added dirty path
+  even when the live transcript proves that exact monotonic post-seed mutation and every branch, HEAD, locus,
+  load-set, and task-cursor dimension still matches.
+- _Fold-in:_ define a narrowly bound reconciled-self-produced result over the exact seed, HEAD, expected/actual path
+  sets, and live diff identity. Preserve stops for unknown edits, removed seed paths, reversions, overlapping
+  ownership, multiple reasons, or any topology/cursor mismatch; always run the full audit and rehydrate first.
+
 ### `[ ]` **Reframe recovery hardening after durable locus retirement**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-08-10).
