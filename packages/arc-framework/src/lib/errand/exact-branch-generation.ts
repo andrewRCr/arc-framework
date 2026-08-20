@@ -7,7 +7,9 @@
  * a claim still standing — a state the next pass has to settle rather than
  * refuse. Each side is therefore classified before it is touched: present at the
  * proven head (delete it), proven absent (an earlier pass deleted it), or moved
- * (refuse — the head being settled is no longer the head the ref carries).
+ * (refuse — the head being settled is no longer the head the ref carries). The
+ * remote-tracking cache is pruned after live-remote settlement so a host-deleted
+ * source branch cannot survive locally as phantom in-flight work.
  *
  * Absence is a proof obligation, not a fallback: an unreachable remote is an
  * error rather than an absent ref, so a network failure can never be read as a
@@ -19,6 +21,7 @@
 import type { GitExec } from "../git/exec.js";
 import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
 import { uniqueRefToken } from "../git/ref-tree.js";
+import { fetchPrune } from "../work-unit/mutators/fetch-prune.js";
 import { deleteRemoteBranch } from "../work-unit/mutators/reconcile-branch.js";
 
 /** The remote every transient tail publishes its branch to. */
@@ -149,6 +152,15 @@ export async function tearDownExactBranchGeneration(
     } catch (error) {
       return gitReadError(error, ["push", REMOTE, "--delete", options.branch]);
     }
+  }
+  // A host may delete the live source branch at merge before close runs. The
+  // exact read then correctly reports remote absence, but only a prune retires
+  // the stale `origin/<branch>` tracking ref. Treat prune failure as partial
+  // teardown: the identity and local branch remain for a safe retry.
+  try {
+    await fetchPrune({ exec }, { remote: REMOTE });
+  } catch (error) {
+    return gitReadError(error, ["fetch", "--prune", REMOTE]);
   }
   if (local.kind === "present") {
     const authorization = await authorizeDeletion(options);

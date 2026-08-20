@@ -25,6 +25,8 @@ interface Sides {
   localReadFails?: boolean;
   /** When false the remote cannot be read, so its absence is never proven. */
   remoteReachable?: boolean;
+  /** When true the post-delete prune cannot refresh remote-tracking refs. */
+  pruneFails?: boolean;
   /** When true the leased remote delete is refused as stale. */
   staleLease?: boolean;
 }
@@ -41,6 +43,10 @@ function makeExec(sides: Sides): { exec: GitExec; calls: string[][] } {
     calls.push([...args]);
     const [subcommand] = args;
     if (subcommand === "fetch") {
+      if (args[1] === "--prune") {
+        if (sides.pruneFails === true) throw gitFailure(128, "fatal: prune unavailable");
+        return { stdout: "" };
+      }
       const destination = (args.at(3) ?? "").split(":").at(1) ?? "";
       if (sides.remoteReachable === false) {
         throw gitFailure(128, "fatal: unable to access 'origin': connection refused");
@@ -101,6 +107,7 @@ describe("tearDownExactBranchGeneration", () => {
     expect(boundary.calls).toContainEqual([
       "push", "origin", `--force-with-lease=refs/heads/${BRANCH}:${HEAD}`, `:refs/heads/${BRANCH}`,
     ]);
+    expect(boundary.calls).toContainEqual(["fetch", "--prune", "origin"]);
     expect(boundary.calls).toContainEqual(["update-ref", "-d", `refs/heads/${BRANCH}`, HEAD]);
   });
 
@@ -153,6 +160,24 @@ describe("tearDownExactBranchGeneration", () => {
     expect(sides).toMatchObject({ local: HEAD, remote: null });
 
     const replay = tearDown(sides, async () => ({ kind: "authorized" }));
+    await expect(replay.result).resolves.toEqual({ kind: "applied" });
+    expect(sides).toMatchObject({ local: null, remote: null });
+    expect(replay.calls.some(([subcommand]) => subcommand === "push")).toBe(false);
+  });
+
+  it("retries local cleanup after remote deletion succeeds but tracking-ref pruning fails", async () => {
+    const sides: Sides = { local: HEAD, remote: HEAD, pruneFails: true };
+    const interrupted = tearDown(sides);
+
+    await expect(interrupted.result).resolves.toMatchObject({
+      kind: "error",
+      message: expect.stringContaining("prune unavailable"),
+    });
+    expect(sides).toMatchObject({ local: HEAD, remote: null });
+
+    sides.pruneFails = false;
+    const replay = tearDown(sides);
+
     await expect(replay.result).resolves.toEqual({ kind: "applied" });
     expect(sides).toMatchObject({ local: null, remote: null });
     expect(replay.calls.some(([subcommand]) => subcommand === "push")).toBe(false);

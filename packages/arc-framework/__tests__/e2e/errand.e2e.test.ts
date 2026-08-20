@@ -563,6 +563,39 @@ describe("arc errand close", () => {
     }
   });
 
+  it("prunes a stale remote-tracking ref when the merged Errand head is already gone", async () => {
+    const slug = "merged-v3-host-deleted-head";
+    const branch = `chore/${slug}`;
+    const trackingRef = `refs/remotes/origin/${branch}`;
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const host = await createMergedGhFixture(tmpDir, slug);
+    try {
+      await seedOpenV3Errand(tmpDir, slug);
+      await git(tmpDir, ["push", "-u", "origin", branch]);
+      await git(host.remoteDir, ["update-ref", "-d", `refs/heads/${branch}`]);
+      expect((await git(tmpDir, ["show-ref", "--verify", trackingRef])).trim()).not.toBe("");
+      expect((await git(tmpDir, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`])).trim()).toBe("");
+
+      const result = await runArcAnchoredSequence([
+        [
+          "errand", "close", slug,
+          "--confirm-foreign-generation", `errand-v1/${slug}/${"d".repeat(32)}`,
+          "--json",
+        ],
+      ], tmpDir, { env: host.env });
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results[0]).toMatchObject({ outcome: "applied", operation: "errand-close" });
+      expect((await git(tmpDir, ["branch", "--list", branch])).trim()).toBe("");
+      await expect(git(tmpDir, ["show-ref", "--verify", trackingRef])).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
+  });
+
   it("refuses an occupied Errand after its checkout leaves the exact branch", async () => {
     const slug = "merged-v3-from-base";
     await setFullProtection(tmpDir);
