@@ -5,25 +5,44 @@ import {
   ApprovedDispositionRecordSchema,
   type ApprovedDispositionRecord,
 } from "../../core/advisory-records.js";
-import type { ApprovedDispositionRecordStore } from "../../core/ports.js";
+import { validateDispositionState } from "../../core/dispositions.js";
+import type {
+  ApprovedDispositionRecordIndex,
+  ApprovedDispositionRecordStore,
+} from "../../core/ports.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { LocalReviewRecordStoreError } from "./record-store-error.js";
 
+const RECORD_PREFIX = "disposition-";
+
 function recordName(operationId: string): string {
-  return `disposition-${canonicalDigest({ operationId }).slice("sha256:".length)}.json`;
+  return `${RECORD_PREFIX}${canonicalDigest({ operationId }).slice("sha256:".length)}.json`;
 }
 
 function parseRecord(raw: string): ApprovedDispositionRecord {
   try {
-    return ApprovedDispositionRecordSchema.parse(JSON.parse(raw));
+    const record = ApprovedDispositionRecordSchema.parse(JSON.parse(raw));
+    const approvedDisposition = validateDispositionState(record.approvedDisposition);
+    if (approvedDisposition.state !== "approved") throw new Error("disposition record requires approval");
+    return { ...record, approvedDisposition };
   } catch (error) {
     throw new LocalReviewRecordStoreError("malformed-local-disposition", { cause: error });
   }
 }
 
 /** Git-common disposition store with idempotent exact replay and conflict refusal. */
-export class LocalApprovedDispositionRecordStore implements ApprovedDispositionRecordStore {
+export class LocalApprovedDispositionRecordStore
+implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
+
+  async listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]> {
+    const entries = await this.publisher.snapshot({ root: "review-gate", namespace: "evidence" });
+    return entries.flatMap((entry) => (
+      entry.kind === "file" && entry.name.startsWith(RECORD_PREFIX) && entry.name.endsWith(".json")
+        ? [parseRecord(entry.content)]
+        : []
+    ));
+  }
 
   async readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null> {
     const raw = await this.publisher.read(
@@ -41,7 +60,10 @@ export class LocalApprovedDispositionRecordStore implements ApprovedDispositionR
   async appendDispositionRecord(
     recordInput: ApprovedDispositionRecord,
   ): Promise<{ dispositionRecordRef: string }> {
-    const record = ApprovedDispositionRecordSchema.parse(recordInput);
+    const structurallyParsed = ApprovedDispositionRecordSchema.parse(recordInput);
+    const approvedDisposition = validateDispositionState(structurallyParsed.approvedDisposition);
+    if (approvedDisposition.state !== "approved") throw new Error("disposition record requires approval");
+    const record = { ...structurallyParsed, approvedDisposition };
     const name = recordName(record.operationId);
     return this.publisher.update({ root: "review-gate", namespace: "evidence" }, name, (raw) => {
       if (raw !== null) {

@@ -48,6 +48,7 @@ underlying commits stay Conventional-Commits-clean.
 
 ```markdown
 **Design:** `{filename}` or {URL}
+**Local review:** {carrier identity}
 
 ## Summary
 
@@ -72,13 +73,6 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 - [ ] {Manual scenario or edge case verified}
 
 - [ ] {Reproduction step a reviewer can run to validate behavior}
-
-## Review
-
-- **Local:** {product/model identity and pass count, or `None`}
-- **Hosted PR:** {product/model identity and review count, or `None`}
-- **Triage:** {@approver — final material-finding disposition counts, or `no material findings`}
-- **Coverage:** {targeted verification and narrow delta character when complete review coverage carried forward}
 ```
 
 ## Delivery-Member Variant
@@ -111,8 +105,9 @@ one layer of a stack.}
 ```
 
 `Changes` remains recommended rather than required when the Summary fully carries a small member. `Test Plan`,
-`Review`, `Out of Scope`, and `Follow-Up Work` retain their ordinary content gates. The terminal member uses the
-ordinary work-unit template because it carries the lifecycle artifacts and closes the work unit.
+`Out of Scope`, and `Follow-Up Work` retain their ordinary content gates, as does the `Local review` field. The
+terminal member uses the ordinary work-unit template because it carries the lifecycle artifacts and closes the
+work unit.
 
 Design is content-gated for delivery members. Include `Design` only when the intended reviewers can resolve the
 reference from the code repository, an accessible URL, or the configured ARC backing store. The design need not be
@@ -120,13 +115,6 @@ present in this member's diff. Omit the field when it would point GitHub-only or
 content; work-unit identity in the title is correlation, not a substitute for an accessible design reference.
 
 ## Optional Sections
-
-> **Review** — Add after final review settlement when any review ran. Attribute local and hosted-PR activity
-> separately, identify the GitHub user who approved the final dispositions, and summarize distinct material
-> findings by final disposition. Omit `Coverage` when every reported pass ran on the final head. Omit the whole
-> section when no review ran.
-
-<!-- -->
 
 > **Out of Scope** — Add when this PR deliberately doesn't change adjacent surfaces, defers
 > concerns, or makes an explicit boundary call. Helps reviewers calibrate scope expectations and
@@ -166,6 +154,13 @@ authoritative scope source. The delivery-member accessibility rule above governs
 - **Combined ref** (filename + task pointer) follows the in-`.arc/` convention:
   `` `tasks-{name}.md` `` (Task X.Y).
 
+**Local review — content-gated.** Include only when a gated review ran locally before publication. Name the
+carrier that ran it and nothing else — no pass counts, no finding summaries, no dispositions. Local review leaves
+no trace the platform or the diff can show, which is the whole reason the field exists; review that ran on the
+pull request is already visible where it happened. Omit the field entirely when no local review ran — no `None`,
+no placeholder. Never carry it as `Reviewed-by:`, which long-standing convention reserves for consenting human
+reviewers.
+
 **Summary — required.** Frame the change for the reviewer. Long Summaries get skimmed; keep tight.
 Why-it-matters belongs here when non-obvious; otherwise let the diff and the Design reference carry it.
 
@@ -175,13 +170,6 @@ multi-file PRs, Changes orients reviewers to where to look.
 
 **Test Plan — content-gated.** Include only when there's manual verification beyond CI to report
 (see Anti-Patterns below). Omit entirely if everything is automated.
-
-**Review — content-gated.** Include only after the review loop settles and at least one review ran. Keep both
-`Local` and `Hosted PR` lines, using `None` for an empty category. `Triage` names the approving GitHub identity and
-counts distinct material findings by final disposition: addressed, declined, deferred, and unresolved. Omit
-zero-valued categories except `0 unresolved`; use `no material findings` for a clean cycle. Add `Coverage` only
-when prior complete review coverage carries across a later narrow delta, naming the targeted verification and
-delta character without implying that a full pass ran on the final head.
 
 **Out of Scope and Follow-Up Work — optional.** Include only when there's material content. Empty optional sections
 are noise.
@@ -206,7 +194,7 @@ are fine to reference.
 
 **Success-criteria status and informal local-review narration.** PRD success-criteria status
 ("X of Y met + supersessions") and unstructured process narration such as "I reviewed locally before pushing" are
-post-hoc retrospective signals, not the normalized review record above. They live in the WU's durable record, not
+post-hoc retrospective signals, not the `Local review` attestation above. They live in the WU's durable record, not
 the PR body. CI status shows gates passed; the diff is what reviewers verify.
 
 **Restating the commit-context footer.** The footer's `Context:` carries task references and WU
@@ -214,7 +202,7 @@ naming for traceability. Summary doesn't need to repeat this — they're complem
 
 ---
 
-[task-list-formatting]: ../strategies/arc/strategy-task-list-formatting.md
-[dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md
-[commit-format]: ../../system/methods/commit-format.md
-[arc-config]: ../../system/arc-config.yml
+[task-list-formatting]: ../../../strategies/arc/strategy-task-list-formatting.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[commit-format]: ../../../../system/methods/commit-format.md
+[arc-config]: ../../../../system/arc-config.yml

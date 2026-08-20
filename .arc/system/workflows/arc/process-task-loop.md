@@ -121,11 +121,11 @@ arc:
            - **Prefix:** `Proceed` (default — `arc.commitInterlock: manual`) or
              `Commit and proceed` (when `arc.commitInterlock ∈ {on-task-approval, on-workflow}`).
            - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
-             task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
+             task ends the phase) · `to prepare-work-unit` (verification complete — execution end).
        - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
          Under `Commit and proceed`, the affirmative covers both halves; `y; <redirect>` keeps
          the commit and replaces only the advancement target (handoff, deferred range, and
-         integrate are all valid retargets). A redirect that questions just-finished work
+         prepare-work-unit are all valid retargets). A redirect that questions just-finished work
          (`y; hold the commit`, `y; revisit X first`) breaks the bundle — pause and ask.
        - **Implied permission:** User approval ("looks good", "proceed") implies permission to
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
@@ -255,10 +255,10 @@ not a standalone instruction.
 
 ## Next Step
 
-When all tasks are marked complete and the verification phase has passed, proceed to integration:
+When all tasks are marked complete and the verification phase has passed, proceed to Candidate preparation:
 
-**→ [integrate-work-unit.md](work-unit-lifecycle/integrate-work-unit.md)** — Documentation cleanup, code review, PR,
-and merge
+**→ [prepare-work-unit.md](work-unit-lifecycle/prepare-work-unit.md)** — Private review, convergence, and the
+publication transition. Public integration follows through `integrate-work-unit.md` after `arc publish`.
 
 ## Incidental Work Management
 

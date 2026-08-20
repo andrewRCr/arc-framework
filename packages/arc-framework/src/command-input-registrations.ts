@@ -9,7 +9,7 @@ import {
 import { extensionsCommandInputPolicyDeclarations } from "./commands/extensions.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
-import { baseCommandInputPolicyDeclarations } from "./handlers/base.js";
+import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
   checkCommitMessageInputPolicyDeclarations,
   checkCommitMessageInputRegistration,
@@ -17,6 +17,10 @@ import {
 import { errandCommandInputPolicyDeclarations, errandCommandInputRegistrations } from "./handlers/errand.js";
 import { housekeepCommandInputPolicyDeclarations } from "./handlers/housekeep.js";
 import { installationCommandInputPolicyDeclarations } from "./handlers/installation.js";
+import {
+  integrationCommandInputPolicyDeclarations,
+  integrationCommandInputRegistrations,
+} from "./handlers/integration.js";
 import {
   lifecycleCommandInputPolicyDeclarations,
   lifecycleCommandInputRegistrations,
@@ -100,6 +104,8 @@ export const commandInputRegistrations = [
   releaseSetupUninstallInputRegistration,
   releaseSetupVerifyInputRegistration,
   ...reviewCommandInputRegistrations,
+  ...integrationCommandInputRegistrations,
+  ...baseCommandInputRegistrations,
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Command-owned policy declarations composed without reinterpreting their domain semantics. */
@@ -113,6 +119,7 @@ export const commandInputPolicyDeclarations = [
   ...housekeepCommandInputPolicyDeclarations,
   ...initCommandInputPolicyDeclarations,
   ...installationCommandInputPolicyDeclarations,
+  ...integrationCommandInputPolicyDeclarations,
   ...joinCommandInputPolicyDeclarations,
   ...lifecycleCommandInputPolicyDeclarations,
   ...planCommandInputPolicyDeclarations,

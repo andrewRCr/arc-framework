@@ -115,9 +115,11 @@ function deriveExpectedMutators(
   // (a scaffold establishes the State fresh; a remove deletes it).
   if (ef !== null && et !== null && ef.metaState !== et.metaState) spec.setPhase = true;
 
-  // Current Workflow is only meaningful in planning. Activation exits planning,
-  // and the completed sink must not retain a stale workflow pointer.
+  // Activation exits planning, publication projects its live workflow, and the
+  // completed sink must not retain a stale workflow pointer.
   if (verb === "activate" || et?.dirTier === "completed") spec.clearCurrentWorkflowField = true;
+  if (verb === "publish") spec.setCurrentWorkflowField = "integrate-work-unit";
+  if (verb === "reopen") spec.setCurrentWorkflowField = "prepare-work-unit";
 
   return spec;
 }
@@ -130,6 +132,9 @@ function normalizeMutators(spec: MutatorSpec): MutatorSpec {
   if (spec.reconcileWorkUnitWorktree !== undefined) out.reconcileWorkUnitWorktree = spec.reconcileWorkUnitWorktree;
   if (spec.setPhase !== undefined) out.setPhase = spec.setPhase;
   if (spec.clearBranchField !== undefined) out.clearBranchField = spec.clearBranchField;
+  if (spec.setCurrentWorkflowField !== undefined) {
+    out.setCurrentWorkflowField = spec.setCurrentWorkflowField;
+  }
   if (spec.clearCurrentWorkflowField !== undefined) out.clearCurrentWorkflowField = spec.clearCurrentWorkflowField;
   return out;
 }

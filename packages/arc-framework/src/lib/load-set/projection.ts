@@ -22,7 +22,7 @@ import {
 } from "./types.js";
 
 /** Session type resolved by the active-work probe. */
-export type LoadSetSessionType = "planning" | "execution" | "integration";
+export type LoadSetSessionType = "planning" | "execution" | "prepublication" | "integration";
 
 /** Planning-stage workflow basename resolved from `Current Workflow`. */
 export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-tasks";
@@ -128,6 +128,10 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
       entries.push(partialStrategic(input.taskListPath));
     }
     entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
+  }
+
+  if (input.sessionType === "prepublication") {
+    entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/prepare-work-unit.md`));
   }
 
   if (input.sessionType === "integration") {

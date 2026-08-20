@@ -84,6 +84,7 @@ describe("advisory review records", () => {
       semanticsVersion: "review-advisory/v1",
       repositoryId: "repo-1",
       operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
       source,
       approvedDisposition,
       fixAuthorization: null,

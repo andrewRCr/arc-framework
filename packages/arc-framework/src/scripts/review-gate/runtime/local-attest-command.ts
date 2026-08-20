@@ -21,6 +21,7 @@ import type {
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
+import { recordLaneAttempt } from "../lane-progress.js";
 import {
   isReviewVersionConflict,
   REVIEW_VERSION_RETRY_ATTEMPTS,
@@ -49,6 +50,7 @@ export interface LocalAttestDependencies {
     "materialized" | "absent"
   >;
   releaseMaterialization(operationId: string): Promise<void>;
+  now(): string;
 }
 
 /** Stable request or durable-state failure at the local attestation boundary. */
@@ -123,6 +125,22 @@ async function attestLocalReviewWithinSourceLock(
     sourceDigest: state.sourceDigest,
     guidanceDigest: state.guidanceDigest,
   });
+  if (result.status === "failed") {
+    await recordLaneAttempt(dependencies.operationStore, {
+      lane: "standard",
+      repositoryId: state.repositoryId,
+      changeRequestId: null,
+      headSha: state.target.headSha,
+      attemptId: state.operationId,
+      sourceId: state.laneSourceId,
+      outcome: "terminal-failure",
+      consumedPass: false,
+      now: dependencies.now(),
+    });
+  }
+  if (result.status === "unavailable" || result.status === "failed") {
+    await dependencies.releaseMaterialization(request.operationId);
+  }
   if (result.status !== "complete" || result.result === null) {
     return LocalAttestEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -173,6 +191,20 @@ async function attestLocalReviewWithinSourceLock(
       receipt,
       ledger.ledgerVersion,
     );
+    await recordLaneAttempt(dependencies.operationStore, {
+      lane: "standard",
+      repositoryId: state.repositoryId,
+      changeRequestId: null,
+      headSha: state.target.headSha,
+      attemptId: state.operationId,
+      sourceId: state.laneSourceId,
+      outcome: receipt.result === "unavailable"
+        ? "transient-unavailable"
+        : receipt.result === "failed" ? "terminal-failure" : receipt.result,
+      consumedPass: receipt.result === "clean" || receipt.result === "findings",
+      chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
+      now: dependencies.now(),
+    });
     await dependencies.releaseMaterialization(request.operationId);
     const current = await dependencies.confirmTarget(state.target);
     if (current.state === "stale-target") {
@@ -263,6 +295,20 @@ async function attestLocalReviewWithinSourceLock(
     receipt,
     ledger.ledgerVersion,
   );
+  await recordLaneAttempt(dependencies.operationStore, {
+    lane: "standard",
+    repositoryId: state.repositoryId,
+    changeRequestId: null,
+    headSha: state.target.headSha,
+    attemptId: state.operationId,
+    sourceId: state.laneSourceId,
+    outcome: receipt.result === "unavailable"
+      ? "transient-unavailable"
+      : receipt.result === "failed" ? "terminal-failure" : receipt.result,
+    consumedPass: receipt.result === "clean" || receipt.result === "findings",
+    chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
+    now: dependencies.now(),
+  });
   await dependencies.releaseMaterialization(request.operationId);
   const afterAppend = await dependencies.confirmTarget(state.target);
   if (afterAppend.state === "stale-target") {

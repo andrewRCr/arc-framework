@@ -54,6 +54,7 @@ function workUnit(): DerivedCheckoutRow {
       taskCursor: null,
       cohortDocPath: null,
       loadSet: { manifestVersion: 1, entries: [] },
+      integrationBoundary: null,
     },
     lifecycleLocation: "active",
   });

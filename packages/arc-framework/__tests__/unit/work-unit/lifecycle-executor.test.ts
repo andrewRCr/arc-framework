@@ -244,6 +244,10 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       writeThrow("currentWorkflowField");
       currentWorkflowWrites.push({ path, stage });
     },
+    writeCurrentWorkflowRecoveryMarker: async (path, stage) => {
+      calls.push(`recovery-current-workflow:${stage}`);
+      currentWorkflowWrites.push({ path, stage });
+    },
     writeDesignField: async (path, value) => {
       calls.push(`design:${value}`);
     },
@@ -277,11 +281,11 @@ const PROVISIONAL_META: MetaSpec = {
 
 describe("executeTransition — state resolution", () => {
   it("resolves the slug's (phase, location) and matches the legal edge", async () => {
-    // `integrate` is legal only from (Active, active); the index places `demo` there.
+    // `publish` is legal only from (Active, active); the index places `demo` there.
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -318,15 +322,15 @@ describe("executeTransition — stages the rewritten meta", () => {
 
 describe("executeTransition — illegal / unknown rejection", () => {
   it("rejects an explicitly-illegal cell with its reason, no mutation", async () => {
-    // `integrate` from (Integrating, active) is a marked-illegal cell.
+    // `publish` from (Integrating, active) is a marked-illegal cell.
     const { ctx, calls } = buildSpies({ metas: [INTEGRATING_META] });
 
-    const outcome = await executeTransition(ctx, { verb: "integrate", slug: "demo", inputs: {} });
+    const outcome = await executeTransition(ctx, { verb: "publish", slug: "demo", inputs: {} });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("lookup");
-    expect(outcome.message).toMatch(/integrate.*illegal.*Integrating/i);
+    expect(outcome.message).toMatch(/publish.*illegal.*Integrating/i);
     expect(calls).toEqual([]);
   });
 
@@ -612,12 +616,12 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
 
 describe("executeTransition — post-side-effect finalize failure", () => {
   it("reports `finalize-failed` (not `encoding-failed`) when a soft-field write throws", async () => {
-    // integrate fires its side-effects, then writes soft fields; force the soft
+    // submit fires its side-effects, then writes soft fields; force the soft
     // write to throw — after the side-effects already landed.
-    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
+    const { ctx, calls } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -627,13 +631,14 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     expect(outcome.failedWrite).toBe("softFields");
     expect(outcome.legsFired).toContain("setPhase");
     expect(outcome.message).toMatch(/boom:softFields/);
+    expect(calls).not.toContain("current-workflow:integrate-work-unit");
   });
 
   it("payload names the side-effects that already landed (forward-only recovery context)", async () => {
     const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -671,10 +676,13 @@ describe("executeTransition — post-side-effect finalize failure", () => {
   });
 
   it("names the failing write when the meta staging throws (last write)", async () => {
-    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "stageMeta" });
+    const { ctx, calls, currentWorkflowWrites } = buildSpies({
+      metas: [ACTIVE_META],
+      throwOnWrite: "stageMeta",
+    });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -682,6 +690,12 @@ describe("executeTransition — post-side-effect finalize failure", () => {
     expect(outcome.status).toBe("finalize-failed");
     if (outcome.status !== "finalize-failed") return;
     expect(outcome.failedWrite).toBe("stageMeta");
+    expect(currentWorkflowWrites.map(({ stage }) => stage)).toEqual([
+      "integrate-work-unit",
+      "prepare-work-unit",
+    ]);
+    expect(ctx.writeCurrentWorkflowRecoveryMarker).toBeDefined();
+    expect(calls).toContain("recovery-current-workflow:prepare-work-unit");
   });
 
   it("a pre-side-effect leg throw still reports `encoding-failed` — no side-effects, distinct arm", async () => {
@@ -719,7 +733,7 @@ describe("executeTransition — side-effects after encoding", () => {
     }
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
     });
@@ -743,11 +757,11 @@ describe("executeTransition — side-effects after encoding", () => {
 
   it("rejects before mutation when a declared side-effect has no handler", async () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
-    // Drop the user-workspace handler integrate declares.
+    // Drop the user-workspace handler submit declares.
     delete ctx.sideEffects?.["user-workspace"];
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "x", lastCompleted: "y" } },
     });
@@ -766,11 +780,11 @@ describe("executeTransition — side-effects after encoding", () => {
 
 describe("executeTransition — soft-field disposition", () => {
   it("writes reset constants and supplied input values, leaves the rest", async () => {
-    // integrate: nextTask reset [none]; nextAction + lastCompleted input; blockers leave.
+    // submit: nextTask reset [none]; nextAction + lastCompleted input; blockers leave.
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7 verified." } },
     });
@@ -835,8 +849,8 @@ describe("executeTransition — soft-field disposition", () => {
   it("rejects when an `input`-disposed soft field has no supplied value (never fabricated)", async () => {
     const { ctx, calls } = buildSpies({ metas: [ACTIVE_META] });
 
-    // integrate needs nextAction + lastCompleted as inputs; supply neither.
-    const outcome = await executeTransition(ctx, { verb: "integrate", slug: "demo", inputs: {} });
+    // submit needs nextAction + lastCompleted as inputs; supply neither.
+    const outcome = await executeTransition(ctx, { verb: "publish", slug: "demo", inputs: {} });
 
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
@@ -873,7 +887,7 @@ describe("executeTransition — ephemeral suggestion", () => {
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
-      verb: "integrate",
+      verb: "publish",
       slug: "demo",
       inputs: {
         suggestion: "Open the PR with `gh pr create`.",

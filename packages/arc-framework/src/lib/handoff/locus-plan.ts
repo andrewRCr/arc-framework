@@ -49,7 +49,7 @@ export const HandoffLocusPlanSchema = z.discriminatedUnion("kind", [
     subject: WorkUnitSubjectSchema,
     checkoutPath: LocusAbsolutePathSchema,
     workflow: LocusOpaqueTextSchema,
-    sessionType: z.enum(["planning", "execution", "integration"]),
+    sessionType: z.enum(["planning", "execution", "prepublication", "integration"]),
   }),
   z.strictObject({
     kind: z.literal("leave-errand"),

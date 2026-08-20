@@ -42,10 +42,20 @@ const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
   "delivery native unlink",
 ]);
 
+const hostedGitHubCommandPaths: ReadonlySet<string> = new Set([
+  ...nativeDeliveryCommandPaths,
+  "integrate checkpoint",
+  "integrate merge",
+  "review pre-publication",
+  "review status",
+]);
+
 const rawGitCommandPaths = [
   "abandon",
   "activate",
   "archive",
+  "attest",
+  "base merge",
   "deactivate",
   "decompose",
   "delivery compose",
@@ -75,7 +85,9 @@ const rawGitCommandPaths = [
   "delivery terminal prepare",
   "demote",
   "finalize",
-  "integrate",
+  "integrate checkpoint",
+  "integrate merge",
+  "publish",
   "materialize",
   "park",
   "promote",
@@ -84,7 +96,10 @@ const rawGitCommandPaths = [
   "repoint-design",
   "resume",
   "review chunking resolve",
+  "review change-request resolve",
   "review planning-lane",
+  "review pre-publication",
+  "review status",
   "set-stage",
   "start",
   "status",
@@ -123,7 +138,7 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "lib/git/process-executor.ts", kind: "subprocess", callee: "execa", occurrence: 2 },
       rawGitSubprocessPolicy,
     ),
-    ...(nativeDeliveryCommandPaths.has(commandPath) ? [declareInteractionSite(
+    ...(hostedGitHubCommandPaths.has(commandPath) ? [declareInteractionSite(
       { file: "scripts/review-gate/hosted/gh-process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       hostedGhSubprocessPolicy,
     )] : []),

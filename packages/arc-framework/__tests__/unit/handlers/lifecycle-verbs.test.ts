@@ -8,6 +8,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+import {
+  projectCandidateReviewBoundary,
+} from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
@@ -17,6 +21,9 @@ const mockIoExecInput = vi.fn();
 const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
+const mockResolveUserIdentity = vi.fn<(exec?: unknown) => Promise<string>>(async () => "andrew");
+const mockRequireArcProjectRoot = vi.fn<(startDir?: string) => string | null>(() => "/repo");
+const mockResolveArcRoot = vi.fn<(startDir?: string) => string | null>(() => "/repo");
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
@@ -28,8 +35,8 @@ vi.mock("@clack/prompts", () => ({
 }));
 
 vi.mock("../../../src/handlers/shared.js", () => ({
-  resolveUserIdentity: async () => "andrew",
-  requireArcProjectRoot: () => "/repo",
+  resolveUserIdentity: (exec?: unknown) => mockResolveUserIdentity(exec),
+  requireArcProjectRoot: (startDir?: string) => mockRequireArcProjectRoot(startDir),
   isHandledError: () => false,
 }));
 
@@ -73,7 +80,7 @@ vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({ buildExecutor
 vi.mock("../../../src/lib/paths.js", () => ({
   getArcTemplatePath: () => "/arc",
   getInternalTemplatePath: () => "/tpl",
-  resolveArcRoot: () => "/repo",
+  resolveArcRoot: (startDir?: string) => mockResolveArcRoot(startDir),
 }));
 
 vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
@@ -91,9 +98,15 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
   }),
 }));
 
+const mockParseMetaRecord = vi.fn(() => ({ branch: "feat/foo", state: "Active" }));
+const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates: { filename: string }[] }>>(
+  async () => ({
+    candidates: [{ filename: "meta-foo.md" }],
+  }),
+);
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ branch: "feat/foo" }),
-  readActiveMetaCandidates: async () => ({ candidates: [{ filename: "meta-foo.md" }] }),
+  parseMetaRecord: () => mockParseMetaRecord(),
+  readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
 }));
 
 const mockBuildLifecycleIndex = vi.fn();
@@ -200,6 +213,7 @@ const mockRunActiveInFlightExpansion = vi.fn();
 vi.mock("../../../src/commands/active.js", () => ({
   expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
   runActiveInFlightExpansion: (...args: unknown[]) => mockRunActiveInFlightExpansion(...args),
+  resolveTaskListPath: () => null,
 }));
 
 const mockFindMaterializableWorkUnits = vi.fn();
@@ -221,9 +235,36 @@ vi.mock("../../../src/lib/work-unit/verbs/abandon.js", () => ({
   planAbandon: (...a: unknown[]) => mockPlanAbandon(...a),
 }));
 
-const mockRunIntegrate = vi.fn();
-vi.mock("../../../src/lib/work-unit/verbs/integrate.js", () => ({
-  runIntegrate: (...a: unknown[]) => mockRunIntegrate(...a),
+const mockRunPublish = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
+  runPublish: (...a: unknown[]) => mockRunPublish(...a),
+}));
+
+const mockReadCandidateRecord = vi.fn();
+vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
+  readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
+  writeCandidateRecord: vi.fn(),
+}));
+const mockCollectGitCandidateTarget = vi.fn();
+const mockCollectUnstagedReviewablePaths = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-candidate-subject.js", () => ({
+  collectGitCandidateTarget: (...a: unknown[]) => mockCollectGitCandidateTarget(...a),
+  collectUnstagedReviewablePaths: (...a: unknown[]) => mockCollectUnstagedReviewablePaths(...a),
+}));
+const mockRunAttest = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/attest.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/lib/work-unit/verbs/attest.js")>()),
+  runAttest: (...a: unknown[]) => mockRunAttest(...a),
+}));
+const mockProjectCandidateCurrentness = vi.fn();
+vi.mock("../../../src/lib/work-unit/candidate-attestation.js", () => ({
+  projectCandidateCurrentness: (...a: unknown[]) => mockProjectCandidateCurrentness(...a),
+}));
+const mockReadSubmissionBoundaryVersioned = vi.fn();
+const mockWriteSubmissionBoundary = vi.fn();
+vi.mock("../../../src/lib/work-unit/submission-boundary-store.js", () => ({
+  readSubmissionBoundaryVersioned: (...a: unknown[]) => mockReadSubmissionBoundaryVersioned(...a),
+  writeSubmissionBoundary: (...a: unknown[]) => mockWriteSubmissionBoundary(...a),
 }));
 
 const mockRunReopen = vi.fn();
@@ -258,9 +299,11 @@ const {
   handleMaterialize,
   handleActivate,
   handleDeactivate,
-  handleIntegrate,
+  handlePublish,
   handleAbandon,
   handleReopen,
+  handleAttest,
+  LifecycleCommandRefusalSchema,
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
@@ -308,8 +351,18 @@ const cleanReconcile = {
 beforeEach(() => {
   vi.clearAllMocks();
   process.exitCode = undefined;
+  mockResolveUserIdentity.mockResolvedValue("andrew");
+  mockRequireArcProjectRoot.mockReturnValue("/repo");
+  mockResolveArcRoot.mockReturnValue("/repo");
+  mockReadActiveMetaCandidates.mockResolvedValue({ candidates: [{ filename: "meta-foo.md" }] });
   mockReadFile.mockResolvedValue("{}");
   mockReadConfigSettings.mockResolvedValue(configResult());
+  mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active" });
+  mockCollectUnstagedReviewablePaths.mockResolvedValue([]);
+  mockRunAttest.mockResolvedValue({
+    status: "unchanged",
+    locus: projectCandidateReviewBoundary({ workUnit: "foo", candidateId: `sha256:${"c".repeat(64)}` }),
+  });
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockBuildLifecycleIndex.mockResolvedValue(new Map([
     ["foo", { name: "foo", location: "provisional", path: ".arc/backlog/provisional/foo/meta-foo.md" }],
@@ -352,11 +405,32 @@ beforeEach(() => {
   });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
-  mockRunIntegrate.mockResolvedValue({
-    status: "integrated",
+  const candidateId = `sha256:${"a".repeat(64)}`;
+  const boundary = {
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit: "foo",
+    candidateId,
+    locus: "candidate-publish-ready",
+    nextAction: {
+      kind: "publish-candidate",
+      command: "arc publish foo --json",
+      interactionText: "Publish the current Candidate.",
+    },
+    policy: null,
+    reservation: null,
+  };
+  mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
+  mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
+  mockProjectCandidateCurrentness.mockReturnValue({ status: "current", convergenceVerification: "satisfied" });
+  mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: "boundary-version" });
+  mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
+  mockRunPublish.mockResolvedValue({
+    status: "published",
     outcome: okOutcome,
     metaPath: ".arc/active/meta-foo.md",
     reconcile: cleanReconcile,
+    boundary: { ...boundary, mode: "integration-boundary", locus: "publication-pending" },
   });
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
@@ -864,24 +938,54 @@ describe("handleAbandon", () => {
   });
 });
 
-describe("handleIntegrate", () => {
-  it("dispatches runIntegrate, forwarding the orientation inputs", async () => {
-    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
-    expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
-    expect(mockRunIntegrate.mock.calls[0]?.[1]).toEqual({
+describe("handlePublish", () => {
+  it("dispatches runPublish, forwarding the orientation inputs", async () => {
+    await handlePublish("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    expect(mockRunPublish).toHaveBeenCalledTimes(1);
+    expect(mockRunPublish.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
     });
   });
 
+  it("reports the unchanged durable publication resume point as JSON", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const boundary = (await mockReadSubmissionBoundaryVersioned()).boundary;
+    const publicationBoundary = {
+      ...boundary,
+      mode: "integration-boundary",
+      locus: "publication-pending",
+      nextAction: {
+        kind: "continue-publication",
+        command: "git push -u origin feat/foo",
+        interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+      },
+    };
+    mockRunPublish.mockResolvedValueOnce({
+      status: "unchanged",
+      boundary: publicationBoundary,
+    });
+
+    await handlePublish("foo", {
+      lastCompleted: "Phase 7 — verification",
+      action: "open the PR",
+      json: true,
+    });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${JSON.stringify({
+      status: "unchanged",
+      boundary: publicationBoundary,
+    })}\n`);
+  });
+
   it("forwards explicit advisory-retention authority", async () => {
-    await handleIntegrate("foo", {
+    await handlePublish("foo", {
       lastCompleted: "Phase 7 — verification",
       action: "open the PR",
       allowAdvisories: true,
     });
-    expect(mockRunIntegrate.mock.calls[0]?.[1]).toEqual({
+    expect(mockRunPublish.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
@@ -889,23 +993,81 @@ describe("handleIntegrate", () => {
     });
   });
 
-  it("refuses without the orientation inputs and never dispatches", async () => {
-    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification" });
-    expect(mockRunIntegrate).not.toHaveBeenCalled();
-    expect(mockLogError).toHaveBeenCalled();
+  it("leaves both orientation inputs to the verb when neither flag is given", async () => {
+    await handlePublish("foo", {});
+    expect(mockRunPublish).toHaveBeenCalledTimes(1);
+    const params = mockRunPublish.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(params).toMatchObject({ name: "foo" });
+    expect(params).not.toHaveProperty("lastCompleted");
+    expect(params).not.toHaveProperty("nextAction");
+  });
+
+  it("forwards one orientation override without inventing the other", async () => {
+    await handlePublish("foo", { action: "open the PR" });
+    const params = mockRunPublish.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(params).toMatchObject({ nextAction: "open the PR" });
+    expect(params).not.toHaveProperty("lastCompleted");
+  });
+
+  it("emits a JSON refusal with command usage under --json", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handlePublish("../foo", { json: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "rejected",
+      remedy: { argv: ["arc", "publish", "--help"] },
+    });
+    expect(mockRunPublish).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
+  it("emits one typed JSON refusal when the ARC root is unavailable", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockResolveArcRoot.mockReturnValueOnce(null);
+
+    await handlePublish("foo", { json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(mockRunPublish).not.toHaveBeenCalled();
+  });
+
+  it("emits one typed JSON refusal when a context-defaulted target is unavailable", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockReadActiveMetaCandidates.mockResolvedValueOnce({ candidates: [] });
+
+    await handlePublish(undefined, { json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.remedy.argv).toEqual(["arc", "status", "--json"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(mockRunPublish).not.toHaveBeenCalled();
+  });
+
   it("defaults a bare invocation to the current worktree's WU", async () => {
-    await handleIntegrate(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
-    expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
-    expect(mockRunIntegrate.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
+    await handlePublish(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    expect(mockRunPublish).toHaveBeenCalledTimes(1);
+    expect(mockRunPublish.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
   });
 
   it("surfaces every pending reconcile advisory and refuses phase entry", async () => {
-    mockRunIntegrate.mockResolvedValueOnce({
+    mockRunPublish.mockResolvedValueOnce({
       status: "reconcile-pending",
-      reason: "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      reason: "Cannot publish `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      remedy: {
+        invariant: "Tracked references reconcile before the publication boundary is written.",
+        text: "Tracked references reconcile before the publication boundary is written. "
+          + "Apply the current work unit's reconcile: `arc wu reconcile foo --apply --json`.",
+        argv: ["arc", "wu", "reconcile", "foo", "--apply", "--json"],
+      },
       metaPath: ".arc/active/meta-foo.md",
       reconcile: {
         status: "pending",
@@ -947,7 +1109,7 @@ describe("handleIntegrate", () => {
       },
     });
 
-    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    await handlePublish("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
 
     expect(mockLogInfo.mock.calls.map(([message]) => message)).toEqual([
       "Reconcile advisory: .arc/active/spec-foo.md:12 — narrative reference to `retired-alpha`; "
@@ -956,10 +1118,56 @@ describe("handleIntegrate", () => {
         + "remove-or-retarget. Context: `notes-retired-beta.md`",
     ]);
     expect(mockLogError).toHaveBeenCalledWith(
-      "Cannot integrate `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.",
+      "Cannot publish `foo`: current-WU reconcile has 2 advisory reference(s) requiring review.\n"
+      + "Tracked references reconcile before the publication boundary is written. "
+      + "Apply the current work unit's reconcile: `arc wu reconcile foo --apply --json`.",
     );
     expect(process.exitCode).toBe(1);
     expect(mockNote).not.toHaveBeenCalled();
+  });
+
+  it("emits one structural JSON document for a pending reconcile", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const pending = {
+      status: "reconcile-pending" as const,
+      reason: "Reconcile requires direction.",
+      remedy: {
+        invariant: "Tracked references reconcile before publication.",
+        text: "Resolve the advisory.",
+        argv: ["arc", "wu", "reconcile", "foo", "--apply", "--json"],
+      },
+      metaPath: ".arc/active/meta-foo.md",
+      reconcile: {
+        status: "pending" as const,
+        prepared: {
+          slug: "foo",
+          plan: {
+            status: "ready" as const,
+            dependency: {
+              before: [], after: [], replacements: [], drops: [], discharged: [], live: [], conflicts: [],
+            },
+            trackedReferences: { edits: [] },
+            advisories: [{
+              path: ".arc/active/spec-foo.md",
+              line: 12,
+              context: "Historical reference.",
+              referenceKind: "narrative" as const,
+              subject: "retired-alpha",
+              suggestedDisposition: "review-rename" as const,
+            }],
+          },
+          edits: [],
+        },
+      },
+    };
+    mockRunPublish.mockResolvedValueOnce(pending);
+
+    await handlePublish("foo", { lastCompleted: "verification", action: "open the PR", json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toEqual(pending);
+    expect(mockLogInfo).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });
 
@@ -1002,5 +1210,82 @@ describe("handleReopen", () => {
     await handleReopen(undefined, {});
     expect(mockRunReopen).toHaveBeenCalledTimes(1);
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
+  });
+});
+
+describe("handleAttest", () => {
+  it("emits one typed JSON refusal when identity resolution fails", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockResolveUserIdentity.mockRejectedValueOnce(new Error("identity unavailable"));
+
+    await handleAttest("foo", { json: true });
+
+    expect(stdoutWrite).toHaveBeenCalledTimes(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.remedy.argv).toEqual(["arc", "init"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it("attests when the index carries every reviewable edit", async () => {
+    await handleAttest("foo", { json: true });
+
+    expect(mockRunAttest).toHaveBeenCalledTimes(1);
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      lifecycle: "Active",
+      newRoot: false,
+    });
+  });
+
+  it("refuses without attesting when reviewable content is missing from the index", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectUnstagedReviewablePaths.mockResolvedValueOnce([
+      ".arc/active/tasks-foo.md",
+      "packages/arc-framework/src/foo.ts",
+    ]);
+
+    await handleAttest("foo", { json: true });
+
+    const refusal = JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])) as {
+      status: string;
+      reason: string;
+      remedy: { argv: string[] };
+    };
+    expect(refusal.status).toBe("rejected");
+    expect(refusal.reason).toContain(".arc/active/tasks-foo.md");
+    expect(refusal.reason).toContain("packages/arc-framework/src/foo.ts");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(mockRunAttest).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("names the deliberate re-rooting invocation as the re-attempt when re-rooting", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectUnstagedReviewablePaths.mockResolvedValueOnce(["packages/arc-framework/src/foo.ts"]);
+
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      remedy: { argv: ["arc", "attest", "foo", "--new-root"] },
+    });
+    expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it("bounds a wide refusal's path list while reporting the full scale", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectUnstagedReviewablePaths.mockResolvedValueOnce(
+      Array.from({ length: 8 }, (_value, index) => `src/file-${index}.ts`),
+    );
+
+    await handleAttest("foo", { json: true });
+
+    const { reason } = JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])) as { reason: string };
+    expect(reason).toContain("8 reviewable path(s)");
+    expect(reason).toContain("src/file-4.ts");
+    expect(reason).not.toContain("src/file-5.ts");
+    expect(reason).toContain("and 3 more");
   });
 });

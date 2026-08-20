@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -43,6 +43,9 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.exitCode).toBe(0);
     expect(reviewHelp.stdout).toContain("readiness");
     expect(reviewHelp.stdout).toContain("planning-lane");
+    expect(reviewHelp.stdout).toContain("change-request");
+    expect(reviewHelp.stdout).toContain("merge-method");
+    expect(reviewHelp.stdout).toContain("checks");
     expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
     expect(reviewHelp.stdout).toContain("hosted");
     expect(reviewHelp.stdout).not.toContain("unlock");
@@ -50,6 +53,86 @@ describe("packaged review CLI surfaces", () => {
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
     expect(hostedHelp.stdout).toContain("settle");
+  });
+
+  it("rejects a malformed exact head before change-request lookup", async () => {
+    const result = await runCli([
+      "review",
+      "change-request",
+      "resolve",
+      "--head-ref",
+      "feat/example",
+      "--head-sha",
+      "not-an-oid",
+      "--json",
+    ], { cwd: fixtureRoot });
+
+    expect(result.exitCode).toBe(64);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+    });
+  });
+
+  it("closes stdin and disables prompts for machine-readable change-request Git reads", async () => {
+    const realGit = (await run("which", ["git"])).stdout.trim();
+    const bin = join(fixtureRoot, "bin");
+    await mkdir(bin);
+    const fakeGit = join(bin, "git");
+    await writeFile(fakeGit, `#!/bin/sh
+if [ "$1" = "ls-remote" ]; then
+  if [ "$GIT_TERMINAL_PROMPT" != "0" ]; then
+    echo git-prompt-enabled >&2
+    exit 91
+  fi
+  if IFS= read -r unexpected; then
+    echo inherited-stdin >&2
+    exit 92
+  fi
+  echo noninteractive-boundary-ok >&2
+  exit 93
+fi
+exec "${realGit}" "$@"
+`);
+    await chmod(fakeGit, 0o755);
+    await run("git", ["config", "remote.origin.url", "https://github.com/arc-framework/example.git"], {
+      cwd: fixtureRoot,
+    });
+
+    const result = await runCli([
+      "review",
+      "change-request",
+      "resolve",
+      "--head-ref",
+      "feat/example",
+      "--head-sha",
+      "a".repeat(40),
+      "--json",
+    ], {
+      cwd: fixtureRoot,
+      env: { PATH: `${bin}:${process.env.PATH ?? ""}` },
+      timeout: 2_000,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-failure",
+    });
+    expect(result.stdout).toContain("noninteractive-boundary-ok");
+    expect(result.stdout).not.toContain("git-prompt-enabled");
+  });
+
+  it("advertises only the accepted author self-review state", async () => {
+    const result = await runCli(["review", "pre-publication", "--help"], { cwd: fixtureRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Report completed author self-review: settled");
+    expect(result.stdout).not.toMatch(/author self-review:.*(?:inactive|pending)/iu);
   });
 
   it("exposes every merge-lock verb through packaged help, under lock alone", async () => {

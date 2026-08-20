@@ -77,6 +77,7 @@ function state(
     requestId: carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: digest("binding"),
+    laneSourceId: "delegated-agent",
     attestationRuntimeKind: "arc-cli",
     sourceRef: "source.json",
     sourceDigest: digest("source"),

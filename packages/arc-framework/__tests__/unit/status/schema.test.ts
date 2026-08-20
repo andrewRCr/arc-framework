@@ -145,7 +145,9 @@ describe("command-owned routing views", () => {
       layout: "full",
       resolution: "single",
       sessionType: "planning",
+      currentWorkflow: "draft-design",
       planningStage: "draft-design",
+      integrationBoundary: null,
       retained: true,
     };
     expect(ActiveSessionInitValueViewSchema.parse(active)).toEqual(active);
@@ -628,7 +630,9 @@ describe("deep advisory routing views", () => {
         layout: "full",
         resolution: "single",
         sessionType: "execution",
+        currentWorkflow: "process-task-loop",
         planningStage: null,
+        integrationBoundary: null,
         evidence: { deep: { retained: true } },
       },
     ],

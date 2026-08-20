@@ -23,6 +23,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import {
+  MetaCandidateIdSchema,
   MetaProjectionRecordSchema,
   MetaRecordSchema,
   ParsedMetaRecordSchema,
@@ -166,10 +167,17 @@ async function parseCandidate(
   }
   const rel = relative(cwd, absPath).split(sep).join("/");
   const filename = rel.split("/").pop() ?? rel;
+  let candidateId = parsed.candidateId;
+  if (candidateId !== null && !MetaCandidateIdSchema.safeParse(candidateId).success) {
+    warnings.push(`Malformed Candidate in ${rel}: expected sha256 followed by 64 lowercase hexadecimal characters.`);
+    candidateId = null;
+  }
   return {
     path: rel,
     filename,
     branch: parsed.branch,
+    candidateId,
+    integrationBoundary: null,
     state: parsed.state,
     nextTask: parsed.nextTask,
     taskList: parsed.taskList,
@@ -180,6 +188,7 @@ async function parseCandidate(
 
 export interface ParsedMetaFields {
   branch: string | null;
+  candidateId: string | null;
   state: string | null;
   nextTask: string | null;
   taskList: string | null;
@@ -208,6 +217,7 @@ export function parseMetaFile(content: string): ParsedMetaFields {
   const record = parseMetaProjectionRecord(content);
   return {
     branch: record.Branch,
+    candidateId: nullableProjectionValue(record.Candidate),
     state: record.State,
     nextTask: record["Next Task"],
     taskList: record["Task List"],
@@ -281,6 +291,15 @@ export const META_FIELDS = [
   {
     name: "Promotion Receipt",
     key: "promotionReceipt",
+    default: "[none]",
+    group: "reference",
+    render: "bullet",
+    valueClass: "identifier",
+    omitWhenAbsent: true,
+  },
+  {
+    name: "Candidate",
+    key: "candidateId",
     default: "[none]",
     group: "reference",
     render: "bullet",
@@ -528,6 +547,7 @@ export function renderMetaFile(
     taskList: null,
     reviewRubric: null,
     promotionReceipt: null,
+    candidateId: null,
     currentWorkflow: null,
     lastCompleted: null,
     nextTask: null,
@@ -551,6 +571,7 @@ export function renderMetaFile(
     "Task List": renderNullable(record.taskList),
     "Review Rubric": renderNullable(record.reviewRubric),
     "Promotion Receipt": renderNullable(record.promotionReceipt),
+    Candidate: renderNullable(record.candidateId),
     "Current Workflow": renderNullable(record.currentWorkflow),
     "Last Completed": renderNullable(record.lastCompleted),
     "Next Task": renderNullable(record.nextTask),
@@ -641,17 +662,16 @@ export function setMetaClass(content: string, value: string): string {
 }
 
 /**
- * Rewrite the `Current Workflow` bullet field in place — the planning-stage
- * pointer's single-field write. The bullet-field sibling of {@link setMetaBranch}
- * (which rewrites the core-table Branch cell): the lifecycle executor projects
- * the meta `Current Workflow` from the planning sub-stage a transition enters
- * (`draft-design` / `create-spec` / `generate-tasks`), or `[none]` when planning
- * exits at activation. Every other field and the prose below stay byte-stable.
+ * Rewrite the `Current Workflow` bullet field in place — the workflow pointer's
+ * single-field write. The bullet-field sibling of {@link setMetaBranch} (which
+ * rewrites the core-table Branch cell): lifecycle ceremonies project the
+ * planning sub-stage, the live publication workflow, or `[none]` when the phase
+ * carries no workflow pointer. Every other field and the prose below stay
+ * byte-stable.
  *
  * A thin wrapper over {@link setMetaBulletFields} fixing the field to
- * `Current Workflow` — the named primitive the executor's stage-pointer writes
- * route through, so the stage-entry command and the activate-exit clear share
- * one write. The `stage` is rendered per the `identifier` value class (backticked,
+ * `Current Workflow` — the named primitive every workflow-pointer write routes
+ * through. The `stage` is rendered per the `identifier` value class (backticked,
  * `[none]` left bare) so the written form matches {@link renderMetaFile}. Inherits
  * {@link setMetaBulletFields}'s fail-loud contract: a meta without the
  * `Current Workflow` bullet throws (structural drift, not a no-op).
@@ -689,6 +709,18 @@ export function setMetaCurrentWorkflow(content: string, stage: string): string {
  */
 export function setMetaDesign(content: string, value: string): string {
   return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
+}
+
+/**
+ * Project a Candidate attestation identity into the managed work-unit record.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param candidateId - Canonical Candidate identity, or `[none]` to clear it.
+ * @returns The rewritten markdown.
+ */
+export function setMetaCandidate(content: string, candidateId: string): string {
+  const { content: reconciled } = reconcileMetaFields(content, { Candidate: candidateId });
+  return setMetaBulletFields(reconciled, { Candidate: formatValue(candidateId, "identifier") });
 }
 
 /** The finalize-group fields, in render order — written together at archive. */
@@ -833,7 +865,7 @@ export function reconcileMetaFields(
   const absent = new Set<MetaFieldName>(
     bulletFields
       .filter((f) =>
-        !("omitWhenAbsent" in f)
+        (!("omitWhenAbsent" in f) || Object.prototype.hasOwnProperty.call(overrides, f.name))
         && !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
       .map((f) => f.name as MetaFieldName),
   );
@@ -1210,6 +1242,7 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     taskList: nullableProjectionValue(projection["Task List"]),
     reviewRubric: nullableProjectionValue(projection["Review Rubric"]),
     promotionReceipt: nullableProjectionValue(projection["Promotion Receipt"]),
+    candidateId: nullableProjectionValue(projection.Candidate),
     currentWorkflow: nullableProjectionValue(projection["Current Workflow"]),
     lastCompleted: nullableProjectionValue(projection["Last Completed"]),
     nextTask: nullableProjectionValue(projection["Next Task"]),

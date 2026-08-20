@@ -141,10 +141,18 @@ export function createRegistry(): KernelRegistry {
         const schema = entries.get(id)?.schema;
         if (schema !== undefined) projection.add(schema, { id });
       }
-      return z.toJSONSchema(projection, {
+      const uri = options?.uri ?? ((id: string) => `${id}.schema.json`);
+      const bundle = z.toJSONSchema(projection, {
         target: "draft-2020-12",
-        uri: options?.uri ?? ((id) => `${id}.schema.json`),
+        uri,
       });
+      // Zod hoists multiply referenced, unregistered subschemas into `__shared`. It emits refs to
+      // that document but omits the document's own identity, so normalize it to the same bundle
+      // contract as every registered root.
+      if (bundle.schemas.__shared !== undefined && bundle.schemas.__shared.$id === undefined) {
+        bundle.schemas.__shared.$id = uri("__shared");
+      }
+      return bundle;
     },
   };
 }

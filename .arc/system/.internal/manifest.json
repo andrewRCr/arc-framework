@@ -92,6 +92,11 @@
       "layer": "core",
       "pristine_hash": "6a5a148698aa1ef6a0fef9120f5bb450d3f8b40881756891fe1755731b198cc0"
     },
+    "reference/templates/arc/work-unit/template-pull-request.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "b32421512e620060da85429893153ebed6add13c20954b50e5b601b508de2cb6"
+    },
     "reference/templates/arc/work-unit/template-tasks.md": {
       "classification": "Framework",
       "layer": "core",
@@ -681,6 +686,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "3dc397b2b232a4b73d14579f469a53b708d60cc3150464c91372b3775b251fd1"
+    },
+    "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "82361eaae814058a2f7b26af9cbd9e29cab25232a0abb847fcd3836de4d2bffa"
     },
     "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md": {
       "classification": "Framework",

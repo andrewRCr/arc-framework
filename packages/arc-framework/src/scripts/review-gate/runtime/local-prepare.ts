@@ -78,6 +78,8 @@ export interface LocalPrepareDependencies {
   sweep(): Promise<void>;
   withSourceLock<T>(action: () => Promise<T>): Promise<T>;
   resolveRepositoryId(): Promise<string>;
+  /** Configured review-policy source represented by this local carrier. */
+  laneSourceId: string;
   deriveTarget(
     repositoryId: string,
     member?: LocalReviewMemberCoordinates,
@@ -192,6 +194,7 @@ export async function prepareLocalReview(
     target,
     requirement,
     authority,
+    laneSourceId: dependencies.laneSourceId,
     policyBindingDigest: policy.binding.bindingDigest,
     requestMechanism: policy.binding.requestMechanism,
   };

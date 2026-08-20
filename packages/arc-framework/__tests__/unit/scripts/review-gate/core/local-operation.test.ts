@@ -50,6 +50,7 @@ function fixture() {
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation" as const,
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("local-policy"),
     requestMechanism: "local-prepare",
   };
@@ -75,6 +76,7 @@ describe("local review operation identity", () => {
       requestId: admission.carrier.request.requestId,
       policyVersion: admission.requirement.policyVersion,
       policyBindingDigest: admission.policyBindingDigest,
+      laneSourceId: admission.laneSourceId,
       attestationRuntimeKind: admission.authority.attestationRuntimeKind,
       sourceRef: "review-source.json",
       sourceDigest: digest("source"),
@@ -106,6 +108,7 @@ describe("local review operation identity", () => {
     const variants = [
       { ...baseline, requestMechanism: "local-resume" },
       { ...baseline, policyBindingDigest: digest("stricter-policy") },
+      { ...baseline, laneSourceId: "other-local-source" },
       { ...baseline, authority: { ...baseline.authority, evaluatorIdentity: "other-reviewer" } },
     ];
     const store: ReviewOperationStateStore = {

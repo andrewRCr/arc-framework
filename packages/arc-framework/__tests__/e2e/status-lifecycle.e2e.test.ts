@@ -61,7 +61,7 @@ describe("status <slug>", () => {
 
     const result = await runArc(["status", "live", "--json"], tmpDir);
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       slug: "live",
       position: { phase: "Integrating", location: "active" },
@@ -69,6 +69,7 @@ describe("status <slug>", () => {
       occupied: true,
       shipped: false,
       dependsOn: [{ slug: "shipped-dep", landed: true }],
+      integrationBoundary: null,
     });
   });
 
@@ -125,9 +126,59 @@ describe("status <slug>", () => {
     const local = await runArc(["status", slug, "--json"], tmpDir);
     const live = await runArc(["status", slug, "--fetch", "--json"], tmpDir);
 
-    expect(local.exitCode).toBe(0);
-    expect(live.exitCode).toBe(0);
+    expect(local.exitCode, JSON.stringify(local)).toBe(0);
+    expect(live.exitCode, JSON.stringify(live)).toBe(0);
     expect(JSON.parse(local.stdout)).toMatchObject({ state: "active", occupied: true });
     expect(JSON.parse(live.stdout)).toMatchObject({ state: "planned", occupied: false });
+  });
+
+  it("distinguishes unavailable boundary evidence for a remote-only Candidate", async () => {
+    tmpDir = await createTempRepo("arc-status-remote-candidate-");
+    const origin = join(tmpDir, "origin.git");
+    const slug = "remote-candidate";
+    const branch = `feat/${slug}`;
+
+    await writeFile(join(tmpDir, ".git", "info", "exclude"), "origin.git/\n");
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
+    await execFileAsync("git", ["remote", "add", "origin", origin], { cwd: tmpDir });
+    await mkdir(join(tmpDir, ".arc", "system"), { recursive: true });
+    await writeFile(join(tmpDir, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+    await writeFile(join(tmpDir, "README.md"), "# Fixture\n");
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "-m", "base"], { cwd: tmpDir });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: tmpDir });
+
+    await execFileAsync("git", ["switch", "-c", branch], { cwd: tmpDir });
+    await mkdir(join(tmpDir, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(tmpDir, ".arc", "active", `meta-${slug}.md`),
+      [
+        `# Metadata: ${slug}`,
+        "",
+        "- **State:** Active",
+        `- **Branch:** ${branch}`,
+        "- **Candidate:** [none]",
+        "- **Current Workflow:** prepare-work-unit",
+        "- **Next Action:** prepare publication",
+        "",
+      ].join("\n"),
+    );
+    await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "-m", "activate candidate"], { cwd: tmpDir });
+    const attested = await runArc(["attest", slug, "--json"], tmpDir);
+    expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
+    await execFileAsync("git", ["commit", "-m", "attest candidate"], { cwd: tmpDir });
+    await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: tmpDir });
+    await execFileAsync("git", ["switch", "main"], { cwd: tmpDir });
+    await execFileAsync("git", ["branch", "-D", branch], { cwd: tmpDir });
+
+    const result = await runArc(["status", slug, "--fetch", "--json"], tmpDir);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      state: "active",
+      integrationBoundary: null,
+      warnings: [expect.stringContaining(`arc materialize ${slug}`)],
+    });
   });
 });

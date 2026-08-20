@@ -56,7 +56,7 @@ function syntaxSites(
         id,
         source: { file: option.file, line: option.line },
         origin: "syntax" as const,
-        acquisition: "optional" as const,
+        acquisition: option.presenceRequired ? "parser-required" as const : "optional" as const,
         schemaOwnership: schemaOwned ? "owned" as const : "none" as const,
         ...(schemaOwned ? { schemaField } : {}),
         ...(option.defaultValue === undefined ? {} : { defaultSource: JSON.stringify(option.defaultValue) }),

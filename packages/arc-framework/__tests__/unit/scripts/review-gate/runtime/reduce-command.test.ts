@@ -80,6 +80,7 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     target,
     requirement,
     authority,
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -108,6 +109,7 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
+    laneSourceId: admission.laneSourceId,
     attestationRuntimeKind: authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,
@@ -188,6 +190,7 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
     semanticsVersion: "review-advisory/v1",
     repositoryId: records.operation.repositoryId,
     operationId: records.operation.operationId,
+    candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
     source: {
       kind: "attested-local",
       receiptRef: bindReviewSourceReference({
@@ -413,6 +416,54 @@ describe("review reduction command: attested local", () => {
       operationId: records.operation.operationId,
     }, dispositionMismatch.dependencies)).rejects.toThrow("disposition snapshot mismatch");
   });
+
+  it("reduces an approved regraded reviewer nit without treating it as stale", async () => {
+    const records = localFixture("findings");
+    const sourceFinding = records.receipt.findings[0];
+    if (sourceFinding === undefined) throw new Error("expected a source finding");
+    Object.assign(sourceFinding, { severity: "minor", nit: true });
+
+    const approvedDisposition = approvedLocal(records);
+    const dispositionSet = createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: records.operation.targetId,
+      policyVersion: records.operation.policyVersion,
+      rubricVersion: records.operation.requirement.rubricVersion,
+      rubricDigest: records.operation.requirement.rubricDigest,
+      proposedBy: records.operation.attestation.runtimeIdentity,
+      findings: [{
+        findingId: records.finding.findingId,
+        sourceIdentity: records.operation.request.evaluatorIdentity,
+        locus: records.finding.locus,
+        sourceVerification: "verified",
+        verificationRefs: ["source:src/index.ts:7"],
+        reviewerSeverity: "minor",
+        reviewerNit: true,
+        arcSeverity: "major",
+        disposition: "reject",
+        rationale: "The source supports this disposition.",
+        recommendation: "Record the disposition.",
+        openQuestions: [],
+      }],
+    });
+    const disposition = ApprovedDispositionRecordSchema.parse({
+      ...approvedDisposition,
+      approvedDisposition: approveDispositionState({
+        proposed: proposeDispositionSet(dispositionSet),
+        approvedBy: records.authority.authorIdentity,
+        approvedAt: "2026-07-23T20:00:00Z",
+      }),
+    });
+
+    await expect(reduceReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+    }, localDependencies(records, disposition).dependencies)).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "none",
+    });
+  });
 });
 
 function frontlineFixture(outcomeKind: "clean" | "findings" | "unavailable" | "pass-cap-exhausted") {
@@ -500,6 +551,7 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
     semanticsVersion: "review-advisory/v1",
     repositoryId: records.target.repositoryId,
     operationId: records.state.operationId,
+    candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
     source: {
       kind: "frontline",
       outcomeRef: bindReviewSourceReference({

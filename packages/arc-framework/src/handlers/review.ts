@@ -22,7 +22,10 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { canonicalize } from "../lib/kernel/index.js";
+import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
   FrontlineResolveEnvelopeSchema,
@@ -34,14 +37,47 @@ import {
   ReduceEnvelopeSchema,
   RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
+  prePublicationRemedy,
+  prePublicationTargetRemedy,
+  type ReviewCommandErrorCode,
   type ReviewCommandMode,
+  type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
 import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
-  parseReviewSourceIds,
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
+import { resolveConfiguredLanePolicy } from "../scripts/review-gate/policy/lane-policy-config.js";
+import {
+  createPrePublicationCompositionDependencies,
+} from "../scripts/review-gate/policy/pre-publication-composition.js";
+import {
+  applyCarriedOwnerAcceptedTerminus,
+  applyCarriedStandardReviewReservation,
+  consumeOwnerAcceptedTerminus,
+  composePrePublicationReviewRequest,
+  type PrePublicationComposition,
+} from "../scripts/review-gate/policy/pre-publication-request.js";
+import {
+  PrePublicationReviewEnvelopeSchema,
+  prePublicationBoundary,
+  projectPrePublicationReview,
+  type PrePublicationReviewEnvelope,
+} from "../scripts/review-gate/policy/pre-publication-procedure.js";
+import {
+  parseIntegrationBoundaryLocus,
+  type IntegrationBoundaryLocus,
+} from "../scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  readSubmissionBoundaryVersioned,
+  writeSubmissionBoundary,
+} from "../lib/work-unit/submission-boundary-store.js";
+import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
+import {
+  bindReviewSourceReference,
+  parseReviewSourceReference,
+} from "../scripts/review-gate/core/review-source-reference.js";
 import {
   LocalTargetDerivationError,
   type LocalTargetInvalidReason,
@@ -91,6 +127,8 @@ import {
   HostedRequestResultSchema,
   requestHostedReview,
   type HostedReviewAdapter,
+  type HostedProviderId,
+  type HostedTarget,
 } from "../scripts/review-gate/hosted/request.js";
 import {
   HostedAwaitEnvelopeSchema,
@@ -98,6 +136,18 @@ import {
   awaitHostedReview,
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
+import {
+  hostedLaneAttemptId,
+  readLaneProgress,
+  recordHostedAwaitAttempt,
+  recordHostedRequestUnavailableAttempt,
+  settleHostedAttemptFinding,
+} from "../scripts/review-gate/lane-progress.js";
+import { assertHostedReservationAdmission } from
+  "../scripts/review-gate/policy/hosted-reservation-admission.js";
+import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
+import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
+import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import {
   HostedSettleEnvelopeSchema,
   HostedSettleResultSchema,
@@ -141,6 +191,38 @@ import {
   ReduceRequestSchema,
   reduceReviewCommand,
 } from "../scripts/review-gate/runtime/reduce-command.js";
+import {
+  ChangeRequestResolveCliInputSchema,
+  ChangeRequestResolveInputSchema,
+  ChangeRequestResolveResultSchema,
+  resolveChangeRequest,
+  type ChangeRequestResolveInput,
+  type ChangeRequestResolveResult,
+} from "../scripts/review-gate/change-request.js";
+import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
+import { deriveLocalReviewTarget } from "../scripts/review-gate/hosts/local/repository-target.js";
+import {
+  MergeMethodSchema,
+  MergeMethodResolveResultSchema,
+  resolveMergeMethod,
+  type MergeMethodResolveResult,
+} from "../scripts/review-gate/merge-method.js";
+import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
+import {
+  ChecksAwaitCommandResultSchema,
+  ChecksAwaitInputSchema,
+  awaitRequiredChecks,
+  type ChecksAwaitResult,
+} from "../scripts/review-gate/checks-await.js";
+import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
+import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
+import {
+  ReviewStatusCommandResultSchema,
+  resolveReviewStatus,
+  ReviewStatusTargetInputSchema,
+  type ReviewStatusResult,
+} from "../scripts/review-gate/status.js";
 
 /**
  * Build the request-source operand schema owned by one review command.
@@ -202,6 +284,69 @@ const MERGE_LOCK_JSON_COMMAND_PATHS = [
   "merge lock release",
 ] as const;
 
+const reviewChangeRequestInputRegistration: CommandInputRegistration = {
+  commandPath: "review change-request resolve",
+  schema: ChangeRequestResolveCliInputSchema,
+  schemaFields: {
+    "option.head-ref": "headRef",
+    "option.head-sha": "headSha",
+    "option.require-remote": "requireRemote",
+  },
+};
+
+const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
+  commandPath: "review checks await",
+  schema: ChecksAwaitInputSchema,
+  schemaFields: {
+    "option.repository": "repository",
+    "option.pull-request": "pullRequest",
+    "option.head-sha": "headSha",
+    "option.timeout-ms": "timeoutMs",
+    "option.poll-interval-ms": "pollIntervalMs",
+  },
+};
+
+export const ReviewStatusCliInputSchema = z.strictObject({ target: z.string().trim().min(1) });
+
+/** Syntax-owned input for the pre-publication review procedure. */
+export const ReviewPrePublicationInputSchema = z.strictObject({
+  name: SlugSchema,
+  selfReview: z.literal("settled").optional(),
+  changeSet: z.string().trim().min(1, "A JSON change-set file path, or - for stdin, is required.")
+    .optional(),
+  lanes: z.string().trim().min(1, "A JSON lane-judgment file path, or - for stdin, is required.")
+    .optional(),
+  resume: z.string().regex(/^[A-Za-z0-9_-]+$/u).optional(),
+  json: z.literal(true),
+}).superRefine((input, context) => {
+  if (input.changeSet === "-" && input.lanes === "-") {
+    context.addIssue({ code: "custom", message: "Only one of --change-set and --lanes may read stdin." });
+  }
+  if (input.resume !== undefined
+    && (input.selfReview !== undefined || input.changeSet !== undefined || input.lanes !== undefined)) {
+    context.addIssue({ code: "custom", path: ["resume"], message: "--resume cannot be combined with judgment options." });
+  }
+});
+
+const reviewPrePublicationInputRegistration: CommandInputRegistration = {
+  commandPath: "review pre-publication",
+  schema: ReviewPrePublicationInputSchema,
+  schemaFields: {
+    "operand.name": "name",
+    "option.self-review": "selfReview",
+    "option.change-set": "changeSet",
+    "option.lanes": "lanes",
+    "option.resume": "resume",
+    "option.json": "json",
+  },
+};
+
+const reviewStatusInputRegistration: CommandInputRegistration = {
+  commandPath: "review status",
+  schema: ReviewStatusCliInputSchema,
+  schemaFields: { "option.target": "target" },
+};
+
 /** Registry contributions owned by the review and merge-lock command adapters. */
 export const reviewCommandInputRegistrations = [
   ...[...REVIEW_JSON_COMMAND_PATHS, ...MERGE_LOCK_JSON_COMMAND_PATHS].map((commandPath) => ({
@@ -210,7 +355,355 @@ export const reviewCommandInputRegistrations = [
     schemaFields: { "operand.input": "input" },
   })),
   reviewPlanningLaneInputRegistration,
+  reviewChangeRequestInputRegistration,
+  reviewChecksAwaitInputRegistration,
+  reviewStatusInputRegistration,
+  reviewPrePublicationInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
+
+export interface ReviewChangeRequestResolveOptions {
+  headRef: string;
+  headSha: string;
+  requireRemote?: boolean;
+  json?: boolean;
+}
+
+export interface ReviewChangeRequestResolveHandlerDependencies {
+  resolve(input: ChangeRequestResolveInput, cwd: string): Promise<ChangeRequestResolveResult>;
+  resolveRoot(cwd: string): string | null;
+  readBaseRef(cwd: string): Promise<string>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Resolve one exact head's host-anchored change-request disposition. */
+export async function handleReviewChangeRequestResolve(
+  options: ReviewChangeRequestResolveOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewChangeRequestResolveHandlerDependencies> = {},
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: ReviewChangeRequestResolveHandlerDependencies = {
+    resolve: (input, cwd) => resolveChangeRequest(input, createGhChangeRequestResolutionPort(exec, cwd)),
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    readBaseRef: async (cwd) => {
+      const config = await readConfigSettings(cwd);
+      if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
+      return config.settings["branch.base"];
+    },
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = ChangeRequestResolveCliInputSchema.safeParse({
+    headRef: options.headRef,
+    headSha: options.headSha,
+    ...(options.requireRemote === true ? { requireRemote: true } : {}),
+  });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail: parsed.error.issues.map((issue) => issue.message).join("; "),
+      remedy: spineRemedy(
+        "Change-request resolution requires an exact branch and head.",
+        "Review command usage",
+        ["arc", "review", "change-request", "resolve", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot(process.cwd());
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-failure",
+      detail: "Change-request resolution must run inside an ARC project.",
+    }))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
+  let result: ChangeRequestResolveResult;
+  try {
+    result = await dependencies.resolve(ChangeRequestResolveInputSchema.parse({
+      ...parsed.data,
+      baseRef: await dependencies.readBaseRef(cwd),
+    }), cwd);
+  } catch (error) {
+    result = ChangeRequestResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-change-request-resolve",
+      targetRef: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-failure",
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+  dependencies.write(`${JSON.stringify(ChangeRequestResolveResultSchema.parse(result))}\n`);
+}
+
+export interface ReviewMergeMethodResolveOptions {
+  json?: boolean;
+}
+
+export interface ReviewMergeMethodResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readConfiguredMethod(cwd: string): Promise<"merge" | "rebase" | "squash">;
+  resolve(method: "merge" | "rebase" | "squash"): Promise<MergeMethodResolveResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Validate the configured merge method against live repository policy. */
+export async function handleReviewMergeMethodResolve(
+  _options: ReviewMergeMethodResolveOptions,
+  overrides: Partial<ReviewMergeMethodResolveHandlerDependencies> = {},
+): Promise<void> {
+  const port = createGhMergeMethodPolicyPort(hostedGhRunner);
+  const dependencies: ReviewMergeMethodResolveHandlerDependencies = {
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    readConfiguredMethod: async (cwd) => {
+      const config = await readConfigSettings(cwd);
+      if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
+      return MergeMethodSchema.parse(config.settings["merge.strategy"]);
+    },
+    resolve: (method) => resolveMergeMethod(method, port),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  try {
+    const root = dependencies.resolveRoot(process.cwd());
+    if (root === null) throw new Error("Merge-method resolution must run inside an ARC project.");
+    const configuredMethod = await dependencies.readConfiguredMethod(root);
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse(
+      await dependencies.resolve(configuredMethod),
+    ))}\n`);
+  } catch (error) {
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-merge-method-resolve",
+      repository: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "policy-unreadable",
+      configuredMethod: null,
+      allowedMethods: [],
+      detail: error instanceof Error ? error.message : String(error),
+      remedy: spineRemedy(
+        "The configured merge method must come from readable project and repository policy.",
+        "Run from the target ARC project after repairing its configuration, then re-run",
+        ["arc", "review", "merge-method", "resolve", "--json"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
+
+export interface ReviewChecksAwaitOptions {
+  repository: string;
+  pullRequest: string;
+  headSha: string;
+  timeoutMs: string;
+  pollIntervalMs: string;
+  json?: boolean;
+}
+
+export interface ReviewStatusOptions {
+  target: string;
+  json?: boolean;
+}
+
+export interface ReviewStatusHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  resolve(cwd: string, input: z.infer<typeof ReviewStatusTargetInputSchema>): Promise<ReviewStatusResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Resolve review, check, and base state for one opaque exact-target reference. */
+export async function handleReviewStatus(
+  options: ReviewStatusOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewStatusHandlerDependencies> = {},
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: ReviewStatusHandlerDependencies = {
+    resolveRoot: (cwd) => resolveArcRoot(cwd),
+    resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec })),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(options.target) as unknown;
+  } catch {
+    decoded = null;
+  }
+  const parsed = ReviewStatusTargetInputSchema.safeParse({ target: decoded });
+  if (!parsed.success) {
+    const detail = parsed.error.issues.map(({ message }) => message).join("; ");
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-status",
+      target: null,
+      requiredChecks: "unavailable",
+      routedObligation: { state: "blocked", detail },
+      currentBaseOid: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail,
+      remedy: spineRemedy(
+        "Review status requires the exact target emitted by change-request resolution.",
+        "Review command usage",
+        ["arc", "review", "status", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot(process.cwd());
+  if (cwd === null) {
+    const detail = "Review status must run inside an ARC project.";
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-status",
+      target: parsed.data.target,
+      requiredChecks: "unavailable",
+      routedObligation: { state: "blocked", detail },
+      currentBaseOid: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail,
+      remedy: spineRemedy(
+        "Review status requires repository-local ARC state.",
+        "Change to the target ARC project, then re-run",
+        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
+  try {
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse(
+      await dependencies.resolve(cwd, parsed.data),
+    ))}\n`);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-status",
+      target: parsed.data.target,
+      requiredChecks: "unavailable",
+      routedObligation: { state: "blocked", detail },
+      currentBaseOid: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail,
+      remedy: spineRemedy(
+        "Review status could not read its repository or host evidence.",
+        "Resolve the operational failure, then re-run",
+        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
+
+export interface ReviewChecksAwaitHandlerDependencies {
+  awaitChecks(input: z.infer<typeof ChecksAwaitInputSchema>): Promise<ChecksAwaitResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Await required checks on one exact pull-request head. */
+export async function handleReviewChecksAwait(
+  options: ReviewChecksAwaitOptions,
+  overrides: Partial<ReviewChecksAwaitHandlerDependencies> = {},
+): Promise<void> {
+  const port = createGhRequiredChecksPort(hostedGhRunner);
+  const dependencies: ReviewChecksAwaitHandlerDependencies = {
+    awaitChecks: (input) => awaitRequiredChecks(input, {
+      port,
+      clock: { now: () => Date.now(), sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)) },
+    }),
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = ChecksAwaitInputSchema.safeParse({
+    repository: options.repository,
+    pullRequest: Number(options.pullRequest),
+    headSha: options.headSha,
+    timeoutMs: Number(options.timeoutMs),
+    pollIntervalMs: Number(options.pollIntervalMs),
+  });
+  if (!parsed.success) {
+    const detail = parsed.error.issues.map((issue) => issue.message).join("; ");
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      repository: null,
+      pullRequest: null,
+      headSha: null,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail,
+      remedy: spineRemedy(
+        "Required-check waiting needs one exact repository, pull request, and head.",
+        "Review command usage",
+        ["arc", "review", "checks", "await", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  try {
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(
+      await dependencies.awaitChecks(parsed.data),
+    ))}\n`);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      repository: parsed.data.repository,
+      pullRequest: parsed.data.pullRequest,
+      headSha: parsed.data.headSha,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "checks-unavailable",
+      detail,
+      remedy: spineRemedy(
+        "Required-check status must be readable for the exact target.",
+        "Resolve the host read failure, then re-run",
+        [
+          "arc", "review", "checks", "await",
+          "--repository", parsed.data.repository,
+          "--pull-request", String(parsed.data.pullRequest),
+          "--head-sha", parsed.data.headSha,
+          "--json",
+        ],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+  }
+}
 
 /** Input and interaction policies owned by the review command adapters. */
 export const reviewCommandInputPolicyDeclarations = [
@@ -369,24 +862,15 @@ async function resolveConfiguredReviewPolicy(
   root: string,
 ): Promise<unknown> {
   const { settings } = await readConfigSettings(root);
-  let sources: readonly string[] | undefined;
-  if (request.lane === "frontline") {
-    const preferences = createLocalFrontlineSourcePreferenceReader({
+  const { sources, maxPasses } = await resolveConfiguredLanePolicy({
+    lane: request.lane,
+    settings,
+    preferences: createLocalFrontlineSourcePreferenceReader({
       cwd: root,
       exec: gitExec,
       readFile: (path) => readFile(path, "utf8"),
-    });
-    const developerSources = await preferences.readDeveloperSourceIds();
-    sources = developerSources.length > 0
-      ? developerSources
-      : await preferences.readProjectSourceIds();
-  }
-  sources ??= parseReviewSourceIds(settings["review.standard_sources"]);
-  const maxPasses = Number(
-    settings[request.lane === "frontline"
-      ? "review.frontline_max_passes"
-      : "review.standard_max_passes"],
-  );
+    }),
+  });
   return resolveReviewPolicy({ ...request, sources, maxPasses });
 }
 
@@ -402,8 +886,8 @@ export interface ReviewReadinessHandlerDependencies {
  * Bind readiness to one repository's delivery state.
  *
  * The root is the composition root's own resolved root — never the request's
- * supplied tree root, which is untrusted, and never a module-internal read of
- * the process working directory. It is the resolved ARC root rather than the
+ * supplied lifecycle-product root, and never a module-internal read of the
+ * process working directory. It is the resolved ARC root rather than the
  * Git repository root; the Git-common publisher resolves the common directory
  * from any path inside the repository, so binding from it is correct.
  *
@@ -777,6 +1261,95 @@ function createHostedAdapters(): {
   return { adapters, observers: adapters, port };
 }
 
+async function resolveHostedReservationContext(input: {
+  root: string;
+  publisher: RepositoryGitCommonStatePublisher;
+  port: HostedSettlementPort;
+  target: HostedTarget;
+  provider: HostedProviderId;
+}) {
+  const active = await resolveActiveWu({ cwd: input.root });
+  if (active.status !== "resolved" || active.name === "") {
+    throw new Error("Hosted review progress requires one active work unit.");
+  }
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, active.name)).boundary;
+  if (boundary?.reservation === null || boundary?.reservation === undefined) {
+    throw new Error("Hosted review progress requires the carried standard-review reservation.");
+  }
+  const reservation = boundary.reservation;
+  const candidate = await createPrePublicationCompositionDependencies({
+    cwd: input.root,
+    exec: gitExec,
+  }).readCandidate(active.name);
+  if (candidate.status !== "current") {
+    throw new Error("Hosted review reservation requires a current Candidate.");
+  }
+  const settings = (await readConfigSettings(input.root)).settings;
+  const baseRef = settings["branch.base"];
+  const repositoryId = await resolveRepositoryIdentity(input.publisher);
+  const reviewTarget = await deriveLocalReviewTarget({
+    exec: gitExec,
+    cwd: input.root,
+    baseRef,
+    repositoryId,
+  });
+  if (reviewTarget.headSha !== input.target.headSha) {
+    throw new Error("Hosted review target does not match the current local review target.");
+  }
+  const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: input.root,
+  })).stdout.trim();
+  if (branch === "" || branch === "HEAD") throw new Error("Hosted review requires an attached branch.");
+  const changeRequest = await resolveChangeRequest(
+    { headRef: branch, headSha: reviewTarget.headSha, baseRef, requireRemote: true },
+    createGhChangeRequestResolutionPort(gitExec, input.root),
+  );
+  if (changeRequest.state !== "open"
+    || changeRequest.targetRef.repository.toLowerCase() !== input.target.repository.toLowerCase()
+    || changeRequest.candidate.number !== input.target.pullRequest
+    || changeRequest.candidate.baseRefName !== baseRef) {
+    throw new Error("Hosted review target does not identify the current open change request.");
+  }
+  const store = new LocalReviewOperationStateStore(input.publisher);
+  const progress = await readLaneProgress(store, {
+    lane: "standard",
+    repositoryId,
+    headSha: reviewTarget.headSha,
+  });
+  const attempts = progress.status === "recorded"
+    ? progress.attempts.filter((attempt) => (
+        attempt.hosted !== undefined
+        && attempt.hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
+        && attempt.hosted.target.pullRequest === input.target.pullRequest
+        && attempt.hosted.target.headSha === input.target.headSha
+      ))
+    : [];
+  assertHostedReservationAdmission({
+    reservation,
+    provider: input.provider,
+    repository: input.target.repository,
+    headSha: input.target.headSha,
+    boundary: {
+      candidateId: boundary.candidateId,
+      candidateSubjectDigest: boundary.candidateSubjectDigest,
+    },
+    candidate: {
+      candidateId: candidate.candidateId,
+      subjectDigest: candidate.subjectDigest,
+      headSha: candidate.headSha,
+    },
+    attempts,
+  });
+  const requirement = createReviewRequirement({
+    target: reviewTarget,
+    projection: reservation.obligation,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: input.provider }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
+  return { store, repositoryId, reviewTarget, requirement };
+}
+
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
@@ -960,6 +1533,7 @@ function reviewCommandError(
   error: unknown,
   phase: ReviewHandlerErrorPhase,
   errorSchema: ZodType,
+  remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy,
 ) {
   const message = error instanceof Error ? error.message : String(error);
   const stableCode = errorCode(error);
@@ -984,6 +1558,7 @@ function reviewCommandError(
     mode,
     diagnostics,
     error: { code, message },
+    ...(remedyFor === undefined ? {} : { remedy: remedyFor(code) }),
   });
 }
 
@@ -1169,10 +1744,35 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
 }
 
 function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
-  const { adapters } = createHostedAdapters();
+  const { adapters, port } = createHostedAdapters();
+  const root = resolveArcRoot(process.cwd());
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    request: (input) => requestHostedReview(input, { adapters }),
+    request: async (input) => {
+      if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
+      const request = HostedRequestEnvelopeSchema.parse(input);
+      const context = await resolveHostedReservationContext({
+        root,
+        publisher,
+        port,
+        target: request.target,
+        provider: request.provider,
+      });
+      const result = await requestHostedReview(request, { adapters });
+      if (result.nextAction === "try-next-source") {
+        await recordHostedRequestUnavailableAttempt(context.store, {
+          repositoryId: context.repositoryId,
+          request,
+          result,
+          reviewTarget: context.reviewTarget,
+          requirement: context.requirement,
+          actorIdentity: await port.currentActorIdentity(),
+          now: new Date().toISOString(),
+        });
+      }
+      return result;
+    },
   };
 }
 
@@ -1203,16 +1803,48 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
 }
 
 function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
-  const { observers } = createHostedAdapters();
+  const { observers, port } = createHostedAdapters();
+  const root = resolveArcRoot(process.cwd());
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    awaitResult: (input) => awaitHostedReview(input, {
-      observers,
-      clock: {
-        now: () => Date.now(),
-        sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-      },
-    }),
+    awaitResult: async (input) => {
+      if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
+      const request = HostedAwaitEnvelopeSchema.parse(input);
+      const context = await resolveHostedReservationContext({
+        root,
+        publisher,
+        port,
+        target: request.handle.target,
+        provider: request.handle.provider,
+      });
+      const result = await awaitHostedReview(request, {
+        observers,
+        clock: {
+          now: () => Date.now(),
+          sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+        },
+      });
+      if (result.state === "pending") return result;
+      const progress = await recordHostedAwaitAttempt(context.store, {
+        repositoryId: context.repositoryId,
+        result,
+        reviewTarget: context.reviewTarget,
+        requirement: context.requirement,
+        actorIdentity: await port.currentActorIdentity(),
+        now: new Date().toISOString(),
+      });
+      return result.state === "findings" && progress !== null
+        ? {
+            ...result,
+            responseSourceRef: bindReviewSourceReference({
+              kind: "hosted",
+              operationId: progress.operationId,
+              durableRef: hostedLaneAttemptId(result.handle),
+            }),
+          }
+        : result;
+    },
   };
 }
 
@@ -1244,9 +1876,54 @@ export interface ReviewHostedSettleHandlerDependencies extends HostedReviewHandl
 
 function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
   const { port } = createHostedAdapters();
+  const root = resolveArcRoot(process.cwd());
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    settle: (input) => settleHostedFinding(input, { port }),
+    settle: async (input) => {
+      if (root === null || publisher === null) throw new Error("Hosted settlement requires an ARC project.");
+      const request = HostedSettleEnvelopeSchema.parse(input);
+      const reference = parseReviewSourceReference(request.response.attemptRef, "hosted");
+      const operationStore = new LocalReviewOperationStateStore(publisher);
+      const persisted = await operationStore.readOperation(reference.operationId);
+      const attempt = persisted.state?.kind === "lane-progress"
+        ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
+        : undefined;
+      const hosted = attempt?.hosted;
+      const finding = hosted?.findings.find(({ findingId }) => findingId === request.response.findingId);
+      if (persisted.state?.kind !== "lane-progress"
+        || persisted.state.lane !== "standard"
+        || attempt === undefined
+        || hosted === undefined
+        || hosted.dispositionSetId !== request.response.dispositionSetId
+        || finding?.origin !== "review-thread"
+        || finding.commentId !== request.finding.commentId
+        || finding.threadId !== request.finding.threadId
+        || hosted.actorIdentity !== request.actorIdentity
+        || canonicalize(hosted.target) !== canonicalize(request.target)) {
+        throw new Error("Hosted settlement does not match its approved findings attempt.");
+      }
+      const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
+        .readDispositionRecord(attempt.attemptId);
+      const disposition = dispositionRecord?.approvedDisposition.dispositionSet.findings
+        .find(({ findingId }) => findingId === request.response.findingId);
+      if (dispositionRecord?.approvedDisposition.dispositionSet.dispositionSetId
+          !== request.response.dispositionSetId
+        || disposition?.disposition !== request.disposition) {
+        throw new Error("Hosted settlement does not match its approved disposition.");
+      }
+      const result = await settleHostedFinding(request, { port });
+      if (result.state === "settled" || result.state === "already-settled") {
+        await settleHostedAttemptFinding(operationStore, {
+          operationId: reference.operationId,
+          attemptId: reference.durableRef,
+          dispositionSetId: request.response.dispositionSetId,
+          findingId: request.response.findingId,
+          now: new Date().toISOString(),
+        });
+      }
+      return result;
+    },
   };
 }
 
@@ -1263,4 +1940,256 @@ export async function handleReviewHostedSettle(
     dependencies,
     execute: dependencies.settle,
   });
+}
+
+/** Command-line options for `arc review pre-publication`. */
+export interface ReviewPrePublicationOptions {
+  selfReview?: string;
+  changeSet?: string;
+  lanes?: string;
+  resume?: string;
+  json?: boolean;
+}
+
+/** The caller's parsed judgment inputs, each absent unless its option named a source. */
+export interface ReviewPrePublicationJudgment {
+  selfReview: "settled" | undefined;
+  changeSet: unknown;
+  lanes: unknown;
+}
+
+export interface ReviewPrePublicationHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  compose(
+    root: string,
+    input: z.infer<typeof ReviewPrePublicationInputSchema>,
+    judgment: ReviewPrePublicationJudgment,
+  ): Promise<PrePublicationComposition>;
+  persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
+  write(text: string): void;
+  warn(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultPrePublicationDependencies(
+  interaction?: InteractionContext,
+): ReviewPrePublicationHandlerDependencies {
+  const boundary = defaultReviewHandlerBoundary();
+  const exec = createGitExec(interaction?.subprocess);
+  const boundarySnapshots = new Map<string, Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>>>();
+  return {
+    resolveRoot: (cwd) => boundary.resolveRoot(cwd),
+    readText: (source) => boundary.readText(source),
+    compose: async (root, input, judgment) => {
+      const snapshot = await readSubmissionBoundaryVersioned(root, input.name);
+      boundarySnapshots.set(input.name, snapshot);
+      const composition = await composePrePublicationReviewRequest(
+        {
+          workUnit: input.name,
+          ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
+          ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+          ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+        },
+        createPrePublicationCompositionDependencies({ cwd: root, exec }),
+      );
+      const existing = snapshot.boundary;
+      let carried = composition;
+      if (existing?.reservation !== null && existing?.reservation !== undefined) {
+        carried = applyCarriedStandardReviewReservation(carried, {
+          candidateId: existing.candidateId,
+          candidateSubjectDigest: existing.candidateSubjectDigest,
+          reservation: existing.reservation,
+        });
+      }
+      if (existing?.terminus !== null && existing?.terminus !== undefined) {
+        carried = applyCarriedOwnerAcceptedTerminus(carried, {
+          candidateId: existing.candidateId,
+          candidateSubjectDigest: existing.candidateSubjectDigest,
+          terminus: existing.terminus,
+        });
+      }
+      return carried;
+    },
+    persistBoundary: async (root, settled) => {
+      const snapshot = boundarySnapshots.get(settled.workUnit)
+        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit);
+      const existing = snapshot.boundary;
+      const preservesReservation = existing !== null
+        && existing.candidateId === settled.candidateId
+        && existing.candidateSubjectDigest !== null
+        && existing.reservation !== null
+        && settled.reservation === null
+        && settled.terminus === null;
+      const path = await writeSubmissionBoundary(root, parseIntegrationBoundaryLocus(preservesReservation
+        ? { ...settled, reservation: existing.reservation }
+        : settled), snapshot.version);
+      await exec("git", ["add", "--", path], { cwd: root });
+    },
+    write: (text) => {
+      boundary.write(text);
+    },
+    warn: (text) => {
+      process.stderr.write(text);
+    },
+    setExitCode: (code) => {
+      boundary.setExitCode(code);
+    },
+  };
+}
+
+/**
+ * Resolve the typed pre-publication review procedure for one work unit.
+ *
+ * The command self-composes both lane policy requests from repository state. Its returned re-entry
+ * command carries an opaque replay of caller-owned judgments that repository state cannot recover.
+ * Two options report those judgments initially: `--self-review`, whether the author's self-review actually ran, and
+ * `--change-set`, the routing facts the standard-review obligation turns on. Omitting the latter
+ * routes the change set as unestablished, which is the conservative `required` route. `--lanes`
+ * carries each lane's bounded review scope, the frontline lane's one-run invocation override,
+ * any approved ceiling override, and an explicitly Owner-accepted standard-review terminus.
+ *
+ * @param name - The target work unit's slug.
+ * @param options - Parsed command-line options.
+ * @param overrides - Test-only handler boundary overrides.
+ * @returns Resolves after stdout, stderr, and exit status are assigned.
+ */
+export async function handleReviewPrePublication(
+  name: string,
+  options: ReviewPrePublicationOptions,
+  overrides: Partial<ReviewPrePublicationHandlerDependencies> = {},
+  interaction?: InteractionContext,
+): Promise<void> {
+  const dependencies = { ...defaultPrePublicationDependencies(interaction), ...overrides };
+  const target = SlugSchema.safeParse(name.trim());
+  const remedyFor = (code: ReviewPrePublicationRefusalCode): SpineRemedy => target.success
+    ? prePublicationRemedy(code, target.data)
+    : prePublicationTargetRemedy();
+  const emitFailure = (
+    error: unknown,
+    phase: "request" | "execution" | "output",
+    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">,
+  ): void => {
+    const envelope = code === undefined
+      ? reviewCommandError(
+          "review-pre-publication",
+          error,
+          phase,
+          ReviewCommandErrorEnvelopeSchema,
+          (genericCode: ReviewCommandErrorCode) => remedyFor(genericCode),
+        )
+      : ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: [],
+          error: {
+            code,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          remedy: remedyFor(code),
+        });
+    dependencies.write(`${JSON.stringify(envelope)}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  const input = ReviewPrePublicationInputSchema.safeParse({
+    name: name.trim(),
+    ...(options.selfReview === undefined ? {} : { selfReview: options.selfReview }),
+    ...(options.changeSet === undefined ? {} : { changeSet: options.changeSet }),
+    ...(options.lanes === undefined ? {} : { lanes: options.lanes }),
+    ...(options.resume === undefined ? {} : { resume: options.resume }),
+    json: options.json,
+  });
+  if (!input.success) {
+    emitFailure(input.error, "request");
+    return;
+  }
+
+  const readJudgment = async (source: string | undefined): Promise<unknown> =>
+    source === undefined ? undefined : JSON.parse(await dependencies.readText(source));
+
+  let judgment: ReviewPrePublicationJudgment;
+  try {
+    const resumed = input.data.resume === undefined
+      ? null
+      : z.strictObject({
+          selfReview: z.literal("settled").optional(),
+          changeSet: z.json().optional(),
+          lanes: z.json().optional(),
+        }).parse(JSON.parse(Buffer.from(input.data.resume, "base64url").toString("utf8")));
+    judgment = resumed === null
+      ? {
+          selfReview: input.data.selfReview,
+          changeSet: await readJudgment(input.data.changeSet),
+          lanes: await readJudgment(input.data.lanes),
+        }
+      : {
+          selfReview: resumed.selfReview,
+          changeSet: resumed.changeSet,
+          lanes: resumed.lanes,
+        };
+  } catch (error) {
+    emitFailure(error, "request");
+    return;
+  }
+
+  let root: string;
+  try {
+    const resolved = dependencies.resolveRoot(process.cwd());
+    if (resolved === null) throw new Error("Not inside an ARC project.");
+    root = resolved;
+  } catch (error) {
+    emitFailure(error, "execution");
+    return;
+  }
+
+  let envelope: PrePublicationReviewEnvelope;
+  try {
+    const composition = await dependencies.compose(root, input.data, judgment);
+    if (composition.status === "refused") {
+      emitFailure(new Error(composition.reason), "execution", composition.code);
+      return;
+    }
+    for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
+    envelope = projectPrePublicationReview(composition.request);
+    if (envelope.nextAction.kind === "continue-pre-publication-review"
+      || envelope.nextAction.kind === "run-self-review") {
+      // The run-self-review command is the re-entry *after* the method has run, so it carries
+      // that prospective completion while preserving every other caller-owned judgment.
+      const replaySelfReview = envelope.nextAction.kind === "run-self-review"
+        ? "settled"
+        : judgment.selfReview;
+      const replayLanes = envelope.locus === "candidate-fix-pending"
+        ? consumeOwnerAcceptedTerminus(judgment.lanes)
+        : judgment.lanes;
+      const resume = Buffer.from(canonicalize({
+        ...(replaySelfReview === undefined ? {} : { selfReview: replaySelfReview }),
+        ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+        ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
+      }), "utf8").toString("base64url");
+      envelope = PrePublicationReviewEnvelopeSchema.parse({
+        ...envelope,
+        nextAction: {
+          ...envelope.nextAction,
+          command: `arc review pre-publication ${envelope.workUnit} --resume ${resume} --json`,
+        },
+      });
+    }
+    // The settled locus is where the durable publication boundary is written. Recording it here —
+    // before the result is claimed — is what makes `arc publish` succeed on its first call; an
+    // absent boundary now means genuinely open obligations rather than a write nobody performed.
+    if (envelope.locus === "candidate-publish-ready"
+      || envelope.locus === "candidate-convergence-verification-pending") {
+      await dependencies.persistBoundary(root, prePublicationBoundary(envelope));
+    }
+  } catch (error) {
+    emitFailure(error, "execution");
+    return;
+  }
+
+  try {
+    dependencies.write(`${JSON.stringify(PrePublicationReviewEnvelopeSchema.parse(envelope))}\n`);
+  } catch (error) {
+    emitFailure(error, "output");
+  }
 }

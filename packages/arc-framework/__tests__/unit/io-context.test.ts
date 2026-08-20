@@ -12,6 +12,7 @@ vi.mock("execa", () => ({ execa: mocks.execa }));
 
 import {
   createUserIOContext,
+  readGitBlobEntry,
   readGitBlobBytes,
   readGitObjectBytes,
 } from "../../src/lib/io-context.js";
@@ -87,7 +88,7 @@ describe("readGitBlobBytes", () => {
         throw new Error("object inspection allowed lazy acquisition");
       }
       if (args[1] === "ls-tree") {
-        return { stdout: Buffer.from(`blob ${oid}\0`), stderr: Buffer.alloc(0) };
+        return { stdout: Buffer.from(`100644 blob ${oid}\0`), stderr: Buffer.alloc(0) };
       }
       if (args[1] === "cat-file") {
         return { stdout: bytes, stderr: Buffer.alloc(0) };
@@ -121,6 +122,25 @@ describe("readGitBlobBytes", () => {
 
     await expect(readGitBlobBytes("/repo", null, "binary.dat", { objectAccess: "local-only" }))
       .resolves.toEqual(bytes);
+  });
+
+  it.each([
+    ["index", null],
+    ["tree", "HEAD"],
+  ] as const)("represents an exact %s gitlink by its object ID without reading the commit", async (_kind, ref) => {
+    const oid = "c".repeat(40);
+    mocks.execa.mockImplementation(async (_command: string, args: string[]) => {
+      if (args.includes("ls-files")) {
+        return { stdout: Buffer.from(`160000 ${oid} 0\tvendor/library\0`), stderr: Buffer.alloc(0) };
+      }
+      if (args.includes("ls-tree")) {
+        return { stdout: Buffer.from(`160000 commit ${oid}\0`), stderr: Buffer.alloc(0) };
+      }
+      throw new Error(`gitlink must not read its commit object: ${args.join(" ")}`);
+    });
+
+    await expect(readGitBlobEntry("/repo", ref, "vendor/library"))
+      .resolves.toEqual({ mode: "160000", bytes: new TextEncoder().encode(oid) });
   });
 
   it("reads index metadata without decoding non-UTF-8 path bytes", async () => {
@@ -162,8 +182,8 @@ describe("readGitBlobBytes", () => {
 
   it.each([
     ["malformed", Buffer.from("not-a-tree-record\0")],
-    ["multiple", Buffer.from(`blob ${"d".repeat(40)}\0blob ${"e".repeat(40)}\0`)],
-    ["invalid object id", Buffer.from("blob abcdef\0")],
+    ["multiple", Buffer.from(`100644 blob ${"d".repeat(40)}\0${"100644"} blob ${"e".repeat(40)}\0`)],
+    ["invalid object id", Buffer.from("100644 blob abcdef\0")],
   ])("rejects %s tree output", async (_case, stdout) => {
     mockLookupOutput("ls-tree", stdout);
 

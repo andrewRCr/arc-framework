@@ -6,6 +6,7 @@ import { runRecoverStatus, type SessionRecoverProbes } from "../../src/commands/
 import { assertSessionRecoverProbeResult } from "../../src/commands/status/schema.js";
 import type { DerivedCheckoutRow } from "../../src/lib/locus/derived-roster.js";
 import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
+import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CLAIM = "c".repeat(32);
 const LOAD_SET = {
@@ -44,6 +45,7 @@ function workUnit(): DerivedCheckoutRow {
       taskCursor: CURSOR,
       cohortDocPath: null,
       loadSet: LOAD_SET,
+      integrationBoundary: null,
     },
     lifecycleLocation: "active",
     diagnostics: [],
@@ -185,6 +187,50 @@ describe("checkout-derived recovery transitions", () => {
     expect(result.recoveryFrame).toMatchObject({
       ok: true,
       value: { subject: { kind: "work-unit", key: "demo" }, workflow: "process-task-loop" },
+    });
+  });
+
+  it("recovers Candidate preparation without an execution cursor", async () => {
+    const resolved = workUnit();
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const candidate: DerivedCheckoutRow = {
+      ...resolved,
+      context: {
+        ...resolved.context!,
+        sessionType: "prepublication",
+        workflow: "prepare-work-unit",
+        taskCursor: { status: "no-open-task" },
+        loadSet: {
+          manifestVersion: 1,
+          entries: [
+            LOAD_SET.entries[0]!,
+            {
+              path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+              readMode: { kind: "full" },
+            },
+          ],
+        },
+        integrationBoundary: projectCandidateReviewBoundary({ workUnit: "demo", candidateId }),
+      },
+    };
+
+    const result = await recover(frame(candidate));
+
+    expect(result.recoveryFrame).toMatchObject({
+      ok: true,
+      value: {
+        subject: { kind: "work-unit", key: "demo" },
+        workflow: "prepare-work-unit",
+        sessionType: "prepublication",
+      },
+    });
+    expect(result.taskCursor).toMatchObject({ ok: true, value: { status: "no-open-task" } });
+    expect(result.loadSet).toMatchObject({
+      ok: true,
+      value: { entries: [expect.objectContaining({ path: expect.stringContaining("AGENT-BRIEF") }), {
+        path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+        readMode: { kind: "full" },
+      }] },
     });
   });
 

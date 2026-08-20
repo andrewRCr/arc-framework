@@ -86,6 +86,7 @@ describe("local review preparation request", () => {
     });
     const dependencies = {
       sweep: async () => undefined,
+      laneSourceId: "delegated-agent",
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
       resolveAuthority,
@@ -183,6 +184,7 @@ describe("local review preparation request", () => {
 
       const dependencies = {
         sweep: async () => undefined,
+        laneSourceId: "delegated-agent",
         withSourceLock: async <T>(action: () => Promise<T>) => action(),
         resolveRepositoryId: async () => "repo-1",
         deriveTarget,
@@ -458,6 +460,7 @@ describe("local review preparation request", () => {
     let clockTick = 0;
     const dependencies = {
       sweep: async () => undefined,
+      laneSourceId: "delegated-agent",
       withSourceLock: async <T>(action: () => Promise<T>) => action(),
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
@@ -573,12 +576,15 @@ describe("local review preparation request", () => {
       });
       let persistedVersion = 0;
       let persistedState: ReviewOperationState | null = null;
+      let laneVersion = 0;
+      let laneState: ReviewOperationState | null = null;
       let persistedSource: LocalReviewSource | null = null;
       let receipts: ReviewReceiptV2[] = [];
       let runtimeIdentity = "arc-cli/0.1.0";
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
       const dependencies = {
         sweep: async () => undefined,
+        laneSourceId: "delegated-agent",
         withSourceLock: async <T>(action: () => Promise<T>) => action(),
         resolveRepositoryId: async () => target.repositoryId,
         deriveTarget: async () => target,
@@ -608,8 +614,18 @@ describe("local review preparation request", () => {
         }),
         validatePolicySelection: () => undefined,
         operationStore: {
-          readOperation: async () => ({ version: persistedVersion, state: persistedState }),
+          readOperation: async (operationId: string) => (
+            persistedState?.operationId === operationId
+              ? { version: persistedVersion, state: persistedState }
+              : { version: laneVersion, state: laneState }
+          ),
           publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
+            if (state.kind === "lane-progress") {
+              if (laneVersion !== expectedVersion) throw new Error("version-conflict");
+              laneVersion += 1;
+              laneState = state;
+              return { version: laneVersion };
+            }
             if (persistedVersion !== expectedVersion) throw new Error("version-conflict");
             persistedVersion += 1;
             persistedState = state;
@@ -716,6 +732,7 @@ describe("local review preparation request", () => {
         confirmTarget: dependencies.confirmTarget,
         inspectMaterialization: async () => "materialized",
         releaseMaterialization: async () => undefined,
+        now: () => "2026-07-23T21:00:00Z",
       })).resolves.toMatchObject({
         state: "attested-current",
         nextAction: "reduce",

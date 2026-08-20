@@ -28,6 +28,7 @@ import {
   setMetaClass,
   setMetaCurrentWorkflow,
   setMetaDesign,
+  setMetaCandidate,
   setMetaFinalizeFields,
   toMetaRecord,
   setMetaState,
@@ -216,6 +217,7 @@ describe("renderMetaFile — semantic record", () => {
       taskList: "tasks-foo.md",
       reviewRubric: null,
       promotionReceipt: `errand-v1/repair/${"a".repeat(32)}`,
+      candidateId: `sha256:${"b".repeat(64)}`,
       currentWorkflow: "integrate-work-unit",
       lastCompleted: "Task 7.1",
       nextTask: "Task 7.2",
@@ -239,6 +241,7 @@ describe("renderMetaFile — semantic record", () => {
       Design: "spec-a.md, spec-b.md",
       "Task List": "tasks-foo.md",
       "Promotion Receipt": `errand-v1/repair/${"a".repeat(32)}`,
+      Candidate: `sha256:${"b".repeat(64)}`,
       "Current Workflow": "integrate-work-unit",
       "Last Completed": "Task 7.1",
       "Next Task": "Task 7.2",
@@ -1907,5 +1910,21 @@ describe("setMetaDesign — in-place Design bullet rewrite", () => {
   it("throws when the meta carries no Design bullet (fail-loud)", () => {
     const noField = META.replace("- **Design:** `draft-demo-wu.md`\n", "");
     expect(() => setMetaDesign(noField, "spec-demo-wu.md")).toThrow(/Design.*not found/i);
+  });
+});
+
+describe("setMetaCandidate — managed Candidate projection", () => {
+  it("backfills and writes the canonical Candidate identity", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const meta = renderMetaFile("demo-wu", {
+      state: "Active",
+      owner: "andrew",
+      branch: "feat/demo-wu",
+    }).replace(/\n- \*\*Candidate:\*\* \[none\]/u, "");
+
+    const written = setMetaCandidate(meta, candidateId);
+
+    expect(parseMetaRecord(written).candidateId).toBe(candidateId);
+    expect(written).toContain(`- **Candidate:** \`${candidateId}\``);
   });
 });

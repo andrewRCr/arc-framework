@@ -16,6 +16,9 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPrePublication,
+  handleReviewMergeMethodResolve,
+  handleReviewChecksAwait,
   handleReviewReduce,
   handleReviewRespond,
 } from "../../../src/handlers/review.js";
@@ -99,6 +102,78 @@ const frontlineRunRequest = {
     },
   },
 };
+
+describe("handleReviewMergeMethodResolve", () => {
+  it("emits the live validation result for the configured method", async () => {
+    const write = vi.fn();
+    const readConfiguredMethod = vi.fn(async () => "squash" as const);
+    await handleReviewMergeMethodResolve({ json: true }, {
+      resolveRoot: () => "/repo",
+      readConfiguredMethod,
+      resolve: async (method) => ({
+        schemaVersion: 1,
+        mode: "review-merge-method-resolve",
+        repository: "owner/repo",
+        state: "validated",
+        nextAction: "use-method",
+        method,
+        allowedMethods: ["merge", "squash"],
+        policyFingerprint: `sha256:${"a".repeat(64)}`,
+      }),
+      write,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "validated",
+      nextAction: "use-method",
+      method: "squash",
+    });
+    expect(readConfiguredMethod).toHaveBeenCalledWith("/repo");
+  });
+
+  it("fails closed with a schema-valid result outside an ARC project", async () => {
+    const write = vi.fn();
+    const readConfiguredMethod = vi.fn();
+    await handleReviewMergeMethodResolve({ json: true }, {
+      resolveRoot: () => null,
+      readConfiguredMethod,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(readConfiguredMethod).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "blocked",
+      reason: "policy-unreadable",
+      configuredMethod: null,
+      allowedMethods: [],
+    });
+  });
+});
+
+describe("handleReviewChecksAwait", () => {
+  it("validates CLI flags before invoking the await", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const awaitChecks = vi.fn();
+    await handleReviewChecksAwait({
+      repository: "owner/repo",
+      pullRequest: "42",
+      headSha: "not-an-oid",
+      timeoutMs: "2000",
+      pollIntervalMs: "500",
+      json: true,
+    }, { awaitChecks, write, setExitCode });
+
+    expect(awaitChecks).not.toHaveBeenCalled();
+    expect(setExitCode).toHaveBeenCalledWith(64);
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+    });
+  });
+});
 const localAttestRequest = {
   schemaVersion: 1,
   operationId: "local-operation",
@@ -460,6 +535,7 @@ function localReceiptFixture() {
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation",
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: canonicalDigest({ policy: "local" }),
     requestMechanism: "local-attestation",
   });
@@ -683,6 +759,11 @@ describe("hosted review handlers", () => {
       ) => handleReviewHostedSettle("-", {
         readText: async () => JSON.stringify({
           schemaVersion: 1,
+          response: {
+            attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+            dispositionSetId: `sha256:${"d".repeat(64)}`,
+            findingId: "finding-1",
+          },
           target: hostedTarget,
           fixTarget: null,
           actorIdentity: "developer",
@@ -1347,6 +1428,417 @@ describe("handleReviewReduce", () => {
       mode: "review-reduce",
       state: "advisory-complete",
       payload: { operationId: "local-operation", projection: { state: "advisory-complete" } },
+    });
+  });
+});
+
+describe("handleReviewPrePublication", () => {
+  const target = { repository: "arc-framework/example", pullRequest: null, headSha: "a".repeat(40) };
+  const standardReview = {
+    obligation: "required" as const,
+    reasons: ["unknown-change-set" as const],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"b".repeat(64)}`,
+    retrigger: "full-final" as const,
+    count: 1 as const,
+  };
+  const lane = (name: "frontline" | "standard", sources: readonly string[]) => ({
+    schemaVersion: 1 as const,
+    target,
+    lane: name,
+    frontlineActive: false,
+    standardReview,
+    completedPasses: 0,
+    attempts: [],
+    sources,
+    maxPasses: 2 as const,
+  });
+  const request = {
+    schemaVersion: 1 as const,
+    workUnit: "example",
+    candidateId: `sha256:${"c".repeat(64)}`,
+    selfReview: "inactive" as const,
+    frontline: lane("frontline", []),
+    standard: lane("standard", ["codex-pr"]),
+    candidate: {
+      subjectDigest: `sha256:${"e".repeat(64)}`,
+      implementationChanged: false,
+      convergenceVerification: "satisfied" as const,
+    },
+  };
+
+  function boundary(overrides: Record<string, unknown> = {}) {
+    return {
+      resolveRoot: () => "/repo",
+      persistBoundary: vi.fn(),
+      write: vi.fn(),
+      warn: vi.fn(),
+      setExitCode: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  it("emits the projected locus and reserves the hosted source before pull-request binding", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(envelope).toMatchObject({
+      mode: "pre-publication-review",
+      workUnit: "example",
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate", command: "arc publish example --json" },
+    });
+    expect(envelope.reservation).toMatchObject({
+      semanticsVersion: "standard-review-reservation/v1",
+      sources: ["codex-pr"],
+      target: { repository: "arc-framework/example", headSha: "a".repeat(40) },
+    });
+    expect(dependencies.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("writes the durable publication boundary where the locus settles", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    // The digest travels with the boundary because submission authorizes against it: a boundary
+    // recording only its Candidate identity could not tell a settled review from a superseded one.
+    expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      workUnit: "example",
+      locus: "candidate-publish-ready",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+    }));
+  });
+
+  it("writes no boundary while a pre-publication obligation is still open", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request: { ...request, selfReview: "pending" as const },
+        advisories: [],
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-review-pending",
+    });
+    expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+  });
+
+  it("persists the convergence-verification resume locus", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request: {
+          ...request,
+          candidate: {
+            subjectDigest: `sha256:${"e".repeat(64)}`,
+            implementationChanged: true,
+            convergenceVerification: "pending" as const,
+          },
+        },
+        advisories: [],
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      locus: "candidate-convergence-verification-pending",
+    }));
+  });
+
+  it("reports a failed boundary write instead of claiming a settled locus", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+      persistBoundary: vi.fn(async () => {
+        throw new Error("boundary write failed");
+      }),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { message: expect.stringContaining("boundary write failed") },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("passes the reported self-review state through to the procedure", async () => {
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+
+    await handleReviewPrePublication(
+      "example",
+      { json: true, selfReview: "settled" },
+      boundary({ compose }),
+    );
+
+    expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      name: "example",
+      selfReview: "settled",
+    }), { selfReview: "settled", changeSet: undefined, lanes: undefined });
+  });
+
+  it("writes composition advisories to stderr so the JSON envelope stays machine-clean", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request,
+        advisories: ["the standard lane has no durable progress at this head"],
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(dependencies.warn).toHaveBeenCalledWith(
+      "the standard lane has no durable progress at this head\n",
+    );
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "pre-publication-review",
+    });
+  });
+
+  it("rejects an unreported self-review state before composing", async () => {
+    const compose = vi.fn();
+    const dependencies = boundary({ compose });
+
+    await handleReviewPrePublication("example", { json: true, selfReview: "done" }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { code: "invalid-input" },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("reads each judgment source separately and hands both to composition", async () => {
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+    const readText = vi.fn(async (source: string) => source === "-"
+      ? JSON.stringify({ changeSetState: "known" })
+      : JSON.stringify({ standard: { scopeMode: "chunked" } }));
+    const dependencies = boundary({ compose, readText });
+
+    await handleReviewPrePublication(
+      "example",
+      { json: true, changeSet: "-", lanes: "lanes.json" },
+      dependencies,
+    );
+
+    expect(readText).toHaveBeenCalledWith("-");
+    expect(readText).toHaveBeenCalledWith("lanes.json");
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      selfReview: undefined,
+      changeSet: { changeSetState: "known" },
+      lanes: { standard: { scopeMode: "chunked" } },
+    });
+  });
+
+  it("composes with no judgment rather than a placeholder when both options are absent", async () => {
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+    const readText = vi.fn();
+    const dependencies = boundary({ compose, readText });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      selfReview: undefined,
+      changeSet: undefined,
+      lanes: undefined,
+    });
+  });
+
+  it("replays every judgment and records self-review completion on the next hop", async () => {
+    const openRequest = {
+      ...request,
+      selfReview: "pending" as const,
+    };
+    const changeSet = { changeSetState: "known", surfaceAuthority: "repository" };
+    const lanes = { frontline: { invocation: { mode: "skip" } }, standard: { scopeMode: "chunked" } };
+    const first = boundary({
+      readText: async (source: string) => JSON.stringify(source === "change.json" ? changeSet : lanes),
+      compose: vi.fn(async () => ({ status: "composed", request: openRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication(
+      "example",
+      { json: true, changeSet: "change.json", lanes: "lanes.json" },
+      first,
+    );
+
+    const firstEnvelope = JSON.parse(String(first.write.mock.calls[0]?.[0])) as {
+      nextAction: { command: string };
+    };
+    const token = firstEnvelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    const compose = vi.fn(async () => ({ status: "composed", request, advisories: [] }));
+    const readText = vi.fn();
+    const second = boundary({ compose, readText });
+
+    await handleReviewPrePublication("example", { json: true, resume: token }, second);
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
+      name: "example",
+      resume: token,
+    }), { selfReview: "settled", changeSet, lanes });
+    expect(JSON.parse(String(second.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
+    });
+  });
+
+  it("consumes an Owner terminus before findings can advance to another Candidate subject", async () => {
+    const findingsRequest = {
+      ...request,
+      standard: {
+        ...request.standard,
+        completedPasses: 1,
+        sources: ["delegated-agent"],
+        attempts: [{ sourceId: "delegated-agent", outcome: "findings" as const }],
+      },
+    };
+    const lanes = {
+      frontline: { invocation: { mode: "skip" } },
+      standard: { scopeMode: "chunked", terminus: { mode: "owner-accepted" } },
+    };
+    const dependencies = boundary({
+      readText: async () => JSON.stringify(lanes),
+      compose: vi.fn(async () => ({ status: "composed", request: findingsRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true, lanes: "lanes.json" }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      locus: string;
+      nextAction: { command: string };
+    };
+    expect(envelope.locus, JSON.stringify(envelope)).toBe("candidate-fix-pending");
+    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      lanes: {
+        frontline: { invocation: { mode: "skip" } },
+        standard: { scopeMode: "chunked" },
+      },
+    });
+  });
+
+  it("refuses to read both judgment inputs from the same stdin stream", async () => {
+    const compose = vi.fn();
+    const readText = vi.fn();
+    const dependencies = boundary({ compose, readText });
+
+    await handleReviewPrePublication("example", { json: true, changeSet: "-", lanes: "-" }, dependencies);
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { code: "invalid-input" },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it.each(["changeSet", "lanes"] as const)("rejects an unparseable %s source before composing", async (option) => {
+    const compose = vi.fn();
+    const dependencies = boundary({ compose, readText: async () => "{ not json" });
+
+    await handleReviewPrePublication("example", { json: true, [option]: "facts.json" }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("emits the composition's refusal rather than an empty procedure result", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused",
+        reason: "No managed Candidate record exists for `example`.",
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { message: expect.stringContaining("No managed Candidate record") },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("preserves a stale Candidate's typed refusal and deliberate re-root remedy", async () => {
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused",
+        code: "candidate-unexplained-delta",
+        reason: "Run full work-unit verification to establish a new Candidate lineage root.",
+      })),
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { code: "candidate-unexplained-delta" },
+      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+    });
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("reports a repository it cannot resolve as an ARC project", async () => {
+    const compose = vi.fn();
+    const dependencies = boundary({ resolveRoot: () => null, compose });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-pre-publication",
+      error: { message: expect.stringContaining("Not inside an ARC project") },
+    });
+  });
+
+  it.each([
+    ["an unreadable request", { json: true, selfReview: "done" }, {}],
+    ["an unresolvable repository", { json: true }, { resolveRoot: () => null }],
+    ["a refused composition", { json: true }, {
+      compose: vi.fn(async () => ({ status: "refused", reason: "No managed Candidate record exists." })),
+    }],
+  ] as const)("names the resume command on %s", async (_case, options, overrides) => {
+    const dependencies = boundary(overrides);
+
+    await handleReviewPrePublication("example", options, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] },
+    });
+  });
+
+  it("points a refusal of the operand itself at work-unit discovery", async () => {
+    const compose = vi.fn();
+    const dependencies = boundary({ compose });
+
+    await handleReviewPrePublication("Not A Slug", { json: true }, dependencies);
+
+    expect(compose).not.toHaveBeenCalled();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input" },
+      remedy: { argv: ["arc", "status", "--project", "--json"] },
     });
   });
 });

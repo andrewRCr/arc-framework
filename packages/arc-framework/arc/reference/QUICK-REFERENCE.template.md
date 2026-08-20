@@ -251,8 +251,16 @@ arc park [slug] --reason <text> [--land <oid>]
 # Resume a parked WU's preserved branch (resume-work-unit.md)
 arc resume [slug] [--here]
 
-# Open review: Active → Integrating, marks phase entry not the merge (integrate-work-unit.md)
-arc integrate [slug] --last-completed <work> --action <next action>
+# Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
+# --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
+arc attest <name> --json [--new-root]
+
+# Schedule publication: Active → Integrating, not the merge (prepare-work-unit.md)
+# --last-completed / --action override the task-list and boundary reads the verb makes on its own
+arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
+# Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
+arc integrate checkpoint <name> [--json]
+arc integrate merge <name> --checkpoint <handle> [--json]
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 
@@ -264,7 +272,7 @@ arc abandon <slug> --yes
 
 # Sweep a shipped WU to completed/ (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
-# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 14)
+# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 11)
 arc teardown <name> [--force] [--husk <absolute-path>]
 
 # Safely fast-forward the configured local base from any worktree

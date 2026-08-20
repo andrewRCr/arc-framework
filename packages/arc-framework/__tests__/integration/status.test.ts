@@ -68,6 +68,11 @@ import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integ
 import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
 import { createSessionRemoteContextReader } from "../../src/handlers/status-remote-context.js";
 import { DeliveryPositionViewSchema } from "../../src/lib/session-init/delivery-position.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  serializeCandidateManagedRecord,
+} from "../../src/lib/work-unit/candidate-attestation.js";
 
 interface Fixture {
   root: string;
@@ -137,7 +142,14 @@ async function writeStatusFile(
   activeDir: string,
   _category: string,
   filename: string,
-  body: { branch: string; state: string; taskList?: string; nextAction?: string },
+  body: {
+    branch: string;
+    state: string;
+    taskList?: string;
+    nextAction?: string;
+    currentWorkflow?: string;
+    candidateId?: string;
+  },
 ): Promise<void> {
   void _category;
   const lines: string[] = [
@@ -147,8 +159,33 @@ async function writeStatusFile(
     `- **Branch:** ${body.branch}`,
   ];
   if (body.taskList !== undefined) lines.push(`- **Task List:** ${body.taskList}`);
+  if (body.currentWorkflow !== undefined) lines.push(`- **Current Workflow:** ${body.currentWorkflow}`);
+  if (body.candidateId !== undefined) lines.push(`- **Candidate:** ${body.candidateId}`);
   if (body.nextAction !== undefined) lines.push(`- **Next Action:** ${body.nextAction}`);
   await writeFile(join(activeDir, filename), lines.join("\n"));
+}
+
+async function writeCandidate(root: string, slug: string): Promise<string> {
+  const subject = createCandidateSubjectSnapshot([]);
+  const attestation = createCandidateAttestation({
+    workUnit: slug,
+    subject,
+    baseRevision: "a".repeat(40),
+    attestedBy: "andrew",
+    attestedAt: "2026-08-19T00:00:00.000Z",
+    verificationEvidenceRef: `tasks-${slug}.md#verification`,
+  });
+  const directory = join(root, ".arc", "system", ".internal", "candidates");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, `${slug}.json`), serializeCandidateManagedRecord({
+    schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1",
+    attestation,
+    subject,
+    responses: [],
+    lineageAttestations: [],
+  }));
+  return attestation.candidateId;
 }
 
 // Stub user result — the probe is exercised in its own suite; here we just
@@ -235,6 +272,8 @@ function derivedFrameFromActive(
       sessionType: active.sessionType,
       workflow: active.sessionType === "execution"
         ? "process-task-loop"
+        : active.sessionType === "prepublication"
+          ? "prepare-work-unit"
         : active.sessionType === "integration"
           ? "integrate-work-unit"
           : active.sessionType === "planning"
@@ -255,6 +294,7 @@ function derivedFrameFromActive(
         activeExtensions,
         cohortDocPath: null,
       }),
+      integrationBoundary: active.integrationBoundary,
     };
     const row = {
       ...freePrimaryDerivedFrame().roster[0]!,
@@ -1182,12 +1222,12 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     }
   });
 
-  it("carries sessionType=integration through the composite when Next Action begins with integrate-work-unit", async () => {
+  it("does not infer prepublication from Candidate-shaped narration alone", async () => {
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
       taskList: "`.arc/active/tasks-foo.md`",
-      nextAction: "integrate-work-unit Step 7 — push and create PR",
+      nextAction: "Candidate review pending — run pre-publication review",
     });
 
     const probes = makeSessionInitProbes(fixture);
@@ -1200,8 +1240,56 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
-      expect(result.active.value.sessionType).toBe("integration");
+      expect(result.active.value.sessionType).toBe("execution");
     }
+  });
+
+  it("carries a real Candidate prepublication locus through active, derived context, and load set", async () => {
+    const candidateId = await writeCandidate(fixture.root, "foo");
+    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
+      branch: "technical/foo",
+      state: "Active",
+      taskList: "`.arc/active/tasks-foo.md`",
+      nextAction: "stale narration",
+      currentWorkflow: "prepare-work-unit",
+      candidateId,
+    });
+
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: makeSessionInitProbes(fixture),
+    });
+
+    expect(result.active).toMatchObject({
+      ok: true,
+      value: {
+        sessionType: "prepublication",
+        currentWorkflow: "prepare-work-unit",
+        integrationBoundary: { candidateId, locus: "candidate-review-pending" },
+      },
+    });
+    expect(result.derivedLocusState).toMatchObject({
+      ok: true,
+      value: {
+        active: {
+          context: {
+            sessionType: "prepublication",
+            workflow: "prepare-work-unit",
+            integrationBoundary: { candidateId, locus: "candidate-review-pending" },
+          },
+        },
+      },
+    });
+    expect(result.loadSet).toMatchObject({
+      ok: true,
+      value: {
+        entries: expect.arrayContaining([{
+          path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+          readMode: { kind: "full" },
+        }]),
+      },
+    });
   });
 
   it("projects no active WU when the entering checkout has multiple subject metas", async () => {
@@ -1215,7 +1303,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
       branch: "technical/beta",
       state: "Active",
       taskList: "`.arc/active/tasks-beta.md`",
-      nextAction: "integrate-work-unit Step 1 — verify completion",
+      nextAction: "Candidate review pending — run pre-publication review",
     });
 
     const probes = makeSessionInitProbes(fixture);

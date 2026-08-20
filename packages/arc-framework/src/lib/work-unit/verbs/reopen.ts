@@ -1,7 +1,7 @@
 /**
  * The `reopen` verb — withdraw an `Integrating` WU back to `Active`.
  *
- * `reopen` is the genuinely-missing inverse of `integrate`: it pulls a WU out of
+ * `reopen` is the inverse of `publish`: it pulls a WU out of
  * review for more work. A `set-phase`-only move — `Integrating → Active`, no
  * location move and no branch rotation (the working branch already carries its
  * `<type>/` prefix from `activate`) — that fires the `withdraw-pr` side-effect to
@@ -22,6 +22,7 @@
 
 import {
   executeTransition,
+  resumeTransitionFinalization,
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
@@ -66,10 +67,19 @@ export async function runReopen(
     inputs: { prMerged, prWithdrawMode: withdrawMode ?? "close" },
   });
 
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  let resolvedOutcome = outcome;
+  if (outcome.status === "rejected" && outcome.stage === "lookup") {
+    resolvedOutcome = await resumeTransitionFinalization(ctx, {
+      verb: "reopen",
+      slug: name,
+      inputs: { prMerged, prWithdrawMode: withdrawMode ?? "close" },
+      replayNonRoadmapSideEffects: true,
+    }) ?? outcome;
+  }
+  if (resolvedOutcome.status !== "ok") return { status: "rejected", reason: resolvedOutcome.message };
   return {
     status: "reopened",
-    outcome,
+    outcome: resolvedOutcome,
     metaPath: resolveArcPath({
       kind: "work-unit-artifact",
       placement: { kind: "active", scope: { kind: "project" } },

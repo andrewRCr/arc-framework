@@ -38,7 +38,7 @@ const ABSOLUTE_REPOSITORY_ROOT_SCHEMA = z.string().refine((value) =>
     || /^[A-Za-z]:[\\/]/u.test(value)
     || value.startsWith("\\\\")
   ), { error: "Repository root must be absolute" });
-const SESSION_TYPE_SCHEMA = z.enum(["planning", "execution", "integration"]);
+const SESSION_TYPE_SCHEMA = z.enum(["planning", "execution", "prepublication", "integration"]);
 
 /** Checkout-local recovery hint captured from the entering derived frame. */
 export const CompactionSeedLocusHintSchema = z.strictObject({

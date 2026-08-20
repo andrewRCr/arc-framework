@@ -1,0 +1,467 @@
+/** Exact-checkpoint integration merge and its fail-closed compensating exits. */
+
+import { z } from "zod";
+
+import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
+import type { ChecksAwaitResult } from "../review-gate/checks-await.js";
+import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import {
+  MergeLockTransitionRequestSchema,
+  type MergeLockTransitionRequest,
+} from "../review-gate/merge-lock.js";
+import type { IntegrationCheckpointCompositionRecord } from "./checkpoint-store.js";
+import {
+  SpineRemedySchema,
+  checkpointResumeArgv,
+  spineRemedy,
+  type SpineRemedy,
+} from "./spine-refusal.js";
+import type { SettlementExecutionResult } from "./settlement-execution.js";
+
+const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
+const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+const CheckpointHandleSchema = z.string().regex(
+  /^checkpoint-v1:(?:[0-9a-f]{40}|[0-9a-f]{64}):sha256:[0-9a-f]{64}$/u,
+);
+
+export const IntegrationMergeRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  workUnit: SlugSchema,
+  checkpointHandle: CheckpointHandleSchema,
+});
+export type IntegrationMergeRequest = z.infer<typeof IntegrationMergeRequestSchema>;
+
+export const IntegrationMergeTargetSchema = z.strictObject({
+  repository: z.string().min(1),
+  pullRequest: z.number().int().positive(),
+  baseRef: z.string().min(1),
+  headRef: z.string().min(1),
+  headSha: ObjectIdSchema,
+});
+export type IntegrationMergeTarget = z.infer<typeof IntegrationMergeTargetSchema>;
+
+export const IntegrationMergeInvalidationReasonSchema = z.enum([
+  "checkpoint-missing",
+  "settlement-invalidated",
+  "head-mismatch",
+  "lifecycle-moved",
+  "release-blocked",
+  "checks-failed",
+  "merge-method-moved",
+  "drift-reconcile",
+  "merge-blocked",
+]);
+export type IntegrationMergeInvalidationReason = z.infer<typeof IntegrationMergeInvalidationReasonSchema>;
+
+export const MergeBlockedReasonSchema = z.enum(["relock-failed", "operation-failed"]);
+
+/** Every reason the merge verb refuses with — invalidation plus terminal block. */
+export type MergeRefusalReason =
+  | IntegrationMergeInvalidationReason
+  | z.infer<typeof MergeBlockedReasonSchema>;
+
+/** Every refusal reason, for exhaustive iteration. */
+export const MERGE_REFUSAL_REASONS: readonly MergeRefusalReason[] = [
+  ...IntegrationMergeInvalidationReasonSchema.options,
+  ...MergeBlockedReasonSchema.options,
+];
+
+const MERGE_REMEDIES: Record<Exclude<MergeRefusalReason, "relock-failed">, (workUnit: string) => SpineRemedy> = {
+  "checkpoint-missing": (workUnit) => spineRemedy(
+    "A merge executes only a persisted checkpoint composition.",
+    "Compose a fresh checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "settlement-invalidated": (workUnit) => spineRemedy(
+    "The executed settlement is exactly what the approval covered.",
+    "Re-settle the reported channel, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "head-mismatch": (workUnit) => spineRemedy(
+    "A merge lands only the exact approved head.",
+    "Re-checkpoint over the current head",
+    checkpointResumeArgv(workUnit),
+  ),
+  "lifecycle-moved": (workUnit) => spineRemedy(
+    "The lifecycle stays complete from checkpoint through merge.",
+    "Restore the reported lifecycle position, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "release-blocked": (workUnit) => spineRemedy(
+    "The merge lock releases only through its own lifecycle gate.",
+    "Resolve the reported release refusal, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "checks-failed": (workUnit) => spineRemedy(
+    "Required checks are green on the exact approved head.",
+    "Land a fix for the failing checks, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "merge-method-moved": () => spineRemedy(
+    "The merge method does not move after the checkpoint pinned it.",
+    "Re-resolve the host merge-method policy",
+    ["arc", "review", "merge-method", "resolve", "--json"],
+  ),
+  "drift-reconcile": (workUnit) => spineRemedy(
+    "A merge lands only from an authoritatively clean base.",
+    "Reconcile the base append-only, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "merge-blocked": (workUnit) => spineRemedy(
+    "The host merge succeeds on the pinned head or the candidate stays unmerged.",
+    "Resolve the reported host refusal, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "operation-failed": (workUnit) => spineRemedy(
+    "A merge either lands or leaves the candidate resumable.",
+    "Resolve the reported operational failure, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+};
+
+/**
+ * Resolve the corrective remedy for one merge refusal.
+ *
+ * @param reason - The typed invalidation or blocked reason.
+ * @param workUnit - The refused work unit, interpolated into slug-bearing commands.
+ * @returns The remedy naming the failed invariant and one corrective command.
+ */
+export function mergeRemedy(
+  reason: MergeRefusalReason,
+  workUnit: string,
+  relockRequest?: MergeLockTransitionRequest,
+): SpineRemedy {
+  if (reason === "relock-failed") {
+    const request = MergeLockTransitionRequestSchema.parse(relockRequest);
+    return spineRemedy(
+      "An invalidated candidate is re-locked before the operator resumes.",
+      "Re-hold the merge lock",
+      ["arc", "merge", "lock", "hold", "-"],
+      request,
+    );
+  }
+  return MERGE_REMEDIES[reason](workUnit);
+}
+
+const ResultBaseShape = {
+  schemaVersion: z.literal(1),
+  mode: z.literal("integrate-merge"),
+  workUnit: SlugSchema,
+};
+
+export const IntegrationMergeResultSchema = z.union([
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("merged"),
+    nextAction: z.literal("complete"),
+    payload: z.strictObject({ approvedHead: ObjectIdSchema, pullRequest: z.number().int().positive() }),
+  }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("invalidated"),
+    nextAction: z.literal("checkpoint"),
+    reason: IntegrationMergeInvalidationReasonSchema,
+    remedy: SpineRemedySchema,
+    payload: z.record(z.string(), z.unknown()),
+  }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("awaiting-checks"),
+    nextAction: z.literal("retry"),
+    payload: z.strictObject({
+      approvedHead: ObjectIdSchema,
+      pullRequest: z.number().int().positive(),
+      elapsedMs: z.number().int().nonnegative(),
+    }),
+  }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: MergeBlockedReasonSchema,
+    remedy: SpineRemedySchema,
+    payload: z.record(z.string(), z.unknown()),
+  }),
+  z.strictObject({
+    ...ResultBaseShape,
+    workUnit: z.null(),
+    state: z.literal("blocked"),
+    nextAction: z.literal("stop"),
+    reason: z.literal("invalid-input"),
+    remedy: SpineRemedySchema,
+    payload: z.strictObject({ detail: z.string().min(1) }),
+  }),
+]);
+export type IntegrationMergeResult = z.infer<typeof IntegrationMergeResultSchema>;
+
+/**
+ * Compose the published merge refusal for invalid CLI input.
+ *
+ * @param detail - Validation detail safe to expose in the result payload.
+ * @returns A schema-valid refusal with the merge help command.
+ */
+export function mergeInputRefusal(detail: string): IntegrationMergeResult {
+  return IntegrationMergeResultSchema.parse({
+    schemaVersion: 1,
+    mode: "integrate-merge",
+    workUnit: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "invalid-input",
+    remedy: spineRemedy(
+      "The merge requires a valid work-unit slug and checkpoint handle.",
+      "Review command usage",
+      ["arc", "integrate", "merge", "--help"],
+    ),
+    payload: { detail },
+  });
+}
+
+/**
+ * Compose a typed merge refusal for a dependency failure at the handler boundary.
+ *
+ * @param workUnit - The validated work-unit slug.
+ * @param detail - Dependency failure detail safe to expose in the result payload.
+ * @returns A schema-valid refusal that routes back through checkpoint composition.
+ */
+export function mergeOperationRefusal(workUnit: string, detail: string): IntegrationMergeResult {
+  return IntegrationMergeResultSchema.parse({
+    schemaVersion: 1,
+    mode: "integrate-merge",
+    workUnit,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "operation-failed",
+    remedy: mergeRemedy("operation-failed", workUnit),
+    payload: { detail },
+  });
+}
+
+export interface IntegrationMergeDependencies {
+  readCheckpoint(workUnit: string, handle: string): Promise<IntegrationCheckpointCompositionRecord | null>;
+  executeSettlement(record: IntegrationCheckpointCompositionRecord): Promise<SettlementExecutionResult>;
+  readStatus(workUnit: string): Promise<{
+    actualHead: string;
+    lifecycleComplete: boolean;
+    lifecycleVersion: string;
+    target: IntegrationMergeTarget;
+  }>;
+  readMerged(target: IntegrationMergeTarget): Promise<boolean>;
+  refreshTarget(target: IntegrationMergeTarget): Promise<IntegrationMergeTarget>;
+  releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
+  holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
+  createLockRequest(target?: IntegrationMergeTarget): Promise<MergeLockTransitionRequest>;
+  awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
+  resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
+  readConfiguredBase(): Promise<string>;
+  readFinalDrift(): Promise<Pick<BaseDriftResult, "verdict">>;
+  mergePinned(target: IntegrationMergeTarget, method: "merge" | "rebase" | "squash"): Promise<{ state: string }>;
+}
+
+async function invalidated(
+  base: { schemaVersion: 1; mode: "integrate-merge"; workUnit: string },
+  reason: IntegrationMergeInvalidationReason,
+  payload: Record<string, unknown>,
+  dependencies: IntegrationMergeDependencies,
+  target?: IntegrationMergeTarget,
+): Promise<IntegrationMergeResult> {
+  let holdRequest: MergeLockTransitionRequest | null = null;
+  try {
+    const holdTarget = target === undefined
+      ? undefined
+      : await dependencies.refreshTarget(target);
+    holdRequest = await dependencies.createLockRequest(holdTarget);
+    const hold = await dependencies.holdLock(holdTarget);
+    if (hold.state !== "held" && hold.state !== "no-lock") throw new Error("lock hold was refused");
+  } catch (error) {
+    const relockFailed = holdRequest !== null;
+    return IntegrationMergeResultSchema.parse({
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: relockFailed ? "relock-failed" : "operation-failed",
+      remedy: relockFailed
+        ? mergeRemedy("relock-failed", base.workUnit, holdRequest ?? undefined)
+        : mergeRemedy("operation-failed", base.workUnit),
+      payload: {
+        invalidationReason: reason,
+        detail: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+  return IntegrationMergeResultSchema.parse({
+    ...base,
+    state: "invalidated",
+    nextAction: "checkpoint",
+    reason,
+    remedy: mergeRemedy(reason, base.workUnit),
+    payload,
+  });
+}
+
+/** Execute the exact persisted post-approval span and merge only its approved head. */
+export async function mergeIntegration(
+  input: IntegrationMergeRequest,
+  dependencies: IntegrationMergeDependencies,
+): Promise<IntegrationMergeResult> {
+  const request = IntegrationMergeRequestSchema.parse(input);
+  const base = {
+    schemaVersion: 1 as const,
+    mode: "integrate-merge" as const,
+    workUnit: request.workUnit,
+  };
+  let checkpoint: IntegrationCheckpointCompositionRecord | null = null;
+  let target: IntegrationMergeTarget | undefined;
+  try {
+    checkpoint = await dependencies.readCheckpoint(request.workUnit, request.checkpointHandle);
+    if (checkpoint === null) {
+      return await invalidated(
+        base,
+        "checkpoint-missing",
+        { checkpointHandle: request.checkpointHandle },
+        dependencies,
+      );
+    }
+    target = IntegrationMergeTargetSchema.parse(checkpoint.target);
+    if (await dependencies.readMerged(target)) {
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "merged",
+        nextAction: "complete",
+        payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
+      });
+    }
+    const settlement = await dependencies.executeSettlement(checkpoint);
+    if (settlement.state === "invalidated") {
+      return await invalidated(base, "settlement-invalidated", { settlement }, dependencies, target);
+    }
+
+    const status = await dependencies.readStatus(request.workUnit);
+    const liveTarget = IntegrationMergeTargetSchema.parse(status.target);
+    if (
+      status.actualHead !== checkpoint.approvedHead
+      || liveTarget.headSha !== checkpoint.approvedHead
+      || liveTarget.repository !== checkpoint.target.repository
+      || liveTarget.pullRequest !== checkpoint.target.pullRequest
+      || liveTarget.baseRef !== checkpoint.target.baseRef
+      || liveTarget.headRef !== checkpoint.target.headRef
+      || status.lifecycleVersion !== checkpoint.lifecycleVersion
+    ) {
+      return await invalidated(base, "head-mismatch", {
+        approvedHead: checkpoint.approvedHead,
+        actualHead: status.actualHead,
+        checkpointTarget: checkpoint.target,
+        liveTarget,
+        checkpointLifecycleVersion: checkpoint.lifecycleVersion,
+        liveLifecycleVersion: status.lifecycleVersion,
+      }, dependencies, target);
+    }
+    target = liveTarget;
+    if (!status.lifecycleComplete) {
+      return await invalidated(base, "lifecycle-moved", {}, dependencies, target);
+    }
+    const configuredBaseBeforeRelease = await dependencies.readConfiguredBase();
+    if (configuredBaseBeforeRelease !== target.baseRef) {
+      return await invalidated(base, "head-mismatch", {
+        configuredBase: configuredBaseBeforeRelease,
+        targetBase: target.baseRef,
+      }, dependencies, target);
+    }
+
+    const release = await dependencies.releaseLock(target);
+    if (release.state !== "released" && release.state !== "no-lock") {
+      return await invalidated(base, "release-blocked", { release }, dependencies, target);
+    }
+
+    const checks = await dependencies.awaitChecks(target);
+    if (checks.state === "pending") {
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "awaiting-checks",
+        nextAction: "retry",
+        payload: {
+          approvedHead: checkpoint.approvedHead,
+          pullRequest: target.pullRequest,
+          elapsedMs: checks.elapsedMs,
+        },
+      });
+    }
+    if (checks.state === "failed") {
+      return await invalidated(base, "checks-failed", { checks: checks.checks }, dependencies, target);
+    }
+    if (checks.state === "stale-target") {
+      return await invalidated(base, "head-mismatch", {
+        approvedHead: checkpoint.approvedHead,
+        actualHead: checks.actualHeadSha,
+      }, dependencies, target);
+    }
+    if (checks.state === "target-mismatch") {
+      return await invalidated(base, "head-mismatch", {
+        approvedRepository: target.repository,
+        actualRepository: checks.actualRepository,
+      }, dependencies, target);
+    }
+
+    const mergeMethod = await dependencies.resolveMergeMethod(target.repository);
+    if (
+      mergeMethod.state !== "validated"
+      || mergeMethod.repository?.toLowerCase() !== target.repository.toLowerCase()
+      || mergeMethod.method !== checkpoint.mergeMethod.method
+      || mergeMethod.policyFingerprint !== checkpoint.mergeMethod.policyFingerprint
+    ) {
+      return await invalidated(base, "merge-method-moved", { mergeMethod }, dependencies, target);
+    }
+
+    const drift = await dependencies.readFinalDrift();
+    if (drift.verdict !== "clean") {
+      return await invalidated(base, "drift-reconcile", { verdict: drift.verdict }, dependencies, target);
+    }
+    const configuredBaseBeforeMerge = await dependencies.readConfiguredBase();
+    if (configuredBaseBeforeMerge !== target.baseRef) {
+      return await invalidated(base, "head-mismatch", {
+        configuredBase: configuredBaseBeforeMerge,
+        targetBase: target.baseRef,
+      }, dependencies, target);
+    }
+
+    const merged = await dependencies.mergePinned(target, mergeMethod.method);
+    if (merged.state !== "merged") {
+      return await invalidated(base, "merge-blocked", { merge: merged }, dependencies, target);
+    }
+    return IntegrationMergeResultSchema.parse({
+      ...base,
+      state: "merged",
+      nextAction: "complete",
+      payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
+    });
+  } catch (error) {
+    if (target !== undefined) {
+      try {
+        if (await dependencies.readMerged(target)) {
+          return IntegrationMergeResultSchema.parse({
+            ...base,
+            state: "merged",
+            nextAction: "complete",
+            payload: { approvedHead: checkpoint?.approvedHead ?? target.headSha, pullRequest: target.pullRequest },
+          });
+        }
+      } catch {
+        // Without exact merged-state evidence the compensating lock remains the safe fallback.
+      }
+    }
+    const result = await invalidated(base, "merge-blocked", {
+      detail: error instanceof Error ? error.message : String(error),
+    }, dependencies, target);
+    if (result.state === "invalidated") {
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "operation-failed",
+        remedy: mergeRemedy("operation-failed", request.workUnit),
+        payload: result.payload,
+      });
+    }
+    return result;
+  }
+}

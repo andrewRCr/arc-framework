@@ -4,6 +4,9 @@ audience: agent
 arc:
   methods:
     - adversarial-review
+    - self-review
+    - review-triage
+    - commit-footer
     - quality-gate-commands
 ---
 
@@ -11,15 +14,25 @@ arc:
 
 Every task list ends with a verification phase containing a single task that points here.
 The task description is intentionally thin — this workflow is the authoritative protocol.
-Complete all three steps below, then mark the single verification task `[x]` with completion
-notes covering what was verified (see [Completion Notes](#completion-notes)).
+Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
+was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
 
-**Relationship to integrate-work-unit:** This is the implementer's validation pass. The
-[integrate-work-unit workflow][integrate-work-unit] performs a second confirmation during
-integration — a lightweight check that works whether the same person or a different team
-member integrates.
+**Relationship to preparation and integration:** This is the implementer's validation pass and the final execution
+task. Candidate attestation hands off to [prepare-work-unit][prepare-work-unit] for private review and convergence;
+[integrate-work-unit][integrate-work-unit] begins only after `arc publish` starts public integration.
 
-## Step 1 — Tier 3 Quality Gates
+## Step 1 — Clean, Self-Review, and Run Tier 3 Quality Gates
+
+Before the Candidate exists, clean the WU content:
+
+- If `notes-{name}.md` exists, follow [`clean-work-unit.md`][clean] `§ Notes File Consolidation`: keep it only when
+  already reference-ready, or delete it and remove task-file references.
+- Apply [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass` when the task list carries temporal markers,
+  ad-hoc inline status, or accumulated scratchpad content.
+
+If the [`self-review` method][self-review] is effectively active, execute it against the local aggregate diff vs
+the base branch. Classify findings per [`review-triage`][review-triage], obtain approval for the complete disposition
+set, and commit approved fixes per [`commit-footer`][commit-footer] before continuing.
 
 Run the full quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
@@ -78,14 +91,13 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
-## Step 3 — Pre-align Meta File for Integration Handoff
+## Step 3 — Attest the Candidate
 
-Before marking the verification task `[x]`, run `arc finalize verify` — it writes the
-integration-handoff pointer `integrate-work-unit Step 1 — verify completion` to the active meta
-file's `**Next Action:**` through the field model (the workflow-step-pointer convention,
-[session-handoff][session-handoff] § _Workflow step pointer_). This closes the inference gap
-between verification close and integrate-entry — the session-init probe relies on this prefix
-to set `sessionType: integration`. Stage with the verification commit.
+Complete the verification task's success-criteria and completion-note edits, then run `arc attest {name} --json`. It
+attests the staged subject as a Candidate, leaves lifecycle `State` unchanged, and returns the typed pre-publication
+locus. It refuses while verified reviewable content is absent from that staged subject, naming what is missing. The
+managed record and meta projection it writes are staged with it, so they ride the verification commit. A repeated
+invocation over the same subject is a no-op.
 
 ## Completion Notes
 
@@ -106,5 +118,9 @@ verification-task exception). Cover both:
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[clean]: ../supplemental/clean-work-unit.md
+[self-review]: ../../../methods/self-review.md
+[review-triage]: ../../../methods/review-triage.md
+[commit-footer]: ../../../methods/commit-footer.md
+[prepare-work-unit]: prepare-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
-[session-handoff]: ../session-lifecycle/session-handoff.md

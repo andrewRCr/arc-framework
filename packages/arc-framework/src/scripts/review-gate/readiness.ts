@@ -7,9 +7,13 @@
  * A `delivery-member` vehicle adds one further authority source, outside that
  * root: the delivery lookup its caller supplies, which reads the Git-common
  * delivery state of the repository the caller's composition root resolved.
- * Delivery state is repository-common rather than a tree product, and the
- * supplied tree is untrusted by construction, so the binding cannot come from
- * the request. Nothing else here reads outside the supplied root.
+ * Delivery state is repository-common rather than a tree product, so the
+ * binding cannot come from the request. Nothing else here reads outside the
+ * supplied root.
+ *
+ * The supplied checkout belongs to the attended operator. This reader checks
+ * lifecycle completeness; it does not impose symlink, containment, or
+ * duplicate-entry forensics on that checkout.
  *
  * That read is not side-effect-free. The underlying snapshot creates its
  * namespace directory and takes an advisory lock, so evaluating a member writes
@@ -21,13 +25,8 @@
  * @module
  */
 
-import {
-  lstat,
-  readFile,
-  readdir,
-  realpath,
-} from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -36,6 +35,7 @@ import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
 import type { DeliveryMemberLookup } from "./core/delivery-member-lookup.js";
+import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z
@@ -45,14 +45,13 @@ const RepositorySchema = z
     (repository) => repository.split("/").every((segment) => /[^.]/u.test(segment)),
     "repository segments must not consist only of dots",
   );
-const ShaSchema = z.string().regex(/^[a-f0-9]{40}$/u);
 const PlanIdSchema = z.uuid();
 const DeliverableIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
 export const ReviewTargetSchema = z.strictObject({
   repository: RepositorySchema,
   pullRequest: z.number().int().positive(),
-  headSha: ShaSchema,
+  headSha: GitObjectIdSchema,
 });
 
 export const LivePullRequestSchema = z.strictObject({
@@ -60,7 +59,7 @@ export const LivePullRequestSchema = z.strictObject({
   number: z.number().int().positive(),
   state: z.enum(["open", "closed"]),
   headBranch: z.string().min(1),
-  headSha: ShaSchema,
+  headSha: GitObjectIdSchema,
 });
 
 export const ReviewTreeRootSchema = z.string().min(1).refine(isAbsolute, "treeRoot must be absolute");
@@ -132,7 +131,6 @@ export type ReviewReadinessEnvelope = z.infer<typeof ReviewReadinessEnvelopeSche
 export interface ReviewReadinessStat {
   isFile(): boolean;
   isDirectory(): boolean;
-  isSymbolicLink(): boolean;
 }
 
 /** Minimal directory-entry shape used by the readiness filesystem boundary. */
@@ -141,10 +139,9 @@ export interface ReviewReadinessDirEntry {
   isDirectory(): boolean;
 }
 
-/** Filesystem boundary for inspecting an untrusted worktree as data. */
+/** Filesystem boundary for reading lifecycle products from an operator checkout. */
 export interface ReviewReadinessFs {
-  lstat(path: string): Promise<ReviewReadinessStat>;
-  realpath(path: string): Promise<string>;
+  stat(path: string): Promise<ReviewReadinessStat>;
   readFile(path: string): Promise<string>;
   readdir(path: string): Promise<ReviewReadinessDirEntry[]>;
 }
@@ -165,8 +162,7 @@ export interface ReviewReadinessDependencies {
 }
 
 const DEFAULT_FS: ReviewReadinessFs = {
-  lstat,
-  realpath,
+  stat,
   readFile: (path) => readFile(path, "utf8"),
   readdir: (path) => readdir(path, { withFileTypes: true }),
 };
@@ -225,26 +221,17 @@ function ready(request: ReviewReadinessRequest): ReviewReadinessEnvelope {
   });
 }
 
-function isInside(root: string, candidate: string): boolean {
-  const rel = relative(root, candidate);
-  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
-}
-
 async function resolveRoot(
   requestedRoot: string,
   fs: ReviewReadinessFs,
 ): Promise<{ root?: string; fact?: ReviewReadinessFact }> {
   try {
     const requested = resolve(requestedRoot);
-    const stat = await fs.lstat(requested);
-    if (stat.isSymbolicLink()) {
-      return { fact: fact("symlinked-root", requestedRoot, "The supplied tree root must not be a symbolic link.") };
-    }
-    if (!stat.isDirectory()) {
+    const rootStat = await fs.stat(requested);
+    if (!rootStat.isDirectory()) {
       return { fact: fact("non-directory-root", requestedRoot, "The supplied tree root is not a directory.") };
     }
-    const root = await fs.realpath(requested);
-    return { root };
+    return { root: requested };
   } catch {
     return { fact: fact("missing-root", requestedRoot, "The supplied tree root is missing or unreadable.") };
   }
@@ -256,25 +243,13 @@ async function readRegularFile(
   fs: ReviewReadinessFs,
 ): Promise<ReadResult> {
   const candidate = resolve(root, relativePath);
-  if (!isInside(root, candidate)) {
-    return {
-      path: relativePath,
-      fact: fact("escaping-artifact", relativePath, "The required artifact path escapes the supplied tree."),
-    };
-  }
   let stat: ReviewReadinessStat;
   try {
-    stat = await fs.lstat(candidate);
+    stat = await fs.stat(candidate);
   } catch {
     return {
       path: relativePath,
       fact: fact("missing-artifact", relativePath, "The required artifact is missing."),
-    };
-  }
-  if (stat.isSymbolicLink()) {
-    return {
-      path: relativePath,
-      fact: fact("symlinked-artifact", relativePath, "The required artifact is a symbolic link."),
     };
   }
   if (!stat.isFile()) {
@@ -284,13 +259,6 @@ async function readRegularFile(
     };
   }
   try {
-    const canonical = await fs.realpath(candidate);
-    if (!isInside(root, canonical)) {
-      return {
-        path: relativePath,
-        fact: fact("escaping-artifact", relativePath, "The required artifact resolves outside the supplied tree."),
-      };
-    }
     return { path: relativePath, content: await fs.readFile(candidate) };
   } catch {
     return {
@@ -306,22 +274,10 @@ async function readDirectory(
   fs: ReviewReadinessFs,
 ): Promise<{ entries?: ReviewReadinessDirEntry[]; fact?: ReviewReadinessFact }> {
   const candidate = resolve(root, relativePath);
-  if (!isInside(root, candidate)) {
-    return { fact: fact("escaping-artifact", relativePath, "The required directory escapes the supplied tree.") };
-  }
   try {
-    const stat = await fs.lstat(candidate);
-    if (stat.isSymbolicLink()) {
-      return { fact: fact("symlinked-artifact", relativePath, "The required directory is a symbolic link.") };
-    }
-    if (!stat.isDirectory()) {
+    const directoryStat = await fs.stat(candidate);
+    if (!directoryStat.isDirectory()) {
       return { fact: fact("non-regular-artifact", relativePath, "The required path is not a directory.") };
-    }
-    const canonical = await fs.realpath(candidate);
-    if (!isInside(root, canonical)) {
-      return {
-        fact: fact("escaping-artifact", relativePath, "The required directory resolves outside the supplied tree."),
-      };
     }
     return { entries: await fs.readdir(candidate) };
   } catch (error) {
@@ -504,6 +460,18 @@ function releaseNotesFacts(content: string, path: string): ReviewReadinessFact[]
   return [];
 }
 
+/**
+ * Collect the lifecycle-artifact facts a work-unit meta owes before merge: Completion
+ * Notes are required, and a Release Notes Entry is validated whenever one is present.
+ *
+ * @param content - The work-unit meta's full text.
+ * @param path - The meta's path, reported on each fact.
+ * @returns One fact per unmet obligation; empty when the artifacts are satisfied.
+ */
+export function lifecycleArtifactFacts(content: string, path: string): ReviewReadinessFact[] {
+  return [...completionFacts(content, path), ...releaseNotesFacts(content, path)];
+}
+
 async function evaluateDeliveryMember(
   request: ReviewReadinessRequest & {
     vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
@@ -595,8 +563,7 @@ async function evaluateManualWorkUnit(
       "The active work-unit meta branch does not match the pull-request head branch.",
     ));
   }
-  facts.push(...completionFacts(content, path));
-  facts.push(...releaseNotesFacts(content, path));
+  facts.push(...lifecycleArtifactFacts(content, path));
   return facts;
 }
 
@@ -688,20 +655,14 @@ async function collectMetaPaths(
     const absolute = resolve(root, child);
     const isMetaCandidate = /^meta-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u.test(entry.name);
     try {
-      const stat = await fs.lstat(absolute);
-      if (stat.isSymbolicLink()) {
-        if (isMetaCandidate || recursive) {
-          facts.push(fact("symlinked-artifact", child, "The lifecycle candidate is a symbolic link."));
-        }
-        continue;
-      }
-      if (stat.isDirectory()) {
+      const candidateStat = await fs.stat(absolute);
+      if (candidateStat.isDirectory()) {
         if (recursive) {
           const nested = await collectMetaPaths(root, child, fs, true);
           paths.push(...nested.paths);
           facts.push(...nested.facts);
         }
-      } else if (isMetaCandidate && stat.isFile()) {
+      } else if (isMetaCandidate && candidateStat.isFile()) {
         paths.push(child);
       } else if (isMetaCandidate) {
         facts.push(fact("non-regular-artifact", child, "The lifecycle candidate is not a regular file."));
@@ -826,7 +787,7 @@ async function cohortCoordinateFacts(
       : [active.fact];
   }
   try {
-    await fs.lstat(resolve(root, coordinator));
+    await fs.stat(resolve(root, coordinator));
     return [fact(
       "incomplete-cohort-closeout",
       coordinator,
@@ -887,14 +848,11 @@ async function evaluateArchivedWorkUnit(
       "The completed work-unit archive is missing.",
     )];
   }
-  if (archive.candidates.length > 1) {
-    return [fact(
-      "duplicate-artifact",
-      `.arc/completed/**/meta-${request.vehicle.slug}.md`,
-      "The completed work-unit archive is ambiguous.",
-    )];
-  }
-  const candidate = archive.candidates[0];
+  const candidate = [...archive.candidates].sort((left, right) => (
+    left.quarter === right.quarter
+      ? Number(left.sequence) - Number(right.sequence)
+      : left.quarter.localeCompare(right.quarter)
+  )).at(-1);
   if (candidate === undefined) return [];
   const result = await readRegularFile(root, candidate.metaPath, fs);
   if (result.fact !== undefined) return [result.fact];
@@ -931,8 +889,7 @@ async function evaluateArchivedWorkUnit(
       "The archived PR URL does not name the guarded repository and pull request.",
     ));
   }
-  facts.push(...completionFacts(content, candidate.metaPath));
-  facts.push(...releaseNotesFacts(content, candidate.metaPath));
+  facts.push(...lifecycleArtifactFacts(content, candidate.metaPath));
   facts.push(...await lifecycleCandidateFacts(root, fs));
   if (facts.length === 0) {
     facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.cohort, request.vehicle.slug));

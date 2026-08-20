@@ -18,6 +18,7 @@ import {
 } from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import {
+  LoadSetAuditDiffSchema,
   LoadSetAuditVerdictSchema,
   LoadSetPathDriftSchema,
   auditLoadSetManifest,
@@ -115,6 +116,14 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
     detail: z.strictObject({
       slug: z.string(),
       pathDrifts: z.array(LoadSetPathDriftSchema),
+    }),
+  }),
+  z.strictObject({
+    kind: z.literal("load-set-prepublication-projection"),
+    message: z.string(),
+    detail: z.strictObject({
+      slug: z.string(),
+      diff: LoadSetAuditDiffSchema,
     }),
   }),
 ]);
@@ -382,7 +391,8 @@ function auditLoadSet(
     fresh: options.recover.loadSet.value,
   });
   const archivalRelocation = archivedIntegrationRelocation(options, verdict);
-  if (verdict.diverged && archivalRelocation === null) {
+  const prepublicationProjection = candidatePrepublicationProjection(options, verdict);
+  if (verdict.diverged && archivalRelocation === null && prepublicationProjection === null) {
     stopReasons.push({
       kind: "load-set-drift",
       message: "fresh recovery load-set diverges from the compaction seed baseline",
@@ -394,8 +404,60 @@ function auditLoadSet(
       message: "the integrating work unit's exact meta moved from active to its completed archive",
       detail: archivalRelocation,
     });
+  } else if (prepublicationProjection !== null) {
+    explainedDrift.push({
+      kind: "load-set-prepublication-projection",
+      message: "the Candidate boundary replaced the old execution recovery context with prepublication",
+      detail: prepublicationProjection,
+    });
   }
   return verdict;
+}
+
+function candidatePrepublicationProjection(
+  options: AuditRecoveryStateOptions,
+  verdict: LoadSetAuditVerdict,
+): { slug: string; diff: LoadSetAuditVerdict["diff"] } | null {
+  const slug = options.seed.activeWorkUnit;
+  if (slug === null
+    || options.seed.sessionType !== "execution"
+    || options.seed.currentWorkflow !== "process-task-loop"
+    || options.seed.taskCursor !== null
+    || !verdict.diverged
+    || !options.recover.loadSet.ok
+    || !options.recover.recoveryFrame.ok
+    || !options.recover.derivedLocusState.ok) return null;
+  const recoveryFrame = options.recover.recoveryFrame.value;
+  const entering = options.recover.derivedLocusState.value.entering;
+  if (recoveryFrame.kind !== "resolved"
+    || recoveryFrame.subject.kind !== "work-unit"
+    || recoveryFrame.subject.key !== slug
+    || recoveryFrame.sessionType !== "prepublication"
+    || recoveryFrame.workflow !== "prepare-work-unit"
+    || entering.kind !== "selected"
+    || entering.row.kind !== "work-unit"
+    || entering.row.subject.kind !== "work-unit"
+    || entering.row.subject.key !== slug
+    || entering.row.lifecycleLocation !== "active"
+    || entering.row.context === null
+    || entering.row.context.integrationBoundary === null
+    || entering.row.context.taskCursor?.status !== "no-open-task") return null;
+
+  const taskEntries = options.seed.loadSet.entries.filter((entry) => entry.readMode.kind === "partial-strategic");
+  const processPath = ".arc/system/workflows/arc/process-task-loop.md";
+  const preparePath = ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+  if (taskEntries.length !== 1
+    || options.seed.loadSet.entries.filter((entry) => entry.path === processPath).length !== 1) return null;
+  const projected = {
+    manifestVersion: options.seed.loadSet.manifestVersion,
+    entries: options.seed.loadSet.entries.flatMap((entry) => {
+      if (entry.readMode.kind === "partial-strategic") return [];
+      if (entry.path === processPath) return [{ path: preparePath, readMode: { kind: "full" as const } }];
+      return [entry];
+    }),
+  };
+  if (auditLoadSetManifest({ baseline: projected, fresh: options.recover.loadSet.value }).diverged) return null;
+  return { slug, diff: verdict.diff };
 }
 
 function archivedIntegrationRelocation(
@@ -594,6 +656,11 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
     && options.recover.recoveryFrame.value.kind !== "none"
     ? options.recover.recoveryFrame.value.sessionType
     : null;
+  const freshCursor = options.recover.taskCursor;
+  if (freshSessionType === "prepublication"
+    && options.seed.taskCursor === null
+    && freshCursor?.ok
+    && freshCursor.value.status === "no-open-task") return false;
   if (
     options.seed.sessionType === "execution"
     || freshSessionType === "execution"
@@ -603,7 +670,6 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
   }
   if (freshSessionType === "planning") return false;
 
-  const freshCursor = options.recover.taskCursor;
   if (freshCursor === undefined) return options.seed.sessionType === "integration" || freshSessionType === "integration";
   if (!freshCursor.ok) return true;
   return freshCursor.value.status !== "no-open-task";

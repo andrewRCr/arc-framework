@@ -22,13 +22,11 @@ function fileInfo(kind: "file" | "directory" | "symlink") {
   return {
     isFile: () => kind === "file",
     isDirectory: () => kind === "directory",
-    isSymbolicLink: () => kind === "symlink",
   };
 }
 
 interface FakeFsOptions {
   kinds?: Record<string, "file" | "directory" | "symlink">;
-  realpaths?: Record<string, string>;
   unreadable?: readonly string[];
   unreadableDirectories?: readonly string[];
   missingRoot?: boolean;
@@ -44,17 +42,15 @@ function buildFs(files: Record<string, string>, options: FakeFsOptions = {}): Re
     }
   }
   return {
-    lstat: async (path) => {
+    stat: async (path) => {
       const kind = options.kinds?.[path];
+      if (kind === "symlink") {
+        if (path in files) return fileInfo("file");
+        if (directories.has(path)) return fileInfo("directory");
+      }
       if (kind !== undefined) return fileInfo(kind);
       if (path in files) return fileInfo("file");
       if (directories.has(path)) return fileInfo("directory");
-      throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
-    },
-    realpath: async (path) => {
-      const canonical = options.realpaths?.[path];
-      if (canonical !== undefined) return canonical;
-      if (path in files || path in (options.kinds ?? {}) || directories.has(path)) return path;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     },
     readFile: async (path) => {
@@ -325,6 +321,21 @@ Projects enabling the context must install the pinned workflow.
     expect(result.state).toBe("ready");
   });
 
+  it("accepts a symbolic-link lifecycle directory when its target is a directory", async () => {
+    const completed = `${ROOT}/.arc/completed`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs(
+          { [`${completed}/2026-q3/07_demo/meta-demo.md`]: shippedMeta() },
+          { kinds: { [completed]: "symlink" } },
+        ),
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
   it("accepts an exact Errand identity without work-unit products", async () => {
     const result = await evaluateReviewReadiness(
       readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
@@ -354,25 +365,9 @@ Projects enabling the context must install the pinned workflow.
   it.each([
     ["missing", buildFs({}), "missing-artifact"],
     [
-      "symlinked",
-      buildFs(
-        { [`${ROOT}/.arc/active/meta-demo.md`]: manualMeta() },
-        { kinds: { [`${ROOT}/.arc/active/meta-demo.md`]: "symlink" } },
-      ),
-      "symlinked-artifact",
-    ],
-    [
       "non-regular",
       buildFs({}, { kinds: { [`${ROOT}/.arc/active/meta-demo.md`]: "directory" } }),
       "non-regular-artifact",
-    ],
-    [
-      "escaping",
-      buildFs(
-        { [`${ROOT}/.arc/active/meta-demo.md`]: manualMeta() },
-        { realpaths: { [`${ROOT}/.arc/active/meta-demo.md`]: "/outside/meta-demo.md" } },
-      ),
-      "escaping-artifact",
     ],
     [
       "unreadable",
@@ -399,31 +394,36 @@ Projects enabling the context must install the pinned workflow.
     });
   });
 
-  it("rejects a duplicate completed archive before trusting either candidate", async () => {
+  it("accepts a symbolic-link artifact when its target is a regular file", async () => {
+    const path = `${ROOT}/.arc/active/meta-demo.md`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "manual" }),
+      { fs: buildFs({ [path]: manualMeta() }, { kinds: { [path]: "symlink" } }) },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  it("uses the latest completed archive when an older copy remains", async () => {
+    const older = shippedMeta().replace(
+      "https://github.com/owner/repo/pull/42",
+      "https://github.com/owner/repo/pull/41",
+    );
     const result = await evaluateReviewReadiness(
       readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
       {
         fs: buildFs({
-          [`${ROOT}/.arc/completed/2026-q2/03_demo/meta-demo.md`]: shippedMeta(),
+          [`${ROOT}/.arc/completed/2026-q2/03_demo/meta-demo.md`]: older,
           [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
         }),
       },
     );
 
-    expect(result).toMatchObject({
-      state: "invalid",
-      payload: {
-        facts: [{
-          code: "duplicate-artifact",
-          path: ".arc/completed/**/meta-demo.md",
-        }],
-      },
-    });
+    expect(result.state).toBe("ready");
   });
 
   it.each([
     ["missing", buildFs({}, { missingRoot: true }), "missing-root"],
-    ["symlinked", buildFs({}, { kinds: { [ROOT]: "symlink" } }), "symlinked-root"],
     ["non-directory", buildFs({}, { kinds: { [ROOT]: "file" } }), "non-directory-root"],
   ])("rejects a %s supplied root explicitly", async (_case, fs, code) => {
     const result = await evaluateReviewReadiness(
@@ -435,6 +435,15 @@ Projects enabling the context must install the pinned workflow.
       state: "invalid",
       diagnostics: [{ code, path: ROOT }],
     });
+  });
+
+  it("accepts a symbolic-link root when its target is a directory", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
+      { fs: buildFs({}, { kinds: { [ROOT]: "symlink" } }) },
+    );
+
+    expect(result.state).toBe("ready");
   });
 
   it("propagates an unreadable archive-quarter enumeration", async () => {
@@ -549,7 +558,7 @@ Projects enabling the context must install the pinned workflow.
     });
   });
 
-  it("rejects malformed and symlinked lifecycle candidates used by readiness rendering", async () => {
+  it("rejects malformed lifecycle candidates used by readiness rendering", async () => {
     const roadmap = `${composeProjectReadinessView({
       title: "Roadmap: Project Status",
       renderedRef: "abc1234",
@@ -581,27 +590,16 @@ Projects enabling the context must install the pinned workflow.
             [`${ROOT}/.arc/active/meta-unrelated.md`]: "# malformed unrelated meta\n",
             [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
           },
-          {
-            kinds: {
-              [`${ROOT}/.arc/backlog/planned/unrelated/meta-unrelated.md`]: "symlink",
-            },
-          },
         ),
       },
     );
 
     expect(result).toMatchObject({
       state: "invalid",
-      diagnostics: expect.arrayContaining([
-        expect.objectContaining({
-          code: "malformed-artifact",
-          path: ".arc/active/meta-unrelated.md",
-        }),
-        expect.objectContaining({
-          code: "symlinked-artifact",
-          path: ".arc/backlog/planned/unrelated/meta-unrelated.md",
-        }),
-      ]),
+      diagnostics: [{
+        code: "malformed-artifact",
+        path: ".arc/active/meta-unrelated.md",
+      }],
     });
   });
 
@@ -631,18 +629,7 @@ Projects enabling the context must install the pinned workflow.
     });
   });
 
-  it.each([
-    [
-      "symlinked",
-      { kinds: { [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`]: "symlink" as const } },
-      "symlinked-artifact",
-    ],
-    [
-      "unreadable",
-      { unreadable: [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`] },
-      "unreadable-artifact",
-    ],
-  ])("rejects a %s completed record candidate", async (_case, options, code) => {
+  it("rejects an unreadable completed record candidate", async () => {
     const roadmap = `${composeProjectReadinessView({
       title: "Roadmap: Project Status",
       renderedRef: "abc1234",
@@ -655,17 +642,32 @@ Projects enabling the context must install the pinned workflow.
           [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
           [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`]: shippedMeta(),
           [`${ROOT}/.arc/backlog/ROADMAP.md`]: roadmap,
-        }, options),
+        }, { unreadable: [`${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`] }),
       },
     );
 
     expect(result).toMatchObject({
       state: "invalid",
       diagnostics: [{
-        code,
+        code: "unreadable-artifact",
         path: ".arc/completed/2026-q2/03_unrelated/meta-unrelated.md",
       }],
     });
+  });
+
+  it("accepts a symbolic-link lifecycle candidate when its target is a regular file", async () => {
+    const path = `${ROOT}/.arc/completed/2026-q2/03_unrelated/meta-unrelated.md`;
+    const result = await evaluateReviewReadiness(
+      readinessRequest({ kind: "work-unit", slug: "demo", archiveCadence: "with-integration" }),
+      {
+        fs: buildFs({
+          [`${ROOT}/.arc/completed/2026-q3/07_demo/meta-demo.md`]: shippedMeta(),
+          [path]: shippedMeta(),
+        }, { kinds: { [path]: "symlink" } }),
+      },
+    );
+
+    expect(result.state).toBe("ready");
   });
 
   it("ignores completed cohort closeout documents as non-meta archive sidecars", async () => {
@@ -1022,11 +1024,10 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
     const reads: string[] = [];
     const bare = buildFs({});
     const watched: ReviewReadinessFs = {
-      lstat: async (path) => {
+      stat: async (path) => {
         reads.push(path);
-        return bare.lstat(path);
+        return bare.stat(path);
       },
-      realpath: bare.realpath,
       readFile: async (path) => {
         reads.push(path);
         return bare.readFile(path);
@@ -1048,7 +1049,6 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
 
   it.each([
     ["missing", { missingRoot: true }, "missing-root"],
-    ["symlinked", { kinds: { [ROOT]: "symlink" as const } }, "symlinked-root"],
     ["non-directory", { kinds: { [ROOT]: "file" as const } }, "non-directory-root"],
   ])("refuses a %s supplied root with the same fact the other kinds produce", async (_case, options, code) => {
     const fs = buildFs({}, options);
@@ -1063,6 +1063,21 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
 
     expect(memberResult).toMatchObject({ state: "invalid", diagnostics: [{ code, path: ROOT }] });
     expect(errandResult).toMatchObject({ state: "invalid", diagnostics: [{ code, path: ROOT }] });
+  });
+
+  it("admits a symbolic-link root consistently for member and local vehicles", async () => {
+    const fs = buildFs({}, { kinds: { [ROOT]: "symlink" } });
+    const memberResult = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs, deliveryMemberLookup: memberLookup(resolvedMember()) },
+    );
+    const errandResult = await evaluateReviewReadiness(
+      readinessRequest({ kind: "errand", slug: "demo" }, { headBranch: "fix/demo" }),
+      { fs },
+    );
+
+    expect(memberResult.state).toBe("ready");
+    expect(errandResult.state).toBe("ready");
   });
 
   it("reports an unusable root ahead of the delivery fault", async () => {

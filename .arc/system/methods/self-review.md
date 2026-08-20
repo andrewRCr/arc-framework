@@ -9,7 +9,7 @@ override-active: false
 
 # Method: self-review
 
-> - **Workflow:** [integrate-work-unit.md][integrate-work-unit] (primary caller)
+> - **Workflow:** [prepare-work-unit.md][prepare-work-unit] (primary caller)
 > - **When:** When a workflow or skill invokes local diff preflight — notably before opening a change request
 >
 > - **Contract:** The authoring agent reviews its aggregate local diff for cross-cutting issues that per-task review
@@ -52,12 +52,12 @@ code systematically underperforms on error cases and edge conditions.
 
 **Process findings** using the [review-triage method](review-triage.md): verify them against source, propose severity
 and disposition for the complete set, and obtain approval before applying fixes. Run Tier 3 quality gates on modified
-files. Commit fixes using the context footer appropriate to the invoking workflow (e.g., `(integration)` when called
-from integrate-work-unit.md).
+files. Commit finding-driven fixes with the canonical `(code review)` context footer; reserve lifecycle-phase
+footers for ceremony commits rather than the fixes review produced.
 
 For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
 preflight as independent evidence.
 
 ---
 
-[integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md

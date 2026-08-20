@@ -138,7 +138,7 @@
 
 ### `[ ]` **Audit lifecycle workflows for stale ROADMAP hand-render advisories**
 
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc integrate` was found
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc publish` was found
   to regenerate and stage ROADMAP despite stale workflow prose saying to hand-render it.
 - _Approach:_ verify each lifecycle verb's actual render/stage side effects before editing. Correct only workflows
   whose command already regenerates and stages, in package and project copies; candidate surfaces are promote,

@@ -364,6 +364,7 @@ function activeSessionInit(
     sessionType: "planning",
     currentWorkflow: null,
     planningStage: null,
+    integrationBoundary: null,
     warnings: [],
     ...overrides,
   };
@@ -433,6 +434,7 @@ function derivedFrameFromActive(
       activeExtensions,
       cohortDocPath,
     }),
+    integrationBoundary: active.integrationBoundary,
   };
   const row = {
     kind: "work-unit" as const,

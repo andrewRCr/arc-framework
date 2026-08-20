@@ -211,7 +211,7 @@ async function transitionMergeLock(
 
   const lock = await readLockMode(port, request.treeRoot);
   if (lock === "unresolved") return blocked("config-unresolved", CONFIG_UNRESOLVED_MESSAGE);
-  if (lock === "none") return noLock("lock-disabled");
+  if (lock === "none" && kind === "hold") return noLock("lock-disabled");
 
   // A transition owes three things, in this order, and no outcome may skip one:
   //
@@ -230,6 +230,8 @@ async function transitionMergeLock(
     const unready = await gateCandidateReadiness(request, bound.pullRequest, port);
     if (unready !== null) return refuse(unready);
   }
+
+  if (lock === "none") return noLock("lock-disabled");
 
   const settlement = await settleLockState(kind, shape, request, bound.pullRequest, port);
   if ("refusal" in settlement) return refuse(settlement.refusal);

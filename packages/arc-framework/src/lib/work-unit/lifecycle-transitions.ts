@@ -31,7 +31,7 @@ import type { LifecyclePosition, Location, Phase } from "./lifecycle-state.js";
 /**
  * The work-unit lifecycle verbs — the fully inverse-paired edge set.
  *
- * Phase-axis: `activate` ⊥ `deactivate`, `reopen` ⊥ `integrate`. Location-axis:
+ * Phase-axis: `activate` ⊥ `deactivate`, `reopen` ⊥ `publish`. Location-axis:
  * `park` ⊥ `resume`, `promote` ⊥ `demote`. Forward / terminal / destructive:
  * `stub` ⊥ `abandon`, `decompose`, and `archive` (irreversible). `start` is
  * the state-dispatching entry verb (the inverse of `park` at its headline cell).
@@ -46,7 +46,7 @@ export const VERBS = [
   "activate",
   "deactivate",
   "reopen",
-  "integrate",
+  "publish",
   "promote",
   "demote",
   "stub",
@@ -154,11 +154,17 @@ export interface MutatorSpec {
    */
   clearBranchField?: boolean;
   /**
+   * Project a live lifecycle workflow into the meta `Current Workflow` field.
+   * Publication writes `integrate-work-unit`; withdrawal returns to
+   * `prepare-work-unit`. Mutually exclusive with `clearCurrentWorkflowField`.
+   */
+  setCurrentWorkflowField?: string;
+  /**
    * Clear the meta `Current Workflow` field to `[none]`. Edges that enter a
-   * terminal or non-planning state use this so stale workflow pointers do not
-   * survive after the phase transition. A logical-only field write (no git op),
-   * mirroring {@link clearBranchField}; re-entry into planning re-sets the
-   * pointer via the stage-entry write.
+   * state with no live workflow pointer use this so stale values do not survive
+   * after the phase transition. A logical-only field write (no git op), mirroring
+   * {@link clearBranchField}; re-entry into planning re-sets the pointer via the
+   * stage-entry write.
    */
   clearCurrentWorkflowField?: boolean;
 }
@@ -351,7 +357,7 @@ function withRender(...extra: SideEffectId[]): SideEffectId[] {
  * guards, encoding mutators, side-effects, and soft-field dispositions,
  * replacing the rules previously restated per workflow.
  *
- * Composite verbs (`integrate`, `decompose`) appear as edges declaring their
+ * Composite verbs (`publish`, `decompose`) appear as edges declaring their
  * encoding; their judgment halves stay in the owning workflows
  * (`integrate-work-unit`; `decompose-matrix` owns `decompose`'s full
  * parent-position matrix and refines its target/encoding). `start` is the
@@ -362,7 +368,7 @@ function withRender(...extra: SideEffectId[]): SideEffectId[] {
  * worktree-touching edges per the satellite's open/close set.
  */
 export const TRANSITIONS: readonly TransitionRecord[] = [
-  // -- Phase axis: activate / deactivate, integrate / reopen --
+  // -- Phase axis: activate / deactivate, publish / reopen --
   {
     verb: "activate",
     from: PLANNING,
@@ -384,12 +390,12 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
   {
-    verb: "integrate",
+    verb: "publish",
     from: ACTIVE,
     to: INTEGRATING,
     inverse: "reopen",
     guards: [],
-    encodingUpdates: { setPhase: true },
+    encodingUpdates: { setPhase: true, setCurrentWorkflowField: "integrate-work-unit" },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: "input", lastCompleted: "input", blockers: "leave" },
   },
@@ -397,12 +403,12 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     verb: "reopen",
     from: INTEGRATING,
     to: ACTIVE,
-    inverse: "integrate",
+    inverse: "publish",
     guards: ["pr-unmerged"],
-    encodingUpdates: { setPhase: true },
+    encodingUpdates: { setPhase: true, setCurrentWorkflowField: "prepare-work-unit" },
     sideEffects: withRender("withdraw-pr"),
     // Withdrawal back to Active clears the now-stale integration `Next Action`
-    // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `integrate`.
+    // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `publish`.
     softFields: { nextTask: "leave", nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
 
@@ -696,9 +702,9 @@ export const MARKED_ILLEGAL: readonly IllegalCell[] = [
     "deactivate undoes a premature activation; only an `active` WU qualifies",
   ),
   ...illegalCells(
-    "integrate",
+    "publish",
     [PROVISIONAL, PLANNED, PLANNING, INTEGRATING, PARKED, SHIPPED],
-    "integrate opens review on an active WU; only an `active` WU qualifies",
+    "publish schedules publication for an active WU; only an `active` WU qualifies",
   ),
   ...illegalCells(
     "reopen",

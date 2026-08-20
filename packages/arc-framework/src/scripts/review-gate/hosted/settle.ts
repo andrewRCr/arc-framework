@@ -8,6 +8,11 @@ const HostedSettleDispositionSchema = z.enum(["fix", "defer", "reject"]);
 
 export const HostedSettleEnvelopeSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  response: z.strictObject({
+    attemptRef: z.string().trim().min(1),
+    dispositionSetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    findingId: z.string().trim().min(1),
+  }),
   target: HostedTargetSchema,
   fixTarget: HostedTargetSchema.nullable(),
   actorIdentity: z.string().min(1),
@@ -94,6 +99,7 @@ export interface HostedSettlementPort {
 const HostedSettleResultBaseShape = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-hosted-settle"),
+  response: HostedSettleEnvelopeSchema.shape.response,
   disposition: HostedSettleDispositionSchema,
   threadId: z.string().min(1),
 };
@@ -121,6 +127,7 @@ export type HostedSettleResult = z.infer<typeof HostedSettleResultSchema>;
 interface HostedSettleBase {
   schemaVersion: 1;
   mode: "review-hosted-settle";
+  response: HostedSettleEnvelope["response"];
   disposition: "fix" | "defer" | "reject";
   threadId: string;
 }
@@ -129,6 +136,7 @@ function resultBase(request: HostedSettleEnvelope): HostedSettleBase {
   return {
     schemaVersion: 1,
     mode: "review-hosted-settle",
+    response: request.response,
     disposition: request.disposition,
     threadId: request.finding.threadId,
   };

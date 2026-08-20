@@ -24,6 +24,7 @@ function validRecord(): Record<string, unknown> {
     taskList: "tasks-cli-validation-surfaces.md",
     reviewRubric: null,
     promotionReceipt: null,
+    candidateId: null,
     currentWorkflow: null,
     lastCompleted: null,
     nextTask: "Task 2.1.a — Define the semantic meta-record contract",
@@ -63,6 +64,16 @@ describe("MetaRecordSchema", () => {
     expect(MetaRecordSchema.safeParse({ ...validRecord(), promotionReceipt: null }).success).toBe(true);
     for (const malformed of ["errand-v1/Repair/" + "a".repeat(32), "errand-v1/repair/stale", "repair"]) {
       expect(MetaRecordSchema.safeParse({ ...validRecord(), promotionReceipt: malformed }).success).toBe(false);
+    }
+  });
+
+  it("accepts only a canonical nullable Candidate identity", () => {
+    const candidateId = `sha256:${"a".repeat(64)}`;
+
+    expect(MetaRecordSchema.safeParse({ ...validRecord(), candidateId }).success).toBe(true);
+    expect(MetaRecordSchema.safeParse({ ...validRecord(), candidateId: null }).success).toBe(true);
+    for (const malformed of ["candidate", "sha256:stale", "a".repeat(64)]) {
+      expect(MetaRecordSchema.safeParse({ ...validRecord(), candidateId: malformed }).success).toBe(false);
     }
   });
 
@@ -144,6 +155,7 @@ describe("MetaProjectionRecordSchema", () => {
       "Task List": "tasks-example.md",
       "Review Rubric": null,
       "Promotion Receipt": null,
+      Candidate: null,
       "Current Workflow": null,
       "Last Completed": null,
       "Next Task": null,
@@ -167,7 +179,7 @@ describe("MetaProjectionRecordSchema", () => {
       Object.entries(complete).filter(([name]) => name !== "Promotion Receipt"),
     );
 
-    expect(Object.keys(complete)).toHaveLength(19);
+    expect(Object.keys(complete)).toHaveLength(20);
     expect(MetaProjectionRecordSchema.parse(historical)["Promotion Receipt"]).toBeNull();
     expect(MetaProjectionRecordSchema.safeParse(missing).success).toBe(false);
     expect(MetaProjectionRecordSchema.safeParse({ ...complete, Extra: null }).success).toBe(false);

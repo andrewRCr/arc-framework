@@ -55,7 +55,7 @@ export const RecoveryLocusFrameSchema = z.discriminatedUnion("kind", [
     checkoutPath: LocusAbsolutePathSchema,
     parentCheckoutPath: LocusAbsolutePathSchema.nullable(),
     workflow: LocusOpaqueTextSchema,
-    sessionType: z.enum(["planning", "execution", "integration"]).nullable(),
+    sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
   }),
 ]);
 

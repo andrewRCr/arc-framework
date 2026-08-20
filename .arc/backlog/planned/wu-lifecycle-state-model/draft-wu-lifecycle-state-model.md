@@ -19,7 +19,7 @@
 ### `[ ]` **Model draft-first review as a three-tier audience transition**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
-- _Concern:_ the current propose/submit model assumes private versus public, but draft locking adds a visible,
+- _Concern:_ the current private-Candidate/publication model assumes private versus public, but draft locking adds a visible,
   review-suppressed middle state. Treat release rather than PR creation as the public transition when locked;
   `merge.lock: none` collapses the two events naturally.
 
@@ -441,6 +441,11 @@
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
 
+- _Forward amendment (2026-08-19):_ The transition descriptions below are historical input, not the current
+  boundary contract. `arc attest` runs after verification and establishes the private Candidate/prepublication
+  locus; `arc publish` ends private preparation and starts public integration before the first push and change
+  request. Keep Candidate on the attested artifact/projection axis when integrating this item.
+
 - _Observation:_ the core reform names planning-completion as an attested artifact-axis signal that `State`
   flattens into the scheduling axis, with the missing primitive being its projection to an observable field
   (`Ready`). The identical shape exists at the other end of the lifecycle and is not captured. Verification
@@ -462,18 +467,17 @@
 
 - _Approach:_ treat `Candidate` as the tail-end peer of `Ready` on the same attested artifact axis, so the reform
   lands one projection primitive with two instances rather than solving readiness and then rediscovering the shape.
-  The two transitions the vocabulary then supports are **propose** (implementation clears, enter verification and
-  local review — private) and **submit** (verification and local review clear, open the pull request — public).
+  The two transitions the vocabulary then supports are **attest** (implementation clears, enter verification and
+  local review — private) and **publish** (verification and local review clear, open the pull request — public).
 
 - _Related — a live inconsistency the tail state would resolve:_ `integrate-work-unit` Step 1 states that
   "the `Integrating` state covers PR open through review-response," but fires the transition at Step 1 while the
   pull request opens at Step 3, with the local self-review preflight in between. So a work unit is `Integrating`
-  through a window where nothing is public. `review-protocol-alignment` concern 9 proposes moving that fire point
-  to the PR-open boundary and renaming the command to `arc submit` — deliberately minting **no** state and not
-  re-keying `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
+  through a window where nothing is public. The lifecycle command is now `arc publish`; its owning boundary work
+  moves that fire point to the publication-step head while deliberately minting **no** state and not re-keying
+  `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
   change shrinks `Integrating` to the public phase, which is the carve-out a `Candidate` state would make anyway,
   so the two compose rather than collide.
 
-- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the naming of the
-  `arc integrate` verb, which turned out to be misnamed because it names a phase's content rather than a
-  scheduling act, unlike every sibling transition verb.
+- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the scheduling
+  verb now named `arc publish`, distinct from the `arc integrate` procedure namespace.

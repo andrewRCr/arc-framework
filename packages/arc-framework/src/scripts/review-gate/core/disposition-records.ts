@@ -10,38 +10,95 @@ const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/
 const NonEmptyTextSchema = z.string().trim().min(1).max(4096);
 const ReferenceSchema = z.string().trim().min(1);
 
-export const DispositionReportItemSchema = z.strictObject({
+const DispositionReportItemFieldsSchema = z.strictObject({
   findingId: z.string().trim().min(1).max(512),
   sourceIdentity: IdentifierSchema,
   locus: z.string().trim().min(1).max(2048),
   sourceVerification: z.enum(["verified", "not-supported"]),
   verificationRefs: z.array(ReferenceSchema).min(1),
-  severity: ReviewSeveritySchema,
   nit: z.literal(true).optional(),
   disposition: FindingDispositionSchema,
   gating: z.enum(["blocking", "record-only"]),
   rationale: NonEmptyTextSchema,
   recommendation: NonEmptyTextSchema,
   openQuestions: z.array(NonEmptyTextSchema),
-}).superRefine((item, context) => {
-  if (item.nit === true && item.severity !== "minor") {
+});
+
+const CollapsedDispositionGradeSchema = DispositionReportItemFieldsSchema.extend({
+  sourceVerification: z.literal("verified"),
+  /** The one unqualified grade when reviewer and ARC assessment agree. */
+  severity: ReviewSeveritySchema,
+});
+
+const RegradedDispositionGradeSchema = DispositionReportItemFieldsSchema.extend({
+  sourceVerification: z.literal("verified"),
+  /** Reviewer-reported grade when ARC's effective grade differs. */
+  reviewerSeverity: ReviewSeveritySchema,
+  /** Reviewer-reported nit marker when ARC's effective classification cannot carry it. */
+  reviewerNit: z.literal(true).optional(),
+  /** ARC's effective grade when it differs from the reviewer grade. */
+  arcSeverity: ReviewSeveritySchema,
+}).refine((item) => item.reviewerSeverity !== item.arcSeverity, {
+  message: "matching reviewer and ARC severities collapse to the unqualified severity",
+  path: ["arcSeverity"],
+});
+
+const UnsupportedDispositionGradeSchema = DispositionReportItemFieldsSchema.extend({
+  sourceVerification: z.literal("not-supported"),
+  disposition: z.literal("reject"),
+  /** The reviewer's reported grade; ARC assigns no effective grade to an unsupported finding. */
+  reviewerSeverity: ReviewSeveritySchema,
+  reviewerNit: z.literal(true).optional(),
+});
+
+export const DispositionReportItemSchema = z.union([
+  CollapsedDispositionGradeSchema,
+  RegradedDispositionGradeSchema,
+  UnsupportedDispositionGradeSchema,
+]).superRefine((item, context) => {
+  const severity = "severity" in item
+    ? item.severity
+    : "arcSeverity" in item
+      ? item.arcSeverity
+      : item.reviewerSeverity;
+  if ("arcSeverity" in item && item.reviewerSeverity === item.arcSeverity) {
+    context.addIssue({
+      code: "custom",
+      message: "matching reviewer and effective severities collapse to the unqualified severity",
+      path: ["arcSeverity"],
+    });
+  }
+  if (item.nit === true && severity !== "minor") {
     context.addIssue({ code: "custom", message: "nit is valid only for minor findings", path: ["nit"] });
+  }
+  if ("reviewerNit" in item && item.reviewerNit === true && item.reviewerSeverity !== "minor") {
+    context.addIssue({ code: "custom", message: "reviewer nit is valid only for reviewer minor findings", path: ["reviewerNit"] });
   }
   if (item.nit === true && item.gating !== "record-only") {
     context.addIssue({ code: "custom", message: "nit findings are record-only", path: ["gating"] });
   }
-  if (item.severity !== "minor" && item.gating !== "blocking") {
+  if (severity !== "minor" && item.gating !== "blocking") {
     context.addIssue({ code: "custom", message: "blocker and major findings are blocking", path: ["gating"] });
-  }
-  if (item.sourceVerification === "not-supported" && item.disposition !== "reject") {
-    context.addIssue({
-      code: "custom",
-      message: "a finding not supported by source must be rejected",
-      path: ["disposition"],
-    });
   }
 });
 export type DispositionReportItem = z.infer<typeof DispositionReportItemSchema>;
+
+/** Resolve ARC's effective grade, or null when ARC rejected the finding as unsupported. */
+export function effectiveDispositionSeverity(
+  item: DispositionReportItem,
+): z.infer<typeof ReviewSeveritySchema> | null {
+  return "severity" in item ? item.severity : "arcSeverity" in item ? item.arcSeverity : null;
+}
+
+/** Resolve the reviewer-reported grade used to bind a disposition to its source finding. */
+export function reviewerDispositionSeverity(item: DispositionReportItem): z.infer<typeof ReviewSeveritySchema> {
+  return "severity" in item ? item.severity : item.reviewerSeverity;
+}
+
+/** Resolve the reviewer's nit marker independently from ARC's effective classification. */
+export function reviewerDispositionNit(item: { nit?: true; reviewerNit?: true }): true | undefined {
+  return "reviewerNit" in item ? item.reviewerNit : item.nit;
+}
 
 const DispositionSetFieldsSchema = z.strictObject({
   schemaVersion: z.literal(2),

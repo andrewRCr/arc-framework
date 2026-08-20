@@ -1,15 +1,46 @@
 /** Deterministic state planning for one bounded local review-response cycle. */
 
 import { validateDispositionState } from "./dispositions.js";
+import { reviewerDispositionNit, reviewerDispositionSeverity } from "./disposition-records.js";
 import { createFixAuthorization } from "./fix-authorization.js";
+import { validateReviewTarget } from "./gate-contract-v2.js";
 import {
   ReviewResponseInputSchema,
   ReviewResponsePlanSchema,
+  ReviewResponseSettlementActionSchema,
+  ReviewResponseSettlementRequestSchema,
   type ReviewResponseCapability,
   type ReviewResponseInput,
   type ReviewResponsePlan,
+  type ReviewResponseSettlementAction,
+  type ReviewResponseSettlementRequest,
   type ReviewResponseState,
 } from "./response-plan-schema.js";
+
+/** Compose the exact approved local/frontline settlement action consumed by `review respond`. */
+export function composeReviewResponseSettlementAction(input: {
+  originTarget: ReviewResponseSettlementAction["originTarget"];
+  fixTarget: ReviewResponseSettlementAction["fixTarget"];
+  request: ReviewResponseSettlementRequest;
+}): ReviewResponseSettlementAction {
+  const request = ReviewResponseSettlementRequestSchema.parse(input.request);
+  const dispositions = validateDispositionState(request.dispositions);
+  if (dispositions.state !== "approved") throw new Error("settlement requires approved dispositions");
+  const originTarget = validateReviewTarget(input.originTarget);
+  const fixTarget = input.fixTarget === null ? null : validateReviewTarget(input.fixTarget);
+  return ReviewResponseSettlementActionSchema.parse({
+    channel: "review-response",
+    dispositionId: dispositions.dispositionSet.dispositionSetId,
+    originTarget,
+    fixTarget,
+    actors: {
+      approverIdentity: dispositions.approval.approvedBy,
+      proposerIdentity: dispositions.dispositionSet.proposedBy,
+    },
+    findingIds: dispositions.dispositionSet.findings.map(({ findingId }) => findingId).sort(),
+    request: { ...request, dispositions },
+  });
+}
 
 function plan(
   input: ReviewResponseInput,
@@ -51,14 +82,19 @@ function findingsMatch(input: ReviewResponseInput): boolean {
     const finding = normalized.get(item.findingId);
     return finding !== undefined
       && finding.locus === item.locus
-      && finding.severity === item.severity
-      && finding.nit === item.nit;
+      && finding.severity === reviewerDispositionSeverity(item)
+      && finding.nit === reviewerDispositionNit(item);
   });
 }
 
 /** Project exactly one response state without provider commands or host-private inputs. */
 export function projectReviewResponse(inputValue: unknown): ReviewResponsePlan {
-  const input = ReviewResponseInputSchema.parse(inputValue);
+  const parsed = ReviewResponseInputSchema.parse(inputValue);
+  const input = {
+    ...parsed,
+    currentTarget: validateReviewTarget(parsed.currentTarget),
+    candidateTarget: parsed.candidateTarget === null ? null : validateReviewTarget(parsed.candidateTarget),
+  };
   if (input.dispositionState === null) {
     return input.capabilities.approve
       ? plan(input, "awaiting-approval", {

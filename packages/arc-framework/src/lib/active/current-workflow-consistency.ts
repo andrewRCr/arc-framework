@@ -2,10 +2,10 @@
  * Encoding-consistency validator for the meta `Current Workflow` field — the
  * write-side drift guard.
  *
- * `Current Workflow` is a code-owned, single-owner field: the lifecycle executor
- * writes it at each planning-stage transition, session-init reads it to resolve
- * the planning sub-stage, and nothing hand-edits it. This validator asserts the
- * field agrees with the rest of the meta state across the
+ * `Current Workflow` is a code-owned, single-owner field: lifecycle ceremonies
+ * write it at planning-stage and publication-phase transitions, session-init
+ * reads planning values to resolve the sub-stage, and nothing hand-edits it. This
+ * validator asserts the field agrees with the rest of the meta state across the
  * `(State, Current Workflow, Design)` tuple, so a stale or mistyped value is
  * caught rather than silently mis-resolving a sub-stage:
  *
@@ -14,8 +14,11 @@
  *    model — `draft-design` / `create-spec` keep `Design` on the draft (or
  *    `[none]` before one exists), and the `draft → spec` repoint rides
  *    create-spec finalization, so `generate-tasks` implies a `spec-*` `Design`.
- *  - Under any non-planning state, `Current Workflow` is `[none]` (or absent on a
- *    legacy meta) — a live workflow value there is stale planning drift.
+ *  - Under `State: Active`, `[none]` represents task execution and
+ *    `prepare-work-unit` represents a Candidate in private preparation.
+ *  - Under `State: Integrating`, `integrate-work-unit` represents public
+ *    integration. Other non-planning states carry `[none]` (or an absent legacy
+ *    field).
  *
  * Pure over its parsed-tuple input (no fs/git side effects): callers parse the
  * meta and pass the three field values. Mirrors {@link checkCohortConsistency}'s
@@ -30,6 +33,10 @@ const PLANNING_STATE = "Planning";
 
 /** The out-of-planning / absent-pointer sentinel. */
 const NONE_SENTINEL = "[none]";
+
+/** The lifecycle workflows carried outside planning. */
+const PREPUBLICATION_WORKFLOW = "prepare-work-unit";
+const INTEGRATION_WORKFLOW = "integrate-work-unit";
 
 /** The closed set of planning-stage `Current Workflow` values, in stage order. */
 export const PLANNING_WORKFLOWS = ["draft-design", "create-spec", "generate-tasks"] as const;
@@ -93,12 +100,14 @@ export function checkCurrentWorkflowConsistency(input: CurrentWorkflowConsistenc
   const { state, currentWorkflow, design } = input;
 
   if (state !== PLANNING_STATE) {
-    // Outside planning, the field must be the [none] sentinel (or absent on a
-    // legacy meta). A live planning-stage value here is stale drift.
-    if (currentWorkflow !== null && currentWorkflow !== NONE_SENTINEL) {
+    const allowed = currentWorkflow === null
+      || currentWorkflow === NONE_SENTINEL
+      || (state === "Active" && currentWorkflow === PREPUBLICATION_WORKFLOW)
+      || (state === "Integrating" && currentWorkflow === INTEGRATION_WORKFLOW);
+    if (!allowed) {
       diagnostics.push(
-        `Current Workflow "${currentWorkflow}" is set under non-planning State ` +
-          `"${state ?? "(absent)"}" (must be "${NONE_SENTINEL}" outside State: ${PLANNING_STATE})`,
+        `Current Workflow "${currentWorkflow}" does not match non-planning State ` +
+          `"${state ?? "(absent)"}"`,
       );
     }
     return diagnostics;

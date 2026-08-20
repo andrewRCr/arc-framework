@@ -116,12 +116,44 @@ async function fixture(): Promise<string> {
     "- **Branch:** feat/review-protocol",
     "- **Class:** Light",
     "- **Priority:** P2",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
     "- **Origin:** [internal]",
+    "- **Design:** [none]",
+    "- **Task List:** `tasks-review-protocol.md`",
+    "- **Review Rubric:** [none]",
+    "- **Candidate:** [none]",
+    "",
+    "- **Current Workflow:** [none]",
+    "- **Last Completed:** verification",
+    "- **Next Task:** [none]",
+    "- **Blockers:** [none]",
+    "",
+    "- **Next Action:** verification complete",
+    "",
+    "- **PR URL:** [none]",
+    "- **Completed:** [none]",
+    "",
+    "---",
     "",
   ].join("\n"), "utf8");
+  await writeFile(
+    join(root, ".arc", "active", "tasks-review-protocol.md"),
+    "# Task List: Review Protocol\n\n- [x] Verification complete\n",
+    "utf8",
+  );
   await writeFile(join(root, "reviewed.txt"), "reviewed change\n", "utf8");
-  await git(root, ["add", ".arc/active/meta-review-protocol.md", "reviewed.txt"]);
+  await git(root, [
+    "add",
+    ".arc/active/meta-review-protocol.md",
+    ".arc/active/tasks-review-protocol.md",
+    "reviewed.txt",
+  ]);
   await git(root, ["commit", "-m", "add reviewed change"]);
+  const attested = await runArc(["attest", "review-protocol", "--json"], root);
+  expect(attested.exitCode, attested.stderr || attested.stdout).toBe(0);
+  await git(root, ["commit", "-m", "record verified Candidate"]);
   expect(await git(root, ["status", "--porcelain"])).toBe("");
   return root;
 }
@@ -215,6 +247,34 @@ async function approvedRejection(
 }
 
 describe("built review protocol", () => {
+  it("returns a typed refusal when exact-target status runs outside an ARC project", async () => {
+    const root = await createTempRepo("arc-review-status-outside-");
+    roots.push(root);
+    const target = {
+      repository: "owner/repo",
+      headRef: "feat/review-status",
+      headSha: "d".repeat(40),
+    };
+
+    const result = await runArc([
+      "review",
+      "status",
+      "--target",
+      JSON.stringify(target),
+      "--json",
+    ], root);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      mode: "review-status",
+      target,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
+    });
+  });
+
   it("completes and re-enters a clean local review through the public verbs", async () => {
     const root = await fixture();
     const prepared = await prepareLocal(root);

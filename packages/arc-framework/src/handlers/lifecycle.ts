@@ -1,7 +1,7 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
  * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` /
- * `integrate` / `reopen` / `abandon`).
+ * `publish` / `reopen` / `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -32,12 +32,20 @@ import {
 } from "../lib/command-input/declaration.js";
 
 import {
+  formatValue,
   parseMetaRecord,
   readActiveMetaCandidates,
+  setMetaBulletFields,
+  setMetaCandidate,
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
+import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
-import { expandActiveInFlight, runActiveInFlightExpansion } from "../commands/active.js";
+import {
+  expandActiveInFlight,
+  resolveTaskListPath,
+  runActiveInFlightExpansion,
+} from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
@@ -111,7 +119,7 @@ import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
 } from "../lib/work-unit/transition-record-store.js";
-import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
+import { runPublish } from "../lib/work-unit/verbs/publish.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
@@ -123,6 +131,26 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
+import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import {
+  collectGitCandidateTarget,
+  collectUnstagedReviewablePaths,
+} from "../lib/work-unit/git-candidate-subject.js";
+import {
+  readCandidateRecord,
+  readCandidateRecordVersioned,
+  writeCandidateRecord,
+} from "../lib/work-unit/candidate-record-store.js";
+import { projectCandidateCurrentness } from "../lib/work-unit/candidate-attestation.js";
+import { resolveLastCompletedTask } from "../lib/task-list/cursor.js";
+import {
+  readSubmissionBoundaryVersioned,
+  writeSubmissionBoundary,
+} from "../lib/work-unit/submission-boundary-store.js";
+import {
+  projectCandidateReviewBoundary,
+  projectCandidateReviewResumeBoundary,
+} from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
@@ -132,8 +160,21 @@ import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-sourc
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
+import {
+  attestArgv,
+  attestNewRootArgv,
+  spineRemedy,
+  SpineRemedySchema,
+  type SpineRemedy,
+} from "../scripts/integration/spine-refusal.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import {
+  PrioritySchema,
+  SLUG_PATTERN,
+  SlugSchema,
+  WorkClassSchema,
+  validateManagedPath,
+} from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -196,6 +237,7 @@ export async function resolveVerbTargetOrReport(
   verb: TransitionVerb,
   slugArg: string | undefined,
   cwd: string,
+  json = false,
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
   const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd) : null;
@@ -204,8 +246,21 @@ export async function resolveVerbTargetOrReport(
   if (target.kind === "resolved") return target.slug;
 
   const index = await buildLifecycleIndex({ cwd, fs: lifecycleFs });
-  p.log.error(formatVerbCandidates(verb, findVerbCandidates(index, verb)));
-  process.exitCode = 1;
+  const reason = formatVerbCandidates(verb, findVerbCandidates(index, verb));
+  if (json) {
+    refuseWithRemedy(
+      reason,
+      spineRemedy(
+        "Lifecycle commands require one resolvable work-unit target.",
+        "Inspect the current lifecycle state, then retry with an explicit target",
+        ["arc", "status", "--json"],
+      ),
+      true,
+    );
+  } else {
+    p.log.error(reason);
+    process.exitCode = 1;
+  }
   return null;
 }
 
@@ -221,7 +276,38 @@ interface VerbBase {
 }
 
 /** Resolve identity, repo root, and the I/O context; `null` when a guard already reported. */
-async function resolveVerbBase(context?: InteractionContext): Promise<VerbBase | null> {
+async function resolveVerbBase(context?: InteractionContext, json = false): Promise<VerbBase | null> {
+  const io = createUserIOContext(context?.subprocess);
+  if (json) {
+    const cwd = resolveArcRoot();
+    if (cwd === null) {
+      refuseWithRemedy(
+        "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
+        spineRemedy(
+          "Lifecycle commands require an ARC project root.",
+          "Enter an ARC project, then inspect its lifecycle state",
+          ["arc", "status", "--json"],
+        ),
+        true,
+      );
+      return null;
+    }
+    try {
+      const identity = await resolveUserIdentity(io.exec);
+      return { identity, cwd, io };
+    } catch {
+      refuseWithRemedy(
+        "No identity configured.",
+        spineRemedy(
+          "Lifecycle commands require a configured ARC identity.",
+          "Initialize the project identity",
+          ["arc", "init"],
+        ),
+        true,
+      );
+      return null;
+    }
+  }
   let identity: string;
   try {
     identity = await resolveUserIdentity();
@@ -231,7 +317,7 @@ async function resolveVerbBase(context?: InteractionContext): Promise<VerbBase |
   }
   const cwd = requireArcProjectRoot();
   if (!cwd) return null;
-  return { identity, cwd, io: createUserIOContext(context?.subprocess) };
+  return { identity, cwd, io };
 }
 
 /** Read config once and build the production executor context, returning both. */
@@ -326,10 +412,46 @@ function refuse(reason: string): void {
   process.exitCode = 1;
 }
 
-function parseLifecycleCommand<T extends z.ZodType>(schema: T, value: unknown): z.output<T> | null {
+/** Refuse with the failed invariant and the one command that advances from it. */
+export const LifecycleCommandRefusalSchema = z.strictObject({
+  status: z.literal("rejected"),
+  reason: z.string().min(1),
+  remedy: SpineRemedySchema,
+});
+
+function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): void {
+  if (json) {
+    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy });
+    process.stdout.write(`${JSON.stringify(refusal)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  refuse(`${reason}\n${remedy.text}`);
+}
+
+/** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
+function summarizePaths(paths: readonly string[], limit = 5): string {
+  const shown = paths.slice(0, limit).map((path) => `\`${path}\``).join(", ");
+  return paths.length <= limit ? shown : `${shown}, and ${paths.length - limit} more`;
+}
+
+function parseLifecycleCommand<T extends z.ZodType>(
+  schema: T,
+  value: unknown,
+  command: readonly string[],
+  json = false,
+): z.output<T> | null {
   const parsed = schema.safeParse(value);
   if (parsed.success) return parsed.data;
-  refuse(z.prettifyError(parsed.error));
+  refuseWithRemedy(
+    z.prettifyError(parsed.error),
+    spineRemedy(
+      "Command input must satisfy its registered schema.",
+      "Review command usage",
+      ["arc", ...command, "--help"],
+    ),
+    json,
+  );
   return null;
 }
 
@@ -441,11 +563,12 @@ export const ActivateCommandInputSchema = z.object({
   task: z.string().trim().min(1),
   action: z.string().trim().min(1),
 }).strict();
-export const IntegrateCommandInputSchema = z.object({
+export const PublishCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
-  lastCompleted: z.string().trim().min(1),
-  action: z.string().trim().min(1),
+  lastCompleted: z.string().trim().min(1).optional(),
+  action: z.string().trim().min(1).optional(),
   allowAdvisories: z.boolean().optional(),
+  json: z.boolean().optional(),
 }).strict();
 export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({ keepPr: z.boolean().optional() });
 export const ArchiveCommandInputSchema = z.object({
@@ -481,17 +604,18 @@ export const SetStageCommandInputSchema = z.object({
   advance: z.boolean().optional(),
 }).strict();
 export const FinalizeCommandInputSchema = z.object({
-  firePoint: z.enum(["create-spec", "generate-tasks", "verify"]),
+  firePoint: z.enum(["create-spec", "generate-tasks"]),
   class: WorkClassSchema.optional(),
 }).strict().superRefine((value, refinement) => {
-  const requiresClass = value.firePoint === "create-spec" || value.firePoint === "generate-tasks";
-  if (requiresClass && value.class === undefined) {
+  if (value.class === undefined) {
     refinement.addIssue({ code: "custom", path: ["class"], message: "--class is required at this fire-point." });
   }
-  if (!requiresClass && value.class !== undefined) {
-    refinement.addIssue({ code: "custom", path: ["class"], message: "--class is not valid at verify." });
-  }
 });
+export const AttestCommandInputSchema = z.object({
+  name: SlugSchema,
+  json: z.boolean().optional(),
+  newRoot: z.boolean().optional(),
+}).strict();
 export const RepointDesignCommandInputSchema = z.object({
   event: z.enum(["draft-created", "spec-finalized"]),
 }).strict();
@@ -562,13 +686,14 @@ export const lifecycleCommandInputRegistrations = [
   },
   { commandPath: "deactivate", schema: DeactivateCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
   {
-    commandPath: "integrate",
-    schema: IntegrateCommandInputSchema,
+    commandPath: "publish",
+    schema: PublishCommandInputSchema,
     schemaFields: {
       "operand.slug": "slug",
       "option.last-completed": "lastCompleted",
       "option.action": "action",
       "option.allow-advisories": "allowAdvisories",
+      "option.json": "json",
     },
   },
   {
@@ -601,6 +726,11 @@ export const lifecycleCommandInputRegistrations = [
     commandPath: "finalize",
     schema: FinalizeCommandInputSchema,
     schemaFields: { "operand.fire-point": "firePoint", "option.class": "class" },
+  },
+  {
+    commandPath: "attest",
+    schema: AttestCommandInputSchema,
+    schemaFields: { "operand.name": "name", "option.json": "json", "option.new-root": "newRoot" },
   },
   {
     commandPath: "repoint-design",
@@ -887,7 +1017,7 @@ export async function handleRename(
   p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
     slug: sourceSlug.trim(), newSlug: targetSlug.trim(),
-  });
+  }, ["rename"]);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
   const base = await resolveVerbBase(context);
@@ -1049,7 +1179,7 @@ export async function handlePromote(
 
 /** `arc demote <slug>` — lower a planned stub back to provisional. */
 export function handleDemote(slug: string | undefined, context?: InteractionContext): Promise<void> {
-  const input = parseLifecycleCommand(DemoteCommandInputSchema, { slug: slug?.trim() || undefined });
+  const input = parseLifecycleCommand(DemoteCommandInputSchema, { slug: slug?.trim() || undefined }, ["demote"]);
   return input === null
     ? Promise.resolve()
     : handleBacklogMove("demote", input.slug, runDemote, "Demoted", context);
@@ -1077,7 +1207,11 @@ export async function handleActivate(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc activate");
-  const input = parseLifecycleCommand(ActivateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ActivateCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["activate"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1108,7 +1242,11 @@ export async function handleActivate(
 /** `arc deactivate [slug]` — undo a premature activation (Active → Planning). */
 export async function handleDeactivate(slug: string | undefined, context?: InteractionContext): Promise<void> {
   p.intro("arc deactivate");
-  const input = parseLifecycleCommand(DeactivateCommandInputSchema, { slug: slug?.trim() || undefined });
+  const input = parseLifecycleCommand(
+    DeactivateCommandInputSchema,
+    { slug: slug?.trim() || undefined },
+    ["deactivate"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1227,7 +1365,7 @@ export async function handlePark(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc park");
-  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts }, ["park"]);
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1349,7 +1487,11 @@ export async function handleResume(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc resume");
-  const input = parseLifecycleCommand(ResumeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ResumeCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["resume"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1491,7 +1633,11 @@ export async function handleMaterialize(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc materialize");
-  const input = parseLifecycleCommand(MaterializeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    MaterializeCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["materialize"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1581,67 +1727,164 @@ export async function handleMaterialize(
 }
 
 // ---------------------------------------------------------------------------
-// Phase move (review entry) — `integrate`
+// Phase move (publication entry) — `publish`
 // ---------------------------------------------------------------------------
 
-/** Options for `arc integrate`. */
-export interface IntegrateOptions {
+/** Options for `arc publish`. */
+export interface PublishOptions {
   lastCompleted?: string;
   action?: string;
   allowAdvisories?: boolean;
+  json?: boolean;
 }
 
 /**
- * `arc integrate [slug]` — open review on an `Active` WU (Active → Integrating),
- * defaulting to the current WU. Marks phase entry, not the merge — the
- * integration-interlock owns merge approval. Refuses without the orientation inputs
- * (`--last-completed` / `--action`); both feed the edge's `input` soft fields and
- * are never fabricated. A non-`Active` source falls to the table's illegal-edge
- * rejection.
+ * `arc publish [slug]` — schedule publication for an `Active` WU (Active → Integrating),
+ * defaulting to the current WU. Marks publication entry, not the merge — the
+ * integration-interlock owns merge approval. The orientation inputs default to what the
+ * repository already states: `--action` to the publication boundary's own pointer and
+ * `--last-completed` to the task list's terminal completed task. Both flags override;
+ * an underivable `Last Completed` refuses rather than submitting under an invented one.
+ * A non-`Active` source falls to the table's illegal-edge rejection.
  */
-export async function handleIntegrate(
+export async function handlePublish(
   slug: string | undefined,
-  opts: IntegrateOptions,
+  opts: PublishOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc integrate");
-  const input = parseLifecycleCommand(IntegrateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  if (opts.json !== true) p.intro("arc publish");
+  const input = parseLifecycleCommand(
+    PublishCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["publish"],
+    opts.json === true,
+  );
   if (input === null) return;
-  const base = await resolveVerbBase(context);
+  const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("integrate", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("publish", input.slug, base.cwd, input.json === true);
   if (target === null) return;
 
   const { lastCompleted, action } = input;
 
-  const { executor } = await buildExecutor(base);
-  const result = await runIntegrate(executor, {
+  const { executor, settings } = await buildExecutor(base);
+  const readCandidateAuthorization = async () => {
+    const record = await readCandidateRecord(base.cwd, target);
+    if (record === null) return null;
+    const current = await collectGitCandidateTarget({
+      cwd: base.cwd,
+      name: target,
+      baseBranch: settings["branch.base"],
+      exec: base.io.exec,
+    });
+    const currentness = projectCandidateCurrentness({ record, current });
+    return {
+      record,
+      current,
+      candidateId: record.attestation.candidateId,
+      candidateSubjectDigest: current.subject.subjectDigest,
+      candidateCurrent: currentness.status === "current"
+        && currentness.convergenceVerification === "satisfied",
+    };
+  };
+  const candidate = await readCandidateAuthorization();
+  if (candidate === null) {
+    refuseWithRemedy(
+      `Cannot publish \`${target}\`: no managed Candidate record exists.`,
+      spineRemedy(
+        "Submission requires a managed Candidate attestation.",
+        "Attest the candidate",
+        ["arc", "attest", target],
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const record = candidate.record;
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
+  const boundary = boundarySnapshot.boundary;
+  if (boundary === null) {
+    refuseWithRemedy(
+      `Cannot publish \`${target}\`: no durable pre-publication boundary exists.`,
+      spineRemedy(
+        "Submission requires a settled pre-publication boundary.",
+        "Resolve the pre-publication lanes",
+        ["arc", "review", "pre-publication", target, "--json"],
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const result = await runPublish(executor, {
     name: target,
-    lastCompleted,
-    nextAction: action,
+    ...(lastCompleted === undefined ? {} : { lastCompleted }),
+    ...(action === undefined ? {} : { nextAction: action }),
+    candidateId: candidate.candidateId,
+    candidateSubjectDigest: candidate.candidateSubjectDigest,
+    candidateCurrent: candidate.candidateCurrent,
+    boundary,
+    refreshCandidateAuthorization: async () => {
+      const refreshed = await readCandidateAuthorization();
+      if (refreshed === null) {
+        return {
+          candidateId: record.attestation.candidateId,
+          candidateSubjectDigest: candidate.candidateSubjectDigest,
+          candidateCurrent: false,
+        };
+      }
+      return refreshed;
+    },
+    claimPublicationBoundary: async (publicationBoundary) => {
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        publicationBoundary,
+        boundarySnapshot.version,
+      );
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    },
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuseWithRemedy(result.reason, result.remedy, input.json === true);
+    return;
+  }
+  if (result.status === "unchanged") {
+    if (canonicalize(result.boundary) !== canonicalize(boundary)) {
+      const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    }
+    if (input.json === true) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } else {
+      p.note(
+        `Work unit: ${target}\nLocus:     ${result.boundary.locus}\nNext:      ${result.boundary.nextAction.command}`,
+        "Submission unchanged",
+      );
+    }
     return;
   }
   if (result.status === "reconcile-failed") {
-    refuse(result.reason);
+    refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;
   }
   if (result.status === "reconcile-pending") {
-    for (const advisory of result.reconcile.prepared.plan.advisories) {
-      p.log.info(
-        `Reconcile advisory: ${advisory.path}:${advisory.line} — `
-        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
-        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
-      );
+    if (input.json === true) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      process.exitCode = 1;
+    } else {
+      for (const advisory of result.reconcile.prepared.plan.advisories) {
+        p.log.info(
+          `Reconcile advisory: ${advisory.path}:${advisory.line} — `
+          + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
+          + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
+        );
+      }
+      refuseWithRemedy(result.reason, result.remedy);
     }
-    refuse(result.reason);
     return;
   }
-  if (result.reconcile.status === "pending") {
+  if (result.reconcile.status === "pending" && input.json !== true) {
     for (const advisory of result.reconcile.prepared.plan.advisories) {
       p.log.info(
         `Accepted reconcile advisory: ${advisory.path}:${advisory.line} — `
@@ -1649,6 +1892,10 @@ export async function handleIntegrate(
         + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
       );
     }
+  }
+  if (input.json === true) {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
   }
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
@@ -1700,7 +1947,11 @@ export async function handleReopen(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc reopen");
-  const input = parseLifecycleCommand(ReopenCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ReopenCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["reopen"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1849,7 +2100,11 @@ export async function handleArchive(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc archive");
-  const input = parseLifecycleCommand(ArchiveCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ArchiveCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["archive"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1949,7 +2204,11 @@ export async function handleTeardown(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc teardown");
-  const input = parseLifecycleCommand(TeardownCommandInputSchema, { name: name?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    TeardownCommandInputSchema,
+    { name: name?.trim() || undefined, ...opts },
+    ["teardown"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2093,7 +2352,11 @@ export async function handleSetStage(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc set-stage");
-  const input = parseLifecycleCommand(SetStageCommandInputSchema, { stage: stage?.trim(), advance: opts?.advance });
+  const input = parseLifecycleCommand(
+    SetStageCommandInputSchema,
+    { stage: stage?.trim(), advance: opts?.advance },
+    ["set-stage"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2127,15 +2390,14 @@ export async function handleSetStage(
 // ---------------------------------------------------------------------------
 
 /**
- * `arc finalize <fire-point>` — persist a planning / verification ceremony's
+ * `arc finalize <fire-point>` — persist a planning ceremony's
  * deterministic finalize facts at its fire-point: the resolved `Class`, the derived
  * `Task List`, and the fixed terminal `Next Action`, per the fire-point's contract
- * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action;
- * `verify` → Next Action). The complement of `set-stage` / `repoint-design` (which
+ * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action).
+ * The complement of `set-stage` / `repoint-design` (which
  * own the planning pointers): not a lifecycle transition. `--class` carries the
- * resolved weight, required at create-spec / generate-tasks and refused (via
- * `runFinalizeStage`) at verify. Refuses without a single resolvable active WU. Verb
- * spelling is provisional, pending idiomatic-alignment.
+ * resolved weight, required at both fire-points. Refuses without a single
+ * resolvable active WU.
  */
 export async function handleFinalizeStage(
   firePoint: string | undefined,
@@ -2146,7 +2408,7 @@ export async function handleFinalizeStage(
   const input = parseLifecycleCommand(FinalizeCommandInputSchema, {
     firePoint: firePoint?.trim(),
     class: opts?.class,
-  });
+  }, ["finalize"]);
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2186,6 +2448,206 @@ export async function handleFinalizeStage(
 }
 
 // ---------------------------------------------------------------------------
+// Candidate attestation — `attest`
+// ---------------------------------------------------------------------------
+
+export interface AttestOptions {
+  json?: boolean;
+  newRoot?: boolean;
+}
+
+/** Attest the current verified work-unit subject without changing lifecycle State. */
+export async function handleAttest(
+  name: string | undefined,
+  opts: AttestOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc attest");
+  const input = parseLifecycleCommand(
+    AttestCommandInputSchema,
+    { name: name?.trim(), json: opts.json, newRoot: opts.newRoot },
+    ["attest"],
+    opts.json === true,
+  );
+  if (input === null) return;
+  const base = await resolveVerbBase(context, input.json === true);
+  if (base === null) return;
+  const { settings } = await buildExecutor(base);
+  let metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: input.name,
+    artifact: "meta",
+  });
+  let absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+  let metaContent: string;
+  try {
+    metaContent = await base.io.readFile(absoluteMetaPath);
+  } catch {
+    const archived = (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(input.name);
+    if (input.newRoot !== true || archived?.location !== "completed") {
+      refuseWithRemedy(
+        `\`arc attest\` requires an active record, or an archived record with \`--new-root\`, for \`${input.name}\`.`,
+        spineRemedy(
+          "Candidate attestation requires a resolvable work-unit record.",
+          "Inspect the work-unit lifecycle state",
+          ["arc", "status", input.name, "--json"],
+        ),
+        input.json === true,
+      );
+      return;
+    }
+    metaPath = validateManagedPath(archived.path);
+    absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+    metaContent = await base.io.readFile(absoluteMetaPath);
+  }
+  const meta = parseMetaRecord(metaContent);
+  if (meta.state !== "Active" && meta.state !== "Integrating" && !(meta.state === "Shipped" && input.newRoot === true)) {
+    refuseWithRemedy(
+      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating, or Shipped with \`--new-root\`.`,
+      spineRemedy(
+        "Candidate attestation runs only from an active publication lifecycle.",
+        "Inspect the work-unit lifecycle state",
+        ["arc", "status", input.name, "--json"],
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  let lastCompleted: string | null = null;
+  const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+  if (taskListPath !== null) {
+    try {
+      const taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
+      const terminal = resolveLastCompletedTask(taskList);
+      if (terminal.status === "found") {
+        lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
+      }
+    } catch {
+      // Candidate attestation does not become unavailable solely because the
+      // human-orientation cursor cannot be refreshed from its task list.
+    }
+  }
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+
+  const unstaged = await collectUnstagedReviewablePaths({
+    cwd: base.cwd,
+    name: input.name,
+    exec: base.io.exec,
+  });
+  if (unstaged.length > 0) {
+    refuseWithRemedy(
+      `\`arc attest\` attests the staged subject, and ${unstaged.length} reviewable path(s) hold `
+        + `working-tree content the index does not carry: ${summarizePaths(unstaged)}.`,
+      spineRemedy(
+        "A Candidate attests the staged subject, so every verified reviewable change must be staged first.",
+        "Stage the verified content, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+
+  const result = await runAttest({
+    actor: base.identity,
+    now: () => new Date().toISOString(),
+    verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
+    readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
+    currentTarget: (slug) => collectGitCandidateTarget({
+      cwd: base.cwd,
+      name: slug,
+      baseBranch: settings["branch.base"],
+      exec: base.io.exec,
+    }),
+    publish: async (publication) => {
+      const recordPath = await writeCandidateRecord(
+        base.cwd,
+        publication.name,
+        publication.record,
+        publication.expectedRecordVersion,
+      );
+      const priorMeta = parseMetaRecord(metaContent);
+      const existingBoundary = boundarySnapshot.boundary;
+      const boundaryMatches = existingBoundary !== null
+        && existingBoundary.candidateId === publication.candidateId
+        && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
+      const convergenceResume = existingBoundary !== null
+        && boundaryMatches
+        && existingBoundary.locus === "candidate-convergence-verification-pending"
+        ? projectCandidateReviewResumeBoundary({
+            workUnit: publication.name,
+            candidateId: publication.candidateId,
+            candidateSubjectDigest: publication.candidateSubjectDigest,
+            reservation: existingBoundary.reservation,
+            terminus: existingBoundary.terminus,
+          })
+        : null;
+      const locus = convergenceResume
+        ?? (publication.repairCurrent && boundaryMatches
+          ? existingBoundary
+          : projectCandidateReviewBoundary({
+            workUnit: publication.name,
+            candidateId: publication.candidateId,
+            candidateSubjectDigest: publication.candidateSubjectDigest,
+          }));
+      const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
+      const orientation: Record<string, string> = {};
+      if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
+        orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
+      }
+      if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
+        orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+      }
+      if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
+        orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
+      }
+      metaContent = Object.keys(orientation).length === 0
+        ? withCandidate
+        : setMetaBulletFields(withCandidate, orientation);
+      const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
+      if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
+      await base.io.writeFile(absoluteMetaPath, metaContent);
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        locus,
+        boundarySnapshot.version,
+      );
+      await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
+      return { recordPath, metaPath, locus };
+    },
+  }, { name: input.name, lifecycle: meta.state, newRoot: input.newRoot === true });
+
+  if (result.status === "unchanged") {
+    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+    if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
+      || currentBoundary.boundary.candidateSubjectDigest !== result.locus.candidateSubjectDigest) {
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        result.locus,
+        currentBoundary.version,
+      );
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    }
+  }
+
+  if (input.json === true) {
+    process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);
+  } else if (result.status === "blocked") {
+    p.log.error(`${result.nextAction}\n${JSON.stringify(result.delta)}`);
+  } else {
+    const lines = [
+      `Work unit: ${result.locus.workUnit}`,
+      `Candidate: ${result.locus.candidateId}`,
+      `Locus:     ${result.locus.locus}`,
+    ];
+    p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
+    p.outro("Done.");
+  }
+  if (result.status === "blocked") process.exitCode = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Planning design-pointer — `repoint-design`
 // ---------------------------------------------------------------------------
 
@@ -2205,7 +2667,11 @@ export async function handleRepointDesign(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc repoint-design");
-  const input = parseLifecycleCommand(RepointDesignCommandInputSchema, { event: event?.trim() });
+  const input = parseLifecycleCommand(
+    RepointDesignCommandInputSchema,
+    { event: event?.trim() },
+    ["repoint-design"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;

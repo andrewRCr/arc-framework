@@ -1,6 +1,6 @@
 /**
  * The planning-ceremony finalize-fact write — the deterministic meta-field writes
- * a planning / verification ceremony emits at its finalize fire-point.
+ * a planning ceremony emits at its finalize fire-point.
  *
  * The complement of the PPR-owned planning pointers (`Current Workflow` / `Design`
  * / the begin-sentinel `Next Action`, written by `set-stage` / `repoint-design`):
@@ -20,15 +20,9 @@
  *   `Task List` (`tasks-<name>.md`), and the terminal `Next Action`. No stage
  *   advance (`activate` clears `Current Workflow`), so the `Next Action` is a fixed
  *   terminal string, not the begin-sentinel.
- * - **verify** — writes the integration-handoff terminal `Next Action` only.
  *
- * The terminal `Next Action` strings are code-owned pointer *values* (the protocol
- * strings the session-init probe resolves — `integrate-work-unit` sets
- * `sessionType: integration`), the same way the planning-stage basenames are
- * code-owned in the stage-pointer machinery; they are migrated from the workflow
- * markdown to here, not cited.
- *
- * The CLI verb spelling is provisional, pending idiomatic-alignment.
+ * The terminal `Next Action` string is a code-owned pointer value, the same way
+ * the planning-stage basenames are code-owned in the stage-pointer machinery.
  *
  * @module
  */
@@ -39,14 +33,14 @@ import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
-/** The planning / verification ceremony whose finalize facts are being written. */
-export type FinalizeFirePoint = "create-spec" | "generate-tasks" | "verify";
+/** The planning ceremony whose finalize facts are being written. */
+export type FinalizeFirePoint = "create-spec" | "generate-tasks";
 
 /** The fire-points, in lifecycle order — the closed set the verb validates against. */
-const FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "generate-tasks", "verify"];
+const FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "generate-tasks"];
 
 /** Fire-points that persist the resolved `Class` (the others take no Class). */
-const CLASS_FIRE_POINTS: ReadonlySet<FinalizeFirePoint> = new Set(["create-spec", "generate-tasks"]);
+const CLASS_FIRE_POINTS: ReadonlySet<FinalizeFirePoint> = new Set(FIRE_POINTS);
 
 /**
  * The fixed terminal `Next Action` strings, keyed by fire-point. create-spec is
@@ -55,7 +49,6 @@ const CLASS_FIRE_POINTS: ReadonlySet<FinalizeFirePoint> = new Set(["create-spec"
  */
 const TERMINAL_NEXT_ACTION: Partial<Record<FinalizeFirePoint, string>> = {
   "generate-tasks": "Task list finalized — ready to activate",
-  verify: "integrate-work-unit Step 1 — verify completion",
 };
 
 /** The executor capabilities the finalize-fact write needs. */

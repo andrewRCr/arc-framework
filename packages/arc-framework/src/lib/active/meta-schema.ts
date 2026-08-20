@@ -25,6 +25,9 @@ export const MetaOriginSchema = SemanticStringSchema;
 export const MetaPromotionReceiptSchema = z.string()
   .regex(/^errand-v1\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-f0-9]{32}$/u);
 
+/** Candidate attestation identity projected into the managed work-unit record. */
+export const MetaCandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+
 /** Exact Markdown-label to semantic-key mapping for managed meta fields. */
 export const META_FIELD_KEYS = [
   { name: "State", key: "state" },
@@ -39,6 +42,7 @@ export const META_FIELD_KEYS = [
   { name: "Task List", key: "taskList" },
   { name: "Review Rubric", key: "reviewRubric" },
   { name: "Promotion Receipt", key: "promotionReceipt" },
+  { name: "Candidate", key: "candidateId" },
   { name: "Current Workflow", key: "currentWorkflow" },
   { name: "Last Completed", key: "lastCompleted" },
   { name: "Next Task", key: "nextTask" },
@@ -66,6 +70,7 @@ const metaProjectionShape = Object.fromEntries(
  */
 export const MetaProjectionRecordSchema = z.strictObject(metaProjectionShape).extend({
   "Promotion Receipt": ProjectionValueSchema.optional().default(null),
+  Candidate: ProjectionValueSchema.optional().default(null),
 });
 
 const ParsedStringSchema = SemanticStringSchema.nullable();
@@ -84,6 +89,7 @@ export const ParsedMetaRecordSchema = z.strictObject({
   taskList: ParsedStringSchema,
   reviewRubric: ParsedStringSchema,
   promotionReceipt: ParsedStringSchema.optional().default(null),
+  candidateId: ParsedStringSchema.optional().default(null),
   currentWorkflow: ParsedStringSchema,
   lastCompleted: ParsedStringSchema,
   nextTask: ParsedStringSchema,
@@ -107,6 +113,7 @@ export const MetaRecordSchema = z.strictObject({
   taskList: SemanticStringSchema.nullable(),
   reviewRubric: SemanticStringSchema.nullable(),
   promotionReceipt: MetaPromotionReceiptSchema.nullable(),
+  candidateId: MetaCandidateIdSchema.nullable(),
   currentWorkflow: SemanticStringSchema.nullable(),
   lastCompleted: SemanticStringSchema.nullable(),
   nextTask: SemanticStringSchema.nullable(),

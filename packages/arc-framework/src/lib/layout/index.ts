@@ -2,6 +2,11 @@
 
 export { LayoutError } from "./errors.js";
 export type { LayoutErrorCode } from "./errors.js";
+export {
+  identifyWorkUnitArtifactPath,
+  isProjectDocumentPath,
+  type IdentifiedWorkUnitArtifact,
+} from "./identification.js";
 export { materializeArcPath } from "./materialization.js";
 export { LAYOUT_SCHEMA_IDS, createLayoutRegistry } from "./registry.js";
 export { resolveArcPath } from "./projection.js";
@@ -17,6 +22,7 @@ export {
   ArchiveQuarterSchema,
   ArchiveSequenceSchema,
   ProcedureFamilySchema,
+  ProjectDocumentKindSchema,
   TemplateOutputPathSchema,
   TemplateRelativePathSchema,
   WorkUnitArtifactKindSchema,
@@ -28,6 +34,7 @@ export type {
   ArchiveQuarter,
   ArchiveSequence,
   ProcedureFamily,
+  ProjectDocumentKind,
   TemplateOutputPath,
   TemplateRelativePath,
   WorkUnitArtifactKind,

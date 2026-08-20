@@ -83,6 +83,7 @@ export function createLocalPrepareDependencies(input: {
   const rubricPort = createLocalReviewRubricBindingPort({ cwd: input.cwd });
 
   return {
+    laneSourceId: "delegated-agent",
     operationStore,
     sourceStore,
     now: () => new Date().toISOString(),

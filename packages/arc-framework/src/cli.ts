@@ -38,8 +38,10 @@ import {
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import {
   handleBaseDrift,
+  handleBaseMerge,
   handleBaseSync,
   type BaseDriftOptions,
+  type BaseMergeOptions,
   type BaseSyncOptions,
 } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
@@ -80,13 +82,14 @@ import {
   handleMaterialize,
   handleActivate,
   handleDeactivate,
-  handleIntegrate,
+  handlePublish,
   handleReopen,
   handleAbandon,
   handleArchive,
   handleTeardown,
   handleSetStage,
   handleFinalizeStage,
+  handleAttest,
   handleRepointDesign,
   handleRename,
   isDecomposeMachineReadableInvocation,
@@ -96,12 +99,13 @@ import {
   type ResumeOptions,
   type MaterializeOptions,
   type ActivateOptions,
-  type IntegrateOptions,
+  type PublishOptions,
   type ReopenOptions,
   type AbandonOptions,
   type ArchiveOptions,
   type TeardownOptions,
   type DecomposeOptions,
+  type AttestOptions,
 } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
@@ -138,6 +142,12 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleIntegrationCheckpoint,
+  handleIntegrationMerge,
+  type IntegrationCheckpointOptions,
+  type IntegrationMergeOptions,
+} from "./handlers/integration.js";
+import {
   handleMergeLockHold,
   handleMergeLockRelease,
   handleMergeLockResolve,
@@ -153,9 +163,19 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPrePublication,
+  handleReviewChangeRequestResolve,
+  handleReviewMergeMethodResolve,
+  handleReviewChecksAwait,
+  handleReviewStatus,
   handleReviewReduce,
   handleReviewRespond,
+  type ReviewPrePublicationOptions,
   type ReviewPlanningLaneOptions,
+  type ReviewChangeRequestResolveOptions,
+  type ReviewMergeMethodResolveOptions,
+  type ReviewChecksAwaitOptions,
+  type ReviewStatusOptions,
 } from "./handlers/review.js";
 import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
 import {
@@ -414,14 +434,51 @@ program
   ));
 
 program
-  .command("integrate [slug]")
-  .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
-  .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
-  .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .command("publish [slug]")
+  .description("Schedule publication for an Active work unit: Active → Integrating (defaults to the current WU)")
+  .option("--last-completed <work>", "Override meta `Last Completed` (default: the task list's last completed task)")
+  .option("--action <action>", "Override meta `Next Action` (default: the publication boundary's own pointer)")
   .option("--allow-advisories", "Retain every surfaced advisory-only reconcile finding and enter review")
+  .option("--json", "Emit the typed publication-resume boundary as JSON")
   .action(withInteractionContext(
-    {},
-    (context, slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts, context),
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string | undefined, opts: PublishOptions) => handlePublish(slug, opts, context),
+  ));
+
+const integrateCmd = program
+  .command("integrate")
+  .description("Run integration checkpoint and merge procedures");
+
+integrateCmd.action(() => {
+  console.error("error: `arc integrate` is a procedure namespace; use `arc publish` to schedule publication.");
+  const subcommands = integrateCmd.commands.map((command) => `arc integrate ${command.name()}`);
+  console.error(
+    subcommands.length > 0
+      ? `Available subcommands: ${subcommands.join(", ")}.`
+      : "Available subcommands: none yet.",
+  );
+  process.exitCode = 1;
+});
+
+integrateCmd
+  .command("checkpoint <name>")
+  .description("Compose one typed integration-readiness verdict")
+  .requiredOption("--json", "Emit the typed checkpoint verdict as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, name: string, opts: IntegrationCheckpointOptions) =>
+      handleIntegrationCheckpoint(name, opts, context),
+  ));
+
+integrateCmd
+  .command("merge <name>")
+  .description("Execute one approved integration checkpoint and merge its exact head")
+  .requiredOption("--checkpoint <handle>", "Opaque checkpoint handle returned by integrate checkpoint")
+  .requiredOption("--json", "Emit the typed merge verdict as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, name: string, opts: IntegrationMergeOptions) =>
+      handleIntegrationMerge(name, opts, context),
   ));
 
 program
@@ -485,12 +542,25 @@ program
   .command("finalize <fire-point>")
   .description(
     "Persist a planning ceremony's finalize facts (meta `Class` / `Task List` / `Next Action`) "
-    + "at its fire-point: create-spec | generate-tasks | verify",
+    + "at its fire-point: create-spec | generate-tasks",
   )
   .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
   .action(withInteractionContext(
     {},
     (context, firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts, context),
+  ));
+
+program
+  .command("attest <name>")
+  .description("Attest a verified work-unit Candidate while leaving lifecycle State unchanged")
+  .option("--json", "Emit the typed pre-publication locus as JSON")
+  .option(
+    "--new-root",
+    "Root a new lineage over the current fully verified subject, superseding a blocked Candidate",
+  )
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, name: string, opts: AttestOptions) => handleAttest(name, opts, context),
   ));
 
 program
@@ -631,6 +701,16 @@ baseCmd
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, opts: BaseDriftOptions) => handleBaseDrift(opts, context),
+  ));
+
+baseCmd
+  .command("merge")
+  .description("Merge one checkpointed base revision append-only")
+  .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
+  .requiredOption("--json", "Emit the typed merge outcome as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, opts: BaseMergeOptions) => handleBaseMerge(opts, context),
   ));
 
 baseCmd
@@ -1377,6 +1457,51 @@ const reviewCmd = program
   .description("Resolve and execute review workflows");
 
 reviewCmd
+  .command("change-request")
+  .description("Exact-head change-request operations")
+  .command("resolve")
+  .description("Resolve the host disposition for one exact head")
+  .requiredOption("--head-ref <branch>", "Proposed branch name")
+  .requiredOption("--head-sha <oid>", "Exact Git object ID for the proposed head")
+  .option("--require-remote", "Require the remote branch to match the exact head")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options, context),
+  ));
+
+reviewCmd
+  .command("status")
+  .description("Resolve exact-target review, check, and base status")
+  .requiredOption("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, options: ReviewStatusOptions) => handleReviewStatus(options, context),
+  ));
+
+reviewCmd
+  .command("merge-method")
+  .description("Configured merge-method operations")
+  .command("resolve")
+  .description("Validate the configured method against live repository policy")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action((options: ReviewMergeMethodResolveOptions) => handleReviewMergeMethodResolve(options));
+
+reviewCmd
+  .command("checks")
+  .description("Required status-check operations")
+  .command("await")
+  .description("Await required checks on one exact pull-request head")
+  .requiredOption("--repository <owner/repo>", "Exact repository coordinates")
+  .requiredOption("--pull-request <number>", "Pull-request number")
+  .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
+  .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
+  .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action((options: ReviewChecksAwaitOptions) => handleReviewChecksAwait(options));
+
+reviewCmd
   .command("readiness")
   .description("Validate exact-head lifecycle readiness as JSON")
   .usage("<file | ->")
@@ -1490,6 +1615,23 @@ reviewCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .action((input: string) => handleReviewReduce(input));
+
+reviewCmd
+  .command("pre-publication <name>")
+  .description("Resolve one work unit's typed pre-publication review procedure as JSON")
+  .option("--self-review <state>", "Report completed author self-review: settled")
+  .option("--change-set <file | ->", "Change-set routing facts as JSON; omitted routes as unestablished")
+  .option(
+    "--lanes <file | ->",
+    "Per-lane review scope, frontline invocation, and approved ceiling override as JSON",
+  )
+  .option("--resume <token>", "Replay the exact prior pre-publication judgment inputs")
+  .requiredOption("--json", "Emit a typed JSON result")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, name: string, options: ReviewPrePublicationOptions) =>
+      handleReviewPrePublication(name, options, {}, context),
+  ));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

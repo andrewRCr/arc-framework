@@ -234,7 +234,12 @@ export async function emitCompactionSeed(
 }
 
 function asCompactionSeedSessionType(value: string | null): CompactionSeedSessionType | null {
-  return value === "planning" || value === "execution" || value === "integration" ? value : null;
+  return value === "planning"
+    || value === "execution"
+    || value === "prepublication"
+    || value === "integration"
+    ? value
+    : null;
 }
 
 async function writeCompactionSeedFile(path: string, seed: CompactionSeed): Promise<void> {

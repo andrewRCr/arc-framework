@@ -79,6 +79,7 @@ describe("kernel schema artifact generation", () => {
       "frontline-outcome-digest-preimage",
       "frontline-outcome-record",
       "frontline-run-state",
+      "lane-progress-state",
       "local-review-policy-binding",
       "local-review-policy-binding-digest-preimage",
       "local-review-source",
@@ -97,6 +98,8 @@ describe("kernel schema artifact generation", () => {
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",
+      "review-change-request-resolve-result",
+      "review-checks-await-result",
       "review-chunking-resolve-envelope",
       "review-chunking-resolve-request",
       "review-command-error-envelope",
@@ -110,9 +113,11 @@ describe("kernel schema artifact generation", () => {
       "review-local-attest-envelope",
       "review-local-prepare-envelope",
       "review-local-resume-envelope",
+      "review-merge-method-resolve-result",
       "review-method-activity",
       "review-operation-state",
       "review-policy-version-preimage",
+      "review-pre-publication-envelope",
       "review-readiness-envelope",
       "review-receipt",
       "review-receipt-ledger",
@@ -130,6 +135,7 @@ describe("kernel schema artifact generation", () => {
       "review-routing-facts",
       "review-rubric-overlay-resolution",
       "review-severity",
+      "review-status-result",
       "review-suspension-state",
       "review-target",
       "review-target-id-preimage",
@@ -141,7 +147,11 @@ describe("kernel schema artifact generation", () => {
       "work-class",
       "work-unit-review-assurance",
       "work-unit-state",
+      "__shared",
     ]);
+    for (const [id, schema] of Object.entries(firstBundle.schemas)) {
+      expect(schema.$id).toBe(`${id}.schema.json`);
+    }
     expect(JSON.stringify(firstBundle.schemas["canonical-change-set"]))
       .toContain('"$ref":"canonical-change.schema.json"');
     expect(firstBundle.schemas["finding-classification"]?.properties?.severity)

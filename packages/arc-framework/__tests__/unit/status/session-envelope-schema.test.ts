@@ -135,6 +135,19 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
 }
 
 describe("session-init envelope schema", () => {
+  it("accepts completed-work-unit integration recovery without a live publication boundary", () => {
+    const value = owningWorkUnitFixture();
+    setPath(value, ["active", "value", "sessionType"], "integration");
+    setPath(value, ["active", "value", "currentWorkflow"], "integrate-work-unit");
+    setPath(value, ["active", "value", "integrationBoundary"], null);
+    setPath(value, ["derivedLocusState", "value", "active", "context", "sessionType"], "integration");
+    setPath(value, ["derivedLocusState", "value", "active", "context", "workflow"], "integrate-work-unit");
+    setPath(value, ["derivedLocusState", "value", "active", "context", "integrationBoundary"], null);
+    setPath(value, ["derivedLocusState", "value", "roster", 1, "lifecycleLocation"], "completed");
+
+    expectValid(value);
+  });
+
   it("requires the delivery-position slot exactly at the owning work-unit locus", () => {
     const owning = owningWorkUnitFixture();
     expectValid(owning);

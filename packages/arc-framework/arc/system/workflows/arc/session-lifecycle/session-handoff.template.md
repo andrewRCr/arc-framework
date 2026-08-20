@@ -327,10 +327,10 @@ _Content discipline: keep each field to one line (Next Action may span two for a
 longer context elsewhere — commit body, SESSION-NOTES, task-list completion notes. Wrap to the 120-char
 target._
 
-_Workflow step pointer: when Next Action resumes a lifecycle workflow (integrate, archive), use the literal
-format `<workflow-name> Step <N> — <description>` (e.g. "integrate-work-unit Step 7 — push and create PR";
-kebab-case name = filename without `.md`) — the pre-commit validator and session-init's sessionType inference
-key on this prefix. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
+_Workflow step pointer: when Next Action resumes a lifecycle workflow, use the literal format
+`<workflow-name> Step <N> — <description>` (for example, "integrate-work-unit Step 1 — push and create PR";
+kebab-case name = filename without `.md`). This is a human resume pointer; typed status determines session phase
+and workflow. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
 ```
 
 **Update SESSION-NOTES at `pathSet.value.sessionNotes`** (per-WU session context — gitignored; active-WU path
@@ -374,10 +374,10 @@ Markers:
 
 **Commit at Handoff:** `{{short-hash}}`
 <!--
-  **Session Type:** {planning | execution | integration}
+  **Session Type:** {planning | execution}
   Optional override; absent → inferred from tracked state. Set only when the next session's
-  intent diverges from what the active meta file implies. Case-insensitive. Invalid value →
-  ignored + warning at session-init.
+  discretionary planning/execution intent diverges from what tracked state implies. Typed
+  prepublication/integration phases cannot be overridden. Case-insensitive. Invalid value → ignored + warning.
 -->
 
 ## Uncommitted Work
@@ -399,9 +399,9 @@ Markers:
 **Per-section guidance:**
 
 - **Working On / Session Type override:** Marker vocabulary in the template. `Session Type` is
-  optional; absent → session-init infers. Set only when the next session's intent diverges from
-  what the active meta file implies (e.g., status points at execution, next session will plan
-  a separate concern).
+  optional; absent → session-init infers. Set only when discretionary planning/execution intent diverges from
+  what the active meta file implies (e.g., status points at execution, next session will plan a separate concern).
+  Never author it to enter, leave, or replace a typed prepublication/integration phase.
 - **Uncommitted Work:** Work the next session can only see in `git diff` — committed work is
   already in `git log`. Use commit-level granularity so the next session can reconstruct atomic
   commits. Map accomplishments to logical commits (what changed, which files), include task
@@ -659,10 +659,18 @@ Finalize this session's PRs that merged outside an attended ceremony. A no-op un
 that has not been finalized — resolve this session's candidate branches (the WU or `chore/<slug>` branches whose
 PRs this session opened) and return when there are none.
 
-Poll each candidate once — a single `gh pr view <branch> --json state,mergedAt`, never a wait-loop (never block
-on CI) — then dispatch:
+Resolve each candidate branch's exact local head with
+`git rev-parse --verify "refs/heads/<branch>^{commit}"`, then invoke the typed resolver once — never a wait-loop
+(never block on CI):
 
-- **merged-clean** → eager teardown. Each step is presence-guarded (safe to re-run):
+```bash
+arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json
+```
+
+An unavailable local head is **failed / blocked**; never substitute a host-reported or remembered head.
+Dispatch only on its typed state and action:
+
+- `merged-at-head / complete` → **merged-clean** — eager teardown. Each step is presence-guarded (safe to re-run):
     - **work-unit candidate** → `arc teardown <wu-name>`: reaps the merged branch (merged-safe), removes any
       distinct worktree (clean-checked, never `--force`), and prunes the stale remote-tracking ref;
     - **errand candidate with a record** → `arc errand close <slug> --json`: consume its typed result while it
@@ -671,8 +679,11 @@ on CI) — then dispatch:
     - **recordless `chore/<slug>` cheap-branch candidate** → `arc teardown --branch <branch>`: reaps the merged
       branch containment-safe, removes any distinct worktree, and prunes stale remote-tracking refs;
     - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
-- **failed / blocked** → surface loudly, for both the manual- and auto-merge lanes.
-- **still-pending** → hand to the session-init completion sweep; no action this session.
+- `none / create-change-request`, `merged-stale-head / reconcile-head`, `closed-unmerged / reopen-change-request`,
+  `ambiguous / stop`, or `blocked / stop` → **failed / blocked** — surface loudly, for both the manual- and
+  auto-merge lanes.
+- `open / reuse-change-request` → **still-pending** — hand to the session-init completion sweep; no action this
+  session.
 
 ## Notes-sync leg
 

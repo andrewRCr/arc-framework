@@ -502,12 +502,14 @@ describe("holdMergeLock", () => {
 
 describe("merge-lock transitions", () => {
   it.each([
-    ["release", releaseMergeLock, true],
-    ["hold", holdMergeLock, false],
+    ["release", releaseMergeLock, true, 1, 1],
+    ["hold", holdMergeLock, false, 0, 0],
   ] as const)("%s reports no lock without reaching the host when the lock is off", async (
     _verb,
     verb,
     locked,
+    repositoryReads,
+    readinessReads,
   ) => {
     const port = lockPort({ readMergeLock: async () => ({ state: "value", value: "none" }) }, locked);
 
@@ -518,7 +520,8 @@ describe("merge-lock transitions", () => {
       nextAction: "none",
       payload: { ...TARGET, reason: "lock-disabled" },
     });
-    expect(port.repositoryReads).toBe(0);
+    expect(port.repositoryReads).toBe(repositoryReads);
+    expect(port.readinessRequests).toHaveLength(readinessReads);
     expect(port.transitions).toEqual([]);
   });
 

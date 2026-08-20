@@ -1,7 +1,7 @@
 /** Operator-level coverage for work-unit rename across its three subject shapes. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -17,6 +17,11 @@ import {
   unwrapPresentationOutput,
 } from "./helpers.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import {
+  resolveSubmissionBoundaryPath,
+  writeSubmissionBoundary,
+} from "../../src/lib/work-unit/submission-boundary-store.js";
+import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -292,6 +297,62 @@ describe("arc rename", () => {
     );
     expect(await hasUserWorkspace(fixture.repo, "old-name")).toBe(false);
     expect(await hasUserWorkspace(fixture.repo, "new-name")).toBe(true);
+  }, 30_000);
+
+  it("refuses Candidate publication state before mutating any rename surface", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    await startInPlace(fixture);
+    const boundaryPath = await writeSubmissionBoundary(fixture.repo, projectCandidateReviewBoundary({
+      workUnit: "old-name",
+      candidateId: `sha256:${"c".repeat(64)}`,
+    }), null);
+    await git(fixture.repo, ["add", boundaryPath]);
+    await git(fixture.repo, ["commit", "-m", "chore(test): add Candidate boundary"]);
+    await git(fixture.repo, ["push"]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Candidate publication state cannot be renamed");
+    expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-old-name.md"))).toBe(true);
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-new-name.md"))).toBe(false);
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).not.toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).toBe("");
+  }, 30_000);
+
+  it("refuses a public-attestation Candidate record even when no boundary remains", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    await startInPlace(fixture);
+    const metaPath = join(fixture.repo, ".arc", "active", "meta-old-name.md");
+    const planningMeta = await readFile(metaPath, "utf8");
+    await writeFile(metaPath, planningMeta.replace(/(\|\s*)`Planning`(\s*\|)/u, "$1`Active`$2"), "utf8");
+    await writeFile(
+      join(fixture.repo, ".arc", "active", "tasks-old-name.md"),
+      "# Task List: old-name\n\n- [x] Verification complete\n",
+      "utf8",
+    );
+    await git(fixture.repo, ["add", ".arc/active/meta-old-name.md", ".arc/active/tasks-old-name.md"]);
+    const attested = await runArcNoTty(["attest", "old-name", "--json"], fixture.repo);
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+    await rm(join(fixture.repo, resolveSubmissionBoundaryPath("old-name")));
+    await git(fixture.repo, ["add", "-A"]);
+    await git(fixture.repo, ["commit", "-m", "chore(test): retain Candidate record only"]);
+    await git(fixture.repo, ["push"]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Candidate publication state cannot be renamed");
+    expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-old-name.md"))).toBe(true);
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-new-name.md"))).toBe(false);
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).not.toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).toBe("");
   }, 30_000);
 
   it("refuses rename when explicit candidate expansion cannot reach origin", async () => {

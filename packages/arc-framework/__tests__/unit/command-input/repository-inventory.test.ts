@@ -114,6 +114,14 @@ describe("repository command-input inventory", () => {
         schemaOwnership: "owned",
         schemaField: "json",
       }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-ref",
+        acquisition: "parser-required",
+      }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-sha",
+        acquisition: "parser-required",
+      }),
     ]));
     expect(new Set(inventory.entries.map((entry) => entry.identity)).size).toBe(inventory.entries.length);
     expect(inventory.entries.map((entry) => entry.identity)).toEqual(
@@ -200,6 +208,8 @@ describe("repository command-input inventory", () => {
       "abandon",
       "activate",
       "archive",
+      "attest",
+      "base merge",
       "deactivate",
       "decompose",
       "delivery compose",
@@ -229,16 +239,21 @@ describe("repository command-input inventory", () => {
       "delivery terminal prepare",
       "demote",
       "finalize",
-      "integrate",
+      "integrate checkpoint",
+      "integrate merge",
       "materialize",
       "park",
       "promote",
+      "publish",
       "rename",
       "reopen",
       "repoint-design",
       "resume",
+      "review change-request resolve",
       "review chunking resolve",
       "review planning-lane",
+      "review pre-publication",
+      "review status",
       "set-stage",
       "start",
       "status",
@@ -246,6 +261,28 @@ describe("repository command-input inventory", () => {
       "teardown",
       "user reconcile-references",
       "wu reconcile",
+    ]);
+  });
+
+  it("assigns the close-stdin hosted GitHub boundary to every reachable command family", () => {
+    const hostedCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.scripts-review-gate-hosted-gh-process.ts-subprocess-execa-1")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(hostedCommands).toEqual([
+      "delivery native land-prepare",
+      "delivery native land-select",
+      "delivery native land-status",
+      "delivery native land-submit",
+      "delivery native link",
+      "delivery native observe",
+      "delivery native unlink",
+      "integrate checkpoint",
+      "integrate merge",
+      "review",
+      "review pre-publication",
+      "review status",
     ]);
   });
 
@@ -263,7 +300,7 @@ describe("repository command-input inventory", () => {
       "materialize",
       "activate",
       "deactivate",
-      "integrate",
+      "publish",
       "reopen",
       "archive",
       "teardown",

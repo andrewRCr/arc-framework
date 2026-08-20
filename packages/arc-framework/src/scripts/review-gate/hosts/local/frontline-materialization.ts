@@ -46,6 +46,14 @@ export async function prepareFrontlineTargetMaterialization(input: {
       cwd: reviewRoot,
       baseRef: input.target.baseRef,
       repositoryId,
+      ...(input.target.kind === "delivery-member"
+        ? {
+            memberCoordinates: {
+              headSha: input.target.headSha,
+              diffBaseSha: input.target.diffBaseSha,
+            },
+          }
+        : {}),
     });
     return { target, reviewRoot, release };
   } catch (error) {

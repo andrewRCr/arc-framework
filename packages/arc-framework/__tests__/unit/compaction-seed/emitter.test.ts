@@ -89,7 +89,7 @@ function derivedFrame(parentCheckoutPath: string | null = null): DerivedLocusFra
 }
 
 function derivedWorkUnitFrame(options: {
-  sessionType?: "planning" | "execution" | "integration";
+  sessionType?: "planning" | "execution" | "prepublication" | "integration";
   workflow?: string;
   loadSet?: LoadSetManifest;
 } = {}): DerivedLocusFrame {
@@ -126,6 +126,7 @@ function derivedWorkUnitFrame(options: {
       taskCursor: sessionType === "planning" ? null : CURSOR,
       cohortDocPath: null,
       loadSet,
+      integrationBoundary: null,
     },
     lifecycleLocation: "active" as const,
     diagnostics: [],
