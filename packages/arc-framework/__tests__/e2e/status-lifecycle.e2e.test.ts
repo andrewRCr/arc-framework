@@ -69,6 +69,7 @@ describe("status <slug>", () => {
       occupied: true,
       shipped: false,
       dependsOn: [{ slug: "shipped-dep", landed: true }],
+      integrationBoundary: null,
     });
   });
 

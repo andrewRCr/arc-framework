@@ -105,6 +105,18 @@ describe("attest → pre-publication → publish", () => {
       },
     });
 
+    const status = await runArc(["status", "example", "--json"], repository);
+    expect(status.exitCode, JSON.stringify(status)).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({
+      slug: "example",
+      state: "active",
+      integrationBoundary: {
+        candidateId: JSON.parse(proposed.stdout).locus.candidateId,
+        locus: "candidate-review-pending",
+        nextAction: { command: "arc review pre-publication example --json" },
+      },
+    });
+
     const reviewed = await runArc(
       ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
       repository,

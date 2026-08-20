@@ -167,6 +167,8 @@ import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecyc
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { transitionOverlayCompositionInput } from "../lib/work-unit/transition-overlay.js";
+import type { IntegrationBoundaryLocus } from
+  "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
@@ -501,14 +503,21 @@ export async function handleStatus(
     });
     const query = resolveSlugQuery(composed.index, slug);
     const worktreePath = composed.worktreePathBySlug.get(slug);
+    const operational = await resolveSlugOperationalBoundary({
+      slug,
+      state: query.state,
+      worktreePath,
+    });
     const warnings = [
       ...composed.qualityFacts.warnings.map(renderInFlightWarning),
       ...(opts.fetch === true && composed.qualityFacts.unreachable === true
         ? ["Remote unreachable; query derived from local refs only."]
         : []),
+      ...operational.warnings,
     ];
     const output = {
       ...query,
+      integrationBoundary: operational.integrationBoundary,
       ...(worktreePath !== undefined ? { worktreePath } : {}),
       ...(warnings.length > 0 ? { warnings: [...new Set(warnings)] } : {}),
     };
@@ -517,7 +526,11 @@ export async function handleStatus(
       return;
     }
     p.intro("arc status");
-    p.note(formatSlugStateQuery(query, { worktreePath, warnings: output.warnings ?? [] }), "Lifecycle state");
+    p.note(formatSlugStateQuery(query, {
+      integrationBoundary: output.integrationBoundary,
+      worktreePath,
+      warnings: output.warnings ?? [],
+    }), "Lifecycle state");
     p.outro("Done.");
     return;
   }
@@ -1547,7 +1560,11 @@ function errorMessage(err: unknown): string {
 /** Compact human render of a slug→state query for the non-`--json` path. */
 function formatSlugStateQuery(
   query: SlugStateQuery,
-  enrichment: { worktreePath?: string; warnings?: readonly string[] } = {},
+  enrichment: {
+    integrationBoundary?: IntegrationBoundaryLocus | null;
+    worktreePath?: string;
+    warnings?: readonly string[];
+  } = {},
 ): string {
   const position =
     query.position === null
@@ -1559,6 +1576,10 @@ function formatSlugStateQuery(
     `occupied: ${query.occupied} · shipped: ${query.shipped}`,
   ];
   if (enrichment.worktreePath !== undefined) lines.push(`worktree: ${enrichment.worktreePath}`);
+  if (enrichment.integrationBoundary !== null && enrichment.integrationBoundary !== undefined) {
+    lines.push(`boundary: ${enrichment.integrationBoundary.locus}`);
+    lines.push(`next: ${enrichment.integrationBoundary.nextAction.command}`);
+  }
   if (query.dependsOn.length > 0) {
     lines.push("depends on:");
     for (const dep of query.dependsOn) {
@@ -1567,4 +1588,35 @@ function formatSlugStateQuery(
   }
   for (const warning of enrichment.warnings ?? []) lines.push(`warning: ${warning}`);
   return lines.join("\n");
+}
+
+async function resolveSlugOperationalBoundary(options: {
+  slug: string;
+  state: SlugStateQuery["state"];
+  worktreePath: string | undefined;
+}): Promise<{
+  integrationBoundary: IntegrationBoundaryLocus | null;
+  warnings: string[];
+}> {
+  if (options.worktreePath === undefined
+    || (options.state !== "active" && options.state !== "integrating")) {
+    return { integrationBoundary: null, warnings: [] };
+  }
+  const active = await runActiveStatus({ cwd: options.worktreePath });
+  const expectedFilename = `meta-${options.slug}.md`;
+  const matches = active.candidates.filter((candidate) => candidate.filename === expectedFilename);
+  const candidate = matches.length === 1 ? matches[0] : undefined;
+  if (candidate === undefined) {
+    return {
+      integrationBoundary: null,
+      warnings: [
+        ...active.warnings,
+        `Operational boundary for ${options.slug} is unavailable: expected one ${expectedFilename}; found ${matches.length}.`,
+      ],
+    };
+  }
+  return {
+    integrationBoundary: candidate.integrationBoundary ?? null,
+    warnings: active.warnings,
+  };
 }
