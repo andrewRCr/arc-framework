@@ -144,9 +144,26 @@ posture.
   which `with-integration` archival has already emptied — consume an explicit retained identity or resolve the
   shipped archive safely; check the integration workflow's call order so the terminal identity survives exactly
   until attachment.
+- Terminal-workflow guard tests: `delivery-terminal-workflow.test.ts`'s whole-file digest pin is already removed (it
+  froze a shared workflow document and its reconstruction literal had gone stale); the twelve retained structural
+  assertions over the terminal-attachment block will fail by name when this design removes the disconnected terminal
+  request — the intended signal. Retire or rewrite them deliberately as part of the amendment; any replacement guard
+  is structural assertions over the specific contract (presence, uniqueness, ordering relative to merge confirmation
+  and close), never a digest over a shared document.
 - Suffix reconciliation: the native reconciler models only the single next-member retarget; native landing rewrites
   the entire remaining suffix, so full-suffix observation and structural reconciliation must be part of the landing
   result.
+- Completed-record retirement: after the first live integration (2026-08-20), `.git/arc/delivery/` still held two
+  canonical plan records and one bound state record for shipped, unoccupied work units — the store exposes
+  publish/enumerate/read/reverse-lookup only, so global member reverse lookup keeps treating historical heads as live
+  delivery-member authority and a reopened same-slug WU rediscovers the old plan. Settle the retention contract with
+  the ephemeral-bookkeeping posture: one idempotent, version-checked retirement path after terminal adoption and
+  ordinary WU closeout (covering a completed bound plan/state pair and an orphan plan with no state), or move
+  completed records out of the live enumeration and reverse-lookup namespaces; refuse while an operation, member ref,
+  or unsettled terminal remains.
+- Delivery residue reaping: the v1 self-delivery left six candidate refs and six delivery-gate worktrees with no
+  cleanup driver (hand-reaped 2026-08-15); whatever replaces the disposable-projection model owns reaping its own
+  refs and checkouts, or names their cleanup driver.
 - Frontline review of delivery members (`stale-target` recomposition refusal) is owned by an independent errand
   capture — coordinate, do not duplicate; that fix should land before this WU dogfoods its own delivery.
 
