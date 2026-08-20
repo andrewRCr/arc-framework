@@ -13,7 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** draft-design derivation settled — locus, landing, verification, refresh, comparator, registration
+- **Last Completed:** draft captured — consolidation + two adversarial passes folded (terminal delivery arm,
+  substrate seam, guardrails); formalization-ready
 - **Next Task:** [none]
 - **Blockers:** [none]
 
