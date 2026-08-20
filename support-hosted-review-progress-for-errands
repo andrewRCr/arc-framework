@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "support-hosted-review-progress-for-errands",
+  "claimId": "058fac9235f8488b6fa5be59ab024aa5",
+  "createdAt": "2026-08-20T20:36:33.727Z",
+  "updatedAt": "2026-08-20T20:36:33.727Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Allow hosted standard-review request and await progress to bind to an active Errand without requiring work-unit Candidate state.",
+  "branch": "chore/support-hosted-review-progress-for-errands",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
