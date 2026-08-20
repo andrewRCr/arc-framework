@@ -130,6 +130,19 @@ describe("CodeRabbit hosted adapter", () => {
     await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
   });
 
+  it.each(["-1", "1.5"])("rejects a present malformed actionable count of %s", async (count) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: ${count}**`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "malformed-provider-actionable-count",
+    });
+  });
+
   it.each([
     ["complete", "@coderabbitai full review"],
     ["incremental", "@coderabbitai review"],

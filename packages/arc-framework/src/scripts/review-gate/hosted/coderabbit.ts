@@ -94,7 +94,9 @@ interface SummaryMatch {
 }
 
 function nonNegativeInteger(value: string): number | null {
-  const parsed = Number(value);
+  const normalized = value.trim();
+  if (!/^\d+$/u.test(normalized)) return null;
+  const parsed = Number(normalized);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
@@ -184,7 +186,7 @@ export function parseCodeRabbitReviewBody(
   review: HostedGitHubReview,
 ): CodeRabbitReviewBodyParseResult {
   const actionableMatches = [...review.body.matchAll(
-    /^\*\*Actionable comments posted:\s*(\d+)\*\*\s*$/gmu,
+    /^\*\*Actionable comments posted:\s*([^*\r\n]*?)\s*\*\*\s*$/gimu,
   )];
   const actionableText = actionableMatches[0]?.[1];
   if (actionableMatches.length > 1) {
