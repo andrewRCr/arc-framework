@@ -15,7 +15,7 @@ import type { VersionedCandidateRecord } from "../candidate-record-store.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
   IntegrationBoundaryLocusSchema,
-  projectCandidateReviewBoundary,
+  type IntegrationBoundaryLocus,
 } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const ATTESTED_ORIENTATION = {
@@ -72,7 +72,8 @@ export interface AttestContext {
     currentWorkflow: string;
     nextAction: string;
     expectedRecordVersion: string | null;
-  }): Promise<{ recordPath: string; metaPath: string }>;
+    repairCurrent: boolean;
+  }): Promise<{ recordPath: string; metaPath: string; locus: IntegrationBoundaryLocus }>;
 }
 
 /**
@@ -108,21 +109,18 @@ export async function runAttest(
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
     if (currentness.convergenceVerification === "satisfied") {
-      await context.publish({
+      const published = await context.publish({
         name,
         record,
         candidateId: currentness.candidateId,
         candidateSubjectDigest: current.subject.subjectDigest,
         expectedRecordVersion: existing.version,
+        repairCurrent: true,
         ...orientation,
       });
       return {
         status: "unchanged",
-        locus: projectCandidateReviewBoundary({
-          workUnit: name,
-          candidateId: currentness.candidateId,
-          candidateSubjectDigest: current.subject.subjectDigest,
-        }),
+        locus: published.locus,
       };
     }
     const lineageAttestation = createCandidateLineageAttestation({
@@ -136,20 +134,16 @@ export async function runAttest(
       ...record,
       lineageAttestations: [...record.lineageAttestations, lineageAttestation],
     });
-    const locus = projectCandidateReviewBoundary({
-      workUnit: name,
-      candidateId: currentness.candidateId,
-      candidateSubjectDigest: current.subject.subjectDigest,
-    });
     const published = await context.publish({
       name,
       record: nextRecord,
       candidateId: currentness.candidateId,
       candidateSubjectDigest: current.subject.subjectDigest,
       expectedRecordVersion: existing.version,
+      repairCurrent: false,
       ...orientation,
     });
-    return { status: "attested", operation: "convergence", ...published, locus };
+    return { status: "attested", operation: "convergence", ...published };
   }
 
   return establishRoot(context, name, current, orientation, undefined, existing.version);
@@ -181,23 +175,18 @@ async function establishRoot(
     responses: [],
     lineageAttestations: [],
   });
-  const locus = projectCandidateReviewBoundary({
-    workUnit: name,
-    candidateId: attestation.candidateId,
-    candidateSubjectDigest: current.subject.subjectDigest,
-  });
   const published = await context.publish({
     name,
     record,
     candidateId: attestation.candidateId,
     candidateSubjectDigest: current.subject.subjectDigest,
     expectedRecordVersion,
+    repairCurrent: false,
     ...orientation,
   });
   return {
     status: "attested",
     operation: supersedes === undefined ? "root" : "re-root",
     ...published,
-    locus,
   };
 }

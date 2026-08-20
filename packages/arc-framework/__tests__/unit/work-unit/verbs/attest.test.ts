@@ -12,6 +12,8 @@ import {
   runAttest,
   type AttestContext,
 } from "../../../../src/lib/work-unit/verbs/attest.js";
+import { projectCandidateReviewBoundary } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
@@ -51,6 +53,11 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
       return {
         recordPath: `.arc/system/.internal/candidates/${input.name}.json`,
         metaPath: `.arc/active/meta-${input.name}.md`,
+        locus: projectCandidateReviewBoundary({
+          workUnit: input.name,
+          candidateId: input.candidateId,
+          candidateSubjectDigest: input.candidateSubjectDigest,
+        }),
       };
     },
   };

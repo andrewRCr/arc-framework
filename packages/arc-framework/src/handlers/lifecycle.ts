@@ -2564,27 +2564,42 @@ export async function handleAttest(
         publication.record,
         publication.expectedRecordVersion,
       );
+      const priorMeta = parseMetaRecord(metaContent);
+      const existingBoundary = boundarySnapshot.boundary;
+      const boundaryMatches = existingBoundary !== null
+        && existingBoundary.candidateId === publication.candidateId
+        && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
+      const locus = publication.repairCurrent && boundaryMatches
+        ? existingBoundary
+        : projectCandidateReviewBoundary({
+            workUnit: publication.name,
+            candidateId: publication.candidateId,
+            candidateSubjectDigest: publication.candidateSubjectDigest,
+          });
       const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
-      const orientation: Record<string, string> = {
-        "Current Workflow": formatValue(publication.currentWorkflow, "identifier"),
-        "Next Action": formatValue(publication.nextAction, "narrative"),
-      };
-      if (lastCompleted !== null) orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
-      metaContent = setMetaBulletFields(withCandidate, orientation);
+      const orientation: Record<string, string> = {};
+      if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
+        orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
+      }
+      if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
+        orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+      }
+      if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
+        orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
+      }
+      metaContent = Object.keys(orientation).length === 0
+        ? withCandidate
+        : setMetaBulletFields(withCandidate, orientation);
       const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
       if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
       await base.io.writeFile(absoluteMetaPath, metaContent);
       const boundaryPath = await writeSubmissionBoundary(
         base.cwd,
-        projectCandidateReviewBoundary({
-          workUnit: publication.name,
-          candidateId: publication.candidateId,
-          candidateSubjectDigest: publication.candidateSubjectDigest,
-        }),
+        locus,
         boundarySnapshot.version,
       );
       await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
-      return { recordPath, metaPath };
+      return { recordPath, metaPath, locus };
     },
   }, { name: input.name, lifecycle: meta.state, newRoot: input.newRoot === true });
 

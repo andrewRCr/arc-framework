@@ -17,6 +17,8 @@ import {
   git,
   runArc,
 } from "./helpers.js";
+import { createStandardReviewReservation } from
+  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 /**
  * Origin coordinates that parse as `owner/repo` but reach no host.
@@ -63,6 +65,7 @@ async function createAttestableRepo(): Promise<string> {
   const repository = await createTempRepo();
   await mkdir(join(repository, ".arc", "system"), { recursive: true });
   await writeFile(join(repository, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+  await writeFile(join(repository, ".gitignore"), ".arc/user/\n");
   await writeFile(join(repository, "README.md"), "# Fixture\n");
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "-m", "base"]);
@@ -204,6 +207,79 @@ describe("attest → pre-publication → publish", () => {
       status: "published",
       boundary: { locus: "publication-pending" },
     });
+  });
+
+  it("preserves advanced review authority when an unchanged Candidate is re-attested", async () => {
+    repository = await createAttestableRepo();
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+
+    const reviewed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+    const reviewedEnvelope = JSON.parse(reviewed.stdout) as {
+      candidateId: string;
+      candidateSubjectDigest: string;
+      target: { headSha: string };
+    };
+    const boundaryPath = join(
+      repository,
+      ".arc", "system", ".internal", "candidates", "example.boundary.json",
+    );
+    const readyBoundary = JSON.parse(await readFile(boundaryPath, "utf8")) as Record<string, unknown>;
+    const reservation = createStandardReviewReservation({
+      candidateId: reviewedEnvelope.candidateId,
+      sourceId: "coderabbit-pr",
+      sources: ["coderabbit-pr", "codex-pr"],
+      repository: "arc-framework/example",
+      headSha: reviewedEnvelope.target.headSha,
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    await writeFile(boundaryPath, `${JSON.stringify({ ...readyBoundary, reservation }, null, 2)}\n`);
+    await git(repository, ["add", boundaryPath]);
+
+    const readyReplay = await runArc(["attest", "example", "--json"], repository);
+    expect(readyReplay.exitCode, JSON.stringify(readyReplay)).toBe(0);
+    expect(JSON.parse(readyReplay.stdout)).toMatchObject({
+      status: "unchanged",
+      locus: { locus: "candidate-publish-ready", reservation },
+    });
+
+    const submitted = await runArc(
+      [
+        "publish", "example",
+        "--last-completed", "verification",
+        "--action", "push and open the PR",
+        "--json",
+      ],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
+    expect(JSON.parse(submitted.stdout)).toMatchObject({
+      status: "published",
+      boundary: { locus: "publication-pending", reservation },
+    });
+
+    const publishedReplay = await runArc(["attest", "example", "--json"], repository);
+    expect(publishedReplay.exitCode, JSON.stringify(publishedReplay)).toBe(0);
+    expect(JSON.parse(publishedReplay.stdout)).toMatchObject({
+      status: "unchanged",
+      locus: { locus: "publication-pending", reservation },
+    });
+    const meta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
+    expect(meta).toContain("- **Current Workflow:** `integrate-work-unit`");
+    expect(meta).toContain("- **Next Action:** push and open the PR");
   });
 
   it("composes a non-null exact target from a clean committed Candidate", async () => {
