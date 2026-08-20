@@ -19,6 +19,22 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Absorb the Errand lane's post-approval merge span into a typed procedure**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20).
+- _Concern:_ the Errand lane still narrates a stopless derive/re-read/lock-release/auto-merge/re-lock span in prose,
+  including the failure-prone try/finally invariant that integration composition was intended to absorb.
+- _Fold-in:_ parameterize the existing merge procedure by vehicle or expose an Errand merge verb over the shared
+  facts; if the asymmetry is retained, record its substantive rationale rather than treating absence as design.
+
+### `[ ]` **Type the integration resume point**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20).
+- _Concern:_ integration resume remains a six-row prose join over lifecycle state, change-request state, worktree
+  and branch reads, and lifecycle artifact facts already available to CLI composition.
+- _Fold-in:_ compile those facts into one typed resume slot and next action so the workflow dispatches a result
+  instead of reimplementing the join.
+
 ### `[ ]` **Dispatch published remedy actions instead of reducing them to prompt text**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-08-10).

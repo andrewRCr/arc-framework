@@ -19,6 +19,15 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make success-criteria marking express the assertions being verified**
+
+- _Routed from:_ split `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-20).
+- _Concern:_ one success criterion can bundle four or five assertions while the marking model has only met,
+  not-met, and unknown; a partially satisfied bundle becomes inexpressible and tends to resolve optimistically.
+- _Fold-in:_ require one independently falsifiable assertion per criterion or add a truthful partial representation.
+  Coordinate the authoring shape with `verification-falsification-contract`; this WU owns the planning-time
+  criterion form, not the verification method.
+
 ### `[ ]` **Run a source-grounded planning pre-flight before adversarial review**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during

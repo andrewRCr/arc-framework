@@ -26,6 +26,16 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Define Candidate subjects across code-repository and materialized storage**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: arc-backend`), housekeep drain (2026-08-20).
+- _Concern:_ Candidate stores a raw Git base OID and defines its subject over the Git index, but materialized tiers
+  place reviewable WU artifacts outside that index. The subject spans two storage classes while its defining
+  mechanism exists for only one.
+- _Fold-in:_ define a storage-layer notion of the state committed to review, with the in-repo tier projecting from
+  the index and materialized tiers from the backing store. Treat `baseRevision` separately if it remains
+  provenance-only; do not change the current in-repo tier ahead of the materialized design.
+
 ### `[ ]` **Diagnose degraded transient-identity reads without destructive cleanup**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10); observed repeatedly during
