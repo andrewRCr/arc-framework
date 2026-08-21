@@ -13,6 +13,7 @@ import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identit
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 
 const HEAD = "a".repeat(40);
+const MOVED_HEAD = "b".repeat(40);
 const CHANGE_REQUEST = {
   repositoryRef: "owner/repo",
   hostRef: "github.com",
@@ -51,8 +52,8 @@ function retainedRecord(previous: OrdinaryErrandRecord): OrdinaryErrandRecord {
   }) as OrdinaryErrandRecord;
 }
 
-function lifecycle(): ChangeRequestLifecycleEvidence {
-  return { kind: "merged", changeRequest: CHANGE_REQUEST } as ChangeRequestLifecycleEvidence;
+function lifecycle(changeRequest = CHANGE_REQUEST): ChangeRequestLifecycleEvidence {
+  return { kind: "merged", changeRequest } as ChangeRequestLifecycleEvidence;
 }
 
 function target(record: OrdinaryErrandRecord): CloseTarget {
@@ -259,6 +260,59 @@ describe("closeOrdinaryErrand", () => {
         kind: "applied",
         target: { ...value, record: mismatchedRecord },
       }),
+      cleanupRefs,
+      removeInbox: async () => ({ kind: "removed", nextOffer: null }),
+      retire: async () => ({ kind: "applied" }),
+    };
+
+    await expect(closeOrdinaryErrand({ slug: "done", protection: "full", dependencies }))
+      .resolves.toMatchObject({
+        outcome: "error",
+        error: { code: "locus.errand-close.identity" },
+      });
+    expect(cleanupRefs).not.toHaveBeenCalled();
+  });
+
+  it("accepts an unchanged retained record when the moved head was locally proven", async () => {
+    const record = retainedRecord(openRecord());
+    const movedChangeRequest = { ...CHANGE_REQUEST, headSha: MOVED_HEAD };
+    const cleanupRefs = vi.fn(async () => ({ kind: "applied" as const }));
+    const dependencies: CloseOrdinaryErrandDependencies = {
+      readIdentity: async () => ({ kind: "ready", record }),
+      resolveTarget: async () => ({
+        kind: "resolved",
+        changeRequest: movedChangeRequest,
+        recordedHeadAncestry: "locally-proven",
+      }),
+      readLifecycle: async () => lifecycle(movedChangeRequest),
+      readOccupancy: async () => ({
+        kind: "clear",
+        settle: async () => ({ kind: "idempotent", guard: null, parentCheckoutPath: null }),
+      }),
+      retainTarget: async (value) => ({ kind: "idempotent", target: value }),
+      cleanupRefs,
+      removeInbox: async () => ({ kind: "removed", nextOffer: null }),
+      retire: async () => ({ kind: "applied" }),
+    };
+
+    await expect(closeOrdinaryErrand({ slug: "done", protection: "full", dependencies }))
+      .resolves.toMatchObject({ outcome: "applied" });
+    expect(cleanupRefs).toHaveBeenCalledOnce();
+  });
+
+  it("does not accept a retained ancestor head without local ancestry proof", async () => {
+    const record = retainedRecord(openRecord());
+    const movedChangeRequest = { ...CHANGE_REQUEST, headSha: MOVED_HEAD };
+    const cleanupRefs = vi.fn(async () => ({ kind: "applied" as const }));
+    const dependencies: CloseOrdinaryErrandDependencies = {
+      readIdentity: async () => ({ kind: "ready", record }),
+      resolveTarget: async () => ({ kind: "resolved", changeRequest: movedChangeRequest }),
+      readLifecycle: async () => lifecycle(movedChangeRequest),
+      readOccupancy: async () => ({
+        kind: "clear",
+        settle: async () => ({ kind: "idempotent", guard: null, parentCheckoutPath: null }),
+      }),
+      retainTarget: async (value) => ({ kind: "idempotent", target: value }),
       cleanupRefs,
       removeInbox: async () => ({ kind: "removed", nextOffer: null }),
       retire: async () => ({ kind: "applied" }),

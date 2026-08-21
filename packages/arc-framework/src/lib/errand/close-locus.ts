@@ -317,9 +317,16 @@ function sameRetainedTarget(previous: CloseTarget, retained: CloseTarget): boole
       && retained.kind === "unchanged-base"
       && previous.headSha === retained.headSha;
   }
-  return retained.record.state === "awaiting-merge"
-    && sameChangeRequestCoordinates(previous.changeRequest, retained.changeRequest)
-    && sameChangeRequestCoordinates(previous.changeRequest, retained.record.changeRequest);
+  if (retained.record.state !== "awaiting-merge"
+    || !sameChangeRequestCoordinates(previous.changeRequest, retained.changeRequest)) {
+    return false;
+  }
+  if (sameChangeRequestCoordinates(previous.changeRequest, retained.record.changeRequest)) return true;
+  return previous.record.state === "awaiting-merge"
+    && previous.recordedHeadAncestry === "locally-proven"
+    && retained.recordedHeadAncestry === "locally-proven"
+    && sameChangeRequestCoordinates(previous.record.changeRequest, retained.record.changeRequest)
+    && sameChangeRequestCoordinatesExceptHead(previous.changeRequest, retained.record.changeRequest);
 }
 
 async function runWithCloseAuthority(
@@ -386,6 +393,14 @@ function sameChangeRequestCoordinates(
   return left.repositoryRef === changeRequest.repositoryRef && left.hostRef === changeRequest.hostRef
     && left.baseRef === changeRequest.baseRef && left.headRef === changeRequest.headRef
     && left.headSha === changeRequest.headSha;
+}
+
+function sameChangeRequestCoordinatesExceptHead(
+  left: LocusChangeRequestV1,
+  changeRequest: LocusChangeRequestV1,
+): boolean {
+  return left.repositoryRef === changeRequest.repositoryRef && left.hostRef === changeRequest.hostRef
+    && left.baseRef === changeRequest.baseRef && left.headRef === changeRequest.headRef;
 }
 
 function alreadyFinalized(slug: string): TerminalOperationOutcome {
