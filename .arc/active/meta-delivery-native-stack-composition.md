@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** generate-tasks Pass 3 — Phases 1-4 audited and folded; five spec elements amended
+- **Last Completed:** generate-tasks Pass 3 — all eight phases audited and folded; suite coherence settled
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** generate-tasks Pass 3 — resume the grounding audit at Phase 5, then Phases 6-8, the final
-  suite-coherence pass, and Finalize
+- **Next Action:** generate-tasks Finalize — pre-save checklist, delivery-authoring canonicalization, the
+  `Class`-scaled adversarial pass, then `arc finalize generate-tasks --class Heavy` and the ceremony commit
 
 - **PR URL:** [none]
 - **Completed:** [none]
