@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "treat-unreported-required-checks-as-pending",
+  "claimId": "bbb4029913990a13fb511c809b0f8c07",
+  "createdAt": "2026-08-21T22:01:24.161Z",
+  "updatedAt": "2026-08-21T22:01:24.161Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "treat-unreported-required-checks-as-pending",
+  "branch": "chore/treat-unreported-required-checks-as-pending",
+  "origin": "inbox",
+  "originEntry": "Treat unreported required checks as pending, not absent",
+  "originEntrySourceDigest": "sha256:9eef5f94ac2ab66834eb8d6f2c0cc4da53b8f899d73fad59daccb8c525809fd0",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
