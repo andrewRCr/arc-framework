@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
 | ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]                      | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | `plan/decompose-extraction` | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity`
 - **Depends On:** [none]
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Parked. Resume after `decompose-transition-record` settles; the spec never consumed receipt
-  authority, so re-validate it against the surviving core surfaces rather than re-deriving.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
