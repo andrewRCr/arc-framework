@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "reject-inconsistent-review-pass-progress",
+  "claimId": "d93266f29bbb5aaea38dfc790f89384c",
+  "createdAt": "2026-08-21T20:05:35.940Z",
+  "updatedAt": "2026-08-21T20:05:35.940Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "reject-inconsistent-review-pass-progress",
+  "branch": "chore/reject-inconsistent-review-pass-progress",
+  "origin": "inbox",
+  "originEntry": "Reject inconsistent review pass progress with a typed refusal",
+  "originEntrySourceDigest": "sha256:66ab6cf6548f1a656b527f6902dd4b340bc77d2f0f868812722290f92904a6a3",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
