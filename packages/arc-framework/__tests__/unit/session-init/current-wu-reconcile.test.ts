@@ -23,8 +23,6 @@ describe("runCurrentWuReconcileSessionProbe", () => {
       ]),
       queryDisposition: () => Promise.resolve({
         status: "unique",
-        evidenceQuality: "reachable",
-        receiptId: "sha256:receipt",
         disposition: { kind: "retarget", targetSlug: "successor" },
       }),
       readFile: () => {
@@ -47,7 +45,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
   it("surfaces a typed conflict without mutation", async () => {
     const result = await runCurrentWuReconcileSessionProbe({
       index: buildLifecycleIndexFromMetas([{ path: META_PATH, content: meta("`retired`") }]),
-      queryDisposition: () => Promise.resolve({ status: "ambiguous", receiptIds: ["one", "two"] }),
+      queryDisposition: () => Promise.resolve({ status: "ambiguous" }),
       readFile: () => Promise.resolve(meta("`retired`")),
     }, { slug: "dependent", metaPath: META_PATH });
 

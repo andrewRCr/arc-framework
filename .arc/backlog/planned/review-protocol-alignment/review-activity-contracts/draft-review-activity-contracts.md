@@ -7,6 +7,117 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Represent authorized incremental review without whole-target clearance**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ an operator-authorized exact-delta closure pass has no typed source for ordinary findings response
+  unless it falsely presents itself as managed whole-target review.
+- _Fold-in:_ bind exact base/head, direct-seam scope, evaluator evidence, and an explicit no-clearance property;
+  admit its findings to the ordinary disposition path without satisfying or weakening a full-final obligation.
+
+### `[ ]` **Carry review authorization across approved exact-head fixups**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (retargeted from `interlock-release-refinement`), housekeep drain
+  (2026-08-20).
+- _Concern:_ after the developer approved a provider review, its finding, the bounded fix, and the resulting commit,
+  the harness demanded another egress authorization merely because required re-review used a new exact head.
+- _Fold-in:_ preserve authorization when provider, repository, base, bounded path set, and review purpose remain
+  unchanged across an approved finding fix. The new exact head remains mandatory evidence; new providers, broader
+  exposure, unrelated or unapproved mutation, and ambiguity still stop.
+
+### `[ ]` **Right-size applicability and adversarial-pass calibration against live evidence**
+
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-20).
+- _Concern:_ the modal single-fix path performs a dominated per-increment applicability pass immediately before
+  converged Tier 3, while verification's optional adversarial pass found two material defect strata after two
+  self-verification passes claimed complete success and exhausted the configured Heavy cap.
+- _Fold-in:_ owe no applicability judgment when no review ran; skip the per-increment pass when it is already the
+  converging increment; retain the multi-increment case. Recalibrate activity posture and cap reporting so an
+  advisory/capped pass is not silently the only instrument performing load-bearing correctness work.
+
+### `[ ]` **Consider per-WU scope-boundary awareness for hosted reviewers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (resolved `WU_Target: review-activity-contracts`), housekeep drain
+  (2026-08-10).
+- _Concern:_ hosted reviewers cannot see a WU's Non-Goals through the current static guidance surface. During the
+  guidance redesign, evaluate supplying the governing spec's scope boundary and requiring scope-crossing findings
+  to ground why adequacy requires the crossing; primary triage remains the backstop.
+
+### `[ ]` **Right-size review activity around disclosed agent judgment**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain
+  (2026-07-27); captured during `decompose-roadmap-supersession` Errand closeout and
+  `review-protocol-alignment` decomposition (2026-07-26).
+- _Concern:_ Integrating a tiny Errand took ~40 minutes of protocol over implementation — pre-PR source
+  selection error, unused local operation, disproportionate hosted-finding disposition construction,
+  undocumented settlement identity representation, blindness to CodeRabbit's edited incremental-clean
+  signal, unnecessary repeat-review after a non-interacting test-only delta, and confusion between posting
+  a request artifact and a provider actually running a review. Machinery intended to streamline review
+  created additional failure modes.
+- _Governing constraint:_ ARC must not prevent an agent from applying ordinary, disclosed common-sense
+  judgment. Mechanization should enforce genuine authority and bias boundaries, automate deterministic
+  work, and make evidence dependable — not elevate procedural state over clear source evidence.
+- _Fold-in:_ re-audit every review activity, stop, re-trigger, and adapter wait by concrete risk guarded;
+  prefer typed automation; admit disclosed judgment where evidence already serves a default's purpose;
+  retain hard stops for bias-guarding independence, mutation approval, and exact-head merge authority.
+  Coordinate rule-yield / override with `judgment-authority-model`. Use the tiny-Errand path as a friction
+  regression scenario.
+
+### `[ ]` **Enforce visible adversarial-review pass caps in automatic audit dispatch**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain
+  (2026-07-27); captured during `review-signal-convergence` draft closeout.
+- _Concern:_ automatic planning/verification audit can dispatch `adversarial-review` without making the
+  current pass count and exhaustion state visible — agents continue past the cap without noticing authority
+  ended. `review-signal-convergence` D6.2 settles the rule: every result reports `Pass N of M`, `N == M`
+  stops before another evaluator invocation, a recommendation never authorizes continuation.
+- _Fold-in:_ apply that rule to every configured automatic planning and verification audit fire-point;
+  make `cap-exhausted` terminal; require explicit approval naming activity and next pass for exactly one
+  additional invocation; keep the cap out of evaluator context while making it explicit in primary control
+  flow and the operator-facing report.
+
+### `[ ]` **Bound and disclose read-only scouts inside review activities**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain
+  (2026-07-27); captured during `review-signal-convergence` adversarial spec review Pass 2.
+- _Concern:_ a standard non-partitioned adversarial pass spawned two read-only helper scouts without the
+  invocation contract stating whether scouts were permitted or bounded — so `Pass N of M` conceals actual
+  evaluator-call cost.
+- _Fold-in:_ let an activity contract authorize a small bounded scout set without counting each scout as
+  another logical pass. Default: at most two low-effort, fresh-context, read-only scouts with distinct
+  source loci; scouts return facts not findings/verdicts; report `Pass N of M` with actual reviewer/scout
+  call count. Fan-out beyond the declared bound requires explicit approval.
+
+### `[ ]` **Recognize CodeRabbit's edited incremental-clean signal**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain
+  (2026-07-27); captured during `decompose-roadmap-supersession` Errand integration.
+- _Concern:_ after an incremental CodeRabbit review found no new issues, CodeRabbit edited its pre-existing
+  walkthrough comment (`No actionable comments were generated…`, `updatedAt` past the request) rather than
+  creating a new PR review — so `arc review hosted await` stayed `pending` forever.
+- _Fold-in:_ model CodeRabbit's authenticated summary-edit completion shape as a provider-specific clean
+  observation. Correlate bot/app identity, request time, exact head, summary comment identity and
+  `updatedAt`, and the provider's stable clean marker. Cover both new-review completion and edited-summary
+  incremental completion.
+
+### `[ ]` **Derive hosted settlement actor identity inside the adapter**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain
+  (2026-07-27); captured during `decompose-roadmap-supersession` Errand integration.
+- _Concern:_ `review hosted settle` exposes freeform `actorIdentity`, but the GitHub adapter compares it to
+  the authenticated account's numeric database ID rather than login — supplying `andrewRCr` produced
+  `actor-mismatch` until the numeric ID was discovered by source inspection.
+- _Fold-in:_ derive the settlement actor inside the trusted adapter rather than requiring the caller to echo
+  an undocumented provider-specific identity representation. Preserve exact actor and current-target
+  validation.
+
+---
+
 ## Hosted Guidance Contract
 
 Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly

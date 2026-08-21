@@ -31,6 +31,8 @@ export interface DiscoveredOption extends DiscoveredSourceLocus {
   readonly flags: string;
   readonly valueName: string | null;
   readonly required: boolean;
+  /** Whether Commander requires the option itself to be present. */
+  readonly presenceRequired: boolean;
   readonly variadic: boolean;
   readonly choices: readonly string[];
   readonly defaultValue?: string | number | boolean;
@@ -193,10 +195,13 @@ function parseOption(
   path: string,
 ): DiscoveredOption | undefined {
   const method = methodCall(call);
-  if (method === undefined || (method.name !== "option" && method.name !== "addOption")) return undefined;
+  if (
+    method === undefined
+    || (method.name !== "option" && method.name !== "requiredOption" && method.name !== "addOption")
+  ) return undefined;
   let flags: string | undefined;
   let decorators: readonly ts.CallExpression[] = [];
-  if (method.name === "option") {
+  if (method.name === "option" || method.name === "requiredOption") {
     flags = stringValue(call.arguments[0]);
   } else {
     const optionExpression = call.arguments[0];
@@ -208,18 +213,26 @@ function parseOption(
 
   const value = parseOperandSyntax(flags)[0];
   let choices: readonly string[] = [];
-  let defaultValue: string | number | boolean | undefined;
+  let defaultValue = method.name === "option" || method.name === "requiredOption"
+    ? literalValue(call.arguments[2])
+    : undefined;
   let conflicts: readonly string[] = [];
+  let presenceRequired = method.name === "requiredOption";
   for (const decorator of decorators) {
     const decoratorMethod = methodCall(decorator);
     if (decoratorMethod?.name === "choices") choices = stringsFromArray(decorator.arguments[0]);
     if (decoratorMethod?.name === "default") defaultValue = literalValue(decorator.arguments[0]);
     if (decoratorMethod?.name === "conflicts") conflicts = stringsFromArray(decorator.arguments[0]);
+    if (decoratorMethod?.name === "makeOptionMandatory") {
+      presenceRequired = literalValue(decorator.arguments[0]) !== false;
+    }
   }
+  if (defaultValue !== undefined) presenceRequired = false;
   return {
     flags,
     valueName: value?.name ?? null,
     required: value?.required ?? false,
+    presenceRequired,
     variadic: value?.variadic ?? false,
     choices,
     ...(defaultValue === undefined ? {} : { defaultValue }),

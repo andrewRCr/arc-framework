@@ -11,9 +11,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CONFIG_COMPATIBILITY_CASES } from "../fixtures/config/cases.js";
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
+const tsxLoader = import.meta.resolve("tsx");
 const packageRoot = join(testDir, "..", "..");
 const cliPath = join(packageRoot, "src", "cli.ts");
-const tsxCliPath = fileURLToPath(import.meta.resolve("tsx/cli"));
 const packagedArcRoot = join(packageRoot, "arc");
 const launcherPath = join(packagedArcRoot, "system", ".internal", "scripts", "validate-config.sh");
 const verifyIntegrityPath = join(packagedArcRoot, "system", ".internal", "scripts", "verify-integrity.sh");
@@ -26,7 +26,7 @@ function fixtureRoot(): string {
 }
 
 function runConfigValidate(cwd: string, args: string[] = []) {
-  return spawnSync(process.execPath, [tsxCliPath, cliPath, "config", "validate", ...args], {
+  return spawnSync(process.execPath, ["--import", tsxLoader, cliPath, "config", "validate", ...args], {
     cwd,
     encoding: "utf8",
   });
@@ -39,7 +39,7 @@ function sourceCliEnvironment(root: string): NodeJS.ProcessEnv {
     join(binDir, "arc"),
     [
       "#!/usr/bin/env bash",
-      'exec "$ARC_TEST_NODE" "$ARC_TEST_TSX" "$ARC_TEST_CLI" "$@"',
+      'exec "$ARC_TEST_NODE" --import "$ARC_TEST_TSX_LOADER" "$ARC_TEST_CLI" "$@"',
       "",
     ].join("\n"),
   );
@@ -48,15 +48,15 @@ function sourceCliEnvironment(root: string): NodeJS.ProcessEnv {
     ...process.env,
     PATH: `${binDir}:${process.env.PATH ?? ""}`,
     ARC_TEST_NODE: process.execPath,
-    ARC_TEST_TSX: tsxCliPath,
+    ARC_TEST_TSX_LOADER: tsxLoader,
     ARC_TEST_CLI: cliPath,
   };
 }
 
-function expectOnlyDevelopmentBuildWarning(stderr: string): void {
-  expect(stderr).toMatch(
-    /^(?:|warn: arc dev build is stale \(.+\)\. Run `npm run build` before relying on output\.\n)$/u,
-  );
+// These cases spawn the CLI from source, where the staleness guard does not run
+// at all — so any stderr at all is a real diagnostic worth failing on.
+function expectCleanStderr(stderr: string): void {
+  expect(stderr).toBe("");
 }
 
 afterEach(() => {
@@ -77,7 +77,7 @@ describe("arc config validate", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("PASS  Config file exists: .arc/system/arc-config.yml");
     expect(result.stdout).toContain("PASS  branch.protection: full");
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 
   it("resolves a relative explicit path outside an ARC root and preserves its token", () => {
@@ -90,7 +90,7 @@ describe("arc config validate", () => {
     expect(result.stdout).toContain("PASS  Config file exists: selected.yml");
     expect(result.stdout).toContain("WARN  Unknown key: 'unknown.setting'");
     expect(result.stdout).not.toContain(join(root, "selected.yml"));
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 
   it("preserves a whitespace-bearing explicit path token exactly", () => {
@@ -103,7 +103,7 @@ describe("arc config validate", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(`PASS  Config file exists: ${selected}`);
     expect(result.stdout).toContain("PASS  branch.protection: full");
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 
   it("accepts an absolute explicit path and propagates validation errors", () => {
@@ -116,7 +116,7 @@ describe("arc config validate", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toContain(`PASS  Config file exists: ${selected}`);
     expect(result.stdout).toContain("ERROR branch.protection: 'impossible' is not valid");
-    expectOnlyDevelopmentBuildWarning(result.stderr);
+    expectCleanStderr(result.stderr);
   });
 });
 
@@ -142,8 +142,8 @@ describe("configuration compatibility corpus — process boundaries", () => {
       for (const line of fixture.expected.validator.lineIncludes) {
         expect(direct.stdout).toContain(line);
       }
-      expectOnlyDevelopmentBuildWarning(direct.stderr);
-      expectOnlyDevelopmentBuildWarning(launcher.stderr);
+      expectCleanStderr(direct.stderr);
+      expectCleanStderr(launcher.stderr);
     }, 15_000);
   }
 

@@ -93,7 +93,15 @@ describe("makeWorktreeOccupancyGuard", () => {
 
   /** An in-place re-attach op for `branch` — the placement the occupancy guard enforces over. */
   function inPlaceInputs(branch: string): TransitionInputs {
-    return { worktreeOp: { mutation: "spawn", inPlace: true, branch, createBranch: false } };
+    return {
+      worktreeOp: {
+        mutation: "spawn",
+        inPlace: true,
+        branch,
+        wuName: "demo",
+        createBranch: false,
+      },
+    };
   }
 
   it("rejects an in-place re-attach when a different work unit occupies the checkout", async () => {

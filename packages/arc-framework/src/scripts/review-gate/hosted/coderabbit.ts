@@ -9,6 +9,7 @@ import {
   HostedGitHubReadError,
   normalizeHostedGitHubReadFailure,
   type HostedGitHubPort,
+  type HostedGitHubIssueComment,
   type HostedGitHubReview,
   type HostedGitHubThreadComment,
 } from "./github.js";
@@ -26,12 +27,56 @@ const COMMANDS = {
 } as const satisfies Record<HostedReviewCoverage, string>;
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
+const APP_ID = "347564";
+const COMPLETE_REPLY = /^[ \t]*Full review finished\.[ \t]*$/imu;
+const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
   commands: COMMANDS,
-  identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID },
+  identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
+
+function recentReviewBody(comment: HostedGitHubIssueComment): string | null {
+  const starts = [...comment.body.matchAll(/<!--\s*recent_review_start\s*-->/giu)];
+  const ends = [...comment.body.matchAll(/<!--\s*recent_review_end\s*-->/giu)];
+  if (starts.length !== 1 || ends.length !== 1) return null;
+  const start = starts[0];
+  const end = ends[0];
+  if (start === undefined || end === undefined || end.index <= start.index) return null;
+  return comment.body.slice(start.index + start[0].length, end.index);
+}
+
+function summaryCompletesHead(
+  comment: HostedGitHubIssueComment,
+  target: HostedTarget,
+  requestedAt: string,
+): boolean {
+  if (comment.updatedAt < requestedAt) return false;
+  const recent = recentReviewBody(comment);
+  if (recent === null || !/\bno actionable comments were generated in the recent review\b/iu.test(recent)) {
+    return false;
+  }
+  const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
+  const reviewedHead = ranges[0]?.[1]?.toLowerCase();
+  return ranges.length === 1 && reviewedHead !== undefined && target.headSha.startsWith(reviewedHead);
+}
+
+function commandReplyCompleted(
+  comment: HostedGitHubIssueComment,
+  requestedAt: string,
+  coverage: HostedReviewCoverage | null,
+): boolean {
+  const completionMatches = coverage === "complete"
+    ? COMPLETE_REPLY.test(comment.body)
+    : coverage === "incremental"
+      ? INCREMENTAL_REPLY.test(comment.body)
+      : COMPLETE_REPLY.test(comment.body) || INCREMENTAL_REPLY.test(comment.body);
+  return comment.createdAt >= requestedAt
+    && /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/iu.test(comment.body)
+    && /<summary>\s*✅\s*Action performed\s*<\/summary>/iu.test(comment.body)
+    && completionMatches;
+}
 
 function severity(body: string): "blocker" | "major" | "minor" | null {
   const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
@@ -72,7 +117,7 @@ type SupplementalCategory = "nitpick" | "outside-diff";
 export type CodeRabbitReviewBodyParseResult =
   | {
     kind: "parsed";
-    actionableCount: number;
+    actionableCount: number | null;
     findings: ReviewBodyFinding[];
   }
   | { kind: "malformed"; reason: string };
@@ -94,7 +139,9 @@ interface SummaryMatch {
 }
 
 function nonNegativeInteger(value: string): number | null {
-  const parsed = Number(value);
+  const normalized = value.trim();
+  if (!/^\d+$/u.test(normalized)) return null;
+  const parsed = Number(normalized);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
@@ -179,19 +226,23 @@ function parseSupplementalSection(
   return { kind: "parsed", findings };
 }
 
-/** Parse CodeRabbit's review-body completeness claims and non-thread findings. */
+/** Parse CodeRabbit's optional review-thread count claim and non-thread findings. */
 export function parseCodeRabbitReviewBody(
   review: HostedGitHubReview,
 ): CodeRabbitReviewBodyParseResult {
   const actionableMatches = [...review.body.matchAll(
-    /^\*\*Actionable comments posted:\s*(\d+)\*\*\s*$/gmu,
+    /^\*\*Actionable comments posted:\s*([^*\r\n]*?)\s*\*\*\s*$/gimu,
   )];
   const actionableText = actionableMatches[0]?.[1];
-  if (actionableMatches.length !== 1 || actionableText === undefined) {
+  if (actionableMatches.length > 1) {
     return malformed("malformed-provider-actionable-count");
   }
-  const actionableCount = nonNegativeInteger(actionableText);
-  if (actionableCount === null) return malformed("malformed-provider-actionable-count");
+  const actionableCount = actionableText === undefined
+    ? null
+    : nonNegativeInteger(actionableText);
+  if (actionableText !== undefined && actionableCount === null) {
+    return malformed("malformed-provider-actionable-count");
+  }
 
   const promptStart = review.body.search(/<summary>[^<\r\n]*Prompt for all review comments/iu);
   const detailBody = review.body.slice(0, promptStart === -1 ? review.body.length : promptStart);
@@ -270,23 +321,31 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
     handle: HostedRequestHandle,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
-    return this.observeSince(handle.target, handle.artifact.createdAt, options);
+    return this.observeSince(
+      handle.target,
+      handle.artifact.createdAt,
+      handle.effectiveCoverage,
+      options,
+    );
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, "1970-01-01T00:00:00.000Z");
+    return this.observeSince(target, "1970-01-01T00:00:00.000Z", null);
   }
 
   private async observeSince(
     target: HostedTarget,
     requestedAt: string,
+    coverage: HostedReviewCoverage | null,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
-      const [checks, reviews, threads] = await Promise.all([
+      const [checks, statuses, reviews, threads, comments] = await Promise.all([
         this.github.readCheckRuns(target, options),
+        this.github.readCommitStatuses(target, options),
         this.github.readReviews(target, options),
         this.github.readThreads(target, options),
+        this.github.readIssueComments(target, options),
       ]);
       const providerChecks = checks.filter((check) =>
         check.name === "CodeRabbit" && check.appOwnerIdentity === APP_OWNER_ID);
@@ -304,7 +363,22 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         && review.headSha === target.headSha
         && review.submittedAt >= requestedAt);
       const review = newestTerminalReview(providerReviews);
-      if (review === undefined) return { kind: "pending" };
+      if (review === undefined) {
+        const providerComments = comments.filter((comment) =>
+          comment.actorIdentity === BOT_USER_ID && comment.appId === APP_ID);
+        const completedStatus = statuses.find((status) =>
+          status.context === "CodeRabbit"
+          && status.state === "success"
+          && status.createdAt >= requestedAt
+          && /\breview completed\b/iu.test(status.description));
+        const completedReply = providerComments.find((comment) =>
+          commandReplyCompleted(comment, requestedAt, coverage));
+        const completedSummary = providerComments.find((comment) =>
+          summaryCompletesHead(comment, target, requestedAt));
+        return completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined
+          ? { kind: "clean", reviewUrl: completedSummary.url }
+          : { kind: "pending" };
+      }
       const parsedBody = parseCodeRabbitReviewBody(review);
       if (parsedBody.kind === "malformed") {
         return { kind: "terminal-failure", reason: parsedBody.reason };
@@ -323,14 +397,14 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       if (candidateComments.length !== findings.length) {
         return { kind: "terminal-failure", reason: "malformed-provider-finding" };
       }
-      if (findings.length !== parsedBody.actionableCount) {
+      if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
         return { kind: "terminal-failure", reason: "provider-actionable-finding-count-mismatch" };
       }
       const allFindings = [...findings, ...parsedBody.findings];
       if (allFindings.length > 0) {
         return { kind: "findings", reviewUrl: review.url, findings: allFindings };
       }
-      if (review.state === "approved" && parsedBody.actionableCount === 0) {
+      if (review.state === "approved") {
         return { kind: "clean", reviewUrl: review.url };
       }
       return review.state === "changes-requested"

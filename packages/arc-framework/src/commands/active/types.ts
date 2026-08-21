@@ -11,6 +11,7 @@ import type { GitExec } from "../../lib/git/index.js";
 import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
 import type { Slug } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
+import type { IntegrationBoundaryLocus } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 export {
   PrioritySchema,
@@ -47,8 +48,7 @@ export type ActiveSessionInitResolution = "none" | "single" | "multiple";
  *
  * - `planning` — between work units, or no task list yet.
  * - `execution` — task list present, regular task work.
- * - `integration` — `**Next Action:**` matches an integration-lifecycle
- *   workflow (`integrate-work-unit` / `archive-work-unit`).
+ * - `integration` — lifecycle `State` is `Integrating`.
  *
  * `null` is reserved for two cases at the envelope:
  *
@@ -56,7 +56,7 @@ export type ActiveSessionInitResolution = "none" | "single" | "multiple";
  * - Orphan: no candidate (or candidate has empty State) and the current
  *   branch does not match the planning-branch pattern.
  */
-export type SessionType = "planning" | "execution" | "integration";
+export type SessionType = "planning" | "execution" | "prepublication" | "integration";
 
 /**
  * One parsed meta file. `path` is always relative to the probe's cwd so
@@ -69,6 +69,8 @@ export interface MetaFileCandidate {
   /** Basename — e.g. `meta-foo.md`. Used by session-init's SESSION-NOTES-first precedence. */
   filename: string;
   branch: string | null;
+  candidateId?: string | null;
+  integrationBoundary?: IntegrationBoundaryLocus | null;
   /** Raw `**State:**` value verbatim — e.g. `Active`, `Integrating`, `Paused (2026-04-12)`. */
   state: string | null;
   /** Raw `**Next Task:**` value — triple-anchor format `Task X.Y — title (line ~N)`. */
@@ -135,8 +137,8 @@ export interface ActiveSessionInitResult {
   taskListPath?: string | null;
   /**
    * Resolved session type for per-type loadset selection. Computed from
-   * `resolution` plus the resolved candidate's `**Task List:**` and
-   * `**Next Action:**` fields. `null` when `resolution === "multiple"`
+   * `resolution` plus the resolved candidate's lifecycle `State` and
+   * `**Task List:**` field. `null` when `resolution === "multiple"`
    * and the caller must disambiguate before computing type.
    */
   sessionType: SessionType | null;
@@ -157,6 +159,8 @@ export interface ActiveSessionInitResult {
    * else (non-planning sessions, multi-WU disambiguation, orphan no-meta branch).
    */
   planningStage: PlanningWorkflow | null;
+  /** Exact Candidate/review/publication resume point for the resolved work unit. */
+  integrationBoundary: IntegrationBoundaryLocus | null;
   warnings: string[];
 }
 

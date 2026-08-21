@@ -9,11 +9,14 @@ import {
   validateReviewTarget,
 } from "./gate-contract-v2.js";
 import {
+  GitObjectIdSchema,
   ReviewRequestV2Schema,
   ReviewRequirementV2Schema,
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
+import { HostedFindingSchema } from "../hosted/await.js";
+import { HostedTargetSchema } from "../hosted/request.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -26,6 +29,7 @@ const OperationEnvelopeShape = {
 const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
   z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema }),
+  z.strictObject({ kind: z.literal("delivery-member"), identity: IdentifierSchema }),
 ]);
 
 export const FrontlineRunStateSchema = z.strictObject({
@@ -75,6 +79,8 @@ export const LocalReviewStateSchema = z.strictObject({
   repositoryId: IdentifierSchema,
   targetId: CanonicalDigestSchema,
   requestId: CanonicalDigestSchema,
+  /** Configured policy source; distinct from the evaluator that produced the attestation. */
+  laneSourceId: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
   policyVersion: CanonicalDigestSchema,
   policyBindingDigest: CanonicalDigestSchema,
   attestationRuntimeKind: IdentifierSchema,
@@ -91,6 +97,13 @@ export const LocalReviewStateSchema = z.strictObject({
     const target = validateReviewTarget(state.target);
     const requirement = validateReviewRequirement(target, state.requirement);
     const request = validateReviewRequest(target, state.request);
+    if ((state.vehicle.kind === "delivery-member") !== (target.kind === "delivery-member")) {
+      context.addIssue({
+        code: "custom",
+        message: "operation vehicle and target kinds mismatch",
+        path: ["vehicle"],
+      });
+    }
     if (state.repositoryId !== target.repositoryId || state.targetId !== target.targetId) {
       context.addIssue({ code: "custom", message: "operation target snapshot mismatch", path: ["target"] });
     }
@@ -118,10 +131,108 @@ export const LocalReviewStateSchema = z.strictObject({
 });
 export type LocalReviewState = z.infer<typeof LocalReviewStateSchema>;
 
+/**
+ * Source identity and outcome vocabulary are the review-policy driver's, not this module's
+ * looser `IdentifierSchema`: progress that cannot be replayed into a policy request is not
+ * progress, so an unusable value is refused at write rather than discovered at read.
+ */
+const LaneSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
+const LaneAttemptOutcomeSchema = z.enum([
+  "clean",
+  "findings",
+  "settled-findings",
+  "rate-limited",
+  "transient-unavailable",
+  "partial",
+  "ambiguous-delivery",
+  "malformed",
+  "timed-out",
+  "stale-target",
+  "capability-unsupported",
+  "source-unbound",
+  "terminal-failure",
+]);
+const HostedLaneAttemptBindingSchema = z.strictObject({
+  target: HostedTargetSchema,
+  reviewTarget: ReviewTargetSchema,
+  requirement: ReviewRequirementV2Schema,
+  actorIdentity: IdentifierSchema,
+  findings: z.array(HostedFindingSchema),
+  dispositionSetId: CanonicalDigestSchema.nullable(),
+  settledFindingIds: z.array(z.string().trim().min(1)),
+});
+
+const LaneAttemptSchema = z.strictObject({
+  attemptId: IdentifierSchema,
+  sourceId: LaneSourceIdSchema,
+  outcome: LaneAttemptOutcomeSchema,
+  chunkSeriesComplete: z.boolean().optional(),
+  hosted: HostedLaneAttemptBindingSchema.optional(),
+}).superRefine((attempt, context) => {
+  if (attempt.hosted === undefined) return;
+  try {
+    const target = validateReviewTarget(attempt.hosted.reviewTarget);
+    validateReviewRequirement(target, attempt.hosted.requirement);
+    if (target.headSha !== attempt.hosted.target.headSha) {
+      context.addIssue({
+        code: "custom",
+        path: ["hosted", "target", "headSha"],
+        message: "hosted and review targets must identify the same head",
+      });
+    }
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "reviewTarget"],
+      message: error instanceof Error ? error.message : "invalid hosted review binding",
+    });
+  }
+  const findingIds = attempt.hosted.findings.map(({ findingId }) => findingId);
+  if (new Set(findingIds).size !== findingIds.length) {
+    context.addIssue({ code: "custom", path: ["hosted", "findings"], message: "hosted finding IDs must be unique" });
+  }
+  if (new Set(attempt.hosted.settledFindingIds).size !== attempt.hosted.settledFindingIds.length
+    || attempt.hosted.settledFindingIds.some((findingId) => !findingIds.includes(findingId))) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "settledFindingIds"],
+      message: "settled hosted finding IDs must be a unique subset of the attempt findings",
+    });
+  }
+  if (attempt.hosted.dispositionSetId === null && attempt.hosted.settledFindingIds.length > 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "dispositionSetId"],
+      message: "hosted findings cannot settle before an approved disposition set is bound",
+    });
+  }
+  const complete = findingIds.length > 0 && attempt.hosted.settledFindingIds.length === findingIds.length;
+  if ((attempt.outcome === "settled-findings") !== complete) {
+    context.addIssue({
+      code: "custom",
+      path: ["outcome"],
+      message: "settled-findings must exactly match complete hosted finding settlement",
+    });
+  }
+});
+
+export const LaneProgressStateSchema = z.strictObject({
+  ...OperationEnvelopeShape,
+  kind: z.literal("lane-progress"),
+  lane: z.enum(["frontline", "standard"]),
+  repositoryId: IdentifierSchema,
+  changeRequestId: IdentifierSchema.nullable(),
+  headSha: GitObjectIdSchema,
+  completedPasses: z.number().int().nonnegative(),
+  attempts: z.array(LaneAttemptSchema),
+});
+export type LaneProgressState = z.infer<typeof LaneProgressStateSchema>;
+
 export const ReviewOperationStateSchema = z.discriminatedUnion("kind", [
   FrontlineRunStateSchema,
   ReviewSuspensionStateSchema,
   LocalReviewStateSchema,
+  LaneProgressStateSchema,
 ]);
 export type ReviewOperationState = z.infer<typeof ReviewOperationStateSchema>;
 
@@ -139,6 +250,11 @@ export function registerReviewOperationStateSchemas(registry: KernelRegistry): K
   });
   registry.register(LocalReviewStateSchema, {
     id: "local-review-state",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(LaneProgressStateSchema, {
+    id: "lane-progress-state",
     version: 1,
     migrationPosture: "strict-current",
   });

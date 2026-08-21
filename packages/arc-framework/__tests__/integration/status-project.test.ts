@@ -6,12 +6,16 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleStatus, type StatusCliOptions } from "../../src/handlers/status.js";
-import { writeErrandRecord } from "../../src/lib/errand/record.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
+import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   ROADMAP_PATH,
   renderRoadmapFromIndexResult,
+  resolveStagedTransitionOverlays,
 } from "../../src/lib/status/roadmap-regeneration-assert.js";
+import { transitionOverlayCompositionInput } from "../../src/lib/work-unit/transition-overlay.js";
+import { resolveTransitionRecordRelativePath } from "../../src/lib/work-unit/transition-record-store.js";
 import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import {
   cleanupTempDir,
@@ -186,17 +190,34 @@ describe("arc status --project", () => {
 
     await execFileAsync("git", ["checkout", "-b", "chore/ref-only-errand", "main"], { cwd: repo });
     await execFileAsync("git", ["push", "-u", "origin", "chore/ref-only-errand"], { cwd: repo });
-    await writeErrandRecord(
+    const identityWrite = await transactTransientIdentities(
       { exec: makeGitExec(repo), execInput: makeGitExecInput(repo), identity: "andrew" },
       {
-        version: 1,
-        slug: "ref-only-errand",
-        origin: "description",
-        intent: "verify project status ignores errand refs",
-        branch: "chore/ref-only-errand",
-        createdAt: "2026-07-09T00:00:00.000Z",
+        remote: null,
+        message: "seed ref-only-errand",
+        transform: (basis) => ({
+          kind: "applied",
+          records: new Map([...basis, ["ref-only-errand", TransientIdentityRecordV3Schema.parse({
+            version: 3,
+            kind: "errand",
+            slug: "ref-only-errand",
+            claimId: "a".repeat(32),
+            purpose: "errand",
+            origin: "description",
+            originEntry: null,
+            intent: "verify project status ignores errand refs",
+            branch: "chore/ref-only-errand",
+            state: "open",
+            savedHead: null,
+            changeRequest: null,
+            createdAt: "2026-07-09T00:00:00.000Z",
+            updatedAt: "2026-07-09T00:00:00.000Z",
+          })]]),
+          value: null,
+        }),
       },
     );
+    expect(identityWrite.kind).toBe("applied");
 
     await execFileAsync("git", ["checkout", "main"], { cwd: repo });
 
@@ -444,6 +465,79 @@ describe("arc status --project", () => {
 
     expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
     expect(cli).toBe(rendered.content);
+  });
+
+  it("admits multiple finalized transitions carried by one staged base merge", async () => {
+    repo = await createTempRepo("arc-status-multi-transition-merge-");
+    remote = `${repo}-origin.git`;
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
+    await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system"), { recursive: true });
+    await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nbranch.protection: partial\npm.mode: arc-in-git\n",
+    );
+    await commitAll(repo, "scaffold merge fixture");
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: repo });
+    const sharedBase = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo })).stdout.trim();
+
+    for (const slug of ["retired-a", "retired-b"]) {
+      const branch = `plan/${slug}`;
+      await execFileAsync("git", ["switch", "-c", branch, sharedBase], { cwd: repo });
+      await mkdir(join(repo, ".arc", "active"), { recursive: true });
+      await writeFile(join(repo, ".arc", "active", `meta-${slug}.md`), meta(slug, "Planning", branch));
+      await commitAll(repo, `plan ${slug}`);
+      await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: repo });
+    }
+
+    const receivingBranch = "feat/merge-receiver";
+    await execFileAsync("git", ["switch", "-c", receivingBranch, sharedBase], { cwd: repo });
+    await writeFile(join(repo, "receiver.txt"), "receiver\n");
+    await commitAll(repo, "advance merge receiver");
+
+    await execFileAsync("git", ["switch", "main"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system", ".internal", "transitions"), { recursive: true });
+    for (const slug of ["retired-a", "retired-b"]) {
+      await writeFile(
+        join(repo, resolveTransitionRecordRelativePath(slug)),
+        `${JSON.stringify({
+          schemaVersion: 1,
+          origin: slug,
+          kind: "decompose",
+          successors: [`${slug}-successor`],
+          edges: [],
+        })}\n`,
+      );
+    }
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+    const exec = makeRawGitExec(repo);
+    const transitionOverlays = await resolveStagedTransitionOverlays({ cwd: repo, exec });
+    const rendered = await renderRoadmapFromIndexResult({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      transitionOverlays: transitionOverlays.map(transitionOverlayCompositionInput),
+    });
+    await writeFile(join(repo, ROADMAP_PATH), rendered.content);
+    await commitAll(repo, "finalize retirements");
+
+    await execFileAsync("git", ["switch", receivingBranch], { cwd: repo });
+    await execFileAsync("git", ["merge", "--no-commit", "--no-ff", "main"], { cwd: repo });
+    const hook = await runRoadmapRegenerationAssert({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      stagedPaths: [ROADMAP_PATH],
+    });
+    const cli = await runProject(repo, { project: true, staged: true });
+
+    expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    expect(cli).toBe(rendered.content);
+    expect(cli).not.toContain("retired-a");
+    expect(cli).not.toContain("retired-b");
   });
 });
 

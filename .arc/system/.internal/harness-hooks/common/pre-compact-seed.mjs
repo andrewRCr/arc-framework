@@ -20,6 +20,7 @@ const env = { ...process.env };
 try {
   reapExpiredRecoveryArtifacts();
   let result = runSeedCommand();
+  let staleBuildFailure = null;
   if (shouldRetryAfterBuild(result)) {
     const build = spawnSync(staleBuildCommand, {
       cwd,
@@ -32,11 +33,20 @@ try {
     });
     if (build.status === 0) {
       result = runSeedCommand();
+      if (hasStaleBuildWarning(result)) {
+        staleBuildFailure = "seed command remained stale after repair";
+      }
+    } else {
+      staleBuildFailure = commandFailureMessage("stale-build repair", build);
     }
   }
 
   if (isCodexHarness()) {
-    writeMarkerFromResult(result);
+    if (staleBuildFailure === null) {
+      writeMarkerFromResult(result);
+    } else {
+      writeFallbackPendingMarker(staleBuildFailure, sessionId);
+    }
   }
 } catch {
   // PreCompact must never block compaction; recovery will surface seed failures.
@@ -69,9 +79,10 @@ function runSeedCommand() {
 }
 
 function shouldRetryAfterBuild(result) {
-  if (staleBuildCommand.length === 0 || result.status === 0) {
-    return false;
-  }
+  return staleBuildCommand.length > 0 && hasStaleBuildWarning(result);
+}
+
+function hasStaleBuildWarning(result) {
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   return `${stderr}\n${stdout}`.includes("arc dev build is stale");
@@ -159,13 +170,17 @@ function hasControlCharacter(value) {
 }
 
 function seedCommandFailureMessage(result) {
+  return commandFailureMessage("seed command", result);
+}
+
+function commandFailureMessage(label, result) {
   const status = result.status === null ? "unknown" : String(result.status);
   const signal = typeof result.signal === "string" ? ` signal ${result.signal}` : "";
   const error = result.error instanceof Error ? result.error.message : null;
   const stderr = firstNonEmptyLine(result.stderr);
   const stdout = firstNonEmptyLine(result.stdout);
   const detail = stderr ?? stdout ?? error;
-  return `seed command exited ${status}${signal}${detail ? `: ${detail}` : ""}`;
+  return `${label} exited ${status}${signal}${detail ? `: ${detail}` : ""}`;
 }
 
 function seedWriteFailureMessage(write, expectedPath) {

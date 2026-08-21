@@ -251,7 +251,7 @@ describe("reconcileBranch", () => {
     ]);
   });
 
-  it("makes no git invocation for create (reconcile-worktree owns branch creation)", async () => {
+  it("makes no git invocation for create (reconcile-work-unit-worktree owns branch creation)", async () => {
     const { ctx, calls } = buildCtx();
 
     await reconcileBranch(ctx, { mutation: "create" });

@@ -8,47 +8,54 @@
     "packages/arc-framework"
   ],
   "scripts": {
-    "lint:md": "tsx packages/arc-framework/src/scripts/lint-markdown.ts",
-    "lint:md:staged": "tsx packages/arc-framework/src/scripts/lint-markdown-staged.ts",
-    "lint:md:markdownlint": "npm run -s lint:md:dependencies && tsx packages/arc-framework/src/scripts/lint-markdown-worktree.ts",
-    "lint:md:descriptors": "tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
-    "lint:md:dependencies": "tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
+    "lint:md": "node --import tsx packages/arc-framework/src/scripts/lint-markdown.ts",
+    "lint:md:staged": "node --import tsx packages/arc-framework/src/scripts/lint-markdown-staged.ts",
+    "lint:md:markdownlint": "npm run -s lint:md:dependencies && node --import tsx packages/arc-framework/src/scripts/lint-markdown-worktree.ts",
+    "lint:md:descriptors": "node --import tsx packages/arc-framework/src/scripts/lint-task-descriptors.ts",
+    "lint:md:dependencies": "node --import tsx packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
     "lint:md:file": "markdownlint-cli2 --no-globs",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs",
-    "format:tables": "tsx packages/arc-framework/src/scripts/format-tables.ts",
-    "render:framework": "tsx packages/arc-framework/src/scripts/render-framework.ts",
-    "audit:tables": "tsx packages/arc-framework/src/scripts/audit-tables.ts",
-    "audit:emphasis": "tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
+    "format:tables": "node --import tsx packages/arc-framework/src/scripts/format-tables.ts",
+    "render:framework": "node --import tsx packages/arc-framework/src/scripts/render-framework.ts",
+    "audit:tables": "node --import tsx packages/arc-framework/src/scripts/audit-tables.ts",
+    "audit:emphasis": "node --import tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
     "build": "npm run build -w packages/arc-framework",
+    "build:fast": "npm run build:fast -w packages/arc-framework",
     "benchmark:session-envelope": "npm run benchmark:session-envelope -w packages/arc-framework",
-    "inventory:command-inputs": "npm exec -w packages/arc-framework -- tsx src/scripts/render-command-input-inventory.ts",
+    "inventory:command-inputs": "node --import tsx packages/arc-framework/src/scripts/render-command-input-inventory.ts",
     "test": "npm run test -w packages/arc-framework",
     "test:unit": "npm run test:unit -w packages/arc-framework",
     "test:integration": "npm run test:integration -w packages/arc-framework",
     "test:arc-contracts": "npm run test:arc-contracts -w packages/arc-framework",
     "test:e2e": "npm run test:e2e -w packages/arc-framework",
     "test:portability": "npm run test:portability -w packages/arc-framework",
+    "test:portability:macos": "npm run test:portability:macos -w packages/arc-framework",
     "typecheck": "npm run typecheck -w packages/arc-framework",
     "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
     "typecheck:all": "npm run typecheck:all -w packages/arc-framework",
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
-    "lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
-    "lint:arc:domain-rules": "tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
-    "lint:arc:section-refs": "tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
-    "audit:coupling": "tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
-    "audit:layout-migration": "tsx packages/arc-framework/src/scripts/assert-layout-migration.ts",
+    "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
+    "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
+    "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
+    "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
+    "audit:layout-migration": "node --import tsx packages/arc-framework/src/scripts/assert-layout-migration.ts",
     "prepare": "husky"
   },
   "devDependencies": {
     "husky": "^9.1.7",
     "jsonc-parser": "3.3.1",
     "markdownlint": "0.40.0",
-    "markdownlint-cli2": "0.22.1",
+    "markdownlint-cli2": "0.23.0",
     "tsx": "^4.22.4"
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "overrides": {
+    "markdownlint-cli2": {
+      "js-yaml": "5.2.2"
+    }
   }
 }

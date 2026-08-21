@@ -9,7 +9,7 @@ import {
 import { extensionsCommandInputPolicyDeclarations } from "./commands/extensions.js";
 import { infrastructureCommandInputPolicyDeclarations } from "./command-input-infrastructure-policies.js";
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
-import { baseCommandInputPolicyDeclarations } from "./handlers/base.js";
+import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
   checkCommitMessageInputPolicyDeclarations,
   checkCommitMessageInputRegistration,
@@ -18,11 +18,32 @@ import { errandCommandInputPolicyDeclarations, errandCommandInputRegistrations }
 import { housekeepCommandInputPolicyDeclarations } from "./handlers/housekeep.js";
 import { installationCommandInputPolicyDeclarations } from "./handlers/installation.js";
 import {
+  integrationCommandInputPolicyDeclarations,
+  integrationCommandInputRegistrations,
+} from "./handlers/integration.js";
+import {
   lifecycleCommandInputPolicyDeclarations,
   lifecycleCommandInputRegistrations,
 } from "./handlers/lifecycle.js";
 import { logStandaloneInputRegistration } from "./handlers/log.js";
 import { planCheckInputRegistration, planCommandInputPolicyDeclarations } from "./handlers/plan.js";
+import {
+  deliveryCommandInputPolicyDeclarations,
+  deliveryCommandInputRegistrations,
+} from "./handlers/delivery.js";
+import {
+  deliveryExecutionCommandInputPolicyDeclarations,
+  deliveryExecutionCommandInputRegistrations,
+} from "./handlers/delivery-execution.js";
+import {
+  deliveryEntryCommandInputPolicyDeclarations,
+  deliveryEntryCommandInputRegistration,
+} from "./handlers/delivery-entry.js";
+import {
+  deliveryTransferCommandInputPolicyDeclarations,
+  deliveryTransferCommandInputRegistrations,
+} from "./handlers/delivery-transfer.js";
+import { locusCommandInputRegistrations } from "./handlers/locus.js";
 import {
   wuReconcileCommandInputPolicyDeclarations,
   wuReconcileCommandInputRegistration,
@@ -56,7 +77,6 @@ import { userSyncCommandInputPolicyDeclarations } from "./handlers/user-sync.js"
 import type { CommandInputDeclaration } from "./lib/command-input/declaration.js";
 import { viewCommandInputPolicyDeclarations, viewCommandInputRegistration } from "./handlers/view.js";
 import { remedyRoadmapConflictInputPolicyDeclarations } from "./scripts/remedy-roadmap-conflict.js";
-import { validateDecomposeRecordInputPolicyDeclarations } from "./scripts/validate-decompose-record.js";
 import type { CommandInputRegistration } from "./lib/command-input/registry.js";
 
 /** Every command-owned schema registration contributed by migrated families. */
@@ -68,7 +88,12 @@ export const commandInputRegistrations = [
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
   ...errandCommandInputRegistrations,
+  ...locusCommandInputRegistrations,
   planCheckInputRegistration,
+  ...deliveryCommandInputRegistrations,
+  ...deliveryExecutionCommandInputRegistrations,
+  deliveryEntryCommandInputRegistration,
+  ...deliveryTransferCommandInputRegistrations,
   wuReconcileCommandInputRegistration,
   statusCommandInputRegistration,
   logStandaloneInputRegistration,
@@ -79,6 +104,8 @@ export const commandInputRegistrations = [
   releaseSetupUninstallInputRegistration,
   releaseSetupVerifyInputRegistration,
   ...reviewCommandInputRegistrations,
+  ...integrationCommandInputRegistrations,
+  ...baseCommandInputRegistrations,
 ] as const satisfies readonly CommandInputRegistration[];
 
 /** Command-owned policy declarations composed without reinterpreting their domain semantics. */
@@ -92,9 +119,14 @@ export const commandInputPolicyDeclarations = [
   ...housekeepCommandInputPolicyDeclarations,
   ...initCommandInputPolicyDeclarations,
   ...installationCommandInputPolicyDeclarations,
+  ...integrationCommandInputPolicyDeclarations,
   ...joinCommandInputPolicyDeclarations,
   ...lifecycleCommandInputPolicyDeclarations,
   ...planCommandInputPolicyDeclarations,
+  ...deliveryCommandInputPolicyDeclarations,
+  ...deliveryExecutionCommandInputPolicyDeclarations,
+  ...deliveryEntryCommandInputPolicyDeclarations,
+  ...deliveryTransferCommandInputPolicyDeclarations,
   ...wuReconcileCommandInputPolicyDeclarations,
   ...recoverCommandInputPolicyDeclarations,
   ...releaseCommitInputPolicyDeclarations,
@@ -111,6 +143,5 @@ export const commandInputPolicyDeclarations = [
   ...userSyncCommandInputPolicyDeclarations,
   ...viewCommandInputPolicyDeclarations,
   ...remedyRoadmapConflictInputPolicyDeclarations,
-  ...validateDecomposeRecordInputPolicyDeclarations,
   ...infrastructureCommandInputPolicyDeclarations,
 ] as const satisfies readonly CommandInputDeclaration[];

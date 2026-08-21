@@ -92,6 +92,32 @@ export async function isLandedInBase(exec: GitExec, branch: string, base: string
 }
 
 /**
+ * Prove patch containment without collapsing local execution or parse failures.
+ *
+ * @param exec - Git executor bound to the caller's object-access policy.
+ * @param branch - Local ref or exact advertised source commit tested for landing.
+ * @param base - Exact advertised base commit.
+ * @returns Whether every branch-side commit is patch-present in the base.
+ */
+export async function isLandedInBaseStrict(
+  exec: GitExec,
+  branch: string,
+  base: string,
+): Promise<boolean> {
+  const { stdout } = await exec("git", ["cherry", base, branch]);
+  const lines = stdout === ""
+    ? []
+    : (stdout.endsWith("\n") ? stdout.slice(0, -1) : stdout).split("\n");
+  let landed = true;
+  for (const line of lines) {
+    const match = /^([+-]) (?:[0-9a-f]{40}|[0-9a-f]{64})$/u.exec(line);
+    if (match === null) throw new Error("Malformed git cherry output.");
+    if (match[1] === "+") landed = false;
+  }
+  return landed;
+}
+
+/**
  * Whether `branch` is safe to reap — its commits are provably preserved, so a
  * local delete loses nothing.
  *

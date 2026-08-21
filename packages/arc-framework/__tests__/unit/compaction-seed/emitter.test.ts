@@ -16,6 +16,7 @@ import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
+import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
 
 const LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
@@ -31,10 +32,126 @@ const LOAD_SET = {
   ],
 } satisfies LoadSetManifest;
 
+const CURSOR = {
+  status: "found" as const,
+  cursor: {
+    section: {
+      id: "2.1",
+      title: "Define the task-list cursor",
+      lineHint: 66,
+    },
+    leaf: {
+      id: "2.1.a",
+      title: "Parse cursor markers",
+      lineHint: 70,
+    },
+  },
+};
+
+function derivedFrame(parentCheckoutPath: string | null = null): DerivedLocusFrame {
+  const row = {
+    kind: "transient" as const,
+    checkout: {
+      path: "/repo",
+      head: "a".repeat(40),
+      branch: "errand/compaction-recovery",
+      detached: false,
+      primary: false,
+    },
+    markerGeneration: `sha256:${"b".repeat(64)}`,
+    parentCheckoutPath,
+    origin: null,
+    identity: {
+      kind: "errand" as const,
+      key: "compaction-recovery",
+      claimId: "c".repeat(32),
+      protection: "full" as const,
+      purpose: "errand" as const,
+      origin: "description" as const,
+      originEntry: null,
+      state: "open" as const,
+      branch: "errand/compaction-recovery",
+      savedHead: null,
+      changeRequest: null,
+    },
+    context: null,
+    lifecycleLocation: null,
+    diagnostics: [],
+    subject: { kind: "errand" as const, key: "compaction-recovery", claimId: "c".repeat(32) },
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    primaryAvailability: { kind: "unsafe", checkoutPath: null, reasons: ["primary-missing"] },
+    identityDiscovery: { kind: "complete", identities: [row.identity], diagnostics: [] },
+    active: null,
+  };
+}
+
+function derivedWorkUnitFrame(options: {
+  sessionType?: "planning" | "execution" | "prepublication" | "integration";
+  workflow?: string;
+  loadSet?: LoadSetManifest;
+} = {}): DerivedLocusFrame {
+  const sessionType = options.sessionType ?? "execution";
+  const workflow = options.workflow ?? "process-task-loop";
+  const loadSet = options.loadSet ?? LOAD_SET;
+  const planningStage: "draft-design" | "create-spec" | "generate-tasks" = workflow === "draft-design"
+    || workflow === "create-spec"
+    || workflow === "generate-tasks"
+    ? workflow
+    : "create-spec";
+  const row = {
+    kind: "work-unit" as const,
+    checkout: {
+      path: "/repo",
+      head: "a".repeat(40),
+      branch: "feat/compaction-recovery",
+      detached: false,
+      primary: false,
+    },
+    markerGeneration: null,
+    parentCheckoutPath: null,
+    origin: null,
+    identity: null,
+    context: {
+      kind: "resolved" as const,
+      metaPath: ".arc/active/meta-compaction-recovery.md",
+      owner: "andrew",
+      branch: "feat/compaction-recovery",
+      sessionType,
+      workflow: sessionType === "planning" ? "planning" : workflow,
+      stage: sessionType === "planning" ? planningStage : null,
+      taskListPath: ".arc/active/tasks-compaction-recovery.md",
+      taskCursor: sessionType === "planning" ? null : CURSOR,
+      cohortDocPath: null,
+      loadSet,
+      integrationBoundary: null,
+    },
+    lifecycleLocation: "active" as const,
+    diagnostics: [],
+    subject: { kind: "work-unit" as const, key: "compaction-recovery" },
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    primaryAvailability: { kind: "unsafe", checkoutPath: null, reasons: ["primary-missing"] },
+    identityDiscovery: { kind: "absent" },
+    active: { checkoutPath: "/repo", subject: row.subject, context: row.context },
+  };
+}
+
 function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]> = {}) {
   return {
     identity: { identity: "andrew" },
-    worktree: { ok: true, value: { branch: "feat/compaction-recovery" } },
+    derivedLocusState: { ok: true, value: derivedWorkUnitFrame() },
+    worktree: {
+      ok: true,
+      value: {
+        branch: "feat/compaction-recovery",
+        identity: { kind: "linked", path: "/repo" },
+      },
+    },
     active: {
       ok: true,
       value: {
@@ -44,22 +161,12 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
       },
     },
     loadSet: { ok: true, value: LOAD_SET },
+    extensions: { ok: true, value: { active: [] } },
     taskCursor: {
       ok: true,
       value: {
         status: "found",
-        cursor: {
-          section: {
-            id: "2.1",
-            title: "Define the task-list cursor",
-            lineHint: 66,
-          },
-          leaf: {
-            id: "2.1.a",
-            title: "Parse cursor markers",
-            lineHint: 70,
-          },
-        },
+        cursor: CURSOR.cursor,
       },
     },
     ...overrides,
@@ -68,6 +175,7 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
 
 async function emit(overrides: {
   uncommittedFiles?: string[];
+  snapshotBranch?: string;
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
 } = {}) {
@@ -75,6 +183,7 @@ async function emit(overrides: {
     cwd: "/repo",
     envelope: envelope(overrides.envelope),
     gitSnapshot: {
+      branch: overrides.snapshotBranch ?? "feat/compaction-recovery",
       head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
       uncommittedFiles: overrides.uncommittedFiles ?? [],
     },
@@ -154,6 +263,21 @@ describe("parseUncommittedFiles", () => {
 });
 
 describe("emitCompactionSeed", () => {
+  it("persists only the entering checkout and optional marker parent as locus facts", async () => {
+    const result = await emit({
+      envelope: { derivedLocusState: { ok: true, value: derivedFrame("/repo-parent") } },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.locus).toEqual({
+        checkoutPath: "/repo",
+        parentCheckoutPath: "/repo-parent",
+      });
+      expect(JSON.stringify(result.seed.locus)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
+    }
+  });
+
   it("embeds the load-set manifest supplied by the session-init envelope", async () => {
     const result = await emit();
 
@@ -221,6 +345,10 @@ describe("emitCompactionSeed", () => {
   it("sets taskCursor to null in planning sessions", async () => {
     const result = await emit({
       envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          sessionType: "planning",
+          workflow: "create-spec",
+        }) },
         active: {
           ok: true,
           value: {
@@ -241,6 +369,10 @@ describe("emitCompactionSeed", () => {
   it("keeps a resolved task cursor for integration sessions", async () => {
     const result = await emit({
       envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          sessionType: "integration",
+          workflow: "integrate-work-unit Step 4",
+        }) },
         active: {
           ok: true,
           value: {
@@ -282,9 +414,29 @@ describe("emitCompactionSeed", () => {
     }
   });
 
+  it("keeps the local snapshot branch when the remote-dependent worktree probe is unavailable", async () => {
+    // A branch the envelope never carries, so the assertion proves the local snapshot
+    // was the source rather than matching whatever the worktree probe would have said.
+    const result = await emit({
+      snapshotBranch: "feat/local-snapshot-only",
+      envelope: {
+        worktree: { ok: false, error: new Error("remote snapshot unavailable") },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.branch).toBe("feat/local-snapshot-only");
+    }
+  });
+
   it("uses currentWorkflow from the resolved active envelope without rereading the meta", async () => {
     const result = await emit({
       envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          sessionType: "integration",
+          workflow: "integrate-work-unit Step 4",
+        }) },
         active: {
           ok: true,
           value: {
@@ -318,6 +470,12 @@ describe("emitCompactionSeed", () => {
     const writeSeed = vi.fn();
     const result = await emit({
       envelope: {
+        derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
+          loadSet: {
+            ...LOAD_SET,
+            entries: [{ path: "../escape.md", readMode: { kind: "full" } }],
+          } as LoadSetManifest,
+        }) },
         loadSet: {
           ok: true,
           value: {
@@ -361,6 +519,7 @@ describe("emitCompactionSeed", () => {
       cwd: "/repo",
       envelope: envelope({ identity: { identity: null } }),
       gitSnapshot: {
+        branch: "feat/compaction-recovery",
         head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
         uncommittedFiles: [],
       },

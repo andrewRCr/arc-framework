@@ -108,7 +108,9 @@ function containerPrefix(path: ManagedPath, content: string, range: { start: num
 
 function serializeTable(node: AstNode, prefix: string): string {
   const serialized = toMarkdown(node as Parameters<typeof toMarkdown>[0], {
+    emphasis: "_",
     extensions: [gfmTableToMarkdown({ stringLength: displayWidth })],
+    strong: "*",
   }).replace(/\n$/u, "");
   return prefix === "" ? serialized : serialized.replaceAll("\n", `\n${prefix}`);
 }

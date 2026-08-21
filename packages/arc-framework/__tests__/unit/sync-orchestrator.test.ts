@@ -15,7 +15,10 @@ import { describe, it, expect, vi, beforeAll, beforeEach, type Mock } from "vite
 
 import { UserFacingError } from "../../src/lib/errors.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
-import type { WorktreeSyncState } from "../../src/lib/git/worktree-sync.js";
+import type {
+  WorktreeMaterializingInspectionResult,
+  WorktreeSyncState,
+} from "../../src/lib/git/worktree-sync.js";
 import type { AuditEntry } from "../../src/lib/release/types.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 
@@ -79,7 +82,9 @@ vi.mock("../../src/lib/config/resolved-settings.js", () => ({
 }));
 
 const mockRunWorktreeSyncStatus = vi.fn();
+const mockRunMaterializingWorktreeInspection = vi.fn();
 vi.mock("../../src/lib/git/worktree-sync.js", () => ({
+  runMaterializingWorktreeInspection: (opts: unknown) => mockRunMaterializingWorktreeInspection(opts),
   runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
   DEFAULT_FETCH_TIMEOUT_MS: 3000,
 }));
@@ -213,6 +218,15 @@ function setConfig(
 }
 
 function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0, branch: string | null = "main") {
+  if (state === "skipped" || state === "remote-unavailable") {
+    throw new Error(`Materializing inspection cannot return state '${state}'.`);
+  }
+  const remoteEvidence: WorktreeMaterializingInspectionResult["remoteEvidence"]
+    = ["no-upstream", "detached-head", "no-remote"].includes(state)
+    ? "not-applicable"
+    : "exact";
+  const result: WorktreeMaterializingInspectionResult = { state, ahead, behind, branch, remoteEvidence };
+  mockRunMaterializingWorktreeInspection.mockResolvedValue(result);
   mockRunWorktreeSyncStatus.mockResolvedValue({ state, ahead, behind, branch });
 }
 
@@ -247,6 +261,7 @@ function resetMockDefaults() {
   mockBuildSaveSummary.mockReturnValue("save summary");
   mockClearErrandPartialPushMarker.mockResolvedValue(undefined);
   mockRecordErrandPartialPushMarker.mockResolvedValue(true);
+  setWorktree("clean");
   mockReconcileErrandPush.mockResolvedValue({ kind: "noop" });
   includeExecInput = false;
   mockAppendAuditEntry.mockResolvedValue({ ok: true });
@@ -309,6 +324,27 @@ describe("handleSync orchestrator matrix dispatch", () => {
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
+  });
+
+  it("uses the explicit materializing reader without an automatic-sync policy", async () => {
+    setWorktree("clean");
+
+    await handleSync({ dryRun: true });
+
+    expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec, cwd: "/repo" });
+    expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
+  });
+
+  it("stops before sync mutation when worktree materialization fails", async () => {
+    mockRunMaterializingWorktreeInspection.mockRejectedValue(new Error("cannot lock tracking ref"));
+
+    await expect(handleSync()).rejects.toThrow("cannot lock tracking ref");
+
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(mockExecuteInboundPull).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
   });
 
   it("both interlocks on-sync + clean worktree → runPairedPush invoked; both legs reported", async () => {
@@ -633,7 +669,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       action: "reconcile",
       result: "failed",
       detail:
-        "conflict:slugs=clash,other:recovery=arc errand close --force <slug> on discarded side:marker-not-recorded",
+        "conflict:slugs=clash,other:recovery=resolve the same-slug identity conflict before retrying:marker-not-recorded",
     });
   });
 
@@ -698,7 +734,6 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it.each([
-    ["remote-unavailable", 0, 0, "main"],
     ["branch-gone", 0, 0, "main"],
     ["detached-head", 0, 0, null],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
@@ -1459,7 +1494,6 @@ describe("audit-log integration", () => {
     ["diverged", 1, 2, "main"],
     ["detached-head", 0, 0, null],
     ["no-remote", 0, 0, "main"],
-    ["remote-unavailable", 0, 0, "main"],
     ["branch-gone", 0, 0, "main"],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
     "blocked-%s cell writes refused entry with refusalCode 14",

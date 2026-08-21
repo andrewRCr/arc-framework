@@ -13,15 +13,15 @@ import { z } from "zod";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createRawGitExec, createUserIOContext } from "../lib/io-context.js";
 import { captureGitIndexState, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "../lib/work-unit/git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+} from "../lib/work-unit/git-transition-record-enumeration.js";
 import { listCurrentWuArtifactPaths } from "../lib/work-unit/reference-reconcile.js";
 import {
   runCurrentWuReconcile,
@@ -58,15 +58,17 @@ export const wuReconcileCommandInputRegistration = {
 export const wuReconcileCommandInputPolicyDeclarations = [{
   commandPath: "wu reconcile",
   aliases: [],
-  sites: [declareCliOptionSite("json", {
-    acquisition: "machine-mode",
-    schemaOwnership: "owned",
-    schemaField: "json",
-    cancellation: "not-applicable",
-    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-    mutationBoundary: "output selection",
-    subprocess: "none",
-  })],
+  sites: [
+    declareCliOptionSite("json", {
+      acquisition: "machine-mode",
+      schemaOwnership: "owned",
+      schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection",
+      subprocess: "none",
+    }),
+  ],
 }] satisfies readonly CommandInputDeclaration[];
 
 interface ReconcileEnvelope {
@@ -101,20 +103,24 @@ export async function handleWuReconcile(
   if (cwd === null) return;
   const io = createUserIOContext(context?.subprocess);
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { cwd, ...options });
+  const transitionExec = createRawGitExec(cwd);
   const [index, currentBranch] = await Promise.all([
     buildLifecycleIndex({ cwd, fs: nodeLifecycleFs }),
     getCurrentBranch(exec),
   ]);
+  if (currentBranch === null) {
+    emitConflict(input, input.slug ?? "", "current checkout has no branch identity");
+    return;
+  }
   const target = await resolveOwnedTarget(cwd, index, currentBranch, input.slug);
   if ("reason" in target) {
     emitConflict(input, target.slug, target.reason);
     return;
   }
-
   const result = await runCurrentWuReconcile({
     index,
-    queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-    enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+    queryDisposition: (input) => queryGitTransitionDisposition(transitionExec, "HEAD", input),
+    enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
     listArtifactPaths: (slug, metaPath) =>
       listCurrentWuArtifactPaths(slug, metaPath, (path) => readdir(resolve(cwd, path))),
     readFile: (path) => io.readFile(resolve(cwd, path)),
@@ -140,12 +146,9 @@ export async function handleWuReconcile(
 async function resolveOwnedTarget(
   cwd: string,
   index: Awaited<ReturnType<typeof buildLifecycleIndex>>,
-  currentBranch: string | null,
+  currentBranch: string,
   slugArg: string | undefined,
 ): Promise<{ slug: string; metaPath: string } | { slug: string; reason: string }> {
-  if (currentBranch === null) {
-    return { slug: slugArg?.trim() ?? "", reason: "current checkout has no branch identity" };
-  }
   const matches: Array<{ slug: string; metaPath: string }> = [];
   for (const entry of index.values()) {
     let branch: string | null;

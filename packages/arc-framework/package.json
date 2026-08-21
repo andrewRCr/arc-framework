@@ -8,14 +8,16 @@
   },
   "scripts": {
     "build": "tsup",
-    "benchmark:session-envelope": "npm run build && tsx __tests__/benchmarks/session-envelope-validation.ts",
-    "inventory:command-inputs": "tsx src/scripts/render-command-input-inventory.ts",
+    "build:fast": "tsup --config tsup.fast.config.ts",
+    "benchmark:session-envelope": "npm run build && node --import tsx __tests__/benchmarks/session-envelope-validation.ts",
+    "inventory:command-inputs": "node --import tsx src/scripts/render-command-input-inventory.ts",
     "test": "vitest run",
     "test:unit": "vitest run --project unit --project unit-mocks",
     "test:integration": "vitest run --project integration",
     "test:arc-contracts": "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
     "test:e2e": "vitest run --project e2e",
-    "test:portability": "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e git-executor",
+    "test:portability": "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e git-executor delivery-transfer.e2e",
+    "test:portability:macos": "vitest run anchored-sequence git-identity locus-errand-roundtrip rename",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
@@ -25,7 +27,7 @@
   },
   "engines": {
     "node": ">=24",
-    "git": ">=2.31"
+    "git": ">=2.45"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
@@ -35,6 +37,7 @@
     "neverthrow": "^8.2.0",
     "semver": "^7.7.4",
     "string-width": "8.1.0",
+    "which-command": "^0.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

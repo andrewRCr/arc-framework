@@ -23,6 +23,18 @@ The package source is what ships. The project instance is a self-hosted installa
 project uses ARC to develop ARC. Edits to methodology content must flow through the package
 source to reach adopters.
 
+### Harness skill directories
+
+The harness-local skill directories (`.claude/skills/`, `.codex/skills/`, `.gemini/skills/`, and their siblings —
+all gitignored) are a third, derived surface. `arc update` regenerates them deterministically from the canonical
+`SKILL.md` sources under `system/.internal/skills/`, so adopters get a fresh copy on every update. This repo does
+not run `arc update` against itself, so its harness copies drift from the canonical sources in
+`.arc/system/.internal/skills/` and `packages/arc-framework/arc/system/.internal/skills/` as canonical content
+changes.
+
+The consequence is self-hosting-only: on a fresh session, if a skill's behavior surprises you, suspect drift
+before suspecting the skill, and hand-sync by copying the canonical `SKILL.md` into the harness subdirectory.
+
 ## Edit Flow Rules
 
 Edit direction depends on file classification (per [strategy-file-classification.md][file-class]):

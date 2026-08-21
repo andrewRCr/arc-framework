@@ -1,0 +1,126 @@
+/** Typed write and rollback port for terminal transition history. */
+
+import type { GitExec } from "../git/exec.js";
+import type { TransitionRecord } from "./transition-record.js";
+import { resolveTransitionRecordRelativePath } from "./transition-record-store.js";
+
+/** Closed terminal history write result. */
+export type TerminalTransitionRecordWriteResult =
+  | { status: "recorded" }
+  | { status: "origin-occupied" }
+  | { status: "unavailable"; diagnostic: string };
+
+/** Closed rollback result for one attempted terminal history record. */
+export type TerminalTransitionRecordRollbackResult =
+  | { status: "rolled-back" }
+  | { status: "unavailable"; diagnostic: string };
+
+/** Terminal verbs' storage-independent history port. */
+export interface TerminalTransitionRecordWriter {
+  record(record: TransitionRecord): Promise<TerminalTransitionRecordWriteResult>;
+  rollback(record: TransitionRecord): Promise<TerminalTransitionRecordRollbackResult>;
+}
+
+/** In-repository terminal writer dependencies. */
+export interface InRepoTerminalTransitionRecordWriterDeps {
+  cwd: string;
+  exec: GitExec;
+  isOriginOccupied(origin: string): Promise<boolean>;
+  createRecord(record: TransitionRecord): Promise<void>;
+  removeRecord(origin: string): Promise<void>;
+}
+
+/** Build the Git/filesystem terminal transition writer. */
+export function createInRepoTerminalTransitionRecordWriter(
+  deps: InRepoTerminalTransitionRecordWriterDeps,
+): TerminalTransitionRecordWriter {
+  return {
+    record: async (record) => {
+      const path = resolveTransitionRecordRelativePath(record.origin);
+      try {
+        if (await isGitPathOccupied(deps, path)) return { status: "origin-occupied" };
+        if (await deps.isOriginOccupied(record.origin)) return { status: "origin-occupied" };
+      } catch (error) {
+        return {
+          status: "unavailable",
+          diagnostic: `transition record occupancy check failed: ${errorMessage(error)}`,
+        };
+      }
+      try {
+        await deps.createRecord(record);
+      } catch (error) {
+        return isNodeError(error) && error.code === "EEXIST"
+          ? { status: "origin-occupied" }
+          : { status: "unavailable", diagnostic: errorMessage(error) };
+      }
+      try {
+        await deps.exec("git", ["add", "--", path], { cwd: deps.cwd });
+        return { status: "recorded" };
+      } catch (error) {
+        const cleanup = await rollbackRecord(deps, record);
+        return {
+          status: "unavailable",
+          diagnostic: `transition record staging failed: ${errorMessage(error)}`
+            + (cleanup.status === "rolled-back" ? "" : `; ${cleanup.diagnostic}`),
+        };
+      }
+    },
+    rollback: async (record) => await rollbackRecord(deps, record),
+  };
+}
+
+async function isGitPathOccupied(
+  deps: InRepoTerminalTransitionRecordWriterDeps,
+  path: string,
+): Promise<boolean> {
+  const [committed, indexed] = await Promise.all([
+    deps.exec("git", ["ls-tree", "--full-tree", "-z", "HEAD", "--", path], { cwd: deps.cwd }),
+    deps.exec("git", ["ls-files", "--stage", "-z", "--", path], { cwd: deps.cwd }),
+  ]);
+  return committed.stdout !== "" || indexed.stdout !== "";
+}
+
+async function rollbackRecord(
+  deps: InRepoTerminalTransitionRecordWriterDeps,
+  record: TransitionRecord,
+): Promise<TerminalTransitionRecordRollbackResult> {
+  const failures: string[] = [];
+  const path = resolveTransitionRecordRelativePath(record.origin);
+  const indexFailure = await retryCleanup(async () => {
+    await deps.exec("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", path], { cwd: deps.cwd });
+  });
+  if (indexFailure !== null) failures.push(`index cleanup failed after retry: ${indexFailure}`);
+  const removalFailure = await retryCleanup(async () => {
+    try {
+      await deps.removeRecord(record.origin);
+    } catch (error) {
+      if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+    }
+  });
+  if (removalFailure !== null) failures.push(`record removal failed after retry: ${removalFailure}`);
+  return failures.length === 0
+    ? { status: "rolled-back" }
+    : { status: "unavailable", diagnostic: failures.join("; ") };
+}
+
+async function retryCleanup(action: () => Promise<void>): Promise<string | null> {
+  try {
+    await action();
+    return null;
+  } catch {
+    try {
+      await action();
+      return null;
+    } catch (error) {
+      return errorMessage(error);
+    }
+  }
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

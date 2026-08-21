@@ -8,6 +8,7 @@ import {
 import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
 import {
   FrontlineRunStateSchema,
+  LaneProgressStateSchema,
   LocalReviewStateSchema,
   ReviewOperationStateSchema,
   ReviewSuspensionStateSchema,
@@ -113,6 +114,7 @@ const localReview = {
   requestId: localCarrier.request.requestId,
   policyVersion: localRequirement.policyVersion,
   policyBindingDigest: digest("binding"),
+  laneSourceId: "delegated-agent",
   attestationRuntimeKind: "arc-cli",
   sourceRef: "refs/arc/review/local-1",
   sourceDigest: digest("source"),
@@ -122,6 +124,79 @@ const localReview = {
   request: localCarrier.request,
   attestation: localCarrier.attestation,
   cleanupTtlMs: 86_400_000,
+};
+
+const laneProgress = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "review-operation/v1" as const,
+  operationId: "lane-progress-1",
+  updatedAt: "2026-07-20T20:00:00Z",
+  kind: "lane-progress" as const,
+  lane: "standard" as const,
+  repositoryId: "repo-1",
+  changeRequestId: null,
+  headSha: objectId("c"),
+  completedPasses: 1,
+  attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const }],
+};
+
+const memberTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "delivery-member",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: objectId("a"),
+  diffBaseTree: objectId("b"),
+  headSha: objectId("c"),
+  headTree: objectId("d"),
+});
+const memberRequirement = createReviewRequirement({
+  target: memberTarget,
+  projection: {
+    obligation: "recommended",
+    reasons: ["routine-code"],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: digest("rubric"),
+    retrigger: "full-final",
+    count: 1,
+  },
+  acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+  initialAdmission: "checkpoint",
+});
+if (memberRequirement === null) throw new Error("expected member requirement");
+const memberCarrier = createLocalChangeSetCarrier({
+  target: memberTarget,
+  requirementId: memberRequirement.requirementId,
+  snapshot: {
+    state: "exact",
+    repositoryId: memberTarget.repositoryId,
+    baseRef: memberTarget.baseRef,
+    diffBaseSha: memberTarget.diffBaseSha,
+    diffBaseTree: memberTarget.diffBaseTree,
+    headSha: memberTarget.headSha,
+    headTree: memberTarget.headTree,
+  },
+  authorIdentity: "author-1",
+  evaluatorIdentity: "evaluator-1",
+  attestation: {
+    evaluatorIdentity: "evaluator-1",
+    runtimeIdentity: "arc-cli/0.1.0",
+    mechanism: "local-attestation",
+  },
+  generation: 0,
+  requestMechanism: "local-attestation",
+});
+const memberReview = {
+  ...localReview,
+  vehicle: { kind: "delivery-member" as const, identity: digest("deliverable") },
+  targetId: memberTarget.targetId,
+  requestId: memberCarrier.request.requestId,
+  policyVersion: memberRequirement.policyVersion,
+  target: memberTarget,
+  requirement: memberRequirement,
+  request: memberCarrier.request,
+  attestation: memberCarrier.attestation,
 };
 
 describe("review operation state schemas", () => {
@@ -150,6 +225,42 @@ describe("review operation state schemas", () => {
     expect(() => ReviewOperationStateSchema.parse({ ...frontline, kind: "controller-verdict" })).toThrow();
   });
 
+  it("round-trips a delivery-member vehicle keyed by its deliverable id", () => {
+    expect(LocalReviewStateSchema.parse(memberReview)).toEqual(memberReview);
+    expect(ReviewOperationStateSchema.parse(memberReview)).toEqual(memberReview);
+  });
+
+  it("accepts a canonical deliverable-id digest as a vehicle identity", () => {
+    const deliverableId = digest("deliverable");
+    expect(deliverableId).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(LocalReviewStateSchema.parse(memberReview).vehicle.identity).toBe(deliverableId);
+  });
+
+  it("rejects crossed delivery-member vehicle and target kinds", () => {
+    expect(() => LocalReviewStateSchema.parse({
+      ...localReview,
+      vehicle: memberReview.vehicle,
+    })).toThrow(/vehicle and target kinds mismatch/iu);
+    expect(() => LocalReviewStateSchema.parse({
+      ...memberReview,
+      vehicle: localReview.vehicle,
+    })).toThrow(/vehicle and target kinds mismatch/iu);
+  });
+
+  it("leaves the work-unit and errand vehicles unaffected", () => {
+    for (const vehicle of [
+      { kind: "work-unit" as const, identity: "review-surface-binding" },
+      { kind: "errand" as const, identity: "archived-integration-recovery" },
+    ]) {
+      expect(LocalReviewStateSchema.parse({ ...localReview, vehicle }).vehicle).toEqual(vehicle);
+      expect(ReviewSuspensionStateSchema.parse({ ...suspension, vehicle }).vehicle).toEqual(vehicle);
+    }
+    expect(() => LocalReviewStateSchema.parse({
+      ...localReview,
+      vehicle: { kind: "delivery-plan", identity: digest("plan") },
+    })).toThrow();
+  });
+
   it("rejects evidence, approval, authorization, and unknown fields", () => {
     for (const forbidden of [
       { approval: { approvedBy: "maintainer" } },
@@ -159,6 +270,91 @@ describe("review operation state schemas", () => {
     ]) {
       expect(() => ReviewOperationStateSchema.parse({ ...suspension, ...forbidden })).toThrow();
     }
+  });
+
+  it("round-trips lane progress and rejects extra or missing fields", () => {
+    expect(LaneProgressStateSchema.parse(laneProgress)).toEqual(laneProgress);
+    expect(() => LaneProgressStateSchema.parse({ ...laneProgress, lane: undefined })).toThrow();
+    expect(() => LaneProgressStateSchema.parse({ ...laneProgress, resolvedAt: "2026-07-20T20:00:00Z" })).toThrow();
+    expect(() => LaneProgressStateSchema.parse({ ...laneProgress, lane: "hosted" })).toThrow();
+  });
+
+  it("keeps every attempt outcome the fall-through decision reads", () => {
+    for (const outcome of [
+      "clean",
+      "findings",
+      "rate-limited",
+      "transient-unavailable",
+      "partial",
+      "ambiguous-delivery",
+      "malformed",
+      "timed-out",
+      "stale-target",
+      "capability-unsupported",
+      "source-unbound",
+      "terminal-failure",
+    ]) {
+      const parsed = LaneProgressStateSchema.parse({
+        ...laneProgress,
+        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome }],
+      });
+      expect(parsed.attempts[0]?.outcome).toBe(outcome);
+    }
+  });
+
+  it("refuses a collapsed unavailable outcome that loses the fall-through distinction", () => {
+    for (const collapsed of ["unavailable", "failed", "pending"]) {
+      expect(() => LaneProgressStateSchema.parse({
+        ...laneProgress,
+        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: collapsed }],
+      })).toThrow();
+    }
+  });
+
+  it("preserves attempt order as recorded", () => {
+    const attempts = [
+      { attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const },
+      { attemptId: "hosted/attempt-2", sourceId: "codex-pr", outcome: "transient-unavailable" as const },
+      { attemptId: "local/attempt-3", sourceId: "delegated-agent", outcome: "findings" as const },
+    ];
+    expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
+  });
+
+  it("rejects a source id the policy driver would refuse", () => {
+    for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
+      expect(() => LaneProgressStateSchema.parse({
+        ...laneProgress,
+        attempts: [{ attemptId: "hosted/attempt-1", sourceId, outcome: "clean" }],
+      })).toThrow();
+    }
+  });
+
+  it("carries a chunk-series completion flag when the attempt had one", () => {
+    const attempts = [{
+      attemptId: "hosted/attempt-1",
+      sourceId: "coderabbit-pr",
+      outcome: "clean" as const,
+      chunkSeriesComplete: true,
+    }];
+    expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
+  });
+
+  it("accepts an unbound pre-publication target and a change-request-bound one", () => {
+    expect(LaneProgressStateSchema.parse(laneProgress).changeRequestId).toBeNull();
+    const bound = { ...laneProgress, changeRequestId: "pull/42" };
+    expect(LaneProgressStateSchema.parse(bound).changeRequestId).toBe("pull/42");
+  });
+
+  it("keeps the record free of host vocabulary the core boundary forbids", () => {
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: objectId("c") },
+    })).toThrow();
+  });
+
+  it("discriminates lane progress inside the operation-state union", () => {
+    expect(ReviewOperationStateSchema.parse(laneProgress)).toEqual(laneProgress);
+    expect(ReviewOperationStateSchema.parse(laneProgress).kind).toBe("lane-progress");
   });
 
   it("crosses storage only through the injected versioned port", async () => {

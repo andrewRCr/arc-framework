@@ -46,6 +46,9 @@ written down anywhere, and may belong to the planning-module strategy instead of
 - Reuse the shipped stub, PR-resolution, merge-strategy, and base-sync contracts instead of duplicating their
   safety logic.
 - Make re-entry idempotent across the PR-open, merged-but-unsynced, and launch-ready states.
+- Consume the facts-only `LandedDecompositionHandoff` emitted by `arc decompose <origin> --handoff` for
+  decomposition entry. Preserve its ordered selected readiness and blockers; do not parse retirement receipts,
+  infer a frontier, or accept precomposed launch commands from the core transform.
 
 ## Design Questions
 

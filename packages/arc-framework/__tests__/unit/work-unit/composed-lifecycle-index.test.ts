@@ -9,11 +9,13 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { analyzeInFlightSnapshot } from "../../../src/lib/git/in-flight-derivation.js";
 import {
   isComposedLifecycleSlugIndeterminate,
   resolveComposedLifecycleIndex,
 } from "../../../src/lib/work-unit/composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../../../src/lib/work-unit/lifecycle-index.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 let root: string | undefined;
 
@@ -77,7 +79,7 @@ function makeInFlightExec(options: {
     }
     if (args[0] === "worktree") {
       if (options.worktreeError === true) throw new Error("worktree list failed");
-      return { stdout: worktreeList, stderr: "" };
+      return { stdout: worktreePorcelainZ(worktreeList), stderr: "" };
     }
     if (args[0] === "ls-remote") {
       if (options.liveRefs === undefined) throw new Error("network unavailable");
@@ -166,7 +168,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.index.get(slug)).toEqual({
@@ -187,6 +189,50 @@ describe("resolveComposedLifecycleIndex", () => {
     expect(exec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["ls-remote"]), expect.anything());
   });
 
+  it("removes an exact transition suppression from every composed oracle channel", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "retired-origin";
+    const branch = `feat/${slug}`;
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch }],
+      metas: { [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta(slug, branch) },
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
+      transitionOverlays: [{ origin: slug, sourceBranch: branch }],
+    });
+
+    expect(result.index.has(slug)).toBe(false);
+    expect(result.recordsBySlug.has(slug)).toBe(false);
+    expect(result.worktreePathBySlug.has(slug)).toBe(false);
+    expect(result.qualityFacts.bySlug.has(slug)).toBe(false);
+    expect(result.qualityFacts.warnings).toEqual([]);
+  });
+
+  it("does not suppress an origin from a different source branch", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "retired-origin";
+    const branch = `feat/${slug}`;
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch }],
+      metas: { [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta(slug, branch) },
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
+      transitionOverlays: [{ origin: slug, sourceBranch: "feat/other-origin" }],
+    });
+
+    expect(result.index.has(slug)).toBe(true);
+    expect(result.recordsBySlug.has(slug)).toBe(true);
+    expect(result.worktreePathBySlug.has(slug)).toBe(true);
+  });
+
   it("retains reachable live membership tips for destructive consumers", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
     const slug = "live-member";
@@ -201,7 +247,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: false, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "passive-live", baseBranch: "main" },
     });
 
     expect(result.reachable).toBe(true);
@@ -215,7 +261,7 @@ describe("resolveComposedLifecycleIndex", () => {
     expect(result.recordsBySlug.get(slug)).not.toHaveProperty("writablePath");
   });
 
-  it("expands a live-only candidate at its membership SHA only when requested", async () => {
+  it("composes snapshot-pinned candidate analysis supplied by an explicit caller", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
     const slug = "never-fetched";
     const branch = `feat/${slug}`;
@@ -231,10 +277,20 @@ describe("resolveComposedLifecycleIndex", () => {
       },
     });
 
+    const suppliedResult = await analyzeInFlightSnapshot({
+      exec,
+      snapshot: { kind: "available", scope: "all-heads", tips: { [branch]: sha, [otherBranch]: otherSha } },
+      objectAvailability: { kind: "complete", commits: { [sha]: true, [otherSha]: true } },
+      history: { kind: "complete" },
+      localRefs: { ok: true, refs: { remoteTracking: {}, localHeads: {} } },
+      worktrees: { ok: true, paths: new Map() },
+      identity: null,
+      teamMode: false,
+    });
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: false, expandLiveOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "materialized-live", suppliedResult, baseBranch: "main" },
     });
 
     expect(result.index.get(slug)?.phase).toBe("Active");
@@ -250,34 +306,10 @@ describe("resolveComposedLifecycleIndex", () => {
     await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: false, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "passive-live", baseBranch: "main" },
     });
 
     expect(exec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["fetch"]), expect.anything());
-  });
-
-  it("marks the whole result indeterminate when a live-only expansion fetch fails", async () => {
-    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
-    const slug = "fetch-failed";
-    const branch = `feat/${slug}`;
-    await writeMeta(
-      join(root, ".arc", "backlog", "planned", `meta-${slug}.md`),
-      meta(slug, "Planning"),
-    );
-    const exec = makeInFlightExec({
-      liveRefs: { [branch]: "d".repeat(40) },
-      fetchFailures: [branch],
-    });
-
-    const result = await resolveComposedLifecycleIndex({
-      cwd: root,
-      fs,
-      oracle: { exec, localOnly: false, expandLiveOnly: true, baseBranch: "main" },
-    });
-
-    expect(result.index.get(slug)?.phase).toBe("Planning");
-    expect(result.qualityFacts.resultMarks).toContain("indeterminate");
-    expect(isComposedLifecycleSlugIndeterminate(result, slug)).toBe(true);
   });
 
   it("marks the whole result indeterminate when a tracked candidate cannot enumerate metas", async () => {
@@ -296,7 +328,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.index.get(slug)?.phase).toBe("Planning");
@@ -319,7 +351,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: false, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "passive-live", baseBranch: "main" },
     });
 
     expect(result.index.get(slug)?.phase).toBe("Planning");
@@ -349,7 +381,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.recordsBySlug.get(slug)).toMatchObject({
@@ -378,7 +410,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.index.get(parked)).toMatchObject({ phase: "Active", location: "planned" });
@@ -402,7 +434,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect([...result.index.keys()]).toEqual([slug]);
@@ -425,7 +457,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.index.has(slug)).toBe(false);
@@ -450,7 +482,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.index.get(slug)?.phase).toBe("Active");
@@ -481,7 +513,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.qualityFacts.resultMarks).toEqual(["indeterminate"]);
@@ -506,7 +538,7 @@ describe("resolveComposedLifecycleIndex", () => {
     const result = await resolveComposedLifecycleIndex({
       cwd: root,
       fs,
-      oracle: { exec, localOnly: true, baseBranch: "main" },
+      oracle: { exec, acquisitionPolicy: "local", baseBranch: "main" },
     });
 
     expect(result.qualityFacts.resultMarks).toEqual([]);

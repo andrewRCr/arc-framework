@@ -1,8 +1,8 @@
 /** Production adapters for the local review attestation command. */
 
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import {
-  RepositoryGitCommonStatePublisher,
   resolveRepositoryIdentity,
   withRepositoryReviewSweepLock,
 } from "../hosts/local/git-common-state.js";
@@ -41,7 +41,9 @@ export function createLocalAttestDependencies(input: {
         (await receipts()).appendReceipt(receipt, expectedLedgerVersion)
       ),
     },
-    resolveAuthority: (evaluatorIdentity) => prepare.resolveAuthority(evaluatorIdentity),
+    resolveAuthority: async (evaluatorIdentity, memberHeadObjectId) => (
+      (await prepare.resolveAuthority(evaluatorIdentity, memberHeadObjectId)).authority
+    ),
     resolveGuidanceDigest: async (authority, state) => {
       const policy = prepare.resolvePolicy();
       if (policy.status === "unavailable") {
@@ -63,5 +65,6 @@ export function createLocalAttestDependencies(input: {
       source,
     }),
     releaseMaterialization: (operationId) => sweepAdapter.releaseWithinLock(operationId),
+    now: () => new Date().toISOString(),
   };
 }

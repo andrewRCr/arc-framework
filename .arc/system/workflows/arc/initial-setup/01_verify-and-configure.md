@@ -217,12 +217,11 @@ These choices are independently selectable and default off. Configure only the l
 - **Planning auto-merge lane** — under `branch.protection: full`, run the
   [Set Up the Auto-Merge Gate workflow][setup-merge-gate] to add `merge-ok`, planning-path CODEOWNERS, and native
   auto-merge. ARC-managed PR workflows require the canonical classifier's exact-head `planning` result before
-  arming a PR; the independently selectable merge guard adds structural host enforcement. Skip under partial
-  protection. See [Auto-Merge Lane][work-org-auto-merge].
-- **ARC merge guard** — on GitHub with full branch protection and repository admin access, run
-  [Set Up ARC Clearance][setup-arc-clearance] to install the exact-version workflow, secretless environment, and
-  additive `arc-cleared` required context. The workflow must land on the default branch before the context is
-  required.
+  arming a PR. Skip under partial protection. See [Auto-Merge Lane][work-org-auto-merge].
+- **Draft-state merge lock** — set `merge.lock: draft` in project config (or leave `none`) when you want
+  `arc merge lock` / draft-PR structural hold semantics. Opens work-unit PRs locked (draft) and releases only at
+  the lifecycle-ready exact-head interlock; the classifier and integration interlock remain arming and merge
+  authorities. See [Auto-Merge Lane][work-org-auto-merge]. Config opt-in only — no install ceremony.
 
 For each choice: set up now, defer until its prerequisites are available, or leave it disabled.
 
@@ -308,7 +307,7 @@ write only the selected harness recipe into the current project:
 
 Use structured JSON/TOML edits where available, back up target files first, preserve non-ARC hooks,
 and keep exact-entry idempotency. Claude Code installs only `PreCompact(manual|auto)` and
-`SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostCompact(manual|auto)`,
+`SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostToolUse`,
 `UserPromptSubmit`, and cleanup-only `SessionStart(clear)` as the documented workaround for Codex's
 missing immediate post-compaction context injection. Codex's pending marker is scoped to the current
 thread, and recovery restores ARC session context; repository instruction files such as `AGENTS.md`
@@ -328,10 +327,8 @@ These repository choices remain independently selectable and default off:
 - **Standard-review sources** — review the ordered `review.standard_sources` list and confirm each provider is
   available.
 - **Planning auto-merge lane** — under full protection, run [Set Up the Auto-Merge Gate][setup-merge-gate].
-- **ARC merge guard** — on GitHub with full protection and admin access, run
-  [Set Up ARC Clearance][setup-arc-clearance]. Its workflow must already be present on the default branch before
-  `arc-cleared` becomes required.
-
+- **Draft-state merge lock** — set `merge.lock: draft` (or leave `none`) for draft-PR structural hold; use
+  existing `arc merge lock` verbs. See [Auto-Merge Lane][work-org-auto-merge] for the draft-lock model.
 Set up, defer, or leave disabled for each choice without coupling it to the others.
 
 ### Optional: Verify Installation
@@ -353,4 +350,3 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 [setup-workflow]: ../supplemental/setup-release-wrapper.md
 [work-org-auto-merge]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
 [setup-merge-gate]: ../supplemental/setup-merge-gate.md
-[setup-arc-clearance]: ../supplemental/setup-arc-clearance.md

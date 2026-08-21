@@ -58,7 +58,7 @@ describe("PR-open lifecycle extensions", () => {
     expect(classification).toContain('"system/extensions/pre-merge.md"');
   });
 
-  it("places work-unit hooks on create, re-entry, and the stable final head", async () => {
+  it("places work-unit hooks on create, re-entry, and the ready checkpoint", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
@@ -67,33 +67,73 @@ describe("PR-open lifecycle extensions", () => {
     const preOpen = workflow.indexOf("Immediately before creation");
     const create = workflow.indexOf("gh pr create");
     const postOpen = workflow.indexOf("compose `openedChangeRequest");
-    const finalHead = workflow.indexOf("At the zero-behind final head");
-    const mergeInterlock = workflow.indexOf("`integration-interlock`", finalHead);
+    const checkpoint = workflow.indexOf("arc integrate checkpoint {name} --json");
+    const finalHead = workflow.indexOf("payload.interlockSurface.machineEvidence.text", checkpoint);
+    const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", finalHead);
+    const mergeInterlock = workflow.indexOf("`integration-interlock`", preMerge);
+    const merge = workflow.indexOf("arc integrate merge {name} --checkpoint", mergeInterlock);
     expect(push).toBeLessThan(preOpen);
     expect(preOpen).toBeLessThan(create);
     expect(create).toBeLessThan(postOpen);
+    expect(checkpoint).toBeLessThan(finalHead);
+    expect(finalHead).toBeLessThan(preMerge);
+    expect(preMerge).toBeLessThan(mergeInterlock);
     expect(finalHead).toBeLessThan(mergeInterlock);
-    expect(workflow.slice(finalHead, mergeInterlock)).toContain("No lifecycle- or review-authored commit or push");
-    expect(workflow).toContain("PR open, not merged");
+    expect(mergeInterlock).toBeLessThan(merge);
+    expect(workflow.slice(finalHead, mergeInterlock)).toContain("No commit or push may occur after `ready`");
+    expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
+    expect(workflow).toContain("`integrating`; `open`");
     expect(workflow).toContain("`post-pr-open` → review iteration");
   });
 
-  it("runs routed frontline review after the final WU push and before PR creation", async () => {
-    const workflow = await readFile(
-      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
-      "utf8",
-    );
-    const push = workflow.indexOf("Push the WU branch upstream");
-    const resolveFrontline = workflow.indexOf("arc review frontline resolve -", push);
-    const preOpen = workflow.indexOf("Immediately before creation", resolveFrontline);
-    const create = workflow.indexOf("gh pr create", preOpen);
+  it("schedules publication in preparation before the integration push", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const prepare = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
+        "utf8",
+      );
+      const integrate = await readFile(
+        resolve(base, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+        "utf8",
+      );
+      const publicationStep = prepare.indexOf("## 3) Schedule publication");
+      const submit = prepare.indexOf("arc publish {name}", publicationStep);
+      const commitInterlock = prepare.indexOf("`commit-interlock`", submit);
+      const pushExtension = integrate.indexOf("#pre-push-review");
+      const pushInterlock = integrate.indexOf("`push-interlock`", pushExtension);
+      const push = integrate.indexOf("Push the WU branch upstream", pushInterlock);
 
-    expect([push, resolveFrontline, preOpen, create].every((index) => index >= 0)).toBe(true);
-    expect(push).toBeLessThan(resolveFrontline);
-    expect(resolveFrontline).toBeLessThan(preOpen);
+      expect([publicationStep, submit, commitInterlock, pushExtension, pushInterlock, push]
+        .every((index) => index >= 0)).toBe(true);
+      expect(publicationStep).toBeLessThan(submit);
+      expect(submit).toBeLessThan(commitInterlock);
+      expect(pushExtension).toBeLessThan(pushInterlock);
+      expect(pushInterlock).toBeLessThan(push);
+      expect(prepare).not.toContain("#pre-push-review");
+      expect(integrate).not.toContain("arc publish {name}");
+      expect(integrate).toContain("Step 1, from the idempotent **push** action");
+    }
+  });
+
+  it("settles routed pre-publication lanes before submit and the final WU push", async () => {
+    const [prepare, integrate] = await Promise.all([
+      readFile(resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
+      readFile(resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
+    ]);
+    const prePublication = prepare.indexOf("## 2) Settle pre-publication review");
+    const resolveFrontline = prepare.indexOf("arc review frontline resolve -", prePublication);
+    const submit = prepare.indexOf("arc publish {name}", resolveFrontline);
+    const push = integrate.indexOf("Push the WU branch upstream");
+    const preOpen = integrate.indexOf("Immediately before creation");
+    const create = integrate.indexOf("gh pr create", preOpen);
+
+    expect([prePublication, resolveFrontline, submit, push, preOpen, create]
+      .every((index) => index >= 0)).toBe(true);
+    expect(prePublication).toBeLessThan(resolveFrontline);
+    expect(resolveFrontline).toBeLessThan(submit);
     expect(preOpen).toBeLessThan(create);
 
-    const frontlineCycle = workflow.slice(resolveFrontline, preOpen);
+    const frontlineCycle = prepare.slice(resolveFrontline, submit);
     expect(frontlineCycle).toContain("review-response");
     expect(frontlineCycle).toMatch(/(?:recompose|produce)\s+(?:the\s+exact|a new)\s+target/u);
     expect(frontlineCycle).toContain("arc review frontline run -");
@@ -103,6 +143,22 @@ describe("PR-open lifecycle extensions", () => {
     expect(frontlineCycle).toContain("public typed actions");
     expect(frontlineCycle).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 gates");
+  });
+
+  it("resumes post-PR hosted review from the carried reservation without rerouting sources", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      "utf8",
+    );
+    const openedChangeRequest = workflow.indexOf("compose `openedChangeRequest");
+    const reservation = workflow.indexOf("integrationBoundary.reservation", openedChangeRequest);
+    const hostedRequest = workflow.indexOf("arc review hosted request -", reservation);
+
+    expect([openedChangeRequest, reservation, hostedRequest].every((index) => index >= 0)).toBe(true);
+    expect(openedChangeRequest).toBeLessThan(reservation);
+    expect(reservation).toBeLessThan(hostedRequest);
+    expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review chunking resolve -");
+    expect(workflow.slice(reservation, hostedRequest)).toContain("reserved `sourceId`");
   });
 
   it("runs the same frontline cycle only for full-protection Errand publication", async () => {
@@ -135,19 +191,59 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow.slice(partialProtection)).not.toContain("arc review frontline resolve -");
   });
 
-  it("fails closed across every Errand PR lookup state", async () => {
+  it("dispatches every Errand PR state through the exact-head resolver", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
       "utf8",
     );
-    for (const state of [
-      "No match", "One open match", "One merged match at the current head", "Closed-unmerged",
-      "multiple/conflicting matches", "lookup error", "incomplete enumeration",
-    ]) expect(workflow).toContain(state);
-    expect(workflow).toContain("--paginate --slurp");
-    expect(workflow).toContain("state=all&base={base-branch}&head={owner}:{branch}");
-    expect(workflow).toContain("git ls-remote --heads origin");
-    expect(workflow).toContain("proposedChangeRequest.headSha");
+    const resolution = workflow.slice(
+      workflow.indexOf("3. **Resolve the Errand PR**"),
+      workflow.indexOf("4. **Enter the open PR.**"),
+    );
+    expect(resolution).toContain(
+      "arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json",
+    );
+    for (const disposition of [
+      "`none / create-change-request`",
+      "`open / reuse-change-request`",
+      "`merged-at-head / complete`",
+      "`closed-unmerged / reopen-change-request`",
+      "`merged-stale-head / reconcile-head`",
+      "`ambiguous | blocked / stop`",
+    ]) expect(resolution).toContain(disposition);
+
+    // Scoped to dispatch: the creation arm's pre-create race guard reads the remote head
+    // legitimately, so a step-wide ban on remote reads would forbid a control obligation
+    // rather than the hand-rolled resolution these assertions exist to prevent.
+    const dispatch = resolution.slice(0, resolution.indexOf("The no-match creation arm"));
+    expect(dispatch.length).toBeGreaterThan(0);
+    expect(dispatch).not.toContain("gh api");
+    expect(dispatch).not.toContain("--paginate --slurp");
+    expect(dispatch).not.toContain("git ls-remote");
+  });
+
+  it("re-validates the remote head immediately before creating the Errand PR", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
+      "utf8",
+    );
+    const creation = workflow.slice(
+      workflow.indexOf("The no-match creation arm"),
+      workflow.indexOf("4. **Enter the open PR.**"),
+    );
+    const hook = creation.indexOf("If `pre-pr-open` is active");
+    const guard = creation.indexOf(
+      "`arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote --json`",
+    );
+    const create = creation.indexOf("gh pr create --base");
+
+    expect([hook, guard, create].every((index) => index >= 0)).toBe(true);
+    expect(hook).toBeLessThan(guard);
+    expect(guard).toBeLessThan(create);
+    expect(creation).toContain("pre-create validation requires the remote branch itself");
+    // The typed resolver owns the head check; a hand-rolled remote parse here
+    // would be a second implementation of what it already returns.
+    expect(creation).not.toContain("git ls-remote");
   });
 
   it("keeps WU and Errand hook ordering symmetric", async () => {
@@ -159,7 +255,7 @@ describe("PR-open lifecycle extensions", () => {
       const proposedChangeRequest = workflow.indexOf("proposedChangeRequest");
       const prCreate = workflow.indexOf("gh pr create");
       const openedChangeRequest = workflow.indexOf("openedChangeRequest =", prCreate);
-      const preMerge = workflow.indexOf("pre-merge", openedChangeRequest);
+      const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", openedChangeRequest);
       const integrationInterlock = workflow.indexOf("`integration-interlock`", openedChangeRequest);
       expect([proposedChangeRequest, prCreate, openedChangeRequest, preMerge, integrationInterlock]
         .every((index) => index >= 0)).toBe(true);
@@ -170,7 +266,7 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("uses one workflow-wide WU push contract and retains final pre-merge settlement", async () => {
+  it("uses one workflow-wide WU push contract and one final pre-merge fire", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
@@ -178,8 +274,11 @@ describe("PR-open lifecycle extensions", () => {
 
     expect(workflow.match(/#pre-push-review/gu)).toHaveLength(1);
     expect(workflow).toContain("Before every agent-managed push in this workflow");
-    expect(workflow.indexOf("fire `pre-merge` when active"))
-      .toBeLessThan(workflow.indexOf("`integration-interlock`", workflow.indexOf("fire `pre-merge` when active")));
+    const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`");
+    const interlock = workflow.indexOf("`integration-interlock`", preMerge);
+    expect(preMerge).toBeGreaterThan(-1);
+    expect(interlock).toBeGreaterThan(preMerge);
+    expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
   });
 
   it("keeps self-review author-side and provider-neutral", async () => {
@@ -280,7 +379,10 @@ describe("PR-open lifecycle extensions", () => {
         .replace(/\s+/gu, " ");
 
       expect(guidance).toContain("Agent-side review methods and extensions are best-effort ergonomics");
-      expect(guidance).toContain("Only a configured required host-side check structurally enforces merge safety");
+      expect(guidance).toContain("Host-side merge controls are distinct from agent-layer discipline");
+      expect(guidance).toContain("required status check is fail-closed repo configuration");
+      expect(guidance).toContain("draft-state lock");
+      expect(guidance).toMatch(/[Nn]ever infer merge safety from/);
       expect(selfReview.replace(/^> ?/gmu, "").replace(/\s+/gu, " "))
         .toContain("does not structurally enforce merge safety");
       expect(frontline.replace(/^> ?/gmu, "").replace(/\s+/gu, " "))
@@ -292,9 +394,9 @@ describe("PR-open lifecycle extensions", () => {
     const overview = await readFile(resolve(projectArc, "reference/TECHNICAL-OVERVIEW.md"), "utf8");
     expect(overview).toContain("one configured review loop through the shipped `arc review` command tree");
     expect(overview).toContain("The operating agent owns bounded judgment");
-    expect(overview).toContain("The required `arc-cleared` commit status is a thin lifecycle lock");
-    expect(overview).toContain("No GitHub App or resident review controller exists");
-    expect(overview).not.toContain("review-gate-right-sizing");
+    expect(overview).toContain("Draft-state lock is a per-PR structural hold");
+    expect(overview).toContain("merge.lock: draft");
+    expect(overview).toMatch(/integration interlock remains the sole\s+merge authority/);
   });
 
   it("documents the native reviewer-guidance adapter boundary", async () => {

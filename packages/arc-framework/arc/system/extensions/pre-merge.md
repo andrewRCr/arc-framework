@@ -6,12 +6,12 @@ active: false
 
 # Extension: pre-merge
 
-> - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
-> - **Fires:** After `review-response` processing completes, before the merge action
+> - **Workflows:** [integrate-work-unit.md][integrate-work-unit], [run-errand.md][run-errand]
+> - **Fires:** After the lane's final head is ready, before the integration interlock
 >
 > - **Contract:** Sequential execution with halt-on-fail. Every action is read-only, idempotent, or retry-safe because
->   final-head settlement may repeat. Fire after review settlement and after any lifecycle- or review-authored head
->   update. No commit or push may occur between the settled checkpoint and merge authorization.
+>   final-head settlement may repeat. Fire once per ready head, between its rendered evidence and the
+>   integration-interlock stop. No commit or push may occur after readiness is established.
 
 ## pre-merge.actions
 
@@ -20,3 +20,4 @@ active: false
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[run-errand]: ../workflows/arc/supplemental/run-errand.md

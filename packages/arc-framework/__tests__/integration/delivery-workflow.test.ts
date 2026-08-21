@@ -1,0 +1,85 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import { classifyFile } from "../../src/lib/classification.js";
+
+const root = resolve(import.meta.dirname, "../../../..");
+
+function section(document: string, heading: string): string {
+  const start = document.indexOf(`## ${heading}`);
+  if (start < 0) throw new Error(`missing workflow section: ${heading}`);
+  const end = document.indexOf("\n## ", start + 3);
+  return document.slice(start, end < 0 ? undefined : end);
+}
+
+describe("packaged delivery workflow", () => {
+  it("ships one framework-owned workflow with closed prepare/interlock/apply ordering", async () => {
+    const [packaged, installed, recipe] = await Promise.all([
+      readFile(resolve(root, "packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+      readFile(resolve(root, ".arc/system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+      readFile(resolve(root, "packages/arc-framework/init-recipe.json"), "utf8"),
+    ]);
+    expect(installed).toBe(packaged);
+    expect(JSON.parse(recipe).include_files).toContain("system/workflows/arc/supplemental/deliver-stack.md");
+    expect(classifyFile("system/workflows/arc/supplemental/deliver-stack.md")).toBe("Framework");
+    expect(packaged).toContain("arc delivery eligibility prepare");
+    expect(packaged).toContain("refs/arc/delivery-candidates/{planId}/{chunkKey}");
+    expect(packaged).toContain("use detached worktrees for project gates");
+    expect(packaged).not.toContain("refs/heads/cut/");
+    expect(packaged).toContain("arc delivery materialize");
+    expect(packaged).toContain("arc delivery land prepare");
+    expect(packaged).toContain("arc delivery land apply");
+    expect(packaged).toContain("arc delivery reconcile");
+    expect(packaged).toContain("arc delivery rematerialize");
+    expect(packaged).not.toContain("arc delivery rewrite");
+    expect(packaged).toContain("arc delivery terminal prepare");
+    expect(packaged).toContain("arc delivery teardown");
+    expect(packaged).toContain("arc delivery native link");
+    expect(packaged).toContain("arc delivery native observe");
+    expect(packaged).toContain("arc delivery native unlink");
+    expect(packaged).toContain("arc delivery native land-select");
+    expect(packaged).toContain("arc delivery native land-prepare");
+    expect(packaged).toContain("arc delivery native land-submit");
+    expect(packaged).toContain("arc delivery native land-status");
+    expect(packaged).toContain("opt-out `unlinked` result makes zero native host calls");
+    const materializeSection = section(packaged, "Validate and materialize");
+    const nativeSection = section(packaged, "Select and execute the native landing arm");
+    const reviewSection = section(packaged, "Review and land the current member");
+    expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
+    expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
+    expect(nativeSection).toMatch(
+      /only the plan, request, and remote locators[\s\S]*effect\s+identity from delivery state/iu,
+    );
+    expect(packaged).toContain("never enters the delivery plan or state");
+    expect(packaged).toContain("integrate-work-unit.md");
+    const prepare = packaged.indexOf("arc delivery land prepare");
+    const interlock = packaged.indexOf("`integration-interlock`", prepare);
+    const apply = packaged.indexOf("arc delivery land apply", interlock);
+    expect(prepare).toBeLessThan(interlock);
+    expect(interlock).toBeLessThan(apply);
+    expect(reviewSection).toMatch(/retryable[\s\S]*prepare[\s\S]*new integration interlock/iu);
+    expect(reviewSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
+    expect(packaged).not.toMatch(/if\s+.*(?:state|status)\s*==/iu);
+    const nativeObserve = packaged.indexOf("arc delivery native observe");
+    const nativeSelect = packaged.indexOf("arc delivery native land-select", nativeObserve);
+    const nativeUnlink = packaged.indexOf("arc delivery native unlink", nativeSelect);
+    const nativePrepare = packaged.indexOf("arc delivery native land-prepare", nativeSelect);
+    const nativeInterlock = packaged.indexOf("`integration-interlock`", nativePrepare);
+    const nativeSubmit = packaged.indexOf("arc delivery native land-submit", nativeInterlock);
+    const nativeStatus = packaged.indexOf("arc delivery native land-status", nativeSubmit);
+    expect(nativeObserve).toBeLessThan(nativeSelect);
+    expect(nativeSelect).toBeLessThan(nativeUnlink);
+    expect(nativeSelect).toBeLessThan(nativePrepare);
+    expect(nativePrepare).toBeLessThan(nativeInterlock);
+    expect(nativeInterlock).toBeLessThan(nativeSubmit);
+    expect(nativeSubmit).toBeLessThan(nativeStatus);
+    expect(nativeSection).toMatch(/exact member\/head set[\s\S]*residual race/iu);
+    expect(nativeSection).toMatch(/pending[\s\S]*restart[\s\S]*land-status/iu);
+    expect(nativeSection).toMatch(/none-landed[\s\S]*new\s+interlock/iu);
+    expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);
+    expect(nativeSection).toMatch(/linked-single[\s\S]*contribution proof[\s\S]*new-head review/iu);
+    expect(nativeSection).toMatch(/The terminal\s+member is never included/u);
+  });
+});

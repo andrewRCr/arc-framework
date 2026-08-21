@@ -4,29 +4,35 @@ import { mkdir, readFile, readdir, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { expandActiveInFlight } from "./active.js";
+import { canonicalDigest } from "../lib/canonical/canonical-json.js";
 import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";
-import { getCurrentBranch } from "../lib/git/exec.js";
-import {
-  renameWorktreeOwnershipMarker,
-  type WorktreeSubject,
-} from "../lib/git/worktree-marker.js";
+import { getCurrentBranch, type GitExec } from "../lib/git/exec.js";
+import type { WorktreeSubject } from "../lib/git/worktree-marker.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
+  scanRegisteredWorktrees,
 } from "../lib/git/worktree-roster.js";
 import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import {
   resolveComposedLifecycleIndex,
 } from "../lib/work-unit/composed-lifecycle-index.js";
 import type { RenameRetirementContext } from "../lib/work-unit/direct-retirement-driver.js";
+import type { TerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
 import type { LifecycleIndexFs, LifecycleIndexEntry } from "../lib/work-unit/lifecycle-index.js";
 import {
-  reconcileWorktree,
-  nodeReconcileWorktreeFs,
+  reconcileWorkUnitWorktree,
+  nodeReconcileWorkUnitWorktreeFs,
   resolveRenameWorktreeMove,
-} from "../lib/work-unit/mutators/reconcile-worktree.js";
+  type ReconcileWorkUnitWorktreeResult,
+  type RenameWorktreeMoveResolution,
+} from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
+import {
+  createNodeRenameWorktreeTransactionDriver,
+} from "../lib/work-unit/rename-worktree-transaction.js";
 import { renameArtifacts } from "../lib/work-unit/mutators/rename-artifacts.js";
 import { rewriteRenamedMeta } from "../lib/work-unit/mutators/rewrite-renamed-meta.js";
 import {
@@ -53,6 +59,10 @@ import {
   transformDependentMutationExclusions,
 } from "../lib/work-unit/transform-coordination.js";
 import {
+  createProspectiveTransitionOverlay,
+  transitionOverlayCompositionInput,
+} from "../lib/work-unit/transition-overlay.js";
+import {
   runRename,
   type RenamePlan,
   type RenameSubjectShape,
@@ -60,14 +70,17 @@ import {
   type RunRenameResult,
 } from "../lib/work-unit/verbs/rename.js";
 import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
+import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
+import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 
 /** Production dependencies resolved by the CLI handler. */
 export interface RenameCommandContext {
   cwd: string;
   identity: string;
   baseBranch: string;
-  io: UserIOContext;
+  io: UserIOContext & { execInput: NonNullable<UserIOContext["execInput"]> };
   retirement: RenameRetirementContext;
+  transitionWriter: TerminalTransitionRecordWriter;
   onPreparedAdvisories?(advisories: readonly string[]): Promise<void>;
 }
 
@@ -82,20 +95,41 @@ export async function runRenameCommand(
   const exec = command.io.exec;
   const ctx: RunRenameContext = {
     retirement: command.retirement,
+    transitionWriter: command.transitionWriter,
     onPrepared: async (plan) => {
+      if (!plan.resuming) {
+        const [candidate, boundary] = await Promise.all([
+          readCandidateRecord(command.cwd, plan.sourceSlug),
+          readSubmissionBoundary(command.cwd, plan.sourceSlug),
+        ]);
+        if (candidate !== null || boundary !== null) {
+          throw new Error("A work unit with Candidate publication state cannot be renamed.");
+        }
+      }
       await command.onPreparedAdvisories?.(plan.coordinationAdvisories);
     },
     preflight: async (request) => {
       const names = validateRenameRequest(request.sourceSlug, request.targetSlug);
       const currentBranch = await getCurrentBranch(exec);
+      const expandedInFlight = await expandActiveInFlight({
+        exec,
+        execInput: command.io.execInput,
+        cwd: command.cwd,
+        identity: command.identity,
+        teamMode: false,
+        baseBranch: command.baseBranch,
+      });
+      if (expandedInFlight.candidateExpansion.status !== "complete") {
+        throw new Error("Could not completely expand remote work-unit candidates.");
+      }
       const composed = await resolveComposedLifecycleIndex({
         cwd: command.cwd,
         fs: lifecycleFs,
         oracle: {
           exec,
           baseBranch: command.baseBranch,
-          localOnly: false,
-          expandLiveOnly: true,
+          acquisitionPolicy: "materialized-live",
+          suppliedResult: expandedInFlight,
         },
         ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
       });
@@ -162,7 +196,6 @@ export async function runRenameCommand(
         additionalPaths,
         worktreePath: composed.worktreePathBySlug.get(subject.resolvedSlug) ?? null,
         baseBranch: command.baseBranch,
-        inventoryRead: composed.readQuality,
         coordinationAdvisories: coordination.map((advisory) => advisory.text),
       };
     },
@@ -200,7 +233,20 @@ export async function runRenameCommand(
             currentBranch,
             ...(plan.oldBranch === null
               ? {}
-              : { superseded: { slug: plan.sourceSlug, branch: plan.oldBranch } }),
+              : {
+                  transitionOverlays: [
+                    transitionOverlayCompositionInput(createProspectiveTransitionOverlay({
+                      origin: plan.sourceSlug,
+                      sourceBranch: plan.oldBranch,
+                      planId: canonicalDigest({
+                        kind: "rename",
+                        origin: plan.sourceSlug,
+                        sourceBranch: plan.oldBranch,
+                        target: plan.targetSlug,
+                      }),
+                    })),
+                  ],
+                }),
           });
           return {
             content: result.markdown,
@@ -262,13 +308,6 @@ export async function runRenameCommand(
         oldRemoteOid: plan.oldRemoteOid,
       });
     },
-    renameMarker: async (plan) => {
-      if (plan.worktreePath === null) return "absent";
-      return (await renameWorktreeOwnershipMarker(plan.worktreePath, {
-        oldWuName: plan.sourceSlug,
-        newWuName: plan.targetSlug,
-      })).status;
-    },
     resolveWorktreeMove: async (plan) => {
       if (plan.newBranch === null) return { status: "in-place" };
       return resolveRenameWorktreeMove(exec, {
@@ -278,44 +317,103 @@ export async function runRenameCommand(
         currentLocus: command.cwd,
       });
     },
-    moveWorktree: (_plan, move) => reconcileWorktree({
-      exec,
-      chdir: (path) => {
-        process.chdir(path);
-      },
-      fs: nodeReconcileWorktreeFs,
-    }, {
-      mutation: "move",
-      from: move.from,
-      to: move.to,
-      currentLocus: command.cwd,
-    }),
-    reconcileWorktreeMoveMarker: async (plan, move) => {
-      const markerPath = "status" in move
-        ? move.status === "deferred-self-move" ? move.from : move.worktreePath
-        : move.to;
-      let renameMovePending = null;
-      if ("status" in move && move.status === "deferred-self-move") {
-        const renamedBranch = plan.newBranch;
-        if (renamedBranch === null) {
-          throw new Error("deferred spawned rename is missing its renamed branch");
-        }
-        renameMovePending = {
-          oldSlug: plan.sourceSlug,
-          newSlug: plan.targetSlug,
-          branch: renamedBranch,
-          head: (await exec("git", ["rev-parse", "--verify", `${renamedBranch}^{commit}`])).stdout.trim(),
-          from: move.from,
-          to: move.to,
-        };
+    renameCheckout: async (plan, move) => {
+      const checkout = await resolveRenameCheckoutCoordinates(exec, move);
+      if (checkout === null) throw new Error("could not resolve the checkout rename coordinates");
+      let worktree: ReconcileWorkUnitWorktreeResult | undefined;
+      if (move.status === "deferred-self-move" && plan.newBranch === null) {
+        throw new Error("deferred spawned rename is missing its renamed branch");
       }
-      return (await renameWorktreeOwnershipMarker(markerPath, {
-        oldWuName: plan.sourceSlug,
-        newWuName: plan.targetSlug,
-      }, { renameMovePending })).status;
+      const renameMovePending = move.status === "deferred-self-move" && plan.newBranch !== null
+        ? {
+            oldSlug: plan.sourceSlug,
+            newSlug: plan.targetSlug,
+            branch: plan.newBranch,
+            head: checkout.expectedHead,
+            from: move.from,
+            to: move.to,
+          }
+        : null;
+      const checkoutOutcome = await createNodeRenameWorktreeTransactionDriver({ exec }).rename({
+        sourceCheckoutPath: checkout.from,
+        targetCheckoutPath: checkout.to,
+        sourceSlug: plan.sourceSlug,
+        targetSlug: plan.targetSlug,
+        expectedHead: checkout.expectedHead,
+        renameMovePending,
+        ...(move.status === "move"
+          ? {
+              move: {
+                apply: async () => {
+                  worktree = await reconcileWorkUnitWorktree({
+                    exec,
+                    chdir: (path) => {
+                      process.chdir(path);
+                    },
+                    fs: nodeReconcileWorkUnitWorktreeFs,
+                  }, {
+                    mutation: "move",
+                    from: move.from,
+                    to: move.to,
+                    currentLocus: command.cwd,
+                  });
+                },
+                rollback: async () => {
+                  await reconcileWorkUnitWorktree({
+                    exec,
+                    chdir: (path) => {
+                      process.chdir(path);
+                    },
+                    fs: nodeReconcileWorkUnitWorktreeFs,
+                  }, {
+                    mutation: "move",
+                    from: move.to,
+                    to: move.from,
+                    currentLocus: command.cwd,
+                  });
+                  },
+              },
+            }
+          : {}),
+      });
+      return { checkout: checkoutOutcome, ...(worktree === undefined ? {} : { worktree }) };
     },
   };
   return runRename(ctx, params);
+}
+
+/**
+ * Resolve the checkout coordinates the marker/topology rename runs against.
+ *
+ * A pending move spans its source and destination; every other resolution keeps one path
+ * and renames the subject alone. `in-place` names the primary checkout, which the roster reports
+ * under the renamed branch rather than a slug-derived path. Returns `null` when no registered
+ * checkout backs the subject.
+ */
+export async function resolveRenameCheckoutCoordinates(
+  exec: GitExec,
+  move: RenameWorktreeMoveResolution,
+): Promise<{ from: string; to: string; expectedHead: string } | null> {
+  const from = move.status === "move" || move.status === "deferred-self-move"
+    ? move.from
+    : move.status === "in-place"
+      ? await resolvePrimaryWorktreePath(exec)
+      : move.status === "already-moved"
+        // The transaction needs both coordinates to prove that a landed move removed the source
+        // registration and established the destination registration.
+        ? move.sourceWorktreePath
+        : move.worktreePath;
+  if (from === null) return null;
+  const to = move.status === "move"
+    ? move.to
+    : move.status === "already-moved" ? move.worktreePath : from;
+  const roster = await scanRegisteredWorktrees(exec);
+  if (!roster.ok) throw new Error(`could not read the registered worktrees: ${roster.message}`);
+  // A landed move already reports the destination; a pending one still reports its source.
+  const expected = roster.worktrees.find((entry) => resolve(entry.path) === resolve(to))
+    ?? roster.worktrees.find((entry) => resolve(entry.path) === resolve(from));
+  if (expected === undefined) return null;
+  return { from, to, expectedHead: expected.head };
 }
 
 function nodeLifecycleFs(): LifecycleIndexFs {

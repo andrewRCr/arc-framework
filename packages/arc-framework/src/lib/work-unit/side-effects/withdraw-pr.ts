@@ -45,6 +45,14 @@ export interface WithdrawPrOp {
  * @param op - The head branch and the withdrawal mode.
  */
 export async function withdrawPr(ctx: WithdrawPrContext, op: WithdrawPrOp): Promise<void> {
+  const observed = await ctx.exec("gh", ["pr", "view", op.branch, "--json", "state,isDraft"]);
+  const parsed: unknown = JSON.parse(observed.stdout);
+  if (typeof parsed === "object" && parsed !== null) {
+    const state = "state" in parsed ? parsed.state : undefined;
+    const isDraft = "isDraft" in parsed ? parsed.isDraft : undefined;
+    if (op.mode === "close" && state === "CLOSED") return;
+    if (op.mode === "draft" && state === "OPEN" && isDraft === true) return;
+  }
   if (op.mode === "draft") {
     await ctx.exec("gh", ["pr", "ready", op.branch, "--undo"]);
     return;

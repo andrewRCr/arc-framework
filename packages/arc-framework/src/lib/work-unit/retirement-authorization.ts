@@ -8,20 +8,20 @@
 
 import { canonicalDigest } from "../canonical/canonical-json.js";
 import {
+  gitTransitionResultDigest,
   retirementSubjectRefusal,
-  validateReceiptMatrix,
-  worktreeSubjectsEqual,
   type RetirementEvidenceRef,
-  type RetirementReceipt,
   type TeardownAuthorizationDecision,
   type TeardownAuthorizationRefusal,
   type TeardownAuthorizationRequest,
 } from "./retirement-authority.js";
 
-/** One deterministic non-shipped receipt candidate and its result projection. */
-export interface RetirementReceiptCandidate {
-  receipt: RetirementReceipt;
+/** Git-derived non-shipped transition proof ready for digest binding. */
+export interface GitTransitionAuthorizationProof {
+  transition: Extract<RetirementEvidenceRef, { kind: "git-transition" }>["transition"];
+  retiringHead: string;
   resultHead: string;
+  resultInventory: Parameters<typeof gitTransitionResultDigest>[0]["resultInventory"];
 }
 
 /** Read-only seams needed to authorize one exact teardown request. */
@@ -38,15 +38,10 @@ export interface RetirementAuthorizationContext {
       }
     | null
   >;
-  readReceiptCandidates(request: TeardownAuthorizationRequest): Promise<readonly RetirementReceiptCandidate[]>;
-  validateReceiptRelation(
-    receipt: RetirementReceipt,
-    projection: { retiringHead: string; resultHead: string },
-  ): Promise<TeardownAuthorizationRefusal | null>;
-  validateReceiptResult(
-    receipt: RetirementReceipt,
-    projection: { retiringHead: string; resultHead: string },
-  ): Promise<TeardownAuthorizationRefusal | null>;
+  readGitTransitionProof(request: TeardownAuthorizationRequest): Promise<
+    | { status: "proved"; proof: GitTransitionAuthorizationProof }
+    | { status: "refused"; reason: TeardownAuthorizationRefusal }
+  >;
 }
 
 /**
@@ -60,6 +55,18 @@ export async function authorizeRetirement(
   ctx: RetirementAuthorizationContext,
   request: TeardownAuthorizationRequest,
 ): Promise<TeardownAuthorizationDecision> {
+  try {
+    return await authorizeRetirementStrict(ctx, request);
+  } catch {
+    return { status: "refused", reason: "authority-unavailable" };
+  }
+}
+
+/** Authorize retirement while preserving unexpected evidence-read failures. */
+export async function authorizeRetirementStrict(
+  ctx: RetirementAuthorizationContext,
+  request: TeardownAuthorizationRequest,
+): Promise<TeardownAuthorizationDecision> {
   const subjectRefusal = retirementSubjectRefusal(request.subject);
   if (subjectRefusal !== null) return { status: "refused", reason: subjectRefusal };
   if (request.subject.kind === "branch" && request.subject.ref !== request.branch) {
@@ -69,25 +76,21 @@ export async function authorizeRetirement(
     return { status: "refused", reason: "unsupported-transition" };
   }
 
-  try {
-    const [local, remoteOid] = await Promise.all([
-      ctx.readLocalProjection(request),
-      ctx.readRemoteRef(request.remote, request.branch),
-    ]);
-    if (local.oid !== request.head || !local.worktreeProjectionSafe) {
-      return { status: "refused", reason: "projection-mismatch" };
-    }
-    if (remoteOid !== null && remoteOid !== request.head) {
-      return { status: "refused", reason: "projection-mismatch" };
-    }
-
-    if (request.requestedMode === "shipped") {
-      return await authorizeShipped(ctx, request, local.oid, remoteOid);
-    }
-    return await authorizeFromReceipt(ctx, request, local.oid, remoteOid);
-  } catch {
-    return { status: "refused", reason: "authority-unavailable" };
+  const [local, remoteOid] = await Promise.all([
+    ctx.readLocalProjection(request),
+    ctx.readRemoteRef(request.remote, request.branch),
+  ]);
+  if (local.oid !== request.head || !local.worktreeProjectionSafe) {
+    return { status: "refused", reason: "projection-mismatch" };
   }
+  if (remoteOid !== null && remoteOid !== request.head) {
+    return { status: "refused", reason: "projection-mismatch" };
+  }
+
+  if (request.requestedMode === "shipped") {
+    return await authorizeShipped(ctx, request, local.oid, remoteOid);
+  }
+  return await authorizeFromGitTransition(ctx, request, local.oid, remoteOid);
 }
 
 /**
@@ -141,7 +144,7 @@ async function authorizeShipped(
   return authorizedDecision(request, "merged-preserved", shipped.evidence, refs);
 }
 
-async function authorizeFromReceipt(
+async function authorizeFromGitTransition(
   ctx: RetirementAuthorizationContext,
   request: TeardownAuthorizationRequest,
   localOid: string,
@@ -150,38 +153,26 @@ async function authorizeFromReceipt(
   if (request.subject.kind !== "work-unit") {
     return { status: "refused", reason: "unsupported-transition" };
   }
-  const candidates = await ctx.readReceiptCandidates(request);
-  if (candidates.length === 0) return { status: "refused", reason: "evidence-missing" };
-  if (candidates.length > 1) return { status: "refused", reason: "authority-ambiguous" };
-  const candidate = candidates[0];
-  if (candidate === undefined) return { status: "refused", reason: "evidence-missing" };
-  const { receipt } = candidate;
-  if (!worktreeSubjectsEqual(receipt.subject, request.subject) || receipt.source.branch !== request.branch) {
-    return { status: "refused", reason: "evidence-mismatch" };
+  const result = await ctx.readGitTransitionProof(request);
+  if (result.status === "refused") return result;
+  const { proof } = result;
+  if (proof.retiringHead !== request.head) {
+    return { status: "refused", reason: "projection-mismatch" };
   }
-  if (receipt.transition === "rename" || receipt.authorization === "identity-renamed") {
-    return { status: "refused", reason: "unsupported-transition" };
-  }
-  const expectedLifecycle = receipt.transition === "park-planning" ? "planned" : "nonexistent";
-  const matrixRefusal = validateReceiptMatrix(receipt, expectedLifecycle);
-  if (matrixRefusal !== null) return { status: "refused", reason: matrixRefusal };
-  const relationRefusal = await ctx.validateReceiptRelation(receipt, {
-    retiringHead: request.head,
-    resultHead: candidate.resultHead,
-  });
-  if (relationRefusal !== null) return { status: "refused", reason: relationRefusal };
-  const resultRefusal = await ctx.validateReceiptResult(receipt, {
-    retiringHead: request.head,
-    resultHead: candidate.resultHead,
-  });
-  if (resultRefusal !== null) return { status: "refused", reason: resultRefusal };
-
-  const evidence: Extract<RetirementEvidenceRef, { kind: "receipt" }> = {
-    kind: "receipt",
-    receiptId: receipt.receiptId,
-    transition: receipt.transition,
-    expectedLifecycle,
-    resultDigest: canonicalDigest(receipt.result),
+  const authorization = proof.transition === "park-planning"
+    ? "planning-relocated"
+    : "discard-confirmed";
+  const evidence: Extract<RetirementEvidenceRef, { kind: "git-transition" }> = {
+    kind: "git-transition",
+    transition: proof.transition,
+    resultDigest: gitTransitionResultDigest({
+      transition: proof.transition,
+      subject: request.subject,
+      branch: request.branch,
+      retiringHead: proof.retiringHead,
+      resultHead: proof.resultHead,
+      resultInventory: proof.resultInventory,
+    }),
   };
   const refs = {
     localOid,
@@ -193,7 +184,7 @@ async function authorizeFromReceipt(
           disposition: "delete" as const,
         },
   };
-  return authorizedDecision(request, receipt.authorization, evidence, refs);
+  return authorizedDecision(request, authorization, evidence, refs);
 }
 
 function authorizedDecision(

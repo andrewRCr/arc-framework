@@ -15,8 +15,8 @@
  * @module
  */
 
-import { readdir, rm, rmdir } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { lstat, readFile, readdir, rm, rmdir } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import * as p from "@clack/prompts";
 import { z } from "zod";
@@ -30,6 +30,7 @@ import {
   runGraduate,
   deriveColdStartWuName,
 } from "../commands/start.js";
+import { expandActiveInFlight } from "../commands/active.js";
 import { validateClass } from "../commands/active/types.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
@@ -40,7 +41,10 @@ import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import {
+  createUserIOContext,
+  readGitBlobBytes,
+} from "../lib/io-context.js";
 import { SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
@@ -59,6 +63,11 @@ import {
   resolveComposedLifecycleIndex,
 } from "../lib/work-unit/composed-lifecycle-index.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
+import {
+  prepareGitGraduationTransaction,
+  type GitGraduationTransactionResult,
+  type PrepareGitGraduationTransactionInput,
+} from "../lib/work-unit/git-graduation-transaction.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { runResume } from "../lib/work-unit/verbs/park-resume.js";
 import {
@@ -67,6 +76,7 @@ import {
   resolveCurrentBranchName,
   resolveUserIdentity,
 } from "./shared.js";
+import { resolveWorktreeLocation } from "../lib/git/worktree-location.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
@@ -255,14 +265,32 @@ export async function handleStart(
     process.exitCode = 1;
     return;
   }
+  if (io.execInput === undefined) {
+    p.log.error("remote start expansion requires stdin-capable Git I/O");
+    process.exitCode = 1;
+    return;
+  }
+  const expandedInFlight = await expandActiveInFlight({
+    exec: io.exec,
+    execInput: io.execInput,
+    cwd,
+    identity,
+    teamMode: false,
+    baseBranch: settings["branch.base"],
+  });
+  if (expandedInFlight.candidateExpansion.status !== "complete") {
+    p.log.error("could not completely expand remote work-unit candidates; retry `arc start`.");
+    process.exitCode = 1;
+    return;
+  }
   const composed = await resolveComposedLifecycleIndex({
     cwd,
     fs: baseSnapshot.fs,
     oracle: {
       exec: io.exec,
       baseBranch: settings["branch.base"],
-      localOnly: false,
-      expandLiveOnly: true,
+      acquisitionPolicy: "materialized-live",
+      suppliedResult: expandedInFlight,
     },
   });
   const dispatch = resolveStartDispatch(composed.index, wuName, { create: input.new === true });
@@ -582,6 +610,60 @@ async function graduate(
       return;
     }
   }
+  if (validateClass(cls) === "[TBD]") {
+    p.log.error(
+      `cannot start \`${wuName}\` because its Class is unresolved `
+      + "(expected `Light` | `Heavy` | `Novel`; supply `--class`).",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const sourceDirectory = dirname(ctx.metaPath).split("\\").join("/");
+  const location = sourceDirectory.includes("/provisional/")
+    ? "provisional" as const
+    : "planned" as const;
+  const targetDirectory = resolveArcPath({ kind: "placement-root", tier: "active" });
+  const classResolution = writeClass
+    ? { kind: "supplied" as const, value: WorkClassSchema.parse(cls) }
+    : { kind: "preserved" as const, value: WorkClassSchema.parse(cls) };
+  const prepareTransaction = (
+    mode: "spawned" | "in-place",
+    worktreePath: string,
+    spawn?: PrepareGitGraduationTransactionInput["spawn"],
+  ): (() => Promise<GitGraduationTransactionResult>) => async () =>
+    prepareGitGraduationTransaction({
+      exec: ctx.io.exec,
+      readBlob: (ref, path) => readGitBlobBytes(ctx.cwd, ref, path),
+      readWorktreeFile: async (path) => {
+        try {
+          return new Uint8Array(await readFile(join(ctx.cwd, path)));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+          throw error;
+        }
+      },
+      pathExists: async (path) => {
+        try {
+          await lstat(path);
+          return true;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+          throw error;
+        }
+      },
+    }, {
+      cwd: ctx.cwd,
+      slug: wuName,
+      location,
+      sourceRef: ctx.baseRef,
+      sourceDirectory,
+      targetDirectory,
+      mode,
+      worktreePath,
+      classResolution,
+      ...(spawn === undefined ? {} : { spawn }),
+    });
 
   // In place (`--here`): no worktree spawned, so the spawn config (base / location
   // template / repo) isn't needed — only `team.mode` for the executor's status
@@ -604,13 +686,24 @@ async function graduate(
           baseBranch: settings["branch.base"],
           internalTemplateDir: getInternalTemplatePath(),
         }),
-        { name: wuName, cls, writeClass, inPlace: true },
+        {
+          name: wuName,
+          cls,
+          writeClass,
+          inPlace: true,
+          prepareTransaction: prepareTransaction("in-place", ctx.cwd),
+        },
       ),
-      (r) => r.status !== "rejected",
+      (r) => r.status === "graduated",
       "Graduation failed.",
     );
     if (result.status === "rejected") {
       p.log.error(result.reason);
+      process.exitCode = 1;
+      return;
+    }
+    if (result.status === "graduation-recovery-required") {
+      p.log.error(`${result.reason}\n${JSON.stringify(result.residue, null, 2)}`);
       process.exitCode = 1;
       return;
     }
@@ -632,6 +725,15 @@ async function graduate(
     ctx.refreshedBase,
     ctx.baseRef,
   );
+  const templatedWorktreePath = resolveWorktreeLocation({
+    template: config.locationTemplate,
+    repo: config.repo,
+    name: wuName,
+    branch: `plan/${wuName}`,
+  });
+  const graduationWorktreePath = isAbsolute(templatedWorktreePath)
+    ? templatedWorktreePath
+    : resolve(config.primaryWorktreePath, templatedWorktreePath);
 
   if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
     if (!(
@@ -666,13 +768,26 @@ async function graduate(
         repo: config.repo,
         sourceIndex: { cwd: ctx.cwd, fs: ctx.metaFs },
         spawningIdentity: ctx.identity,
+        prepareTransaction: prepareTransaction("spawned", graduationWorktreePath, {
+          locationTemplate: config.locationTemplate,
+          repo: config.repo,
+          spawningIdentity: ctx.identity,
+          postCreateScript: config.postCreateScript,
+          primaryWorktreePath: config.primaryWorktreePath,
+          registeredHarnessDirs: config.registeredHarnessDirs,
+        }),
       },
     ),
-    (r) => r.status !== "rejected",
+    (r) => r.status === "graduated",
     "Graduation failed.",
   );
   if (result.status === "rejected") {
     p.log.error(result.reason);
+    process.exitCode = 1;
+    return;
+  }
+  if (result.status === "graduation-recovery-required") {
+    p.log.error(`${result.reason}\n${JSON.stringify(result.residue, null, 2)}`);
     process.exitCode = 1;
     return;
   }
@@ -779,7 +894,13 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
       process.exitCode = 1;
       return;
     }
-    p.note([`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`].join("\n"), "Resumed (in place)");
+    p.note([
+      `Work unit: ${wuName}`,
+      `Meta:      ${result.metaPath}`,
+      "",
+      `After the pointer removal lands, continue: git checkout ${result.branch} && `
+        + `arc wu reconcile ${wuName} --apply --json`,
+    ].join("\n"), "Resumed (in place)");
     reportAdvisories(result.outcome);
     p.outro("Done.");
     return;

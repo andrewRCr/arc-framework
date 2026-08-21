@@ -11,7 +11,7 @@
 import { dirname, join } from "node:path";
 
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import type { RetirementRecordEnumerationResult } from "./retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "./transition-record-enumeration.js";
 
 /** One storage-independent retirement transition relevant to tracked references. */
 export interface ReachableReferenceTransition {
@@ -21,6 +21,12 @@ export interface ReachableReferenceTransition {
     | { kind: "decompose" }
     | { kind: "removed" };
 }
+
+/** Lean transition projection before current tracked-reference planning. */
+export type TransitionReferenceProjectionResult =
+  | { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
+  | { status: "conflict"; reason: "ambiguous-history"; subject: string }
+  | { status: "conflict"; reason: "namespace-corrupt" };
 
 /** One exact artifact snapshot supplied to the pure planner. */
 export interface ReferenceArtifactSnapshot {
@@ -54,7 +60,7 @@ export interface ReferenceAdvisory {
 /** A subject whose reachable history cannot grant mechanical rewrite authority. */
 export interface ReferenceTransitionConflict {
   subject: string;
-  reason: "ambiguous-history" | "rename-cycle" | "version-conflict" | "namespace-corrupt";
+  reason: "ambiguous-history" | "rename-cycle" | "namespace-corrupt";
 }
 
 /** Closed pure reference plan. */
@@ -74,6 +80,7 @@ export type ReferenceTransitionResolution =
   | { kind: "conflict"; reason: ReferenceTransitionConflict["reason"] };
 
 const ARTIFACT_CODE_SPAN = /`([a-z]+)-([a-z0-9]+(?:-[a-z0-9]+)*)\.md`/gu;
+const COHORT_FIELD_PREFIX = /^[ \t]*-[ \t]+\*\*Cohort:\*\*[ \t]*/gmu;
 const SLUG_CHAR = /[a-z0-9-]/u;
 
 /**
@@ -96,37 +103,26 @@ export async function listCurrentWuArtifactPaths(
     .map((basename) => join(directory, basename));
 }
 
-/**
- * Project authenticated reachable receipts into reference transitions.
- *
- * @param enumeration - Complete authenticated namespace reachable from the current WU history
- * @returns Valid work-unit transitions or a namespace-level refusal
- */
-export function enumerateReferenceTransitions(
-  enumeration: RetirementRecordEnumerationResult,
-): { status: "valid"; transitions: readonly ReachableReferenceTransition[] }
-  | { status: "conflict"; reason: "version-conflict" | "namespace-corrupt" } {
-  if (enumeration.status !== "valid") return { status: "conflict", reason: enumeration.status };
+/** Project authenticated lean transition groups into reference transitions. */
+export function enumerateTransitionReferenceTransitions(
+  enumeration: TransitionRecordEnumerationResult,
+): TransitionReferenceProjectionResult {
+  if (enumeration.status !== "valid") return { status: "conflict", reason: "namespace-corrupt" };
   const transitions: ReachableReferenceTransition[] = [];
-  for (const entry of enumeration.records) {
-    if (entry.record.kind !== "receipt") continue;
-    const receipt = entry.record.value;
-    if (receipt.subject.kind !== "work-unit") continue;
-    switch (receipt.result.kind) {
-      case "rename":
-        transitions.push({
-          subject: receipt.subject.name,
-          outcome: { kind: "rename", targetSlug: receipt.result.targetSlug },
-        });
-        break;
-      case "decompose":
-        transitions.push({ subject: receipt.subject.name, outcome: { kind: "decompose" } });
-        break;
-      case "discard":
-        transitions.push({ subject: receipt.subject.name, outcome: { kind: "removed" } });
-        break;
-      case "relocate":
-        break;
+  for (const group of enumeration.groups) {
+    if (group.records.length > 1) {
+      return { status: "conflict", reason: "ambiguous-history", subject: group.origin };
+    }
+    const record = group.records[0];
+    if (record === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+    if (record.kind === "rename") {
+      const targetSlug = record.successors[0];
+      if (targetSlug === undefined) return { status: "conflict", reason: "namespace-corrupt" };
+      transitions.push({ subject: record.origin, outcome: { kind: "rename", targetSlug } });
+    } else if (record.kind === "abandon") {
+      transitions.push({ subject: record.origin, outcome: { kind: "removed" } });
+    } else {
+      transitions.push({ subject: record.origin, outcome: { kind: "decompose" } });
     }
   }
   return { status: "valid", transitions };
@@ -145,10 +141,13 @@ export function planReferenceReconcile(input: {
   const outcomes = groupOutcomes(input.transitions);
   const resolutions = new Map<string, ReferenceTransitionResolution>();
   const referencedSubjects = [...outcomes.keys()]
-    .filter((subject) => input.artifacts.some((artifact) =>
-      slugOffsets(artifact.content, subject).length > 0
-      || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
-        .some((match) => match[1] !== "cohort" && match[2] === subject)))
+    .filter((subject) => input.artifacts.some((artifact) => {
+      const cohortFieldRanges = cohortFieldValueRanges(artifact.content);
+      return slugOffsets(artifact.content, subject)
+        .some((offset) => !insideAnyRange(offset, cohortFieldRanges))
+        || [...artifact.content.matchAll(ARTIFACT_CODE_SPAN)]
+          .some((match) => match[1] !== "cohort" && match[2] === subject);
+    }))
     .sort(byteSort);
   for (const subject of referencedSubjects) {
     resolutions.set(subject, resolveReferenceTransition(input.transitions, subject));
@@ -166,6 +165,7 @@ export function planReferenceReconcile(input: {
   const advisories: ReferenceAdvisory[] = [];
   for (const artifact of [...input.artifacts].sort((left, right) => byteSort(left.path, right.path))) {
     const codeRanges: Array<{ start: number; end: number }> = [];
+    const cohortFieldRanges = cohortFieldValueRanges(artifact.content);
     const replacements: TrackedReferenceReplacement[] = [];
     const nextContent = artifact.content.replace(
       ARTIFACT_CODE_SPAN,
@@ -200,7 +200,7 @@ export function planReferenceReconcile(input: {
     for (const [subject, resolution] of resolutions) {
       if (resolution.kind === "conflict" || resolution.kind === "absent") continue;
       for (const offset of slugOffsets(artifact.content, subject)) {
-        if (codeRanges.some((range) => offset >= range.start && offset < range.end)) continue;
+        if (insideAnyRange(offset, codeRanges) || insideAnyRange(offset, cohortFieldRanges)) continue;
         advisories.push(advisoryAt(
           artifact,
           offset,
@@ -217,6 +217,20 @@ export function planReferenceReconcile(input: {
     advisories: advisories.sort(compareAdvisories),
     conflicts: [],
   };
+}
+
+function cohortFieldValueRanges(content: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const match of content.matchAll(COHORT_FIELD_PREFIX)) {
+    const start = match.index + match[0].length;
+    const lineEnd = content.indexOf("\n", start);
+    ranges.push({ start, end: lineEnd === -1 ? content.length : lineEnd });
+  }
+  return ranges;
+}
+
+function insideAnyRange(offset: number, ranges: readonly { start: number; end: number }[]): boolean {
+  return ranges.some((range) => offset >= range.start && offset < range.end);
 }
 
 /**

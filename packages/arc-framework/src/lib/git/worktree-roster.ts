@@ -18,7 +18,7 @@ import {
 
 import type { GitExec } from "./exec.js";
 import {
-  parseGitWorktreePorcelain,
+  parseGitWorktreePorcelainZ,
   type GitWorktreePorcelainRecord,
 } from "./worktree-porcelain.js";
 
@@ -91,7 +91,7 @@ export async function runWorktreeRoster(
   options: RunWorktreeRosterOptions,
 ): Promise<WorktreeRosterResult> {
   const { exec, fs } = options;
-  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+  const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   const branched = worktrees.filter(
     (wt): wt is GitWorktreePorcelainRecord & { branch: string } => wt.branch !== null,
   );
@@ -164,7 +164,7 @@ export function filterRosterByIdentity(
  */
 export async function resolvePrimaryWorktreePath(exec: GitExec): Promise<string | null> {
   try {
-    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
     return worktrees[0]?.path ?? null;
   } catch {
     return null;
@@ -197,14 +197,21 @@ export interface WorktreePathsByBranchResult {
  * the `git worktree list` read succeeded.
  *
  * @param exec - Injectable command executor (local only — no remote).
+ * @param cwd - Repository root the read runs against. Omitted, the executor's own
+ * directory applies, which for the production executor is the process directory.
  * @returns The branch map plus an `ok` bit for warning/marking consumers.
  */
 export async function resolveWorktreePathsByBranchResult(
   exec: GitExec,
+  cwd?: string,
 ): Promise<WorktreePathsByBranchResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec(
+      "git",
+      ["worktree", "list", "--porcelain", "-z"],
+      cwd === undefined ? {} : { cwd },
+    ));
   } catch {
     return { ok: false, paths: new Map() };
   }
@@ -224,7 +231,7 @@ export async function resolveWorktreePathsByBranchResult(
 export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
   let worktrees: GitWorktreePorcelainRecord[];
   try {
-    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain", "-z"]));
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -406,7 +413,7 @@ function buildEntry(
 }
 
 function parseWorktreeList(result: { stdout: string }): GitWorktreePorcelainRecord[] {
-  return parseGitWorktreePorcelain(result.stdout);
+  return parseGitWorktreePorcelainZ(result.stdout);
 }
 
 async function listMetaFiles(fs: WorktreeRosterFs, worktreePath: string): Promise<string[]> {

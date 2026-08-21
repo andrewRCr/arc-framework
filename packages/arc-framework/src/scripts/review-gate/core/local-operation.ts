@@ -27,6 +27,7 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   requirementId: ReviewCanonicalDigestSchema,
   authorIdentity: ReviewIdentifierSchema,
   evaluatorIdentity: ReviewIdentifierSchema,
+  laneSourceId: ReviewIdentifierSchema,
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
 });
@@ -35,6 +36,7 @@ export interface LocalReviewAdmissionInput {
   target: ReviewTarget;
   requirement: ReviewRequirementV2;
   authority: LocalReviewAuthority;
+  laneSourceId: string;
   policyBindingDigest: string;
   requestMechanism: string;
 }
@@ -44,6 +46,7 @@ export interface LocalReviewAdmission {
   target: ReviewTarget;
   requirement: ReviewRequirementV2;
   authority: LocalReviewAuthority;
+  laneSourceId: string;
   policyBindingDigest: string;
   requestMechanism: string;
   carrier: LocalChangeSetCarrierContract;
@@ -106,6 +109,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     requirementId: requirement.requirementId,
     authorIdentity: input.authority.authorIdentity,
     evaluatorIdentity: input.authority.evaluatorIdentity,
+    laneSourceId: input.laneSourceId,
     policyBindingDigest,
     requestMechanism,
   });
@@ -115,6 +119,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     target,
     requirement,
     authority: input.authority,
+    laneSourceId: input.laneSourceId,
     policyBindingDigest,
     requestMechanism,
     carrier,
@@ -149,6 +154,7 @@ export async function resolveLocalReviewAdmission(
     || persisted.state.policyVersion !== admission.requirement.policyVersion
     || persisted.state.policyBindingDigest !== admission.policyBindingDigest
     || persisted.state.repositoryId !== admission.target.repositoryId
+    || persisted.state.laneSourceId !== admission.laneSourceId
     || canonicalize(persisted.state.vehicle) !== canonicalize(admission.authority.vehicle)
     || persisted.state.attestationRuntimeKind !== admission.authority.attestationRuntimeKind) {
     throw new LocalReviewAdmissionError("local-operation-key-mismatch");

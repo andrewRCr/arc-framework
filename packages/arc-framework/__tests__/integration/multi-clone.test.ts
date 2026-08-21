@@ -49,12 +49,15 @@ import { runInit } from "../../src/commands/init.js";
 import { handleSync } from "../../src/handlers/sync.js";
 import { runUserPull, runUserSessionInitStatus } from "../../src/commands/user.js";
 import {
-  writeErrandRecord,
   reconcileErrandPush,
   errandsRef,
-  type ErrandRecord,
   type ErrandRecordIO,
 } from "../../src/lib/errand/index.js";
+import {
+  TransientIdentityRecordV3Schema,
+  type TransientIdentityRecord,
+} from "../../src/lib/errand/identity-record.js";
+import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -322,19 +325,42 @@ describe("user-notes paired-push cross-clone regression", () => {
 });
 
 describe("errand-ref cross-clone sync regression", () => {
-  function errandRecord(slug: string): ErrandRecord {
-    return {
-      version: 1,
+  function errandRecord(slug: string): TransientIdentityRecord {
+    return TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      kind: "errand",
       slug,
+      claimId: "a".repeat(32),
+      purpose: "errand",
       origin: "description",
+      originEntry: null,
       intent: `do ${slug}`,
       branch: `chore/${slug}`,
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
       createdAt: "2026-06-19T12:00:00.000Z",
-    };
+      updatedAt: "2026-06-19T12:00:00.000Z",
+    });
   }
 
   function errandIo(dir: string, identity: string): ErrandRecordIO {
     return { exec: makeGitExec(dir), execInput: makeGitExecInput(dir), identity };
+  }
+
+  async function writeIdentity(io: ErrandRecordIO, record: TransientIdentityRecord): Promise<void> {
+    const outcome = await transactTransientIdentities(io, {
+      remote: null,
+      message: `write ${record.slug}`,
+      transform: (basis) => ({
+        kind: "applied",
+        records: new Map([...basis, [record.slug, record]]),
+        value: null,
+      }),
+    });
+    if (outcome.kind !== "applied" && outcome.kind !== "idempotent") {
+      throw new Error(`identity write failed: ${outcome.kind}`);
+    }
   }
 
   it("arc sync reconciles the errand ref: fetches the remote, tree-merges, and pushes", async () => {
@@ -361,14 +387,14 @@ describe("errand-ref cross-clone sync regression", () => {
 
       // Clone B creates an errand and pushes it — origin's errand ref now holds `from-b`.
       const ioB = errandIo(harness.cloneB, identity);
-      await writeErrandRecord(ioB, errandRecord("from-b"));
+      await writeIdentity(ioB, errandRecord("from-b"));
       expect((await reconcileErrandPush(ioB)).kind).toBe("pushed");
 
       // Clone A creates a divergent errand. `arc sync` must fetch B's ref, union
       // the trees, and push — clone A never had `from-b`, so its push is a real
       // non-fast-forward the cross-cutting errand leg reconciles.
       const ioA = errandIo(harness.cloneA, identity);
-      await writeErrandRecord(ioA, errandRecord("from-a"));
+      await writeIdentity(ioA, errandRecord("from-a"));
 
       let envelope: SyncEnvelope;
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
@@ -415,7 +441,7 @@ describe("errand-ref cross-clone sync regression", () => {
 
       // Drop the remote so the errand push has nowhere to land, and seed a local errand ref.
       await execFileAsync("git", ["remote", "remove", "origin"], { cwd: harness.cloneA });
-      await writeErrandRecord(errandIo(harness.cloneA, identity), errandRecord("orphaned"));
+      await writeIdentity(errandIo(harness.cloneA, identity), errandRecord("orphaned"));
 
       let envelope: SyncEnvelope;
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);

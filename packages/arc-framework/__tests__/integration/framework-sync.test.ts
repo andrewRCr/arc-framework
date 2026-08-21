@@ -148,10 +148,14 @@ describe("framework sync (self-hosting drift check)", () => {
     const projectConfig = await readFile(join(ARC_DIR, path), "utf-8");
 
     expect(manifest.files[path]?.classification).toBe("Configurable");
-    expect(packageConfig).toContain("review.chunking_threshold_lines: 0");
-    expect(packageConfig).toContain("review.chunking_threshold_files: 0");
-    expect(projectConfig).toContain("review.chunking_threshold_lines: 5000");
-    expect(projectConfig).toContain("review.chunking_threshold_files: 150");
+    expect(packageConfig).toContain("changeset.advisory_threshold_lines: 0");
+    expect(packageConfig).toContain("changeset.advisory_threshold_files: 0");
+    expect(projectConfig).toContain("changeset.advisory_threshold_lines: 5000");
+    expect(projectConfig).toContain("changeset.advisory_threshold_files: 150");
+    expect(packageConfig).not.toContain("review.chunking_threshold_lines");
+    expect(packageConfig).not.toContain("review.chunking_threshold_files");
+    expect(projectConfig).not.toContain("review.chunking_threshold_lines");
+    expect(projectConfig).not.toContain("review.chunking_threshold_files");
   });
 
   it("keeps neutral review customization contracts aligned across both copies", async () => {

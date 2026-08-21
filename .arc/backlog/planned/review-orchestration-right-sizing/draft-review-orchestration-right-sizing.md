@@ -1,0 +1,87 @@
+# Draft: review-orchestration-right-sizing
+
+- **Origin:** [internal] — routed from `USER-INBOX § Work Unit` at the housekeep drain (2026-07-27);
+  captured during `review-protocol-alignment` create-spec.
+- **Purpose:** Right-size the review gate's **orchestration layer** against its merge-safety core — cut
+  ceremony that does not earn its cost while preserving exact-head identity, structural provenance, and
+  the "reviewed head A, merged head B" failure prevention.
+- **State:** Draft — pre-groom capture (2026-07-27). Ready to ground independently; do not start concurrent with
+  the live review-protocol stack (`review-protocol-alignment`, `review-checkout-lifecycle`).
+- **Created:** 2026-07-27
+
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Prune the interlock, status, discharge, and Candidate surfaces against their live readers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-08-20).
+- _Concern:_ the checkpoint carries hard-coded-clean signals and a permanently-null extension slot while omitting
+  review facts prose must remember; status duplicates host reads; hosted discharge is checkout-local despite host
+  evidence; Candidate stores a large per-path manifest over facts Git already carries; three wait policies diverge.
+- _Fold-in:_ compose only variable signals and required review facts, collapse host reads, prefer host-observed
+  discharge, re-encode Candidate subject identity proportionately, and state one bounded-wait policy. Consume
+  `host-policy-evidence`'s truthful host-read shape rather than pruning correctness work into this WU.
+
+### `[ ]` **Drive heavy-CI deferral from effective lane state**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-08-10); captured during `remote-access-contract` delivery review closeout.
+- _Concern:_ `ci-defer-review.yml` can lose an approving review's toggle because it trusts the triggering event,
+  while a first changes-requested review can start expensive heavy CI even when the final routed lane would not
+  require it.
+- _Approach:_ first fix reconciliation against current review state and exact head. Then decide whether the durable
+  trigger is the lane verdict, draft state, or effective review state, preserving `ci-ok` as the fail-safe aggregate
+  gate and avoiding label thrash across review bursts.
+
+### `[ ]` **Rename the review-gate module for the architecture that remains**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).
+- _Concern:_ `src/scripts/review-gate/` now contains review architecture after the required-status gate was retired;
+  its name collides with ARC's technical use of “gate” and deepens with every new module.
+- _Approach:_ settle directory-only versus vocabulary-wide rename scope, then sequence the mechanical move after
+  `review-protocol-alignment` so in-flight branches do not all conflict on imports and paths.
+
+---
+
+## Problem / Motivation
+
+The review gate's machinery divides along a legible seam, and only one side earns its cost:
+
+- **Merge-safety core** — request a review at an exact head, lock until that exact head clears, record what
+  the human approved. Genuinely needs exact-head identity and structural provenance separation.
+- **Orchestration layer** — requirement records carrying policy-version digests, admission construction,
+  attestation ceremony, pass/ceiling bookkeeping — where ambition outran substrate.
+
+**Evidence:** every defect `review-protocol-alignment` found sits on the orchestration side (e.g. `kind`
+baked into a requirement record's canonical digest; derivability failures in requirement/projection
+composition; unbacked-capability defects in the policy layer's self-description). Terminal action for a
+hosted review is one PR comment; hosted adapters inject no guidance.
+
+**Prior art:** `review-gate-right-sizing` already cut a resident controller, GitHub App path, provider
+qualification, and admission machinery. These findings are a second wave — a signal about the layer rather
+than any single decision.
+
+**Scale note:** plausibly program-scale rather than WU-scale. Resolve that boundary during planning rather than
+gating this concern on the provisional `retrospective-right-sizing` wrapper.
+
+**Coordination:** `review-protocol-alignment` sequenced its `D4` (schema registrations, `--schema` flag,
+routing-facts input path) last as a hedge — the unit most exposed if request contracts collapse under a
+reduction. If this WU starts before that unit executes, that is the seam to talk about first.
+
+---
+
+## Scope (provisional)
+
+- Audit orchestration ceremony against the merge-safety core criterion.
+- Propose a reduction that preserves exact-head lock and provenance separation.
+- Leave this change available as a concrete future input if `retrospective-right-sizing` activates; it is not a
+  prerequisite for grounding or executing the reduction.
+
+## Non-goals (provisional)
+
+- Replacing the merge-safety core.
+- Concurrent open-ended drafting while the live review-protocol stack is still in flight.

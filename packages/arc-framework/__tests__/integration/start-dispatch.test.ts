@@ -12,19 +12,23 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { execFile } from "node:child_process";
-import { mkdir, writeFile, stat, readFile, readdir } from "node:fs/promises";
+import { lstat, mkdir, writeFile, stat, readFile, readdir, symlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import { runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
+import { runColdStart, runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
 import { handleStart } from "../../src/handlers/start.js";
-import { parseMetaProjectionRecord } from "../../src/lib/active/meta-reader.js";
+import { parseMetaProjectionRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { createUserIOContext } from "../../src/lib/io-context.js";
+import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
+import {
+  prepareGitGraduationTransaction,
+  type GitGraduationTransactionResult,
+} from "../../src/lib/work-unit/git-graduation-transaction.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
@@ -73,6 +77,54 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+function prepareTransaction(
+  h: Harness,
+  slug: string,
+  mode: "spawned" | "in-place",
+  worktreePath: string,
+): () => Promise<GitGraduationTransactionResult> {
+  return () => prepareGitGraduationTransaction({
+    exec: h.io.exec,
+    readBlob: (ref, path) => readGitBlobBytes(h.repo, ref, path),
+    readWorktreeFile: async (path) => {
+      try {
+        return new Uint8Array(await readFile(join(h.repo, path)));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      }
+    },
+    pathExists: async (path) => {
+      try {
+        await lstat(path);
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+      }
+    },
+  }, {
+    cwd: h.repo,
+    slug,
+    location: "planned",
+    sourceRef: "main",
+    sourceDirectory: `.arc/backlog/planned/${slug}`,
+    targetDirectory: ".arc/active",
+    mode,
+    worktreePath,
+    classResolution: { kind: "preserved", value: "Light" },
+    ...(mode === "spawned"
+      ? {
+          spawn: {
+            locationTemplate: h.locationTemplate,
+            repo: basename(h.repo),
+            spawningIdentity: IDENTITY,
+          },
+        }
+      : {}),
+  });
+}
+
 interface Harness {
   repo: string;
   io: UserIOContext;
@@ -103,7 +155,21 @@ async function setup(): Promise<Harness> {
 async function commitMeta(repo: string, relDir: string, slug: string, state: string, branch: string): Promise<void> {
   const dir = join(repo, ".arc", relDir);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `meta-${slug}.md`), metaFor(slug, state, branch));
+  const planningStub = state === "Planning" && relDir.startsWith("backlog/");
+  await writeFile(
+    join(dir, `meta-${slug}.md`),
+    planningStub
+      ? renderMetaFile(slug, {
+          state: "Planning",
+          owner: IDENTITY,
+          branch: branch === "[none]" ? null : branch,
+          workClass: "Light",
+          design: [`draft-${slug}.md`],
+          currentWorkflow: "create-spec",
+        })
+      : metaFor(slug, state, branch),
+  );
+  if (planningStub) await writeFile(join(dir, `draft-${slug}.md`), "# Draft\n");
   await execFileAsync("git", ["add", "-A"], { cwd: repo });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", `stub ${slug}`], { cwd: repo });
 }
@@ -192,7 +258,7 @@ describe("arc start dispatch — against real worktrees", () => {
       process.exitCode = savedExitCode;
     }
 
-    expect(observedExitCode).toBeUndefined();
+    if (observedExitCode !== undefined) throw new Error(output);
 
     const { stdout: subject } = await execFileAsync("git", ["log", "-1", "--format=%s"], { cwd: wt });
     const { stdout: body } = await execFileAsync("git", ["log", "-1", "--format=%b"], { cwd: wt });
@@ -336,7 +402,7 @@ describe("arc start dispatch — against real worktrees", () => {
       process.exitCode = savedExitCode;
     }
 
-    expect(observedExitCode).toBeUndefined();
+    if (observedExitCode !== undefined) throw new Error(output);
     expect(await pathExists(join(wt, ".arc", "active", `meta-${slug}.md`))).toBe(true);
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
     const record = parseMetaProjectionRecord(await readFile(join(wt, ".arc", "active", `meta-${slug}.md`), "utf8"));
@@ -364,6 +430,25 @@ describe("arc start dispatch — against real worktrees", () => {
 
     const { stdout } = await execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: wt });
     expect(stdout).not.toContain(".arc/system/.internal/worktree-marker.json");
+  });
+
+  it("cold-start accepts an aliased checkout path without minting a locus record", async () => {
+    const alias = `${h.repo}-alias`;
+    await symlink(h.repo, alias, process.platform === "win32" ? "junction" : "dir");
+    h.cleanupPaths.push(alias);
+
+    const outcome = await runColdStart(
+      {
+        io: h.io,
+        internalTemplateDir: getInternalTemplatePath(),
+      },
+      { worktreePath: alias, branch: "main", identity: IDENTITY, name: "aliased-widget" },
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const lociRoot = join(h.repo, ".arc", "user", IDENTITY, ".internal", "loci");
+    expect(await pathExists(lociRoot)).toBe(false);
   });
 
   it("create-new: copies registered gitignored harness dirs from the primary worktree only", async () => {
@@ -410,7 +495,10 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(dispatch.arm).toBe("graduate");
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
       {
         name: "widget",
         cls: "Light",
@@ -418,10 +506,11 @@ describe("arc start dispatch — against real worktrees", () => {
         locationTemplate: h.locationTemplate,
         repo: basename(h.repo),
         spawningIdentity: IDENTITY,
+        prepareTransaction: prepareTransaction(h, "widget", "spawned", wt),
       },
     );
 
-    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") throw new Error(JSON.stringify(result));
     // The stub relocated `backlog → active` in the spawned worktree — not the invoking checkout.
     expect(await pathExists(wt)).toBe(true);
     expect(await pathExists(join(wt, ".arc", "active", "meta-widget.md"))).toBe(true);
@@ -449,8 +538,16 @@ describe("arc start dispatch — against real worktrees", () => {
     });
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
-      { name: "widget", cls: "Light", inPlace: true },
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
+      {
+        name: "widget",
+        cls: "Light",
+        inPlace: true,
+        prepareTransaction: prepareTransaction(h, "widget", "in-place", h.repo),
+      },
     );
 
     expect(result.status).toBe("graduated");
@@ -471,8 +568,16 @@ describe("arc start dispatch — against real worktrees", () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
-      { name: "widget", cls: "Light", inPlace: true },
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
+      {
+        name: "widget",
+        cls: "Light",
+        inPlace: true,
+        prepareTransaction: prepareTransaction(h, "widget", "in-place", h.repo),
+      },
     );
 
     expect(result.status).toBe("rejected");
@@ -495,7 +600,10 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({
+        cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
       {
         name: "widget",
         cls: "Light",
@@ -503,11 +611,11 @@ describe("arc start dispatch — against real worktrees", () => {
         locationTemplate: h.locationTemplate,
         repo: basename(h.repo),
         spawningIdentity: IDENTITY,
+        prepareTransaction: prepareTransaction(h, "widget", "spawned", wt),
       },
     );
 
-    expect(result.status).toBe("graduated");
-    if (result.status !== "graduated") return;
+    if (result.status !== "graduated") throw new Error(JSON.stringify(result));
     expect(await pathExists(join(wt, ".arc", "active", "meta-widget.md"))).toBe(true);
     // The invoking checkout's active WU stays where it was; graduate did not add a second active meta there.
     expect(await pathExists(join(h.repo, ".arc", "active", "meta-incumbent.md"))).toBe(true);

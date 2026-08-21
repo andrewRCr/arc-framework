@@ -1,0 +1,530 @@
+/** Built-CLI coverage for decomposition execution and base mobility. */
+
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import {
+  cleanupTempDir,
+  createTempRepo,
+  git,
+  runArcNoTty,
+} from "./helpers.js";
+
+async function write(repo: string, path: string, content: string): Promise<void> {
+  const absolute = join(repo, path);
+  await mkdir(dirname(absolute), { recursive: true });
+  await writeFile(absolute, content, "utf8");
+}
+
+async function startedRepository(options: {
+  protection?: "full" | "partial";
+  heterogeneous?: boolean;
+} = {}): Promise<string> {
+  const repo = await createTempRepo("arc-decompose-command-");
+  const protection = options.protection ?? "full";
+  const draft = `# Draft: origin
+
+- **Origin:** [internal]
+- **Purpose:** Split the concern.
+
+---
+
+## Problem / Motivation
+
+One concern.
+
+## Alternatives
+
+One alternative.
+
+## Unknowns and Assumptions
+
+One unknown.
+
+## Scope Estimate
+
+Medium.
+`;
+  await write(
+    repo,
+    ".arc/system/arc-config.yml",
+    `branch.base: main\nbranch.protection: ${protection}\npm.mode: arc-in-git\n`,
+  );
+  await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap: Project Status\n");
+  await write(repo, ".arc/backlog/planned/origin/draft-origin.md", draft);
+  await write(repo, ".arc/backlog/planned/origin/meta-origin.md", renderMetaFile("origin", {
+    state: "Planning",
+    owner: "test-user",
+    workClass: "Heavy",
+    priority: "P1",
+    origin: "internal",
+    design: ["draft-origin.md"],
+    dependsOn: options.heterogeneous ? ["dependency"] : [],
+    currentWorkflow: "draft-design",
+    nextAction: "Begin draft-design",
+  }));
+  await write(repo, ".arc/reference/shared.txt", "shared\n");
+  if (options.heterogeneous) {
+    await write(
+      repo,
+      ".arc/reference/shared.md",
+      "# Shared home\n\n"
+        + "## Retained prefix\n\nKeep this prefix byte-for-byte.\n\n"
+        + "## Allocation target\n\nReplace only this allocated section.\n\n"
+        + "## Retained suffix\n\nKeep this suffix byte-for-byte.\n",
+    );
+    await write(
+      repo,
+      ".arc/backlog/planned/dependency/draft-dependency.md",
+      "# Draft: dependency\n",
+    );
+    await write(
+      repo,
+      ".arc/backlog/planned/dependency/meta-dependency.md",
+      renderMetaFile("dependency", {
+        state: "Planning",
+        owner: "test-user",
+        workClass: "Light",
+        priority: "P2",
+        origin: "internal",
+        design: ["draft-dependency.md"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }),
+    );
+    await write(repo, ".arc/backlog/planned/existing/draft-existing.md", "# Draft: existing\n");
+    await write(
+      repo,
+      ".arc/backlog/planned/existing/meta-existing.md",
+      renderMetaFile("existing", {
+        state: "Planning",
+        owner: "test-user",
+        workClass: "Light",
+        priority: "P2",
+        origin: "internal",
+        design: ["draft-existing.md"],
+        dependsOn: ["origin"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }),
+    );
+  }
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "-m", "prepare base"]);
+  await git(repo, ["switch", "-c", "plan/origin"]);
+  await mkdir(join(repo, ".arc/active"), { recursive: true });
+  await git(repo, [
+    "mv",
+    ".arc/backlog/planned/origin/draft-origin.md",
+    ".arc/active/draft-origin.md",
+  ]);
+  await git(repo, [
+    "mv",
+    ".arc/backlog/planned/origin/meta-origin.md",
+    ".arc/active/meta-origin.md",
+  ]);
+  await write(repo, ".arc/active/meta-origin.md", renderMetaFile("origin", {
+    state: "Planning",
+    owner: "test-user",
+    branch: "plan/origin",
+    workClass: "Heavy",
+    priority: "P1",
+    origin: "internal",
+    design: ["draft-origin.md"],
+    dependsOn: options.heterogeneous ? ["dependency"] : [],
+    currentWorkflow: "draft-design",
+    nextAction: "Begin draft-design",
+  }));
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "-m", "start origin"]);
+  await git(repo, ["init", "--bare", ".git/test-origin.git"]);
+  await git(repo, ["remote", "add", "origin", ".git/test-origin.git"]);
+  await git(repo, ["push", "--set-upstream", "origin", "plan/origin"]);
+  await git(repo, ["switch", "main"]);
+  return repo;
+}
+
+async function writeCompletedCutMap(repo: string): Promise<string> {
+  const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
+  expect(preflight.exitCode, preflight.stderr).toBe(0);
+  const starter = JSON.parse(preflight.stdout) as {
+    schemaVersion: 3;
+    machine: {
+      sourceUnits: Array<{ sourceId: string; sourceLocator: unknown }>;
+    };
+  };
+  const completed = {
+    schemaVersion: 3,
+    machine: (starter as { machine: unknown }).machine,
+    authoring: {
+      shape: "heterogeneous",
+      placement: { kind: "direct-member" },
+      destinations: [
+        {
+          kind: "existing-home",
+          destinationId: "existing",
+          target: { kind: "document", path: ".arc/reference/shared.txt" },
+        },
+        {
+          kind: "new-member",
+          destinationId: "member",
+          slug: "member",
+          workClass: "Heavy",
+        },
+      ],
+      internalEdges: [],
+      sourceAllocations: starter.machine.sourceUnits.map((unit) => ({
+        sourceId: unit.sourceId,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "member",
+          targetLocator: {
+            ...(unit.sourceLocator as object),
+            artifact: "draft-member.md",
+          },
+        },
+      })),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  const cutMapPath = join(repo, "cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completed)}\n`);
+  return cutMapPath;
+}
+
+async function writeMultiMemberCohortlessCutMap(repo: string): Promise<string> {
+  const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
+  expect(preflight.exitCode, preflight.stderr).toBe(0);
+  const starter = JSON.parse(preflight.stdout) as {
+    machine: {
+      sourceUnits: Array<{
+        sourceId: string;
+        sourceLocator: { artifact: string; [key: string]: unknown };
+      }>;
+    };
+  };
+  expect(starter.machine.sourceUnits.length).toBeGreaterThan(1);
+  const completed = {
+    schemaVersion: 3,
+    machine: starter.machine,
+    authoring: {
+      shape: "symmetric",
+      placement: { kind: "direct-member" },
+      destinations: [
+        {
+          kind: "new-member",
+          destinationId: "alpha",
+          slug: "alpha",
+          workClass: "Heavy",
+        },
+        {
+          kind: "new-member",
+          destinationId: "beta",
+          slug: "beta",
+          workClass: "Heavy",
+        },
+      ],
+      internalEdges: [],
+      sourceAllocations: starter.machine.sourceUnits.map((unit, index) => {
+        const destinationId = index % 2 === 0 ? "alpha" : "beta";
+        return {
+          sourceId: unit.sourceId,
+          ownership: "destination-owned",
+          disposition: {
+            kind: "target",
+            destinationId,
+            targetLocator: {
+              ...unit.sourceLocator,
+              artifact: `draft-${destinationId}.md`,
+            },
+          },
+        };
+      }),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  const cutMapPath = join(repo, "multi-member-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completed)}\n`);
+  return cutMapPath;
+}
+
+async function writePartialHeterogeneousCutMap(repo: string): Promise<{
+  cutMapPath: string;
+  machine: {
+    sourceUnits: Array<{
+      sourceId: string;
+      sourceLocator: { artifact: string; [key: string]: unknown };
+    }>;
+    incomingEdges: Array<{ edgeId: string }>;
+    outgoingEdges: Array<{ edgeId: string }>;
+  };
+}> {
+  const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
+  expect(preflight.exitCode, preflight.stderr).toBe(0);
+  const starter = JSON.parse(preflight.stdout) as {
+    machine: {
+      sourceUnits: Array<{
+        sourceId: string;
+        sourceLocator: { artifact: string; [key: string]: unknown };
+      }>;
+      incomingEdges: Array<{ edgeId: string }>;
+      outgoingEdges: Array<{ edgeId: string }>;
+    };
+  };
+  expect(starter.machine.sourceUnits.length).toBeGreaterThan(1);
+  expect(starter.machine.incomingEdges).toHaveLength(1);
+  expect(starter.machine.outgoingEdges).toHaveLength(1);
+  const completed = {
+    schemaVersion: 3,
+    machine: starter.machine,
+    authoring: {
+      shape: "heterogeneous",
+      placement: { kind: "direct-member" },
+      destinations: [
+        {
+          kind: "existing-home",
+          destinationId: "document",
+          target: { kind: "document", path: ".arc/reference/shared.md" },
+        },
+        {
+          kind: "existing-home",
+          destinationId: "existing",
+          target: { kind: "work-unit", slug: "existing" },
+        },
+        {
+          kind: "new-member",
+          destinationId: "member",
+          slug: "member",
+          workClass: "Heavy",
+        },
+      ],
+      internalEdges: [],
+      sourceAllocations: starter.machine.sourceUnits.map((unit, index) => ({
+        sourceId: unit.sourceId,
+        ownership: "destination-owned",
+        disposition: index === 0
+          ? {
+              kind: "target",
+              destinationId: "document",
+              targetLocator: {
+                artifact: "shared.md",
+                kind: "section",
+                level: 2,
+                headingSource: "Allocation target",
+                ancestry: [],
+                occurrence: 0,
+              },
+            }
+          : {
+              kind: "target",
+              destinationId: "member",
+              targetLocator: {
+                ...unit.sourceLocator,
+                artifact: "draft-member.md",
+              },
+            },
+      })),
+      incomingDispositions: starter.machine.incomingEdges.map(({ edgeId }) => ({
+        edgeId,
+        disposition: { kind: "replace", replacementTargets: ["member"] },
+      })),
+      outgoingDispositions: starter.machine.outgoingEdges.map(({ edgeId }) => ({
+        edgeId,
+        disposition: { kind: "targets", targets: ["member"] },
+      })),
+    },
+  };
+  const cutMapPath = join(repo, "partial-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completed)}\n`);
+  return { cutMapPath, machine: starter.machine };
+}
+
+async function claimDirectory(repo: string): Promise<string> {
+  const commonDir = resolve(repo, await git(repo, ["rev-parse", "--git-common-dir"]));
+  return join(commonDir, "arc", "transient-claims");
+}
+
+async function claimFiles(repo: string): Promise<string[]> {
+  try {
+    return (await readdir(await claimDirectory(repo))).sort();
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function repositorySnapshot(repo: string): Promise<{
+  head: string;
+  heads: string;
+  indexTree: string;
+  status: string;
+  worktrees: string;
+  claims: string[];
+}> {
+  return {
+    head: await git(repo, ["rev-parse", "HEAD"]),
+    heads: await git(repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads"]),
+    indexTree: await git(repo, ["write-tree"]),
+    status: await git(repo, ["status", "--porcelain=v1", "--untracked-files=all"]),
+    worktrees: await git(repo, ["worktree", "list", "--porcelain"]),
+    claims: await claimFiles(repo),
+  };
+}
+
+describe("arc decompose command modes", () => {
+  let repo: string | undefined;
+
+  afterEach(async () => {
+    if (repo !== undefined) await cleanupTempDir(repo);
+  });
+
+  it("stages one complete full-protection transition without a receipt successor", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeCompletedCutMap(repo);
+
+    const executed = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(executed.exitCode, executed.stderr).toBe(0);
+    const result = JSON.parse(executed.stdout) as Record<string, unknown>;
+    expect(result).toMatchObject({
+      status: "staged",
+      operation: {
+        occupation: {
+          protection: "full",
+          candidateBranch: "chore/decompose-origin",
+        },
+      },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(executed.stdout).not.toContain("receiptId");
+    expect(executed.stdout).not.toContain("continuation");
+    expect(executed.stdout).not.toContain("discard");
+  });
+
+  it("refuses destination-owned multi-member direct placement before repository mutation", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeMultiMemberCohortlessCutMap(repo);
+    const beforeRefusal = await repositorySnapshot(repo);
+
+    const refused = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+
+    expect(refused.exitCode).not.toBe(0);
+    expect(JSON.parse(refused.stdout)).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "completed-map",
+      locus: "authoring.placement",
+      recovery: { kind: "none" },
+    });
+    expect(await repositorySnapshot(repo)).toEqual(beforeRefusal);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+    expect(await git(repo, ["worktree", "list", "--porcelain"]))
+      .not.toContain("branch refs/heads/chore/decompose-origin");
+    expect(await claimFiles(repo)).toEqual([]);
+  });
+
+  it("retires one heterogeneous direct member on the partial base without candidate authority", async () => {
+    repo = await startedRepository({ protection: "partial", heterogeneous: true });
+    const { cutMapPath } = await writePartialHeterogeneousCutMap(repo);
+    const sharedPath = join(repo, ".arc", "reference", "shared.md");
+    const existingMetaPath = join(
+      repo,
+      ".arc",
+      "backlog",
+      "planned",
+      "existing",
+      "meta-existing.md",
+    );
+    const sharedBefore = await readFile(sharedPath, "utf8");
+    const existingMetaBefore = await readFile(existingMetaPath, "utf8");
+
+    await writeFile(sharedPath, `${sharedBefore}\nstale existing-home bytes\n`);
+    const beforeStaleRefusal = await repositorySnapshot(repo);
+    const stale = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(stale.exitCode).not.toBe(0);
+    expect(JSON.parse(stale.stdout)).toMatchObject({
+      status: "refused",
+      stage: "occupation",
+      reason: "partial-projection-dirty",
+      recovery: { kind: "none" },
+    });
+    expect(await repositorySnapshot(repo)).toEqual(beforeStaleRefusal);
+
+    await git(repo, ["restore", "--", ".arc/reference/shared.md"]);
+    const beforeExecute = await repositorySnapshot(repo);
+    const executed = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(executed.exitCode, executed.stderr).toBe(0);
+    const staged = JSON.parse(executed.stdout) as {
+      status: "staged";
+      operation: {
+        occupation: {
+          protection: "partial";
+        };
+        report: {
+          topology: Array<{ kind: string; action: string; disposition: string; path?: string }>;
+          destinations: Array<{ path: string }>;
+        };
+      };
+    };
+    expect(staged).toMatchObject({
+      status: "staged",
+      operation: {
+        occupation: {
+          protection: "partial",
+        },
+      },
+    });
+    expect(staged.operation.report.topology).toEqual([{
+      kind: "topology",
+      action: "none",
+      disposition: "no-write",
+    }]);
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+    expect(await git(repo, ["worktree", "list", "--porcelain"]))
+      .toBe(beforeExecute.worktrees);
+    expect(await git(repo, ["remote"])).toBe("origin");
+    expect(await readFile(sharedPath, "utf8")).toBe(sharedBefore);
+
+    const existingMetaAfter = await readFile(existingMetaPath, "utf8");
+    expect(existingMetaAfter).toBe(existingMetaBefore.replace(
+      "- **Depends On:** `origin`",
+      "- **Depends On:** `member`",
+    ));
+    const memberMeta = await readFile(
+      join(repo, ".arc", "backlog", "planned", "member", "meta-member.md"),
+      "utf8",
+    );
+    expect(memberMeta).toContain("- **Depends On:** `dependency`");
+    expect(await git(repo, ["ls-files", "**/meta-existing.md"]))
+      .toBe(".arc/backlog/planned/existing/meta-existing.md");
+    const stagedAfterExecute = await git(repo, ["diff", "--cached", "--name-only", "--no-renames"]);
+    expect(stagedAfterExecute).not.toContain("cohort-");
+    expect(stagedAfterExecute).toContain(".arc/system/.internal/transitions/");
+    expect(executed.stdout).not.toContain("receiptId");
+    expect(executed.stdout).not.toContain("continuation");
+    expect(await claimFiles(repo)).toEqual([]);
+  });
+});

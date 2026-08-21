@@ -216,7 +216,7 @@ describe("explicit Markdown format planning", () => {
       readBytes,
     })).rejects.toMatchObject({
       code: "markdown.derived-readiness",
-      whatToDo: "Run `npx arc status --project --staged > .arc/backlog/ROADMAP.md`.",
+      whatToDo: "Run `npx arc status --project --staged --write`.",
     });
     expect(readBytes).not.toHaveBeenCalled();
   });

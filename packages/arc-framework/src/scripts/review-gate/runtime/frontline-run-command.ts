@@ -25,6 +25,7 @@ import {
 import {
   normalizeFrontlineOutcome,
 } from "../policy/frontline-outcome.js";
+import { recordFrontlineAttempt } from "../lane-progress.js";
 import {
   FrontlineSemanticRecordSchema,
 } from "../policy/frontline-semantic.js";
@@ -208,6 +209,11 @@ export async function runFrontlineReviewCommand(
       routing: readyPayload.routing,
       frontlineReview: semantic,
     }),
+  });
+  await recordFrontlineAttempt(dependencies.operationStore, {
+    attemptId: terminal.operationId,
+    outcome: terminal.outcome,
+    now: dependencies.now(),
   });
   const transition = actionFor(terminal.outcome);
   return FrontlineRunEnvelopeSchema.parse({

@@ -136,10 +136,10 @@ disposition, later-head applicability, and whether targeted verification, focuse
 pass fits a changed target. Confident in-scope choices proceed and are disclosed; mutations, durable commitments,
 material uncertainty, exceptional cost, and final integration remain human-authorized.
 
-The final exact candidate head may invoke `arc review unlock` only from the combined disposition and integration
-interlock. The required `arc-cleared` commit status is a thin lifecycle lock: pushes re-lock a reviewed PR, and an
-exact-head unlock releases only the still-current, lifecycle-ready candidate. It does not prove provider evidence or
-grant autonomous merge authority. No GitHub App or resident review controller exists.
+When `merge.lock: draft` is enabled, the final exact candidate head may invoke `arc merge lock release` only from
+the combined disposition and integration interlock. Draft-state lock is a per-PR structural hold on host
+mergeability; provider evidence and merge authorization stay separate — the integration interlock remains the sole
+merge authority.
 
 ## 3. Infrastructure
 
@@ -172,11 +172,10 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. Reviewed PRs are born with `arc-cleared` locked, every push re-locks the head, and only the
-  pinned default-branch unlock workflow may clear an exact lifecycle-ready candidate. Commit status is a deliberate
-  lock, not evidence proof or autonomous merge authority. `.github/CODEOWNERS` marks the reviewed lane, and native
-  auto-merge is enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge
-  deliberately (solo repo: no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
+  documentation lint. With `merge.lock: draft`, work-unit PRs open locked (draft) and release only at the
+  lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
+  enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
+  no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 

@@ -7,6 +7,22 @@ import {
 } from "../../../../../src/scripts/review-gate/hosted/request.js";
 
 const HEAD = "a".repeat(40);
+const STANDARD_REVIEW = {
+  obligation: "required" as const,
+  reasons: ["sensitive-change-set" as const],
+  rubricVersion: "standard-review/v1",
+  rubricDigest: `sha256:${"c".repeat(64)}`,
+  retrigger: "full-final" as const,
+  count: 1 as const,
+};
+const ERRAND_BINDING = {
+  kind: "errand" as const,
+  key: "review-errand",
+  claimId: "claim-1",
+  branch: "chore/review-errand",
+  sources: ["coderabbit-pr", "codex-pr"],
+  standardReview: STANDARD_REVIEW,
+};
 
 function adapter(
   request: HostedReviewAdapter["request"],
@@ -61,6 +77,43 @@ describe("hosted review request", () => {
     });
   });
 
+  it("carries validated Errand progress authority in the resumable handle", async () => {
+    const input = {
+      schemaVersion: 1,
+      target: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: HEAD,
+      },
+      provider: "coderabbit-pr" as const,
+      coverage: "complete" as const,
+      vehicle: {
+        kind: "errand" as const,
+        standardReview: STANDARD_REVIEW,
+      },
+    };
+    const requested = adapter(async () => ({
+      kind: "created",
+      effectiveCoverage: "complete",
+      artifact: {
+        kind: "issue-comment",
+        id: "IC_kwDO123",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+    }));
+
+    const result = await requestHostedReview(input, {
+      adapters: [requested],
+      errandBinding: ERRAND_BINDING,
+    });
+
+    expect(result).toMatchObject({
+      state: "requested",
+      handle: { vehicle: ERRAND_BINDING },
+    });
+  });
+
   it("rejects malformed and unsupported-version requests", () => {
     expect(() => HostedRequestEnvelopeSchema.parse({
       schemaVersion: 2,
@@ -79,6 +132,12 @@ describe("hosted review request", () => {
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr",
       coverage: "provider-default",
+    })).toThrow();
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(64) },
+      provider: "codex-pr",
+      coverage: "complete",
     })).toThrow();
   });
 

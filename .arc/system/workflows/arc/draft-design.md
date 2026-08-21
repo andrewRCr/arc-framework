@@ -7,7 +7,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
-    - assess-cohort-fit
+    - assess-boundary-fit
     - assess-draft-readiness
     - adversarial-review
     - assess-design-proportionality
@@ -63,12 +63,18 @@ read drives both, yielding this stage's **level** (`low` / `medium` / `high`) an
 **`Class`**, born here at its first touchpoint. The methods own how the read maps to a level, and the mid-stage
 re-entry valve.
 
-Off the same read, run [`assess-cohort-fit`][assess-cohort-fit] — the cheap **upper-bound** confirm paired with
-`classify-work-unit`'s lower-bound one: is this one work unit, or has the design surfaced orthogonal subsystems
-that want decomposing into a cohort? It is **maturity-gated**, so while the design is still forming it clears
-trivially — hold as one unit and iterate. It fires affirmative only once the design is stable enough that the
-cuts are real (the **predicted-decomposition** arm, where you author directly into the cohort structure rather
-than a monolith); re-confirm cheaply as the draft matures across passes.
+Off the same read, run [`assess-boundary-fit`][assess-boundary-fit] — the cheap boundary confirm paired with
+`classify-work-unit`'s lower-bound read. Dispatch its one selected outcome:
+
+| Outcome                                  | Owner                   | Action                                                                                                                                         |
+| ---------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stays one WU`                           | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; continue whole and stay silent while evidence is materially unchanged.     |
+| `cut-map`                                | `decompose-work-unit`   | Route the complete cut-map to that workflow; it alone owns the transform.                                                                      |
+| `stays one WU + delivery-plan candidate` | Current authoring stage | Record outcome and evidence basis in existing draft decision prose; author the draft slice-aware without publishing or binding delivery state. |
+
+The selected result is sticky planning judgment. At later fire-points, compare the evidence semantically and
+re-raise only for a material new-evidence delta, never for mere invocation, elapsed time, or restatement. No CLI
+parser, fingerprint, schema, or new decision record is introduced.
 
 The resolved level selects this stage's path below — the stage default, re-selectable, never below the
 derivation floor.
@@ -88,6 +94,9 @@ not as a proof-of-check marker.
 
 Each level maps to a path — the drafting procedure at that depth. Run the one the entry read selected; if a path
 surfaces heavier derivation than the read assumed, step up.
+
+Whatever the path produces, the scope boundary it records is what the spec inherits — author it as a handoff
+surface, not a private note.
 
 ### `low` — quick determinacy-confirm (no draft artifact)
 
@@ -128,7 +137,8 @@ usual.
    ambiguity rather than force a sequence: when something is underspecified or contradictory, work it through
    before moving on. Prompt material, not a questionnaire: problem and motivation; success and boundaries;
    alternatives and why; assumptions and unknowns; risks and dependencies; the minimum viable version. The
-   developer formulates _with_ the agent; the agent does not produce a finished design for sign-off.
+   developer formulates _with_ the agent; **the agent does not produce a finished design for sign-off** ·
+   `[invariant]`.
 4. **Re-synthesize** into the draft each pass, and record continuity so the next session resumes without
    re-deriving: the draft's **readiness state** (below), what is **Resolved**, the **Open** items (masked design
    decisions, unvalidated assumptions, soft scope boundaries), and the **Next** move. This matters most for
@@ -159,9 +169,10 @@ Three leans, never hard gates:
 - **Interim softcap.** When accretion makes the draft costly to _resume against_ mid-loop — each session
   re-parsing a pile of separate amendments to continue — suggest an integrating rewrite _before_ everything is
   settled, so derivation runs against a clean artifact rather than a growing pile.
-- **No detail loss.** Every consolidation, interim or final, preserves each settled decision and surviving
-  detail; self-check the rewrite against the pre-rewrite layers. A coherence rewrite must not silently drop
-  substance.
+- **No silent detail loss.** Every consolidation, interim or final, preserves each settled decision and surviving
+  detail; self-check the rewrite against the pre-rewrite layers. Dropping superseded sketch is what a
+  consolidation is _for_ — drop it deliberately and name what went, in the draft or to the developer. Substance
+  disappearing unremarked is the failure, not removal itself.
 
 A single-sitting draft is coherent by construction and clears all three criteria at once; they bite only when
 accretion is real.
@@ -253,7 +264,7 @@ planning-depth level is never recorded.
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [assess-design-proportionality]: ../../methods/assess-design-proportionality.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
-[assess-cohort-fit]: ../../methods/assess-cohort-fit.md
+[assess-boundary-fit]: ../../methods/assess-boundary-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
 [setup-merge-gate]: supplemental/setup-merge-gate.md

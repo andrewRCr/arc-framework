@@ -6,13 +6,20 @@ import {
 } from "../../../../../src/scripts/review-gate/hosted/coderabbit.js";
 import {
   HostedGitHubReadError,
+  type HostedGitHubCommitStatus,
+  type HostedGitHubIssueComment,
   type HostedGitHubPort,
   type HostedGitHubReview,
   type HostedGitHubThread,
 } from "../../../../../src/scripts/review-gate/hosted/github.js";
-import type { HostedTarget } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import type {
+  HostedRequestHandle,
+  HostedReviewCoverage,
+  HostedTarget,
+} from "../../../../../src/scripts/review-gate/hosted/request.js";
 
 const HEAD = "a".repeat(40);
+const REQUESTED_AT = "2026-07-23T12:00:00.000Z";
 const target: HostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: HEAD };
 
 function port(overrides: Partial<HostedGitHubPort> = {}): HostedGitHubPort {
@@ -34,6 +41,7 @@ function port(overrides: Partial<HostedGitHubPort> = {}): HostedGitHubPort {
     readThreads: () => Promise.resolve([]),
     readIssueComments: () => Promise.resolve([]),
     readCheckRuns: () => Promise.resolve([]),
+    readCommitStatuses: () => Promise.resolve([]),
     findReplies: () => Promise.resolve([]),
     postReply: () => Promise.resolve({ kind: "ambiguous" }),
     readThread: () => Promise.resolve({ kind: "missing" }),
@@ -72,6 +80,71 @@ function findingThread(body: string): HostedGitHubThread {
   };
 }
 
+function completionStatus(overrides: Partial<HostedGitHubCommitStatus> = {}): HostedGitHubCommitStatus {
+  return {
+    context: "CodeRabbit",
+    state: "success",
+    description: "Review completed",
+    createdAt: "2026-07-23T12:05:00.000Z",
+    updatedAt: "2026-07-23T12:05:00.000Z",
+    ...overrides,
+  };
+}
+
+function summaryComment(
+  reviewedHead = HEAD,
+  overrides: Partial<HostedGitHubIssueComment> = {},
+): HostedGitHubIssueComment {
+  return {
+    id: "IC_SUMMARY",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-summary",
+    actorIdentity: "136622811",
+    appId: "347564",
+    body: `<!-- recent_review_start -->
+
+No actionable comments were generated in the recent review. 🎉
+
+Reviewing files that changed between ${"b".repeat(40)} and ${reviewedHead}.
+
+<!-- recent_review_end -->`,
+    createdAt: "2026-07-23T11:00:00.000Z",
+    updatedAt: "2026-07-23T12:05:00.000Z",
+    ...overrides,
+  };
+}
+
+function commandReply(overrides: Partial<HostedGitHubIssueComment> = {}): HostedGitHubIssueComment {
+  return {
+    id: "IC_REPLY",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-reply",
+    actorIdentity: "136622811",
+    appId: "347564",
+    body: `<!-- CodeRabbit review command invocation: invocation-id -->
+<summary>✅ Action performed</summary>
+
+Review finished.`,
+    createdAt: "2026-07-23T12:01:00.000Z",
+    updatedAt: "2026-07-23T12:05:00.000Z",
+    ...overrides,
+  };
+}
+
+function requestHandle(coverage: HostedReviewCoverage = "incremental"): HostedRequestHandle {
+  return {
+    schemaVersion: 1,
+    provider: "coderabbit-pr",
+    requestedCoverage: coverage,
+    effectiveCoverage: coverage,
+    target,
+    artifact: {
+      kind: "issue-comment",
+      id: "IC_REQUEST",
+      url: "https://github.com/owner/repo/pull/42#issuecomment-request",
+      createdAt: REQUESTED_AT,
+    },
+  };
+}
+
 describe("CodeRabbit hosted adapter", () => {
   it.each([
     ["readHead", "rate-limited"],
@@ -95,7 +168,7 @@ describe("CodeRabbit hosted adapter", () => {
     const findings = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
         state: "changes-requested",
-        body: "**Actionable comments posted: 1**",
+        body: "Review complete.",
       })]),
       readThreads: () => Promise.resolve([findingThread("_🟠 Major_ broken boundary")]),
     }));
@@ -117,6 +190,94 @@ describe("CodeRabbit hosted adapter", () => {
     });
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appOwnerId).toBe("132028505");
+    expect(CODERABBIT_HOSTED_REGISTRATION.identities.appId).toBe("347564");
+  });
+
+  it("recognizes exact-head clean completion without a new review object", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
+      readCommitStatuses: () => Promise.resolve([completionStatus()]),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it("does not let an incremental completion discharge a complete request", async () => {
+    const incremental = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
+      readCommitStatuses: () => Promise.resolve([completionStatus()]),
+    }));
+    const complete = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
+        body: `<!-- CodeRabbit review command invocation: invocation-id -->
+<summary>✅ Action performed</summary>
+
+Full review finished.`,
+      })]),
+      readCommitStatuses: () => Promise.resolve([completionStatus()]),
+    }));
+
+    await expect(incremental.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(complete.observe(requestHandle("complete"))).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it.each([
+    {
+      name: "stale summary",
+      comments: [summaryComment(HEAD, { updatedAt: "2026-07-23T11:59:59.000Z" }), commandReply()],
+      checks: [completionStatus()],
+    },
+    {
+      name: "mismatched reviewed head",
+      comments: [summaryComment("c".repeat(40)), commandReply()],
+      checks: [completionStatus()],
+    },
+    {
+      name: "untrusted summary",
+      comments: [summaryComment(HEAD, { appId: "999" }), commandReply()],
+      checks: [completionStatus()],
+    },
+    {
+      name: "missing command reply",
+      comments: [summaryComment()],
+      checks: [completionStatus()],
+    },
+    {
+      name: "missing completion status",
+      comments: [summaryComment(), commandReply()],
+      checks: [],
+    },
+  ])("keeps $name pending without the complete structural proof", async ({ comments, checks }) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve(comments),
+      readCommitStatuses: () => Promise.resolve(checks),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toEqual({ kind: "pending" });
+  });
+
+  it.each([
+    ["empty-body", ""],
+    ["prose-only", "Review complete. No actionable comments."],
+  ])("accepts %s approved reviews when structured findings are empty", async (_name, body) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ body })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it.each(["-1", "1.5"])("rejects a present malformed actionable count of %s", async (count) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: ${count}**`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "malformed-provider-actionable-count",
+    });
   });
 
   it.each([
@@ -172,9 +333,7 @@ describe("CodeRabbit hosted adapter", () => {
   it("returns review-body nitpicks as triage-only findings", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
-        body: `**Actionable comments posted: 0**
-
-<details>
+        body: `<details>
 <summary>🧹 Nitpick comments (1)</summary><blockquote>
 
 <details>
@@ -326,6 +485,14 @@ This finding has no inline review thread.
         observed.push(options?.signal);
         return Promise.resolve([]);
       },
+      readCommitStatuses: (_target, options) => {
+        observed.push(options?.signal);
+        return Promise.resolve([]);
+      },
+      readIssueComments: (_target, options) => {
+        observed.push(options?.signal);
+        return Promise.resolve([]);
+      },
     }));
 
     await adapter.readHead({
@@ -355,6 +522,6 @@ This finding has no inline review thread.
       },
     }, { signal });
 
-    expect(observed).toEqual([signal, signal, signal, signal]);
+    expect(observed).toEqual([signal, signal, signal, signal, signal, signal]);
   });
 });

@@ -5,7 +5,9 @@ Per-file method defaults and overrides. Each method defines a contract (what mus
 
 **How overrides work:** To replace a default, populate the method's `.override` section with your team's
 implementation. For each method, the agent checks `.override` first — if populated, follow the override and skip
-`.default`. Contracts are advisory: your override should satisfy the same invariant as the default.
+`.default`. An override replaces _how_ the method is accomplished, never _what_ it must accomplish: the contract
+is the invariant both the default and any override satisfy. Nothing mechanically enforces that, which leaves it
+unchecked rather than optional.
 
 An optional `override-mode` frontmatter field selects the disposition when `.override` is populated. `replace`
 (the default; absent ⇒ this) stands alone — follow the override and skip `.default`. `extend` applies `.default`
@@ -44,8 +46,8 @@ when populating any `.override` section. Methods not listed here are independent
 | review-chunking               | frontline-review, standard-review                                        | Bounded review-scope consumers             |
 | self-review                   | review-triage                                                            | Uses review-triage for findings            |
 | review-response               | review-triage                                                            | Consumes approved finding dispositions     |
-| assess-cohort-fit             | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
-| classify-work-unit            | assess-cohort-fit                                                        | Upper/lower WU-boundary tests              |
+| assess-boundary-fit           | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
+| classify-work-unit            | assess-boundary-fit                                                      | Upper/lower WU-boundary tests              |
 | assess-design-proportionality | design-audit                                                             | Material proportionality and broader fit   |
 | design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
 | testing-standards             | test-first                                                               | Planning/execution seam split              |

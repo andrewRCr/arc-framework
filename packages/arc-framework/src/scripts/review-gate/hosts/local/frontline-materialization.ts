@@ -5,11 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { GitExec } from "../../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { ReviewTarget } from "../../core/gate-contract-v2-schema.js";
-import {
-  RepositoryGitCommonStatePublisher,
-  resolveRepositoryIdentity,
-} from "./git-common-state.js";
+import { resolveRepositoryIdentity } from "./git-common-state.js";
 import { deriveLocalReviewTarget } from "./repository-target.js";
 
 /** Materialize and independently re-derive one exact frontline execution target. */
@@ -48,6 +46,14 @@ export async function prepareFrontlineTargetMaterialization(input: {
       cwd: reviewRoot,
       baseRef: input.target.baseRef,
       repositoryId,
+      ...(input.target.kind === "delivery-member"
+        ? {
+            memberCoordinates: {
+              headSha: input.target.headSha,
+              diffBaseSha: input.target.diffBaseSha,
+            },
+          }
+        : {}),
     });
     return { target, reviewRoot, release };
   } catch (error) {

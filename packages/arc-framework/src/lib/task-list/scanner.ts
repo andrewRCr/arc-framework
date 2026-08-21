@@ -4,6 +4,15 @@
  * @module
  */
 
+import { z } from "zod";
+
+/** Runtime authority for canonical parent-task identities. */
+export const ParentTaskIdSchema = z.string()
+  .regex(/^\d+(?:\.[0-9A-Za-z]+)+$/u)
+  .refine((value) => !/^\d+\.\d+\.\d+(?:\.|$)/u.test(value), {
+    error: "Numeric third task-id segments are not executable parent ids",
+  });
+
 /** Supported task checkbox markers. */
 export type TaskMarker = " " | "x" | "~";
 
@@ -16,7 +25,7 @@ export interface TaskStructureItem {
 
 /** Stable structural events emitted for task-list consumers. */
 export type TaskListStructureEvent =
-  | { type: "phase"; line: number }
+  | { type: "phase"; line: number; id: string; title: string }
   | { type: "parent"; line: number; marker: TaskMarker; item: TaskStructureItem }
   | { type: "subtask"; line: number; marker: TaskMarker; item: TaskStructureItem }
   | { type: "section"; line: number }
@@ -40,10 +49,10 @@ const SUBTASK_RE =
 const TASK_HEADING_PREFIX_RE = /^#{1,6}\s+`?\[[ x~]\]/u;
 const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
-const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+[^:]+:\*\*/u;
-const TASK_BODY_RE = /^(?<id>\d+(?:\.[0-9A-Za-z]+)+)\s+(?<title>.+?)\s*$/u;
+const DELIVERY_PLAN_HEADING_RE = /^##\s+Delivery Plan\s*$/u;
+const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+(?<id>[^:]+):\*\*\s+(?<title>.+?)\s*$/u;
+const TASK_BODY_RE = /^(?<id>\S+)\s+(?<title>.+?)\s*$/u;
 const TASK_ID_PREFIX_RE = /^\d+(?:\.[0-9A-Za-z]+)+(?:\s+|$)/u;
-const NUMERIC_THIRD_SEGMENT_RE = /^\d+\.\d+\.\d+(?:\.|$)/u;
 const FENCE_RE = /^ {0,3}(?<run>`{3,}|~{3,})(?<rest>.*)$/u;
 
 interface OpenFence {
@@ -61,9 +70,24 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
   const events: TaskListStructureEvent[] = [];
   let hasCurrentParent = false;
   let openFence: OpenFence | null = null;
+  let inDeliveryPlan = false;
 
   for (const [index, line] of content.split(/\r?\n/u).entries()) {
     const lineNumber = index + 1;
+
+    if (inDeliveryPlan) {
+      if (openFence !== null) {
+        if (isClosingFence(line, openFence)) openFence = null;
+        continue;
+      }
+      const deliveryFence = parseOpeningFence(line);
+      if (deliveryFence !== null) {
+        openFence = deliveryFence;
+        continue;
+      }
+      if (!SECTION_HEADING_RE.test(line)) continue;
+      inDeliveryPlan = false;
+    }
 
     if (openFence !== null) {
       if (isClosingFence(line, openFence)) openFence = null;
@@ -77,8 +101,21 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
       continue;
     }
 
-    if (PHASE_HEADING_RE.test(line)) {
-      events.push({ type: "phase", line: lineNumber });
+    if (DELIVERY_PLAN_HEADING_RE.test(line)) {
+      events.push({ type: "section", line: lineNumber });
+      hasCurrentParent = false;
+      inDeliveryPlan = true;
+      continue;
+    }
+
+    const phase = PHASE_HEADING_RE.exec(line);
+    if (phase?.groups?.id !== undefined && phase.groups.title !== undefined) {
+      events.push({
+        type: "phase",
+        line: lineNumber,
+        id: phase.groups.id.trim(),
+        title: phase.groups.title.trim(),
+      });
       hasCurrentParent = false;
       continue;
     }
@@ -190,10 +227,11 @@ function parseTaskBody(
   const match = TASK_BODY_RE.exec(body.trim());
   const id = match?.groups?.id;
   const title = match?.groups?.title;
-  if (id === undefined || title === undefined || NUMERIC_THIRD_SEGMENT_RE.test(id)) {
+  const parsedId = ParentTaskIdSchema.safeParse(id);
+  if (!parsedId.success || title === undefined) {
     return malformed(lineNumber, "task marker must include a valid id and title");
   }
-  return { status: "parsed", item: { id, title, lineHint: lineNumber } };
+  return { status: "parsed", item: { id: parsedId.data, title, lineHint: lineNumber } };
 }
 
 function hasTaskIdLikePrefix(body: string): boolean {

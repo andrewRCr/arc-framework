@@ -16,6 +16,11 @@ export const WorkUnitArtifactKindSchema = z.enum(["meta", "draft", "spec", "task
 /** A conventional work-unit artifact kind. */
 export type WorkUnitArtifactKind = z.infer<typeof WorkUnitArtifactKindSchema>;
 
+/** Runtime authority for code-owned project documents regenerated from tracked lifecycle state. */
+export const ProjectDocumentKindSchema = z.enum(["roadmap"]);
+/** A code-owned project document regenerated from tracked lifecycle state. */
+export type ProjectDocumentKind = z.infer<typeof ProjectDocumentKindSchema>;
+
 /** Runtime authority for top-level procedure families. */
 export const ProcedureFamilySchema = z.enum(["methods", "workflows"]);
 /** A top-level procedure family. */
@@ -127,7 +132,7 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
     ]),
   }),
   z.strictObject({ kind: z.literal("procedure-root"), family: ProcedureFamilySchema }),
-  z.strictObject({ kind: z.literal("project-document"), document: z.literal("roadmap") }),
+  z.strictObject({ kind: z.literal("project-document"), document: ProjectDocumentKindSchema }),
   z.strictObject({
     kind: z.literal("user-document"),
     identity: SlugSchema,

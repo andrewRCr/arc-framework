@@ -16,6 +16,7 @@ import {
   buildStatusSummary,
 } from "../../src/commands/status.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
 import type {
   Probe,
   SessionInitProbeResult,
@@ -84,6 +85,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "commit.custom_pattern": "",
         "commit.context_pattern": "",
         "merge.strategy": "merge",
+        "merge.lock": "none",
         "platform.type": "github",
       "review.frontline_sources": "[]",
       "review.standard_sources": "[]",
@@ -101,8 +103,8 @@ function okConfig(): Probe<ConfigStatusResult> {
         "user.notes_push": "on-sync",
         "inbox.remind_after_days": "1",
         "integration.stale_after_days": "2",
-        "review.chunking_threshold_lines": "0",
-        "review.chunking_threshold_files": "0",
+        "changeset.advisory_threshold_lines": "0",
+        "changeset.advisory_threshold_files": "0",
       },
       defaultsApplied: [],
       warnings: [],
@@ -135,6 +137,13 @@ function makeSessionInitResult(
   return {
     mode: "session-init",
     identity: { identity: "andrew", role: "maintainer" },
+    derivedLocusState: { ok: false, error: { kind: "runtime", message: "fixture unavailable" } },
+    locusGuidance: {
+      kind: "ready",
+      identities: [],
+      cleanup: [],
+      diagnostics: [],
+    },
     user: {
       ok: true,
       value: {
@@ -155,6 +164,7 @@ function makeSessionInitResult(
         ahead: 0,
         behind: 0,
         branch: "main",
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
         identity: { kind: "primary" },
@@ -181,6 +191,7 @@ function makeSessionInitResult(
         },
         overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
         register: null,
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
       },
@@ -193,6 +204,9 @@ function makeSessionInitResult(
         behind: 0,
         base: "main",
         checkout: { kind: "not-checked-out" },
+        refreshRemedy: null,
+        guidance: null,
+        remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
       },
@@ -250,6 +264,7 @@ function makeSessionInitResult(
         sessionType: "execution",
         currentWorkflow: null,
         planningStage: null,
+        integrationBoundary: null,
         warnings: [],
       },
     },
@@ -302,7 +317,7 @@ describe("buildStatusSummary — full mode", () => {
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("29 agent-consumable settings");
+    expect(summary).toContain("30 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });
@@ -336,6 +351,35 @@ describe("buildStatusSummary — full mode", () => {
 });
 
 describe("buildSessionInitStatusSummary — scoped mode", () => {
+  it("renders one precomposed delivery line, omits null, and reports isolated degradation", () => {
+    const line = "Delivery position: 1/2 landed; active operation: none.";
+    const healthy = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: {
+        ok: true,
+        value: {
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+          workUnitId: SlugSchema.parse("delivery-plan-record"),
+          landedCount: 1,
+          totalCount: 2,
+          activeOperation: null,
+          line,
+        },
+      },
+    }));
+    expect(healthy.split(line)).toHaveLength(2);
+    expect(healthy).toContain("Delivery:");
+
+    const silent = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: { ok: true, value: null },
+    }));
+    expect(silent).not.toContain("Delivery:");
+
+    const failed = buildSessionInitStatusSummary(makeSessionInitResult({
+      deliveryPosition: { ok: false, error: { kind: "runtime", message: "delivery unavailable" } },
+    }));
+    expect(failed).toContain("Delivery:\n  (unavailable) delivery unavailable");
+  });
+
   it("includes identity block plus all probe sections (user, worktree, extensions, config, active)", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("Identity:");
@@ -382,6 +426,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             ahead: 0,
             behind: 3,
             branch: "main",
+            remoteEvidence: "exact",
             recommendedAction: "prompt",
             recommendedPromptText: "Worktree: branch is behind origin by 3 commit(s).\nPull?",
             identity: { kind: "primary" },
@@ -404,6 +449,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             behind: 0,
             branch: "main",
             failureReason: "timeout",
+            remoteEvidence: "unreachable",
             recommendedAction: "surface",
             recommendedPromptText: "",
             identity: { kind: "primary" },
@@ -413,6 +459,30 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       }),
     );
     expect(summary).toContain("remote unavailable (timeout)");
+    expect(summary).not.toContain("remote object pending explicit refresh");
+  });
+
+  it("distinguishes pending worktree evidence from remote reachability failures", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        worktree: {
+          ok: true,
+          value: {
+            state: "remote-unavailable",
+            ahead: 0,
+            behind: 0,
+            branch: "main",
+            remoteEvidence: "pending-fetch",
+            recommendedAction: "prompt",
+            recommendedPromptText: "Refresh branch evidence?",
+            identity: { kind: "primary" },
+            supersession: null,
+          },
+        },
+      }),
+    );
+    expect(summary).toContain("remote object pending explicit refresh");
+    expect(summary).not.toContain("remote unavailable");
   });
 
   it("renders worktree branch-gone with a deleted-upstream summary", () => {
@@ -425,6 +495,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             ahead: 0,
             behind: 0,
             branch: "feat/x",
+            remoteEvidence: "exact",
             recommendedAction: "surface",
             recommendedPromptText: "",
             identity: { kind: "primary" },

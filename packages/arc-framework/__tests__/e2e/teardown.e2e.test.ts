@@ -125,13 +125,10 @@ describe("arc teardown (CLI surface)", () => {
     expect(result.stdout + result.stderr).toMatch(/already reaped/i);
   });
 
-  it.each([
-    ["marked", true, /Marker:\s+stamped/iu],
-    ["markerless", false, /Marker:\s+externally managed/iu],
-  ] as const)("reports %s self-teardown as a live husk", async (_label, marked, markerLine) => {
+  it("reports marked self-teardown as a live husk", async () => {
     tmpDir = await createTempRepo();
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
-    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked });
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
 
     const result = await runArc(["teardown", "demo"], worktree);
     const output = result.stdout + result.stderr;
@@ -139,10 +136,22 @@ describe("arc teardown (CLI surface)", () => {
     expect(result.exitCode).toBe(0);
     expect(output).toMatch(/Worktree husked/iu);
     expect(output).toMatch(/physical removal deferred/iu);
-    expect(output).toMatch(markerLine);
+    expect(output).toMatch(/Marker:\s+stamped/iu);
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
-    if (marked) expect(output).toMatch(/stale-worktree sweep/iu);
-    else expect(output).not.toMatch(/stale-worktree sweep/iu);
+    expect(output).toMatch(/stale-worktree sweep/iu);
+  });
+
+  it("refuses markerless linked self-teardown as externally managed", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: false });
+
+    const result = await runArc(["teardown", "demo"], worktree);
+    const output = result.stdout + result.stderr;
+
+    expect(result.exitCode).toBe(1);
+    expect(output).toMatch(/no ARC ownership marker/iu);
+    expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
   });
 
   it("reports outside husk replay as physical removal, not another deferred husk", async () => {

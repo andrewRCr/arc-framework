@@ -135,6 +135,19 @@ describe("production GitExec", () => {
     expect(ordinary.stdout).toBe(process.env.GIT_TERMINAL_PROMPT ?? "unset");
   });
 
+  it("pins diagnostics to the stable C locale only when requested", async () => {
+    const script = "process.stdout.write(JSON.stringify({ LC_ALL: process.env.LC_ALL, LANG: process.env.LANG }))";
+
+    const stable = await gitExec(execPath, ["-e", script], { diagnosticLocale: "stable" });
+    expect(JSON.parse(stable.stdout)).toEqual({ LC_ALL: "C", LANG: "C" });
+
+    const ordinary = await gitExec(execPath, ["-e", script]);
+    expect(JSON.parse(ordinary.stdout)).toEqual({
+      LC_ALL: process.env.LC_ALL,
+      LANG: process.env.LANG,
+    });
+  });
+
   it("normalizes non-zero, canceled, output-limit, and spawn failures", async () => {
     await expect(gitExec("git", ["not-a-command"])).rejects.toMatchObject({
       kind: "nonzero-exit",
@@ -223,6 +236,16 @@ describe("production GitExecInput", () => {
 
     expect(stdout).toMatch(/^[0-9a-f]{40,64}\n$/u);
     expect(second).toBe(stdout);
+  });
+
+  it("pins stdin-fed Git plumbing to an explicit repository", async () => {
+    const root = await createGitRepo("arc-execa-input-cwd-");
+    const input = `repository-local-${root}\n`;
+
+    const object = (await gitExecInput(["hash-object", "-w", "--stdin"], input, { cwd: root })).trim();
+    const stored = await gitExec("git", ["cat-file", "-p", object], { cwd: root });
+
+    expect(stored.stdout).toBe(input.trimEnd());
   });
 
   it("retains partial process-capped output in typed output-limit failures", async () => {
@@ -334,20 +357,35 @@ describe("process-backed IO adapters", () => {
   });
 
   it("writes and reads large note content through execa stdin without interpolation", async () => {
+    const root = await createGitRepo("arc-large-note-");
     vi.stubEnv("GIT_AUTHOR_NAME", "ARC Test");
     vi.stubEnv("GIT_AUTHOR_EMAIL", "arc-test@example.com");
     vi.stubEnv("GIT_COMMITTER_NAME", "ARC Test");
     vi.stubEnv("GIT_COMMITTER_EMAIL", "arc-test@example.com");
     const ref = `refs/notes/arc-execa-test-${process.pid}`;
     const content = `literal $() and spaces\n${"payload\n".repeat(32_768)}`;
-    const context = createUserIOContext();
+    const ambientNotesBefore = await gitExec(
+      "git",
+      ["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/notes"],
+      { cwd: process.cwd() },
+    );
 
     try {
-      await context.writeNote(ref, content, "HEAD");
-      await expect(context.readNote(ref, "HEAD")).resolves.toBe(content.trimEnd());
+      await gitExecInput(
+        ["notes", `--ref=${ref}`, "add", "-f", "-F", "-", "HEAD"],
+        content,
+        { cwd: root },
+      );
+      await expect(gitExec("git", ["notes", `--ref=${ref}`, "show", "HEAD"], { cwd: root }))
+        .resolves.toMatchObject({ stdout: content.trimEnd() });
     } finally {
-      await gitExec("git", ["update-ref", "-d", ref]);
+      await gitExec("git", ["update-ref", "-d", ref], { cwd: root });
     }
+    await expect(gitExec(
+      "git",
+      ["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/notes"],
+      { cwd: process.cwd() },
+    )).resolves.toEqual(ambientNotesBefore);
   });
 });
 

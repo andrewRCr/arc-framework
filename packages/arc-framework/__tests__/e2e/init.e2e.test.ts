@@ -126,6 +126,22 @@ describe("init", () => {
     for (const target of linkedTargets) {
       expect(await pathExists(target), target).toBe(true);
     }
+
+    const decomposeWorkflow = await readFile(
+      join(tmpDir, ".arc", "system", "workflows", "arc", "work-unit-lifecycle", "decompose-work-unit.md"),
+      "utf-8",
+    );
+    const authoringIndex = decomposeWorkflow.indexOf("## 4. Author every reported destination");
+    const interlockIndexes = [...decomposeWorkflow.matchAll(/`workflow-interlock`/g)]
+      .map((match) => match.index);
+    const releaseIndex = decomposeWorkflow.indexOf("## 6. Release through the reported protection arm");
+    const advancementIndex = decomposeWorkflow.indexOf("--advance-base");
+    expect(interlockIndexes).toHaveLength(2);
+    expect(authoringIndex).toBeGreaterThanOrEqual(0);
+    expect(interlockIndexes[0]).toBeGreaterThan(authoringIndex);
+    expect(releaseIndex).toBeGreaterThan(interlockIndexes[0]!);
+    expect(interlockIndexes[1]).toBeGreaterThan(advancementIndex);
+    expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {
@@ -155,7 +171,7 @@ describe("init", () => {
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
-      "assess-cohort-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+      "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
       "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
       "implementation-audit", "review-chunking", "self-review", "design-audit",
       "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",

@@ -6,6 +6,9 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
+import type {
+  LocalReviewAuthority,
+} from "../../../../../src/scripts/review-gate/core/local-review-authority.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
@@ -33,11 +36,15 @@ const targetInput = (target: LocalReviewState["target"]) => ({
 const releaseMaterialization = async (): Promise<void> => undefined;
 const withSourceLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
-function fixture() {
+const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
+const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
+
+function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    kind: "change-set",
+    kind: vehicle.kind === "delivery-member" ? "delivery-member" : "change-set",
     repositoryId: "repo-1",
     baseRef: "main",
     diffBaseSha: objectId("a"),
@@ -63,13 +70,14 @@ function fixture() {
     target,
     requirement,
     authority: {
-      vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+      vehicle,
       authorIdentity: "author-1",
       evaluatorIdentity: "evaluator-1",
       attestationRuntimeKind: "arc-cli",
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation",
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -85,6 +93,7 @@ function fixture() {
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
+    laneSourceId: admission.laneSourceId,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: digest("source"),
@@ -143,6 +152,7 @@ describe("local attest command", () => {
       ledgerVersion: 1,
       durableEvidenceRef: "receipt.json#1",
     }));
+    const publishOperation = vi.fn();
 
     await expect(attestLocalReviewCommand({
       schemaVersion: 1,
@@ -152,7 +162,7 @@ describe("local attest command", () => {
       withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
-        publishOperation: vi.fn(),
+        publishOperation,
       },
       sourceStore: {
         readSource: async () => records.source,
@@ -167,6 +177,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       nextAction: "reduce",
@@ -176,6 +187,16 @@ describe("local attest command", () => {
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
     }), 0);
+    expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "lane-progress",
+      completedPasses: 1,
+      attempts: [{
+        attemptId: records.operation.operationId,
+        sourceId: records.operation.laneSourceId,
+        outcome: "clean",
+        chunkSeriesComplete: true,
+      }],
+    }), 1);
   });
 
   it("returns not-attestable for a non-terminal result without reading source or receipts", async () => {
@@ -200,6 +221,7 @@ describe("local attest command", () => {
       confirmTarget: vi.fn(),
       inspectMaterialization: vi.fn(),
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "not-attestable",
       nextAction: "rerun-review",
@@ -209,6 +231,62 @@ describe("local attest command", () => {
         result: records.result,
       },
     });
+    expect(readSource).not.toHaveBeenCalled();
+    expect(readReceipts).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["unavailable", null],
+    ["failed", "terminal-failure"],
+  ] as const)("classifies and releases a %s evaluator attempt before recomposition", async (status, outcome) => {
+    const records = fixture();
+    const publishOperation = vi.fn();
+    const release = vi.fn(async () => undefined);
+    const readSource = vi.fn();
+    const readReceipts = vi.fn();
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result: {
+        ...records.evaluatorResult,
+        status,
+        result: null,
+        findings: [],
+      },
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation,
+      },
+      sourceStore: { readSource, appendSource: vi.fn() },
+      receiptStore: { readReceipts, appendReceipt: vi.fn() },
+      resolveAuthority: vi.fn(),
+      resolveGuidanceDigest: vi.fn(),
+      confirmTarget: vi.fn(),
+      inspectMaterialization: vi.fn(),
+      releaseMaterialization: release,
+      now: () => "2026-07-23T21:00:00Z",
+    })).resolves.toMatchObject({
+      state: "not-attestable",
+      nextAction: "rerun-review",
+      payload: { result: { status, result: null } },
+    });
+    if (outcome === null) {
+      expect(publishOperation).not.toHaveBeenCalled();
+    } else {
+      expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
+        kind: "lane-progress",
+        completedPasses: 0,
+        attempts: [{
+          attemptId: records.operation.operationId,
+          sourceId: records.operation.laneSourceId,
+          outcome,
+        }],
+      }), 1);
+    }
+    expect(release).toHaveBeenCalledWith(records.operation.operationId);
     expect(readSource).not.toHaveBeenCalled();
     expect(readReceipts).not.toHaveBeenCalled();
   });
@@ -244,6 +322,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).rejects.toThrow(/source/iu);
     expect(appendReceipt).not.toHaveBeenCalled();
   });
@@ -275,6 +354,7 @@ describe("local attest command", () => {
       confirmTarget: vi.fn(),
       inspectMaterialization: async () => "absent",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "expired",
       nextAction: "rerun-review",
@@ -322,6 +402,7 @@ describe("local attest command", () => {
       }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
@@ -378,6 +459,7 @@ describe("local attest command", () => {
         }),
         inspectMaterialization: async () => "materialized",
         releaseMaterialization,
+        now: () => "2026-07-23T21:00:00Z",
       })).resolves.toMatchObject({
         state: "stale-target",
         nextAction: "prepare-current-target",
@@ -430,6 +512,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       nextAction: "reduce",
@@ -480,6 +563,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       payload: {
@@ -538,6 +622,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).rejects.toMatchObject({ code: "corrupt-state" });
     expect(appendReceipt).toHaveBeenCalledOnce();
   });
@@ -584,6 +669,7 @@ describe("local attest command", () => {
       confirmTarget,
       inspectMaterialization: async () => "materialized",
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "stale-target",
       nextAction: "prepare-current-target",
@@ -644,6 +730,7 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization,
       releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
     })).resolves.toMatchObject({
       state: "attested-current",
       payload: {
@@ -698,10 +785,104 @@ describe("local attest command", () => {
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
       inspectMaterialization: vi.fn(),
       releaseMaterialization: vi.fn(),
+      now: () => "2026-07-23T21:00:00Z",
     })).rejects.toMatchObject({
       code: "corrupt-state",
       message: "local review operation has multiple terminal receipts",
     });
     expect(appendReceipt).not.toHaveBeenCalled();
+  });
+
+  describe("member attestation", () => {
+    const attest = (
+      records: ReturnType<typeof fixture>,
+      resolveAuthority: (
+        evaluatorIdentity: string,
+        memberHeadObjectId?: string,
+      ) => Promise<LocalReviewAuthority>,
+    ) => attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result: { ...records.result, status: "complete" },
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        appendReceipt: async () => ({ ledgerVersion: 1, durableEvidenceRef: "receipt.json#1" }),
+      },
+      resolveAuthority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
+    });
+
+    it("re-resolves the persisted member vehicle from the head its target pins", async () => {
+      const records = fixture(memberVehicle);
+      // The control locus resolves its own work unit unless a member head is named,
+      // so a resolution that never receives the selector derives the wrong vehicle.
+      const resolveAuthority = vi.fn(async (
+        _evaluatorIdentity: string,
+        memberHeadObjectId?: string,
+      ): Promise<LocalReviewAuthority> => ({
+        ...records.admission.authority,
+        vehicle: memberHeadObjectId === records.operation.target.headSha
+          ? memberVehicle
+          : workUnitVehicle,
+      }));
+
+      await expect(attest(records, resolveAuthority)).resolves.toMatchObject({
+        state: "attested-current",
+        nextAction: "reduce",
+      });
+      expect(resolveAuthority).toHaveBeenCalledWith(
+        records.operation.request.evaluatorIdentity,
+        records.operation.target.headSha,
+      );
+    });
+
+    it("names no member for a work-unit operation whose head is itself delivery-bound", async () => {
+      const records = fixture();
+      // A terminal member's pull request is opened from the control branch, so that
+      // head resolves to a member — an unconditional supply would adopt it here.
+      const resolveAuthority = vi.fn(async (
+        _evaluatorIdentity: string,
+        memberHeadObjectId?: string,
+      ): Promise<LocalReviewAuthority> => ({
+        ...records.admission.authority,
+        vehicle: memberHeadObjectId === undefined ? workUnitVehicle : memberVehicle,
+      }));
+
+      await expect(attest(records, resolveAuthority)).resolves.toMatchObject({
+        state: "attested-current",
+        nextAction: "reduce",
+      });
+      expect(resolveAuthority).toHaveBeenCalledWith(
+        records.operation.request.evaluatorIdentity,
+        undefined,
+      );
+    });
+
+    it("refuses a member operation whose re-resolved vehicle names another member", async () => {
+      const records = fixture(memberVehicle);
+      const resolveAuthority = vi.fn(async (): Promise<LocalReviewAuthority> => ({
+        ...records.admission.authority,
+        vehicle: { kind: "delivery-member", identity: `sha256:${"b".repeat(64)}` },
+      }));
+
+      await expect(attest(records, resolveAuthority)).rejects.toMatchObject({
+        code: "invalid-input",
+        message: "local review attestation authority mismatch",
+      });
+    });
   });
 });

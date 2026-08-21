@@ -13,7 +13,16 @@ import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
 import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
+import { resolveArcRoot } from "../lib/paths.js";
+import { createBaseMergePort } from "../scripts/base/merge-composition.js";
+import {
+  BaseMergeInputSchema,
+  BaseMergeResultSchema,
+  mergeExpectedBase,
+  type BaseMergeResult,
+} from "../scripts/base/merge.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 /** Options for `arc base sync`. */
@@ -28,6 +37,14 @@ export interface BaseDriftOptions {
   json?: boolean;
 }
 
+/** Options for `arc base merge`. */
+export interface BaseMergeOptions {
+  /** Exact freshly observed base revision the merge is allowed to append. */
+  expectedBase: string;
+  /** Emit the typed merge outcome as JSON. */
+  json?: boolean;
+}
+
 const baseJsonPolicy = declareCliOptionSite("json", {
   acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
   automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
@@ -37,8 +54,92 @@ const baseJsonPolicy = declareCliOptionSite("json", {
 /** Machine-output policies owned by the base command adapters. */
 export const baseCommandInputPolicyDeclarations = [
   { commandPath: "base drift", aliases: [], sites: [baseJsonPolicy] },
+  { commandPath: "base merge", aliases: [], sites: [baseJsonPolicy] },
   { commandPath: "base sync", aliases: [], sites: [baseJsonPolicy] },
 ] satisfies readonly CommandInputDeclaration[];
+
+/** Command-owned schema registrations for base operations. */
+export const baseCommandInputRegistrations = [{
+  commandPath: "base merge",
+  schema: BaseMergeInputSchema,
+  schemaFields: { "option.expected-base": "expectedBase" },
+}] as const satisfies readonly CommandInputRegistration[];
+
+export interface BaseMergeHandlerDependencies {
+  resolveRoot(): string | null;
+  merge(cwd: string, expectedBase: string): Promise<BaseMergeResult>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+/** Run the exact-base append-only merge procedure. */
+export async function handleBaseMerge(
+  options: BaseMergeOptions,
+  interaction?: InteractionContext,
+  overrides: Partial<BaseMergeHandlerDependencies> = {},
+): Promise<void> {
+  const exec = createGitExec(interaction?.subprocess);
+  const dependencies: BaseMergeHandlerDependencies = {
+    resolveRoot: () => resolveArcRoot(),
+    merge: async (root, expectedBase) => {
+      const { settings, warnings } = await readConfigSettings(root);
+      if (warnings.some((warning) => warning.startsWith("Unable to read arc-config.yml:"))) {
+        throw new Error("The configured base branch is unavailable because arc-config.yml could not be read.");
+      }
+      return mergeExpectedBase(
+        { expectedBase },
+        createBaseMergePort({ cwd: root, baseBranch: settings["branch.base"], exec }),
+      );
+    },
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+    ...overrides,
+  };
+  const parsed = BaseMergeInputSchema.safeParse({ expectedBase: options.expectedBase });
+  if (!parsed.success) {
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
+      schemaVersion: 1,
+      mode: "base-merge",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      detail: parsed.error.issues.map(({ message }) => message).join("; "),
+      expectedBase: null,
+    }))}\n`);
+    dependencies.setExitCode(64);
+    return;
+  }
+  const cwd = dependencies.resolveRoot();
+  if (cwd === null) {
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
+      schemaVersion: 1,
+      mode: "base-merge",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "operational-failure",
+      detail: "Not inside an ARC project.",
+      expectedBase: parsed.data.expectedBase,
+    }))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
+  let result: BaseMergeResult;
+  try {
+    result = await dependencies.merge(cwd, parsed.data.expectedBase);
+  } catch (error) {
+    result = {
+      schemaVersion: 1,
+      mode: "base-merge",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "operational-failure",
+      detail: error instanceof Error ? error.message : String(error),
+      expectedBase: parsed.data.expectedBase,
+    };
+  }
+  dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(result))}\n`);
+  if (result.state === "blocked") dependencies.setExitCode(1);
+}
 
 /** Run the authoritative shared base-drift analyzer. */
 export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: InteractionContext): Promise<void> {

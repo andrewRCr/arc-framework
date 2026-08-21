@@ -23,6 +23,22 @@ atomic companion and the personal atomic inbox.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make asynchronous reviewed-lane Errand settlement explicit**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
+- _Concern:_ reviewed-lane Errands always release the lock and park as `awaiting-merge`, even after exact-head
+  integration authorization and waived review, leaving an unnecessary retained tail.
+- _Approach:_ make synchronous exact-head merge-and-close the normal authorized path; retain `awaiting-merge` only
+  for an explicit asynchronous-review/later-merge choice, preserving re-lock and failure behavior.
+
+### `[ ]` **Resolve commit-footer artifacts across lifecycle locations**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
+- _Concern:_ park/deactivation commits correctly cite position-independent artifact filenames after moving them out
+  of `active/`, but footer validation searches `active/` only and emits `footer.artifact-not-found` routinely.
+- _Approach:_ make resolution lifecycle-aware across managed locations, deciding whether completed/backlog matches
+  carry distinct verdicts while preserving unambiguous bare-filename references.
+
 ### `[ ]` **Cover the routine base-reconcile tail with one approved operation**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during the FP wave-3 base
@@ -220,6 +236,17 @@ atomic companion and the personal atomic inbox.
   the cohort as noted above, or — preferred — consume FP's burn-in evidence of which stops actually hurt under
   real concurrency, post-waves. The behind-base reconcile-gate errand now carries its `integrate-work-unit` edit
   alone; this WU rebases its interlock-callout edits onto it.
+
+### `[ ]` **Settle whether the complex-commit path is workflow-emitted or off-workflow**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-30); captured during
+  `judgment-authority-model` Task 4.3.
+- _Concern:_ `prepare-commits.md` is the only committing workflow with no release-routing class tag, so it
+  defaults to raw Git even when wrappers are enabled. It is skill-owned and workflow-shaped, leaving two
+  defensible but mechanically different readings of the off-workflow exemption.
+- _Fold-in:_ settle the classification for skill-owned workflow bodies, then either add the appropriate class
+  tag and approval callout or state the raw-routing exemption at the commit step. The always-loaded review
+  invariant already supplies the gate; this concern is routing authority, not a missing approval rule.
 
 ---
 

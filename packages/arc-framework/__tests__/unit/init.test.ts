@@ -270,7 +270,8 @@ describe("resolveFileList — actual recipe", () => {
       "pm.mode": "none", "tools": "", "team.mode": "false",
     });
     expect(files).toContain("system/methods/classify-work-unit.md");
-    expect(files).toContain("system/methods/assess-cohort-fit.md");
+    expect(files).toContain("system/methods/assess-boundary-fit.md");
+    expect(files).not.toContain("system/methods/assess-cohort-fit.md");
     expect(files).toContain("system/methods/assess-design-proportionality.md");
     expect(files).toContain("system/methods/assess-draft-readiness.md");
     expect(files).toContain("system/methods/adversarial-review.md");
@@ -296,7 +297,8 @@ describe("classifyFile", () => {
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
     expect(classifyFile("system/methods/assess-design-proportionality.md")).toBe("Configurable");
-    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-boundary-fit.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/assess-cohort-fit.md")).toBe("Framework");
     expect(classifyFile("system/methods/assess-draft-readiness.md")).toBe("Configurable");
     expect(classifyFile("system/methods/adversarial-review.md")).toBe("Configurable");
     expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
@@ -847,7 +849,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: DEFAULT_PROMPTS,
+      prompts: { ...DEFAULT_PROMPTS, pm_mode: "arc-in-git" },
       identityResult: "andrew",
     });
 
@@ -868,16 +870,22 @@ describe("runInit", () => {
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/.internal/githooks");
 
-    // guard: .gitattributes and merge driver were retired in d8e5048 — no regression
+    // arc-in-git projects track ROADMAP through the conflict-surfacing driver.
     const gitattributesWrite = writeCalls.find(
       (c) => c[0] === "/project/.gitattributes",
     );
-    expect(gitattributesWrite).toBeUndefined();
+    expect(gitattributesWrite).toBeDefined();
+    expect(gitattributesWrite![1]).toContain(
+      ".arc/backlog/ROADMAP.md merge=arc-roadmap",
+    );
 
     const mergeDriverCall = execCalls.find(
-      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+      (c) => c[1]?.includes("merge.arc-roadmap.driver"),
     );
-    expect(mergeDriverCall).toBeUndefined();
+    expect(mergeDriverCall).toBeDefined();
+    expect(mergeDriverCall![1].join(" ")).toContain(
+      "arc hook-remedy-roadmap-conflict",
+    );
   });
 
   // --- init lock ---

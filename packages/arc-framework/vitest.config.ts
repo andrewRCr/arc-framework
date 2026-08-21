@@ -26,15 +26,25 @@ if (process.platform === "win32") {
   process.env.TMPDIR = canonicalTempRoot;
 }
 
+// Test repositories must not inherit developer-machine Git configuration. A
+// long-lived workstation can carry `arc.identity` globally even when a fixture
+// intentionally omits the local key, while hosted runners usually cannot expose
+// that leak. Keep every project on the same hermetic system/global baseline;
+// fixtures install the local values they exercise explicitly.
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
+
 // Vitest sizes its worker pool from `availableParallelism() - 1`, which assumes the run
-// owns the machine. CI schedules several jobs of this graph at once, so each one claiming
-// all-but-one core oversubscribes the shared cores — surfacing as timing-sensitive test
-// failures rather than as honest slowness. Cap the pool under CI; leave developer machines
-// on the default, where the spare cores are real. The cap is a share rather than a count so
-// it tracks the host's core count instead of pinning to one machine size, and
-// `VITEST_MAX_WORKERS` overrides both so it can be retuned from the runner without a
-// code change.
-const configuredWorkers = process.env["VITEST_MAX_WORKERS"] ?? (process.env["CI"] ? "50%" : undefined);
+// owns the machine. That assumption fails everywhere this graph actually runs: CI schedules
+// several jobs of it at once, and developer machines run parallel agent sessions whose
+// quality gates coincide — in both cases concurrent runs each claiming all-but-one core
+// oversubscribe the shared cores, surfacing as timing-sensitive test failures, stalls, and
+// timeouts rather than as honest slowness. Cap the pool at a 50% share everywhere so two
+// concurrent runs together fit the machine. The cap is a share rather than a count so it
+// tracks the host's core count instead of pinning to one machine size, and
+// `VITEST_MAX_WORKERS` overrides it so it can be retuned per-invocation without a code
+// change.
+const configuredWorkers = process.env["VITEST_MAX_WORKERS"] ?? "50%";
 if (configuredWorkers !== undefined && !/^(?:[1-9]\d*|[1-9]\d?%|100%)$/u.test(configuredWorkers)) {
   throw new Error(
     `VITEST_MAX_WORKERS must be a positive integer or a percentage; received "${configuredWorkers}"`,
@@ -81,6 +91,8 @@ export default defineConfig({
           name: "integration",
           root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
+          globalSetup: ["__tests__/integration/global-setup.ts"],
+          testTimeout: 30_000,
           passWithNoTests: true,
         },
       },

@@ -46,6 +46,14 @@ function metaWithBranch(branch: string): string {
   );
 }
 
+/** A minimally complete lifecycle meta for current-workflow mutation coverage. */
+function metaWithWorkflow(workflow: string): string {
+  return metaWithBranch("feat/foo").replace(
+    "- **Next Action:** continue.",
+    `- **Current Workflow:** \`${workflow}\`\n- **Next Action:** continue.`,
+  );
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   mockBuildLifecycleIndex.mockResolvedValue(new Map());
@@ -125,6 +133,97 @@ describe("buildExecutorContext — current-WU reconcile binding", () => {
 
     expect(mockApplyPreparedCurrentWuReconcile).toHaveBeenCalledWith(expect.anything(), prepared);
     expect(mockPrepareCurrentWuReconcile).not.toHaveBeenCalled();
+  });
+
+  it("allows identity-independent worktree reconciliation when identity is unresolved", async () => {
+    const ctx = buildCtx(null);
+
+    await expect(ctx.reconcileWorkUnitWorktree?.({
+      mutation: "spawn",
+      inPlace: true,
+      branch: "feat/foo",
+      wuName: "foo",
+      createBranch: false,
+      deferCheckout: true,
+    })).resolves.toMatchObject({ mutation: "spawn", branch: "feat/foo" });
+  });
+});
+
+describe("buildExecutorContext — current-workflow consistency", () => {
+  it("refuses an invalid Integrating workflow before writing", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("integrate-work-unit"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await expect(ctx.writeCurrentWorkflowField?.(".arc/active/meta-foo.md", "prepare-work-unit"))
+      .rejects.toThrow(/Integrating|integrate-work-unit/u);
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("writes a workflow valid for the lifecycle phase", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("prepare-work-unit"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowField?.(".arc/active/meta-foo.md", "integrate-work-unit");
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `integrate-work-unit`"),
+    );
+  });
+
+  it("writes an intentional source-workflow recovery marker after the phase has moved", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("integrate-work-unit"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowRecoveryMarker?.(
+      ".arc/active/meta-foo.md",
+      "prepare-work-unit",
+    );
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `prepare-work-unit`"),
+    );
+  });
+
+  it("writes the inverse recovery marker after reopen has moved back to Active", async () => {
+    const io = fakeIo();
+    io.readFile = vi.fn(async () => metaWithWorkflow("prepare-work-unit").replace("Integrating", "Active"));
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.writeCurrentWorkflowRecoveryMarker?.(
+      ".arc/active/meta-foo.md",
+      "integrate-work-unit",
+    );
+    expect(io.writeFile).toHaveBeenCalledWith(
+      "/repo/.arc/active/meta-foo.md",
+      expect.stringContaining("- **Current Workflow:** `integrate-work-unit`"),
+    );
   });
 });
 

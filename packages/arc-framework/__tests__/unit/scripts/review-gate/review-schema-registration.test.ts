@@ -6,8 +6,14 @@ import { z } from "zod";
 
 import {
   SchemaError,
+  canonicalDigest,
   createKernelRegistry,
 } from "../../../../src/lib/kernel/index.js";
+import {
+  createReviewTarget,
+} from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { ReviewChunkingResolveRequestSchema } from
+  "../../../../src/scripts/review-gate/core/review-chunking-command-schema.js";
 import {
   registerReviewDomainSchemas,
 } from "../../../../src/scripts/review-gate/core/register-review-schemas.js";
@@ -15,7 +21,14 @@ import {
   assertReviewDurableRecordInventory,
 } from "../../../../src/scripts/review-gate/core/schema-inventory.js";
 
-const kernelIdentities = ["priority", "slug", "work-class", "work-unit-state"];
+const kernelIdentities = [
+  "priority",
+  "remote-evidence",
+  "remote-failure-reason",
+  "slug",
+  "work-class",
+  "work-unit-state",
+];
 const reviewIdentities = [
   "approved-disposition-record",
   "approved-disposition-set",
@@ -38,11 +51,16 @@ const reviewIdentities = [
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
   "frontline-run-state",
+  "lane-progress-state",
   "local-review-policy-binding",
   "local-review-policy-binding-digest-preimage",
   "local-review-source",
   "local-review-source-digest-preimage",
   "local-review-state",
+  "merge-lock-command-error-envelope",
+  "merge-lock-hold-envelope",
+  "merge-lock-release-envelope",
+  "merge-lock-resolve-envelope",
   "standard-review-contract",
   "standard-review-obligation-projection",
   "standard-review-rubric-digest-preimage",
@@ -54,6 +72,8 @@ const reviewIdentities = [
   "review-command-error-envelope",
   "review-chunking-resolve-envelope",
   "review-chunking-resolve-request",
+  "review-change-request-resolve-result",
+  "review-checks-await-result",
   "review-frontline-resolve-envelope",
   "review-frontline-run-envelope",
   "review-hosted-await-envelope",
@@ -62,6 +82,7 @@ const reviewIdentities = [
   "review-local-attest-envelope",
   "review-local-prepare-envelope",
   "review-local-resume-envelope",
+  "review-merge-method-resolve-result",
   "review-reduce-envelope",
   "review-respond-envelope",
   "review-assurance-input",
@@ -70,6 +91,7 @@ const reviewIdentities = [
   "review-method-activity",
   "review-operation-state",
   "review-policy-version-preimage",
+  "review-pre-publication-envelope",
   "review-readiness-envelope",
   "review-receipt",
   "review-receipt-ledger",
@@ -86,9 +108,9 @@ const reviewIdentities = [
   "review-routing-facts",
   "review-severity",
   "review-suspension-state",
+  "review-status-result",
   "review-target",
   "review-target-id-preimage",
-  "review-unlock-envelope",
   "severity-gating-policy",
   "work-unit-review-assurance",
 ];
@@ -137,6 +159,79 @@ describe("review schema registration", () => {
 
     expect(() => assertReviewDurableRecordInventory(registry))
       .toThrow("review-target inventory version 2 does not match registered version 1");
+  });
+
+  it("round-trips both target kinds through the registered target schemas", () => {
+    const registry = createKernelRegistry();
+    registerReviewDomainSchemas(registry);
+    const preimageSchema = registry.get("review-target-id-preimage");
+    const targetSchema = registry.get("review-target");
+    if (preimageSchema === undefined || targetSchema === undefined) {
+      throw new Error("expected both target schemas to be registered");
+    }
+
+    for (const kind of ["change-set", "delivery-member"] as const) {
+      const target = createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind,
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: "a".repeat(40),
+        diffBaseTree: "b".repeat(40),
+        headSha: "c".repeat(40),
+        headTree: "d".repeat(40),
+      });
+      const { targetId, ...preimageFields } = target;
+      const preimage = preimageSchema.parse({
+        domain: "arc.review-gate.target-id/v2",
+        ...preimageFields,
+      });
+
+      expect(targetSchema.parse(target)).toEqual(target);
+      expect(preimage).toMatchObject({ kind });
+      expect(canonicalDigest(preimage)).toBe(targetId);
+    }
+
+    expect(targetSchema.safeParse({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-slice",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: "c".repeat(40),
+      headTree: "d".repeat(40),
+      targetId: canonicalDigest({ target: "unrecognized-kind" }),
+    }).success).toBe(false);
+    expect(registry.meta("review-target")?.version).toBe(2);
+    expect(registry.meta("review-target-id-preimage")?.version).toBe(2);
+  });
+
+  it("keeps scope selection exact-target and work-unit identity outside the request", () => {
+    const target = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: "c".repeat(40),
+      headTree: "d".repeat(40),
+    });
+
+    expect(ReviewChunkingResolveRequestSchema.parse({
+      schemaVersion: 1,
+      target,
+      scopeSelection: { mode: "chunked", target },
+    })).toMatchObject({ scopeSelection: { mode: "chunked", target } });
+    expect(ReviewChunkingResolveRequestSchema.safeParse({
+      schemaVersion: 1,
+      target,
+      workUnitId: "delivery-stack-topology",
+    }).success).toBe(false);
   });
 
   it("keeps review imports and vocabulary out of kernel schema modules", () => {

@@ -2,9 +2,55 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { scanTaskListStructure } from "../../../src/lib/task-list/scanner.js";
+import {
+  ParentTaskIdSchema,
+  scanTaskListStructure,
+} from "../../../src/lib/task-list/scanner.js";
+
+describe("ParentTaskIdSchema", () => {
+  it("accepts canonical parent ids and refuses malformed dotted ids", () => {
+    for (const id of ["1.1", "2.R", "5.R.a"]) {
+      expect(ParentTaskIdSchema.safeParse(id).success).toBe(true);
+    }
+    for (const id of ["1", "1..a", "1.2.3", "phase.1"]) {
+      expect(ParentTaskIdSchema.safeParse(id).success).toBe(false);
+    }
+  });
+});
 
 describe("scanTaskListStructure", () => {
+  it("treats a pre-phase Delivery Plan as non-executable content", () => {
+    const result = scanTaskListStructure([
+      "## Delivery Plan",
+      "",
+      "### `[ ]` **9.9 Task-shaped member prose**",
+      "",
+      "    - `[ ]` **9.9.a Task-shaped seam prose**",
+      "",
+      "| # | Tasks |",
+      "| - | ----- |",
+      "| 1 | `8.8`, `8.9` |",
+      "",
+      "```markdown",
+      "## **Phase 7:** Fenced example",
+      "```",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 Real task**",
+    ].join("\n"));
+
+    expect(result).toMatchObject({
+      status: "scanned",
+      events: [
+        { type: "section", line: 1 },
+        { type: "phase", line: 15, id: "1", title: "Build" },
+        { type: "content", line: 16, text: "" },
+        { type: "parent", line: 17, item: { id: "1.1", title: "Real task" } },
+      ],
+    });
+  });
+
   it("emits canonical phase, parent, subtask, and section events", () => {
     const result = scanTaskListStructure([
       "# Task List: Scanner",
@@ -25,7 +71,7 @@ describe("scanTaskListStructure", () => {
       events: [
         { type: "content", line: 1, text: "# Task List: Scanner" },
         { type: "content", line: 2, text: "" },
-        { type: "phase", line: 3 },
+        { type: "phase", line: 3, id: "1", title: "Build" },
         { type: "content", line: 4, text: "" },
         {
           type: "parent",

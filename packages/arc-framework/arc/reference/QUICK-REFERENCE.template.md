@@ -166,6 +166,32 @@ git status
 
 ## ARC CLI Commands
 
+### Command Prerequisites and Remote Access
+
+ARC requires Node.js 24 or newer and Git 2.45 or newer.
+
+`arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
+generation and inspects only objects already present locally. It does not fetch code objects, update or create code
+refs, prune, or run maintenance. This holds in linked worktrees, where ref and object writes would target the shared
+Git common directory. Missing advertised objects return `pending-fetch`; unreachable transport returns
+`unreachable`; disabled or absent transport returns `not-applicable`. Shallow history or missing partial-clone
+trees/blobs cannot produce an exact graph or content result and do not trigger lazy fetching.
+
+Use an explicit operation when acquisition is intended:
+
+```bash
+# Expand live in-flight candidates; may fetch missing advertised candidate objects
+arc active in-flight --json
+
+# Fast-forward the local base ref from advertised remote state
+arc base sync --json
+```
+
+Materialization, pull, and sync verbs likewise own their documented Git writes. User-notes refs and transient
+Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
+code-head evidence. See [Session Operations Strategy](strategies/arc/strategy-session-operations.md) § Remote
+access boundary.
+
 ### Setup and Configuration
 
 ```bash
@@ -199,7 +225,9 @@ by design, not a missing ceremony.
 arc status <slug> [--json]
 
 # Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
-arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
+# --cohort accepts <cohort> or <cohort>/<subcohort> and requires the planned tier.
+arc stub <name> --commitment <provisional|planned> --priority <P#> \
+  [--origin <ref>] [--design <ref>] [--cohort <cohort-path>]
 
 # Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
@@ -223,20 +251,28 @@ arc park [slug] --reason <text> [--land <oid>]
 # Resume a parked WU's preserved branch (resume-work-unit.md)
 arc resume [slug] [--here]
 
-# Open review: Active → Integrating, marks phase entry not the merge (integrate-work-unit.md)
-arc integrate [slug] --last-completed <work> --action <next action>
+# Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
+# --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
+arc attest <name> --json [--new-root]
+
+# Schedule publication: Active → Integrating, not the merge (prepare-work-unit.md)
+# --last-completed / --action override the task-list and boundary reads the verb makes on its own
+arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
+# Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
+arc integrate checkpoint <name> [--json]
+arc integrate merge <name> --checkpoint <handle> [--json]
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 
 # Split one WU into a cohort of members per a cut-map (decompose-work-unit.md)
-arc decompose <origin> --cut-map <file>
+arc decompose <origin> --execute <file>
 
 # Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
 arc abandon <slug> --yes
 
 # Sweep a shipped WU to completed/ (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
-# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 14)
+# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 11)
 arc teardown <name> [--force] [--husk <absolute-path>]
 
 # Safely fast-forward the configured local base from any worktree
@@ -245,12 +281,15 @@ arc base sync [--json]
 # Classify the planning-entry route — committable, or redirect to start / stub / errand
 arc plan check
 
-# Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
-arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
-arc errand close <slug>
-arc errand promote <slug>
-arc errand retire <slug>
+# Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
+arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
+arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]
+arc errand leave <slug> --state <paused|awaiting-merge> [--confirm-foreign-generation <generation>] [--json]
+arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand abandon <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> \
+  [--confirm-foreign-generation <generation>] [--json]
 ```
 
 ### Session State Portability

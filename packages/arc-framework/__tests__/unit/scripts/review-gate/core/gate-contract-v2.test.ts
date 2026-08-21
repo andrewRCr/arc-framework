@@ -671,3 +671,45 @@ describe("review gate v2 contract", () => {
     )).toThrow(/requirement/u);
   });
 });
+
+describe("review target kind", () => {
+  const targetInputs = {
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: objectId("a"),
+    diffBaseTree: objectId("b"),
+    headSha: objectId("c"),
+    headTree: objectId("d"),
+  } as const;
+
+  it("admits both target kinds and rejects any other", () => {
+    expect(createReviewTarget({ ...targetInputs, kind: "change-set" }).kind).toBe("change-set");
+    expect(createReviewTarget({ ...targetInputs, kind: "delivery-member" }).kind).toBe("delivery-member");
+    expect(() => createReviewTarget({
+      ...targetInputs,
+      kind: "delivery-slice",
+    } as unknown as Parameters<typeof createReviewTarget>[0])).toThrow();
+  });
+
+  it("leaves an ordinary target's identity byte-identical", () => {
+    expect(createReviewTarget({ ...targetInputs, kind: "change-set" }).targetId)
+      .toBe("sha256:d4289a08f0d41356739446723949aaf892a2de41fb6510f6f065a4c93b26bcbd");
+  });
+
+  it("separates the identities of two targets differing only by kind", () => {
+    const changeSet = createReviewTarget({ ...targetInputs, kind: "change-set" });
+    const member = createReviewTarget({ ...targetInputs, kind: "delivery-member" });
+
+    expect(member.targetId).not.toBe(changeSet.targetId);
+    expect(member.targetId).toBe(canonicalDigest({
+      domain: "arc.review-gate.target-id/v2",
+      ...targetInputs,
+      kind: "delivery-member",
+    }));
+    expect(validateReviewTarget(member)).toEqual(member);
+    expect(() => validateReviewTarget({ ...member, kind: "change-set" }))
+      .toThrow(/preimage/u);
+  });
+});

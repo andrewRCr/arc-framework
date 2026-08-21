@@ -90,7 +90,7 @@ export interface WorktreeOccupancyDeps {
 /**
  * Whether a transition materializes the WU's `active/` presence in the *current*
  * checkout — the only case the occupancy check is meaningful for. The signals are
- * `inputs.worktreeOp.{inPlace, createBranch}` (see {@link ReconcileWorktreeOp}):
+ * `inputs.worktreeOp.{inPlace, createBranch}` (see {@link ReconcileWorkUnitWorktreeOp}):
  *
  * - **in-place** (`inPlace === true`, the `--here` arms) — `git checkout [-b]`
  *   lands the WU in the current checkout. Materializes here.
@@ -112,10 +112,10 @@ function materializesInCurrentCheckout(inputs: {
   worktreeOp?: { mutation: string; inPlace?: boolean; createBranch?: boolean };
   materializesCurrentCheckout?: boolean;
 }): boolean {
+  if (inputs.materializesCurrentCheckout !== undefined) return inputs.materializesCurrentCheckout;
   const op = inputs.worktreeOp;
   if (op?.mutation !== "spawn") return true;
   if (op.inPlace === true) return true;
-  if (inputs.materializesCurrentCheckout !== undefined) return inputs.materializesCurrentCheckout;
   return op.createBranch !== false;
 }
 

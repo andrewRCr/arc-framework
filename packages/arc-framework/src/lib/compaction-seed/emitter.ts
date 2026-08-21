@@ -11,12 +11,16 @@
 
 import { join } from "node:path";
 
+import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import { atomicWriteJson } from "../fs.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
+import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+import { deriveRecoveryLocusContext } from "../recover/locus-context.js";
 import {
   assertCompactionSeed,
   COMPACTION_SEED_SCHEMA_VERSION,
+  deriveCompactionSeedLocusHint,
   type CompactionSeed,
   type CompactionSeedSessionType,
 } from "./schema.js";
@@ -28,18 +32,22 @@ type SeedProbe<T> =
 /** Minimal session-init envelope surface the seed emitter consumes. */
 export interface CompactionSeedEnvelope {
   identity: { identity: string | null };
-  worktree: SeedProbe<{ branch: string | null }>;
+  derivedLocusState: SeedProbe<DerivedLocusFrame>;
+  worktree: SeedProbe<{ branch: string | null; identity: WorktreeIdentity }>;
   active: SeedProbe<{
     path: string | null;
     sessionType: CompactionSeedSessionType | null;
     currentWorkflow: string | null;
   }>;
   loadSet: SeedProbe<LoadSetManifest>;
+  extensions: SeedProbe<{ active: readonly string[] }>;
   taskCursor?: SeedProbe<TaskListCursorFileResult>;
 }
 
 /** Git state captured by the status handler for seed emission. */
 export interface CompactionSeedGitSnapshot {
+  /** Locally observed branch name, or Git's literal `HEAD` for a detached checkout. */
+  branch: string;
   /** HEAD SHA at the same status-handler snapshot used for seed emission. */
   head: string;
   /** Deterministic dirty-file path set from `git status --porcelain=v1 -z`. */
@@ -150,35 +158,65 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };
   }
 
-  const metaPath = options.envelope.active.ok ? options.envelope.active.value.path : null;
-  const currentWorkflow = options.envelope.active.ok
+  let metaPath = options.envelope.active.ok ? options.envelope.active.value.path : null;
+  let currentWorkflow = options.envelope.active.ok
     ? options.envelope.active.value.currentWorkflow
     : null;
   const uncommittedFiles = canonicalizeUncommittedFiles(options.gitSnapshot.uncommittedFiles);
-  const taskCursor =
+  let taskCursor =
     options.envelope.active.ok
       && options.envelope.active.value.sessionType !== "planning"
       && options.envelope.taskCursor?.ok
       && options.envelope.taskCursor.value.status === "found"
       ? options.envelope.taskCursor.value.cursor
       : null;
+  let loadSet = options.envelope.loadSet.value;
+  let sessionType = options.envelope.active.ok ? options.envelope.active.value.sessionType : null;
+  if (options.envelope.derivedLocusState.ok) {
+    try {
+      const recovery = deriveRecoveryLocusContext({
+        state: options.envelope.derivedLocusState.value,
+        identity,
+        workingMemoryPath: loadSet.entries.find((entry) =>
+          entry.path.endsWith("/WORKING-MEMORY.md"))?.path ?? null,
+        activeExtensions: options.envelope.extensions.ok ? options.envelope.extensions.value.active : [],
+      });
+      loadSet = recovery.loadSet;
+      taskCursor = recovery.taskCursor?.status === "found" ? recovery.taskCursor.cursor : null;
+      if (recovery.frame.kind === "resolved") {
+        currentWorkflow = recovery.frame.workflow;
+        sessionType = asCompactionSeedSessionType(recovery.frame.sessionType);
+      }
+      metaPath = loadSet.entries.find((entry) =>
+        /(?:^|\/)\.arc\/active\/meta-[^/]+\.md$/u.test(entry.path))?.path ?? metaPath;
+    } catch (error) {
+      return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
+    }
+  }
+  const currentLocusHint = deriveCompactionSeedLocusHint(options.envelope.derivedLocusState);
+  if (currentLocusHint === null) {
+    return {
+      status: "failed",
+      reason: "seed-invalid",
+      message: "entering checkout recovery facts are unavailable",
+    };
+  }
 
   const seed: CompactionSeed = {
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
     emittedAt: (options.now ?? (() => new Date()))().toISOString(),
     repoRoot: options.cwd,
-    branch: options.envelope.worktree.ok
-      ? options.envelope.worktree.value.branch ?? "HEAD"
-      : "HEAD",
+    branch: options.gitSnapshot.branch,
     head: options.gitSnapshot.head,
     dirty: uncommittedFiles.length > 0,
     activeWorkUnit: activeWorkUnitName(metaPath),
     metaPath,
-    sessionType: options.envelope.active.ok ? options.envelope.active.value.sessionType : null,
+    sessionType,
     currentWorkflow,
     taskCursor,
-    loadSet: options.envelope.loadSet.value,
+    loadSet,
     uncommittedFiles,
+    locus: currentLocusHint,
   };
 
   try {
@@ -193,6 +231,15 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "write-failed", message: errorMessage(err) };
   }
   return { status: "written", path, seed };
+}
+
+function asCompactionSeedSessionType(value: string | null): CompactionSeedSessionType | null {
+  return value === "planning"
+    || value === "execution"
+    || value === "prepublication"
+    || value === "integration"
+    ? value
+    : null;
 }
 
 async function writeCompactionSeedFile(path: string, seed: CompactionSeed): Promise<void> {

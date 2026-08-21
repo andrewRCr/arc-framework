@@ -18,46 +18,16 @@ Use this when a domain's rules are substantial enough to warrant separation.
 
 ---
 
-## Contents
-
-- [Quality Gates](#quality-gates) — checks and enforcement
-- [Testing Requirements](#testing-requirements) — test strategy and coverage
-- [Code Quality Principles](#code-quality-principles) — engineering standards
-- [Documentation Standards](#documentation-standards) — markdown quality, style conventions
-- [File Organization](#file-organization) — directory structure and boundaries
-- [Capture Routing](#capture-routing) — where deferred issues go
-- [Architecture Documentation](#architecture-documentation) — ADRs and design records
-
----
-
 ## Quality Gates
 
-**Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
+**Zero Tolerance Policy:** All quality checks must pass before any commit, no exceptions · `[invariant]`.
 
 **Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1),
 integration checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and
 pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance,
 and task list integration.
 
-<!-- List your quality gate tools. Each gate needs: name, command, config location. -->
-<!-- Commands here should match QUICK-REFERENCE § Quality Gate Commands. -->
-
-1. **[Linter/Formatter]**: Zero violations
-   - Command: `[lint_command]`
-   - Config: `[config_path]`
-
-2. **[Type Checker]**: Zero errors
-   - Command: `[typecheck_command]`
-   - Config: `[config_path]`
-
-3. **[Test Runner]**: All pass
-   - Command: `[test_command]`
-
-4. **[Build Tool]**: Succeeds
-   - Command: `[build_command]`
-
-<!-- Add or remove gates to match your stack. Common additions: -->
-<!-- security scanning, license checking, bundle size limits, API schema validation -->
+<!-- Record each gate's command in QUICK-REFERENCE § Quality Gate Commands, not here. -->
 
 ## Testing Requirements
 
@@ -77,13 +47,6 @@ or focus areas]
 
 ## Code Quality Principles
 
-Apply standard software engineering principles:
-
-- **DRY** (don't repeat yourself)
-- **SOLID** (single responsibility, open/closed, dependency inversion)
-- **KISS** (keep it simple)
-- **YAGNI** (you aren't gonna need it)
-
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
 <!-- Add language-specific or framework-specific standards below. Examples: -->
@@ -95,28 +58,20 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 ### Markdown quality
 
-- All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
-- Always run markdown linting after updating documentation files
-- **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely at
-  80-90 characters. Linting catches overflow but not underfill; consistently short lines waste space, hurt readability
-  in wide content (tables, task lists, rationale blocks), and compound over time as subsequent edits match the short
-  pattern. Bullet continuations, multi-line field values, and bulleted-list entries (SESSION-NOTES, status-file
-  fields) are common over-wrapping sites — same target applies. Wrap at natural phrase boundaries near 120.
+- **Line length**: 120 characters (enforced by markdownlint) — wrap at natural phrase boundaries near the target
+  width. Linting catches overflow but not underfill — consistently short lines (60-90 chars) are the more common
+  failure. Bullet continuations, multi-line field values, and bulleted-list entries follow the same target.
 
 ### Documentation style
 
-- **Collaborative voice**: Commits, task lists, and project docs should read naturally from an author or team
-  perspective — not as a transcript of human-AI interaction. Write as the work's author would.
-    - ❌ "The user approved the approach", "Pending user review", "User requested we defer this"
-    - ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
+- **Collaborative voice**: Commits, task lists, and project docs read as the work's author would write them — an
+  author or team perspective, never a transcript of human-AI interaction. "Approved after review", "Pending
+  review", "Decided to defer this" — not "The user approved the approach", "Pending user review".
 
-- **Reference-style links**: Prefer reference-style links for cross-file references. Collect link definitions at
-  the end of the file after a `---` separator. The separator doubles as a consistent EOF indicator — link
-  definitions are invisible in rendered output, so the horizontal rule is the last visible element.
-    - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
-    - One `---` + link block per file, always at the very end
-    - Short links (same directory or one level up) may remain inline at author discretion
-    - Exception: movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc]
+- **Reference-style links**: Prefer reference-style links for cross-file references, with the definitions collected
+  after one trailing `---` per file — the separator doubles as the EOF indicator, since link definitions render
+  invisibly. Names are lowercase, descriptive, hyphenated (`[dev-rules]`); short links (same directory or one level
+  up) may stay inline; movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc].
 
 ## File Organization
 
@@ -145,28 +100,8 @@ See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routi
 
 ### Architecture Decision Records (ADRs)
 
-Document significant architectural decisions in ADRs (`.arc/reference/adr/`). ADRs capture the context,
-decision, and consequences of important design choices, serving as historical record and reference for
-understanding system constraints.
-
-**Write an ADR when:**
-
-- Decision affects system structure or external contracts
-- Multiple alternatives were considered
-- Decision driven by external constraint (API limitations, regulatory requirements)
-- Future developers will ask "why did we do it this way?"
-- Decision could be reversed later (context needed for reversal)
-
-**Don't write an ADR for:**
-
-- Purely tactical implementation choices (variable names, loop constructs)
-- Decisions obvious from reading code (standard CRUD, framework conventions)
-- Temporary or experimental choices
-
-**Format and guidance:** See [ADR Methodology Strategy][adr-methodology]
-
-ADRs are stable once accepted — corrections and amendments are permitted under the three-tier model
-in [ADR Methodology Strategy][adr-methodology], but the decision itself changes only through supersession.
+Document significant architectural decisions as ADRs in `.arc/reference/adr/`. See [ADR Methodology
+Strategy][adr-methodology] for decision criteria, the three-tier stability model, and amendment vs. supersession.
 
 ---
 

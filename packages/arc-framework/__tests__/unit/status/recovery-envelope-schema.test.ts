@@ -31,9 +31,9 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 describe("lean recovery envelope schema", () => {
   it("asserts mapped producer defects with the registered contract identity", () => {
     const value = recovery();
-    (value.active as { value: { resolution: string } }).value.resolution = "ambiguous";
+    (value.recoveryFrame as { value: { kind: string } }).value.kind = "unknown";
     expect(() => assertSessionRecoverProbeResult(value)).toThrow(
-      /session-recover-envelope: active\.value\.resolution:/u,
+      /session-recover-envelope: recoveryFrame\.value\.kind:/u,
     );
   });
 
@@ -49,8 +49,10 @@ describe("lean recovery envelope schema", () => {
     "dirty",
     "extensions",
     "config",
-    "active",
     "releaseRouting",
+    "derivedLocusState",
+    "locusGuidance",
+    "recoveryFrame",
     "loadSet",
   ])("requires the %s slot", (key) => {
     expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), key)).success).toBe(false);
@@ -59,36 +61,52 @@ describe("lean recovery envelope schema", () => {
   it("rejects undeclared root keys and malformed mapped routing fields", () => {
     expect(SessionRecoverProbeResultSchema.safeParse({ ...recovery(), undeclared: true }).success).toBe(false);
 
-    const invalidActive = recovery();
-    (invalidActive.active as { value: { resolution: string } }).value.resolution = "ambiguous";
-    expect(SessionRecoverProbeResultSchema.safeParse(invalidActive).success).toBe(false);
-
     const invalidWorktree = recovery();
     (invalidWorktree.worktree as { value: { identity: { kind: string } } }).value.identity.kind = "other";
     expect(SessionRecoverProbeResultSchema.safeParse(invalidWorktree).success).toBe(false);
   });
 
-  it("allows cohort omission but rejects it outside a single active path", () => {
-    expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "cohortDocPath")).success).toBe(true);
+  it("requires typed failure evidence exactly for an unreachable worktree read", () => {
+    const unreachableWithoutReason = recovery();
+    const unreachableWorktree = unreachableWithoutReason.worktree as {
+      value: { remoteEvidence: string; failureReason?: string };
+    };
+    unreachableWorktree.value.remoteEvidence = "unreachable";
+    expect(SessionRecoverProbeResultSchema.safeParse(unreachableWithoutReason).success).toBe(false);
 
-    const invalid = recovery();
-    (invalid.active as { value: { resolution: string; path: string | null } }).value.resolution = "none";
-    (invalid.active as { value: { resolution: string; path: string | null } }).value.path = null;
-    delete invalid.taskCursor;
-    expect(SessionRecoverProbeResultSchema.safeParse(invalid).success).toBe(false);
+    unreachableWorktree.value.failureReason = "network";
+    expect(SessionRecoverProbeResultSchema.safeParse(unreachableWithoutReason).success).toBe(true);
+
+    const exactWithReason = recovery();
+    const exactWorktree = exactWithReason.worktree as {
+      value: { remoteEvidence: string; failureReason?: string };
+    };
+    exactWorktree.value.remoteEvidence = "exact";
+    exactWorktree.value.failureReason = "auth";
+    expect(SessionRecoverProbeResultSchema.safeParse(exactWithReason).success).toBe(false);
   });
 
-  it("requires a cursor exactly when the active task-list path is safe", () => {
+  it("requires strategic cursors and permits cursor evidence for resolved integration", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "taskCursor")).success).toBe(false);
 
     const noTask = recovery();
     delete noTask.taskCursor;
-    delete noTask.cohortDocPath;
-    const active = noTask.active as { value: { taskListPath: string | null } };
-    active.value.taskListPath = null;
+    const loadSet = noTask.loadSet as { value: { entries: Array<{ readMode: { kind: string } }> } };
+    loadSet.value.entries = loadSet.value.entries.filter((entry) => entry.readMode.kind !== "partial-strategic");
     expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(true);
 
     noTask.taskCursor = recovery().taskCursor;
     expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(false);
+
+    const integration = structuredClone(noTask);
+    const recoveryFrame = integration.recoveryFrame as {
+      value: { workflow: string; sessionType: string };
+    };
+    recoveryFrame.value.workflow = "integrate-work-unit";
+    recoveryFrame.value.sessionType = "integration";
+    expect(SessionRecoverProbeResultSchema.safeParse(integration).success).toBe(true);
+
+    delete integration.taskCursor;
+    expect(SessionRecoverProbeResultSchema.safeParse(integration).success).toBe(true);
   });
 });

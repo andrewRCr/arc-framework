@@ -8,8 +8,11 @@ import type {
   SkipWarning,
   WorktreeSyncState,
 } from "../../lib/git/index.js";
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+} from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
+import type { CanonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
 import type {
   BranchBoundedNotesExportRefusalReason,
   BranchBoundedNotesExportTarget,
@@ -17,6 +20,11 @@ import type {
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import type { NotesCompactionAdvisory } from "../../lib/user-sync/index.js";
 import type { NoteSetRelation } from "../../lib/user-sync/note-set-relation.js";
+
+/** Exact USER-INBOX state observed or written while holding the notes lock. */
+export type UserInboxPostImage =
+  | { state: "missing"; content: null; digest: null }
+  | { state: "present"; content: string; digest: CanonicalDigest };
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {
@@ -211,6 +219,8 @@ export interface UserInboxRemoveResult {
   removed: boolean;
   /** True when the developer has no `USER-INBOX` file — a clean no-op, not an error. */
   inboxMissing: boolean;
+  /** Exact inbox state observed after the lock-serialized removal. */
+  postImage: UserInboxPostImage;
 }
 
 /** Options for the push operation. */
@@ -661,7 +671,7 @@ export interface UserStatusResult {
    * Worktree sync probe result, when `session.remote_sync` is enabled and the
    * caller did not pass `--offline`. Omitted when no probe was run.
    */
-  worktree?: WorktreeSyncStatusResult;
+  worktree?: WorktreeSnapshotAnalysisResult;
   /**
    * Inferred cause of user-notes-ref divergence — populated only when the
    * helper was invoked (i.e., when a divergent ref state was detected). JSON

@@ -25,7 +25,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: [],
-      completedPasses: 0,
+      completedPasses: 1,
       maxPasses: 2,
       attempts: [],
     })).toMatchObject({
@@ -49,7 +49,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: ["coderabbit-pr", "codex-pr"],
-      completedPasses: 0,
+      completedPasses: 1,
       maxPasses: 2,
       attempts: [],
       scopeSelection: { mode: "chunked", target },
@@ -114,7 +114,29 @@ describe("resolveReviewPolicy", () => {
         scope: "whole-target",
         consumedPass: false,
         attemptedSources: [],
-        waitingSources: ["coderabbit-pr", "codex-pr"],
+        waitingSources: ["coderabbit-pr"],
+      },
+    });
+  });
+
+  it("reserves a higher-ranked hosted standard source before a local fallback", () => {
+    const prePrTarget = { ...target, pullRequest: null };
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target: prePrTarget,
+      lane: "standard",
+      standardReview,
+      sources: ["codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+    })).toMatchObject({
+      state: "awaiting-change-request",
+      nextAction: "open-change-request",
+      payload: {
+        lane: "standard",
+        waitingSources: ["codex-pr"],
+        attemptedSources: [],
       },
     });
   });
@@ -263,6 +285,131 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("lets an explicit standard invocation start at any configured eligible source", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toMatchObject({
+      state: "ready",
+      nextAction: "hosted-request",
+      payload: { sourceId: "codex-pr", ineligibleSources: [] },
+    });
+  });
+
+  it("reserves an explicitly selected hosted source before PR creation", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target: { ...target, pullRequest: null },
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toMatchObject({
+      state: "awaiting-change-request",
+      nextAction: "open-change-request",
+      payload: { waitingSources: ["codex-pr"] },
+    });
+  });
+
+  it("falls forward from an explicitly selected source only after safe unavailability", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [{ sourceId: "codex-pr", outcome: "rate-limited" }],
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toMatchObject({
+      state: "ready",
+      nextAction: "local-prepare",
+      payload: { sourceId: "delegated-agent" },
+    });
+  });
+
+  it("replays the same explicit selection after its ordered fallbacks are exhausted", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [
+        { sourceId: "codex-pr", outcome: "rate-limited" },
+        { sourceId: "delegated-agent", outcome: "transient-unavailable" },
+      ],
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toMatchObject({
+      state: "unavailable",
+      nextAction: "stop",
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "safe-fallback-exhausted" }),
+      ]),
+    });
+  });
+
+  it("refuses an unconfigured or ineligible explicit standard source", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toThrow(/configured standard-review source/u);
+
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      scopeSelection: { mode: "chunked", target },
+      invocation: { mode: "force", sourceId: "coderabbit-pr" },
+    })).toMatchObject({
+      state: "unavailable",
+      nextAction: "stop",
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "selected-source-ineligible" }),
+      ]),
+      payload: { ineligibleSources: ["coderabbit-pr"] },
+    });
+  });
+
+  it("refuses an explicit source that would rewind recorded source progress", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [{ sourceId: "codex-pr", outcome: "rate-limited" }],
+      invocation: { mode: "force", sourceId: "coderabbit-pr" },
+    })).toThrow(/cannot precede recorded source progress/u);
+  });
+
   it("precomposes the human disposition consequence for findings", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,
@@ -270,7 +417,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: ["codex-pr"],
-      completedPasses: 0,
+      completedPasses: 1,
       maxPasses: 2,
       attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
     })).toMatchObject({
@@ -333,6 +480,7 @@ describe("resolveReviewPolicy", () => {
 
     expect(resolveReviewPolicy({
       ...common,
+      completedPasses: 0,
       attempts: [{
         sourceId: "delegated-agent",
         outcome: "clean",
@@ -345,6 +493,7 @@ describe("resolveReviewPolicy", () => {
     });
     expect(resolveReviewPolicy({
       ...common,
+      completedPasses: 1,
       attempts: [{
         sourceId: "delegated-agent",
         outcome: "clean",
@@ -404,7 +553,7 @@ describe("resolveReviewPolicy", () => {
       lane: "standard",
       standardReview,
       sources: ["delegated-agent"],
-      completedPasses: 2,
+      completedPasses: 3,
       maxPasses: 2,
       attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
       ceilingOverride: approval.payload.consequence,
@@ -416,6 +565,64 @@ describe("resolveReviewPolicy", () => {
         completedPasses: 3,
         consumedPass: true,
       },
+    });
+  });
+
+  it("lets the Work Unit Owner accept a non-converged terminus without claiming a pass result", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 5,
+      maxPasses: 2,
+      attempts: [],
+      terminus: {
+        schemaVersion: 1,
+        semanticsVersion: "review-terminus/v1",
+        kind: "owner-accepted",
+        lane: "standard",
+        acceptedBy: "andrew",
+        completedPasses: 5,
+      },
+    })).toMatchObject({
+      state: "owner-accepted",
+      nextAction: "none",
+      payload: {
+        lane: "standard",
+        completedPasses: 5,
+        consumedPass: false,
+        terminus: {
+          kind: "owner-accepted",
+          acceptedBy: "andrew",
+        },
+      },
+    });
+  });
+
+  it("does not let Owner acceptance suppress an outstanding findings result", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 5,
+      maxPasses: 2,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings" }],
+      terminus: {
+        schemaVersion: 1,
+        semanticsVersion: "review-terminus/v1",
+        kind: "owner-accepted",
+        lane: "standard",
+        acceptedBy: "andrew",
+        completedPasses: 4,
+      },
+    })).toMatchObject({
+      state: "findings",
+      nextAction: "respond",
+      payload: { consequence: "disposition-required" },
     });
   });
 
@@ -513,6 +720,81 @@ describe("resolveReviewPolicy", () => {
       nextAction: "none",
       payload: { lane: "standard", attemptedSources: [] },
     });
+  });
+
+  it("honors an explicit one-run frontline skip without disabling the configured lane", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      frontlineActive: true,
+      invocation: { mode: "skip" },
+    })).toMatchObject({
+      state: "skipped",
+      nextAction: "none",
+      payload: {
+        lane: "frontline",
+        scope: "whole-target",
+        attemptedSources: [],
+        reason: "invocation-skip",
+      },
+    });
+  });
+
+  it("rejects a frontline invocation override on the standard lane", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      invocation: { mode: "skip" },
+    })).toThrow(/frontline invocation override/i);
+  });
+
+  it("rejects a standard source invocation on the frontline lane", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      frontlineActive: true,
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+    })).toThrow(/standard source invocation.*frontline lane/i);
+  });
+
+  it("rejects an Owner terminus on the advisory frontline lane", () => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [],
+      frontlineActive: true,
+      terminus: {
+        schemaVersion: 1,
+        semanticsVersion: "review-terminus/v1",
+        kind: "owner-accepted",
+        lane: "standard",
+        acceptedBy: "andrew",
+        completedPasses: 1,
+      },
+    })).toThrow(/owner-accepted terminus.*standard lane/i);
   });
 
   it("preserves safe attempts when an exempt standard obligation no-ops", () => {

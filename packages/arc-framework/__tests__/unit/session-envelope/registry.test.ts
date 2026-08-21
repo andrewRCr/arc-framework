@@ -13,11 +13,11 @@ import { LoadSetAuditVerdictSchema } from "../../../src/lib/load-set/audit.js";
 import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
 import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
-import { BaseBranchSyncStatusResultSchema } from "../../../src/lib/git/base-branch-sync.js";
+import { BaseBranchSnapshotAnalysisResultSchema } from "../../../src/lib/git/base-branch-sync.js";
 import { CascadeResolutionSchema } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../../../src/lib/session-init/inbox-state.js";
-import { MaterializableWorkUnitsResultSchema } from "../../../src/lib/session-init/materializable-work-units.js";
+import { MaterializableWorkUnitDiscoveryResultSchema } from "../../../src/lib/session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../../../src/lib/session-init/notes-compaction-advisory.js";
 import { OrphanBranchSweepResultSchema } from "../../../src/lib/session-init/orphan-branch-sweep.js";
 import { PartialPushMarkerSurfaceResultSchema } from "../../../src/lib/session-init/partial-push-marker-surface.js";
@@ -51,6 +51,8 @@ describe("session-envelope schema registry", () => {
       "priority",
       "recovery-audit-report",
       "recovery-audit-verdict",
+      "remote-evidence",
+      "remote-failure-reason",
       "retired-subdir-detection",
       "session-init-envelope",
       "session-recover-envelope",
@@ -74,13 +76,13 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.notesCompactionSessionAdvisory, NotesCompactionSessionAdvisoryResultSchema],
-      [SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits, MaterializableWorkUnitsResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits, MaterializableWorkUnitDiscoveryResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.orphanBranchSweep, OrphanBranchSweepResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection, RetiredSubdirDetectionResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.partialPushMarkerSurface, PartialPushMarkerSurfaceResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.classComposition, ClassCompositionSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution, CascadeResolutionSchema],
-      [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSyncStatusResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
     ] as const;
     for (const [id, schema] of advisorySchemas) {
       expect(first.get(id)).toBe(schema);
@@ -99,6 +101,10 @@ describe("session-envelope schema registry", () => {
     for (const id of Object.values(SESSION_ENVELOPE_SCHEMA_IDS)) {
       expect(registry.meta(id)).toEqual({ id, version: 1, migrationPosture: "strict-current" });
     }
+  });
+
+  it("keeps the request-only remote context outside the public registry", () => {
+    expect(createSessionEnvelopeRegistry().ids()).not.toContain("session-remote-context");
   });
 
   it("retains kernel duplicate protection", () => {

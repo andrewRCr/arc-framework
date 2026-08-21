@@ -80,6 +80,7 @@ export async function publishLocalReviewPreparation(
     repositoryId: admission.target.repositoryId,
     targetId: admission.target.targetId,
     requestId: admission.carrier.request.requestId,
+    laneSourceId: admission.laneSourceId,
     policyVersion: admission.requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,

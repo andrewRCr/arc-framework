@@ -13,7 +13,7 @@ override-active: false
 
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
 >   [generate-tasks.md][generate-tasks], [verify-work-unit.md][verify-work-unit],
->   [integrate-work-unit.md][integrate-work-unit]
+>   [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit]
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >
@@ -264,6 +264,14 @@ At `verify-work-unit`, the pass independently re-validates the spec's success cr
 feed it the implementer's self-verification result, and do not use `[x]` / `[~]` / `[ ]` task markings as evidence
 for whether the implementation satisfies the spec.
 
+At `frontline review` and `standard review`, when the change under review is governed by a spec, also supply that
+spec's scope boundary — the section recording what the work deliberately does not do. Both lanes run routinely on
+errands and off-work-unit changes that have no such boundary; there is nothing extra to supply in those cases.
+
+For those two rows only, a finding whose remedy would cross that boundary must say so plainly and ground the
+crossing in behavior required for correctness, safety, or a stated goal. That the change could be more complete,
+more symmetric, or more defensive is not such a ground.
+
 **`orientation` — fixed set.** Every pass receives artifact-neutral project ground truth:
 
 - `AGENT-BRIEF.ARC`
@@ -318,4 +326,5 @@ source verification, disposition, and exit-gate rules as a standard pass.
 [generate-tasks]: ../workflows/arc/generate-tasks.md
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope

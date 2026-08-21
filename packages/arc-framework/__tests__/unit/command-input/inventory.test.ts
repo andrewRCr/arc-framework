@@ -161,6 +161,51 @@ describe("command-input inventory reconciliation", () => {
     expect(result.entries.filter((entry) => entry.siteId.startsWith("prompt.name-"))).toHaveLength(2);
   });
 
+  it("shares one interaction site across commands only when its physical policy matches", () => {
+    const sharedCli = scanCommanderSource({
+      file: "cli.ts",
+      sourceText: `
+        const program = new Command();
+        program.command("create").action(handleCreate);
+        program.command("delete").action(handleDelete);
+      `,
+    });
+    const site = declaration().sites[3]!;
+    const createPolicy: CommandInputDeclaration = {
+      commandPath: "create",
+      aliases: [],
+      sites: [{ ...site, mutationBoundary: "create handler" }],
+    };
+    const deletePolicy: CommandInputDeclaration = {
+      commandPath: "delete",
+      aliases: [],
+      sites: [{ ...site, mutationBoundary: "delete handler" }],
+    };
+    const source = { commands: sharedCli.commands, interactions: interactions.sites };
+    const sourceFiles = { "cli.ts": "handleCreate handleDelete", "handlers/create.ts": handlerText };
+
+    const result = reconcileCommandInputInventory({
+      source,
+      declarations: [createPolicy, deletePolicy],
+      sourceFiles,
+    });
+
+    expect(result.entries.map((entry) => entry.identity)).toEqual([
+      "create:prompt.name",
+      "delete:prompt.name",
+    ]);
+
+    const conflictingPolicy: CommandInputDeclaration = {
+      ...deletePolicy,
+      sites: [{ ...site, mutationBoundary: "delete handler", subprocess: "terminal-prompts" }],
+    };
+    expect(() => reconcileCommandInputInventory({
+      source,
+      declarations: [createPolicy, conflictingPolicy],
+      sourceFiles,
+    })).toThrow(/Interaction site is multiply classified/u);
+  });
+
   it("rejects a declaration whose interaction selector no longer resolves", () => {
     const stale = declaration();
     stale.sites[3] = {

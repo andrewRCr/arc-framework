@@ -6,7 +6,7 @@ import {
   type LocalReviewSource,
 } from "../../core/local-review-source.js";
 import type { LocalReviewSourceStore } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { LocalReviewRecordStoreError } from "./record-store-error.js";
 
 function sourceRecordName(source: LocalReviewSource): string {
@@ -30,22 +30,23 @@ export class RepositoryLocalReviewSourceStore implements LocalReviewSourceStore 
   constructor(private readonly publisher: GitCommonStatePublisher) {}
 
   async readSource(sourceRef: string): Promise<LocalReviewSource | null> {
-    const raw = await this.publisher.read("sources", sourceRef);
+    const raw = await this.publisher.read({ root: "review-gate", namespace: "sources" }, sourceRef);
     return raw === null ? null : parseSource(raw);
   }
 
   async appendSource(sourceInput: LocalReviewSource): Promise<{ sourceRef: string }> {
     const source = LocalReviewSourceSchema.parse(sourceInput);
     const sourceRef = sourceRecordName(source);
-    return this.publisher.update("sources", sourceRef, (raw) => {
+    return this.publisher.update({ root: "review-gate", namespace: "sources" }, sourceRef, (raw) => {
       if (raw !== null) {
         const existing = parseSource(raw);
         if (canonicalize(existing) !== canonicalize(source)) {
           throw new LocalReviewRecordStoreError("local-source-conflict");
         }
-        return { content: null, result: { sourceRef } };
+        return { kind: "keep", result: { sourceRef } };
       }
       return {
+        kind: "write",
         content: `${JSON.stringify(source)}\n`,
         result: { sourceRef },
       };

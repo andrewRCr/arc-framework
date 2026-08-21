@@ -16,6 +16,7 @@ function active(overrides: Partial<ActiveSessionInitResult> = {}): ActiveSession
     sessionType: "execution",
     currentWorkflow: null,
     planningStage: null,
+    integrationBoundary: null,
     warnings: [],
     ...overrides,
   };

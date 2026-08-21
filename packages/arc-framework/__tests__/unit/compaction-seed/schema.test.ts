@@ -64,6 +64,7 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
       ".arc/active/tasks-compaction-recovery.md",
       "packages/arc-framework/src/lib/compaction-seed/schema.ts",
     ],
+    locus: { checkoutPath: "/repo", parentCheckoutPath: null },
     ...overrides,
   };
 }
@@ -85,6 +86,29 @@ describe("CompactionSeed schema", () => {
       "partial-strategic",
     ]);
   });
+
+  it("round-trips the active checkout and optional marker parent without retired authority", () => {
+    const locus = {
+      checkoutPath: "/repo/worktrees/errand",
+      parentCheckoutPath: "/repo",
+    };
+    const value = seed({ locus });
+    expect(parseCompactionSeedJson(stringifyCompactionSeed(value))).toEqual({ ok: true, seed: value });
+    expect(value.schemaVersion).toBe(1);
+    expect(JSON.stringify(value)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
+  });
+
+  it.each(["checkoutPath", "parentCheckoutPath"])(
+    "rejects a partial locus hint missing %s",
+    (key) => {
+      const complete = {
+        checkoutPath: "/repo/worktrees/errand",
+        parentCheckoutPath: null,
+      };
+      const locus = Object.fromEntries(Object.entries(complete).filter(([candidate]) => candidate !== key));
+      expect(parseCompactionSeedJson(JSON.stringify({ ...seed(), locus })).ok).toBe(false);
+    },
+  );
 
   it("accepts absolute load-set paths for resolver-produced identity-global entries", () => {
     const value = seed({
@@ -240,6 +264,7 @@ describe("CompactionSeed schema", () => {
       "taskCursor",
       "loadSet",
       "uncommittedFiles",
+      "locus",
     ]);
   });
 

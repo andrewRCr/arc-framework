@@ -44,6 +44,7 @@ function outcome(
   severity: "blocker" | "major" | "minor" = "major",
   maxPasses = 2,
   pass = 1,
+  nit = false,
 ) {
   return {
     schemaVersion: 1 as const,
@@ -53,7 +54,7 @@ function outcome(
     target: oldTarget,
     pass,
     maxPasses,
-    findings: [{ ...finding, severity }],
+    findings: [{ ...finding, severity, ...(nit ? { nit: true as const } : {}) }],
     reason: null,
   };
 }
@@ -85,6 +86,40 @@ function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | 
   return {
     dispositionState: approveDispositionState({
       proposed,
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-07-20T20:00:00Z",
+    }),
+  };
+}
+
+function approvedRegradeFromReviewerNit() {
+  const dispositionSet = createDispositionSet({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    targetId: oldTarget.targetId,
+    policyVersion: canonicalDigest({ policy: "review" }),
+    rubricVersion: "implementation-audit/v1",
+    rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
+    proposedBy: "author-1",
+    findings: [{
+      findingId: finding.findingId,
+      sourceIdentity: source.sourceId,
+      locus: finding.locus,
+      sourceVerification: "verified" as const,
+      verificationRefs: ["source:src/index.ts:7"],
+      reviewerSeverity: "minor" as const,
+      reviewerNit: true as const,
+      arcSeverity: "major" as const,
+      disposition: "fix" as const,
+      gating: "blocking" as const,
+      rationale: "The source supports a material regrade.",
+      recommendation: "Apply the approved response.",
+      openQuestions: [],
+    }],
+  });
+  return {
+    dispositionState: approveDispositionState({
+      proposed: proposeDispositionSet(dispositionSet),
       approvedBy: "maintainer-1",
       approvedAt: "2026-07-20T20:00:00Z",
     }),
@@ -131,6 +166,13 @@ describe("frontline follow-up policy", () => {
       maxPasses: 3,
       nextCommand: "frontline-resolve",
     });
+  });
+
+  it("accepts a reviewer nit that ARC regrades as a material fix", () => {
+    expect(projectFrontlineFollowUpAdvice({
+      outcome: outcome("minor", 2, 1, true),
+      ...approvedRegradeFromReviewerNit(),
+    })).toMatchObject({ action: "follow-up-after-fix", pass: 2 });
   });
 
   it("does not spend a follow-up on minor-only or deferred findings", () => {
