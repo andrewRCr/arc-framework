@@ -175,6 +175,19 @@ describe("Codex hosted adapter", () => {
     await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
   });
 
+  it("recognizes connected-account failure under a bold provider heading", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([cleanComment(
+        "**Codex Review:**\n\nConnect your ChatGPT account to use Codex.",
+      )]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "connected-account-required",
+    });
+  });
+
   it.each([
     {
       name: "mismatched reviewed head",

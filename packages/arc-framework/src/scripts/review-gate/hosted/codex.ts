@@ -21,6 +21,7 @@ const COMMAND = "@codex review";
 const EFFECTIVE_COVERAGE = "complete";
 const APP_ID = "1144995";
 const BOT_USER_ID = "199175422";
+const REVIEW_HEADING = /^(?:Codex Review:|\*\*Codex Review:\*\*)/mu;
 
 export const CODEX_HOSTED_REGISTRATION = {
   id: "codex-pr",
@@ -64,7 +65,7 @@ function finding(
 }
 
 function cleanForHead(comment: HostedGitHubIssueComment, headSha: string): boolean {
-  if (!/^(?:Codex Review:|\*\*Codex Review:\*\*)/mu.test(comment.body)
+  if (!REVIEW_HEADING.test(comment.body)
     || !/\bdid(?:n't| not) find any major issues\b/iu.test(comment.body)) {
     return false;
   }
@@ -76,7 +77,7 @@ function cleanForHead(comment: HostedGitHubIssueComment, headSha: string): boole
 }
 
 function connectedAccountFailure(comment: HostedGitHubIssueComment): boolean {
-  return /^Codex Review:/mu.test(comment.body)
+  return REVIEW_HEADING.test(comment.body)
     && /Connect your ChatGPT account to use Codex\./u.test(comment.body);
 }
 
