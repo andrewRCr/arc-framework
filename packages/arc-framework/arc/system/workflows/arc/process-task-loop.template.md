@@ -6,6 +6,7 @@ arc:
     - issue-triage
     - quality-gate-commands
     - testing-standards
+    - validate-criteria
   extensions:
     - post-task-quality
     - post-unit-quality
@@ -205,6 +206,19 @@ arc:
     - **Fourth**: Verify completion before reporting (use pre-report checklist below)
 
   3. Report completion to user
+
+     **Delivery-member boundary (conditional):** When this is the last task assigned to a delivery member, run the
+     member's criteria walk before reporting. Record the returned evidence as ordinary task completion and leave
+     every Success Criteria checkbox unchanged for terminal verification.
+
+     ```yaml
+     validate-criteria:
+       scope:
+         kind: delivery-member
+         criteria: member group in the task list's Success Criteria section
+         diff: bounded diff for this member
+         reachability: cumulative tree through this member
+     ```
 
      **Pre-Report Checklist for Coherent Unit Completion** (verify before reporting):
 

@@ -3,7 +3,7 @@ purpose: Execute the task list's verification phase — Tier 3 gates, success cr
 audience: agent
 arc:
   methods:
-    - adversarial-review
+    - validate-criteria
     - self-review
     - review-triage
     - commit-footer
@@ -12,8 +12,9 @@ arc:
 
 # Workflow: Verify Completion
 
-Every task list ends with a verification phase containing a single task that points here.
-The task description is intentionally thin — this workflow is the authoritative protocol.
+Every task list ends with a verification phase containing a single task that points here. Delivery-member closing
+tasks may fire criteria validation at member scope without becoming additional verification tasks or loading this
+workflow. The terminal task description is intentionally thin — this workflow is the authoritative protocol.
 Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
 was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
 
@@ -40,10 +41,20 @@ clean throughout implementation, the full-suite run serves as attestation that e
 
 ## Step 2 — Validate Success Criteria Against Design Artifact
 
-Open the task list's upstream design/spec artifact, walk through its success criteria, and
-compare each against actual outcomes. Then mark each criterion in the task list's Success
-Criteria section (see [task-list-formatting strategy][task-list-formatting] § Success Criteria
-Section for format) using the three-state model:
+Run the criteria walk at work-unit scope:
+
+```yaml
+validate-criteria:
+  scope:
+    kind: work-unit
+    criteria: task list's complete Success Criteria section
+    diff: complete work-unit diff
+    reachability: complete work-unit tree
+```
+
+Consume the report, then mark each criterion in the task list's Success Criteria section (see
+[task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
+model:
 
 - `[x]` — **Met.** Criterion satisfied as planned, or addressed differently (add a
   **Deviation** note).
@@ -66,30 +77,6 @@ Before closing the criteria pass, verify delivery integrity:
 - Present-tense architecture and completion claims distinguish implemented behavior from behavior proven live.
 - Every deferred part of original intent has a correctly classified, sufficiently specified owner; essential
   unproven intent never rests on an assumed Errand or an unowned note.
-
-### Adversarial verify (advisory)
-
-The boundary carries an advisory adversarial fire-point that **augments** the self-verify above, never replaces
-it: a fresh pass independently re-validates the spec's success criteria against the diff. The mandate is
-**verify**, not review — the pass attacks the _claim of spec-conformance_ (criteria marked met that the diff
-does not deliver, gaps, wrongly-superseded items); the diff is evidence for conformance, not the target of
-open-ended quality critique (that runs in the review lanes). Withhold the implementer's `[x]` / `[~]` / `[ ]`
-markings from the pass; the primary compares the independent result to the self-verify.
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; surface a neutral
-> offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
-
-```yaml
-adversarial-review:
-  rubric:          # the spec's success criteria, validated adversarially (stage-owned; no separate rubric method)
-  artifacts:       # spec-{name}.md + tasks-{name}.md (markings withheld) + the diff under verification
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
-```
 
 ## Step 3 — Attest the Candidate
 

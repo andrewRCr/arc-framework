@@ -467,6 +467,11 @@
       "layer": "core",
       "pristine_hash": "bc699c5ae1e973d76cc58b018c5e0306ea8b57bbe3889d8a42e46537fe9b353f"
     },
+    "system/methods/validate-criteria.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "c09e6c45618956d642a7c79269e22ae84bf3db768f7cbafb1c7fe1b2c6dabc44"
+    },
     "system/methods/README.md": {
       "classification": "Framework",
       "layer": "core",

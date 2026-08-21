@@ -79,91 +79,49 @@ Members bind per task, never per phase, so member validation adds no phases and 
 task unassigned. Every surface this member edits is shipped: each changes in the package source and the project
 copy together.
 
-### `[ ]` **1.1 Extract the criteria walk into a `validate-criteria` method**
+### `[x]` **1.1 Extract the criteria walk into a `validate-criteria` method**
 
 - _Goal:_ The success-criteria walk exists once, as a method whose scope is a parameter, so a member boundary and
   a work-unit boundary run identical semantics — walk and adversarial companion alike — over different spans.
 
-- _Approach:_ Lift the walk out of the work-unit verification workflow's success-criteria step rather than
-  copying it — the workflow keeps marking, the surrounding Tier 3 and attestation steps, and calls the method for
-  the walk and its companion.
+    - `[x]` **1.1.a Author the method with scope as its input**
 
-    - `[ ]` **1.1.a Author the method with scope as its input**
+        - Added `validate-criteria.md` in both method corpora; one scope binds the criteria slice, bounded diff,
+          and reachability span, and the report preserves immutable text, evidence, state, and span without marking.
 
-        - New `system/methods/validate-criteria.md` in the package source, following the method frontmatter and
-          `.override` / `.default` section shape every sibling method uses
-        - Scope input selects the criteria slice, the bounded diff, and the reachability span; the three states
-          (`[x]` met, `[~]` superseded, `[ ]` not met) and the immutable-criterion-text rule stay with the method
-        - Reports one entry per criterion — criterion text, the evidence found, the resolved state, and the span
-          walked — so a member closing task, the closeout pass, and the work-unit boundary consume one form
-        - Marking time is not part of the walk — the method gathers and reports evidence, and the work-unit
-          verification phase remains the only place criteria are marked
+    - `[x]` **1.1.b Carry the adversarial companion in the method contract**
 
-    - `[ ]` **1.1.b Carry the adversarial companion in the method contract**
+        - The method now owns the identical `Class`-scaled adversarial offer at both scopes. The central method adds
+          the bounded authored-partition carrier while keeping it separate from `partition-map` and review chunking.
 
-        - _Goal:_ A criteria boundary at either scope can spend a fresh-context pass against its own slice, so a
-          bounded member walk keeps the half that finds conformance gaps.
+    - `[x]` **1.1.c Reduce the verification workflow to its fire-points**
 
-        - Declare `adversarial-review` in the method's `related:` frontmatter and fire it through the YAML
-          callsite block; consuming workflows declare `validate-criteria` alone and never its dependencies
-        - One posture at both scopes — the offer, its `Class` scaling, and the withheld-markings comparison read
-          identically whether the span is a member slice or the union, so scope stays a parameter
-        - The companion loads on acceptance, never eagerly alongside the walk
-        - Extend the central `adversarial-review` method with an advisory authored-partition carrier for a large
-          target whose delivery plan, review chunks, criteria groups, or other authored boundaries provide a
-          stable partition: at most two or three contract-closed group reviewers, then one fresh
-          seam-and-aggregate reviewer over the complete union, all under the full rubric as one logical pass
-        - Amend the invocation contract's singular-reviewer wording so a composite carrier still counts as one
-          pass; keep the authored grouping separate from Novel `partition-map` input and its disjoint-responsibility
-          / AND-convergence semantics rather than overloading that hook
-        - Keep that carrier distinct from satisfying `review-chunking`: no 1:1 member fan-out, automatic
-          partitioner, durable state, CLI surface, new interlock, or effect on the stronger chunk-series contract
-        - Edit the method in the package source and project copy together; centralize the selection guidance there
-          rather than repeating a workflow-specific branch at every adversarial callsite
-        - Add the `validate-criteria` row to the methods README dependency table
+        - `verify-work-unit.md` retains terminal marking, three-state annotations, delivery-integrity checks, Tier 3,
+          and attestation while delegating the walk and fresh-context companion at work-unit scope.
 
-    - `[ ]` **1.1.c Reduce the verification workflow to its fire-points**
+- _Outcome:_ Criteria validation now has one scope-parameterized method contract and one adversarial posture across
+  member and work-unit boundaries; consumers no longer duplicate either half of the verification walk.
 
-        - `verify-work-unit.md` Step 2 keeps marking, its delivery-integrity check, and the three-state
-          annotation rules, and delegates the walk itself to the method at work-unit scope
-        - Its adversarial-verify subsection reduces to the method's companion fire-point at the same scope
-        - The workflow's opening sentence admits member-scope fire points without making them the terminal
-          verification task it binds
-
-- **Additional Context:** `strategy-workflow-authoring.md` — frontmatter and method-declaration conventions;
-  this task edits a shipped workflow
-
-### `[ ]` **1.2 Bind both `validate-criteria` fire-points by hand**
+### `[x]` **1.2 Bind both `validate-criteria` fire-points by hand**
 
 - _Goal:_ The method loads at both consuming sites, verified by reading each fire-point through rather than by
   trusting the declaration.
 
-- _Rationale:_ Declared methods load at their fire-point, and the corpus audit resolves method-to-declaration
-  only — it cannot distinguish a present fire-point from a missing one. A method a workflow needs but never fires
-  silently never loads, so both sites are confirmed by hand.
+    - `[x]` **1.2.a Declare and fire the work-unit fire point**
 
-    - `[ ]` **1.2.a Declare and fire the work-unit fire point**
+        - `verify-work-unit.md` declares only `validate-criteria` and fires it directly at the work-unit walk.
 
-        - Add `validate-criteria` to `verify-work-unit.md`'s `arc.methods`, with the fire-point at the walk step
-        - The fire-point form is the YAML callsite block whose single top-level key is the method name; the
-          `· #name` marker is the extension form and is not used for methods
+    - `[x]` **1.2.b Declare and fire the member fire point**
 
-    - `[ ]` **1.2.b Declare and fire the member fire point**
+        - Both process-loop surfaces declare only `validate-criteria` and fire it when the closing task reaches a
+          delivery-member boundary.
 
-        - Add `validate-criteria` to `process-task-loop.md`'s `arc.methods` alongside `issue-triage`,
-          `quality-gate-commands`, and `testing-standards` — the method alone, never its own dependencies — with
-          the same callsite form where a member closing task fires it
-        - `process-task-loop` is a configurable template: the framework section changes in
-          `packages/arc-framework/arc/system/workflows/arc/process-task-loop.template.md` and the project
-          instance in `.arc/`, never by copying one over the other
+    - `[x]` **1.2.c Confirm both fire-points resolve by reading them**
 
-    - `[ ]` **1.2.c Confirm both fire-points resolve by reading them**
-
-        - Read each declaration through to its callsite block and quote both in the task's completion note — the
-          fire-point text is the witness, not a claim that the check ran
-
-- **Additional Context:** `strategy-package-project-sync.md` — template-counterpart handling for the two
-  `.template.md` workflows this member edits
+        - Read each declaration through its callsite. Witnesses: `validate-criteria: { scope: { kind: work-unit,
+          criteria: complete Success Criteria, diff: complete WU diff, reachability: complete WU tree } }` and
+          `validate-criteria: { scope: { kind: delivery-member, criteria: member group, diff: bounded member diff,
+          reachability: cumulative member tree } }`.
 
 ### `[ ]` **1.3 Specify the member-grouped Success Criteria grammar and its indent constraint**
 
@@ -270,16 +228,12 @@ copy together.
         - The new kind blocks under both entries, while the uncovered-task kind keeps its entry-sensitivity
         - The existing assignment issues continue to refuse unchanged alongside the new kind
 
-### `[ ]` **1.7 Ship `validate-criteria` through `init-recipe.json` and both copies**
+### `[x]` **1.7 Ship `validate-criteria` through `init-recipe.json` and both copies**
 
 - _Goal:_ The method reaches installing projects rather than existing only in the repository that authored it.
 
-- _Note:_ Ten workflow and method files already ship nowhere, and the manifest is built from the recipe, so an
-  omission stays self-consistent all the way down and no check fires. The recipe entry is the whole difference
-  between a shipped method and a private one.
-
-    - Add `system/methods/validate-criteria.md` to `include_files`
-    - Sync the new method file to the project copy; every other surface this member edits syncs with its own task
+- _Outcome:_ The installation recipe, Configurable classifier, self-hosting manifest, and init/update contract tests
+  now carry `validate-criteria.md`; the package and project method bodies begin aligned.
 
 ### `[ ]` **1.8 Close delivery member 1** — validate criteria at member scope
 

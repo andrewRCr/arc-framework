@@ -52,6 +52,7 @@ when populating any `.override` section. Methods not listed here are independent
 | design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
 | testing-standards             | test-first                                                               | Planning/execution seam split              |
 | test-first                    | testing-standards                                                        | Planning/execution seam split              |
+| validate-criteria             | adversarial-review                                                       | Criteria walk and fresh-context companion  |
 
 ---
 

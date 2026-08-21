@@ -56,6 +56,25 @@ describe("prepublication workflow boundary", () => {
       .toContain("system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md");
     expect(recipe.include_files)
       .toContain("reference/templates/arc/work-unit/template-pull-request.md");
+    expect(recipe.include_files).toContain("system/methods/validate-criteria.md");
+  });
+
+  it("fires validate-criteria directly at work-unit and delivery-member boundaries", async () => {
+    for (const root of ROOTS) {
+      const [verification, taskLoop] = await Promise.all([
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
+        readFile(resolve(root, root === ROOTS[0]
+          ? "system/workflows/arc/process-task-loop.template.md"
+          : "system/workflows/arc/process-task-loop.md"), "utf8"),
+      ]);
+
+      expect(verification).toContain("    - validate-criteria");
+      expect(verification).not.toContain("    - adversarial-review");
+      expect(verification).toContain("validate-criteria:\n  scope:\n    kind: work-unit");
+      expect(taskLoop).toContain("    - validate-criteria");
+      expect(taskLoop).not.toContain("    - adversarial-review");
+      expect(taskLoop).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
+    }
   });
 
   it("ships every pull-request template reference at its resolved installed path", async () => {
