@@ -560,7 +560,84 @@ describe("review response command", () => {
       dispositions: disposition,
     }, deps)).resolves.toMatchObject({
       state: "ready-to-fix",
-      payload: { reentryCommand: "hosted-settle" },
+      payload: {
+        reentryCommand: "hosted-settle",
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+  });
+
+  it("orders unchanged-head hosted settlements before fixes in a mixed approved set", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const reviewedFinding = attempt.hosted.findings[0];
+    if (reviewedFinding?.origin !== "review-thread") throw new Error("missing hosted thread finding fixture");
+    const deferredFinding = {
+      ...reviewedFinding,
+      findingId: "finding-deferred",
+      commentId: "comment-2",
+      threadId: "thread-2",
+      locus: "src/deferred.ts:9",
+      url: "https://example.test/thread-2",
+    };
+    attempt.hosted.findings.push(deferredFinding);
+    const deps = dependencies(hosted.records);
+    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    const disposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: hosted.records.target.targetId,
+        policyVersion: attempt.hosted.requirement.policyVersion,
+        rubricVersion: attempt.hosted.requirement.rubricVersion,
+        rubricDigest: attempt.hosted.requirement.rubricDigest,
+        proposedBy: "arc-cli/0.1.0",
+        findings: [{
+          findingId: hosted.records.finding.findingId,
+          sourceIdentity: "codex-pr",
+          locus: hosted.records.finding.locus,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          severity: hosted.records.finding.severity,
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The finding requires a code change.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }, {
+          findingId: deferredFinding.findingId,
+          sourceIdentity: "codex-pr",
+          locus: deferredFinding.locus,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/deferred.ts:9"],
+          severity: deferredFinding.severity,
+          disposition: "defer",
+          gating: "blocking",
+          rationale: "The finding belongs to follow-up work.",
+          recommendation: "Record the deferral.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "author-1",
+      approvedAt: "2026-07-23T20:00:00Z",
+    });
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
+      dispositions: disposition,
+    }, deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: {
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [deferredFinding.findingId],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
     });
   });
 

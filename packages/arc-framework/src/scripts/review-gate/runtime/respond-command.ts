@@ -212,6 +212,7 @@ interface ResolvedResponseSource {
       headSha: string;
     };
     noHostSettlementFindingIds: readonly string[];
+    hostSettlementFindingIds: readonly string[];
     settled: boolean;
   };
 }
@@ -506,8 +507,29 @@ async function resolveHostedSource(
       noHostSettlementFindingIds: attempt.hosted.findings
         .filter(({ settlement }) => settlement === "not-applicable")
         .map(({ findingId }) => findingId),
+      hostSettlementFindingIds: attempt.hosted.findings
+        .filter(({ settlement }) => settlement === "reply-and-resolve")
+        .map(({ findingId }) => findingId),
       settled: attempt.outcome === "settled-findings",
     },
+  };
+}
+
+function projectHostedSettlementPlan(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+) {
+  if (source.hostedAttempt === undefined) return undefined;
+  const hostSettlementFindingIds = new Set(source.hostedAttempt.hostSettlementFindingIds);
+  const findings = dispositions.dispositionSet.findings.filter(({ findingId }) =>
+    hostSettlementFindingIds.has(findingId));
+  return {
+    beforeFixFindingIds: findings
+      .filter(({ disposition }) => disposition !== "fix")
+      .map(({ findingId }) => findingId),
+    afterFixFindingIds: findings
+      .filter(({ disposition }) => disposition === "fix")
+      .map(({ findingId }) => findingId),
   };
 }
 
@@ -977,6 +999,7 @@ export async function respondToReviewCommand(
     });
   }
   const alreadySettled = existing !== null;
+  const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
   return RespondEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-respond",
@@ -997,6 +1020,7 @@ export async function respondToReviewCommand(
                 : "hosted-settle",
           }),
       ...(frontlineFollowUp === undefined ? {} : { frontlineFollowUp }),
+      ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
     },
   });
 }

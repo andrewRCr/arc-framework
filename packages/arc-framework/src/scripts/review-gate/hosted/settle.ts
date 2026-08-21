@@ -115,6 +115,7 @@ export const HostedSettleResultSchema = z.union([
     ...HostedSettleResultBaseShape,
     state: z.literal("already-settled"),
     nextAction: z.literal("complete"),
+    replyId: z.string().min(1),
   }),
   z.strictObject({
     ...HostedSettleResultBaseShape,
@@ -173,7 +174,7 @@ async function targetIsCurrent(
   return await port.readHead(expectedTarget) === expectedTarget.headSha;
 }
 
-/** Reply at the originating comment and resolve its live thread under exact actor/current-head checks. */
+/** Settle the originating thread under exact actor/target checks and current-head guards for host mutation. */
 export async function settleHostedFinding(
   input: unknown,
   dependencies: { port: HostedSettlementPort },
@@ -183,10 +184,6 @@ export async function settleHostedFinding(
   if (await dependencies.port.currentActorIdentity() !== request.actorIdentity) {
     return { ...base, state: "actor-mismatch", nextAction: "stop" };
   }
-  if (!await targetIsCurrent(request, dependencies.port)) {
-    return { ...base, state: "stale-target", nextAction: "stop" };
-  }
-
   const before = await dependencies.port.readThread(request.target, request.finding.threadId);
   if (before.kind === "missing") {
     return { ...base, state: "missing-thread", nextAction: "stop" };
@@ -194,11 +191,25 @@ export async function settleHostedFinding(
   if (!before.commentIds.includes(request.finding.commentId)) {
     return { ...base, state: "missing-comment", nextAction: "stop" };
   }
+  let replyMatch = await canonicalReply(request, dependencies.port);
   if (before.isResolved) {
-    return { ...base, state: "already-settled", nextAction: "complete" };
+    if (replyMatch.kind !== "unique") {
+      return { ...base, state: "ambiguous", nextAction: "stop" };
+    }
+    if (request.disposition === "fix" && !await targetIsCurrent(request, dependencies.port)) {
+      return { ...base, state: "stale-target", nextAction: "stop" };
+    }
+    return {
+      ...base,
+      state: "already-settled",
+      nextAction: "complete",
+      replyId: replyMatch.reply.id,
+    };
   }
 
-  let replyMatch = await canonicalReply(request, dependencies.port);
+  if (!await targetIsCurrent(request, dependencies.port)) {
+    return { ...base, state: "stale-target", nextAction: "stop" };
+  }
   if (replyMatch.kind === "ambiguous") {
     return { ...base, state: "ambiguous", nextAction: "stop" };
   }

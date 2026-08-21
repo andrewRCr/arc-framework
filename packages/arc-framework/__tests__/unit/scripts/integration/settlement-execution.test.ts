@@ -121,6 +121,7 @@ describe("integration settlement execution", () => {
             threadId: request.finding.threadId,
             state: "already-settled",
             nextAction: "complete",
+            replyId: `reply-${request.finding.threadId}`,
           };
         }
         settled.add(request.finding.threadId);
