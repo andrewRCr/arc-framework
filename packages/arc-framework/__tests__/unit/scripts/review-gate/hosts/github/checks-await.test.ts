@@ -43,7 +43,11 @@ describe("GitHub required-check port", () => {
         stdout: JSON.stringify({ protected: false }),
         stderr: "",
       })
-      .mockResolvedValueOnce({ stdout: JSON.stringify([[]]), stderr: "" });
+      .mockResolvedValueOnce({ stdout: JSON.stringify([[]]), stderr: "" })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ base: { ref: "main" } }),
+        stderr: "",
+      });
     const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
 
     await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([]);
@@ -74,6 +78,10 @@ describe("GitHub required-check port", () => {
           },
         ]]),
         stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ base: { ref: "main" } }),
+        stderr: "",
       });
     const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
 
@@ -99,7 +107,11 @@ describe("GitHub required-check port", () => {
         }),
         stderr: "",
       })
-      .mockResolvedValueOnce({ stdout: JSON.stringify([[]]), stderr: "" });
+      .mockResolvedValueOnce({ stdout: JSON.stringify([[]]), stderr: "" })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ base: { ref: "main" } }),
+        stderr: "",
+      });
     const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
 
     await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
@@ -147,6 +159,94 @@ describe("GitHub required-check port", () => {
     baseRef = "release";
     await expect(port.readHead("owner/repo", 42, signal)).resolves.toBe(headSha);
     await expect(port.readRequiredChecks("owner/repo", 42, signal)).resolves.toEqual([
+      { name: "release-check", state: "pending" },
+    ]);
+  });
+
+  it("refreshes configured contexts when policy changes on the same base", async () => {
+    let configuredContexts = ["merge-ok"];
+    const run = vi.fn(async (args: string[]) => {
+      const endpoint = args.at(-1);
+      if (args[0] === "pr") {
+        return {
+          stdout: "",
+          stderr: "no required checks reported on the 'feature' branch",
+        };
+      }
+      if (endpoint === "repos/owner/repo/pulls/42") {
+        return { stdout: JSON.stringify({ base: { ref: "main" } }), stderr: "" };
+      }
+      if (endpoint === "repos/owner/repo/branches/main") {
+        return {
+          stdout: JSON.stringify({
+            protected: true,
+            protection: { required_status_checks: { contexts: configuredContexts } },
+          }),
+          stderr: "",
+        };
+      }
+      if (endpoint === "repos/owner/repo/rules/branches/main?per_page=100") {
+        return { stdout: JSON.stringify([[]]), stderr: "" };
+      }
+      throw new Error(`unexpected GitHub command: ${args.join(" ")}`);
+    });
+    const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+    const signal = AbortSignal.timeout(1000);
+
+    await expect(port.readRequiredChecks("owner/repo", 42, signal)).resolves.toEqual([
+      { name: "merge-ok", state: "pending" },
+    ]);
+
+    configuredContexts = ["merge-ok", "new-policy-check"];
+    await expect(port.readRequiredChecks("owner/repo", 42, signal)).resolves.toEqual([
+      { name: "merge-ok", state: "pending" },
+      { name: "new-policy-check", state: "pending" },
+    ]);
+  });
+
+  it("retries configured contexts when the base changes during their read", async () => {
+    let baseRef = "main";
+    const run = vi.fn(async (args: string[]) => {
+      const endpoint = args.at(-1);
+      if (args[0] === "pr") {
+        return {
+          stdout: "",
+          stderr: "no required checks reported on the 'feature' branch",
+        };
+      }
+      if (endpoint === "repos/owner/repo/pulls/42") {
+        return { stdout: JSON.stringify({ base: { ref: baseRef } }), stderr: "" };
+      }
+      if (endpoint === "repos/owner/repo/branches/main") {
+        return {
+          stdout: JSON.stringify({
+            protected: true,
+            protection: { required_status_checks: { contexts: ["main-check"] } },
+          }),
+          stderr: "",
+        };
+      }
+      if (endpoint === "repos/owner/repo/rules/branches/main?per_page=100") {
+        baseRef = "release";
+        return { stdout: JSON.stringify([[]]), stderr: "" };
+      }
+      if (endpoint === "repos/owner/repo/branches/release") {
+        return {
+          stdout: JSON.stringify({
+            protected: true,
+            protection: { required_status_checks: { contexts: ["release-check"] } },
+          }),
+          stderr: "",
+        };
+      }
+      if (endpoint === "repos/owner/repo/rules/branches/release?per_page=100") {
+        return { stdout: JSON.stringify([[]]), stderr: "" };
+      }
+      throw new Error(`unexpected GitHub command: ${args.join(" ")}`);
+    });
+    const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
       { name: "release-check", state: "pending" },
     ]);
   });

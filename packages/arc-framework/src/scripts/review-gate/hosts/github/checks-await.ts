@@ -37,16 +37,13 @@ function pullRequestBaseRef(value: unknown): string {
   return string(base.ref, "pull-request.base.ref");
 }
 
-function pullRequestTarget(value: unknown): { headSha: string; baseRef: string } {
+function pullRequestHeadSha(value: unknown): string {
   const pullRequest = record(value, "pull-request");
   const head = record(pullRequest.head, "pull-request.head");
   if (typeof head.sha !== "string" || !GitObjectIdSchema.safeParse(head.sha).success) {
     throw new Error("pull-request.head.sha: expected a 40-hex object id");
   }
-  return {
-    headSha: head.sha,
-    baseRef: pullRequestBaseRef(value),
-  };
+  return head.sha;
 }
 
 function classicRequiredContexts(value: unknown): string[] {
@@ -113,9 +110,6 @@ function checkState(bucket: unknown, state: unknown, path: string): RequiredChec
 
 /** Build a GitHub CLI-backed required-check port. */
 export function createGhRequiredChecksPort(runner: HostedProcessRunner): RequiredChecksPort {
-  const configuredContexts = new Map<string, Promise<string[]>>();
-  const observedBaseRefs = new Map<string, string>();
-
   async function readPullRequest(
     repository: string,
     pullRequest: number,
@@ -131,16 +125,8 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     pullRequest: number,
     signal: AbortSignal,
   ): Promise<string[]> {
-    const pullRequestKey = `${repository.toLowerCase()}#${pullRequest}`;
-    let baseRef = observedBaseRefs.get(pullRequestKey);
-    if (baseRef === undefined) {
-      baseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal));
-      observedBaseRefs.set(pullRequestKey, baseRef);
-    }
-    const key = `${pullRequestKey}@${baseRef}`;
-    const existing = configuredContexts.get(key);
-    if (existing !== undefined) return existing;
-    const pending = (async () => {
+    for (;;) {
+      const baseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal));
       const encodedBaseRef = encodeURIComponent(baseRef);
       const [branchResult, rulesResult] = await Promise.all([
         runner.run(["api", `repos/${repository}/branches/${encodedBaseRef}`], { signal }),
@@ -149,13 +135,13 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
           `repos/${repository}/rules/branches/${encodedBaseRef}?per_page=100`,
         ], { signal }),
       ]);
-      return [...new Set([
+      const contexts = [...new Set([
         ...classicRequiredContexts(parse(branchResult.stdout, "branch")),
         ...rulesetRequiredContexts(parse(rulesResult.stdout, "branch-rules")),
       ])];
-    })();
-    configuredContexts.set(key, pending);
-    return pending;
+      const currentBaseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal));
+      if (currentBaseRef === baseRef) return contexts;
+    }
   }
 
   return {
@@ -170,9 +156,7 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
       return value.nameWithOwner;
     },
     readHead: async (repository, pullRequest, signal) => {
-      const target = pullRequestTarget(await readPullRequest(repository, pullRequest, signal));
-      observedBaseRefs.set(`${repository.toLowerCase()}#${pullRequest}`, target.baseRef);
-      return target.headSha;
+      return pullRequestHeadSha(await readPullRequest(repository, pullRequest, signal));
     },
     readRequiredChecks: async (repository, pullRequest, signal) => {
       const result = await runner.run([
