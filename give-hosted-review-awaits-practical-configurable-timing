@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "give-hosted-review-awaits-practical-configurable-timing",
+  "claimId": "6dd27a656436f24cec327960a989c9ad",
+  "createdAt": "2026-08-21T18:30:08.728Z",
+  "updatedAt": "2026-08-21T18:30:08.728Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "give-hosted-review-awaits-practical-configurable-timing",
+  "branch": "chore/give-hosted-review-awaits-practical-configurable-timing",
+  "origin": "inbox",
+  "originEntry": "Give hosted review awaits practical configurable timing",
+  "originEntrySourceDigest": "sha256:985d692906d92a28f2d687a115b2e092a5b0136e3e08b17aa4e2d32f06bdf80d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
