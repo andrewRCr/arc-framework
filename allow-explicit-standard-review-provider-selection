@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "allow-explicit-standard-review-provider-selection",
+  "claimId": "765c0b1f9ff75ce0dcc226085c30a983",
+  "createdAt": "2026-08-21T17:31:56.608Z",
+  "updatedAt": "2026-08-21T17:31:56.608Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "allow-explicit-standard-review-provider-selection",
+  "branch": "chore/allow-explicit-standard-review-provider-selection",
+  "origin": "inbox",
+  "originEntry": "Allow explicit standard-review provider selection",
+  "originEntrySourceDigest": "sha256:ffac9a86533f56b894b290f75418835d71d0d492e52f6c9a3ec475ef67a7293e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
