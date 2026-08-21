@@ -392,7 +392,9 @@ describe("trusted review-gate workflows", () => {
     expect(prepare).toMatch(/Re-invoke[\s\S]*same `--change-set`, `--lanes`/u);
     expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(errand).toMatch(/every policy call for that target/u);
-    expect(integrate).toMatch(/supplies the reserved `sourceId`[\s\S]*without rerunning[\s\S]*source ordering/u);
+    expect(integrate).toMatch(
+      /integrationBoundary\.nextAction\.command[\s\S]*without rerunning[\s\S]*source\s+ordering[\s\S]*policy\.payload\.sourceId/u,
+    );
   });
 
   it("settles the Errand exact head without importing WU products", async () => {

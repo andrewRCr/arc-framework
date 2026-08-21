@@ -158,7 +158,9 @@ describe("PR-open lifecycle extensions", () => {
     expect(openedChangeRequest).toBeLessThan(reservation);
     expect(reservation).toBeLessThan(hostedRequest);
     expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review chunking resolve -");
-    expect(workflow.slice(reservation, hostedRequest)).toContain("reserved `sourceId`");
+    expect(workflow.slice(reservation, hostedRequest)).toContain("integrationBoundary.nextAction.command");
+    expect(workflow.slice(reservation, hostedRequest)).toContain("policy.payload.sourceId");
+    expect(workflow.slice(reservation, hostedRequest)).toContain("policy.payload.pass");
   });
 
   it("runs the same frontline cycle only for full-protection Errand publication", async () => {
