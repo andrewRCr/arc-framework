@@ -64,16 +64,19 @@ function finding(
 }
 
 function cleanForHead(comment: HostedGitHubIssueComment, headSha: string): boolean {
-  if (!/^Codex Review:\s*$/mu.test(comment.body) || !/^Didn't find any major issues\.\s*$/mu.test(comment.body)) {
+  if (!/^Codex Review:/mu.test(comment.body)
+    || !/\bdid(?:n't| not) find any major issues\b/iu.test(comment.body)) {
     return false;
   }
-  const markers = [...comment.body.matchAll(/^Reviewed commit:\s*`?([a-f0-9]{7,40})`?\s*$/gimu)];
+  const markers = [...comment.body.matchAll(
+    /^(?:\*\*)?Reviewed commit:(?:\*\*)?\s*`?([a-f0-9]{7,40})`?\s*$/gimu,
+  )];
   const marker = markers[0]?.[1]?.toLowerCase();
   return markers.length === 1 && marker !== undefined && headSha.startsWith(marker);
 }
 
 function connectedAccountFailure(comment: HostedGitHubIssueComment): boolean {
-  return /^Codex Review:\s*$/mu.test(comment.body)
+  return /^Codex Review:/mu.test(comment.body)
     && /Connect your ChatGPT account to use Codex\./u.test(comment.body);
 }
 

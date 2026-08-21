@@ -126,10 +126,12 @@ describe("hosted GitHub process boundary", () => {
   });
 
   it("paginates check runs and combines every returned page", async () => {
-    const mock = runner([[
-      { check_runs: [{ name: "first", status: "completed", conclusion: "success", app: null, output: null }] },
-      { check_runs: [{ name: "second", status: "completed", conclusion: "success", app: null, output: null }] },
-    ]]);
+    const mock = runner([
+      [
+        { check_runs: [{ name: "first", status: "completed", conclusion: "success", app: null, output: null }] },
+        { check_runs: [{ name: "second", status: "completed", conclusion: "success", app: null, output: null }] },
+      ],
+    ]);
     const port = new GhHostedReviewPort(mock.boundary);
 
     await expect(port.readCheckRuns(target)).resolves.toMatchObject([
@@ -137,6 +139,25 @@ describe("hosted GitHub process boundary", () => {
       { name: "second" },
     ]);
     expect(mock.calls[0]?.args).toEqual(expect.arrayContaining(["--paginate", "--slurp"]));
+  });
+
+  it("normalizes exact-head commit statuses", async () => {
+    const mock = runner([[[{
+      context: "CodeRabbit",
+      state: "success",
+      description: "Review completed",
+      created_at: "2026-07-24T12:05:00Z",
+      updated_at: "2026-07-24T12:05:01Z",
+    }]]]);
+    const port = new GhHostedReviewPort(mock.boundary);
+
+    await expect(port.readCommitStatuses(target)).resolves.toEqual([{
+      context: "CodeRabbit",
+      state: "success",
+      description: "Review completed",
+      createdAt: "2026-07-24T12:05:00Z",
+      updatedAt: "2026-07-24T12:05:01Z",
+    }]);
   });
 
   it("preserves threads whose comment author is unavailable", async () => {

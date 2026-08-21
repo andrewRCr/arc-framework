@@ -9,6 +9,7 @@ import {
   HostedGitHubReadError,
   normalizeHostedGitHubReadFailure,
   type HostedGitHubPort,
+  type HostedGitHubIssueComment,
   type HostedGitHubReview,
   type HostedGitHubThreadComment,
 } from "./github.js";
@@ -26,12 +27,45 @@ const COMMANDS = {
 } as const satisfies Record<HostedReviewCoverage, string>;
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
+const APP_ID = "347564";
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
   commands: COMMANDS,
-  identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID },
+  identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
+
+function recentReviewBody(comment: HostedGitHubIssueComment): string | null {
+  const starts = [...comment.body.matchAll(/<!--\s*recent_review_start\s*-->/giu)];
+  const ends = [...comment.body.matchAll(/<!--\s*recent_review_end\s*-->/giu)];
+  if (starts.length !== 1 || ends.length !== 1) return null;
+  const start = starts[0];
+  const end = ends[0];
+  if (start === undefined || end === undefined || end.index <= start.index) return null;
+  return comment.body.slice(start.index + start[0].length, end.index);
+}
+
+function summaryCompletesHead(
+  comment: HostedGitHubIssueComment,
+  target: HostedTarget,
+  requestedAt: string,
+): boolean {
+  if (comment.updatedAt < requestedAt) return false;
+  const recent = recentReviewBody(comment);
+  if (recent === null || !/\bno actionable comments were generated in the recent review\b/iu.test(recent)) {
+    return false;
+  }
+  const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
+  const reviewedHead = ranges[0]?.[1]?.toLowerCase();
+  return ranges.length === 1 && reviewedHead !== undefined && target.headSha.startsWith(reviewedHead);
+}
+
+function commandReplyCompleted(comment: HostedGitHubIssueComment, requestedAt: string): boolean {
+  return comment.createdAt >= requestedAt
+    && /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/iu.test(comment.body)
+    && /<summary>\s*✅\s*Action performed\s*<\/summary>/iu.test(comment.body)
+    && /\b(?:full\s+)?review finished\./iu.test(comment.body);
+}
 
 function severity(body: string): "blocker" | "major" | "minor" | null {
   const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
@@ -289,10 +323,12 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
-      const [checks, reviews, threads] = await Promise.all([
+      const [checks, statuses, reviews, threads, comments] = await Promise.all([
         this.github.readCheckRuns(target, options),
+        this.github.readCommitStatuses(target, options),
         this.github.readReviews(target, options),
         this.github.readThreads(target, options),
+        this.github.readIssueComments(target, options),
       ]);
       const providerChecks = checks.filter((check) =>
         check.name === "CodeRabbit" && check.appOwnerIdentity === APP_OWNER_ID);
@@ -310,7 +346,21 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         && review.headSha === target.headSha
         && review.submittedAt >= requestedAt);
       const review = newestTerminalReview(providerReviews);
-      if (review === undefined) return { kind: "pending" };
+      if (review === undefined) {
+        const providerComments = comments.filter((comment) =>
+          comment.actorIdentity === BOT_USER_ID && comment.appId === APP_ID);
+        const completedStatus = statuses.find((status) =>
+          status.context === "CodeRabbit"
+          && status.state === "success"
+          && status.createdAt >= requestedAt
+          && /\breview completed\b/iu.test(status.description));
+        const completedReply = providerComments.find((comment) => commandReplyCompleted(comment, requestedAt));
+        const completedSummary = providerComments.find((comment) =>
+          summaryCompletesHead(comment, target, requestedAt));
+        return completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined
+          ? { kind: "clean", reviewUrl: completedSummary.url }
+          : { kind: "pending" };
+      }
       const parsedBody = parseCodeRabbitReviewBody(review);
       if (parsedBody.kind === "malformed") {
         return { kind: "terminal-failure", reason: parsedBody.reason };
