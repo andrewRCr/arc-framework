@@ -4,6 +4,7 @@ import { execa } from "execa";
 
 import type {
   HostedGitHubCheckRun,
+  HostedGitHubCommitStatus,
   HostedGitHubIssueComment,
   HostedGitHubPort,
   HostedGitHubReview,
@@ -312,6 +313,37 @@ export class GhHostedReviewPort implements HostedGitHubPort {
         conclusion: item.conclusion === null ? null : string(item.conclusion, `check-runs[${index}].conclusion`),
         appOwnerIdentity: owner === null ? null : integerString(owner.id, `check-runs[${index}].app.owner.id`),
         summary: typeof output?.summary === "string" ? output.summary : "",
+      };
+    });
+  }
+
+  async readCommitStatuses(
+    target: HostedTarget,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedGitHubCommitStatus[]> {
+    const rawStatuses = await this.read([
+      apiPath(target, `commits/${target.headSha}/statuses?per_page=100`),
+      "--paginate",
+      "--slurp",
+    ], options);
+    return pages(rawStatuses, "commit-statuses").map((entry, index) => {
+      const item = record(entry, `commit-statuses[${index}]`);
+      const state = string(item.state, `commit-statuses[${index}].state`).toLowerCase();
+      if (!["pending", "success", "failure", "error"].includes(state)) {
+        throw new HostedGitHubReadError(
+          "terminal-failure",
+          `commit-statuses[${index}].state: unsupported ${state}`,
+        );
+      }
+      const normalizedState: HostedGitHubCommitStatus["state"] = state === "error"
+        ? "failure"
+        : state as HostedGitHubCommitStatus["state"];
+      return {
+        context: string(item.context, `commit-statuses[${index}].context`),
+        state: normalizedState,
+        description: typeof item.description === "string" ? item.description : "",
+        createdAt: string(item.created_at, `commit-statuses[${index}].created_at`),
+        updatedAt: string(item.updated_at, `commit-statuses[${index}].updated_at`),
       };
     });
   }
