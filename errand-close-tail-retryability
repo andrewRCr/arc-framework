@@ -3,7 +3,7 @@
   "slug": "errand-close-tail-retryability",
   "claimId": "99869dc1f88ac55efc138940d2457554",
   "createdAt": "2026-08-21T03:23:32.083Z",
-  "updatedAt": "2026-08-21T03:23:32.083Z",
+  "updatedAt": "2026-08-21T14:22:50.072Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "errand-close-tail-retryability",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make Errand close tail failures safely retryable",
   "originEntrySourceDigest": "sha256:a5bcb75c711fb2551665b3e3b215d9c4b0a63beeabe3437e12b918571b7303f9",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/errand-close-tail-retryability",
+    "headSha": "52ebe34515cc2d1fae6c092e8fc69ef283d5f09d"
+  }
 }
