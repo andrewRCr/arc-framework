@@ -334,13 +334,13 @@ describe("composePrePublicationReviewRequest", () => {
     });
   });
 
-  it("carries an explicit one-run frontline skip beside its bounded scope", async () => {
+  it("carries explicit per-run lane invocations beside bounded scope", async () => {
     const composition = await composePrePublicationReviewRequest(
       {
         workUnit: "example",
         lanes: {
           frontline: { scopeMode: "chunked", invocation: { mode: "skip" } },
-          standard: { scopeMode: "chunked" },
+          standard: { scopeMode: "whole-target", invocation: { mode: "force", sourceId: "codex-pr" } },
         },
       },
       dependencies({
@@ -358,7 +358,10 @@ describe("composePrePublicationReviewRequest", () => {
       invocation: { mode: "skip" },
       scopeSelection: { mode: "chunked" },
     });
-    expect(composition.request.standard).not.toHaveProperty("invocation");
+    expect(composition.request.standard).toMatchObject({
+      invocation: { mode: "force", sourceId: "codex-pr" },
+      scopeSelection: { mode: "whole-target" },
+    });
   });
 
   it("binds a conversational terminus to the authoritative Owner and observed standard progress", async () => {
@@ -424,6 +427,9 @@ describe("composePrePublicationReviewRequest", () => {
     ["a caller-restated target", { standard: { scopeMode: "chunked", target: { repository: "x/y" } } }],
     ["an unrecognized lane", { hosted: { scopeMode: "chunked" } }],
     ["a frontline override on the standard lane", { standard: { invocation: { mode: "skip" } } }],
+    ["a standard source override on frontline", {
+      frontline: { invocation: { mode: "force", sourceId: "coderabbit-cli" } },
+    }],
     ["an Owner terminus on frontline", { frontline: { terminus: { mode: "owner-accepted" } } }],
   ])("refuses %s rather than dropping it to the unbounded default", async (_label, lanes) => {
     // Deliberately unlike the change-set facts, which normalize: silently dropping a bounded scope

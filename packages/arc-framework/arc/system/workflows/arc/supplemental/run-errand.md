@@ -188,6 +188,9 @@ remote base all name the same exact head. Any tracked change continues through t
      author Errand-side delivery state.
 
    Select whole-target or chunked scope separately for each role and pass it to `arc review resolve -`.
+   Configured standard-source order is the default. For an explicit Owner selection of a configured source, pass
+   `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
+   Errand binding carries that source and its ordered fallbacks through hosted request and await.
 
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
