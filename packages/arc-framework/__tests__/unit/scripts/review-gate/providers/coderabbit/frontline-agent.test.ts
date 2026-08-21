@@ -49,6 +49,46 @@ describe("CodeRabbit structured frontline parser", () => {
       });
   });
 
+  it.each(["0.6.4", "0.7.2", "development"])(
+    "accepts the qualified agent contract independently of CLI version %s",
+    (cliVersion) => {
+      const stdout = JSON.stringify({
+        type: "complete",
+        status: "review_completed",
+        findings: 0,
+        reviewedFiles: ["src/index.ts"],
+      });
+
+      expect(parse(stdout, { cliVersion })).toEqual({ kind: "clean" });
+    },
+  );
+
+  it("keeps normalized finding identity stable across executable versions", () => {
+    const finding = {
+      type: "finding",
+      severity: "minor",
+      fileName: "src/index.ts",
+      codegenInstructions: "Preserve the exact target binding.",
+      suggestions: [],
+    };
+    const stdout = [
+      JSON.stringify(finding),
+      JSON.stringify({
+        type: "complete",
+        status: "review_completed",
+        findings: 1,
+        reviewedFiles: [finding.fileName],
+      }),
+    ].join("\n");
+    const beforeUpdate = parse(stdout, { cliVersion: "0.6.4" });
+    const afterUpdate = parse(stdout, { cliVersion: "0.7.2" });
+
+    expect(beforeUpdate).toMatchObject({ kind: "findings" });
+    expect(afterUpdate).toMatchObject({ kind: "findings" });
+    if (beforeUpdate.kind !== "findings" || afterUpdate.kind !== "findings") return;
+    expect(beforeUpdate.findings[0]?.findingId).toBe(afterUpdate.findings[0]?.findingId);
+  });
+
   it("fails closed on incomplete, skipped, duplicated, or unsupported output", () => {
     const complete = {
       type: "complete",
@@ -77,8 +117,6 @@ describe("CodeRabbit structured frontline parser", () => {
       JSON.stringify({ type: "unknown" }),
       JSON.stringify({ ...complete, findings: 0 }),
     ].join("\n"))).toEqual({ kind: "malformed" });
-    expect(parse(JSON.stringify({ ...complete, findings: 0 }), { cliVersion: "0.7.0" }))
-      .toEqual({ kind: "malformed" });
   });
 
   it("maps process, rate-limit, malformed, and stale-head failures without a clean fallback", async () => {
