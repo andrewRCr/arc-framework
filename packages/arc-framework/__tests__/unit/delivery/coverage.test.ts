@@ -77,16 +77,19 @@ describe("validateDeliveryTaskCoverage", () => {
 
     expect(result).toEqual({
       status: "refused",
-      issues: [{ kind: "member-task-order", memberIndices: [0, 2] }],
+      issues: [{ kind: "member-task-order", memberIndices: [0, 1, 2] }],
     });
   });
 
-  it("compares an empty member range without throwing", () => {
+  it("refuses an empty member range because it has no closing task", () => {
     const result = validateDeliveryTaskCoverage(coverageInput({
       memberTaskIds: [[], ["1.1", "1.2"]],
     }));
 
-    expect(result).toEqual({ status: "valid", advisories: [] });
+    expect(result).toEqual({
+      status: "refused",
+      issues: [{ kind: "member-task-order", memberIndices: [0] }],
+    });
   });
 
   it.each(["from-tasks", "from-branch"] as const)(

@@ -199,6 +199,27 @@ copy together.
 - _Goal:_ Member 1's criteria group is walked at its own boundary, over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
+    - `[x]` **1.8.a Refuse delivery members without a closing task boundary**
+
+        - Empty task ranges now produce the existing `member-task-order` refusal under either authoring entry,
+          superseding Task 1.6's permissive empty-range outcome so every member has a closing fire-point.
+
+    - `[x]` **1.8.b Add method-owned dependency declarations**
+
+        - Method frontmatter now supports protected `arc.methods`; workflow declarations root a deduplicated
+          transitive graph, and the corpus audit refuses missing targets, unknown roots, cycles, and unreachable
+          methods. `validate-criteria` owns its `adversarial-review` dependency without caller duplication.
+
+    - `[x]` **1.8.c Keep unresolved member reports on the open-task path**
+
+        - The process loop now reports and stops on an unresolved member result while leaving the task open and
+          skipping parent cascade, completion extensions, and the completion-only checklist.
+
+    - `[ ]` **1.8.d Route the extracted substrate to its planned owners**
+
+        - Capture the landed method-dependency seam to `knowledge-architecture`, naming `composable-workflows` and
+          `method-conventions` as re-anchoring consumers rather than creating duplicate authority.
+
 - _Note:_ This is the first firing of the method this member builds, and the first member boundary in the
   repository. A gap found here is a defect in the substrate above, not a reason to hand-walk the group.
 

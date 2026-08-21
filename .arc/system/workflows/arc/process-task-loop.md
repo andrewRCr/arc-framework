@@ -170,8 +170,8 @@ arc:
   3. **Delivery-member boundary (conditional):** When this is the last task assigned to a delivery member, run the
      member's criteria walk after the coherent-unit checks and before completing or reporting the task. Record the
      returned evidence as the task's ordinary completion outcome and leave every Success Criteria checkbox unchanged
-     for terminal verification. If the report contains an unresolved `[ ]`, leave the closing task open and surface
-     the gap at item 4.
+     for terminal verification. If the report contains an unresolved `[ ]`, dispatch to item 4's unresolved branch;
+     otherwise dispatch to its resolved completion branch.
 
      ```yaml
      validate-criteria:
@@ -182,7 +182,15 @@ arc:
          reachability: cumulative tree through this member
      ```
 
-  4. **Report and stop:** Finalize the task completion, then report through the shared interlock.
+  4. **Report and stop:** Select the report branch from item 3, then stop through the shared interlock.
+
+     **Unresolved member-report branch:** When item 3 returned an unresolved `[ ]`, leave the closing task `[ ]`.
+     Preserve the report as boundary evidence, but do not cascade parent completion, run the completion extension,
+     or apply the completion-only checklist. Report the unresolved criteria, evidence span, and verification status,
+     then end with `Member criteria unresolved: <details>. Fix now or amend/defer?`. Do not execute the resolved
+     completion branch.
+
+     **Resolved completion branch:** Finalize the task completion and report it through the ordinary task interlock.
 
      - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
        prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.

@@ -94,6 +94,10 @@ function findMemberTaskOrderIssue(
     .sort((left, right) => left - right));
   const offendingMemberIndices = new Set<number>();
 
+  for (const [memberIndex, taskIds] of input.memberTaskIds.entries()) {
+    if (taskIds.length === 0) offendingMemberIndices.add(memberIndex);
+  }
+
   for (const [memberIndex, positions] of positionsByMember.entries()) {
     for (let index = 1; index < positions.length; index += 1) {
       const previous = positions[index - 1];

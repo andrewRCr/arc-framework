@@ -729,7 +729,7 @@ describe("arc delivery", () => {
     await git(repository, ["commit", "-m", [
       "branch contribution",
       "",
-      "Context: tasks-demo.md (Task 9.9.a)",
+      "Context: tasks-demo.md (Tasks 1.1, 9.9.a)",
     ].join("\n")]);
     const head = await git(repository, ["rev-parse", "HEAD"]);
 
@@ -786,7 +786,6 @@ describe("arc delivery", () => {
       value: {
         advisories: [
           { kind: "unresolved-task-reference", commit: head, taskId: "9.9.a" },
-          { kind: "uncovered-implementation-task", taskId: "1.1" },
         ],
       },
     });
@@ -817,7 +816,6 @@ describe("arc delivery", () => {
         recoveredCleanup: true,
         advisories: [
           { kind: "unresolved-task-reference", commit: head, taskId: "9.9.a" },
-          { kind: "uncovered-implementation-task", taskId: "1.1" },
         ],
       },
     });
@@ -873,7 +871,7 @@ describe("arc delivery", () => {
   });
 
   it.each([SEVEN_MEMBER_FIELD_RUN, ROLLING_FIELD_RUN])(
-    "reconstructs the recorded $workUnitId plan shape from landed evidence through the built CLI",
+    "refuses the recorded $workUnitId plan without closing task evidence",
     async (run) => {
       await installTaskFixture(repository);
       await writeDesignInventory(repository);
@@ -928,22 +926,15 @@ describe("arc delivery", () => {
       );
       expect(authorSlots).not.toMatch(/"status"\s*:/u);
       const compose = await runArc(["delivery", "compose", "--json"], repository);
-      expect(compose.exitCode, compose.stdout + compose.stderr).toBe(0);
-
-      const planName = (await readdir(join(common, "arc", "delivery", "plans")))[0];
-      expect(planName).toBeDefined();
-      if (planName === undefined) return;
-      const plan = JSON.parse(await readFile(join(common, "arc", "delivery", "plans", planName), "utf8")) as {
-        members: { chunkKey: string; deliverableId: string; taskIds: string[] }[];
-        seams: { seamKey: string; ownerDeliverableId: string }[];
-      };
-      expect(plan.members.map((member) => member.chunkKey))
-        .toEqual(run.members.map((member) => member.chunkKey));
-      expect(plan.members.every((member) => member.taskIds.length === 0)).toBe(true);
-      for (const [index, seam] of adjacentFieldSeams(run).entries()) {
-        expect(plan.seams.find((candidate) => candidate.seamKey === seam.seamKey)?.ownerDeliverableId)
-          .toBe(plan.members[index + 1]?.deliverableId);
-      }
+      expect(compose.exitCode).toBe(1);
+      expect(JSON.parse(compose.stdout)).toMatchObject({
+        status: "refused",
+        reason: "coverage-refused",
+        issues: [{
+          kind: "member-task-order",
+          memberIndices: run.members.map((_, index) => index),
+        }],
+      });
     },
   );
 

@@ -426,10 +426,11 @@ Before implementing in a codified domain, follow the [STRATEGY-INDEX][strategy-i
 
 ### Method and extension loading
 
-A workflow's `arc.methods` / `arc.extensions` frontmatter is an **index of what the workflow may fire**, not a
-preload list. Load a declared method or extension when the workflow reaches its fire-point — the callout, signature
-block, or extension marker that invokes it — and not before. A declaration the current path never reaches is not a
-reason to load it. Don't proceed from intuition at a fire-point when the declared content is one read away.
+A workflow's `arc.methods` / `arc.extensions` frontmatter is an **index of what that workflow may fire**, not a
+preload list. A method's own `arc.methods` field analogously indexes methods its default or override may fire; callers
+never redeclare those dependencies. Load declared content only when its direct consumer reaches the callout,
+signature block, extension marker, or other fire-point that invokes it. A declaration the current path never reaches
+is not a reason to load it. Don't proceed from intuition at a fire-point when the declared content is one read away.
 
 When a loaded method carries a populated `.override`, follow its `override-mode`: `replace` (the default; absent
 ⇒ this) supersedes `.default`, while `extend` applies `.default` first and then the override on top.

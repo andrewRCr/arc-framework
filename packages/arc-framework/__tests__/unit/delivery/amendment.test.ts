@@ -243,7 +243,7 @@ describe("classifyDeliveryPlanAmendment", () => {
 
     const movedCoverage = successor(current, (authoring) => {
       const movedTask = authoring.members[1]!.taskIds[0]!;
-      authoring.members[1]!.taskIds = [];
+      authoring.members[1]!.taskIds = [authoring.members[0]!.taskIds.at(-1)!];
       authoring.members[2]!.taskIds = [...authoring.members[2]!.taskIds, movedTask];
     });
     expect(classify({ current, proposed: movedCoverage, bound: [secondId] })).toEqual({

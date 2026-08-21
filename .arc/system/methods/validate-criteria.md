@@ -1,6 +1,9 @@
 ---
 name: validate-criteria
 description: Evidence-led success-criteria validation over an explicit member or work-unit scope.
+arc:
+  methods:
+    - adversarial-review
 related:
   - adversarial-review
 override-active: false
