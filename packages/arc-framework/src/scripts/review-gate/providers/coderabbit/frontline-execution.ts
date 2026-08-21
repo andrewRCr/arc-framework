@@ -56,7 +56,7 @@ function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise
 }
 
 /**
- * Execute the pinned structured adapter against one exact diff base and normalize its truthful outcome.
+ * Execute the structurally qualified adapter against one exact diff base and normalize its truthful outcome.
  *
  * @param input - Resolved CodeRabbit source, exact target, pass, and immutable checkout.
  * @param dependencies - Executable resolution and direct process ports.
