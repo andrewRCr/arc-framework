@@ -13,13 +13,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                         | Priority | Owner  | Depends on | Cohort                    |
-| ---------- | --------------------------------- | -------- | ------ | ---------- | ------------------------- |
-| `Planning` | delivery-native-stack-composition | P1       | andrew | —          | chunked-delivery          |
-| `Planning` | review-signal-convergence         | P1       | andrew | —          | review-protocol-alignment |
-| `Planning` | decomposition-doctrine            | P1       | andrew | —          | —                         |
-| `Planning` | review-checkout-lifecycle         | P1       | andrew | —          | —                         |
-| `Planning` | stub-mint-to-launch               | P1       | andrew | —          | —                         |
+| State      | Work unit                         | Priority | Owner  | Depends on                                            | Cohort                    |
+| ---------- | --------------------------------- | -------- | ------ | ----------------------------------------------------- | ------------------------- |
+| `Planning` | delivery-native-stack-composition | P1       | andrew | —                                                     | chunked-delivery          |
+| `Planning` | review-signal-convergence         | P1       | andrew | —                                                     | review-protocol-alignment |
+| `Planning` | decomposition-doctrine            | P1       | andrew | decompose-extraction, decompose-conservation-coverage | —                         |
+| `Planning` | review-checkout-lifecycle         | P1       | andrew | —                                                     | —                         |
+| `Planning` | stub-mint-to-launch               | P1       | andrew | —                                                     | —                         |
 
 ## Ready
 

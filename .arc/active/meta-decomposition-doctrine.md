@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/decomposition-doctrine` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `decompose-extraction`, `decompose-conservation-coverage`
 
 - **Origin:** [internal]
 - **Design:** `draft-decomposition-doctrine.md`
@@ -13,13 +13,14 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** Draft reworked to five deliverables and `Class` ratcheted to `Heavy`; program sequencing
-  recorded.
+- **Last Completed:** Draft re-grounded against the merged base (chassis reconcile, machinery re-derivation, nine
+  held captures drained); machinery residuals recorded as dependency edges.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue `draft-design` — settle the four open decisions in
-  `draft-decomposition-doctrine.md` § Unknowns; the draft is `maturing`, not formalization-ready.
+- **Next Action:** Paused pending `Depends On` discharge (`arc wu reconcile` flags it). On resume, settle
+  § Boundary-read axes and the bound formulation in `draft-decomposition-doctrine.md`, then re-run
+  `assess-draft-readiness`; the draft is `maturing`, not formalization-ready.
 
 - **PR URL:** [none]
 - **Completed:** [none]
