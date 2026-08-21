@@ -3,7 +3,7 @@
   "slug": "allow-review-fix-response-persistence-for-errands",
   "claimId": "89a0ec1754484b86847111c98fdec9f7",
   "createdAt": "2026-08-21T16:13:11.932Z",
-  "updatedAt": "2026-08-21T16:13:11.932Z",
+  "updatedAt": "2026-08-21T17:30:32.822Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Allow approved review-fix responses to persist and replay for exact Errand vehicles without requiring a Work Unit Candidate.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Allow review-fix response persistence for Errands",
   "originEntrySourceDigest": "sha256:2a71b5c68df002aa00088b45e6fc7b1c80b27147f5769dc2647e5cb5b6253a1e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/allow-review-fix-response-persistence-for-errands",
+    "headSha": "63d1b7b5099234a131dc327c6d27336ecf83bd0d"
+  }
 }
