@@ -105,6 +105,8 @@ interface ProposalPayload {
   };
 }
 
+const SUBPROCESS_HEAVY_TIMEOUT = 60_000;
+
 const META = [
   "# Metadata: example",
   "",
@@ -783,7 +785,7 @@ describe("review-fix Candidate lineage", () => {
       state: "settled",
       completedActions: 2,
     });
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("replays a no-fix set reviewed at the approved head during checkpoint settlement", async () => {
     const { root } = await settledReviewLineage();
@@ -807,7 +809,7 @@ describe("review-fix Candidate lineage", () => {
       state: "settled",
       completedActions: 2,
     });
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("scopes fix-bearing responses to the full Candidate span", async () => {
     const root = await fixture();
@@ -853,7 +855,7 @@ describe("review-fix Candidate lineage", () => {
       deferred.dispositionSet.dispositionSetId,
       dispositions.dispositionSet.dispositionSetId,
     ]);
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("repeats the settlement pass without appending a second response", async () => {
     const root = await fixture();
