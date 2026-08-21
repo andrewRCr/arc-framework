@@ -192,7 +192,9 @@ interlock authority and drops whole-stack serialization.
   (D1.2's adoption form — the recut suffix is re-authored from top content, so the subset guard holds); the
   version-checked state rebind; and member-scope re-verification **scoped by the D4 arbiter's verdicts** — only a
   member whose contribution actually changed re-walks, and a tree-equal carried member re-verifies nothing. Tier 1
-  gates re-run per the existing after-fix rule. No step introduces an attended stop beyond the finding-disposition
+  gates re-run per the existing after-fix rule. The tail is typed-verb work — it composes through the
+  rematerialization and reconcile services and their returned next actions (D10.3's dispatch-shape constraint),
+  never a git-mechanics narration in prose. No step introduces an attended stop beyond the finding-disposition
   approval that triggered it.
 
 ### D3 — Terminal integration: a typed delivery arm of the checkpoint spine
@@ -210,12 +212,18 @@ attestation semantics.
 
 - **D3.1 Terminal claim composition.** The arm composes the terminal claim from three existing records rather than
   the single-subject digest equality the singleton path uses: the attestation record, the delivery state's exact
-  bound member heads, and a residual comparison against the plan's terminal member, reusing the eligibility
-  comparator's content-comparison machinery.
+  bound member heads, and a residual derivation composed from those two — the claim is that the attested union
+  tree minus the exactly-bound landed members' contributions equals the top's terminal delta, compared as exact
+  trees or contributions through the eligibility comparator's content-comparison machinery. The comparison
+  referent is derived, never read from the plan: plan members are intent-only records carrying no tree or
+  coordinates, and under D1.6 the terminal's content-bearing ref is the top itself, so a naive "compare against
+  the plan's terminal member" resolves to intent or to self-reference. The v1 residual proof is that
+  self-reference — it passes identical before/after coordinates into the comparator and trivially accepts — and
+  it retires with D3.7's machinery; the arm's residual check is new composition, not inherited behavior.
 - **D3.2 What it verifies.** Four checks: that the boundary's candidate is the delivery's currently bound
   publication candidate (D2.4's rebind refreshes the binding as the window moves); that every non-terminal member
   landed at its exact bound head; that the terminal residual carries no
-  unexplained delta against the plan's terminal member — exact trees or contributions, per the cohort floor; and
+  unexplained delta under D3.1's derivation — exact trees or contributions, per the cohort floor; and
   that the work-unit review obligation is discharged as the **conjunction of member reviews** (D8.2), not by the
   top's own review alone. The fourth check is load-bearing: the shipped composition derives its hosted-review
   requirement from exactly one target — the current branch's open change request — and under D1.6 that request is
@@ -228,11 +236,18 @@ attestation semantics.
   change-request resolution refuses a mismatched base upstream and the composition throws before reaching it
   (D11.3). D11 owns the substrate change; this element owns only the expectation the delivery arm asserts.
 - **D3.4 Top retarget: verify plus typed remedy.** The host retargets a dependent pull request to the merged
-  request's base only when the merged head branch is deleted, which is repository policy. The arm therefore
-  observes the top's base at the terminal boundary and, when it is not the protected base, refuses with a typed
-  refusal carrying one explicit guarded remedy: retarget the top pull request's base to the protected base.
-  Retargeting a pull request's base rewrites no ref, so D1.3's append-only contract is untouched. The remedy is
-  offered, never auto-applied, and the refusal is fail-closed.
+  request's base only when the merged head branch is deleted — and the deleting actor is ARC itself: the
+  per-member teardown that removes a landed member's remote ref runs in the landing loop, so tearing down the
+  highest non-terminal member deletes the branch the top's open pull request is based on. Two host outcomes exist
+  and both are designed for: the automatic retarget, and the host closing the dependent request instead — the
+  remedy set therefore carries reopen-and-retarget alongside retarget, keyed off the change-request resolution's
+  `closed-unmerged` reading. Sequencing pre-empts the bad path: the highest non-terminal member's teardown defers
+  until the top's base is observed retargeted to the protected base (or runs in the terminal tail), never fired
+  blind in the landing loop. Which repository settings produce the automatic retarget stays the scheduled
+  empirical question; the design covers both answers rather than betting on one. The arm observes the top's base
+  at the terminal boundary and, when it is not the protected base, refuses with a typed refusal carrying the
+  applicable guarded remedy. Retargeting a pull request's base rewrites no ref, so D1.3's append-only contract is
+  untouched. Remedies are offered, never auto-applied, and the refusal is fail-closed.
 - **D3.5 Unchanged guarantees.** Exact-head pinning, the integration interlock, and the refusal posture are
   unchanged.
 - **D3.6 Window-time drift.** Drift absorbed by the top's predecessor merges is fail-closed at the same seam.
@@ -288,10 +303,12 @@ arbiter — the Gerrit trivial-rebase test.
   (`suffix-rematerialization.ts`, reached by `arc delivery rematerialize`) is the review-fix path and is neither
   retired by D3.7 nor listed in D4.6's retired substrate — it survives, with the top branch replacing the control
   branch as its authoring locus. Its `direct-delivery-ref` guard refuses any snapshot member whose ref is already
-  under `refs/heads/delivery/`, which held when snapshots came from disposable candidate refs. Under D1.1 member
-  branches are first-class refs in that namespace, so implementation must settle whether that guard still
-  discriminates the case it was written for — it inspects the authoring candidate refs rather than the persisted
-  state refs, so the answer turns on whether v2 retains a separate authoring-ref stage. **Each recut does add a
+  under `refs/heads/delivery/`, which held when snapshots came from disposable candidate refs. That question is
+  settled here, consistently with D9.4: v2 retains the authoring-candidate stage — materialization and recut both
+  author from candidate refs before publishing into the delivery namespace — and authoring candidates stay
+  outside `refs/heads/delivery/`, so the guard keeps discriminating exactly the case it was written for (it
+  inspects the authoring candidate refs, not the persisted state refs; D1.1's first-class refs are the published
+  members, never the candidates). **Each recut does add a
   further ancestry merge to the top**, and that is determined rather than open: D1.2's invariant is that the top's
   diff against the highest member is exactly the residual, so once a recut re-authors the suffix the top must
   ancestry-merge the new highest head or D3.2's residual check cannot pass. That cost is named in the ceremony
@@ -386,7 +403,9 @@ arbiter — the Gerrit trivial-rebase test.
   authority.
 - **D6.10 Registration states its own consequence.** Registration is already operator-opt-in and makes zero host
   calls when declined — concretely, the opt-in is the `optIn` field on the native-link request (no CLI flag or
-  config key exists), so the consequence disclosure below lands in the workflow prose that composes that request.
+  config key exists), so the consequence disclosure below lands at the decision point in the workflow prose that
+  composes that request — with the disclosure text itself precomposed CLI-side on the native-link surface per the
+  `recommended*Text` pattern, rendered by prose, never templated in it.
   Because the native arms rewrite the remaining suffix while the unlinked path only retargets (D8.6), the
   registration decision is where review-invalidation cost is incurred, so it carries that consequence
   at the decision point — the same posture D5.1 already commits to for drift decisions, applied at one more point
@@ -495,8 +514,14 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   singleton case, a delivery marker here). Member targets **derive fresh from the delivery state's bound members
   at each discharge read** (the consult D11.4 names), never stored as a target list and never walked by a mutating
   pointer — facts re-derive per D9.1. The discharge projection gains an iterate-and-conjoin mode over those
-  derived targets, each evaluated against its own bound head and span. Per-member admission needs no new
-  substrate: the delivery-member vehicle and head-keyed member lookup shipped with v1.
+  derived targets, each evaluated against its own bound head and span. Per-member **readiness** admission shipped
+  with v1 — the delivery-member vehicle and head-keyed member lookup. The hosted-**request** path is rework, named
+  at the usual granularity: it carries three current-checkout bindings that each refuse a member request today —
+  local-review-target head equality, change-request resolution against the configured base (D11.3's subject), and
+  the reservation-admission guard binding the Candidate's head, which is the top, not the member — and its
+  vehicle and reservation arms are disjoint (the vehicle arm never reads the carried reservation; the reservation
+  arm takes no vehicle). The delivery-member arm therefore composes against the carried reservation, and the
+  Candidate-head binding becomes vehicle-typed alongside the target resolution above.
 - **D8.2 Discharge.** The work-unit obligation discharges as the conjunction of member reviews — the same reviews
   the delivery's per-member admission already requires. One review system, not two.
 - **D8.3 Excluded by construction.** No pull request presents the union delta in a stack, so a top-only resumption
@@ -608,10 +633,20 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       structural carry-forward into the attestation lineage as a deliberate authority-semantics amendment;
     - the raw-Stacks-API registration decision (D6.6) as a worked instance of the same stance — typed fail-closed
       host surfaces over silently-repairing porcelain — rather than its own record.
-- **D10.3 Workflow prose.** `deliver-stack.md` re-authors its terminal-handoff section around D3 and its
-  materialize / publish sections around D1 and D2.2. `integrate-work-unit.md` drops the post-merge terminal
-  attachment step per D3.7. Both are shipped workflows, so each changes in the package source and the project copy
-  together. The task-generation and work-unit-verification workflows change under D7.5.
+- **D10.3 Workflow prose.** `deliver-stack.md` re-authors its terminal-handoff section around D3, its
+  materialize / publish sections around D1 and D2.2, its landing-loop teardown step around D3.4's sequencing (the
+  highest non-terminal member's teardown defers behind the observed top retarget), and its member-review section
+  around D8 — driving the
+  carried hosted reservation per member through the delivery-member vehicle and the same typed request / await /
+  settle driver; today that section never mentions the reservation. `integrate-work-unit.md` drops the post-merge
+  terminal attachment step per D3.7, and its reservation loop — today's only reservation-driving prose, and
+  singular — becomes delivery-aware: per-member requests during the window, with the conjunction read at the
+  terminal boundary supplied by D11.4's typed discharge, never derived in prose. All new and re-authored prose
+  stays dispatch-shaped per the existing posture (the CLI's returned next action selects the member; prose
+  implements no loop), and D2.4's mechanical tail composes through the existing rematerialization and reconcile
+  services and their returned next actions rather than narrating git mechanics. Both are shipped workflows, so
+  each changes in the package source and the project copy together. The task-generation and work-unit-verification
+  workflows change under D7.5.
 - **D10.4 Guard tests.** The terminal-workflow guard test retains eleven structural assertions over the
   terminal-attachment block; they will fail by name when D3.7 removes the disconnected terminal request — the
   intended signal. Retire or rewrite them deliberately. Any replacement guard is structural assertions over the
@@ -839,6 +874,21 @@ adapter, so no new technology is introduced. That section records Git as a prima
 version floor while `package.json` declares `engines.git >=2.45`; the document is stale on that point and the floor
 is confirmed present in the project's technical surface.
 
+Checked against `strategy-knowledge-evolution` § Self-Check (Placement of guidance content) and its _Extract on
+fan-in, not aesthetics_ principle for D10.1's minted strategy — passes as a fan-in extraction: the doctrine has no
+existing owner (the `strategy-work-organization` and `strategy-concurrent-work` charters exclude it, per D10.1's
+boundary), and multiple consumers already exist — the delivery and integration workflow prose, the shipped
+`integration-boundary-accuracy` posture, and `delivery-review-cardinality` — so the mint is forced by fan-in, not
+sized-to-grow aesthetics. Checked against `strategy-procedure-evolution` § Self-Check for the workflow-prose
+surfaces (D2.4, D7.5, D10.3) — passes under _If the CLI can compute it, the CLI computes it_ and _Verbs over
+mechanics_: comparison, classification, and remedy selection stay in typed verbs; prose dispatches on returned
+results and implements no loop (D10.3); the member-scope walk enters as a method parameter rather than a prose
+branch (D7.6); and D6.10's consequence disclosure precomposes CLI-side per its § Emitted text principle. Checked
+for forward compatibility against `draft-composable-workflows`: the `validate-criteria` shape — declaration plus
+marked fire-point — matches its validated-fire-site direction, D7.6's rejection of a sibling workflow is its
+fragment-substrate argument applied, and `deliver-stack` keeps the CLI-owned loop posture its loop rule requires —
+no dependency on the agenda compiler is taken.
+
 ## Success Criteria
 
 1. No retained control branch and no disconnected terminal pull request exist in any delivery path. The top member
@@ -848,8 +898,10 @@ is confirmed present in the project's technical surface.
    flow, with the delivery arm composing its claim from the attestation record, exact bound member heads, and the
    residual comparison (D3.1–D3.2).
 3. A top pull request whose base is not the protected base at the terminal boundary produces a typed refusal
-   carrying the retarget remedy, and the remedy resolves it (D3.4). A top whose base is a member branch during the
-   landing window does not refuse (D3.3).
+   carrying the applicable remedy — retarget, or reopen-and-retarget when the host closed the dependent request —
+   and the remedy resolves it; the highest non-terminal member's teardown does not fire before the top's base is
+   observed retargeted (D3.4). A top whose base is a member branch during the landing window does not refuse
+   (D3.3).
 4. A member mechanically rebased under a predecessor rewrite, with an unchanged semantic patch, is carried forward
    without attended acknowledgement. A member whose contribution genuinely conflicts under reapply refuses with the
    conflicted paths named, and a member whose provider result diverges without conflict refuses with the divergent

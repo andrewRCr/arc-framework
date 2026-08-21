@@ -201,8 +201,11 @@ the cohort itself closes and archives.
   The shared boundary checkpoint splits along the same line: `delivery-stack-topology` owns the checkpoint chassis
   (the re-chartered `assess-boundary-fit` read and its delivery arm); doctrine owns the split-decision discriminator
   it dispatches to.
-- Existing review contracts own obligation, applicability, findings, and clearance. The external
-  `delivery-slice-review-vehicle` owns the narrow vehicle binding that names a delivery member and exact head.
+- Existing review contracts own obligation, findings, and clearance. Review **applicability** across
+  non-substantive head movement is owned by `delivery-native-stack-composition` (its spec's projection). The
+  shipped `delivery-slice-review-vehicle` owns the narrow vehicle binding that names a delivery member and exact
+  head; `delivery-native-stack-composition` extends the hosted request vehicle with a delivery-member arm that
+  composes with that binding.
 - `integration-boundary-accuracy` and `integration-lane` own shared integration naming and final-window behavior.
 - Storage remains abstract and version checked; delivery records do not assume tracked `.arc/` files or branch-derived
   work-unit identity.
