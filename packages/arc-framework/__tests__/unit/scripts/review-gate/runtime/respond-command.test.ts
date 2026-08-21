@@ -23,7 +23,10 @@ import {
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
-import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import type {
+  FrontlineRunState,
+  LocalReviewState,
+} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import {
@@ -740,8 +743,8 @@ describe("review response command", () => {
       .rejects.toThrow("conflicting approved disposition record");
   });
 
-  it("loads frontline findings from the exact durable outcome and rejects non-findings", async () => {
-    const records = fixture();
+  it("materializes and settles frontline dispositions from exact durable operation context", async () => {
+    const records = fixture(errandVehicle);
     const source = {
       sourceId: "coderabbit-cli",
       kind: "command" as const,
@@ -775,32 +778,81 @@ describe("review response command", () => {
     });
     const deps = dependencies(records);
     deps.outcomeStore.readOutcome = async () => ({ version: 1, record, outcomeRef: durableRef });
-    const dispositions = approved({
+    const operation: FrontlineRunState = {
+      schemaVersion: 1,
+      semanticsVersion: "review-operation/v1",
+      kind: "frontline-run",
+      operationId: record.operationId,
+      updatedAt: "2026-07-23T17:00:00Z",
       targetId: records.target.targetId,
-      policyVersion: digest("frontline-policy"),
-      rubricVersion: "standard-review/v1",
-      rubricDigest: digest("frontline-rubric"),
       sourceIdentity: source.sourceId,
-      finding: records.finding,
+      generation: 0,
+      outcome: "findings",
+      passCount: 1,
+      policyVersion: digest("frontline-policy"),
+      sourceBindingId: digest("frontline-source-binding"),
+    };
+    deps.operationStore.readOperation = async () => ({ version: 1, state: operation });
+    deps.readCandidateLineage = async () => null;
+    const proposal = await respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "frontline", outcomeRef },
+      proposal: {
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["source:src/index.ts:7"],
+          disposition: "reject",
+          rationale: "The source does not support the reported issue.",
+          recommendation: "Reject the finding.",
+          openQuestions: [],
+        }],
+      },
+    }, deps);
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
+      payload: {
+        operationId: record.operationId,
+        proposal: {
+          dispositionSet: {
+            policyVersion: operation.policyVersion,
+            frontlineBinding: {
+              operationId: operation.operationId,
+              sourceBindingId: operation.sourceBindingId,
+              outcomeDigest: record.outcomeDigest,
+            },
+          },
+        },
+      },
     });
+    if (proposal.state !== "awaiting-approval") throw new Error("frontline proposal was not materialized");
+    expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricVersion");
+    expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricDigest");
 
+    const dispositions = approveDispositionState({
+      proposed: proposal.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T20:00:00Z",
+    });
     await expect(respondToReviewCommand({
       schemaVersion: 1,
       source: { kind: "frontline", outcomeRef },
       dispositions,
     }, deps)).resolves.toMatchObject({
-      state: "ready-to-fix",
-      payload: {
-        operationId: record.operationId,
-        reentryCommand: "frontline-resolve",
-        frontlineFollowUp: {
-          action: "follow-up-after-fix",
-          pass: 2,
-          maxPasses: 2,
-          nextCommand: "frontline-resolve",
-        },
-      },
+      state: "settled",
+      nextAction: "reduce",
+      payload: { operationId: record.operationId },
     });
+
+    deps.operationStore.readOperation = async () => ({
+      version: 2,
+      state: { ...operation, sourceBindingId: digest("changed-frontline-source-binding") },
+    });
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "frontline", outcomeRef },
+      dispositions,
+    }, deps)).rejects.toThrow("approved dispositions do not match the selected review source");
 
     const clean = createFrontlineOutcomeRecord({
       schemaVersion: 1,
@@ -818,11 +870,23 @@ describe("review response command", () => {
       }),
     });
     deps.outcomeStore.readOutcome = async () => ({ version: 1, record: clean, outcomeRef: durableRef });
+    deps.operationStore.readOperation = async () => ({
+      version: 3,
+      state: { ...operation, outcome: "clean" },
+    });
     await expect(respondToReviewCommand({
       schemaVersion: 1,
       source: { kind: "frontline", outcomeRef },
       dispositions,
     }, deps)).rejects.toThrow("requires a findings outcome");
+
+    deps.outcomeStore.readOutcome = async () => ({ version: 1, record, outcomeRef: durableRef });
+    deps.operationStore.readOperation = async () => ({ version: 0, state: null });
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "frontline", outcomeRef },
+      dispositions,
+    }, deps)).rejects.toThrow("frontline response operation is unavailable");
   });
 
   it.each([

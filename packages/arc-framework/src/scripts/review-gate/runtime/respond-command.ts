@@ -16,8 +16,10 @@ import {
   type ApprovedDispositionRecord,
 } from "../core/advisory-records.js";
 import {
+  dispositionSetMatchesSourceContext,
   reviewerDispositionSeverity,
   reviewerDispositionNit,
+  type DispositionSourceContext,
   type ProposedDispositionSet,
   type ApprovedDispositionSet,
 } from "../core/disposition-records.js";
@@ -192,9 +194,7 @@ interface ResolvedResponseSource {
   findings: FrontlineExecutionOutcome["findings"];
   sourceIdentity: string;
   source: ApprovedDispositionRecord["source"];
-  policyVersion?: string;
-  rubricVersion?: string;
-  rubricDigest?: string;
+  dispositionContext: DispositionSourceContext;
   actors: ResponseActors;
   frontlineOutcome?: FrontlineExecutionOutcome;
   hostedAttempt?: {
@@ -246,9 +246,7 @@ function validateFindings(
 ): void {
   const set = dispositions.dispositionSet;
   if (set.targetId !== source.target.targetId
-    || (source.policyVersion !== undefined && set.policyVersion !== source.policyVersion)
-    || (source.rubricVersion !== undefined && set.rubricVersion !== source.rubricVersion)
-    || (source.rubricDigest !== undefined && set.rubricDigest !== source.rubricDigest)
+    || !dispositionSetMatchesSourceContext(set, source.dispositionContext)
     || set.findings.length !== source.findings.length
     || !set.findings.every((item) => {
       const finding = source.findings.find((candidate) => candidate.findingId === item.findingId);
@@ -266,11 +264,6 @@ function prepareDispositionProposal(
   request: z.infer<typeof RespondProposalRequestSchema>,
   source: ResolvedResponseSource,
 ): ProposedDispositionSet {
-  if (source.policyVersion === undefined
-    || source.rubricVersion === undefined
-    || source.rubricDigest === undefined) {
-    throw new RespondCommandError("corrupt-state", "local response source lacks disposition context");
-  }
   if (request.proposal.findings.length !== source.findings.length) {
     throw new RespondCommandError("invalid-input", "proposal must disposition every selected-source finding");
   }
@@ -324,14 +317,22 @@ function prepareDispositionProposal(
           arcSeverity: severity,
         };
   });
+  const dispositionContext = source.dispositionContext.kind === "rubric"
+    ? {
+        policyVersion: source.dispositionContext.policyVersion,
+        rubricVersion: source.dispositionContext.rubricVersion,
+        rubricDigest: source.dispositionContext.rubricDigest,
+      }
+    : {
+        policyVersion: source.dispositionContext.policyVersion,
+        frontlineBinding: source.dispositionContext.frontlineBinding,
+      };
   try {
     return proposeDispositionSet(createDispositionSet({
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: source.target.targetId,
-      policyVersion: source.policyVersion,
-      rubricVersion: source.rubricVersion,
-      rubricDigest: source.rubricDigest,
+      ...dispositionContext,
       proposedBy: source.actors.proposerIdentity,
       findings,
     }));
@@ -382,9 +383,12 @@ async function resolveLocalSource(
       receiptRef: request.receiptRef,
       localSourceRef: state.sourceRef,
     },
-    policyVersion: state.policyVersion,
-    rubricVersion: state.requirement.rubricVersion,
-    rubricDigest: state.requirement.rubricDigest,
+    dispositionContext: {
+      kind: "rubric",
+      policyVersion: state.policyVersion,
+      rubricVersion: state.requirement.rubricVersion,
+      rubricDigest: state.requirement.rubricDigest,
+    },
     actors,
   };
 }
@@ -394,13 +398,28 @@ async function resolveFrontlineSource(
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
   const reference = parseSourceReference(request.outcomeRef, "frontline");
-  const persisted = await dependencies.outcomeStore.readOutcome(reference.operationId);
-  if (persisted.record === null
-    || persisted.outcomeRef !== reference.durableRef
-    || persisted.record.operationId !== reference.operationId) {
+  const [persistedOutcome, persistedOperation] = await Promise.all([
+    dependencies.outcomeStore.readOutcome(reference.operationId),
+    dependencies.operationStore.readOperation(reference.operationId),
+  ]);
+  if (persistedOutcome.record === null
+    || persistedOutcome.outcomeRef !== reference.durableRef
+    || persistedOutcome.record.operationId !== reference.operationId) {
     throw new RespondCommandError("corrupt-state", "frontline response outcome is unavailable");
   }
-  const record = FrontlineOutcomeRecordSchema.parse(persisted.record);
+  if (persistedOperation.state === null
+    || persistedOperation.state.kind !== "frontline-run"
+    || persistedOperation.state.operationId !== reference.operationId) {
+    throw new RespondCommandError("corrupt-state", "frontline response operation is unavailable");
+  }
+  const record = FrontlineOutcomeRecordSchema.parse(persistedOutcome.record);
+  const state = persistedOperation.state;
+  if (state.targetId !== record.outcome.target.targetId
+    || state.sourceIdentity !== record.sourceIdentity
+    || state.outcome !== record.outcome.outcome
+    || state.passCount !== record.outcome.pass) {
+    throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
+  }
   if (record.outcome.outcome !== "findings") {
     throw new RespondCommandError("invalid-input", "frontline response requires a findings outcome");
   }
@@ -411,6 +430,15 @@ async function resolveFrontlineSource(
     findings: record.outcome.findings,
     sourceIdentity: record.sourceIdentity,
     source: { kind: "frontline", outcomeRef: request.outcomeRef },
+    dispositionContext: {
+      kind: "frontline",
+      policyVersion: state.policyVersion,
+      frontlineBinding: {
+        operationId: state.operationId,
+        sourceBindingId: state.sourceBindingId,
+        outcomeDigest: record.outcomeDigest,
+      },
+    },
     actors: await dependencies.resolveFrontlineActors(),
     frontlineOutcome: record.outcome,
   };
@@ -453,9 +481,12 @@ async function resolveHostedSource(
     })),
     sourceIdentity: attempt.sourceId,
     source: { kind: "hosted", attemptRef: request.attemptRef },
-    policyVersion: attempt.hosted.requirement.policyVersion,
-    rubricVersion: attempt.hosted.requirement.rubricVersion,
-    rubricDigest: attempt.hosted.requirement.rubricDigest,
+    dispositionContext: {
+      kind: "rubric",
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+    },
     actors: await dependencies.resolveFrontlineActors(),
     hostedAttempt: {
       operationId: persisted.state.operationId,
