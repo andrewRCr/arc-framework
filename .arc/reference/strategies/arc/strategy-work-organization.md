@@ -578,7 +578,8 @@ its depth selects — lives downstream of this strategy.
    lifecycle.
 
 2. **Task list structure is invariant across `Class`.** When a task list exists, its shape is fixed
-   — phase headings, leaf task format, completion markers, Success Criteria section. `Class`-scaled
+   — phase headings, leaf task format, completion markers, Success Criteria section. Grouping criteria beneath
+   delivery-member and seam headings is part of that fixed section shape, not a departure from it. `Class`-scaled
    ceremony varies the artifact's presence and rigor; the structural shape stays uniform.
 
 3. **A parseable spec exists in some form before task-list generation.** Spec form varies by mode

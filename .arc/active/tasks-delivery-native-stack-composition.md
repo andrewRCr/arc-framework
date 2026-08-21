@@ -123,86 +123,60 @@ copy together.
           `validate-criteria: { scope: { kind: delivery-member, criteria: member group, diff: bounded member diff,
           reachability: cumulative member tree } }`.
 
-### `[ ]` **1.3 Specify the member-grouped Success Criteria grammar and its indent constraint**
+### `[x]` **1.3 Specify the member-grouped Success Criteria grammar and its indent constraint**
 
 - _Goal:_ A task list may group its success criteria by delivery member under plain `###` subheadings plus one
   cross-member seam group, and the shape that silently breaks the scanner is written down rather than rediscovered.
 
-- _Context:_ The section is specified today as a flat list — one criterion per Scope "Will Do" item. Grouping
-  changes the strategy's Success Criteria section and the template block.
+    - `[x]` **1.3.a Write the grouped-criteria grammar into the formatting strategy**
 
-- _Shape:_ Headings group; indentation must not. A criterion checkbox at root is valid. Two or three leading
-  spaces parse as inert content and silently drop out of the walk; four or more hard-refuse the whole task list as
-  a subtask with no open parent. A root checkbox whose body opens with a task-ID-like token refuses rather than
-  being mistaken for a criterion.
+        - The strategy now specifies member and seam headings, root-indent-only criteria, every scanner refusal,
+          the single-deliverable flat form, and `validate-criteria` as state and immutability authority.
 
-    - `[ ]` **1.3.a Write the grouped-criteria grammar into the formatting strategy**
+    - `[x]` **1.3.b Carry the block into the task template**
 
-        - `strategy-task-list-formatting.md` § Success Criteria Section — grouping by member, the seam group
-          carrying the standard items, and the indent constraint with its refusal outcomes
-        - The section points at `validate-criteria` for the three states and the immutable-criterion-text rule
-          rather than restating them, so one authority carries the walk's vocabulary
-        - A single-deliverable work unit has one group and renders as today's flat list
+        - The task template renders a member group plus cross-member seams and explains when to retain flat form.
 
-    - `[ ]` **1.3.b Carry the block into the task template**
+    - `[x]` **1.3.c Record the assignment rule**
 
-        - `template-tasks.md` Success Criteria block shows the grouped form and the seam group
+        - Criteria now route to the earliest boundary that can see their evidence, otherwise to cross-member seams.
 
-    - `[ ]` **1.3.c Record the assignment rule**
+- _Outcome:_ The shipped authoring contract makes headings the only grouping mechanism and states the silent-drop,
+  hard-refusal, and task-like-root refusal cases that protect criteria reachability.
 
-        - Assignment follows the earliest boundary whose validator can see the evidence; a criterion no member
-          boundary can see defaults to the seam group
-
-### `[ ]` **1.4 Specify delivery-member phase metadata and the member closing-task shape**
+### `[x]` **1.4 Specify delivery-member phase metadata and the member closing-task shape**
 
 - _Goal:_ A reader can tell which delivery member a phase belongs to without leaving the phase, and the closing
   task that fires the member-scope walk has one written shape rather than a per-author invention.
 
-- _Rationale:_ Members bind per task and adjacent members may share one, so the pointer must not assert a
-  phase-to-member correspondence. A bold pointer line carries the stable ordinal and chunk key; the phase heading
-  stays clean because it is the outline-pane navigation surface.
+    - `[x]` **1.4.a Specify the phase-preamble delivery-member pointer**
 
-- _Note:_ The pre-save checklist currently reads "Phase preambles open with `_Purpose:_` line". That ordering is
-  prose-only — no scanner, descriptor lint, or inventory reads preamble order — and this task is what makes the
-  metadata-first shape legitimate.
+        - The pointer is the first preamble line, carries stable ordinal and chunk key, and remains reader context;
+          task coverage — not the phase — owns member assignment.
 
-    - `[ ]` **1.4.a Specify the phase-preamble delivery-member pointer**
+    - `[x]` **1.4.b Specify the member closing task**
 
-        - `strategy-task-list-formatting.md` § Phase Preamble — `**Delivery member:**` as the first preamble
-          line when a delivery plan is present, then the required `_Purpose:_` line
-        - Bold, matching the `**Additional Context:**` precedent for a pointer among italic descriptors
-        - Carries the stable ordinal and chunk key, never the free-text member title
+        - Member ranges close with ordinary implementation parents assigned through coverage, leaving the one
+          terminal Verification task unassigned and adding no phases.
 
-    - `[ ]` **1.4.b Specify the member closing task**
+    - `[x]` **1.4.c Update the task-generation workflow to emit both**
 
-        - An ordinary implementation parent task with a goal like any other, assigned to its member in the
-          coverage table — never a second verification task
-        - The delivery task inventory requires the final phase to be titled `Verification` with exactly one
-          parent after it, and coverage treats a verification task assigned to a member as blocking, so the
-          terminal contract is untouched and member validation adds no phases
+        - Both generation surfaces now emit pointers, closing tasks, grouped criteria, and matching pre-save checks.
 
-    - `[ ]` **1.4.c Update the task-generation workflow to emit both**
+- _Outcome:_ Delivery metadata now appears where task readers need it without turning phases into assignment
+  authority or weakening the terminal verification contract.
 
-        - What it emits, and its pre-save format checklist, in `generate-tasks.template.md` and the project copy
-        - The checklist's phase-preamble item admits the delivery-member pointer ahead of `_Purpose:_`
-
-### `[ ]` **1.5 Relax the task-list invariance clause and preserve member subgroups through cleanup**
+### `[x]` **1.5 Relax the task-list invariance clause and preserve member subgroups through cleanup**
 
 - _Goal:_ The two guards that would otherwise forbid or strip member subgroups admit them instead.
 
-- _Context:_ The work-organization invariance clause declares the Success Criteria section's shape fixed, which
-  forbids the grouping outright. Separately, the cleanup workflow's section-level triage enumerates `###` headings
-  as per-heading decision units against a preserve list that names `Success Criteria` but not its subgroups — so
-  member subgroups are not merely unlisted but squarely in scope for non-standard-section removal.
+    - `[x]` **1.5.a Admit member grouping in the invariance clause**
 
-    - `[ ]` **1.5.a Admit member grouping in the invariance clause**
+        - The invariant now treats delivery-member and seam grouping as part of the fixed Success Criteria shape.
 
-        - `strategy-work-organization.md` § Spec-Flow Invariants — the section remains required and its criterion
-          shape fixed; grouping within it is not a departure
+    - `[x]` **1.5.b Add member subgroups to the cleanup preserve list**
 
-    - `[ ]` **1.5.b Add member subgroups to the cleanup preserve list**
-
-        - `clean-work-unit.md` Step A preserve list names member subgroups explicitly, so triage keeps them
+        - Cleanup now preserves delivery-member and cross-member seam subgroups with the Success Criteria section.
 
 ### `[ ]` **1.6 Validate member order and contiguity in the delivery task inventory**
 
