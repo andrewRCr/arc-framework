@@ -1,14 +1,14 @@
-# Metadata: review-orchestration-right-sizing
+# Metadata: locus-claim-revalidation
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-review-orchestration-right-sizing.md`
+- **Design:** `draft-locus-claim-revalidation.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

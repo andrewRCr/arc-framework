@@ -16,6 +16,18 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Prevent local-ref residue from outranking an archived Shipped record**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20); confirmed by teardown on 2026-08-15.
+- _Concern:_ readiness composition merges local-ref oracle candidates with tree records so a lingering
+  `feat/<slug>` ref can emit Active over an authoritative `completed/` meta reading Shipped. ROADMAP regeneration
+  then resurrects shipped work and discharged dependency edges.
+- _Evidence:_ deleting the lingering branch immediately restored the correct Shipped result; delivery candidate
+  refs and temporary worktrees were inert to status. Their separate cleanup-driver gap is already owned by
+  `delivery-native-stack-composition`.
+- _Fold-in:_ make completed-and-Shipped tree evidence outrank generic local-ref candidates while surfacing the ref
+  as cleanup residue. Preserve legitimate in-flight authority and verify the dependency-discharge consumer.
+
 ### `[ ]` **Model draft-first review as a three-tier audience transition**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).

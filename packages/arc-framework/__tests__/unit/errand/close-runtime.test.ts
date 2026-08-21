@@ -66,6 +66,7 @@ function fakeGit(options: {
   const state = { local: options.local, remote: options.remote };
   const exec: GitExec = async (_command, args) => {
     if (args[0] === "fetch") {
+      if (args[1] === "--prune") return { stdout: "", stderr: "" };
       if (options.fetchFailure !== undefined) throw gitError(options.fetchFailure, 128);
       if (state.remote === null) throw gitError("fatal: couldn't find remote ref refs/heads/chore/done", 128);
       return { stdout: "", stderr: "" };

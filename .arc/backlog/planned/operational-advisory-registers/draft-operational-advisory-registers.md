@@ -7,6 +7,23 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concern pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`)._
+
+### `[ ]` **Remove internal vocabulary from user-facing session-init advisories**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-advisory-registers`), housekeep drain
+  (2026-08-20).
+- _Concern:_ routine session-init output leaks implementation terms such as `projection-mismatch`, locus diagnostics,
+  and topology-mismatch without conveying an operator action. Reconcile notices are paragraphs instead of routine
+  register clauses; expected notes drift is rendered as a wall; orientation prints a full absolute worktree path.
+- _Fold-in:_ make vocabulary accuracy its own deliverable beside cadence/register classification, with calm
+  one-line or silent expected-state rendering and operator-facing language for actionable faults.
+
+---
+
 ## Problem / Motivation
 
 Session-init and adjacent lifecycle surfaces emit an increasing number of conditional advisories. Under ordinary

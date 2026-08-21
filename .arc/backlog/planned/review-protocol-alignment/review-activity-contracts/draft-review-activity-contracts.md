@@ -12,6 +12,34 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Represent authorized incremental review without whole-target clearance**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ an operator-authorized exact-delta closure pass has no typed source for ordinary findings response
+  unless it falsely presents itself as managed whole-target review.
+- _Fold-in:_ bind exact base/head, direct-seam scope, evaluator evidence, and an explicit no-clearance property;
+  admit its findings to the ordinary disposition path without satisfying or weakening a full-final obligation.
+
+### `[ ]` **Carry review authorization across approved exact-head fixups**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (retargeted from `interlock-release-refinement`), housekeep drain
+  (2026-08-20).
+- _Concern:_ after the developer approved a provider review, its finding, the bounded fix, and the resulting commit,
+  the harness demanded another egress authorization merely because required re-review used a new exact head.
+- _Fold-in:_ preserve authorization when provider, repository, base, bounded path set, and review purpose remain
+  unchanged across an approved finding fix. The new exact head remains mandatory evidence; new providers, broader
+  exposure, unrelated or unapproved mutation, and ambiguity still stop.
+
+### `[ ]` **Right-size applicability and adversarial-pass calibration against live evidence**
+
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-20).
+- _Concern:_ the modal single-fix path performs a dominated per-increment applicability pass immediately before
+  converged Tier 3, while verification's optional adversarial pass found two material defect strata after two
+  self-verification passes claimed complete success and exhausted the configured Heavy cap.
+- _Fold-in:_ owe no applicability judgment when no review ran; skip the per-increment pass when it is already the
+  converging increment; retain the multi-increment case. Recalibrate activity posture and cap reporting so an
+  advisory/capped pass is not silently the only instrument performing load-bearing correctness work.
+
 ### `[ ]` **Consider per-WU scope-boundary awareness for hosted reviewers**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (resolved `WU_Target: review-activity-contracts`), housekeep drain

@@ -1,14 +1,14 @@
-# Metadata: review-orchestration-right-sizing
+# Metadata: package-project-development-sync
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-review-orchestration-right-sizing.md`
+- **Design:** `draft-package-project-development-sync.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

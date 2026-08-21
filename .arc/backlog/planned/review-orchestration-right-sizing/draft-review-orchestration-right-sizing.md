@@ -5,10 +5,8 @@
 - **Purpose:** Right-size the review gate's **orchestration layer** against its merge-safety core — cut
   ceremony that does not earn its cost while preserving exact-head identity, structural provenance, and
   the "reviewed head A, merged head B" failure prevention.
-- **State:** Draft — pre-groom capture (2026-07-27). Sequence **behind** `retrospective-right-sizing`
-  (that WU owns the remediation wrapper; this is its first real target). Do not start concurrent with the
-  live review-protocol stack (`review-protocol-alignment`, `review-checkout-lifecycle`,
-  `integration-boundary-accuracy`).
+- **State:** Draft — pre-groom capture (2026-07-27). Ready to ground independently; do not start concurrent with
+  the live review-protocol stack (`review-protocol-alignment`, `review-checkout-lifecycle`).
 - **Created:** 2026-07-27
 
 ---
@@ -16,6 +14,17 @@
 ## Inbound Buffer — Pending Integration
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Prune the interlock, status, discharge, and Candidate surfaces against their live readers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-08-20).
+- _Concern:_ the checkpoint carries hard-coded-clean signals and a permanently-null extension slot while omitting
+  review facts prose must remember; status duplicates host reads; hosted discharge is checkout-local despite host
+  evidence; Candidate stores a large per-path manifest over facts Git already carries; three wait policies diverge.
+- _Fold-in:_ compose only variable signals and required review facts, collapse host reads, prefer host-observed
+  discharge, re-encode Candidate subject identity proportionately, and state one bounded-wait policy. Consume
+  `host-policy-evidence`'s truthful host-read shape rather than pruning correctness work into this WU.
 
 ### `[ ]` **Drive heavy-CI deferral from effective lane state**
 
@@ -56,8 +65,8 @@ hosted review is one PR comment; hosted adapters inject no guidance.
 qualification, and admission machinery. These findings are a second wave — a signal about the layer rather
 than any single decision.
 
-**Scale note:** plausibly program-scale rather than WU-scale. Sequence behind `retrospective-right-sizing`
-and let this be its first real target.
+**Scale note:** plausibly program-scale rather than WU-scale. Resolve that boundary during planning rather than
+gating this concern on the provisional `retrospective-right-sizing` wrapper.
 
 **Coordination:** `review-protocol-alignment` sequenced its `D4` (schema registrations, `--schema` flag,
 routing-facts input path) last as a hedge — the unit most exposed if request contracts collapse under a
@@ -69,7 +78,8 @@ reduction. If this WU starts before that unit executes, that is the seam to talk
 
 - Audit orchestration ceremony against the merge-safety core criterion.
 - Propose a reduction that preserves exact-head lock and provenance separation.
-- Coordinate with `retrospective-right-sizing` for the remediation-wrapper path.
+- Leave this change available as a concrete future input if `retrospective-right-sizing` activates; it is not a
+  prerequisite for grounding or executing the reduction.
 
 ## Non-goals (provisional)
 
