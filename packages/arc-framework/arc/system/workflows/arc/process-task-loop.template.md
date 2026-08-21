@@ -65,7 +65,8 @@ arc:
          use judgment on whether changes warrant extra validation
      - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
        (established at session init), load and execute its [`.actions`][arc-ext-task-quality]. Otherwise, skip.
-     - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
+     - **Second**: Prepare the task's completion edit; apply the final `[x]` in item 4 after any coherent-unit and
+       delivery-member checks have completed
        - Update task description to reflect actual work done (not just original plan)
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
@@ -110,46 +111,9 @@ arc:
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
        - **Do not update `meta-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
          § Meta-file timing.
-     - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
-       list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
-       Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
-       sync task completion status — see [Team Coordination Strategy][team-coordination] § External Tracker
-       Integration.
-     - **Third**: Verify completion before reporting (use pre-report checklist below)
-     - **Fourth**: **REPORT** completed work to user with summary of changes
-     - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
-       - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
-           - **Prefix:** `Proceed` (default — `arc.commitInterlock: manual`) or
-             `Commit and proceed` (when `arc.commitInterlock ∈ {on-task-approval, on-workflow}`).
-           - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
-             task ends the phase) · `to prepare-work-unit` (verification complete — execution end).
-       - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
-         Under `Commit and proceed`, the affirmative covers both halves; `y; <redirect>` keeps
-         the commit and replaces only the advancement target (handoff, deferred range, and
-         prepare-work-unit are all valid retargets). A redirect that questions just-finished work
-         (`y; hold the commit`, `y; revisit X first`) breaks the bundle — pause and ask.
-       - **Implied permission:** User approval ("looks good", "proceed") implies permission to
-         continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
-         before moving on.
+     - **Third**: Verify the task work before the boundary checks below.
 
-     **Pre-Report Checklist** (verify before generating completion report):
-
-     ```
-     - [ ] Quality checks passed (linting, type checking, tests as appropriate)
-     - [ ] Task list markdown file edited and saved
-     - [ ] Task marked [x] in task list
-     - [ ] Task description updated to reflect actual work done
-     - [ ] Ready to generate user-facing completion report
-     ```
-
-     If any item is unchecked, complete it before proceeding. For quality gate failures: fix
-     obvious issues (lint, type errors) and re-run. A non-obvious failure is diagnosed before it
-     is posed — nobody declines a read-only diagnosis, and the fork that matters cannot be stated
-     until the cause is known. Investigate without changing anything, then end the completion
-     report with the structured-prompt variant `Quality gates failed: <details>. <cause>. Fix now
-     or defer? (fix / defer)`. Diagnosis that reaches no cause says so and asks for direction.
-
-     **Deferred review:** When the user explicitly requests continuation through a specific set
+     **Deferred-review policy for item 4:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
      Complete only the specified work — update the task list and run quality gates after each
@@ -191,25 +155,23 @@ arc:
      ends the deferred scope early and surfaces the issue to the user.
 
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
-     the last subtask under a parent (all subtasks now `[x]`), or a standalone task that modifies
-     cross-cutting code (shared services, middleware, configuration, API contracts) — follow this
-     additional sequence. Note: phase headers are
+     the last incomplete subtask under a parent, a standalone task that modifies
+     cross-cutting code (shared services, middleware, configuration, API contracts), or
+     the last task assigned to a delivery member — follow this additional sequence. Note: phase headers are
      organizational groupings, not trackable items — phase completion is implicit when all tasks
      within the phase are complete.
 
-    - **First**: Mark the **parent task** as `[x]` in the task list file if it has subtasks (ensures docs
-      reflect completion)
-    - **Second**: Ensure new code has appropriate test coverage for new or modified logic
-    - **Third**: Run quality gates — **Tier 2** — using the [quality-gate-commands method][arc-methods-qg]
+    - **First**: Ensure new code has appropriate test coverage for new or modified logic
+    - **Second**: Run quality gates — **Tier 2** — using the [quality-gate-commands method][arc-methods-qg]
     - **Extensions** · `#post-unit-quality`: If `post-unit-quality` appears in the active-extensions list
       (established at session init), load and execute its [`.actions`][arc-ext-unit-quality]. Otherwise, skip.
-    - **Fourth**: Verify completion before reporting (use pre-report checklist below)
+    - **Third**: Verify completion before reporting (use pre-report checklist below)
 
-  3. Report completion to user
-
-     **Delivery-member boundary (conditional):** When this is the last task assigned to a delivery member, run the
-     member's criteria walk before reporting. Record the returned evidence as ordinary task completion and leave
-     every Success Criteria checkbox unchanged for terminal verification.
+  3. **Delivery-member boundary (conditional):** When this is the last task assigned to a delivery member, run the
+     member's criteria walk after the coherent-unit checks and before completing or reporting the task. Record the
+     returned evidence as the task's ordinary completion outcome and leave every Success Criteria checkbox unchanged
+     for terminal verification. If the report contains an unresolved `[ ]`, leave the closing task open and surface
+     the gap at item 4.
 
      ```yaml
      validate-criteria:
@@ -220,23 +182,53 @@ arc:
          reachability: cumulative tree through this member
      ```
 
-     **Pre-Report Checklist for Coherent Unit Completion** (verify before reporting):
+  4. **Report and stop:** Finalize the task completion, then report through the shared interlock.
+
+     - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
+       prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.
+     - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
+       list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
+       Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
+       sync task completion status — see [Team Coordination Strategy][team-coordination] § External Tracker
+       Integration.
+     - **Second**: Verify completion against the pre-report checklist.
+
+     **Pre-Report Checklist** (verify before generating the completion report):
 
      ```
-     - [ ] All subtasks marked [x] (if parent task with subtasks) or standalone task marked [x]
-     - [ ] Parent task marked [x] in task list (if it has subtasks — phase headers don't get checkboxes)
+     - [ ] Quality checks passed (Tier 1, plus Tier 2 when item 2 applied)
      - [ ] Task list file edited and saved
-     - [ ] Tier 2 quality gates passed (per quality-gate-commands method)
+     - [ ] Task marked [x] and description updated to reflect actual work
+     - [ ] Member report recorded and Success Criteria unchanged (when item 3 applied)
      - [ ] Ready to report completion to user
      ```
 
-     If any item is unchecked, complete it before proceeding to report generation.
+     - **Third**: **REPORT** completed work to the user with a summary of changes.
+     - **Fourth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding.
+       - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
+           - **Prefix:** `Proceed` (default — `arc.commitInterlock: manual`) or
+             `Commit and proceed` (when `arc.commitInterlock ∈ {on-task-approval, on-workflow}`).
+           - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
+             task ends the phase) · `to prepare-work-unit` (verification complete — execution end).
+       - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
+         Under `Commit and proceed`, the affirmative covers both halves; `y; <redirect>` keeps
+         the commit and replaces only the advancement target (handoff, deferred range, and
+         prepare-work-unit are all valid retargets). A redirect that questions just-finished work
+         (`y; hold the commit`, `y; revisit X first`) breaks the bundle — pause and ask.
+       - **Implied permission:** User approval ("looks good", "proceed") implies permission to
+         continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
+         before moving on.
+
+     If any checklist item is unchecked, complete it before reporting. For quality gate failures: fix obvious
+     issues (lint, type errors) and re-run. Diagnose a non-obvious failure before posing it, then end the completion
+     report with `Quality gates failed: <details>. <cause>. Fix now or defer? (fix / defer)`. If diagnosis reaches
+     no cause, say so and ask for direction.
 
 > [!IMPORTANT]
 > `task-interlock`: Stop after reporting task completion. Surface verification status and await
 > approval before advancing.
 
-  4. Await user instructions on how to proceed.
+  5. Await user instructions on how to proceed.
      User may choose to commit changes or request modifications. Under
      `arc.commitInterlock: manual`, task approval advances work only; committing remains an
      explicit user-invoked action. Under `on-task-approval` (or `on-workflow`, which subsumes it),

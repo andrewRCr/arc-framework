@@ -61,19 +61,33 @@ describe("prepublication workflow boundary", () => {
 
   it("fires validate-criteria directly at work-unit and delivery-member boundaries", async () => {
     for (const root of ROOTS) {
-      const [verification, taskLoop] = await Promise.all([
+      const [verification, taskLoop, validateCriteria] = await Promise.all([
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
         readFile(resolve(root, root === ROOTS[0]
           ? "system/workflows/arc/process-task-loop.template.md"
           : "system/workflows/arc/process-task-loop.md"), "utf8"),
+        readFile(resolve(root, "system/methods/validate-criteria.md"), "utf8"),
       ]);
 
       expect(verification).toContain("    - validate-criteria");
       expect(verification).not.toContain("    - adversarial-review");
       expect(verification).toContain("validate-criteria:\n  scope:\n    kind: work-unit");
+      expect(verification).toContain("member-groups: recorded delivery-member criteria reports");
+      expect(verification).toContain("seams: task list's Cross-member seams group");
+      expect(verification).not.toContain("criteria: task list's complete Success Criteria section");
       expect(taskLoop).toContain("    - validate-criteria");
       expect(taskLoop).not.toContain("    - adversarial-review");
       expect(taskLoop).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
+      const coherentUnit = taskLoop.indexOf("2. **Coherent unit completion:**");
+      const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
+      const reportAndStop = taskLoop.indexOf("4. **Report and stop:**");
+      expect(coherentUnit).toBeGreaterThan(-1);
+      expect(memberBoundary).toBeGreaterThan(coherentUnit);
+      expect(reportAndStop).toBeGreaterThan(memberBoundary);
+      expect(taskLoop.slice(coherentUnit, memberBoundary))
+        .toContain("last task assigned to a delivery member");
+      expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
+      expect(validateCriteria).toContain("walk the seam group and union coherence");
     }
   });
 

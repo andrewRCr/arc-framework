@@ -47,12 +47,16 @@ Run the criteria walk at work-unit scope:
 validate-criteria:
   scope:
     kind: work-unit
-    criteria: task list's complete Success Criteria section
+    criteria:
+      member-groups: recorded delivery-member criteria reports
+      seams: task list's Cross-member seams group
     diff: complete work-unit diff
     reachability: complete work-unit tree
 ```
 
-Consume the report, then mark each criterion in the task list's Success Criteria section (see
+The method dispositions member groups from their recorded reports and walks only the seam group and union coherence
+against the complete tree. Consume its combined report, then mark each criterion in the task list's Success Criteria
+section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
 model:
 

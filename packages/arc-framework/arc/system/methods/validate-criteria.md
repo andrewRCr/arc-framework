@@ -24,12 +24,20 @@ override-active: false
 
 The caller supplies one scope value. That value binds all three validation coordinates together:
 
-- `criteria` — the member group or whole-work-unit criteria slice;
+- `criteria` — the member group at member scope, or recorded delivery-member reports plus the seam group at
+  work-unit scope;
 - `diff` — the bounded member diff or complete work-unit diff; and
 - `reachability` — the cumulative tree through that member or the complete work-unit tree.
 
-Do not widen or reconstruct one coordinate independently of the others. Read the upstream design, inspect the
-bounded diff and reachable tree, and resolve each criterion against source-grounded evidence.
+Do not widen or reconstruct one coordinate independently of the others. At member scope, read the upstream design,
+inspect the bounded diff and reachable tree, and resolve each criterion in the selected member group against
+source-grounded evidence.
+
+At work-unit scope, disposition each member group from its recorded boundary report; do not re-derive member
+criteria from the complete work-unit diff. Require one report whose span matches each planned member, carry its
+criterion text, evidence, and state forward, then use the complete diff and reachable tree to detect regressions
+across group boundaries and walk the seam group and union coherence. A missing or mismatched member report is an
+unresolved `[ ]`, not permission to reopen that member's bounded walk.
 
 Use the three-state model in every report:
 
@@ -40,7 +48,8 @@ Use the three-state model in every report:
 Criterion text is immutable. Report the original text and attach evidence or disposition; never rewrite the
 criterion to agree with the implementation.
 
-Return one entry per criterion in the selected slice:
+Return one entry per criterion in the selected scope. At work-unit scope, member entries carry their recorded
+boundary evidence plus any union-level regression disposition; seam entries carry evidence from the terminal walk:
 
 ```yaml
 criteria:
@@ -52,7 +61,8 @@ summary:         # count by state and any unresolved gap
 ```
 
 At member scope, record the report as ordinary closing-task evidence without changing the task list's criterion
-checkboxes. At work-unit scope, the terminal verification workflow owns marking after it consumes the report.
+checkboxes. At work-unit scope, consume those reports, validate seam and union coherence, and let the terminal
+verification workflow own marking after it consumes the combined report.
 
 ### Adversarial companion
 
