@@ -377,6 +377,24 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
   });
 
+  it("carries an explicit standard-review provider through both review lifecycles", async () => {
+    const [prepare, errand, integrate] = await Promise.all([
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+      ),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      ),
+    ]);
+
+    expect(prepare).toMatch(/standard\.invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
+    expect(prepare).toMatch(/Re-invoke[\s\S]*same `--change-set`, `--lanes`/u);
+    expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
+    expect(errand).toMatch(/every policy call for that target/u);
+    expect(integrate).toMatch(/supplies the reserved `sourceId`[\s\S]*without rerunning[\s\S]*source ordering/u);
+  });
+
   it("settles the Errand exact head without importing WU products", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",

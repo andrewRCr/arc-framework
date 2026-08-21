@@ -284,12 +284,18 @@ describe("projectPrePublicationReview", () => {
   it("runs frontline before standard and preserves a hosted-first reservation", () => {
     const base = request({ selfReview: "settled" });
     const frontline = base.frontline as Record<string, unknown>;
+    const standard = base.standard as Record<string, unknown>;
     const result = projectPrePublicationReview({
       ...base,
       frontline: {
         ...frontline,
         completedPasses: 1,
         attempts: [{ sourceId: "coderabbit-cli", outcome: "clean" }],
+      },
+      standard: {
+        ...standard,
+        sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+        invocation: { mode: "force", sourceId: "codex-pr" },
       },
     });
 

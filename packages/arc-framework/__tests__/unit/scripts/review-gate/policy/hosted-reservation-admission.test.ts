@@ -8,6 +8,7 @@ import {
   assertHostedErrandBindingAuthority,
   assertHostedErrandAdmission,
   assertHostedReservationAdmission,
+  configuredSourceSuffix,
   firstAdmissibleHostedSource,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
 
@@ -128,7 +129,8 @@ describe("hosted reservation admission", () => {
     })).not.toThrow();
   });
 
-  it("rejects an Errand handle whose source snapshot differs from current configuration", () => {
+  it("derives and admits an exact configured suffix for explicit Errand selection", () => {
+    expect(configuredSourceSuffix(errandBinding.sources, "codex-pr")).toEqual(["codex-pr"]);
     expect(() => assertHostedErrandBindingAuthority({
       binding: { ...errandBinding, sources: ["codex-pr"] },
       configuredSources: errandBinding.sources,
@@ -136,7 +138,20 @@ describe("hosted reservation admission", () => {
         version: errandBinding.standardReview.rubricVersion,
         digest: errandBinding.standardReview.rubricDigest,
       },
-    })).toThrow(/source binding does not match/u);
+    })).not.toThrow();
+  });
+
+  it("rejects an unavailable selection or an Errand source binding that is not an exact configured suffix", () => {
+    expect(() => configuredSourceSuffix(errandBinding.sources, "delegated-agent"))
+      .toThrow(/configured standard-review source/u);
+    expect(() => assertHostedErrandBindingAuthority({
+      binding: { ...errandBinding, sources: ["codex-pr", "coderabbit-pr"] },
+      configuredSources: errandBinding.sources,
+      rubricIdentity: {
+        version: errandBinding.standardReview.rubricVersion,
+        digest: errandBinding.standardReview.rubricDigest,
+      },
+    })).toThrow(/source binding.*configured suffix/u);
   });
 
   it("rejects an Errand handle whose rubric identity differs from the current rubric", () => {

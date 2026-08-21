@@ -17,16 +17,23 @@ import { projectStandardReviewObligation } from "./standard-review-projection.js
 import { resolveReviewRouting } from "./routing.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
-/** Per-lane scope, frontline invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
+/** Per-lane scope, invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
   frontline: ReviewLaneJudgmentSchema.optional(),
   standard: ReviewLaneJudgmentSchema.optional(),
 }).superRefine((judgments, context) => {
-  if (judgments.standard?.invocation !== undefined) {
+  if (judgments.standard?.invocation?.mode === "skip") {
     context.addIssue({
       code: "custom",
       message: "frontline invocation override cannot be applied to the standard lane",
       path: ["standard", "invocation"],
+    });
+  }
+  if (judgments.frontline?.invocation?.mode === "force") {
+    context.addIssue({
+      code: "custom",
+      message: "standard source invocation cannot be applied to the frontline lane",
+      path: ["frontline", "invocation"],
     });
   }
   if (judgments.frontline?.terminus !== undefined) {
@@ -132,9 +139,9 @@ export interface PrePublicationCompositionInput {
    */
   changeSet?: unknown;
   /**
-   * Per-lane scope, frontline invocation, ceiling, and Owner-terminus judgment. Unlike the
+   * Per-lane scope, invocation, ceiling, and Owner-terminus judgment. Unlike the
    * change-set facts, these refuse rather than normalize: dropping a malformed bounded scope
-   * silently reviews the whole target, dropping a frontline skip invokes an unwanted carrier, and
+   * silently reviews the whole target, dropping an invocation changes the selected carrier, and
    * dropping a malformed ceiling override silently re-blocks a pass the operator already approved.
    */
   lanes?: unknown;
@@ -257,7 +264,7 @@ function routingInput(
  * Per-attempt progress comes from the durable lane record rather than the caller, so source order
  * and pass ceilings stay with the CLI rather than being assembled by whoever invokes the command.
  * The caller's contribution is judgment the repository cannot read — whether self-review ran, what
- * kind of change set this is, and each lane's bounded scope, frontline invocation, approved
+ * kind of change set this is, and each lane's bounded scope, invocation, approved
  * ceiling override, or explicit Owner terminus. The decisions those facts feed are reduced here
  * rather than by the caller, and the target and lane every per-lane input would otherwise restate
  * are supplied from the resolved composition.
@@ -359,7 +366,7 @@ export async function composePrePublicationReviewRequest(
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target } }),
-      ...(lane !== "frontline" || judgment?.invocation === undefined
+      ...(judgment?.invocation === undefined
         ? {}
         : { invocation: judgment.invocation }),
       ...(judgment?.ceilingOverride === undefined
