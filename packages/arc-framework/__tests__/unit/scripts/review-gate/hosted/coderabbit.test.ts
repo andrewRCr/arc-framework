@@ -14,6 +14,7 @@ import {
 } from "../../../../../src/scripts/review-gate/hosted/github.js";
 import type {
   HostedRequestHandle,
+  HostedReviewCoverage,
   HostedTarget,
 } from "../../../../../src/scripts/review-gate/hosted/request.js";
 
@@ -128,12 +129,12 @@ Review finished.`,
   };
 }
 
-function requestHandle(): HostedRequestHandle {
+function requestHandle(coverage: HostedReviewCoverage = "incremental"): HostedRequestHandle {
   return {
     schemaVersion: 1,
     provider: "coderabbit-pr",
-    requestedCoverage: "incremental",
-    effectiveCoverage: "incremental",
+    requestedCoverage: coverage,
+    effectiveCoverage: coverage,
     target,
     artifact: {
       kind: "issue-comment",
@@ -199,6 +200,25 @@ describe("CodeRabbit hosted adapter", () => {
     }));
 
     await expect(adapter.observe(requestHandle())).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it("does not let an incremental completion discharge a complete request", async () => {
+    const incremental = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
+      readCommitStatuses: () => Promise.resolve([completionStatus()]),
+    }));
+    const complete = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
+        body: `<!-- CodeRabbit review command invocation: invocation-id -->
+<summary>✅ Action performed</summary>
+
+Full review finished.`,
+      })]),
+      readCommitStatuses: () => Promise.resolve([completionStatus()]),
+    }));
+
+    await expect(incremental.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(complete.observe(requestHandle("complete"))).resolves.toMatchObject({ kind: "clean" });
   });
 
   it.each([

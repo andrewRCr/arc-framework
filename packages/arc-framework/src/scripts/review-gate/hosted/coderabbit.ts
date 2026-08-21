@@ -28,6 +28,8 @@ const COMMANDS = {
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
+const COMPLETE_REPLY = /^[ \t]*Full review finished\.[ \t]*$/imu;
+const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
@@ -60,11 +62,20 @@ function summaryCompletesHead(
   return ranges.length === 1 && reviewedHead !== undefined && target.headSha.startsWith(reviewedHead);
 }
 
-function commandReplyCompleted(comment: HostedGitHubIssueComment, requestedAt: string): boolean {
+function commandReplyCompleted(
+  comment: HostedGitHubIssueComment,
+  requestedAt: string,
+  coverage: HostedReviewCoverage | null,
+): boolean {
+  const completionMatches = coverage === "complete"
+    ? COMPLETE_REPLY.test(comment.body)
+    : coverage === "incremental"
+      ? INCREMENTAL_REPLY.test(comment.body)
+      : COMPLETE_REPLY.test(comment.body) || INCREMENTAL_REPLY.test(comment.body);
   return comment.createdAt >= requestedAt
     && /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/iu.test(comment.body)
     && /<summary>\s*✅\s*Action performed\s*<\/summary>/iu.test(comment.body)
-    && /\b(?:full\s+)?review finished\./iu.test(comment.body);
+    && completionMatches;
 }
 
 function severity(body: string): "blocker" | "major" | "minor" | null {
@@ -310,16 +321,22 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
     handle: HostedRequestHandle,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
-    return this.observeSince(handle.target, handle.artifact.createdAt, options);
+    return this.observeSince(
+      handle.target,
+      handle.artifact.createdAt,
+      handle.effectiveCoverage,
+      options,
+    );
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, "1970-01-01T00:00:00.000Z");
+    return this.observeSince(target, "1970-01-01T00:00:00.000Z", null);
   }
 
   private async observeSince(
     target: HostedTarget,
     requestedAt: string,
+    coverage: HostedReviewCoverage | null,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
@@ -354,7 +371,8 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
           && status.state === "success"
           && status.createdAt >= requestedAt
           && /\breview completed\b/iu.test(status.description));
-        const completedReply = providerComments.find((comment) => commandReplyCompleted(comment, requestedAt));
+        const completedReply = providerComments.find((comment) =>
+          commandReplyCompleted(comment, requestedAt, coverage));
         const completedSummary = providerComments.find((comment) =>
           summaryCompletesHead(comment, target, requestedAt));
         return completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined
