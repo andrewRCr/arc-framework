@@ -135,7 +135,13 @@ not a starting shape.
 - **D1.2 Ancestry adoption.** The originating branch adopts the chain by an **append-only ancestry merge** of the
   highest member's head. This makes the member chain ancestral, so the top's diff against the highest member is
   exactly the residual — the terminal slice plus lifecycle artifacts — while the branch remains both the work
-  unit's branch and the stack's top.
+  unit's branch and the stack's top. Two merge semantics share the ancestry-merge name and must not be conflated.
+  **Adoption** (here, and D4.5a's re-adoption after a recut) is **content-neutral**: it records ancestry and keeps
+  the top's tree exactly, guarded by a subset check through the eligibility comparator's content-comparison
+  machinery — the chain's contribution must be contained in the top's content, and a failed check refuses rather
+  than merging. An ordinary content merge is the wrong instrument at adoption: merging equivalent content under
+  independently authored histories is the v1 fourteen-conflict mechanism. **Absorption** (D5.2) is the genuine
+  content merge, reserved for the case where the chain carries content the top lacks.
 - **D1.3 Append-only invariant.** The rejected construction — rewriting the work-unit branch to a residual-only
   unique range — would force-push a pushed session branch, violating the append-only contract and orphaning
   SHA-keyed user notes. It is excluded by construction, not by discipline.
@@ -177,6 +183,17 @@ interlock authority and drops whole-stack serialization.
 - **D2.3 Non-interference, both directions.** A registered delivery imposes zero coordination cost on work outside
   it, and external base movement never obligates an immediate refresh. The delivery absorbs drift on demand, at its
   own landing boundaries.
+- **D2.4 Window-time mutation loop — inherited, extended, no new stops.** The shipped singleton integration flow
+  already recomposes over head movement without an added interlock: an approved finding's `fix` settlement applies
+  and verifies the change, commits and pushes it, recomposes the current target, and settles against the changed
+  fix target — one structured approval covering the disposition set, the fixes, their commit, and the moved-head
+  bookkeeping. The delivery window inherits that loop unchanged and extends its mechanical tail with four steps
+  riding the same approval: suffix recut and re-adoption (D4.5a); the ancestry re-merge of the new highest head
+  (D1.2's adoption form — the recut suffix is re-authored from top content, so the subset guard holds); the
+  version-checked state rebind; and member-scope re-verification **scoped by the D4 arbiter's verdicts** — only a
+  member whose contribution actually changed re-walks, and a tree-equal carried member re-verifies nothing. Tier 1
+  gates re-run per the existing after-fix rule. No step introduces an attended stop beyond the finding-disposition
+  approval that triggered it.
 
 ### D3 — Terminal integration: a typed delivery arm of the checkpoint spine
 
@@ -184,8 +201,9 @@ The ancestry-merge construction (D1.2) plus merge-commit member landings advance
 the top and the base through each landed member. The shipped currentness projection computes its candidate subject
 against a fresh merge-base (`packages/arc-framework/src/lib/work-unit/git-candidate-subject.ts` resolves
 `merge-base(head, baseBranch)`), so the top's freshly computed candidate at the terminal instant is the residual,
-never the attested union — deterministically, drift or no drift. The union attestation therefore exists once, at
-the publication head (D2.2), and the terminal checkpoint gains a delivery arm.
+never the attested union — deterministically, drift or no drift. The union attestation therefore exists once **per
+publication candidate** — recomposed mechanically through D2.4's loop when window movement produces a new
+candidate, never re-derived by hand — and the terminal checkpoint gains a delivery arm.
 
 The arm extends the shipped spine by composition, exactly as the native merge arm does. It never rewrites
 attestation semantics.
@@ -194,8 +212,9 @@ attestation semantics.
   the single-subject digest equality the singleton path uses: the attestation record, the delivery state's exact
   bound member heads, and a residual comparison against the plan's terminal member, reusing the eligibility
   comparator's content-comparison machinery.
-- **D3.2 What it verifies.** Four checks: that the boundary's candidate is the delivery's bound publication
-  candidate; that every non-terminal member landed at its exact bound head; that the terminal residual carries no
+- **D3.2 What it verifies.** Four checks: that the boundary's candidate is the delivery's currently bound
+  publication candidate (D2.4's rebind refreshes the binding as the window moves); that every non-terminal member
+  landed at its exact bound head; that the terminal residual carries no
   unexplained delta against the plan's terminal member — exact trees or contributions, per the cohort floor; and
   that the work-unit review obligation is discharged as the **conjunction of member reviews** (D8.2), not by the
   top's own review alone. The fourth check is load-bearing: the shipped composition derives its hosted-review
@@ -252,7 +271,7 @@ arbiter — the Gerrit trivial-rebase test.
   extracting the probe to a shared seam and widening a second closed union to carry the same reason.
 - **D4.5 Result vocabulary.** `DeliveryContributionProofResult` grows to
   `proof: "tree-equality" | "mechanical-reapply"` with refusals carrying a closed reason and the exact conflicted
-  or divergent paths. Five call sites currently collapse the result to a boolean and must propagate the path
+  or divergent paths. Six call sites currently collapse the result to a boolean and must propagate the path
   evidence into their own typed refusals: `suffix-reconciliation.ts` (three — post-observation reserve, reserved
   reconcile, and explicit rewrite), `suffix-rematerialization.ts` (one, which today flattens every verdict into
   the single reason `unselected-contribution-changed`), `landing.ts` (one), and `handlers/delivery-execution.ts`
@@ -296,7 +315,10 @@ arbiter — the Gerrit trivial-rebase test.
   and review-invalidation consequences. The stack provider or the operator refreshes the registered non-terminal
   suffix. ARC reobserves the complete chain and adopts only when the projection exactly matches the plan under D4.
 - **D5.2 The top is never provider-restacked.** It absorbs predecessor movement by another append-only predecessor
-  merge — the same base-merge doctrine pushed branches already follow.
+  merge — the same base-merge doctrine pushed branches already follow. This is D1.2's **absorption** form: a
+  genuine content merge, because a restacked chain carries base content the top lacks, with conflicts staying
+  attended. The content-neutral adoption form is never used here — it would silently drop that base content and
+  fail late at D3.2's residual check instead of early at the merge.
 - **D5.3 Firing conditions.** The refresh arm fires on a refused landing (genuine conflict, native stale-suffix
   requirement, host up-to-date policy) or explicit operator choice — never on base movement alone. Append-only
   external drift that blocks nothing is disclosed, not acted on.
@@ -312,20 +334,25 @@ arbiter — the Gerrit trivial-rebase test.
   the native observe / select / prepare / submit / status lifecycle.
 - **D6.2 Merge endpoint.** The ordinary endpoint is the shipped `arc integrate checkpoint` → interlock →
   `arc integrate merge` spine, with exact-head pin, in-verb lock release, bounded checks await, and merge-method
-  revalidation. The native arm extends that spine: the host adapter preserves a typed `native-stack-required`
-  refusal from its merge attempt, uses the [asynchronous stack-merge API][gh-stack-merge-api], and returns the
-  complete settled suffix. Every provider-retargeted member reconciles by structural equivalence (D4) before its
-  new head is admitted to review.
+  revalidation. The native arm extends that spine: the host adapter **mints** a typed `native-stack-required`
+  refusal from its merge attempt — today a stacked-member rejection collapses into an opaque `unavailable`, and the
+  host mutation-result union (`queued | malformed | unavailable`) widens to carry the new arm, the same
+  closed-union work D4.5 names for `landing.ts` — uses the [asynchronous stack-merge API][gh-stack-merge-api], and
+  returns the complete settled suffix. Every provider-retargeted member reconciles by structural equivalence (D4)
+  before its new head is admitted to review.
 - **D6.3 Registration scope.** Registration is raw Stacks API only, over the **non-terminal member set**. The top
   chains natively as an ordinary pull request based on the highest member's branch — connected, presenting the
   residual delta — but stays outside the registered stack. No provider-side stack operation (host UI "Rebase
   stack", CLI stack rebase, native suffix rewrites) can touch the session branch: a structural guarantee rather
   than operator discipline. Those instruments stay fully usable over the registered set.
 - **D6.3a ARC's own observation predicate is in scope.** The shipped host adapter counts a stack as `registered`
-  only when the provider returns exactly as many pull requests as the requested member set, positionally matched;
-  anything else yields `partial` or `ambiguous`, and the link path admits only a fresh `registered` reading. If the
-  provider reports the chained top pull request as part of the stack, a non-terminal request set never matches and
-  the delivery is permanently downgraded — Goal 6 silently lost. Implementation must therefore settle the
+  only when the provider returns exactly as many pull requests as the requested member set, positionally matched.
+  A superset listing does not read `partial`: with the chained top present, every requested member still matches
+  at its index, only the cardinality check fails, and the empty affected set falls through to `unregistered` —
+  which drives the link path to issue a fresh registration attempt and routes landing to the unlinked arm, with no
+  `downgrade-required` surfacing anywhere. If the provider reports the chained top pull request as part of the
+  stack, the delivery is therefore permanently and silently downgraded — Goal 6 lost without a refusal to see.
+  Implementation must therefore settle the
   predicate alongside the registration call: the observation must exclude a dependent unregistered request from
   the comparison. Widening registration scope instead is not an available remedy — the only scope that removes the
   dependent request from the listing is registering the top, which D1.3 excludes by construction and the
@@ -358,8 +385,10 @@ arbiter — the Gerrit trivial-rebase test.
 - **D6.9 Linkage is observed, never canonical.** Native linkage stays provider-observed and is never plan
   authority.
 - **D6.10 Registration states its own consequence.** Registration is already operator-opt-in and makes zero host
-  calls when declined. Because the native arms rewrite the remaining suffix while the unlinked path only retargets
-  (D8.6), the registration decision is where review-invalidation cost is incurred, so it carries that consequence
+  calls when declined — concretely, the opt-in is the `optIn` field on the native-link request (no CLI flag or
+  config key exists), so the consequence disclosure below lands in the workflow prose that composes that request.
+  Because the native arms rewrite the remaining suffix while the unlinked path only retargets (D8.6), the
+  registration decision is where review-invalidation cost is incurred, so it carries that consequence
   at the decision point — the same posture D5.1 already commits to for drift decisions, applied at one more point
   rather than new mechanism. No capability gate: registration is not blocked on anything. What native buys, now
   that D4's arbiter automates the manual equivalent-tree adoption that made v1's native landing expensive, is the
@@ -376,7 +405,9 @@ compromised for the same reason. The field evidence is `integration-boundary-acc
 verify → adversarial-gap → remediate cycles, each opened by a clean primary self-verify.
 
 - **D7.1 No early materialization needed.** With task order following member order, the working tree at member k's
-  completion boundary _is_ member k's cumulative tree.
+  completion boundary _is_ member k's cumulative tree. That premise is enforced, not assumed: plan validation
+  refuses a plan whose member task ranges interleave or depart from member order — an authoring-time check
+  extending the shipped inventory, which validates assignment but not order today.
 - **D7.2 The mechanism.** Each member's task range closes with a validation task that fires `validate-criteria`
   (D7.6) at member scope: the member's criteria slice, its bounded diff, and reachability over the cumulative tree.
   Evidence lands as ordinary task completion. The whole-work-unit closeout pass narrows to cross-member seams and
@@ -384,9 +415,10 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
 - **D7.2a The task shape is constrained by the shipped inventory, not chosen.** The member closing task is an
   **ordinary implementation parent task**, carrying a goal like any other and assigned to its member in the
   coverage table. It cannot be a second verification task: the delivery task inventory requires the final phase to
-  be titled `Verification` and refuses `verification-task-ambiguous` on more than one parent after it, while
-  coverage treats `verification-task-assigned` as blocking. So the terminal contract is untouched — exactly one
-  verification task, terminal, unassigned to any member — and member validation adds **no new phases**. Members
+  be titled `Verification` and refuses `verification-task-ambiguous` on any count other than exactly one parent
+  after it (zero included), while coverage treats `verification-task-assigned` as blocking. So the terminal
+  contract is untouched — exactly one verification task, terminal, unassigned to any member — and member
+  validation adds **no new phases**. Members
   bind per task (`memberTaskIds`), never per phase, so a member spanning several phases simply closes in the last
   one its range reaches.
 - **D7.3 Criteria slices are task-list structure with one authority.** The Success Criteria section groups by
@@ -397,8 +429,12 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
     - **Grouping form is constrained by the scanner.** `###` subheadings are safe: the section-heading pattern
       matches `##` followed by whitespace, so a `###` does not terminate the section, and a plain `###` without a
       checkbox is neither a parent task nor a section boundary — structurally inert. **Criteria must stay at root
-      indent.** Nesting them under a group bullet reparses them as subtasks, since the subtask pattern matches a
-      four-space-indented checkbox bullet. Headings group; indentation must not.
+      indent**, and the failure modes are asymmetric: a checkbox bullet indented four-plus spaces inside the
+      section hard-refuses the **whole task list** as malformed (a subtask marker with no open parent), which the
+      delivery inventory then refuses wholesale; a two-to-three-space indent parses as inert content and silently
+      drops out of the walk; and a root-indent criterion whose text begins with a task-id-like token refuses at
+      root level. The grouped-criteria grammar D7.5 writes into the strategy and template states all three.
+      Headings group; indentation must not.
 - **D7.3a Marking time is unchanged.** Success criteria are still marked only during the verification phase, never
   during implementation. What moves to the member boundary is the **walk** — the bounded diff and reachability
   check over a tree small enough to hold, which is what a whole-target pass compromises — not the mark. A criterion
@@ -420,10 +456,12 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       binding the terminal verification task, which must now also admit member-scope fire points without making
       them that task;
     - `process-task-loop.md` — declaring `validate-criteria` so the member closing task's fire-point loads;
-    - `clean-work-unit.md`'s section preserve list, which names `Success Criteria` but not member subgroups, so
-      cleanup would evaluate them as non-standard sections and risk removing them;
-    - `init-recipe.json` — the new method's `include_files` entry. Without it the method ships nowhere; twelve
-      workflow and method files are already in exactly that state.
+    - `clean-work-unit.md`'s section preserve list, which names `Success Criteria` but not member subgroups, while
+      its triage step affirmatively enumerates `###` headings as per-heading decision units — member subgroups are
+      not merely unlisted but squarely in scope for non-standard-section removal triage;
+    - `init-recipe.json` — the new method's `include_files` entry. Without it the method ships nowhere; ten
+      workflow and method files are already in exactly that state (an eleventh ships only under a `pm.mode`
+      condition).
   **`docs/` is explicitly out of scope.** Its task-list reference documents the flat form and is single-copy, but
   that surface is frozen pending its own deliberate overhaul and is not touched here.
 - **D7.6 `validate-criteria` — one method, two fire points.** The walk is extracted from the verification
@@ -451,6 +489,14 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
 
 - **D8.1 Fan-out.** A hosted-first standard reservation carried across `arc publish` resumes per member through the
   delivery-member vehicle: each member pull request receives the reserved hosted source's review at its exact head.
+  Fan-out is target multiplicity, not concurrency — reviews run bottom-up as members become ready, typically one
+  at a time. The substrate change is named, not implied: the reservation record keeps what it carries today — the
+  obligation and the ordered sources — while its single pinned target becomes vehicle-typed (a pinned head for the
+  singleton case, a delivery marker here). Member targets **derive fresh from the delivery state's bound members
+  at each discharge read** (the consult D11.4 names), never stored as a target list and never walked by a mutating
+  pointer — facts re-derive per D9.1. The discharge projection gains an iterate-and-conjoin mode over those
+  derived targets, each evaluated against its own bound head and span. Per-member admission needs no new
+  substrate: the delivery-member vehicle and head-keyed member lookup shipped with v1.
 - **D8.2 Discharge.** The work-unit obligation discharges as the conjunction of member reviews — the same reviews
   the delivery's per-member admission already requires. One review system, not two.
 - **D8.3 Excluded by construction.** No pull request presents the union delta in a stack, so a top-only resumption
@@ -460,7 +506,9 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
 - **D8.4 Seam coverage.** Cross-member seams stay covered by D7's substrate and the chunked local lane's seam
   doctrine where it runs.
 - **D8.5 Ordering.** The ordering rule fans out with the reservation: the reserved source may not be leapfrogged by
-  a lower-ranked carrier on any member merely because its pull request now exists.
+  a lower-ranked carrier on any member merely because its pull request now exists. Enforcement is per member at
+  request time through the existing driver check, made member-aware by D8.1's vehicle-typed target resolution — no
+  new mechanism.
 - **D8.6 Applicability across non-substantive head movement — owned here.** The fan-out above only holds if a
   member's review survives the head movement this topology causes. Today it does not, and the rule is sharp:
   **rewrite destroys applicability, retarget preserves it.** Discharge reads a settled attempt anywhere in the
@@ -488,7 +536,11 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       unavailable, so a reservation that discharged through a fallback source after a rate-limited first source
       re-voids on the next append-only merge — even though the fallback's clean attempt remains in span. The top
       moves once per predecessor absorption, so this recurs across the window. The projection covers append-only
-      movement for that case, not rewrite alone.
+      movement for that case, not rewrite alone — and its insertion point is therefore the **discharge read
+      itself**, not only the request path: the safely-unavailable determination consults attempts at the exact
+      current head alone, so the projection's result must reach that read, keeping an unavailability recorded at a
+      prior equivalent or still-in-span head from voiding on movement. A projection gating only re-review requests
+      would leave the discharge status re-voiding regardless.
     - **Scope discipline.** Owning this projection does not make delivery the owner of review architecture. It
       owns **applicability** — whether an existing review still covers the current content. Obligation, findings,
       clearance, and lane precedence are untouched.
@@ -506,13 +558,18 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   state belonging to the same work unit — from the store. No archive namespace: that would be a durable record
   family the non-goals exclude, and pre-release posture clears development state rather than migrating it. The
   operation refuses while an operation, an **unreaped member ref** — local or remote, both counted (D9.4) — or an
-  unsettled terminal remains.
+  unsettled terminal remains. The verb binds an **explicit work-unit identity** as input, never resolved through
+  the active work unit — after archival no active meta exists, and that resolution shape is the exact defect the
+  v1 terminal attach shipped. Its fire-point is the teardown/closeout ceremony that owns D9.4's reaping:
+  retirement's refusal conditions are reaping's postconditions, so the two run as one tail.
 - **D9.4 Residue reaping — this design is the replacement, so it names the driver.** The v1 self-delivery left six
   candidate refs and six delivery-gate worktrees with no cleanup driver, hand-reaped once. That deferral is not
   restated here: v2 retains an authoring stage that materializes candidate refs and gate checkouts (D4.5a turns on
-  the same fact), so reaping them is in scope. The shipped member teardown deletes the **remote** member ref for a
-  proven-landed member and leaves the local `refs/heads/delivery/…` in place; that asymmetry is closed, so teardown
-  reaps both sides plus the authoring candidate refs and any gate checkouts it created. D9.3's refusal reads
+  the same fact), so reaping them is in scope. Today publication pushes `<sha>:refs/heads/delivery/…` directly and
+  creates no local branch, so the shipped remote-only teardown leaves no delivery-namespace ref behind — the v1
+  residue was the authoring candidate branches and gate worktrees themselves. Under D1.1's first-class member
+  branches the local side becomes real, so teardown reaps both sides plus the authoring candidate refs and any
+  gate checkouts it created. D9.3's refusal reads
   "member ref" as either side, so retirement cannot complete over unreaped local residue.
 
 ### D10 — Doctrine surfaces
@@ -573,10 +630,13 @@ provider-side — a member pull request is an ordinary pull request, reviewed li
   substrate this design already carries. **Never a branch-name prefix test:** written as a prefix test it rots at
   convergence, where work-unit identity decouples from branch identity; written as a reverse lookup it survives
   intact.
-- **D11.2 The hosted request vehicle gains a delivery-member arm.** The vehicle union already carries an `errand`
-  arm added by recent errand-review work, so this follows an extension point with a fresh worked example rather
-  than opening a closed union. The arm names plan, deliverable, and exact head — projection-neutral, so storage
-  evolution does not touch it.
+- **D11.2 The hosted request vehicle gains a delivery-member arm.** The scope is named honestly: the request
+  vehicle today is a single kind-tagged `errand` schema on an optional field — not yet a union — with
+  errand-specific binding validation inline in the request path, so this arm converts the field to a discriminated
+  union and extracts that binding per arm. Two sibling vehicle unions already carry `delivery-member` arms (the
+  readiness vehicle and the operation-state vehicle), and the head-keyed member admission machinery shipped with
+  v1 — the work is aligning the request vehicle with those, not minting a fourth notion. The arm names plan,
+  deliverable, and exact head — projection-neutral, so storage evolution does not touch it.
 - **D11.3 Change-request resolution becomes delivery-aware.** Resolution filters candidates by base equality and
   returns `base-mismatch` for a member-branch base, and the callers throw before their own base checks execute.
   Since D1.6 makes a member-branch base the top's normal state for the whole landing window, the terminal spine
@@ -584,7 +644,8 @@ provider-side — a member pull request is an ordinary pull request, reviewed li
   for delivery: bypassing would leave review status broken on the top branch throughout the window and leave every
   other consumer refusing, which is a special case to maintain forever.
 - **D11.4 Discharge consults the delivery's member targets** rather than only the current branch's single open
-  request — the input D3.2's fourth check requires.
+  request — the input D3.2's fourth check requires, and the derivation seam D8.1 builds on: targets derive from
+  the bound members at read time, never from a stored list.
 - **D11.5 Nothing provider-side changes.** The entire change is which subject a review addresses, internally.
 
 ### Substrate seam — why full native composition waits
@@ -736,7 +797,10 @@ this substrate.
   merges. Named top-only costs, complete: append-only predecessor merges to absorb chain movement; one further
   ancestry merge per review-fix recut, since a recut re-authors the suffix and the top must re-adopt the new
   highest head to preserve D1.2's residual invariant (D4.5a); and member-scope re-verification of the terminal
-  slice when absorbed drift overlaps the residual's own paths (D3.6).
+  slice when absorbed drift overlaps the residual's own paths (D3.6). One window-wide cost joins them:
+  arbiter-scoped member re-verification after a review-fix recut — only members whose contribution changed re-walk
+  (D2.4). The record recomposition itself (re-attestation, rebind) is mechanical and rides the fix approval with
+  no attended step.
 - Review spend is ceremony too — wall clock, tokens, and provider rate limit. The commitment is that delivery adds
   no re-review of its own: landing an N-member stack costs N member reviews plus review of genuinely uncovered
   deltas, and a member proved unchanged under a predecessor rewrite is not re-reviewed (D8.6). Registration is the
@@ -806,7 +870,8 @@ is confirmed present in the project's technical surface.
     single terminal verification task unassigned to any member (D7.2, D7.2a, D7.6). Success criteria remain marked
     only during the verification phase (D7.3a). The closeout pass walks the seam group and dispositions the member
     groups from recorded boundary evidence rather than re-deriving them. Every surface D7.5 names carries the
-    change in both copies, and `validate-criteria` is reachable from both declared fire-points.
+    change in both copies, `validate-criteria` is reachable from both declared fire-points, and plan validation
+    refuses member task ranges that interleave or depart from member order (D7.1).
 11. A carried hosted-review reservation resumes on every member pull request at its exact head, and the work-unit
     obligation reports discharged only when every member review has cleared — verified at the terminal boundary as
     the conjunction, never satisfied by the top's own residual review (D8.1, D8.2, D3.2).
