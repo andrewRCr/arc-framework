@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "frontline-disposition-context",
+  "claimId": "2e555f3f0679665437f76692c8aadab2",
+  "createdAt": "2026-08-21T01:18:55.327Z",
+  "updatedAt": "2026-08-21T01:18:55.327Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "frontline-disposition-context",
+  "branch": "chore/frontline-disposition-context",
+  "origin": "inbox",
+  "originEntry": "Let frontline findings materialize disposition proposals",
+  "originEntrySourceDigest": "sha256:bd94b98373c0ee7fac2f1f4eb9768300031dd4008b1738862fb346068fe29ff8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
