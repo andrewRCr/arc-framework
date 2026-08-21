@@ -1211,10 +1211,10 @@ async function runErrandCloseHandler(
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
-        removeInbox: async (record, parentCheckoutPath) => {
+        removeInbox: async (record, parentCheckoutPath, settlementCheckoutPath) => {
           if (record.originEntry === null) return { kind: "absent", nextOffer: null };
           const removed = await removeCurrentInboxEntry({
-            cwd: parentCheckoutPath ?? cwd,
+            cwd: settlementCheckoutPath ?? parentCheckoutPath ?? cwd,
             io,
             identity,
             title: record.originEntry,

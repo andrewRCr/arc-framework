@@ -47,6 +47,12 @@ export type CloseRefCleanupResult =
   | { kind: "refused"; reason: ErrandRefusalReason; message: string }
   | { kind: "error"; message: string };
 
+/** Durable exact-target retention completed before close deletes preservation refs. */
+export type CloseTargetRetentionResult =
+  | { kind: "applied" | "idempotent"; target: CloseTarget }
+  | { kind: "refused"; reason: ErrandRefusalReason; message: string }
+  | { kind: "error"; message: string };
+
 export type CloseInboxResult =
   | {
       kind: "removed" | "absent";
@@ -103,8 +109,13 @@ export interface CloseOrdinaryErrandDependencies {
   resolveTarget(record: OrdinaryErrandRecord): Promise<CloseTargetResolution>;
   readLifecycle(target: CloseTarget): Promise<ChangeRequestLifecycleEvidence>;
   readOccupancy(target: CloseTarget): Promise<CloseOccupancyResult>;
+  retainTarget(target: CloseTarget): Promise<CloseTargetRetentionResult>;
   cleanupRefs(target: CloseTarget, guard: CloseAuthorityGuard | null): Promise<CloseRefCleanupResult>;
-  removeInbox(record: OrdinaryErrandRecord, parentCheckoutPath: string | null): Promise<CloseInboxResult>;
+  removeInbox(
+    record: OrdinaryErrandRecord,
+    parentCheckoutPath: string | null,
+    settlementCheckoutPath: string | null,
+  ): Promise<CloseInboxResult>;
   retire(target: CloseTarget, lifecycle: ChangeRequestLifecycleEvidence | null): Promise<RetirementResult>;
 }
 
@@ -198,7 +209,6 @@ export async function closeOrdinaryErrand(
     options,
     target,
     lifecycle,
-    record,
     settlement,
     slug,
   }));
@@ -208,12 +218,26 @@ async function finalizeAuthorizedClose(input: {
   options: CloseOrdinaryErrandOptions;
   target: CloseTarget;
   lifecycle: ChangeRequestLifecycleEvidence | null;
-  record: OrdinaryErrandRecord;
   settlement: Extract<CloseLocusSettlementResult, { kind: "applied" | "idempotent" }>;
   slug: string;
 }): Promise<TerminalOperationOutcome> {
-  const { options, target, lifecycle, record, settlement, slug } = input;
+  const { options, lifecycle, settlement, slug } = input;
+  let { target } = input;
   const guard = settlement.guard;
+
+  let retained: CloseTargetRetentionResult;
+  try {
+    retained = await options.dependencies.retainTarget(target);
+  } catch (error) {
+    return failure("locus.errand-close.identity", message(error));
+  }
+  if (retained.kind === "refused") return refusal(retained.reason, retained.message);
+  if (retained.kind === "error") return failure("locus.errand-close.identity", retained.message);
+  if (!sameRetainedTarget(target, retained.target)) {
+    return failure("locus.errand-close.identity", "Retained close evidence does not match the exact target.");
+  }
+  target = retained.target;
+  const record = target.record;
 
   let refs: CloseRefCleanupResult;
   try {
@@ -234,7 +258,11 @@ async function finalizeAuthorizedClose(input: {
 
   let inbox: CloseInboxResult;
   try {
-    inbox = await options.dependencies.removeInbox(record, settlement.parentCheckoutPath);
+    inbox = await options.dependencies.removeInbox(
+      record,
+      settlement.parentCheckoutPath,
+      guard?.checkoutPath ?? null,
+    );
   } catch (error) {
     return failure("locus.errand-close.inbox", message(error));
   }
@@ -262,7 +290,7 @@ async function finalizeAuthorizedClose(input: {
   }
   if (retired.kind === "error") return failure("locus.errand-close.identity", retired.message);
 
-  const outcome = settlement.kind === "applied" || refs.kind === "applied"
+  const outcome = settlement.kind === "applied" || retained.kind === "applied" || refs.kind === "applied"
     || inbox.kind === "removed" || retired.kind === "applied"
     ? "applied"
     : "idempotent";
@@ -275,6 +303,23 @@ async function finalizeAuthorizedClose(input: {
       ? `Completed Errand '${slug}' without a tracked change and retired its identity.`
       : `Finalized merged Errand '${slug}' and retired its identity.`,
   });
+}
+
+function sameRetainedTarget(previous: CloseTarget, retained: CloseTarget): boolean {
+  if (previous.kind !== retained.kind
+    || previous.record.slug !== retained.record.slug
+    || previous.record.claimId !== retained.record.claimId
+    || previous.record.branch !== retained.record.branch) {
+    return false;
+  }
+  if (previous.kind === "unchanged-base" || retained.kind === "unchanged-base") {
+    return previous.kind === "unchanged-base"
+      && retained.kind === "unchanged-base"
+      && previous.headSha === retained.headSha;
+  }
+  return retained.record.state === "awaiting-merge"
+    && sameChangeRequestCoordinates(previous.changeRequest, retained.changeRequest)
+    && sameChangeRequestCoordinates(previous.changeRequest, retained.record.changeRequest);
 }
 
 async function runWithCloseAuthority(
@@ -331,7 +376,13 @@ function sameChangeRequest(
   evidence: ChangeRequestLifecycleEvidence,
   changeRequest: LocusChangeRequestV1,
 ): boolean {
-  const left = evidence.changeRequest;
+  return sameChangeRequestCoordinates(evidence.changeRequest, changeRequest);
+}
+
+function sameChangeRequestCoordinates(
+  left: LocusChangeRequestV1,
+  changeRequest: LocusChangeRequestV1,
+): boolean {
   return left.repositoryRef === changeRequest.repositoryRef && left.hostRef === changeRequest.hostRef
     && left.baseRef === changeRequest.baseRef && left.headRef === changeRequest.headRef
     && left.headSha === changeRequest.headSha;

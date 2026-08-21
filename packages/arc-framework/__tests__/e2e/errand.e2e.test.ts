@@ -141,7 +141,7 @@ function inspectIdentityCommand(slug: string): readonly string[] {
   ];
 }
 
-async function createMergedGhFixture(cwd: string, slug: string): Promise<{
+async function createMergedGhFixture(cwd: string, slug: string, exactHead?: string): Promise<{
   ghDir: string;
   remoteDir: string;
   env: Record<string, string>;
@@ -149,7 +149,7 @@ async function createMergedGhFixture(cwd: string, slug: string): Promise<{
   const remoteDir = `${cwd}-${slug}-remote.git`;
   const ghDir = await mkdtemp(join(tmpdir(), "arc-gh-"));
   const branch = `chore/${slug}`;
-  const headSha = (await git(cwd, ["rev-parse", "HEAD"])).trim();
+  const headSha = exactHead ?? (await git(cwd, ["rev-parse", "HEAD"])).trim();
   const repositoryUrl = "https://github.com/owner/repo.git";
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
   await git(cwd, ["config", `url.file://${remoteDir}.insteadOf`, repositoryUrl]);
@@ -537,12 +537,17 @@ describe("arc errand close", () => {
 
   it("finalizes an ordinary v3 Errand from exact merged host truth", async () => {
     const slug = "merged-v3";
+    const branch = `chore/${slug}`;
     await setFullProtection(tmpDir);
     await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
-    const host = await createMergedGhFixture(tmpDir, slug);
+    await seedOpenV3Errand(tmpDir, slug);
+    await git(tmpDir, ["switch", branch]);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "tracked Errand change"]);
+    const head = (await git(tmpDir, ["rev-parse", "HEAD"])).trim();
+    await git(tmpDir, ["switch", "main"]);
+    const host = await createMergedGhFixture(tmpDir, slug, head);
     try {
-      await seedOpenV3Errand(tmpDir, slug);
       const result = await runArcAnchoredSequence([
         [
           "errand", "close", slug,

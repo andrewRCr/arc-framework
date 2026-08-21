@@ -28,6 +28,7 @@ import {
   type CloseRefCleanupResult,
   type CloseTarget,
   type CloseTargetResolution,
+  type CloseTargetRetentionResult,
 } from "./close-locus.js";
 import { ordinaryErrandTransform, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { transactTransientIdentities } from "./identity-transaction.js";
@@ -45,7 +46,11 @@ export interface CloseOrdinaryErrandRuntimeOptions {
   readonly readFrame: () => Promise<DerivedLocusFrame>;
   readonly confirmForeignGeneration?: string;
   readonly onAuthority?: (authority: ReturnType<typeof authorizeErrandTerminal>) => void;
-  readonly removeInbox: (record: OrdinaryErrandRecord, parentCheckoutPath: string | null) => Promise<CloseInboxResult>;
+  readonly removeInbox: (
+    record: OrdinaryErrandRecord,
+    parentCheckoutPath: string | null,
+    settlementCheckoutPath: string | null,
+  ) => Promise<CloseInboxResult>;
 }
 
 /** Authoritative identity read outcome for close dispatch. */
@@ -78,6 +83,7 @@ export async function closeOrdinaryErrandAtRuntime(
       ? lifecyclePort.read(target.changeRequest, target.changeRequest)
       : Promise.reject(new Error("An unchanged-base close has no change request lifecycle.")),
     readOccupancy: (target) => readCloseOccupancy(runtimeOptions, target, (path) => { fallbackCwd = path; }),
+    retainTarget: (target) => retainCloseTarget(identityIO, options.base, remote, target),
     cleanupRefs: (target, guard) => cleanupOrdinaryErrandRefs(
       exec,
       target,
@@ -128,6 +134,54 @@ export async function closeOrdinaryErrandAtRuntime(
     protection: options.protection,
     dependencies,
   });
+}
+
+async function retainCloseTarget(
+  io: { exec: GitExec; execInput: GitExecInput; identity: string },
+  base: string,
+  remote: "origin" | null,
+  target: CloseTarget,
+): Promise<CloseTargetRetentionResult> {
+  if (target.kind === "unchanged-base" || target.record.state === "awaiting-merge") {
+    return { kind: "idempotent", target };
+  }
+  const configured = await resolveChangeRequestLifecycleConfiguration(io.exec, base);
+  if (configured === null) {
+    return {
+      kind: "refused",
+      reason: "change-request-unverifiable",
+      message: "Origin repository coordinates are unsupported.",
+    };
+  }
+  const result = await transactTransientIdentities(io, {
+    remote,
+    message: `arc: retain errand close target ${target.record.slug}`,
+    transform: ordinaryErrandTransform({
+      kind: "await-merge",
+      previous: target.record,
+      changeRequest: target.changeRequest,
+      configured,
+      observed: target.changeRequest,
+      updatedAt: nextIdentityTimestamp(target.record.updatedAt),
+    }),
+  });
+  if (result.kind === "refused") {
+    return { kind: "refused", reason: "identity-conflict", message: result.reason };
+  }
+  if (result.kind === "error") return { kind: "error", message: result.message };
+  if (result.value === null || result.value.state !== "awaiting-merge") {
+    return { kind: "error", message: "Retained close evidence did not produce an awaiting-merge identity." };
+  }
+  return {
+    kind: result.kind,
+    target: { ...target, record: result.value },
+  };
+}
+
+function nextIdentityTimestamp(previous: string): string {
+  const previousTime = Date.parse(previous);
+  const floor = Number.isFinite(previousTime) ? previousTime + 1 : Date.now();
+  return new Date(Math.max(Date.now(), floor)).toISOString();
 }
 
 async function readReconciledCloseIdentity(
