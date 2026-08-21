@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** spec authored at `detailed`·RFC and saved (11 design elements, 18 success criteria); two
-  adversarial passes folded; review-applicability projection absorbed from a withdrawn capture
+- **Last Completed:** create-spec finalized — design audit and third adversarial pass folded (11 findings across
+  both, all confirmed), spec approved at Gate 1, draft retired with `notes-*` migration, `Class` Heavy persisted
 - **Next Task:** [none]
 - **Blockers:** [none]
 
