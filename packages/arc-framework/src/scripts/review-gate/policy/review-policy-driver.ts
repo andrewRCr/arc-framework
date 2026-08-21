@@ -50,6 +50,33 @@ const ReviewAttemptSchema = z.strictObject({
   chunkSeriesComplete: z.boolean().optional(),
 }).readonly();
 type ReviewAttempt = z.infer<typeof ReviewAttemptSchema>;
+
+interface ReviewPassProgressInput {
+  completedPasses: number;
+  attempts: readonly ReviewAttempt[];
+  scopeSelection?: { mode: z.infer<typeof ReviewScopeModeSchema> };
+}
+
+function validateTerminalPassProgress(
+  request: ReviewPassProgressInput,
+  context: z.RefinementCtx,
+): void {
+  const lastAttempt = request.attempts.at(-1);
+  if (lastAttempt === undefined) return;
+  const terminalOutcome = lastAttempt.outcome === "clean"
+    || lastAttempt.outcome === "findings"
+    || lastAttempt.outcome === "settled-findings";
+  const completedTerminalPass = terminalOutcome
+    && (request.scopeSelection?.mode !== "chunked" || lastAttempt.chunkSeriesComplete === true);
+  if (completedTerminalPass && request.completedPasses === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "completedPasses must include the completed terminal pass",
+      path: ["completedPasses"],
+    });
+  }
+}
+
 const ReviewCeilingOverrideSchema = z.strictObject({
   target: ReviewPolicyTargetSchema,
   lane: z.enum(["frontline", "standard"]),
@@ -85,6 +112,7 @@ const ReviewPolicyRequestBaseShape = {
 export const ReviewPolicyCommandRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
 }).superRefine((request, context) => {
+  validateTerminalPassProgress(request, context);
   if (request.lane === "standard" && request.invocation?.mode === "skip") {
     context.addIssue({
       code: "custom",
@@ -133,6 +161,7 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   sources: z.array(ReviewSourceIdSchema).readonly(),
   maxPasses: ReviewPassSchema,
 }).superRefine((request, context) => {
+  validateTerminalPassProgress(request, context);
   if (request.lane === "standard" && request.invocation?.mode === "skip") {
     context.addIssue({
       code: "custom",

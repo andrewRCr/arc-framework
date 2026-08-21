@@ -142,9 +142,12 @@ never replaces Step 10's authoritative final drift read.
 
 Read `integrationBoundary.reservation` from the typed status projection. A null reservation means the standard lane
 already settled or was a typed no-op before submission; do not invent a post-PR obligation. A carried reservation
-must match the current Candidate and supplies the reserved `sourceId` and exact obligation. Bind the open pull
-request to that reservation without rerunning chunking or source ordering, then invoke `arc review hosted request -`
-with the reserved provider, exact opened target, and `coverage: complete`:
+must match the current Candidate and carries the ordered sources and exact obligation. Require its typed next action
+to be `continue-pre-publication-review`, then invoke `integrationBoundary.nextAction.command`. Continue only from
+`ready / hosted-request`; the returned policy preserves the reservation without rerunning chunking or source
+ordering and supplies `policy.payload.sourceId` plus the authorized `policy.payload.pass`. Bind the open pull request
+to that reservation, then invoke `arc review hosted request -` with the returned source, exact opened target, and
+`coverage: complete`:
 
 - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing uses
   the project's configured bounded-call defaults.
@@ -153,6 +156,11 @@ with the reserved provider, exact opened target, and `coverage: complete`:
   request intact. Re-invoking the same handle checks once; on explicit direction, pass
   `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
   provider outcome.
+
+Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to the
+retained `policy.payload.pass` that authorized it. A completed attempt consumes that pass; pending chunk series and
+non-pass outcomes retain the prior count.
+
 - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
 - `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. For each
   approved finding with
