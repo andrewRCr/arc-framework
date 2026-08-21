@@ -623,6 +623,34 @@ describe("handleReviewResolve", () => {
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
+  it("returns typed invalid input for inconsistent terminal pass progress", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const resolve = vi.fn();
+
+    await handleReviewResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        ...request,
+        attempts: [{ sourceId: "codex-pr", outcome: "clean" }],
+      }),
+      resolve,
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      mode: "review-resolve",
+      error: {
+        code: "invalid-input",
+        message: expect.stringMatching(/completedPasses must include the completed terminal pass/u),
+      },
+    });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
   it.each([
     ["sources", ["delegated-agent"]],
     ["maxPasses", 99],

@@ -153,6 +153,11 @@ with the reserved provider, exact opened target, and `coverage: complete`:
   request intact. Re-invoking the same handle checks once; on explicit direction, pass
   `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
   provider outcome.
+
+Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to the
+`pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk series
+and non-pass outcomes retain the prior count.
+
 - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
 - `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. For each
   approved finding with

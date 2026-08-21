@@ -434,6 +434,35 @@ describe("resolveReviewPolicy", () => {
   });
 
   it.each([
+    {
+      name: "whole-target completion",
+      scopeSelection: undefined,
+      attempt: { sourceId: "codex-pr", outcome: "clean" as const },
+    },
+    {
+      name: "completed chunk series",
+      scopeSelection: { mode: "chunked" as const, target },
+      attempt: {
+        sourceId: "delegated-agent",
+        outcome: "settled-findings" as const,
+        chunkSeriesComplete: true,
+      },
+    },
+  ])("rejects zero completed passes for $name", ({ scopeSelection, attempt }) => {
+    expect(() => resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: [attempt.sourceId],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [attempt],
+      ...(scopeSelection === undefined ? {} : { scopeSelection }),
+    })).toThrow(/completedPasses must include the completed terminal pass/u);
+  });
+
+  it.each([
     "partial",
     "ambiguous-delivery",
     "malformed",

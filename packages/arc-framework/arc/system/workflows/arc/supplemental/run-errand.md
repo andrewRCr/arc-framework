@@ -276,6 +276,11 @@ remote base all name the same exact head. Any tracked change continues through t
      request intact. Re-invoking the same handle checks once; on explicit direction, pass
      `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
      provider outcome.
+
+   Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
+   the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
+   series and non-pass outcomes retain the prior count.
+
    - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
    - `findings / triage` — run the disposition protocol. For each approved finding with
      `settlement: reply-and-resolve`, settle before feeding `findings` back to the driver. For `defer` or `reject`,
