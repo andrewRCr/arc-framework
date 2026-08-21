@@ -164,7 +164,7 @@ describe("Codex hosted adapter", () => {
   it("recognizes layout-varied clean output with one exact reviewed-head marker", async () => {
     const adapter = new CodexHostedAdapter(port({
       readIssueComments: () => Promise.resolve([cleanComment(
-        `Codex Review: Didn't find any major issues. Keep it up!
+        `**Codex Review:** Didn't find any major issues. Keep it up!
 
 **Reviewed commit:** \`${HEAD.slice(0, 10)}\`
 

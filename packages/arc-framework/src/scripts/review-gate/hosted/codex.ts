@@ -64,7 +64,7 @@ function finding(
 }
 
 function cleanForHead(comment: HostedGitHubIssueComment, headSha: string): boolean {
-  if (!/^Codex Review:/mu.test(comment.body)
+  if (!/^(?:Codex Review:|\*\*Codex Review:\*\*)/mu.test(comment.body)
     || !/\bdid(?:n't| not) find any major issues\b/iu.test(comment.body)) {
     return false;
   }
