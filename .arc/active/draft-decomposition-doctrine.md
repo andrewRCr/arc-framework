@@ -107,7 +107,9 @@ concerns arriving where they do not belong, not to split more aggressively downs
 ### Why chunked review is not the answer
 
 `review-chunking` has shipped, and this project runs it at a 5,000-line / 150-file threshold. That genuinely helps,
-and `chunked-delivery` will help further. But chunked review and stacked PRs are a **backstop — a tool to reach for
+and stacked delivery will help further (v1 shipped via `delivery-stack-topology`;
+`delivery-native-stack-composition` carries the v2 topology). But chunked review and stacked PRs
+are a **backstop — a tool to reach for
 when warranted or when something has gone wrong — not the frontline defense.** The frontline defense is not letting
 an unreviewable surface reach integration at all.
 
@@ -215,15 +217,16 @@ Resolved by slug 2026-07-26 — do not trust cached state.
   as real rather than prospective. It raises the reviewability bound without removing it.
 - **`solution-proportionality`** (shipped) — delivered `assess-design-proportionality` and the generate-tasks
   fire-point deliverable 3 extends. The shrink-before-split order is now an ordering against shipped behavior.
-- **`chunked-delivery`** (planned) — shares the `assess-cohort-fit` touchpoint through its amended-invariant
-  coherency pass, and owns delivery-framing plus cut-map versus chunk vocabulary. Coordinate that edit; read the
-  method's current tip and extend it rather than re-deriving.
+- **`delivery-native-stack-composition`** (planning) — shares the
+  `assess-cohort-fit` touchpoint through its amended-invariant coherency pass, and owns delivery-framing plus
+  cut-map versus chunk vocabulary. Coordinate that edit; read the method's current tip and extend it rather than
+  re-deriving.
 - **`cohort-cut-coherence`** (planned) — adjacent rail on the same two surfaces. Open question below: absorb or keep
   separate.
 - **`planning-iteration-mechanics`** (planned) — owns the planning-closeout gate shape; deliverable 2's recorded
   verdict may land as part of its closeout checklist rather than as a freestanding rule.
-- **Shipped, no longer pending:** `decomposition-machinery` and `decomposition-hardening` (the latter is what
-  `cohortless-decomposition` became). Their gaps are `decompose-transform-integrity`'s, not this work unit's.
+- **Shipped, no longer pending:** `decomposition-machinery` and `decomposition-hardening`. Their gaps are
+  `decompose-transform-integrity`'s, not this work unit's.
 
 ## Sequencing
 
@@ -258,8 +261,9 @@ work unit's own maturity gate, so the verdict stands unchanged — but if a cut 
 the more useful one. Recorded so a later pass does not rediscover it.
 
 **Shared-surface ordering.** `assess-cohort-fit` has three pending editors: this work unit, `cohort-cut-coherence`,
-and `chunked-delivery`. **This one leads** — deliverable 1 changes the discriminator itself, while the others are an
-adjacent rail and a delivery-framing/vocabulary pass respectively, and both should land on a settled discriminator
+and `delivery-native-stack-composition`. **This one leads** — deliverable 1 changes the discriminator itself, while
+the others are an adjacent rail and a delivery-framing/vocabulary pass respectively, and both should land on a
+settled discriminator
 rather than the reverse. `cohort-cut-coherence` may be absorbed here in any case. Read the method's current tip and
 extend it; do not re-derive from an older mental model.
 
