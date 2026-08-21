@@ -194,7 +194,7 @@ copy together.
 - _Outcome:_ The installation recipe, Configurable classifier, self-hosting manifest, and init/update contract tests
   now carry `validate-criteria.md`; the package and project method bodies begin aligned.
 
-### `[ ]` **1.8 Close delivery member 1** — validate criteria at member scope
+### `[x]` **1.8 Close delivery member 1** — validate criteria at member scope
 
 - _Goal:_ Member 1's criteria group is walked at its own boundary, over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -215,13 +215,17 @@ copy together.
         - The process loop now reports and stops on an unresolved member result while leaving the task open and
           skipping parent cascade, completion extensions, and the completion-only checklist.
 
-    - `[ ]` **1.8.d Route the extracted substrate to its planned owners**
+    - `[x]` **1.8.d Route the extracted substrate to its planned owners**
 
-        - Capture the landed method-dependency seam to `knowledge-architecture`, naming `composable-workflows` and
-          `method-conventions` as re-anchoring consumers rather than creating duplicate authority.
+        - Captured one grooming pass to `knowledge-architecture`, naming `composable-workflows` and
+          `method-conventions` as consumers of the landed seam and preserving their broader planned ownership.
 
-- _Note:_ This is the first firing of the method this member builds, and the first member boundary in the
-  repository. A gap found here is a defect in the substrate above, not a reason to hand-walk the group.
+- _Outcome:_ The Member 1 criterion resolved `[x]` over `45b0e9393..c22890a42` and the cumulative tree: grouped
+  criteria and eight ordinary closing tasks feed the member-scoped walk; terminal verification remains sole and
+  unassigned; closeout consumes recorded reports plus the seam group; and every shipped surface has matching
+  package/project coverage. Delivery validation refuses empty, interleaved, or order-departing ranges; workflow
+  roots plus method-owned dependencies make both fire-points reachable; and the authored-partition carrier retains
+  one complete logical pass. Both Heavy adversarial passes were consumed, and every confirmed finding was resolved.
 
 ## **Phase 2:** Structural contribution identity
 
