@@ -154,7 +154,12 @@ not a starting shape.
   `changeRequest`, and `coordinates` are populated when its pull request opens. This replaces the current
   materialization rule, where the terminal is deliberately left unbound
   (`packages/arc-framework/src/lib/delivery/materialization.ts` derives `ref: null` and `requestBaseRef: null` for
-  the final index) and only binds post-merge.
+  the final index) and only binds post-merge. The terminal's `ref` is the originating branch, not a
+  delivery-namespace ref: its coordinates already resolve from the snapshot's top slot rather than the member
+  list, which is why D4.5a's `direct-delivery-ref` guard keeps discriminating exactly the case it was written for.
+  Binding it also removes the null-ref condition that today excludes the terminal from the publish arm's
+  presentation and request loops, so the terminal's ordinary-template presentation (D1.7) becomes a routing
+  obligation of that arm rather than an implicit consequence.
 - **D1.7 Terminal presentation.** The top pull request uses the ordinary work-unit pull-request template and the
   ordinary Conventional-Commits title, which `template-pull-request.md` already prescribes for the terminal member.
   The member presentation composer stays scoped to non-terminal members. Stack affiliation is conveyed
@@ -466,6 +471,9 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   per Scope "Will Do" item — so D7.3's grouping, plus the `validate-criteria` extraction, changes these, each in
   both the package source and the project copy:
     - `strategy-task-list-formatting.md` § Success Criteria Section — the flat-list specification;
+    - `strategy-task-list-formatting.md` § Phase Preamble, which requires `_Purpose:_` as the opening line and
+      must admit a `**Delivery member:**` pointer ahead of it, so a member-pinned phase names its member where
+      the reader already is;
     - `strategy-work-organization.md`'s task-list invariance clause, which currently declares the Success Criteria
       section's shape fixed and would otherwise forbid the grouping outright;
     - `template-tasks.md` — the Success Criteria block;
@@ -480,7 +488,9 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       not merely unlisted but squarely in scope for non-standard-section removal triage;
     - `init-recipe.json` — the new method's `include_files` entry. Without it the method ships nowhere; ten
       workflow and method files are already in exactly that state (an eleventh ships only under a `pm.mode`
-      condition).
+      condition);
+    - the methods README's dependency table — the `validate-criteria` row, since the method fires
+      `adversarial-review` (D7.6).
   **`docs/` is explicitly out of scope.** Its task-list reference documents the flat form and is single-copy, but
   that surface is frozen pending its own deliberate overhaul and is not touched here.
 - **D7.6 `validate-criteria` — one method, two fire points.** The walk is extracted from the verification
@@ -493,7 +503,18 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   and add a loadable surface with its own recipe and reachability obligations.
     - **Reachability must be hand-verified.** A declared method loads at its fire-point, and the corpus audit
       cannot distinguish a marked fire-point from a missing one — a method a workflow needs but never marks
-      silently never loads. Both fire points are verified by hand, not assumed.
+      silently never loads. Both fire points are verified by hand, not assumed. The fire-point form is the YAML
+      callsite block; the `· #name` marker is reserved for extensions and is not used for methods.
+    - **The adversarial companion travels with the walk.** The verification workflow's success-criteria boundary
+      carries two halves: the primary-led walk, and an advisory fresh-context pass over the same criteria with
+      the implementer's markings withheld. Extracting only the walk would move the half that comes back clean —
+      the field evidence above is four cycles each _opened by a clean primary self-verify_ — and would leave
+      member-scope criteria with less adversarial coverage than they have today, since D7.2 also narrows the
+      closeout pass to seams and union. The method therefore carries both, under **one posture at both scopes**
+      so scope stays a parameter rather than a branch. It declares `adversarial-review` itself and loads it on
+      acceptance; consuming workflows declare `validate-criteria` alone and never its dependencies. The offer
+      remains offered, never required, so no attended stop is added: a member closing task is already a
+      task-interlock stop and the offer rides it.
 - **D7.7 MVP as procedure.** No new record family and no typed verification store. This work unit owns the
   invocation topology — member boundaries, the grouped-criteria shape, and firing cadence — and, because that shape
   is itself a planning-time authoring form, it owns the delivery-member case of that form while
@@ -660,11 +681,16 @@ cannot resolve a change request whose base is a member branch. Both are ARC-inte
 provider-side — a member pull request is an ordinary pull request, reviewed like any other.
 
 - **D11.1 Member → work unit resolves through the delivery reverse lookup.** Branch-to-work-unit resolution today
-  returns `null` for any `delivery/`-prefixed branch, which blocks review status on a member head. It is replaced
-  by the delivery state's reverse lookup — the same narrow fallback D1.5 already introduces, so this composes with
-  substrate this design already carries. **Never a branch-name prefix test:** written as a prefix test it rots at
-  convergence, where work-unit identity decouples from branch identity; written as a reverse lookup it survives
-  intact.
+  returns `null` for any `delivery/`-prefixed branch, which blocks review status on a member head. The delivery
+  state's reverse lookup supplies the answer **at the review-gate read sites** — the same narrow fallback D1.5
+  already introduces, so this composes with substrate this design already carries. The shared branch-to-slug
+  helper is not widened: its delivery guard is load-bearing for the roster and cleanup consumers that key off a
+  non-null slug (teardown's reap filter, the orphan-branch sweep), and the lookup is head-keyed in both selector
+  arms while the helper is a pure synchronous branch-name read. A narrow fallback at the reads that need it,
+  never a new roster authority — the same boundary D1.5 draws. **Never a branch-name prefix test:** written as a
+  prefix test it rots at convergence, where work-unit identity decouples from branch identity; written as a
+  reverse lookup it survives intact. The rule governs _resolving ownership_; prefix tests that **exclude**
+  delivery refs from the work-unit roster are a different operation and are untouched.
 - **D11.2 The hosted request vehicle gains a delivery-member arm.** The scope is named honestly: the request
   vehicle today is a single kind-tagged `errand` schema on an optional field — not yet a union — with
   errand-specific binding validation inline in the request path, so this arm converts the field to a discriminated
@@ -879,11 +905,20 @@ fan-in, not aesthetics_ principle for D10.1's minted strategy — passes as a fa
 existing owner (the `strategy-work-organization` and `strategy-concurrent-work` charters exclude it, per D10.1's
 boundary), and multiple consumers already exist — the delivery and integration workflow prose, the shipped
 `integration-boundary-accuracy` posture, and `delivery-review-cardinality` — so the mint is forced by fan-in, not
-sized-to-grow aesthetics. Checked against `strategy-procedure-evolution` § Self-Check for the workflow-prose
+sized-to-grow aesthetics. The same Self-Check covers D7.6's method extraction: two fire points force it under the
+same _Extract on fan-in_ principle, its declaration follows _Generalize the methods mechanism; declare at point of
+use_ (each artifact declares only what its own body consumes), and moving the adversarial companion into the
+method satisfies _Anchor triggers to operations, not workflows_ — criteria validation is the operation, and both
+boundaries are sites of it. Checked against `strategy-procedure-evolution` § Self-Check for the workflow-prose
 surfaces (D2.4, D7.5, D10.3) — passes under _If the CLI can compute it, the CLI computes it_ and _Verbs over
 mechanics_: comparison, classification, and remedy selection stay in typed verbs; prose dispatches on returned
 results and implements no loop (D10.3); the member-scope walk enters as a method parameter rather than a prose
-branch (D7.6); and D6.10's consequence disclosure precomposes CLI-side per its § Emitted text principle. Checked
+branch (D7.6); and D6.10's consequence disclosure precomposes CLI-side per its § Emitted text principle. Two residuals are
+named rather than claimed clean. Principle 5's instrument does not exist — `workflow-eval-harness` is unstarted —
+so no judgment-layer prose in this design can be eval-gated; this is the corpus-wide state, not a property of this
+change. And `validate-criteria`'s adversarial offer is not precomposed CLI-side, unlike D6.10's disclosure: it is
+computable in principle from the plan's member task ranges and the task cursor, but that is new mechanism this
+design does not charter. Checked
 for forward compatibility against `draft-composable-workflows`: the `validate-criteria` shape — declaration plus
 marked fire-point — matches its validated-fire-site direction, D7.6's rejection of a sibling workflow is its
 fragment-substrate argument applied, and `deliver-stack` keeps the CLI-owned loop posture its loop rule requires —
@@ -921,9 +956,11 @@ no dependency on the agenda compiler is taken.
     member scope over its group in the member-grouped Success Criteria section, adding no phases and leaving the
     single terminal verification task unassigned to any member (D7.2, D7.2a, D7.6). Success criteria remain marked
     only during the verification phase (D7.3a). The closeout pass walks the seam group and dispositions the member
-    groups from recorded boundary evidence rather than re-deriving them. Every surface D7.5 names carries the
-    change in both copies, `validate-criteria` is reachable from both declared fire-points, and plan validation
-    refuses member task ranges that interleave or depart from member order (D7.1).
+    groups from recorded boundary evidence rather than re-deriving them. `validate-criteria` carries the
+    adversarial companion at both scopes under one posture, offered rather than required (D7.6). Every surface
+    D7.5 names carries the change in both copies, `validate-criteria` is reachable from both declared
+    fire-points, and plan validation refuses member task ranges that interleave or depart from member order
+    (D7.1).
 11. A carried hosted-review reservation resumes on every member pull request at its exact head, and the work-unit
     obligation reports discharged only when every member review has cleared — verified at the terminal boundary as
     the conjunction, never satisfied by the top's own residual review (D8.1, D8.2, D3.2).
