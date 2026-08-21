@@ -388,6 +388,9 @@ describe("trusted review-gate workflows", () => {
       expect(workflow).toMatch(
         /beforeFixFindingIds[\s\S]*before any\s+approved fix changes the head[\s\S]*afterFixFindingIds/iu,
       );
+      expect(workflow).toMatch(
+        /settlement: not-applicable[\s\S]*never invoke[\s\S]*hosted settle[\s\S]*post a reply[\s\S]*resolve anything/iu,
+      );
       expect(workflow).toMatch(/already-settled[\s\S]*exact approved reply[\s\S]*no host\s+mutation/iu);
     }
   });
