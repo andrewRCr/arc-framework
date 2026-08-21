@@ -526,8 +526,11 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
       semanticsVersion: "review-gate/v2",
       targetId: records.target.targetId,
       policyVersion: records.state.policyVersion,
-      rubricVersion: "standard-review/v1",
-      rubricDigest: digest("frontline-rubric"),
+      frontlineBinding: {
+        operationId: records.state.operationId,
+        sourceBindingId: records.state.sourceBindingId,
+        outcomeDigest: records.record.outcomeDigest,
+      },
       proposedBy: "arc-cli/0.1.0",
       findings: [{
         findingId: records.finding.findingId,
@@ -689,5 +692,18 @@ describe("review reduction command: frontline", () => {
       schemaVersion: 1,
       operationId: records.state.operationId,
     }, frontlineDependencies(records, null, mismatched).dependencies)).rejects.toThrow("outcome mismatch");
+  });
+
+  it("rejects a disposition whose frontline operation binding has moved", async () => {
+    const records = frontlineFixture("findings");
+    const disposition = approvedFrontline(records);
+    records.state.sourceBindingId = digest("changed-source-binding");
+
+    await expect(reduceReviewCommand({
+      schemaVersion: 1,
+      operationId: records.state.operationId,
+    }, frontlineDependencies(records, disposition).dependencies)).rejects.toThrow(
+      "approved disposition snapshot mismatch",
+    );
   });
 });
