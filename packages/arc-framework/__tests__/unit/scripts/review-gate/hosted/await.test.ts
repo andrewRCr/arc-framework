@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   HostedAwaitResultSchema,
@@ -23,8 +23,11 @@ const handle: HostedRequestHandle = {
   },
 };
 
-function clock(): HostedAwaitClock {
-  let now = 0;
+const CREATED_AT_MS = Date.parse(handle.artifact.createdAt);
+const ATTENTION_AFTER_MS = 15 * 60 * 1_000;
+
+function clock(startAt = CREATED_AT_MS): HostedAwaitClock {
+  let now = startAt;
   return {
     now: () => now,
     sleep: (milliseconds) => {
@@ -65,6 +68,18 @@ describe("hosted review await", () => {
     }).success).toBe(true);
   });
 
+  it("accepts a pending result that asks for inspection or an explicit extension", () => {
+    expect(HostedAwaitResultSchema.safeParse({
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle,
+      state: "pending",
+      nextAction: "inspect-or-extend",
+      ageMs: ATTENTION_AFTER_MS,
+      attentionAfterMs: ATTENTION_AFTER_MS,
+    }).success).toBe(true);
+  });
+
   it("returns a resumable pending state at the bounded deadline", async () => {
     const result = await awaitHostedReview({
       schemaVersion: 1,
@@ -73,6 +88,7 @@ describe("hosted review await", () => {
       pollIntervalMs: 500,
     }, {
       clock: clock(),
+      attentionAfterMs: ATTENTION_AFTER_MS,
       observers: [observer(() => Promise.resolve({ kind: "pending" }))],
     });
 
@@ -110,6 +126,7 @@ describe("hosted review await", () => {
       pollIntervalMs: 500,
     }, {
       clock: clock(),
+      attentionAfterMs: ATTENTION_AFTER_MS,
       observers: [observer(() => Promise.resolve(observation))],
     });
 
@@ -125,7 +142,7 @@ describe("hosted review await", () => {
       handle,
       timeoutMs: 2_000,
       pollIntervalMs: 500,
-    }, { clock: clock(), observers: [stale] });
+    }, { clock: clock(), attentionAfterMs: ATTENTION_AFTER_MS, observers: [stale] });
 
     expect(result).toMatchObject({
       state: "stale-target",
@@ -139,6 +156,7 @@ describe("hosted review await", () => {
     const input = { schemaVersion: 1 as const, handle, timeoutMs: 500, pollIntervalMs: 500 };
     const dependencies = {
       clock: clock(),
+      attentionAfterMs: ATTENTION_AFTER_MS,
       observers: [observer(() => Promise.resolve({ kind: "pending" as const }))],
     };
 
@@ -170,6 +188,7 @@ describe("hosted review await", () => {
         pollIntervalMs: 5,
       }, {
         clock: { now: () => Date.now(), sleep: async () => undefined },
+        attentionAfterMs: Number.MAX_SAFE_INTEGER,
         observers: [aborted],
       });
 
@@ -180,4 +199,87 @@ describe("hosted review await", () => {
       });
     },
   );
+
+  it("checks once and requests attention after unattended waiting reaches its limit", async () => {
+    const observe = vi.fn(() => Promise.resolve({ kind: "pending" as const }));
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(CREATED_AT_MS + ATTENTION_AFTER_MS),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(observe)],
+    });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "inspect-or-extend",
+      handle,
+      ageMs: ATTENTION_AFTER_MS,
+      attentionAfterMs: ATTENTION_AFTER_MS,
+    });
+    expect(observe).toHaveBeenCalledOnce();
+  });
+
+  it("accepts a completed result from the same handle after attention was requested", async () => {
+    const input = { schemaVersion: 1 as const, handle, timeoutMs: 500, pollIntervalMs: 500 };
+    const replay = await awaitHostedReview(input, {
+      clock: clock(CREATED_AT_MS + ATTENTION_AFTER_MS + 60_000),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(() => Promise.resolve({
+        kind: "clean" as const,
+        reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-2",
+      }))],
+    });
+
+    expect(replay).toMatchObject({
+      state: "clean",
+      nextAction: "complete",
+      handle,
+    });
+  });
+
+  it("caps automatic waiting at the remaining unattended interval", async () => {
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(CREATED_AT_MS + ATTENTION_AFTER_MS - 500),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(() => Promise.resolve({ kind: "pending" }))],
+    });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "inspect-or-extend",
+      ageMs: ATTENTION_AFTER_MS,
+    });
+  });
+
+  it("allows one explicitly extended bounded call without resetting request identity", async () => {
+    const observe = vi.fn(() => Promise.resolve({ kind: "pending" as const }));
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+      continueAfterAttention: true,
+    }, {
+      clock: clock(CREATED_AT_MS + ATTENTION_AFTER_MS),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(observe)],
+    });
+
+    expect(result).toMatchObject({
+      state: "pending",
+      nextAction: "inspect-or-extend",
+      handle,
+      ageMs: ATTENTION_AFTER_MS + 2_000,
+    });
+    expect(observe).toHaveBeenCalledTimes(3);
+  });
 });

@@ -59,6 +59,7 @@ describe("ARC config field catalog", () => {
       "hooks.body_max_line_length": 1,
       "review.frontline_max_passes": 1,
       "review.standard_max_passes": 1,
+      "review.hosted_await_attention_after_minutes": 1,
       "inbox.remind_after_days": 1,
       "integration.stale_after_days": 1,
     };
@@ -78,6 +79,17 @@ describe("ARC config field catalog", () => {
         expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(false);
       }
     }
+  });
+
+  it("bounds hosted await call timing to the runtime timer contract", () => {
+    const timeout = field("review.hosted_await_timeout_seconds").schema;
+    const poll = field("review.hosted_await_initial_poll_interval_seconds").schema;
+    expect(timeout.safeParse("1").success).toBe(true);
+    expect(timeout.safeParse("1800").success).toBe(true);
+    expect(timeout.safeParse("1801").success).toBe(false);
+    expect(poll.safeParse("1").success).toBe(true);
+    expect(poll.safeParse("60").success).toBe(true);
+    expect(poll.safeParse("61").success).toBe(false);
   });
 
   it("accepts exact unsigned safe-integer domains, including all-zero strings", () => {
@@ -191,6 +203,9 @@ describe("ARC config field catalog", () => {
       "integration.stale_after_days",
       "review.frontline_max_passes",
       "review.standard_max_passes",
+      "review.hosted_await_timeout_seconds",
+      "review.hosted_await_initial_poll_interval_seconds",
+      "review.hosted_await_attention_after_minutes",
       "review.standard_sources",
       "changeset.advisory_threshold_lines",
       "changeset.advisory_threshold_files",
@@ -240,6 +255,9 @@ describe("ARC config field catalog", () => {
       ["review.standard_sources", "[]"],
       ["review.frontline_max_passes", "2"],
       ["review.standard_max_passes", "2"],
+      ["review.hosted_await_timeout_seconds", "120"],
+      ["review.hosted_await_initial_poll_interval_seconds", "15"],
+      ["review.hosted_await_attention_after_minutes", "15"],
       ["changeset.advisory_threshold_lines", "0"],
       ["changeset.advisory_threshold_files", "0"],
       ["pm.mode", "none"],

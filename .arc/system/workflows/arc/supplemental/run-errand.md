@@ -266,8 +266,13 @@ remote base all name the same exact head. Any tracked change continues through t
    `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
    `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
 
-   - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use that bounded
-     wait again for `pending / await`; do not build an agent polling loop.
+   - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing
+     uses the project's configured bounded-call defaults.
+   - `pending / await` — re-invoke the same handle; do not build an agent polling loop.
+   - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
+     request intact. Re-invoking the same handle checks once; on explicit direction, pass
+     `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
+     provider outcome.
    - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
    - `findings / triage` — run the disposition protocol. For each approved finding with
      `settlement: reply-and-resolve`, settle before feeding `findings` back to the driver. For `defer` or `reject`,

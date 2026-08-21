@@ -206,6 +206,13 @@ review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]
 review.frontline_max_passes: 2
 review.standard_max_passes: 2
 
+# Hosted review await timing. Each call waits for at most two minutes and begins
+# provider polling at 15-second intervals. After 15 minutes of unattended waiting,
+# ARC asks whether to inspect or extend without invalidating the hosted request.
+review.hosted_await_timeout_seconds: 120
+review.hosted_await_initial_poll_interval_seconds: 15
+review.hosted_await_attention_after_minutes: 15
+
 # Exact-target changeset-size advisory thresholds for considering contract-cohesive review chunks.
 # These are not chunk-size caps or review-provider limits. Either dimension can be
 # enabled independently; 0 disables that dimension (both 0 preserves whole-target review).

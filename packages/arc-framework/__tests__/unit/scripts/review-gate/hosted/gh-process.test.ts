@@ -110,6 +110,7 @@ describe("hosted GitHub process boundary", () => {
     }, {
       observers: [adapter],
       clock,
+      attentionAfterMs: Number.MAX_SAFE_INTEGER,
     })).resolves.toMatchObject({
       state: "pending",
       nextAction: "await",
