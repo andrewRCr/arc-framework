@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "coderabbit-cli-auto-update-compatibility",
+  "claimId": "3c37992fe4543fa30edd25d2c6bc29dc",
+  "createdAt": "2026-08-21T00:57:03.383Z",
+  "updatedAt": "2026-08-21T00:57:03.383Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "coderabbit-cli-auto-update-compatibility",
+  "branch": "chore/coderabbit-cli-auto-update-compatibility",
+  "origin": "inbox",
+  "originEntry": "Make frontline review resilient to CodeRabbit CLI auto-updates",
+  "originEntrySourceDigest": "sha256:58dc08b4c7a7d3c47304102cc8c2507f3bb771baf8b7a9abb76f7fc9ab0b6150",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
