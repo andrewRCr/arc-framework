@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "recognize-hosted-clean-completion",
+  "claimId": "3b12b121809de35025c8fb42fe341cf2",
+  "createdAt": "2026-08-21T14:24:09.399Z",
+  "updatedAt": "2026-08-21T14:24:09.399Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "recognize-hosted-clean-completion",
+  "branch": "chore/recognize-hosted-clean-completion",
+  "origin": "inbox",
+  "originEntry": "Recognize hosted clean completion from structural provider evidence",
+  "originEntrySourceDigest": "sha256:b4ba0348685cbae16dbbea40ae0a84bf50789dde8738c53dbf2659efa89f9c2e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
