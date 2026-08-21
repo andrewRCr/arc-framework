@@ -16,6 +16,7 @@ import { deliveryFourMemberStackPlanFixture } from "../fixtures/delivery-plan.js
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 
 const DIGEST = `sha256:${"1".repeat(64)}`;
+const SUBPROCESS_HEAVY_TIMEOUT = 60_000;
 
 describe("arc delivery", () => {
   let repository: string;
@@ -133,7 +134,7 @@ describe("arc delivery", () => {
         reason: "invalid-command-input",
       });
     }
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("selects exact native arms and degrades through the built CLI", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
