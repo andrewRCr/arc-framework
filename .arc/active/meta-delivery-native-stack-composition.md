@@ -13,13 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** generate-tasks Pass 1-2 — 8-member skeleton and content fill authored (56 parent tasks);
-  the task list validates against the shipped delivery task inventory, coverage, and hand-checked member order
+- **Last Completed:** generate-tasks Pass 3 — Phases 1-4 audited and folded; five spec elements amended
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** generate-tasks Pass 3 — grounding audit with a per-phase confirm gate over Phases 1-8, then
-  Finalize (pre-save checklist, delivery canonicalization, adversarial pass)
+- **Next Action:** generate-tasks Pass 3 — resume the grounding audit at Phase 5, then Phases 6-8, the final
+  suite-coherence pass, and Finalize
 
 - **PR URL:** [none]
 - **Completed:** [none]
