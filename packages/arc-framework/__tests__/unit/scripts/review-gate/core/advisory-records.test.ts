@@ -113,9 +113,11 @@ describe("advisory review records", () => {
       repositoryId: "repo-1",
       operationId: "operation-1",
       candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
       source,
       approvedDisposition,
       fixAuthorization: null,
+      errandFixResponse: null,
     };
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
     expect(ApprovedDispositionRecordSchema.safeParse({
@@ -123,6 +125,14 @@ describe("advisory review records", () => {
       source: source.kind === "attested-local"
         ? { ...source, outcomeRef: "forged" }
         : { ...source, receiptRef: "forged" },
+    }).success).toBe(false);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      errand: {
+        key: "repair-review-state",
+        claimId: "claim-1",
+        branch: "chore/repair-review-state",
+      },
     }).success).toBe(false);
   });
 

@@ -191,6 +191,7 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
     repositoryId: records.operation.repositoryId,
     operationId: records.operation.operationId,
     candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+    errand: null,
     source: {
       kind: "attested-local",
       receiptRef: bindReviewSourceReference({
@@ -202,6 +203,7 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
     },
     approvedDisposition: disposition,
     fixAuthorization: null,
+    errandFixResponse: null,
   });
 }
 
@@ -555,6 +557,7 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
     repositoryId: records.target.repositoryId,
     operationId: records.state.operationId,
     candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+    errand: null,
     source: {
       kind: "frontline",
       outcomeRef: bindReviewSourceReference({
@@ -565,6 +568,7 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
     },
     approvedDisposition: disposition,
     fixAuthorization: null,
+    errandFixResponse: null,
   });
 }
 

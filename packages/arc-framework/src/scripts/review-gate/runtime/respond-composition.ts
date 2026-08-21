@@ -3,6 +3,10 @@
 import { readFile, readdir } from "node:fs/promises";
 
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
+import {
+  projectTransientInFlightRead,
+  readTransientInFlightIndexes,
+} from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
@@ -106,6 +110,30 @@ export function createRespondDependencies(input: {
         proposerIdentity: `arc-cli/${getFrameworkVersion()}`,
       };
     },
+    resolveActiveErrand: async () => {
+      const live = await readLocalReviewLiveContext(input);
+      if (live.context.activeIdentity === null || live.context.errand === null) return null;
+      const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        cwd: input.cwd,
+      })).stdout.trim();
+      const projected = projectTransientInFlightRead(await readTransientInFlightIndexes({
+        exec: input.exec,
+        identity: live.context.activeIdentity,
+      }));
+      if (!projected.complete) throw new Error(projected.degraded ?? "Transient identity authority is incomplete.");
+      const matching = projected.indexes.records.filter((record) => (
+        record.kind === "errand"
+        && record.purpose === "errand"
+        && record.state === "open"
+        && record.slug === live.context.errand?.identity
+        && record.branch === branch
+      ));
+      const record = matching.length === 1 ? matching[0] : undefined;
+      return record?.kind === "errand" && record.purpose === "errand"
+        ? { key: record.slug, claimId: record.claimId, branch: record.branch }
+        : null;
+    },
+    now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {
       const active = await resolveActiveWu({ cwd: input.cwd });
       const completed = [...(await buildLifecycleIndex({ cwd: input.cwd, fs: lifecycleFs })).values()]

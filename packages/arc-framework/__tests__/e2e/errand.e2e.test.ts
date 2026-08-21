@@ -15,7 +15,14 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
-import { runArc, runArcAnchored, runArcAnchoredSequence, createTempRepo, cleanupTempDir } from "./helpers.js";
+import {
+  cleanupTempDir,
+  createTempRepo,
+  runArc,
+  runArcAnchored,
+  runArcAnchoredSequence,
+  runArcWithStdin,
+} from "./helpers.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 
 const execFileAsync = promisify(execFile);
@@ -43,6 +50,21 @@ async function gitWithInput(cwd: string, args: string[], input: string): Promise
     });
     child.stdin.end(input);
   });
+}
+
+/** Commit the staged fixture snapshot through Git plumbing, outside the workflow behavior under test. */
+async function commitFixture(cwd: string, message: string): Promise<void> {
+  let parent: string | null = null;
+  try {
+    parent = (await git(cwd, ["rev-parse", "--verify", "HEAD"])).trim();
+  } catch {
+    // An initialized fixture may still be on its unborn base branch.
+  }
+  const tree = (await git(cwd, ["write-tree"])).trim();
+  const commit = (await git(cwd, [
+    "commit-tree", tree, ...(parent === null ? [] : ["-p", parent]), "-m", message,
+  ])).trim();
+  await git(cwd, ["update-ref", "HEAD", commit, ...(parent === null ? [] : [parent])]);
 }
 
 /** Seed one exact v3 awaiting tail for command-boundary refusal coverage. */
@@ -130,6 +152,18 @@ async function createBareRemote(cwd: string, suffix: string): Promise<string> {
   return remoteDir;
 }
 
+interface ReviewEnvelope {
+  state: string;
+  nextAction: string;
+  payload: Record<string, unknown>;
+}
+
+async function invokeReview(cwd: string, command: string[], request: unknown): Promise<ReviewEnvelope> {
+  const result = await runArcWithStdin(command, cwd, `${JSON.stringify(request)}\n`);
+  expect(result.exitCode, result.stderr || result.stdout).toBe(0);
+  return JSON.parse(result.stdout.trim()) as ReviewEnvelope;
+}
+
 function inspectIdentityCommand(slug: string): readonly string[] {
   return [
     process.execPath,
@@ -204,6 +238,140 @@ describe("arc errand check", () => {
     // `reachable` reflects the oracle's remote read; the sandbox repo has no
     // reachable remote, so the no-overlap result carries `reachable: false`.
     expect(JSON.parse(result.stdout.trim())).toEqual({ overlaps: [], warnings: [], reachable: false });
+  });
+});
+
+describe("arc review respond for an Errand", () => {
+  it("persists and idempotently replays a verified fix without Candidate lineage", async () => {
+    const repository = await createTempRepo("arc-errand-review-response-");
+    let remoteDir: string | null = null;
+    try {
+      const initialized = await runArc(["init", "--yes", "--name", "errand-review"], repository);
+      expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
+      await setFullProtection(repository);
+      await git(repository, ["add", "-A"]);
+      await commitFixture(repository, "initialize fixture");
+      remoteDir = await createBareRemote(repository, "review-response");
+
+      const opened = await runArcAnchored([
+        "errand", "open", "repair-review-state", "--json",
+      ], repository, { timeout: 60_000 });
+      expect(opened.exitCode, opened.stderr || opened.stdout).toBe(0);
+      await writeFile(join(repository, "reviewed.txt"), "reviewed change\n", "utf8");
+      await git(repository, ["add", "reviewed.txt"]);
+      await commitFixture(repository, "add reviewed change");
+
+      const prepared = await invokeReview(repository, ["review", "local", "prepare", "-"], {
+        schemaVersion: 1,
+        evaluatorIdentity: "reviewer-1",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+      });
+      const preparePayload = prepared.payload as {
+        operationId: string;
+        target: { targetId: string; headSha: string; headTree: string };
+        request: { evaluatorIdentity: string };
+        reviewerPayload: {
+          sourceDigest: string;
+          guidanceDigest: string;
+          guidance: { rubricVersion: string; rubricDigest: string };
+        };
+      };
+      await invokeReview(repository, ["review", "local", "attest", "-"], {
+        schemaVersion: 1,
+        operationId: preparePayload.operationId,
+        result: {
+          status: "complete",
+          result: "findings",
+          targetId: preparePayload.target.targetId,
+          headSha: preparePayload.target.headSha,
+          headTree: preparePayload.target.headTree,
+          rubricVersion: preparePayload.reviewerPayload.guidance.rubricVersion,
+          rubricDigest: preparePayload.reviewerPayload.guidance.rubricDigest,
+          sourceDigest: preparePayload.reviewerPayload.sourceDigest,
+          guidanceDigest: preparePayload.reviewerPayload.guidanceDigest,
+          evaluatorIdentity: preparePayload.request.evaluatorIdentity,
+          reviewRunId: "run-findings",
+          applicabilityId: null,
+          findings: [{
+            findingId: "finding-1",
+            severity: "major",
+            locus: "reviewed.txt:1",
+            evidenceUrlOrId: "review:finding-1",
+          }],
+        },
+      });
+      const reduced = await invokeReview(repository, ["review", "reduce", "-"], {
+        schemaVersion: 1,
+        operationId: preparePayload.operationId,
+      });
+      const source = (reduced.payload as {
+        responseSource: { kind: "attested-local"; receiptRef: string };
+      }).responseSource;
+      const proposed = await invokeReview(repository, ["review", "respond", "-"], {
+        schemaVersion: 1,
+        source,
+        proposal: {
+          findings: [{
+            findingId: "finding-1",
+            sourceVerification: "verified",
+            verificationRefs: ["source:reviewed.txt:1"],
+            disposition: "fix",
+            rationale: "The reviewed source supports applying this fix.",
+            recommendation: "Apply the fix.",
+            openQuestions: [],
+          }],
+        },
+      });
+      const proposal = (proposed.payload as {
+        proposal: {
+          state: "proposed";
+          dispositionSet: { targetId: string; dispositionSetId: string };
+        };
+      }).proposal;
+      const dispositions = {
+        ...proposal,
+        state: "approved" as const,
+        approval: {
+          schemaVersion: 2 as const,
+          semanticsVersion: "review-gate/v2" as const,
+          targetId: proposal.dispositionSet.targetId,
+          dispositionSetId: proposal.dispositionSet.dispositionSetId,
+          approvedBy: "test-user",
+          approvedAt: "2026-08-15T21:00:00Z",
+        },
+      };
+      await expect(invokeReview(repository, ["review", "respond", "-"], {
+        schemaVersion: 1,
+        source,
+        dispositions,
+      })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+
+      await writeFile(join(repository, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+      await git(repository, ["add", "reviewed.txt"]);
+      await commitFixture(repository, "apply approved fix");
+      const verifiedRequest = {
+        schemaVersion: 1,
+        source,
+        dispositions,
+        verifiedFix: {
+          applicability: "focused",
+          verificationEvidenceRefs: ["verification://focused-fix"],
+        },
+      };
+      await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
+        .resolves.toMatchObject({ state: "errand-advanced", nextAction: "continue-review" });
+      await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
+        .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
+    } finally {
+      await cleanupTempDir(repository);
+      if (remoteDir !== null) await cleanupTempDir(remoteDir);
+    }
   });
 });
 

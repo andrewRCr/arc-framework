@@ -12,8 +12,10 @@ import {
 } from "../../../lib/work-unit/candidate-attestation.js";
 import {
   ApprovedDispositionRecordSchema,
+  ErrandReviewFixResponseSchema,
   FrontlineOutcomeRecordSchema,
   type ApprovedDispositionRecord,
+  type ErrandReviewBinding,
 } from "../core/advisory-records.js";
 import {
   dispositionSetMatchesSourceContext,
@@ -45,6 +47,7 @@ import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
+import { consumeFixAuthorization } from "../core/fix-authorization.js";
 import { projectReviewResponse } from "../core/response-plan.js";
 import {
   ReviewResponseSettlementRequestSchema,
@@ -153,6 +156,9 @@ export interface RespondCommandDependencies {
     admittedAuthorIdentity?: string,
   ): Promise<ResponseActors>;
   resolveFrontlineActors(): Promise<ResponseActors>;
+  /** Exact ordinary Errand occupying the current branch, or null outside an Errand. */
+  resolveActiveErrand(): Promise<ErrandReviewBinding | null>;
+  now(): string;
   /** Null when the response target identifies no active or archived Candidate lineage. */
   readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
   appendCandidateResponse(input: {
@@ -200,6 +206,11 @@ interface ResolvedResponseSource {
   hostedAttempt?: {
     operationId: string;
     attemptId: string;
+    target: {
+      repository: string;
+      pullRequest: number;
+      headSha: string;
+    };
     noHostSettlementFindingIds: readonly string[];
     settled: boolean;
   };
@@ -491,6 +502,7 @@ async function resolveHostedSource(
     hostedAttempt: {
       operationId: persisted.state.operationId,
       attemptId: attempt.attemptId,
+      target: attempt.hosted.target,
       noHostSettlementFindingIds: attempt.hosted.findings
         .filter(({ settlement }) => settlement === "not-applicable")
         .map(({ findingId }) => findingId),
@@ -639,6 +651,104 @@ async function persistCandidateResponse(
       responseId: response.responseId,
       recordPath,
       implementationChanged: response.implementationChanged,
+    },
+  });
+}
+
+function errandResponseMatches(
+  existing: z.infer<typeof ErrandReviewFixResponseSchema>,
+  input: {
+    source: ResolvedResponseSource;
+    dispositions: ApprovedDispositionSet;
+    newTarget: ReviewTarget;
+    verifiedFix: z.infer<typeof RespondVerifiedFixSchema>;
+  },
+): boolean {
+  const hostedTarget = input.source.hostedAttempt?.target ?? null;
+  return existing.oldTarget.targetId === input.source.target.targetId
+    && existing.newTarget.targetId === input.newTarget.targetId
+    && existing.applicability === input.verifiedFix.applicability
+    && canonicalize(existing.fixConsumption.verificationRefs)
+      === canonicalize(input.verifiedFix.verificationEvidenceRefs)
+    && existing.fixConsumption.appliedBy === input.dispositions.dispositionSet.proposedBy
+    && canonicalize(existing.hostedTarget) === canonicalize(hostedTarget);
+}
+
+/** Persist one verified fix against an exact active Errand instead of a Work Unit Candidate. */
+async function persistErrandResponse(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+  newTarget: ReviewTarget,
+  verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
+  dependencies: RespondCommandDependencies,
+): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  const [existing, activeErrand] = await Promise.all([
+    dependencies.dispositionStore.readDispositionRecord(source.operationId),
+    dependencies.resolveActiveErrand(),
+  ]);
+  if (existing === null
+    || existing.candidate !== null
+    || existing.errand === null
+    || activeErrand === null
+    || canonicalize(existing.errand) !== canonicalize(activeErrand)
+    || canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)
+    || canonicalize(existing.source) !== canonicalize(source.source)
+    || existing.fixAuthorization === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified fix without Candidate lineage requires the exact approved active Errand response record",
+    );
+  }
+  const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
+  if (existing.errandFixResponse !== null) {
+    if (!errandResponseMatches(existing.errandFixResponse, {
+      source,
+      dispositions,
+      newTarget,
+      verifiedFix,
+    })) {
+      throw new RespondCommandError("invalid-input", "Errand response replay conflicts with the recorded response");
+    }
+    const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
+    return RespondEnvelopeSchema.parse({
+      ...header,
+      state: "errand-current",
+      nextAction: "continue-review",
+      payload: {
+        operationId: source.operationId,
+        dispositionRecordRef,
+        fixAuthorizationId: existing.fixAuthorization.fixAuthorizationId,
+      },
+    });
+  }
+  const fixConsumption = consumeFixAuthorization({
+    authorization: existing.fixAuthorization,
+    oldTarget: source.target,
+    newTarget,
+    appliedBy: dispositions.dispositionSet.proposedBy,
+    consumedAt: dependencies.now(),
+    verificationRefs: verifiedFix.verificationEvidenceRefs,
+    priorConsumptions: [],
+  });
+  const record = ApprovedDispositionRecordSchema.parse({
+    ...existing,
+    errandFixResponse: {
+      oldTarget: source.target,
+      newTarget,
+      applicability: verifiedFix.applicability,
+      fixConsumption,
+      hostedTarget: source.hostedAttempt?.target ?? null,
+    },
+  });
+  const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
+  return RespondEnvelopeSchema.parse({
+    ...header,
+    state: "errand-advanced",
+    nextAction: "continue-review",
+    payload: {
+      operationId: source.operationId,
+      dispositionRecordRef,
+      fixAuthorizationId: fixConsumption.fixAuthorizationId,
     },
   });
 }
@@ -813,6 +923,9 @@ export async function respondToReviewCommand(
         `a verified fix produced unsupported state '${settlement.state}'`,
       );
     }
+    if (await dependencies.readCandidateLineage(source.target) === null) {
+      return persistErrandResponse(source, dispositions, changedTarget, verifiedFix, dependencies);
+    }
     return persistCandidateResponse(source, dispositions, verifiedFix, dependencies);
   }
   const plan = projectApprovedResponse(source, dispositions);
@@ -826,6 +939,8 @@ export async function respondToReviewCommand(
         dispositionState: dispositions,
       });
   const lineage = unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target);
+  const errand = lineage === null ? await dependencies.resolveActiveErrand() : null;
+  const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "review-advisory/v1",
@@ -837,11 +952,12 @@ export async function respondToReviewCommand(
           workUnit: lineage.workUnit,
           candidateId: lineage.record.attestation.candidateId,
         },
+    errand,
     source: source.source,
     approvedDisposition: dispositions,
     fixAuthorization: plan.fixAuthorization,
+    errandFixResponse: existing?.errandFixResponse ?? null,
   });
-  const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   if (existing !== null && canonicalize(existing) !== canonicalize(record)) {
     throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
   }

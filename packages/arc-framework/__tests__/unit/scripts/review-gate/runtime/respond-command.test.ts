@@ -10,6 +10,7 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   createFrontlineOutcomeRecord,
+  ErrandReviewBindingSchema,
   type ApprovedDispositionRecord,
 } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
 import {
@@ -42,6 +43,14 @@ const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
 const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
 const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
 const errandVehicle = { kind: "errand", identity: "repair-review-state" } as const;
+
+function activeErrandBinding(claimId = "claim-1") {
+  return ErrandReviewBindingSchema.parse({
+    key: "repair-review-state",
+    claimId,
+    branch: "chore/repair-review-state",
+  });
+}
 
 function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
   const target = createReviewTarget({
@@ -218,7 +227,12 @@ function dependencies(records: ReturnType<typeof fixture>) {
     dispositionStore: {
       readDispositionRecord: async () => disposition,
       appendDispositionRecord: async (record) => {
-        if (disposition !== null && canonicalize(disposition) !== canonicalize(record)) {
+        const errandAdvance = disposition !== null
+          && disposition.errandFixResponse === null
+          && record.errandFixResponse !== null
+          && canonicalize({ ...disposition, errandFixResponse: null })
+            === canonicalize({ ...record, errandFixResponse: null });
+        if (disposition !== null && canonicalize(disposition) !== canonicalize(record) && !errandAdvance) {
           throw new Error("conflict");
         }
         disposition = record;
@@ -235,6 +249,8 @@ function dependencies(records: ReturnType<typeof fixture>) {
       approverIdentity: records.authority.authorIdentity,
       proposerIdentity: records.authority.runtimeIdentity,
     }),
+    resolveActiveErrand: async () => null,
+    now: () => "2026-07-23T21:00:00Z",
     readCandidateLineage: async () => {
       const record = candidateRecord();
       return {
@@ -1143,16 +1159,123 @@ describe("verified-fix Candidate settlement", () => {
     )).rejects.toThrow("requires a changed exact target");
   });
 
-  it("refuses a verified fix with no Candidate lineage to advance", async () => {
-    const records = fixture();
-    const { deps } = lineageDependencies(records, {
-      revision: objectId("e"),
-      subject: candidateSubject("fixed"),
-    });
+  it("persists a verified fix for the exact active Errand without Candidate lineage", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
     deps.readCandidateLineage = async () => null;
+    Object.assign(deps, {
+      resolveActiveErrand: async () => activeErrandBinding(),
+    });
+
+    await expect(respondToReviewCommand(localRequest(records), deps))
+      .resolves.toMatchObject({ state: "ready-to-fix" });
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
 
     await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
-      .rejects.toThrow("managed Candidate record");
+      .resolves.toMatchObject({
+        state: "errand-advanced",
+        nextAction: "continue-review",
+        payload: {
+          operationId: records.operation.operationId,
+          dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+        },
+      });
+  });
+
+  it("retains the exact hosted change request on a verified Errand fix", async () => {
+    const hosted = hostedResponseFixture("review-thread");
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const { deps, moveTo } = movingCheckout(hosted.records);
+    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    const appended: ApprovedDispositionRecord[] = [];
+    const appendDispositionRecord = deps.dispositionStore.appendDispositionRecord;
+    deps.dispositionStore.appendDispositionRecord = async (record) => {
+      appended.push(record);
+      return appendDispositionRecord(record);
+    };
+    const request = {
+      schemaVersion: 1 as const,
+      source: { kind: "hosted" as const, attemptRef: hosted.attemptRef },
+      dispositions: approved({
+        targetId: hosted.records.target.targetId,
+        policyVersion: attempt.hosted.requirement.policyVersion,
+        rubricVersion: attempt.hosted.requirement.rubricVersion,
+        rubricDigest: attempt.hosted.requirement.rubricDigest,
+        sourceIdentity: "codex-pr",
+        finding: hosted.records.finding,
+      }),
+    };
+    await respondToReviewCommand(request, deps);
+    const current = settledHead(hosted.records.target.repositoryId, objectId("e"), objectId("f"));
+    moveTo(current);
+
+    await expect(respondToReviewCommand({
+      ...request,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    }, deps)).resolves.toMatchObject({ state: "errand-advanced" });
+    expect(appended.at(-1)?.errandFixResponse).toMatchObject({
+      oldTarget: { targetId: hosted.records.target.targetId },
+      newTarget: { targetId: current.targetId },
+      hostedTarget: {
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: hosted.records.target.headSha,
+      },
+    });
+  });
+
+  it("replays the exact verified Errand response without consuming its authorization twice", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    Object.assign(deps, {
+      resolveActiveErrand: async () => activeErrandBinding(),
+    });
+    await respondToReviewCommand(localRequest(records), deps);
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
+
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
+      .resolves.toMatchObject({ state: "errand-advanced" });
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
+      .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
+  });
+
+  it("refuses a conflicting verified Errand response replay", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    await respondToReviewCommand(localRequest(records), deps);
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
+    await respondToReviewCommand(verifiedFixRequest(records), deps);
+
+    await expect(respondToReviewCommand({
+      ...verifiedFixRequest(records),
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://different-fix"],
+      },
+    }, deps)).rejects.toThrow("Errand response replay conflicts");
+  });
+
+  it("refuses a verified fix after the active Errand claim changes", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    let active = activeErrandBinding();
+    Object.assign(deps, { resolveActiveErrand: async () => active });
+    await respondToReviewCommand(localRequest(records), deps);
+    active = { ...active, claimId: "claim-2" };
+    moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
+
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
+      .rejects.toThrow("exact approved active Errand response record");
   });
 
   it("refuses a verified fix the index does not carry, rather than advancing a lineage without it", async () => {

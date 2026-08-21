@@ -1,4 +1,4 @@
-/** Repository-shared append-only storage for approved advisory dispositions. */
+/** Repository-shared monotonic storage for approved advisory dispositions. */
 
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import {
@@ -30,7 +30,16 @@ function parseRecord(raw: string): ApprovedDispositionRecord {
   }
 }
 
-/** Git-common disposition store with idempotent exact replay and conflict refusal. */
+function isErrandFixAdvance(
+  existing: ApprovedDispositionRecord,
+  next: ApprovedDispositionRecord,
+): boolean {
+  if (existing.errandFixResponse !== null || next.errandFixResponse === null) return false;
+  return canonicalize({ ...existing, errandFixResponse: null })
+    === canonicalize({ ...next, errandFixResponse: null });
+}
+
+/** Git-common disposition store with exact replay and one monotonic Errand-fix evidence append. */
 export class LocalApprovedDispositionRecordStore
 implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
@@ -68,8 +77,16 @@ implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
     return this.publisher.update({ root: "review-gate", namespace: "evidence" }, name, (raw) => {
       if (raw !== null) {
         const existing = parseRecord(raw);
-        if (canonicalize(existing) !== canonicalize(record)) {
+        const errandFixAdvance = isErrandFixAdvance(existing, record);
+        if (canonicalize(existing) !== canonicalize(record) && !errandFixAdvance) {
           throw new LocalReviewRecordStoreError("local-disposition-conflict");
+        }
+        if (errandFixAdvance) {
+          return {
+            kind: "write",
+            content: `${JSON.stringify(record)}\n`,
+            result: { dispositionRecordRef: `git-common:review-gate/evidence/${name}` },
+          };
         }
         return {
           kind: "keep",
