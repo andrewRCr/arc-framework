@@ -178,29 +178,14 @@ copy together.
 
         - Cleanup now preserves delivery-member and cross-member seam subgroups with the Success Criteria section.
 
-### `[ ]` **1.6 Validate member order and contiguity in the delivery task inventory**
+### `[x]` **1.6 Validate member order and contiguity in the delivery task inventory**
 
 - _Goal:_ A plan whose member task ranges interleave or depart from member order is refused at authoring time,
   so the premise that member k's completion boundary is member k's cumulative tree is enforced rather than assumed.
 
-- _Context:_ The shipped inventory validates assignment — unknown task references, verification-task assignment,
-  uncovered implementation tasks — but not order. Coverage is entry-sensitive, so the new check belongs beside the
-  existing issue kinds rather than in a separate validator.
-
-- _Shape:_ One new blocking issue kind, `member-task-order`, carrying the offending member indices. It blocks
-  under both authored entries: order is a property of plan intent, and a branch-authored plan carries member task
-  ranges the same way. A task shared between adjacent members stays legal — cumulative trees make it coherent —
-  while one shared between non-adjacent members breaks the premise and refuses.
-
-    - Build `test-first` (one behavior at a time):
-        - A plan whose member task ranges follow member order in task-list order validates
-        - A plan with two members whose task ranges interleave refuses with the offending member indices named
-        - A plan whose member ranges are contiguous but ordered against member order refuses
-        - A task shared between adjacent members does not by itself refuse; one shared between non-adjacent
-          members refuses
-        - A member carrying an empty task range is compared without throwing
-        - The new kind blocks under both entries, while the uncovered-task kind keeps its entry-sensitivity
-        - The existing assignment issues continue to refuse unchanged alongside the new kind
+- _Outcome:_ `validateDeliveryTaskCoverage` now refuses one typed `member-task-order` issue naming every offending
+  member across noncontiguous, interleaved, reversed, and non-adjacent-sharing ranges. Adjacent sharing and empty
+  ranges remain valid; the new issue blocks both authoring entries without changing assignment issue behavior.
 
 ### `[x]` **1.7 Ship `validate-criteria` through `init-recipe.json` and both copies**
 
