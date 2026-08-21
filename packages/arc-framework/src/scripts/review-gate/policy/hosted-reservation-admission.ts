@@ -8,6 +8,24 @@ interface ReservationAttempt {
 }
 
 /**
+ * Return the selected source and its ordered fallbacks from current configuration.
+ *
+ * @param configuredSources - Current ordered standard-review source configuration.
+ * @param selectedSource - Explicit source selected for this review run.
+ * @returns The exact configured suffix beginning at the selected source.
+ */
+export function configuredSourceSuffix(
+  configuredSources: readonly string[],
+  selectedSource: string,
+): readonly string[] {
+  const selectedSourceIndex = configuredSources.indexOf(selectedSource);
+  if (selectedSourceIndex < 0) {
+    throw new Error(`Hosted review source \`${selectedSource}\` is not a configured standard-review source.`);
+  }
+  return configuredSources.slice(selectedSourceIndex);
+}
+
+/**
  * Refuse carrier fields that can be checked against existing standard-review authority.
  *
  * @param input - Carried binding plus the independently resolved source order and rubric identity.
@@ -21,9 +39,14 @@ export function assertHostedErrandBindingAuthority(input: {
   configuredSources: readonly string[];
   rubricIdentity: { version: string; digest: string };
 }): void {
-  if (input.binding.sources.length !== input.configuredSources.length
-    || input.binding.sources.some((source, index) => source !== input.configuredSources[index])) {
-    throw new Error("Hosted Errand source binding does not match the configured standard-review sources.");
+  const firstBoundSource = input.binding.sources[0];
+  const configuredSuffix = firstBoundSource === undefined
+    ? []
+    : configuredSourceSuffix(input.configuredSources, firstBoundSource);
+  if (input.binding.sources.length === 0
+    || input.binding.sources.length !== configuredSuffix.length
+    || input.binding.sources.some((source, index) => source !== configuredSuffix[index])) {
+    throw new Error("Hosted Errand source binding is not an exact configured suffix.");
   }
   if (input.binding.standardReview.rubricVersion !== input.rubricIdentity.version
     || input.binding.standardReview.rubricDigest !== input.rubricIdentity.digest) {

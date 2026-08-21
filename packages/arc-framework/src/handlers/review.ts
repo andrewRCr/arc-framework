@@ -153,6 +153,7 @@ import {
   assertHostedErrandAdmission,
   assertHostedErrandBindingAuthority,
   assertHostedReservationAdmission,
+  configuredSourceSuffix,
 } from
   "../scripts/review-gate/policy/hosted-reservation-admission.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
@@ -1344,7 +1345,7 @@ async function resolveHostedProgressContext(input: {
       : HostedErrandProgressBindingSchema.parse({
           kind: "errand",
           ...current,
-          sources: configuredSources,
+          sources: configuredSourceSuffix(configuredSources, input.provider),
           standardReview: input.vehicle.standardReview,
         });
     assertHostedErrandBindingAuthority({

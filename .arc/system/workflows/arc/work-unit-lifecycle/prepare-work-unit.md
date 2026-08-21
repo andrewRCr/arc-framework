@@ -46,11 +46,13 @@ routed `standardReview` projection, the work unit's `Class`, and each lane's eff
 from repository state by the command below; never assemble or restate them here.
 
 Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
-mode, the frontline lane's one-run invocation override, and any approved ceiling override as `--lanes`, and a
+mode and one-run invocation override, and any approved ceiling override as `--lanes`, and a
 completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
 option when the method is inactive. A user-directed skip of an enabled frontline lane is
-`lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. After the active Work Unit
-Owner explicitly accepts the current review terminus, carry
+`lanes.frontline.invocation: { mode: "skip" }`; it cannot suppress the standard lane. An explicit Owner selection
+of a configured standard source is
+`lanes.standard.invocation: { mode: "force", sourceId: "<source-id>" }`; configured order remains the default when
+it is absent. After the active Work Unit Owner explicitly accepts the current review terminus, carry
 `lanes.standard.terminus: { mode: "owner-accepted" }`. The command authenticates that Owner and reports a distinct
 `owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The Owner's
 decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains current.
