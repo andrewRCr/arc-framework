@@ -3,7 +3,7 @@
   "slug": "proportionate-ci-test-timeouts",
   "claimId": "e522ae874197b6ce5a622d2811ef7068",
   "createdAt": "2026-08-21T21:27:43.336Z",
-  "updatedAt": "2026-08-21T21:27:43.336Z",
+  "updatedAt": "2026-08-21T21:57:38.153Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "proportionate-ci-test-timeouts",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give resource-intensive tests proportionate CI timeouts",
   "originEntrySourceDigest": "sha256:86aa3e214d23d94b9c3c64c0a1aaed2c770cbd2904516970b3b88a5a3ee836e4",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/proportionate-ci-test-timeouts",
+    "headSha": "c8e1091fabd732ee7689ab4f65e1337203c9e1e7"
+  }
 }
