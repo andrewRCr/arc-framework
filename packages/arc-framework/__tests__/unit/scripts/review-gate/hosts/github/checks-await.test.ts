@@ -82,6 +82,32 @@ describe("GitHub required-check port", () => {
     ]);
   });
 
+  it("keeps classic required contexts pending before GitHub reports them", async () => {
+    const run = vi.fn()
+      .mockResolvedValueOnce({
+        stdout: "",
+        stderr: "no required checks reported on the 'feature' branch",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ base: { ref: "main" } }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          protected: true,
+          protection: { required_status_checks: { contexts: ["merge-ok", "lint"] } },
+        }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ stdout: JSON.stringify([[]]), stderr: "" });
+    const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
+      { name: "merge-ok", state: "pending" },
+      { name: "lint", state: "pending" },
+    ]);
+  });
+
   it("does not hide an unrelated empty-output failure", async () => {
     const run = vi.fn(async () => ({ stdout: "", stderr: "authentication failed" }));
     const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
