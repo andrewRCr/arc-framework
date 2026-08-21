@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-delivery-native-stack-composition.md`
-- **Task List:** [none]
+- **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** generate-tasks Finalize — pre-save checklist, delivery-authoring canonicalization, the
-  `Class`-scaled adversarial pass, then `arc finalize generate-tasks --class Heavy` and the ceremony commit
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
