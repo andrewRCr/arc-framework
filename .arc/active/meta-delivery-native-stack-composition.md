@@ -1,8 +1,8 @@
 # Metadata: delivery-native-stack-composition
 
-| **State**  | **Owner** | **Branch**                               | **Class** | **Priority** |
-| ---------- | --------- | ---------------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/delivery-native-stack-composition` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                               | **Class** | **Priority** |
+| --------- | --------- | ---------------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** generate-tasks Pass 3 — all eight phases audited and folded; suite coherence settled
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Extract the criteria walk into a validate-criteria method (line 82 in tasks-delivery-native-stack-composition.md)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Extract the criteria walk into a validate-criteria method
 
 - **PR URL:** [none]
 - **Completed:** [none]
