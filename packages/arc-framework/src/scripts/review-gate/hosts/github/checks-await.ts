@@ -19,6 +19,70 @@ function record(value: unknown, path: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function string(value: unknown, path: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${path}: expected a non-empty string`);
+  }
+  return value;
+}
+
+function stringArray(value: unknown, path: string): string[] {
+  if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
+  return value.map((item, index) => string(item, `${path}[${index}]`));
+}
+
+function classicRequiredContexts(value: unknown): string[] {
+  const branch = record(value, "branch");
+  if (branch.protection === undefined || branch.protection === null) return [];
+  const protection = record(branch.protection, "branch.protection");
+  if (protection.required_status_checks === undefined || protection.required_status_checks === null) return [];
+  const checks = record(protection.required_status_checks, "branch.protection.required_status_checks");
+  return checks.contexts === undefined
+    ? []
+    : stringArray(checks.contexts, "branch.protection.required_status_checks.contexts");
+}
+
+function rulesetRequiredContexts(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error("branch-rules: expected page array");
+  return value.flatMap((page, pageIndex) => {
+    if (!Array.isArray(page)) throw new Error(`branch-rules[${pageIndex}]: expected an array page`);
+    return page.flatMap((item, ruleIndex) => {
+      const rule = record(item, `branch-rules[${pageIndex}][${ruleIndex}]`);
+      if (rule.type !== "required_status_checks") return [];
+      const parameters = record(
+        rule.parameters,
+        `branch-rules[${pageIndex}][${ruleIndex}].parameters`,
+      );
+      if (!Array.isArray(parameters.required_status_checks)) {
+        throw new Error(
+          `branch-rules[${pageIndex}][${ruleIndex}].parameters.required_status_checks: expected an array`,
+        );
+      }
+      return parameters.required_status_checks.map((entry, checkIndex) => string(
+        record(
+          entry,
+          `branch-rules[${pageIndex}][${ruleIndex}].parameters.required_status_checks[${checkIndex}]`,
+        ).context,
+        `branch-rules[${pageIndex}][${ruleIndex}].parameters.required_status_checks[${checkIndex}].context`,
+      ));
+    });
+  });
+}
+
+function mergeConfiguredChecks(
+  observed: readonly RequiredCheck[],
+  configuredContexts: readonly string[],
+): RequiredCheck[] {
+  const result = [...observed];
+  const observedNames = new Set(observed.map(({ name }) => name));
+  for (const context of configuredContexts) {
+    if (observedNames.has(context)) continue;
+    observedNames.add(context);
+    result.push({ name: context, state: "pending" });
+  }
+  return result;
+}
+
 function checkState(bucket: unknown, state: unknown, path: string): RequiredCheck["state"] {
   if (bucket === "pass" || bucket === "skipping") return "green";
   if (bucket === "fail" || bucket === "cancel") return "failed";
@@ -31,6 +95,39 @@ function checkState(bucket: unknown, state: unknown, path: string): RequiredChec
 
 /** Build a GitHub CLI-backed required-check port. */
 export function createGhRequiredChecksPort(runner: HostedProcessRunner): RequiredChecksPort {
+  const configuredContexts = new Map<string, Promise<string[]>>();
+
+  async function readConfiguredContexts(
+    repository: string,
+    pullRequest: number,
+    signal: AbortSignal,
+  ): Promise<string[]> {
+    const key = `${repository.toLowerCase()}#${pullRequest}`;
+    const existing = configuredContexts.get(key);
+    if (existing !== undefined) return existing;
+    const pending = (async () => {
+      const pullRequestValue = record(parse((await runner.run([
+        "api", `repos/${repository}/pulls/${pullRequest}`,
+      ], { signal })).stdout, "pull-request"), "pull-request");
+      const base = record(pullRequestValue.base, "pull-request.base");
+      const baseRef = string(base.ref, "pull-request.base.ref");
+      const encodedBaseRef = encodeURIComponent(baseRef);
+      const [branchResult, rulesResult] = await Promise.all([
+        runner.run(["api", `repos/${repository}/branches/${encodedBaseRef}`], { signal }),
+        runner.run([
+          "api", "--paginate", "--slurp",
+          `repos/${repository}/rules/branches/${encodedBaseRef}?per_page=100`,
+        ], { signal }),
+      ]);
+      return [...new Set([
+        ...classicRequiredContexts(parse(branchResult.stdout, "branch")),
+        ...rulesetRequiredContexts(parse(rulesResult.stdout, "branch-rules")),
+      ])];
+    })();
+    configuredContexts.set(key, pending);
+    return pending;
+  }
+
   return {
     resolveRepository: async () => {
       const value = record(parse(
@@ -57,16 +154,22 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
         "pr", "checks", String(pullRequest), "--repo", repository, "--required",
         "--json", "name,state,bucket",
       ], { signal, allowFailure: true });
-      if (result.stdout.trim() === "" && /no required checks reported/iu.test(result.stderr)) return [];
-      const value = parse(result.stdout, "required-checks");
+      const noReportedChecks = result.stdout.trim() === ""
+        && /no required checks reported/iu.test(result.stderr);
+      const value = noReportedChecks ? [] : parse(result.stdout, "required-checks");
       if (!Array.isArray(value)) throw new Error("required-checks: expected an array");
-      return value.map((item, index) => {
+      const observed = value.map((item, index) => {
         const check = record(item, `required-checks[${index}]`);
         if (typeof check.name !== "string" || check.name === "") {
           throw new Error(`required-checks[${index}].name: expected a non-empty string`);
         }
         return { name: check.name, state: checkState(check.bucket, check.state, `required-checks[${index}]`) };
       });
+      if (observed.some(({ state }) => state !== "green")) return observed;
+      return mergeConfiguredChecks(
+        observed,
+        await readConfiguredContexts(repository, pullRequest, signal),
+      );
     },
   };
 }

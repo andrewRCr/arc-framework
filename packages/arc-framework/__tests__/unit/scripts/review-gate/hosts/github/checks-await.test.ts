@@ -30,13 +30,56 @@ describe("GitHub required-check port", () => {
   });
 
   it("treats GitHub's no-required-checks exit as an empty successful observation", async () => {
-    const run = vi.fn(async () => ({
-      stdout: "",
-      stderr: "no required checks reported on the 'feature' branch",
-    }));
+    const run = vi.fn()
+      .mockResolvedValueOnce({
+        stdout: "",
+        stderr: "no required checks reported on the 'feature' branch",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ base: { ref: "main" } }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ protected: false }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ stdout: JSON.stringify([[]]), stderr: "" });
     const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
 
     await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([]);
+  });
+
+  it("keeps configured required checks pending before GitHub reports them", async () => {
+    const run = vi.fn()
+      .mockResolvedValueOnce({
+        stdout: "",
+        stderr: "no required checks reported on the 'feature' branch",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ base: { ref: "main" } }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          protected: true,
+          protection: { required_status_checks: { contexts: [] } },
+        }),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([[
+          {
+            type: "required_status_checks",
+            parameters: { required_status_checks: [{ context: "merge-ok", integration_id: 15368 }] },
+          },
+        ]]),
+        stderr: "",
+      });
+    const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
+      { name: "merge-ok", state: "pending" },
+    ]);
   });
 
   it("does not hide an unrelated empty-output failure", async () => {
