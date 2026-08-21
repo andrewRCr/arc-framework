@@ -144,7 +144,9 @@ exists.
    Carry-forward evidence is ephemeral operation output — per member: verdict (`tree-equality` /
    `mechanical-reapply` / refusal class), old and new heads, and for refusals the exact conflicted or divergent
    paths — surfaced at adoption and recorded only as the state's updated current coordinates; no durable proof
-   ledger. Exact-head pinning remains only at the merge instant.
+   ledger. Exact-head pinning remains only at the merge instant. The same verdict is the delivery-side input to
+   review applicability (point 9): ARC's structural admission of a carried member and the preservation of its
+   review are one judgment, proved once.
 5. **Native landing as the routed path.** Reobserve native registration before selecting the singleton arm; a linked
    stack routes through the native observe / select / prepare / submit / status lifecycle. The ordinary merge
    endpoint is the shipped `arc integrate checkpoint` → interlock → `arc integrate merge` spine (exact-head pin,
@@ -175,21 +177,40 @@ exists.
 7. **Member-boundary verification (owned here — ship whole).** If a target's breadth already forced a review and
    delivery split, one whole-target verification pass is compromised for the same reason — field evidence:
    `integration-boundary-accuracy`'s four verify → adversarial-gap → remediate cycles, each opened by a clean
-   primary self-verify. With task order following member order, the working tree at member k's completion
-   boundary _is_ member k's cumulative tree, so no early branch materialization is needed: the task plan gains a
-   closing verification task per member (criteria slice + bounded member diff + reachability over the cumulative
-   tree, reusing the whole-WU verification walk at member scope), evidence lands as ordinary task completion, and
-   the whole-WU closeout pass narrows to cross-member seams and union coherence. MVP as procedure over existing
-   structures — no new record family, no typed verification store. This WU owns the invocation topology — the
-   member boundaries, criteria slices, and firing cadence; the instrument upgrades refine that seam without
-   reshaping it and live with their owning WUs: `verification-falsification-contract` owns the verification
-   instrument's falsification quality, `planning-iteration-mechanics` owns the planning-time criterion authoring
-   form, and the reachability lint rides its own errand capture. Criteria slices are task-list structure with one
-   authority: the Success Criteria section groups by member plus one cross-member seam group, each member's
-   boundary task walks its group, and the closeout pass walks the seams — assignment follows "the earliest
-   boundary whose validator can see the evidence," with criteria no member boundary can see defaulting to the
-   seam group. The delivery plan's coverage table keeps binding tasks and design elements only; it never carries
-   criterion content, so no second authority arises.
+   primary self-verify. With task order following member order, the working tree at member k's completion boundary
+   _is_ member k's cumulative tree, so no early branch materialization is needed.
+   **What moves is the walk, not the mark.** The compromised thing at whole-target scale is the bounded diff and
+   reachability check over a tree small enough to hold; that runs per member. Success criteria stay marked only in
+   the verification phase, as today — a criterion is an outcome-level claim about the whole WU, and a member
+   boundary can gather its evidence but cannot know whether a later member regresses it. Terminal marking also lets
+   a criterion superseded by a late design decision take `[~]` once, with the whole picture visible. The closeout
+   pass walks the seams and dispositions the member groups from recorded boundary evidence rather than re-deriving
+   them.
+   **The walk is a method, not a second workflow.** `validate-criteria` takes its scope as an input; the WU
+   verification workflow declares and fires it at WU scope, and `process-task-loop` declares it with the member
+   closing task as its fire-point. So a member task never loads a WU-scoped workflow to verify one slice, and scope
+   is a parameter rather than a prose branch — no conditional control flow enters workflow prose. A sibling
+   `verify-deliverable` is rejected: duplicated judgment prose is what the fragment substrate exists to remove, and
+   it would add a loadable surface with its own recipe and reachability obligations. Both fire-points are
+   hand-verified as marked, since a declared method whose fire-point is missing silently never loads.
+   **Task shape is constrained, not chosen.** The member closing task is an ordinary implementation parent assigned
+   to its member in the coverage table — never a second verification task, because the delivery task inventory
+   requires exactly one verification parent under a terminal `Verification` phase and coverage blocks assigning it
+   to a member. So **no new phases**, and since members bind per task rather than per phase, a member spanning
+   several phases closes in the last one its range reaches.
+   **Criteria grouping.** The Success Criteria section groups by member under plain `###` subheadings plus one
+   cross-member seam group — assignment follows "the earliest boundary whose validator can see the evidence," with
+   criteria no member boundary can see defaulting to the seam group. `###` is safe (it neither terminates the
+   section nor parses as a task); criteria must stay at root indent, since a four-space-indented checkbox bullet
+   reparses as a subtask. A single-deliverable WU has one group and renders as today's flat list.
+   MVP as procedure over existing structures — no new record family, no typed verification store. This WU owns the
+   invocation topology; instrument upgrades refine that seam without reshaping it and live with their owning WUs:
+   `verification-falsification-contract` owns the verification instrument's falsification quality,
+   `planning-iteration-mechanics` owns the general planning-time criterion authoring form (this WU owns only the
+   delivery-member case, and the two must land compatibly rather than each defining a grammar), and the
+   criteria-reachability lint has no owner yet — captured for routing, not assumed to exist. The delivery plan's
+   coverage table keeps binding tasks and design elements only; it never carries criterion content, so no second
+   authority arises.
 8. **Hosted-review reservation fans out per member.** A hosted-first standard reservation carried across
    `arc publish` resumes per member through the delivery-member vehicle: each member pull request receives the
    reserved hosted source's review at its exact head, and the WU obligation discharges as the conjunction of
@@ -201,6 +222,41 @@ exists.
    remains `delivery-review-cardinality`'s demand-held question, not pre-empted here. The ordering rule fans out
    with the reservation: the reserved source may not be leapfrogged by a lower-ranked carrier on any member
    merely because its pull request now exists.
+9. **Review applicability across non-substantive head movement — owned here.** ARC's review evidence is
+   head-keyed: discharge reads a settled attempt anywhere in the span `rev-list <base>..<approvedHead>`, so a
+   rewritten head drops its reviewed commits out of that span and voids a clean review. Retargeting a pull request
+   does not — the head is unchanged, so the evidence stays in span. **Rewrite destroys applicability; retarget
+   preserves it.** That distinction is the whole concern.
+   It bites this topology hardest: a native landing rewrites the entire remaining suffix, so every landing would
+   void the clean reviews of every remaining member — roughly N²/2 hosted passes for an N-member stack, against a
+   provider baseline that does not re-review mechanical restacks at all (Gerrit preserves votes on a trivial
+   rebase; Graphite has teams disable stale-approval dismissal). Paying it would be pure ARC-added ceremony
+   guarding no chartered failure. But it is not delivery-specific: the same waste hits an ordinary work-unit pull
+   request whose head moved after a clean review because a base merge landed separately-reviewed content. That
+   ordinary case is the _simpler_ instance of one projection, not a different problem.
+   This work unit therefore **owns the projection**, absorbed here rather than left to a separate lane, because the
+   design decision at its centre is one delivery holds the evidence for: **the equivalence arbiter**. Patch
+   equality is the wrong choice — `git patch-id` hashes context lines, so it false-refuses exactly the mechanically
+   rebased commit whose semantic patch is unchanged, which is the v1 field failure with different bytes. Point 4's
+   in-core three-way reapply is the right one, and it is being built here anyway. A projection designed around the
+   base-merge case alone would plausibly have reached for patch equality and then served neither consumer.
+   **Shape.** A typed projection, consulted before any re-review request, that mechanically separates base
+   movement, equivalent reviewed commits, and the exact uncovered delta. It preserves a review automatically only
+   when equivalence is proved by point 4's arbiter; where a residual delta remains, it surfaces that bounded delta
+   for an Owner applicability decision before provider capacity is spent. Comparison and classification stay in
+   typed CLI verbs; workflows dispatch on the typed result rather than embedding Git-diff inference in prose. No
+   agent is ever asked to claim that arbitrary changes are semantically equivalent.
+   **The append-only asymmetry is real but narrower than it first appears.** The top absorbs predecessor movement
+   by merge, so its reviewed heads stay ancestors and stay in span — its review survives head movement, which is a
+   second reason the append-only construction is load-bearing. That holds for the reservation's _first_ source.
+   It fails for a fallback source: the discharge loop consults the exact current head when deciding whether an
+   earlier source was safely unavailable, so a reservation that discharged through a fallback after a rate-limited
+   first source re-voids on the next append-only merge, even though the fallback's clean attempt is still in span.
+   The top moves once per predecessor absorption, so this recurs through the window. The projection must cover
+   append-only movement for that case, not only rewrite.
+   **Scope discipline.** Owning this projection does not make delivery the owner of review architecture. It owns
+   _applicability_ — whether an existing review still covers the current content. Obligation, findings, clearance,
+   and lane precedence are untouched.
 
 ## Substrate seam — why full native composition waits
 
@@ -246,6 +302,9 @@ member-boundary verification — carry over unchanged.
   re-verification of the terminal slice when absorbed drift overlaps the residual's own paths (point 2).
 - Total ceremony must not exceed what a team on Graphite or GitHub native stacks performs for the same topology;
   every ARC-added step must name the chartered failure it guards that the provider baseline does not.
+- Review spend is ceremony too — wall clock, tokens, and provider rate limit. A member whose contribution is
+  proved unchanged under a predecessor rewrite is not re-reviewed; landing an N-member stack costs N member
+  reviews plus review of genuinely uncovered deltas, never a re-review per restack (point 9).
 
 ## Hard external constraints
 
@@ -388,6 +447,13 @@ posture.
   chassis and its delivery arm.
 - Errand-lane siblings (frontline delivery-member identity, eligibility-close read-only lock) — independent; the
   frontline fix precedes this WU's self-delivery.
+- Review applicability across non-substantive head movement — **absorbed into this work unit** (point 9), not a
+  coordination edge. It was captured as an Errand from an ordinary base-merge instance; re-reading it as its own
+  capture asked surfaced design that cleared the derivation floor (the arbiter choice, the head-keyed evidence
+  interaction across consumers including the fallback-source case, and the Owner decision surface for a residual
+  delta). Delivery holds the evidence binding the arbiter, so splitting the design from that evidence risked a
+  projection that served neither consumer. The capture is withdrawn; its originating base-merge case is carried
+  here as the simpler instance the same projection serves.
 
 ## Disposition: `delivery-integration-target` retired
 
