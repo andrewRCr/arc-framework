@@ -146,8 +146,13 @@ must match the current Candidate and supplies the reserved `sourceId` and exact 
 request to that reservation without rerunning chunking or source ordering, then invoke `arc review hosted request -`
 with the reserved provider, exact opened target, and `coverage: complete`:
 
-- `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use the bounded
-  wait again when it returns `pending / await`; do not build an agent polling loop.
+- `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing uses
+  the project's configured bounded-call defaults.
+- `pending / await` — re-invoke the same handle; do not build an agent polling loop.
+- `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
+  request intact. Re-invoking the same handle checks once; on explicit direction, pass
+  `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
+  provider outcome.
 - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
 - `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. For each
   approved finding with

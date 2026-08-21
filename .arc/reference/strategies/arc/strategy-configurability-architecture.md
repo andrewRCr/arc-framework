@@ -350,6 +350,10 @@ Config settings divide into two categories based on how changes take effect:
 - `merge.lock` — Host-side hold on merging an open pull request
 - `platform.type` — Agent platform awareness
 - `review.frontline_sources` — Ordered registered frontline review source defaults
+- `review.hosted_await_timeout_seconds`, `review.hosted_await_initial_poll_interval_seconds` — Bounded hosted-review
+  call timing
+- `review.hosted_await_attention_after_minutes` — Unattended hosted-review wait duration before ARC asks whether
+  to inspect or extend the same request
 - `changeset.advisory_threshold_lines`, `changeset.advisory_threshold_files` — Independent exact-target
   changeset-size advisory thresholds whose derived attention signal may recommend review chunks
 
