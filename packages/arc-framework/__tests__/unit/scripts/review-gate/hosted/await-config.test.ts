@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  HostedAwaitTimingError,
   resolveHostedAwaitTiming,
 } from "../../../../../src/scripts/review-gate/hosted/await-config.js";
 import type { HostedRequestHandle } from "../../../../../src/scripts/review-gate/hosted/request.js";
@@ -79,7 +78,7 @@ describe("hosted await timing", () => {
       ...settings,
       "review.hosted_await_timeout_seconds": "10",
       "review.hosted_await_initial_poll_interval_seconds": "5",
-    })).toThrow(HostedAwaitTimingError);
+    })).toThrow("initialPollIntervalSeconds must not exceed timeoutSeconds");
     try {
       resolveHostedAwaitTiming({ schemaVersion: 1, handle, initialPollIntervalSeconds: 20 }, {
         ...settings,

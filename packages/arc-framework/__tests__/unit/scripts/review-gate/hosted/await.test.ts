@@ -242,6 +242,7 @@ describe("hosted review await", () => {
   });
 
   it("caps automatic waiting at the remaining unattended interval", async () => {
+    const observe = vi.fn(() => Promise.resolve({ kind: "pending" as const }));
     const result = await awaitHostedReview({
       schemaVersion: 1,
       handle,
@@ -250,7 +251,7 @@ describe("hosted review await", () => {
     }, {
       clock: clock(CREATED_AT_MS + ATTENTION_AFTER_MS - 500),
       attentionAfterMs: ATTENTION_AFTER_MS,
-      observers: [observer(() => Promise.resolve({ kind: "pending" }))],
+      observers: [observer(observe)],
     });
 
     expect(result).toMatchObject({
@@ -258,6 +259,7 @@ describe("hosted review await", () => {
       nextAction: "inspect-or-extend",
       ageMs: ATTENTION_AFTER_MS,
     });
+    expect(observe).toHaveBeenCalledOnce();
   });
 
   it("allows one explicitly extended bounded call without resetting request identity", async () => {

@@ -55,7 +55,14 @@ export function resolveHostedAwaitTiming(
       "Configured hosted await poll interval must not exceed its call timeout.",
     );
   }
-  const timeoutMs = (request.timeoutSeconds ?? configuredTimeoutSeconds) * 1_000;
+  const timeoutSeconds = request.timeoutSeconds ?? configuredTimeoutSeconds;
+  if (request.initialPollIntervalSeconds !== undefined
+    && request.initialPollIntervalSeconds > timeoutSeconds) {
+    throw new HostedAwaitTimingError(
+      "initialPollIntervalSeconds must not exceed timeoutSeconds",
+    );
+  }
+  const timeoutMs = timeoutSeconds * 1_000;
   const pollIntervalMs = request.initialPollIntervalSeconds === undefined
     ? Math.min(configuredPollIntervalSeconds * 1_000, timeoutMs)
     : request.initialPollIntervalSeconds * 1_000;
