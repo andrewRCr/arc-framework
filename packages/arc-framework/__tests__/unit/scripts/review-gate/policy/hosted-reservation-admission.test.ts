@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
+  assertHostedErrandBindingAuthority,
+  assertHostedErrandAdmission,
   assertHostedReservationAdmission,
   firstAdmissibleHostedSource,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
@@ -30,6 +32,14 @@ const CURRENT_HEAD = "e".repeat(40);
 const binding = {
   boundary: { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST },
   candidate: { candidateId: CANDIDATE_ID, subjectDigest: SUBJECT_DIGEST, headSha: CURRENT_HEAD },
+};
+const errandBinding = {
+  kind: "errand" as const,
+  key: "review-errand",
+  claimId: "claim-1",
+  branch: "chore/review-errand",
+  sources: ["coderabbit-pr", "codex-pr"],
+  standardReview: reservation.obligation,
 };
 
 describe("hosted reservation admission", () => {
@@ -90,5 +100,59 @@ describe("hosted reservation admission", () => {
       { sourceId: "coderabbit-pr", outcome: "rate-limited" },
       { sourceId: "coderabbit-pr", outcome: "terminal-failure" },
     ])).toBe("coderabbit-pr");
+  });
+
+  it("admits hosted progress from the exact active Errand without Candidate state", () => {
+    expect(() => assertHostedErrandAdmission({
+      binding: errandBinding,
+      current: {
+        key: "review-errand",
+        claimId: "claim-1",
+        branch: "chore/review-errand",
+      },
+      provider: "coderabbit-pr",
+      attempts: [],
+    })).not.toThrow();
+  });
+
+  it("preserves ordered fallback for Errand-hosted progress", () => {
+    expect(() => assertHostedErrandAdmission({
+      binding: errandBinding,
+      current: {
+        key: "review-errand",
+        claimId: "claim-1",
+        branch: "chore/review-errand",
+      },
+      provider: "codex-pr",
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "transient-unavailable" }],
+    })).not.toThrow();
+  });
+
+  it("rejects an Errand handle whose source snapshot differs from current configuration", () => {
+    expect(() => assertHostedErrandBindingAuthority({
+      binding: { ...errandBinding, sources: ["codex-pr"] },
+      configuredSources: errandBinding.sources,
+      rubricIdentity: {
+        version: errandBinding.standardReview.rubricVersion,
+        digest: errandBinding.standardReview.rubricDigest,
+      },
+    })).toThrow(/source binding does not match/u);
+  });
+
+  it("rejects an Errand handle whose rubric identity differs from the current rubric", () => {
+    expect(() => assertHostedErrandBindingAuthority({
+      binding: {
+        ...errandBinding,
+        standardReview: {
+          ...errandBinding.standardReview,
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+        },
+      },
+      configuredSources: errandBinding.sources,
+      rubricIdentity: {
+        version: errandBinding.standardReview.rubricVersion,
+        digest: errandBinding.standardReview.rubricDigest,
+      },
+    })).toThrow(/rubric binding does not match/u);
   });
 });

@@ -263,7 +263,8 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Rerun `arc review chunking resolve -` for the opened target, follow the closed attention dispatch in Step 2, and
    invoke `arc review resolve -` for each incomplete lane. On `ready / hosted-request`, invoke
-   `arc review hosted request -` with the selected provider, exact opened target, and `coverage: complete`:
+   `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
+   `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
 
    - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use that bounded
      wait again for `pending / await`; do not build an agent polling loop.

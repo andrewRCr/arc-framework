@@ -230,6 +230,14 @@ const hostedHandle = {
     createdAt: "2026-07-24T12:00:00Z",
   },
 };
+const hostedStandardReview = {
+  obligation: "required" as const,
+  reasons: ["sensitive-change-set" as const],
+  rubricVersion: "standard-review/v1",
+  rubricDigest: `sha256:${"c".repeat(64)}`,
+  retrigger: "full-final" as const,
+  count: 1 as const,
+};
 
 describe("handleReviewPlanningLane", () => {
   it("parses the exact-change operands before invoking the classifier", async () => {
@@ -829,6 +837,35 @@ describe("hosted review handlers", () => {
       attemptedProviders: ["coderabbit-pr"],
     });
     expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("accepts an explicit Errand vehicle at the hosted request boundary", async () => {
+    const request = vi.fn(async () => ({
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      state: "source-unavailable",
+      nextAction: "stop",
+      provider: "coderabbit-pr",
+      requestedCoverage: "complete",
+      attemptedProviders: ["coderabbit-pr"],
+    }));
+
+    await handleReviewHostedRequest("-", {
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        target: hostedTarget,
+        provider: "coderabbit-pr",
+        coverage: "complete",
+        vehicle: { kind: "errand", standardReview: hostedStandardReview },
+      }),
+      request,
+      write: vi.fn(),
+      setExitCode: vi.fn(),
+    });
+
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({
+      vehicle: { kind: "errand", standardReview: hostedStandardReview },
+    }));
   });
 });
 
