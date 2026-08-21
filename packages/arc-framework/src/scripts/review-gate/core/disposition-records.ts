@@ -100,28 +100,99 @@ export function reviewerDispositionNit(item: { nit?: true; reviewerNit?: true })
   return "reviewerNit" in item ? item.reviewerNit : item.nit;
 }
 
-const DispositionSetFieldsSchema = z.strictObject({
+export const FrontlineDispositionBindingSchema = z.strictObject({
+  operationId: IdentifierSchema,
+  sourceBindingId: CanonicalDigestSchema,
+  outcomeDigest: CanonicalDigestSchema,
+});
+export type FrontlineDispositionBinding = z.infer<typeof FrontlineDispositionBindingSchema>;
+export type DispositionSourceContext =
+  | {
+      kind: "rubric";
+      policyVersion: string;
+      rubricVersion: string;
+      rubricDigest: string;
+    }
+  | {
+      kind: "frontline";
+      policyVersion: string;
+      frontlineBinding: FrontlineDispositionBinding;
+    };
+
+const DispositionSetFieldsShape = {
   schemaVersion: z.literal(2),
   semanticsVersion: z.literal("review-gate/v2"),
   targetId: CanonicalDigestSchema,
   policyVersion: CanonicalDigestSchema,
-  rubricVersion: IdentifierSchema,
-  rubricDigest: CanonicalDigestSchema,
+  rubricVersion: IdentifierSchema.optional(),
+  rubricDigest: CanonicalDigestSchema.optional(),
+  frontlineBinding: FrontlineDispositionBindingSchema.optional(),
   proposedBy: IdentifierSchema,
   findings: z.array(DispositionReportItemSchema).min(1),
-});
+};
+
+function validateDispositionSourceBinding(
+  value: {
+    rubricVersion?: string;
+    rubricDigest?: string;
+    frontlineBinding?: FrontlineDispositionBinding;
+  },
+  context: z.RefinementCtx,
+): void {
+  const hasRubricVersion = value.rubricVersion !== undefined;
+  const hasRubricDigest = value.rubricDigest !== undefined;
+  if (hasRubricVersion !== hasRubricDigest) {
+    context.addIssue({
+      code: "custom",
+      message: "rubric version and digest must be supplied together",
+      path: [hasRubricVersion ? "rubricDigest" : "rubricVersion"],
+    });
+    return;
+  }
+  if (hasRubricVersion === (value.frontlineBinding !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "disposition set must bind exactly one rubric or frontline source context",
+      path: [value.frontlineBinding === undefined ? "rubricVersion" : "frontlineBinding"],
+    });
+  }
+}
 
 export const DispositionSetPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.disposition-set/v2"),
-  ...DispositionSetFieldsSchema.shape,
-});
+  ...DispositionSetFieldsShape,
+}).superRefine(validateDispositionSourceBinding);
 export type DispositionSetPreimage = z.infer<typeof DispositionSetPreimageSchema>;
 
 export const DispositionSetSchema = z.strictObject({
-  ...DispositionSetFieldsSchema.shape,
+  ...DispositionSetFieldsShape,
   dispositionSetId: CanonicalDigestSchema,
-});
+}).superRefine(validateDispositionSourceBinding);
 export type DispositionSet = z.infer<typeof DispositionSetSchema>;
+
+/**
+ * Compare one disposition set with the exact source context that produced its findings.
+ *
+ * @param set - Canonical disposition set to inspect.
+ * @param context - Durable source context expected for that set.
+ * @returns Whether policy and source-specific bindings match exactly.
+ */
+export function dispositionSetMatchesSourceContext(
+  set: DispositionSet,
+  context: DispositionSourceContext,
+): boolean {
+  return context.kind === "rubric"
+    ? set.policyVersion === context.policyVersion
+      && set.rubricVersion === context.rubricVersion
+      && set.rubricDigest === context.rubricDigest
+      && set.frontlineBinding === undefined
+    : set.policyVersion === context.policyVersion
+      && set.rubricVersion === undefined
+      && set.rubricDigest === undefined
+      && set.frontlineBinding?.operationId === context.frontlineBinding.operationId
+      && set.frontlineBinding.sourceBindingId === context.frontlineBinding.sourceBindingId
+      && set.frontlineBinding.outcomeDigest === context.frontlineBinding.outcomeDigest;
+}
 
 export const DispositionApprovalSchema = z.strictObject({
   schemaVersion: z.literal(2),

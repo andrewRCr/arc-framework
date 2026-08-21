@@ -68,6 +68,34 @@ const outcome = normalizeFrontlineOutcome({
 });
 
 describe("advisory review records", () => {
+  it("requires exactly one rubric or frontline disposition binding", () => {
+    const dispositionSet = approvedDisposition.dispositionSet;
+    const fields = {
+      schemaVersion: dispositionSet.schemaVersion,
+      semanticsVersion: dispositionSet.semanticsVersion,
+      targetId: dispositionSet.targetId,
+      policyVersion: dispositionSet.policyVersion,
+      proposedBy: dispositionSet.proposedBy,
+      findings: dispositionSet.findings,
+    };
+    const frontlineBinding = {
+      operationId: "frontline-operation",
+      sourceBindingId: canonicalDigest({ source: "frontline" }),
+      outcomeDigest: canonicalDigest({ outcome: "findings" }),
+    };
+
+    expect(createDispositionSet({ ...fields, frontlineBinding })).toMatchObject({ frontlineBinding });
+    expect(() => createDispositionSet(fields)).toThrow(
+      "disposition set must bind exactly one rubric or frontline source context",
+    );
+    expect(() => createDispositionSet({
+      ...fields,
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "standard" }),
+      frontlineBinding,
+    })).toThrow("disposition set must bind exactly one rubric or frontline source context");
+  });
+
   it.each([
     {
       kind: "attested-local",
