@@ -13,12 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** create-spec finalized — design audit and third adversarial pass folded (11 findings across
-  both, all confirmed), spec approved at Gate 1, draft retired with `notes-*` migration, `Class` Heavy persisted
+- **Last Completed:** generate-tasks Pass 1-2 — 8-member skeleton and content fill authored (56 parent tasks);
+  the task list validates against the shipped delivery task inventory, coverage, and hand-checked member order
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** generate-tasks Pass 3 — grounding audit with a per-phase confirm gate over Phases 1-8, then
+  Finalize (pre-save checklist, delivery canonicalization, adversarial pass)
 
 - **PR URL:** [none]
 - **Completed:** [none]
