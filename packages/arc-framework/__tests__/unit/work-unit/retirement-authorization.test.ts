@@ -11,10 +11,12 @@ import {
   authorizeRetirement,
   revalidateRetirementAuthorization,
   type GitTransitionAuthorizationProof,
+  type RemoteSourceRefRelation,
   type RetirementAuthorizationContext,
 } from "../../../src/lib/work-unit/retirement-authorization.js";
 
 const head = "a".repeat(40);
+const ancestor = "9".repeat(40);
 const remote = "origin";
 
 const workUnitRequest: TeardownAuthorizationRequest = {
@@ -45,15 +47,16 @@ function proof(
 
 function context(candidate = proof()): RetirementAuthorizationContext & {
   local: { oid: string; worktreeProjectionSafe: boolean };
-  remoteRef: { oid: string | null };
+  remoteRef: { relation: RemoteSourceRefRelation };
   candidate: { value: GitTransitionAuthorizationProof | null; refusal: "evidence-missing" | null };
 } {
   const local = { oid: head, worktreeProjectionSafe: true };
-  const remoteRef = { oid: head as string | null };
+  const remoteRef = { relation: { kind: "equal", oid: head } as RemoteSourceRefRelation };
   const candidateState = { value: candidate as GitTransitionAuthorizationProof | null, refusal: null };
   return {
     readLocalProjection: vi.fn(async () => ({ ...local })),
-    readRemoteRef: vi.fn(async () => remoteRef.oid),
+    readRemoteRef: vi.fn(async () => remoteRef.relation.kind === "absent" ? null : remoteRef.relation.oid),
+    readRemoteSourceRef: vi.fn(async () => remoteRef.relation),
     readShippedEvidence: vi.fn().mockResolvedValue({
       evidence: shippedEvidence,
       remoteDisposition: "retain",
@@ -117,15 +120,40 @@ describe("authorizeRetirement", () => {
     });
   });
 
-  it("refuses an advanced remote or a foreign-owned same-name local branch", async () => {
+  it.each([
+    ["an absent remote", { kind: "absent" }, null],
+    [
+      "a strict-ancestor remote",
+      { kind: "strict-ancestor", oid: ancestor },
+      { remote, oid: ancestor, disposition: "delete" },
+    ],
+  ] as const)("authorizes a valid Git transition with %s", async (_label, relation, expected) => {
     const ctx = context();
-    ctx.remoteRef.oid = "d".repeat(40);
-    await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
-      status: "refused",
-      reason: "projection-mismatch",
-    });
+    ctx.remoteRef.relation = relation;
 
-    ctx.remoteRef.oid = head;
+    const decision = await authorizeRetirement(ctx, workUnitRequest);
+
+    expect(decision).toMatchObject({
+      status: "authorized",
+      refs: { localOid: head, remote: expected },
+    });
+  });
+
+  it.each(["strict-descendant", "diverged"] as const)(
+    "refuses a %s remote",
+    async (kind) => {
+      const ctx = context();
+      ctx.remoteRef.relation = { kind, oid: "d".repeat(40) };
+
+      await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
+        status: "refused",
+        reason: "projection-mismatch",
+      });
+    },
+  );
+
+  it("refuses a foreign-owned same-name local branch", async () => {
+    const ctx = context();
     ctx.local.worktreeProjectionSafe = false;
     await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
       status: "refused",
@@ -173,12 +201,12 @@ describe("authorizeRetirement", () => {
   });
 
   it.each([
-    [null, "retain", null],
-    [head, "delete", { remote, oid: head, disposition: "delete" }],
-    [head, "retain", { remote, oid: head, disposition: "retain" }],
-  ] as const)("resolves a shipped remote as %s / %s", async (remoteOid, disposition, expected) => {
+    ["absent", { kind: "absent" }, "retain", null],
+    ["equal", { kind: "equal", oid: head }, "delete", { remote, oid: head, disposition: "delete" }],
+    ["equal", { kind: "equal", oid: head }, "retain", { remote, oid: head, disposition: "retain" }],
+  ] as const)("resolves a shipped remote as %s / %s", async (_label, relation, disposition, expected) => {
     const ctx = context();
-    ctx.remoteRef.oid = remoteOid;
+    ctx.remoteRef.relation = relation;
     vi.mocked(ctx.readShippedEvidence).mockResolvedValue({
       evidence: shippedEvidence,
       remoteDisposition: disposition,
@@ -198,7 +226,7 @@ describe("authorizeRetirement", () => {
 describe("revalidateRetirementAuthorization", () => {
   it.each([
     ["local ref", (ctx: ReturnType<typeof context>) => { ctx.local.oid = "d".repeat(40); }],
-    ["remote ref", (ctx: ReturnType<typeof context>) => { ctx.remoteRef.oid = null; }],
+    ["remote ref", (ctx: ReturnType<typeof context>) => { ctx.remoteRef.relation = { kind: "absent" }; }],
     ["transition", (ctx: ReturnType<typeof context>) => { ctx.candidate.value = proof("park-planning"); }],
   ] as const)("returns authority-conflict after a %s change without mutating branch state", async (_label, mutate) => {
     const ctx = context();

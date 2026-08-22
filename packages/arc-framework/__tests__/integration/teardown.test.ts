@@ -32,6 +32,8 @@ import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
+import { createGitRetirementAuthorizationContext } from
+  "../../src/lib/work-unit/git-retirement-authorization-context.js";
 import {
   runBranchTeardown,
   runTeardown,
@@ -246,6 +248,51 @@ async function prepareSelfTeardownWorktree(
   expect(await git(wtPath, ["status", "--porcelain"])).toBe("");
   return wtPath;
 }
+
+describe("retirement authorization remote snapshot materialization", () => {
+  it("classifies ancestry without materializing remote trees or blobs", async () => {
+    const h = await setupMultiClone();
+    const branch = "chore/remote-descendant";
+    try {
+      await git(h.origin, ["config", "uploadpack.allowFilter", "true"]);
+      await git(h.cloneA, ["remote", "set-url", "origin", `file://${h.origin}`]);
+
+      await git(h.cloneB, ["checkout", "-b", branch, "main"]);
+      await writeFile(join(h.cloneB, "large.bin"), Buffer.alloc(4 * 1024 * 1024, 0x61));
+      await git(h.cloneB, ["add", "large.bin"]);
+      await git(h.cloneB, ["commit", "-m", "test: add remote-only payload"]);
+      await git(h.cloneB, ["push", "origin", branch]);
+
+      const retiringHead = await git(h.cloneA, ["rev-parse", "main"]);
+      const remoteHead = await git(h.cloneB, ["rev-parse", branch]);
+      const treeOid = await git(h.cloneB, ["rev-parse", `${branch}^{tree}`]);
+      const blobOid = await git(h.cloneB, ["rev-parse", `${branch}:large.bin`]);
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${treeOid}^{tree}`]),
+      ).rejects.toThrow();
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${blobOid}^{blob}`]),
+      ).rejects.toThrow();
+
+      const context = createGitRetirementAuthorizationContext(
+        execFor(h.cloneA),
+        "main",
+        async () => null,
+      );
+      await expect(
+        context.readRemoteSourceRef("origin", branch, retiringHead),
+      ).resolves.toEqual({ kind: "strict-descendant", oid: remoteHead });
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${treeOid}^{tree}`]),
+      ).rejects.toThrow();
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${blobOid}^{blob}`]),
+      ).rejects.toThrow();
+    } finally {
+      await h.cleanup();
+    }
+  });
+});
 
 describe("arc teardown — merge-strategy-independent branch reaping", () => {
   for (const strategy of ["squash", "rebase", "merge-commit"] as const) {

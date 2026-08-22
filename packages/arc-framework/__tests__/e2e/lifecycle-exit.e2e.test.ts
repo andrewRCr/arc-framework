@@ -1129,17 +1129,31 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await branchExists(repo, "plan/mono")).toBe(true);
   });
 
-  it("authorizes in-place primary cleanup from the committed transition alone", async () => {
+  it("deletes a remote source ref that is a strict ancestor of the committed transition", async () => {
     await scaffoldStartedWu(repo, "mono", "in-place");
+    await git(repo, ["push", "-u", "origin", "plan/mono"]);
+    const remoteSourceHead = await git(repo, ["rev-parse", "refs/remotes/origin/plan/mono"]);
     // Primary is checked out on plan/mono; retire the origin there.
     await rm(join(repo, ".arc/active/meta-mono.md"));
     await rm(join(repo, ".arc/active/draft-mono.md"));
     await commitFixtureBypassingHooks(repo, "retire origin mono");
+    await expect(git(repo, ["merge-base", "--is-ancestor", remoteSourceHead, "plan/mono"]))
+      .resolves.toBe("");
+
+    const baseWorktree = join(dirname(repo), `${basename(repo)}-mono-base-retirement`);
+    await git(repo, ["worktree", "add", baseWorktree, "main"]);
+    await rm(join(baseWorktree, ".arc/active/meta-mono.md"));
+    await rm(join(baseWorktree, ".arc/active/draft-mono.md"));
+    await commitFixtureBypassingHooks(baseWorktree, "retire base projection mono");
+    await git(repo, ["worktree", "remove", baseWorktree]);
 
     const result = await runArc(["teardown", "mono", "--force"], repo);
 
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     expect(await pathExists(repo)).toBe(true);
+    expect(await branchExists(repo, "plan/mono")).toBe(false);
+    await expect(git(repo, ["ls-remote", "--exit-code", "--heads", "origin", "refs/heads/plan/mono"]))
+      .rejects.toThrow();
   });
 
   it("refuses linked self-teardown from unrelated historical deletion", async () => {

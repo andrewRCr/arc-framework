@@ -311,9 +311,11 @@ describe("runLandedRetirementSweep", () => {
   it("ignores evidence-free active work units before inspecting branch projections", async () => {
     const readLocalProjection = vi.fn(async () => ({ oid: HEAD, worktreeProjectionSafe: true }));
     const readRemoteRef = vi.fn(async () => "d".repeat(40));
+    const readRemoteSourceRef = vi.fn(async () => ({ kind: "diverged", oid: "d".repeat(40) } as const));
     const context: RetirementAuthorizationContext = {
       readLocalProjection,
       readRemoteRef,
+      readRemoteSourceRef,
       readShippedEvidence: async () => null,
       readGitTransitionProof: async () => ({ status: "refused", reason: "evidence-missing" }),
     };
@@ -326,6 +328,7 @@ describe("runLandedRetirementSweep", () => {
     expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
     expect(readLocalProjection).not.toHaveBeenCalled();
     expect(readRemoteRef).not.toHaveBeenCalled();
+    expect(readRemoteSourceRef).not.toHaveBeenCalled();
   });
 
   it.each(["projection-mismatch", "authority-unavailable", "authority-ambiguous"] as const)(

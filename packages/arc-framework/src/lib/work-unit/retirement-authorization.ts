@@ -24,6 +24,14 @@ export interface GitTransitionAuthorizationProof {
   resultInventory: Parameters<typeof gitTransitionResultDigest>[0]["resultInventory"];
 }
 
+/** Git-derived relationship between one live remote source ref and the exact retiring head. */
+export type RemoteSourceRefRelation =
+  | { kind: "absent" }
+  | {
+      kind: "equal" | "strict-ancestor" | "strict-descendant" | "diverged";
+      oid: string;
+    };
+
 /** Read-only seams needed to authorize one exact teardown request. */
 export interface RetirementAuthorizationContext {
   readLocalProjection(request: TeardownAuthorizationRequest): Promise<{
@@ -31,6 +39,11 @@ export interface RetirementAuthorizationContext {
     worktreeProjectionSafe: boolean;
   }>;
   readRemoteRef(remote: string, branch: string): Promise<string | null>;
+  readRemoteSourceRef(
+    remote: string,
+    branch: string,
+    retiringHead: string,
+  ): Promise<RemoteSourceRefRelation>;
   readShippedEvidence(request: TeardownAuthorizationRequest): Promise<
     | {
         evidence: Extract<RetirementEvidenceRef, { kind: "shipped" }>;
@@ -91,16 +104,21 @@ export async function authorizeRetirementStrict(
   }
   const transition = await ctx.readGitTransitionProof(request);
   if (transition.status === "refused") return transition;
-  const [local, remoteOid] = await Promise.all([
+  const [local, remoteRef] = await Promise.all([
     ctx.readLocalProjection(request),
-    ctx.readRemoteRef(request.remote, request.branch),
+    ctx.readRemoteSourceRef(request.remote, request.branch, request.head),
   ]);
   if (local.oid !== request.head || !local.worktreeProjectionSafe) {
     return { status: "refused", reason: "projection-mismatch" };
   }
-  if (remoteOid !== null && remoteOid !== request.head) {
+  if (
+    remoteRef.kind !== "absent"
+    && remoteRef.kind !== "equal"
+    && remoteRef.kind !== "strict-ancestor"
+  ) {
     return { status: "refused", reason: "projection-mismatch" };
   }
+  const remoteOid = remoteRef.kind === "absent" ? null : remoteRef.oid;
   return authorizeFromGitTransition(request, local.oid, remoteOid, transition.proof);
 }
 
