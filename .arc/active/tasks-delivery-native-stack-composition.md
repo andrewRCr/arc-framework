@@ -352,10 +352,15 @@ throughout the landing window and leave every other consumer refusing, which is 
   hosted target resolver preserves singleton behavior for an authoritatively unbound work unit, returns a contained
   unavailable result on read failure, and persists no target list or cursor.
 
-### `[ ]` **3.5 Close delivery member 3** — validate criteria at member scope
+### `[x]` **3.5 Close delivery member 3** — validate criteria at member scope
 
 - _Goal:_ Member 3's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
+
+- _Outcome:_ The Member 3 criterion resolved `[x]` over `f9f7ed482..fde706811` and the cumulative tree at
+  `fde706811`: exact-head reverse lookup addresses review status and hosted member progress, all shared
+  change-request callers supply delivery bases, and no session or recovery authority moved outside the originating
+  checkout. A fresh second pass found no residual findings after the hosted-member composition correction.
 
 ## **Phase 4:** Topology transition and publication
 
