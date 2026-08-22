@@ -728,6 +728,35 @@ describe("Git v3 repository plan", () => {
     })).resolves.toMatchObject({ status: "refused", reason: "base-raced" });
   });
 
+  it("refuses when the surviving source moves during destination proof", async () => {
+    const fixture = await landedExtractionRepository();
+    let sourceReads = 0;
+    const racedDependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<GitExec>) => {
+        if (args[0] === "git"
+          && args[1][0] === "rev-parse"
+          && args[1][2] === "refs/heads/feat/origin^{commit}") {
+          sourceReads += 1;
+          if (sourceReads === 2) {
+            await write(fixture.repo, "source-race.txt", "race\n");
+            await git(fixture.repo, ["add", "source-race.txt"]);
+            await git(fixture.repo, ["commit", "-m", "race source"]);
+          }
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    await expect(finishGitV3Extraction(racedDependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      apply: false,
+    })).resolves.toMatchObject({ status: "refused", reason: "source-raced" });
+  });
+
   it("forwards byte input through the repository raw Git boundary", async () => {
     const { repo } = await startedRepository();
     const sentinel = "planning-lane raw input\n";

@@ -38,6 +38,7 @@ function plans(): V3ExtractionSourceThinningFilePlan[] {
 function memoryIO(overrides: {
   failPath?: string;
   failMutated?: boolean;
+  finalCaptureFault?: "throw" | "wrong-state";
   restorationResidue?: string;
   initial?: Record<string, {
     index: V3PartialPathPreimage["index"];
@@ -58,11 +59,23 @@ function memoryIO(overrides: {
   ]));
   const applied: string[] = [];
   let restoreAttempted = false;
-  const capture = (paths: readonly string[]) => Promise.resolve(paths.map((path) => {
-    const value = state.get(path);
-    if (value === undefined) throw new Error(`missing test state: ${path}`);
-    return clone(value);
-  }));
+  let finalCaptureFaultInjected = false;
+  const capture = async (paths: readonly string[]): Promise<V3PartialPathPreimage[]> => {
+    const observed = paths.map((path) => {
+      const value = state.get(path);
+      if (value === undefined) throw new Error(`missing test state: ${path}`);
+      return clone(value);
+    });
+    if (!finalCaptureFaultInjected
+      && applied.length === plans().length
+      && overrides.finalCaptureFault !== undefined) {
+      finalCaptureFaultInjected = true;
+      if (overrides.finalCaptureFault === "throw") throw new Error("injected final capture failure");
+      const first = observed[0];
+      if (first !== undefined) first.index = image("wrong final state\n");
+    }
+    return observed;
+  };
   return {
     state,
     applied,
@@ -195,6 +208,21 @@ describe("executeV3ExtractionSourceFinish", () => {
       status: "refused",
       reason: "injected-apply-failure",
       locus: ".arc/active/spec-origin.md",
+    });
+    expect(io.state.get(".arc/active/rfc-origin.md")?.index).toEqual(image("remove\n"));
+    expect(io.state.get(".arc/active/spec-origin.md")?.index).toEqual(image("before\n", "100755"));
+  });
+
+  it.each([
+    ["throw", "source-final-capture"],
+    ["wrong-state", "source-final-state"],
+  ] as const)("restores every mutation after a %s final capture", async (finalCaptureFault, reason) => {
+    const io = memoryIO({ finalCaptureFault });
+
+    await expect(executeV3ExtractionSourceFinish(plans(), true, io)).resolves.toEqual({
+      status: "refused",
+      reason,
+      locus: ".arc/active/rfc-origin.md",
     });
     expect(io.state.get(".arc/active/rfc-origin.md")?.index).toEqual(image("remove\n"));
     expect(io.state.get(".arc/active/spec-origin.md")?.index).toEqual(image("before\n", "100755"));
