@@ -111,9 +111,9 @@ describe("arc delivery", () => {
       const branch = await git(repository, ["branch", "--show-current"]);
       const head = await git(repository, ["rev-parse", "HEAD"]);
       const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-      const controlRef = "refs/heads/delivery-control";
+      const topRef = "refs/heads/delivery-control";
       const candidateRef = "refs/heads/delivery-candidate";
-      await git(repository, ["update-ref", controlRef, head]);
+      await git(repository, ["update-ref", topRef, head]);
       await git(repository, ["update-ref", candidateRef, head]);
 
       const deliveryRoot = join(repository, ".git", "arc", "delivery");
@@ -129,7 +129,7 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
-          control: { ref: controlRef, head, tree },
+          top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
             ref: candidateRef,
@@ -164,9 +164,9 @@ describe("arc delivery", () => {
       const branch = await git(repository, ["branch", "--show-current"]);
       const head = await git(repository, ["rev-parse", "HEAD"]);
       const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-      const controlRef = "refs/heads/delivery-control";
+      const topRef = "refs/heads/delivery-control";
       const candidateRef = "refs/heads/delivery-candidate";
-      await git(repository, ["update-ref", controlRef, head]);
+      await git(repository, ["update-ref", topRef, head]);
       await git(repository, ["update-ref", candidateRef, head]);
 
       const deliveryRoot = join(repository, ".git", "arc", "delivery");
@@ -183,7 +183,7 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
-          control: { ref: controlRef, head, tree },
+          top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
             ref: candidateRef,
