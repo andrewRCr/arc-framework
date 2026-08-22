@@ -234,7 +234,7 @@ describe("Git v3 extraction source finish", () => {
     });
     await expect(readFile(join(root, rfcPath), "utf8")).resolves.toBe("remove\n");
     await expect(readFile(join(root, specPath), "utf8")).resolves.toBe("before\n");
-    expect((await stat(join(root, specPath))).mode & 0o111).not.toBe(0);
+    expect((await stat(join(root, specPath))).mode & 0o777).toBe(0o755);
     expect(await git(root, ["status", "--porcelain=v1"])).toBe("");
   });
 });
