@@ -9,6 +9,10 @@ import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-avail
 import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
 import type { RegisteredWorktree } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
+import {
+  authorizeRetirementStrict,
+  type RetirementAuthorizationContext,
+} from "../../../src/lib/work-unit/retirement-authorization.js";
 
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 
@@ -302,6 +306,26 @@ describe("runLandedRetirementSweep", () => {
     });
 
     expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
+  });
+
+  it("ignores evidence-free active work units before inspecting branch projections", async () => {
+    const readLocalProjection = vi.fn(async () => ({ oid: HEAD, worktreeProjectionSafe: true }));
+    const readRemoteRef = vi.fn(async () => "d".repeat(40));
+    const context: RetirementAuthorizationContext = {
+      readLocalProjection,
+      readRemoteRef,
+      readShippedEvidence: async () => null,
+      readGitTransitionProof: async () => ({ status: "refused", reason: "evidence-missing" }),
+    };
+
+    const result = await runLandedRetirementSweep({
+      ...options(),
+      authorize: async (request) => await authorizeRetirementStrict(context, request),
+    });
+
+    expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
+    expect(readLocalProjection).not.toHaveBeenCalled();
+    expect(readRemoteRef).not.toHaveBeenCalled();
   });
 
   it.each(["projection-mismatch", "authority-unavailable", "authority-ambiguous"] as const)(

@@ -7,6 +7,7 @@ import {
   type LinkedWorktreeCreationReceipt,
 } from "../git/linked-worktree.js";
 import { setupLinkedWorktree } from "../git/linked-worktree-setup.js";
+import type { BaseSyncResult } from "../git/base-sync.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import {
@@ -29,6 +30,8 @@ export interface NodeProvisioningRuntimeOptions {
   readonly exec: GitExec;
   readonly base: string;
   readonly branch: string | null;
+  /** Synchronize the configured base immediately before a new primary branch is cut. */
+  readonly synchronizePrimaryBase?: () => Promise<BaseSyncResult>;
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
 }
@@ -99,7 +102,13 @@ export function createNodeProvisioningDependencies(
       return { kind: "ready" };
     },
     checkoutPrimary: (checkoutPath, branch, expectedBranchHead) =>
-      checkoutPrimary(options.exec, checkoutPath, branch, expectedBranchHead),
+      checkoutPrimary(
+        options.exec,
+        checkoutPath,
+        branch,
+        expectedBranchHead,
+        options.synchronizePrimaryBase,
+      ),
     rollbackPrimary: (checkoutPath, receipt) => rollbackPrimary(options.exec, checkoutPath, receipt),
     rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
       rollbackSpawned(options.exec, receipt, rosterHead, primaryWorktreePath),
@@ -111,7 +120,19 @@ async function checkoutPrimary(
   checkoutPath: string,
   branch: string | null,
   expectedBranchHead: string | null,
+  synchronizePrimaryBase: (() => Promise<BaseSyncResult>) | undefined,
 ): Promise<PrimaryCheckoutReceipt> {
+  if (branch !== null && expectedBranchHead === null && synchronizePrimaryBase !== undefined) {
+    const synchronized = await synchronizePrimaryBase();
+    if (synchronized.status === "cleanup-required") {
+      throw new Error(
+        `Primary base synchronization requires cleanup at '${synchronized.worktreePath}'.`,
+      );
+    }
+    if (synchronized.status === "refused" && synchronized.reason !== "local-ahead") {
+      throw new Error(`Primary base synchronization refused (${synchronized.reason}).`);
+    }
+  }
   const previousBranch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath }))
     .stdout.trim();
   const previousHead = (await exec("git", ["rev-parse", "HEAD"], { cwd: checkoutPath })).stdout.trim();

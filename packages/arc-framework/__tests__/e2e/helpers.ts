@@ -15,6 +15,16 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 
 const execFileAsync = promisify(execFile);
 
+/** Compose the deterministic environment shared by built-CLI tests. */
+function builtCliEnvironment(overrides?: Record<string, string>): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ARC_DISABLE_UPDATE_CHECKS: "1",
+    NO_COLOR: "1",
+    ...overrides,
+  };
+}
+
 interface PseudoTerminalOptions {
   cwd: string;
   timeout: number;
@@ -124,8 +134,8 @@ export async function git(cwd: string, args: string[]): Promise<string> {
  * Invoke the built CLI as a subprocess.
  *
  * Spawns `node dist/cli.js ...args` in the given working directory. Captures
- * stdout, stderr, and exit code. Sets `NO_COLOR=1` to strip ANSI escapes
- * from clack output.
+ * stdout, stderr, and exit code. Disables optional update checks and sets
+ * `NO_COLOR=1` so the test contract is offline and free of ANSI escapes.
  *
  * @param args - CLI arguments (e.g., `["init", "--yes", "--name", "test"]`)
  * @param cwd - Working directory for the CLI process
@@ -147,7 +157,7 @@ export async function runArc(
     return runArcNoTty(args, cwd, options);
   }
   const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const env = builtCliEnvironment(options?.env);
   try {
     const { stdout, stderr } = process.platform === "linux"
       ? await execFileAsync(
@@ -188,7 +198,7 @@ export async function runArcAnchored(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", PS1: "", ...options?.env };
+  const env = builtCliEnvironment({ PS1: "", ...options?.env });
   const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
   const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
   try {
@@ -215,7 +225,7 @@ export async function runArcAnchoredSequence(
 ): Promise<AnchoredSequenceResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", PS1: "", ...options?.env };
+  const env = builtCliEnvironment({ PS1: "", ...options?.env });
   const anchorShell = options?.anchorShellPath ?? "bash";
   const commands = argsList.map((entry) => {
     const commandArgs = "command" in entry
@@ -282,7 +292,7 @@ export async function runArcNoTty(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const env = builtCliEnvironment(options?.env);
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, [CLI_PATH, ...args], { cwd, timeout, env });
     return { stdout, stderr, exitCode: 0 };
@@ -313,7 +323,7 @@ export async function runArcWithStdoutPipe(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const env = builtCliEnvironment(options?.env);
   try {
     const pipeline = `${buildScriptCommand(args, false)} | cat`;
     const { stdout, stderr } = await runInPseudoTerminal(
@@ -350,7 +360,7 @@ export function runArcWithStdin(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
-  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  const env = builtCliEnvironment(options?.env);
 
   return new Promise<RunResult>((resolveResult, rejectResult) => {
     const child = spawn(process.execPath, [CLI_PATH, ...args], { cwd, env, stdio: "pipe" });

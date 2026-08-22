@@ -525,10 +525,16 @@ export const LocalAttestEnvelopeSchema = z.union([
   ),
 ]);
 
+const HostedSettlementPlanSchema = z.strictObject({
+  beforeFixFindingIds: z.array(IdentifierSchema),
+  afterFixFindingIds: z.array(IdentifierSchema),
+});
+
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
   frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
+  hostedSettlementPlan: HostedSettlementPlanSchema.optional(),
 });
 export const RespondEnvelopeSchema = z.union([
   envelopeVariant(

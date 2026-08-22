@@ -46,12 +46,15 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
       "review.standard_sources": "[]",
       "review.frontline_max_passes": "2",
       "review.standard_max_passes": "2",
+      "review.hosted_await_timeout_seconds": "120",
+      "review.hosted_await_initial_poll_interval_seconds": "15",
+      "review.hosted_await_attention_after_minutes": "15",
       "user.notes_push": "on-sync",
     });
   });
 
-  it("enumerates the 30 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(30);
+  it("enumerates the 33 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(33);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -116,6 +119,9 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["review.standard_sources"]).toBe("[]");
     expect(result.settings["review.frontline_max_passes"]).toBe("2");
     expect(result.settings["review.standard_max_passes"]).toBe("2");
+    expect(result.settings["review.hosted_await_timeout_seconds"]).toBe("120");
+    expect(result.settings["review.hosted_await_initial_poll_interval_seconds"]).toBe("15");
+    expect(result.settings["review.hosted_await_attention_after_minutes"]).toBe("15");
     expect(result.settings["changeset.advisory_threshold_lines"]).toBe("0");
     expect(result.settings["changeset.advisory_threshold_files"]).toBe("0");
     expect(result.settings["team.mode"]).toBe("false");
@@ -167,6 +173,9 @@ describe("readConfigSettings — user-supplied values", () => {
       "review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]",
       "review.frontline_max_passes: 3",
       "review.standard_max_passes: 4",
+      "review.hosted_await_timeout_seconds: 90",
+      "review.hosted_await_initial_poll_interval_seconds: 10",
+      "review.hosted_await_attention_after_minutes: 40",
       "changeset.advisory_threshold_lines: 5000",
       "changeset.advisory_threshold_files: 150",
       "pm.mode: arc-in-git",
@@ -195,6 +204,9 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["review.standard_sources"]).toBe("[coderabbit-pr,codex-pr,delegated-agent]");
     expect(result.settings["review.frontline_max_passes"]).toBe("3");
     expect(result.settings["review.standard_max_passes"]).toBe("4");
+    expect(result.settings["review.hosted_await_timeout_seconds"]).toBe("90");
+    expect(result.settings["review.hosted_await_initial_poll_interval_seconds"]).toBe("10");
+    expect(result.settings["review.hosted_await_attention_after_minutes"]).toBe("40");
     expect(result.settings["changeset.advisory_threshold_lines"]).toBe("5000");
     expect(result.settings["changeset.advisory_threshold_files"]).toBe("150");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");

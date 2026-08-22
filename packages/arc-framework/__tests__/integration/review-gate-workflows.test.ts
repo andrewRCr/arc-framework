@@ -377,6 +377,24 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
   });
 
+  it("executes mixed hosted settlement phases in the command-projected order", async () => {
+    const paths = [
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    ];
+    for (const path of paths) {
+      const workflow = await readRepositoryFile(path);
+      expect(workflow).toContain("payload.hostedSettlementPlan");
+      expect(workflow).toMatch(
+        /beforeFixFindingIds[\s\S]*before any\s+approved fix changes the head[\s\S]*afterFixFindingIds/iu,
+      );
+      expect(workflow).toMatch(
+        /settlement: not-applicable[\s\S]*never invoke[\s\S]*hosted settle[\s\S]*post a reply[\s\S]*resolve anything/iu,
+      );
+      expect(workflow).toMatch(/already-settled[\s\S]*exact approved reply[\s\S]*no host\s+mutation/iu);
+    }
+  });
+
   it("carries an explicit standard-review provider through both review lifecycles", async () => {
     const [prepare, errand, integrate] = await Promise.all([
       readRepositoryFile(
@@ -392,7 +410,9 @@ describe("trusted review-gate workflows", () => {
     expect(prepare).toMatch(/Re-invoke[\s\S]*same `--change-set`, `--lanes`/u);
     expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(errand).toMatch(/every policy call for that target/u);
-    expect(integrate).toMatch(/supplies the reserved `sourceId`[\s\S]*without rerunning[\s\S]*source ordering/u);
+    expect(integrate).toMatch(
+      /integrationBoundary\.nextAction\.command[\s\S]*without rerunning[\s\S]*source\s+ordering[\s\S]*policy\.payload\.sourceId/u,
+    );
   });
 
   it("settles the Errand exact head without importing WU products", async () => {

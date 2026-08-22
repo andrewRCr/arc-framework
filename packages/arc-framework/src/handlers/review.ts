@@ -142,6 +142,7 @@ import {
   awaitHostedReview,
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
+import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-config.js";
 import {
   hostedLaneAttemptId,
   readLaneProgress,
@@ -1281,8 +1282,9 @@ async function resolveHostedProgressContext(input: {
   target: HostedTarget;
   provider: HostedProviderId;
   vehicle?: HostedProgressVehicle;
+  settings?: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
 }) {
-  const settings = (await readConfigSettings(input.root)).settings;
+  const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
   const reviewTarget = await deriveLocalReviewTarget({
@@ -1875,15 +1877,19 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
     awaitResult: async (input) => {
       if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedAwaitEnvelopeSchema.parse(input);
+      const settings = (await readConfigSettings(root)).settings;
+      const timing = resolveHostedAwaitTiming(request, settings);
       const context = await resolveHostedProgressContext({
         root,
         publisher,
         target: request.handle.target,
         provider: request.handle.provider,
         ...(request.handle.vehicle === undefined ? {} : { vehicle: request.handle.vehicle }),
+        settings,
       });
-      const result = await awaitHostedReview(request, {
+      const result = await awaitHostedReview(timing.request, {
         observers,
+        attentionAfterMs: timing.attentionAfterMs,
         clock: {
           now: () => Date.now(),
           sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),

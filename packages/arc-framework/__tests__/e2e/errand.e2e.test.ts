@@ -136,6 +136,14 @@ async function setFullProtection(cwd: string): Promise<void> {
   await writeFile(path, updated, "utf-8");
 }
 
+async function setBasePullAlways(cwd: string): Promise<void> {
+  const path = join(cwd, ".arc", "system", "arc-config.yml");
+  const yaml = await readFile(path, "utf-8");
+  const updated = yaml.replace("session.init_pull.base: prompt", "session.init_pull.base: always");
+  if (updated === yaml) throw new Error("setBasePullAlways: expected prompt base-pull policy");
+  await writeFile(path, updated, "utf-8");
+}
+
 async function setPartialProtection(cwd: string): Promise<void> {
   const path = join(cwd, ".arc", "system", "arc-config.yml");
   const yaml = await readFile(path, "utf-8");
@@ -527,6 +535,38 @@ describe("arc errand open", () => {
         /no errand record or active work-unit meta/i.test(line),
       );
       expect(residueWarnings).toEqual([]);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("cuts a warm continuation Errand from the freshly synchronized remote base", async () => {
+    await setFullProtection(tmpDir);
+    await setBasePullAlways(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "warm-continuation-remote");
+    try {
+      const first = await runArcAnchoredSequence([
+        ["errand", "open", "first-warm-errand", "--json"],
+        ["errand", "close", "first-warm-errand", "--json"],
+      ], tmpDir);
+      expect(first.exitCode, first.stdout + first.stderr).toBe(0);
+
+      const localBase = (await git(tmpDir, ["rev-parse", "main"])).trim();
+      const remoteHead = (await git(tmpDir, [
+        "commit-tree", "main^{tree}", "-p", localBase, "-m", "advance remote base",
+      ])).trim();
+      await git(tmpDir, ["push", "origin", `${remoteHead}:refs/heads/main`]);
+      expect((await git(tmpDir, ["rev-parse", "main"])).trim()).toBe(localBase);
+
+      const continued = await runArcAnchoredSequence([
+        ["errand", "open", "continued-warm-errand", "--json"],
+      ], tmpDir);
+      expect(continued.exitCode, continued.stdout + continued.stderr).toBe(0);
+      expect((await git(tmpDir, ["branch", "--show-current"])).trim())
+        .toBe("chore/continued-warm-errand");
+      expect((await git(tmpDir, ["rev-parse", "HEAD"])).trim()).toBe(remoteHead);
     } finally {
       await cleanupTempDir(remoteDir);
     }

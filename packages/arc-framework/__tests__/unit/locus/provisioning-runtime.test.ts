@@ -4,6 +4,7 @@ import { rm } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { BaseSyncResult } from "../../../src/lib/git/base-sync.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createNodeProvisioningDependencies } from "../../../src/lib/locus/provisioning-runtime.js";
 import { PrimaryCheckoutResidueError } from "../../../src/lib/locus/provisioning-types.js";
@@ -90,6 +91,7 @@ describe("node provisioning runtime", () => {
     state: { branch: string; head: string },
     calls: string[][],
     failures: { probe?: boolean; restore?: boolean } = {},
+    synchronizePrimaryBase?: () => Promise<BaseSyncResult>,
   ) {
     let mutated = false;
     const exec: GitExec = async (_command, args) => {
@@ -117,12 +119,41 @@ describe("node provisioning runtime", () => {
       exec,
       base: "main",
       branch: "chore/sample",
+      ...(synchronizePrimaryBase === undefined ? {} : { synchronizePrimaryBase }),
       postCreateScript: "",
       registeredHarnessDirs: "",
     });
   }
 
   describe("primary checkout rollback", () => {
+    it("cuts a new branch from a local-ahead base when there is nothing to pull", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls, {}, async () => ({
+        status: "refused",
+        reason: "local-ahead",
+        base: "main",
+      }));
+
+      await expect(runtime.checkoutPrimary("/repo", "chore/sample", null))
+        .resolves.toMatchObject({ branchCreated: true, head: HEAD });
+      expect(state.branch).toBe("chore/sample");
+    });
+
+    it("still refuses a new branch when base synchronization fails", async () => {
+      const state = { branch: "main", head: HEAD };
+      const calls: string[][] = [];
+      const runtime = primaryRuntime(state, calls, {}, async () => ({
+        status: "refused",
+        reason: "fetch-failed",
+        base: "main",
+      }));
+
+      await expect(runtime.checkoutPrimary("/repo", "chore/sample", null))
+        .rejects.toThrow("Primary base synchronization refused (fetch-failed)");
+      expect(state.branch).toBe("main");
+    });
+
     it("refuses a null-branch checkout when the pinned base head changed", async () => {
       const state = { branch: "main", head: HEAD };
       const calls: string[][] = [];

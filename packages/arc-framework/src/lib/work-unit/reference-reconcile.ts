@@ -198,7 +198,11 @@ export function planReferenceReconcile(input: {
     }
 
     for (const [subject, resolution] of resolutions) {
-      if (resolution.kind === "conflict" || resolution.kind === "absent") continue;
+      if (
+        resolution.kind === "conflict"
+        || resolution.kind === "absent"
+        || resolution.kind === "decompose"
+      ) continue;
       for (const offset of slugOffsets(artifact.content, subject)) {
         if (insideAnyRange(offset, codeRanges) || insideAnyRange(offset, cohortFieldRanges)) continue;
         advisories.push(advisoryAt(

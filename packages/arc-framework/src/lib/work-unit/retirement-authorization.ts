@@ -76,6 +76,21 @@ export async function authorizeRetirementStrict(
     return { status: "refused", reason: "unsupported-transition" };
   }
 
+  if (request.requestedMode === "shipped") {
+    const [local, remoteOid] = await Promise.all([
+      ctx.readLocalProjection(request),
+      ctx.readRemoteRef(request.remote, request.branch),
+    ]);
+    if (local.oid !== request.head || !local.worktreeProjectionSafe) {
+      return { status: "refused", reason: "projection-mismatch" };
+    }
+    if (remoteOid !== null && remoteOid !== request.head) {
+      return { status: "refused", reason: "projection-mismatch" };
+    }
+    return await authorizeShipped(ctx, request, local.oid, remoteOid);
+  }
+  const transition = await ctx.readGitTransitionProof(request);
+  if (transition.status === "refused") return transition;
   const [local, remoteOid] = await Promise.all([
     ctx.readLocalProjection(request),
     ctx.readRemoteRef(request.remote, request.branch),
@@ -86,11 +101,7 @@ export async function authorizeRetirementStrict(
   if (remoteOid !== null && remoteOid !== request.head) {
     return { status: "refused", reason: "projection-mismatch" };
   }
-
-  if (request.requestedMode === "shipped") {
-    return await authorizeShipped(ctx, request, local.oid, remoteOid);
-  }
-  return await authorizeFromGitTransition(ctx, request, local.oid, remoteOid);
+  return authorizeFromGitTransition(request, local.oid, remoteOid, transition.proof);
 }
 
 /**
@@ -144,18 +155,15 @@ async function authorizeShipped(
   return authorizedDecision(request, "merged-preserved", shipped.evidence, refs);
 }
 
-async function authorizeFromGitTransition(
-  ctx: RetirementAuthorizationContext,
+function authorizeFromGitTransition(
   request: TeardownAuthorizationRequest,
   localOid: string,
   remoteOid: string | null,
-): Promise<TeardownAuthorizationDecision> {
+  proof: GitTransitionAuthorizationProof,
+): TeardownAuthorizationDecision {
   if (request.subject.kind !== "work-unit") {
     return { status: "refused", reason: "unsupported-transition" };
   }
-  const result = await ctx.readGitTransitionProof(request);
-  if (result.status === "refused") return result;
-  const { proof } = result;
   if (proof.retiringHead !== request.head) {
     return { status: "refused", reason: "projection-mismatch" };
   }

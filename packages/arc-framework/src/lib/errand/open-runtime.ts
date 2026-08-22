@@ -1,6 +1,7 @@
 /** Production authority, reader, and provisioning composition for ordinary Errand open. */
 
 import type { GitExecInput } from "../git/exec.js";
+import { syncLocalBase } from "../git/base-sync.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { runDerivedLocusStateProbe } from "../../handlers/derived-locus-state-probe.js";
@@ -35,6 +36,8 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly inbox: InspectedInboxEntry | null;
   readonly protection: "full" | "partial";
   readonly base: string;
+  /** Whether a new primary branch must first synchronize the configured local base. */
+  readonly syncPrimaryBase: boolean;
   readonly createdAt: string;
   readonly identity: string;
   readonly locationTemplate: string;
@@ -190,6 +193,9 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
             exec: options.exec,
             base: options.base,
             branch: request.branch,
+            ...(options.syncPrimaryBase ? {
+              synchronizePrimaryBase: () => syncLocalBase({ exec: options.exec, baseBranch: options.base }),
+            } : {}),
             postCreateScript: options.postCreateScript,
             registeredHarnessDirs: options.registeredHarnessDirs,
           }),

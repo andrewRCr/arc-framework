@@ -16,6 +16,7 @@ import { deliveryFourMemberStackPlanFixture } from "../fixtures/delivery-plan.js
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 
 const DIGEST = `sha256:${"1".repeat(64)}`;
+const SUBPROCESS_HEAVY_TIMEOUT = 60_000;
 
 describe("arc delivery", () => {
   let repository: string;
@@ -103,6 +104,114 @@ describe("arc delivery", () => {
     });
   });
 
+  it.skipIf(process.platform === "win32")(
+    "closes eligibility from read-only delivery state without acquiring a publication lock",
+    async () => {
+      const plan = deliveryFourMemberStackPlanFixture();
+      const branch = await git(repository, ["branch", "--show-current"]);
+      const head = await git(repository, ["rev-parse", "HEAD"]);
+      const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+      const controlRef = "refs/heads/delivery-control";
+      const candidateRef = "refs/heads/delivery-candidate";
+      await git(repository, ["update-ref", controlRef, head]);
+      await git(repository, ["update-ref", candidateRef, head]);
+
+      const deliveryRoot = join(repository, ".git", "arc", "delivery");
+      const planDirectory = join(deliveryRoot, "plans");
+      const stateDirectory = join(deliveryRoot, "state");
+      await mkdir(planDirectory, { recursive: true });
+      await mkdir(stateDirectory, { recursive: true });
+      await writeFile(join(planDirectory, `${plan.planId}.json`), `${JSON.stringify(plan)}\n`);
+      await writeFile(join(repository, "eligibility-close.json"), `${JSON.stringify({
+        snapshot: {
+          planId: plan.planId,
+          workUnitId: plan.workUnitId,
+          planRevision: plan.planRevision,
+          planDigest: plan.planDigest,
+          protectedBase: { ref: `refs/heads/${branch}`, head, tree },
+          control: { ref: controlRef, head, tree },
+          members: [{
+            deliverableId: plan.members[0]!.deliverableId,
+            ref: candidateRef,
+            head,
+            tree,
+          }],
+          lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
+        },
+      })}\n`);
+
+      await chmod(stateDirectory, 0o500);
+      try {
+        const result = await runArc([
+          "delivery", "eligibility", "close", "eligibility-close.json", "--json",
+        ], repository);
+        expect(result.exitCode, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          command: "delivery eligibility close",
+          status: "eligible",
+        });
+        expect(await readdir(stateDirectory)).toEqual([]);
+      } finally {
+        await chmod(stateDirectory, 0o700);
+      }
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "refuses corrupt read-only delivery state with typed unavailable evidence",
+    async () => {
+      const plan = deliveryFourMemberStackPlanFixture();
+      const branch = await git(repository, ["branch", "--show-current"]);
+      const head = await git(repository, ["rev-parse", "HEAD"]);
+      const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+      const controlRef = "refs/heads/delivery-control";
+      const candidateRef = "refs/heads/delivery-candidate";
+      await git(repository, ["update-ref", controlRef, head]);
+      await git(repository, ["update-ref", candidateRef, head]);
+
+      const deliveryRoot = join(repository, ".git", "arc", "delivery");
+      const planDirectory = join(deliveryRoot, "plans");
+      const stateDirectory = join(deliveryRoot, "state");
+      await mkdir(planDirectory, { recursive: true });
+      await mkdir(stateDirectory, { recursive: true });
+      await writeFile(join(planDirectory, `${plan.planId}.json`), `${JSON.stringify(plan)}\n`);
+      await writeFile(join(stateDirectory, "INVALID.json"), "{}\n");
+      await writeFile(join(repository, "eligibility-close.json"), `${JSON.stringify({
+        snapshot: {
+          planId: plan.planId,
+          workUnitId: plan.workUnitId,
+          planRevision: plan.planRevision,
+          planDigest: plan.planDigest,
+          protectedBase: { ref: `refs/heads/${branch}`, head, tree },
+          control: { ref: controlRef, head, tree },
+          members: [{
+            deliverableId: plan.members[0]!.deliverableId,
+            ref: candidateRef,
+            head,
+            tree,
+          }],
+          lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
+        },
+      })}\n`);
+
+      await chmod(stateDirectory, 0o500);
+      try {
+        const result = await runArc([
+          "delivery", "eligibility", "close", "eligibility-close.json", "--json",
+        ], repository);
+        expect(result.exitCode, result.stderr).toBe(1);
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          command: "delivery eligibility close",
+          status: "refused",
+          reason: "evidence-unavailable",
+        });
+        expect(await readdir(stateDirectory)).not.toContain(".write.lock");
+      } finally {
+        await chmod(stateDirectory, 0o700);
+      }
+    },
+  );
+
   it("parses every documented delivery invocation through the built CLI", async () => {
     const workflows = await Promise.all([
       readFile(resolve(import.meta.dirname, "../../arc/system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
@@ -133,7 +242,7 @@ describe("arc delivery", () => {
         reason: "invalid-command-input",
       });
     }
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("selects exact native arms and degrades through the built CLI", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
