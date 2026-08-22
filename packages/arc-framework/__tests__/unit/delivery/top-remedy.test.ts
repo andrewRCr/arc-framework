@@ -61,6 +61,7 @@ describe("delivery top remedy", () => {
           return { status: "submitted" as const };
         },
       },
+      observeTriggerRef: async () => ({ status: "absent" }),
       stateStore: {
         publish: async (_planId, value, revision) => {
           events.push(value.activeOperation === null ? "clear" : "reserve");
@@ -90,6 +91,7 @@ describe("delivery top remedy", () => {
         readRequest: async () => ({ status: "observed", request }),
         applyTopRemedy: mutate,
       },
+      observeTriggerRef: async () => ({ status: "absent" }),
       stateStore: { publish },
     })).resolves.toEqual({ status: "refused", reason: "remedy-mismatch" });
     expect(publish).not.toHaveBeenCalled();
@@ -110,8 +112,70 @@ describe("delivery top remedy", () => {
         readRequest: async () => ({ status: "observed", request }),
         applyTopRemedy: mutate,
       },
+      observeTriggerRef: async () => ({ status: "absent" }),
       stateStore: { publish: vi.fn() },
     })).resolves.toEqual({ status: "refused", reason: "protected-target-mismatch" });
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("refuses before reservation while the highest landed ref is still present", async () => {
+    const { plan, state, request, facts } = fixture();
+    const trigger = state.members.at(-2)!;
+    const publish = vi.fn();
+    const mutate = vi.fn(async () => ({ status: "submitted" as const }));
+    const input = Object.assign({
+      plan,
+      current: { revision: 7, value: state },
+      facts,
+      action: "retarget" as const,
+      repository: "owner/repo",
+      protectedBaseRef: "main",
+      host: {
+        readRequest: async () => ({ status: "observed" as const, request }),
+        applyTopRemedy: mutate,
+      },
+      stateStore: { publish },
+    }, {
+      observeTriggerRef: async () => ({ status: "observed" as const, head: trigger.coordinates!.head }),
+    });
+
+    await expect(applyDeliveryTopRemedy(input)).resolves.toEqual({
+      status: "refused",
+      reason: "trigger-ref-present",
+    });
+    expect(publish).not.toHaveBeenCalled();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("retains the reservation when the deleted trigger ref reappears before mutation", async () => {
+    const { plan, state, request, facts } = fixture();
+    const trigger = state.members.at(-2)!;
+    let observations = 0;
+    const mutate = vi.fn(async () => ({ status: "submitted" as const }));
+    const result = await applyDeliveryTopRemedy({
+      plan,
+      current: { revision: 7, value: state },
+      facts,
+      action: "retarget",
+      repository: "owner/repo",
+      protectedBaseRef: "main",
+      host: {
+        readRequest: async () => ({ status: "observed", request }),
+        applyTopRemedy: mutate,
+      },
+      observeTriggerRef: async () => (++observations === 1
+        ? { status: "absent" }
+        : { status: "observed", head: trigger.coordinates!.head }),
+      stateStore: { publish: async (_planId, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+
+    expect(result).toMatchObject({
+      status: "blocked",
+      reason: "trigger-ref-mismatch",
+      reservation: { value: { activeOperation: { kind: "top-remedy" } } },
+    });
     expect(mutate).not.toHaveBeenCalled();
   });
 
@@ -129,6 +193,7 @@ describe("delivery top remedy", () => {
         readRequest: async () => ({ status: "observed", request }),
         applyTopRemedy: async () => ({ status: "refused", reason: "unavailable" }),
       },
+      observeTriggerRef: async () => ({ status: "absent" }),
       stateStore: {
         publish: async (_planId, value, revision) => {
           published.push(value as typeof state);

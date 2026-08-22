@@ -223,6 +223,8 @@ export const DeliveryTopRemedyEffectV1Schema = z.strictObject({
   changeRequestId: DeliveryOpaqueIdSchema,
   headRef: DeliveryOpaqueIdSchema,
   headSha: DeliveryGitObjectIdSchema,
+  triggerRef: DeliveryOpaqueIdSchema,
+  triggerHeadSha: DeliveryGitObjectIdSchema,
   fromBaseRef: DeliveryOpaqueIdSchema,
   protectedBaseRef: DeliveryOpaqueIdSchema,
   action: z.enum(["retarget", "reopen-and-retarget"]),

@@ -15,7 +15,10 @@ import type {
   DeliveryStateV1,
 } from "../delivery/schema.js";
 import type { DeliveryPositionObservation } from "./delivery-position.js";
-import { classifyDeliveryTopRemedyObservation } from "../delivery/top-remedy.js";
+import {
+  classifyDeliveryTopRemedyObservation,
+  matchesDeliveryTopRemedyTrigger,
+} from "../delivery/top-remedy.js";
 
 interface DeliveryPositionFactsDependencies {
   readonly exec: GitExec;
@@ -162,6 +165,12 @@ async function observeOperation(
       };
     } else return null;
   } else if (operation.kind === "top-remedy") {
+    const trigger = state.members.at(-2);
+    const prefix = "refs/heads/";
+    if (!matchesDeliveryTopRemedyTrigger(operation.effect, trigger)
+      || !operation.effect.triggerRef.startsWith(prefix)
+      || dependencies.remoteHeads[operation.effect.triggerRef.slice(prefix.length)] !== undefined
+      || dependencies.localCommits[operation.effect.triggerHeadSha] !== true) return null;
     const request = await dependencies.host.readRequest(operation.effect.repository, {
       providerId: operation.effect.providerId,
       changeRequestId: operation.effect.changeRequestId,

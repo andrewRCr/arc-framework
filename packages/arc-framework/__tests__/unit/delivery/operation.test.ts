@@ -96,6 +96,8 @@ function topRemedyEffect() {
     changeRequestId: "402",
     headRef: "member-2",
     headSha: "5".repeat(40),
+    triggerRef: "refs/heads/member-1",
+    triggerHeadSha: "4".repeat(40),
     fromBaseRef: "member-1",
     protectedBaseRef: "main",
     action: "retarget",

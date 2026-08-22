@@ -38,7 +38,13 @@ export type TeardownLandedDeliveryMemberResult =
       readonly reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
     };
 
-function requestMatches(input: {
+/**
+ * Match one retained landed-member request against the exact teardown authority.
+ *
+ * @param input - Fresh request plus retained repository, target, and member authority.
+ * @returns Whether every request identity and landed-state field remains exact.
+ */
+export function matchesDeliveryTeardownRequest(input: {
   readonly request: DeliveryHostChangeRequest;
   readonly repository: string;
   readonly protectedTargetRef: string;
@@ -55,7 +61,7 @@ function requestMatches(input: {
     && (request.state === "merged" || request.state === "closed");
 }
 
-/** Reserve, delete/adopt one exact landed ref, reobserve its request, and clear bindings by CAS. */
+/** Reserve, delete/adopt one exact landed ref, reobserve its request, and retain its bindings by CAS. */
 export async function teardownLandedDeliveryMember(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -81,7 +87,7 @@ export async function teardownLandedDeliveryMember(input: {
     return { status: "refused", reason: "member-unbound" };
   }
   const initialRequest = await input.host.readRequest(input.repository, member.changeRequest);
-  if (initialRequest.status !== "observed" || !requestMatches({
+  if (initialRequest.status !== "observed" || !matchesDeliveryTeardownRequest({
     request: initialRequest.request,
     repository: input.repository,
     protectedTargetRef: input.protectedTargetRef,
@@ -116,7 +122,7 @@ export async function teardownLandedDeliveryMember(input: {
     return { status: "blocked", reason: "delete-refused", reservation: persistedReservation.value };
   }
   const finalRequest = await input.host.readRequest(input.repository, member.changeRequest);
-  if (finalRequest.status !== "observed" || !requestMatches({
+  if (finalRequest.status !== "observed" || !matchesDeliveryTeardownRequest({
     request: finalRequest.request,
     repository: input.repository,
     protectedTargetRef: input.protectedTargetRef,

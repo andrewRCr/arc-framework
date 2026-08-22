@@ -73,10 +73,14 @@ import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
 } from "../lib/delivery/suffix-rematerialization.js";
-import { teardownLandedDeliveryMember } from "../lib/delivery/teardown.js";
+import {
+  matchesDeliveryTeardownRequest,
+  teardownLandedDeliveryMember,
+} from "../lib/delivery/teardown.js";
 import {
   applyDeliveryTopRemedy,
   classifyDeliveryTopRemedyObservation,
+  matchesDeliveryTopRemedyTrigger,
 } from "../lib/delivery/top-remedy.js";
 import {
   degradeNativeDeliveryStack,
@@ -617,16 +621,37 @@ async function executeDeliveryCommand(
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const refs = new Set<string>();
-    for (const member of current.value.members) if (member.ref !== null) refs.add(member.ref);
+    const retainedCoordinates = new Map<string, Map<string, string>>();
+    const retain = (member: z.infer<typeof DeliveryOperationSnapshotV1Schema>["members"][number]): void => {
+      if (member.ref === null || member.coordinates === null) return;
+      refs.add(member.ref);
+      const coordinates = retainedCoordinates.get(member.ref) ?? new Map<string, string>();
+      coordinates.set(member.coordinates.head, member.coordinates.tree);
+      retainedCoordinates.set(member.ref, coordinates);
+    };
+    for (const member of current.value.members) retain(member);
     const operation = current.value.activeOperation;
     for (const member of [...(operation?.before.members ?? []), ...(operation?.requested.members ?? [])]) {
-      if (member.ref !== null) refs.add(member.ref);
+      retain(member);
     }
     const remoteHeads: Record<string, string> = {};
     const localCommits: Record<string, boolean> = {};
     for (const ref of refs) {
       const observed = await observeDeliveryRemoteRef(exec, remote, ref);
-      if (observed.status !== "observed") continue;
+      if (observed.status === "refused") return { status: "refused" as const };
+      if (observed.status === "absent") {
+        const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+          ...options,
+          cwd,
+          objectAccess: "local-only",
+        });
+        for (const [head, tree] of retainedCoordinates.get(ref) ?? []) {
+          const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, head);
+          localCommits[head] = coordinates !== null
+            && coordinates.head === head && coordinates.tree === tree;
+        }
+        continue;
+      }
       const branch = ref.replace(/^refs\/heads\//u, "");
       remoteHeads[branch] = observed.head;
       try {
@@ -1181,40 +1206,52 @@ async function executeDeliveryCommand(
             if (parsed.repository !== operation.effect.repository) {
               return { status: "observed" as const, value: { outcome: "ambiguous" as const } };
             }
-            const request = await new GhDeliveryHostPort(hostedGhRunner).readRequest(
-              operation.effect.repository,
-              {
-                providerId: operation.effect.providerId,
-                changeRequestId: operation.effect.changeRequestId,
-              },
-            );
-            return request.status === "observed"
+            const trigger = currentState.value.members.at(-2);
+            if (!matchesDeliveryTopRemedyTrigger(operation.effect, trigger)) {
+              return { status: "observed" as const, value: { outcome: "ambiguous" as const } };
+            }
+            const [request, triggerRef] = await Promise.all([
+              new GhDeliveryHostPort(hostedGhRunner).readRequest(
+                operation.effect.repository,
+                {
+                  providerId: operation.effect.providerId,
+                  changeRequestId: operation.effect.changeRequestId,
+                },
+              ),
+              observeDeliveryRemoteRef(exec, parsed.remote, operation.effect.triggerRef),
+            ]);
+            if (triggerRef.status === "refused") {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
+            return request.status === "observed" && triggerRef.status === "absent"
               ? {
                   status: "observed" as const,
                   value: classifyDeliveryTopRemedyObservation(
                     operation.effect, request.request, operation.requested,
                   ),
                 }
-              : { status: "refused" as const, reason: "observation-unavailable" as const };
+              : request.status === "observed"
+                ? { status: "observed" as const, value: { outcome: "ambiguous" as const } }
+                : { status: "refused" as const, reason: "observation-unavailable" as const };
           }
           if (operation.kind === "teardown") {
             const before = operation.before.members[0];
             if (before?.ref === null || before === undefined || before.changeRequest === null) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            const [ref, request, position] = await Promise.all([
+            const [ref, request] = await Promise.all([
               observeDeliveryRemoteRef(exec, parsed.remote, before.ref),
               new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, before.changeRequest),
-              observePosition(currentPlan, currentState, parsed.repository, parsed.remote),
             ]);
-            const targetRef = operation.before.target?.ref.replace(/^refs\/heads\//u, "") ?? "";
+            const targetRef = operation.before.target?.ref;
             return ref.status === "absent" && request.status === "observed"
-              && request.request.repository === parsed.repository
-              && request.request.headRepository === parsed.repository
-              && request.request.headRef === before.ref.replace(/^refs\/heads\//u, "")
-              && request.request.baseRef === targetRef
-              && (request.request.state === "merged" || request.request.state === "closed")
-              && position.status === "observed"
+              && targetRef !== undefined
+              && matchesDeliveryTeardownRequest({
+                request: request.request,
+                repository: parsed.repository,
+                protectedTargetRef: targetRef,
+                member: before,
+              })
               ? { status: "observed" as const, value: operation.requested }
               : { status: "refused" as const, reason: "observation-unavailable" as const };
           }
@@ -1488,6 +1525,7 @@ async function executeDeliveryCommand(
       repository: parsed.repository,
       protectedBaseRef: parsed.protectedBaseRef,
       host: new GhDeliveryHostPort(hostedGhRunner),
+      observeTriggerRef: (ref) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
       stateStore,
     });
   }

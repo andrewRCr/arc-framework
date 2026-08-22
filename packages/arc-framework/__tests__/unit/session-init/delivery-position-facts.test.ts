@@ -315,6 +315,8 @@ describe("session-init delivery position facts", () => {
       changeRequestId: top.changeRequest!.changeRequestId,
       headRef: top.ref!.replace(/^refs\/heads\//u, ""),
       headSha: top.coordinates!.head,
+      triggerRef: state.members.at(-2)!.ref!,
+      triggerHeadSha: state.members.at(-2)!.coordinates!.head,
       fromBaseRef: "member-1",
       protectedBaseRef: "main",
       action: "retarget" as const,
@@ -345,8 +347,12 @@ describe("session-init delivery position facts", () => {
         draft: true,
       },
     });
+    const triggerBranch = effect.triggerRef.replace(/^refs\/heads\//u, "");
     for (const [baseRef, outcome] of [["main", "applied"], ["member-1", "not-applied"]] as const) {
       const dependencies = exactDependencies(state);
+      dependencies.remoteHeads = Object.fromEntries(
+        Object.entries(dependencies.remoteHeads).filter(([branch]) => branch !== triggerBranch),
+      );
       dependencies.host.readRequest.mockImplementation(async (_repository, binding) => (
         requestFor(binding.changeRequestId, baseRef)
       ));
@@ -358,6 +364,9 @@ describe("session-init delivery position facts", () => {
         });
     }
     const ambiguous = exactDependencies(state);
+    ambiguous.remoteHeads = Object.fromEntries(
+      Object.entries(ambiguous.remoteHeads).filter(([branch]) => branch !== triggerBranch),
+    );
     ambiguous.host.readRequest.mockImplementation(async (_repository, binding) => (
       requestFor(binding.changeRequestId, binding.changeRequestId === effect.changeRequestId ? "release" : "main")
     ));

@@ -835,7 +835,7 @@ delivery.command("rematerialize").description("Reclose and rewrite one complete 
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("rematerialize", { ...opts, input }, context)
   )));
-delivery.command("teardown").description("Retire one proven-landed member ref and binding")
+delivery.command("teardown").description("Retire one proven-landed member ref while retaining its binding")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("teardown", { ...opts, input }, context)

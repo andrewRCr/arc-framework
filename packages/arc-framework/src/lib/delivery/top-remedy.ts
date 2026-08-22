@@ -9,6 +9,7 @@ import {
 } from "./operation.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
+import type { DeliveryRemoteRefObservation } from "./git-materialization.js";
 import type {
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
@@ -30,7 +31,12 @@ export type ApplyDeliveryTopRemedyResult =
   | { readonly status: "refused"; readonly reason: string }
   | {
       readonly status: "blocked";
-      readonly reason: "mutation-refused" | "request-mismatch" | "ambiguous-result" | "state-conflict";
+      readonly reason:
+        | "trigger-ref-mismatch"
+        | "mutation-refused"
+        | "request-mismatch"
+        | "ambiguous-result"
+        | "state-conflict";
       readonly reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
     };
 
@@ -45,6 +51,21 @@ function exactTerminalRequest(input: {
     && canonicalize(request.binding) === canonicalize(terminal.changeRequest)
     && request.headRef === terminal.ref.replace(/^refs\/heads\//u, "")
     && request.headSha === terminal.coordinates.head;
+}
+
+/**
+ * Match the persisted deletion trigger to one exact retained member binding.
+ *
+ * @param effect - Persisted terminal remedy effect.
+ * @param trigger - Retained member expected to authorize the failure-only repair.
+ * @returns Whether the effect names the member's exact retained ref and head.
+ */
+export function matchesDeliveryTopRemedyTrigger(
+  effect: DeliveryTopRemedyEffectV1,
+  trigger: DeliveryStateV1["members"][number] | undefined,
+): boolean {
+  return trigger !== undefined && trigger.ref !== null && trigger.coordinates !== null
+    && trigger.ref === effect.triggerRef && trigger.coordinates.head === effect.triggerHeadSha;
 }
 
 /** Classify one fresh request observation against a persisted top-remedy effect. */
@@ -83,10 +104,12 @@ export async function applyDeliveryTopRemedy(input: {
   readonly repository: string;
   readonly protectedBaseRef: string;
   readonly host: Pick<DeliveryHostPort, "readRequest"> & DeliveryTopRemedyHostPort;
+  observeTriggerRef(ref: string): Promise<DeliveryRemoteRefObservation>;
   readonly stateStore: StateWriter;
 }): Promise<ApplyDeliveryTopRemedyResult> {
   const position = deriveDeliveryPosition(input.plan, input.current.value, input.facts);
   const terminal = input.current.value.members.at(-1);
+  const trigger = input.current.value.members.at(-2);
   const terminalPlan = input.plan.members.at(-1);
   if (position.status !== "derived" || terminal === undefined || terminalPlan === undefined
     || position.position.landedPrefix.length !== input.plan.members.length - 1
@@ -98,6 +121,9 @@ export async function applyDeliveryTopRemedy(input: {
   }
   if (terminal.ref === null || terminal.changeRequest === null || terminal.coordinates === null) {
     return { status: "refused", reason: "terminal-binding-missing" };
+  }
+  if (trigger === undefined || trigger.ref === null || trigger.coordinates === null) {
+    return { status: "refused", reason: "trigger-binding-missing" };
   }
   const initial = await input.host.readRequest(input.repository, terminal.changeRequest);
   if (initial.status !== "observed" || !exactTerminalRequest({
@@ -115,6 +141,13 @@ export async function applyDeliveryTopRemedy(input: {
     || assessed.remedy.changeRequestId !== terminal.changeRequest.changeRequestId) {
     return { status: "refused", reason: "remedy-mismatch" };
   }
+  const triggerObservation = await input.observeTriggerRef(trigger.ref);
+  if (triggerObservation.status === "observed") {
+    return { status: "refused", reason: "trigger-ref-present" };
+  }
+  if (triggerObservation.status !== "absent") {
+    return { status: "refused", reason: "trigger-ref-unavailable" };
+  }
 
   const before: DeliveryOperationSnapshotV1 = {
     target: input.current.value.target,
@@ -131,6 +164,8 @@ export async function applyDeliveryTopRemedy(input: {
     changeRequestId: terminal.changeRequest.changeRequestId,
     headRef: terminal.ref.replace(/^refs\/heads\//u, ""),
     headSha: terminal.coordinates.head,
+    triggerRef: trigger.ref,
+    triggerHeadSha: trigger.coordinates.head,
     fromBaseRef: initial.request.baseRef,
     protectedBaseRef: assessed.remedy.protectedBaseRef,
     action: input.action,
@@ -149,6 +184,13 @@ export async function applyDeliveryTopRemedy(input: {
     input.plan.planId, reserved.state, input.current.revision,
   );
   if (persistedReservation.status !== "ok") return { status: "refused", reason: "state-conflict" };
+  if ((await input.observeTriggerRef(trigger.ref)).status !== "absent") {
+    return {
+      status: "blocked",
+      reason: "trigger-ref-mismatch",
+      reservation: persistedReservation.value,
+    };
+  }
   if ((await input.host.applyTopRemedy(effect)).status !== "submitted") {
     return { status: "blocked", reason: "mutation-refused", reservation: persistedReservation.value };
   }
