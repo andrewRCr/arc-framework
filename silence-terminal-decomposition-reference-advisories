@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "silence-terminal-decomposition-reference-advisories",
+  "claimId": "3ea8d8c0f5bb40e1b161b71a07b82d79",
+  "createdAt": "2026-08-22T04:05:15.286Z",
+  "updatedAt": "2026-08-22T04:05:15.286Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "silence-terminal-decomposition-reference-advisories",
+  "branch": "chore/silence-terminal-decomposition-reference-advisories",
+  "origin": "inbox",
+  "originEntry": "Silence dangling-reference advisories for uniquely resolved terminal decompositions",
+  "originEntrySourceDigest": "sha256:61a136f613ba55939ed00de278479d85564833b711f78aebfb706f1f92455fa4",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
