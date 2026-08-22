@@ -55,6 +55,7 @@ import {
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import {
   DeliveryCanonicalDigestSchema,
+  DeliveryChangeRequestV1Schema,
   DeliveryOperationSnapshotV1Schema,
   DeliveryPlanIdSchema,
   DeliveryPlanV1Schema,
@@ -341,6 +342,30 @@ const ContributionVerdictSchema = z.strictObject({
   contribution: z.enum(["changed", "equivalent"]),
   proof: z.enum(["selected-change", "tree-equality", "mechanical-reapply"]),
 });
+const DeliveryHostRequestSchema = z.strictObject({
+  binding: DeliveryChangeRequestV1Schema,
+  repository: z.string().min(1),
+  headRepository: z.string().min(1),
+  headRef: z.string().min(1),
+  headSha: GitObjectIdSchema,
+  baseRef: z.string().min(1),
+  state: z.enum(["open", "merged", "closed"]),
+  draft: z.boolean(),
+});
+const DeliveryTopReadySchema = z.strictObject({
+  status: z.literal("ready"),
+  request: DeliveryHostRequestSchema,
+});
+const DeliveryTopRemedyRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("top-target-mismatch"),
+  remedy: z.strictObject({
+    nextAction: z.enum(["retarget", "reopen-and-retarget"]),
+    repository: z.string().min(1),
+    changeRequestId: z.string().min(1),
+    protectedBaseRef: z.string().min(1),
+  }),
+});
 
 const ResultSchema = z.union([
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
@@ -368,7 +393,23 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
-  z.strictObject({ status: z.literal("torn-down"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({
+    status: z.literal("torn-down"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("continue"),
+  }),
+  z.strictObject({
+    status: z.literal("torn-down"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("terminal-checkpoint"),
+    top: DeliveryTopReadySchema,
+  }),
+  z.strictObject({
+    status: z.literal("torn-down"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.enum(["retarget", "reopen-and-retarget"]),
+    top: DeliveryTopRemedyRefusalSchema,
+  }),
   z.strictObject({ status: z.literal("absorption-ready"), intent: TerminalAbsorptionIntentSchema }),
   z.strictObject({ status: z.literal("absorbed"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("terminal-ready") }),
