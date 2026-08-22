@@ -31,6 +31,31 @@ function verifiedCoordinateOutput(args: string[]): string | null {
 }
 
 describe("Git delivery contribution proof", () => {
+  it("preserves a conflicted path that is shaped like an object ID", async () => {
+    const conflictedPath = "0123456789abcdef0123456789abcdef01234567";
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return result(`${oid("9")}\n`);
+      if (args[0] === "rev-parse") {
+        const value = verifiedCoordinateOutput(args);
+        if (value !== null) return result(`${value}\n`);
+      }
+      if (args[0] === "merge-tree" && !args.includes("--name-only")) return result(`${oid("a")}\n`);
+      if (args[0] === "merge-tree") {
+        throw Object.assign(new Error("conflict"), {
+          exitCode: 1,
+          stdout: `${oid("b")}\0${conflictedPath}\0`,
+        });
+      }
+      throw new Error(`unexpected Git call: ${args.join(" ")}`);
+    };
+
+    await expect(proveGitDeliveryContribution({ exec, ...coordinates })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-conflicted",
+      paths: [conflictedPath],
+    });
+  });
+
   it("keeps an unparseable conflict as conflicted with no path evidence", async () => {
     const exec: RawGitExec = async (args) => {
       if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return result(`${oid("9")}\n`);
@@ -89,6 +114,24 @@ describe("Git delivery contribution proof", () => {
     await expect(proveGitDeliveryContribution({ exec, ...coordinates })).resolves.toEqual({
       status: "refused",
       reason: "merge-tree-write-tree-unsupported",
+    });
+  });
+
+  it("reapplies verified endpoints when the checkout HEAD is unusable", async () => {
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") throw new Error("unborn HEAD");
+      if (args[0] === "rev-parse") {
+        const value = verifiedCoordinateOutput(args);
+        if (value !== null) return result(`${value}\n`);
+      }
+      if (args[0] === "merge-tree" && !args.includes("--name-only")) return result(`${oid("a")}\n`);
+      if (args[0] === "merge-tree") return result(`${coordinates.after.member.tree}\0`);
+      throw new Error(`unexpected Git call: ${args.join(" ")}`);
+    };
+
+    await expect(proveGitDeliveryContribution({ exec, ...coordinates })).resolves.toEqual({
+      status: "accepted",
+      proof: "mechanical-reapply",
     });
   });
 

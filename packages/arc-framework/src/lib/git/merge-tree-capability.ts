@@ -18,9 +18,9 @@ function decodeObjectId(bytes: Uint8Array): string | null {
   }
 }
 
-async function resolveCanary(exec: RawGitExec): Promise<string | null> {
+async function resolveCommit(exec: RawGitExec, expression: string): Promise<string | null> {
   try {
-    const result = await exec(["rev-parse", "--verify", "HEAD^{commit}"], {
+    const result = await exec(["rev-parse", "--verify", expression], {
       objectAccess: "local-only",
     });
     return decodeObjectId(result.stdout);
@@ -29,8 +29,15 @@ async function resolveCanary(exec: RawGitExec): Promise<string | null> {
   }
 }
 
-async function probeMergeTreeWriteTree(exec: RawGitExec): Promise<boolean> {
-  const canary = await resolveCanary(exec);
+async function resolveCanary(exec: RawGitExec, fallbackCanary?: string): Promise<string | null> {
+  const head = await resolveCommit(exec, "HEAD^{commit}");
+  return head ?? (fallbackCanary === undefined
+    ? null
+    : resolveCommit(exec, `${fallbackCanary}^{commit}`));
+}
+
+async function probeMergeTreeWriteTree(exec: RawGitExec, fallbackCanary?: string): Promise<boolean> {
+  const canary = await resolveCanary(exec, fallbackCanary);
   if (canary === null) {
     capabilityByExec.delete(exec);
     return false;
@@ -48,11 +55,17 @@ async function probeMergeTreeWriteTree(exec: RawGitExec): Promise<boolean> {
   }
 }
 
-/** Establish whether one Git execution boundary supports the required merge-tree forms. */
-export function supportsMergeTreeWriteTree(exec: RawGitExec): Promise<boolean> {
+/**
+ * Establish whether one Git execution boundary supports the required merge-tree forms.
+ *
+ * @param exec - Git execution boundary whose capability is cached
+ * @param fallbackCanary - Known commit to verify when the checkout HEAD is unusable
+ * @returns Whether both required write-tree forms are supported
+ */
+export function supportsMergeTreeWriteTree(exec: RawGitExec, fallbackCanary?: string): Promise<boolean> {
   const cached = capabilityByExec.get(exec);
   if (cached !== undefined) return cached;
-  const pending = probeMergeTreeWriteTree(exec);
+  const pending = probeMergeTreeWriteTree(exec, fallbackCanary);
   capabilityByExec.set(exec, pending);
   return pending;
 }

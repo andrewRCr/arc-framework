@@ -734,7 +734,7 @@ async function classifyStep(
   if (secondParent === undefined || !await isAncestor(exec, secondParent, base)) {
     return { status: "classified", value: "contribution" };
   }
-  if (!await supportsMergeTreeWriteTree(exec)) {
+  if (!await supportsMergeTreeWriteTree(exec, parents[0])) {
     return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
   }
   try {

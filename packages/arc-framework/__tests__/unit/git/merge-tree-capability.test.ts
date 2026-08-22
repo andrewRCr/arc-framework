@@ -56,4 +56,20 @@ describe("merge-tree capability", () => {
     canaryAvailable = true;
     await expect(supportsMergeTreeWriteTree(exec)).resolves.toBe(true);
   });
+
+  it("uses a verified fallback commit when HEAD is unusable", async () => {
+    const fallback = "2".repeat(40);
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") throw new Error("unborn HEAD");
+      if (args[0] === "rev-parse" && args[2] === `${fallback}^{commit}`) return result(`${fallback}\n`);
+      if (args[0] === "merge-tree" && args.includes("--write-tree")) return result(`${oid}\n`);
+      throw new Error(`unexpected Git call: ${args.join(" ")}`);
+    };
+    const probe = supportsMergeTreeWriteTree as (
+      exec: RawGitExec,
+      fallbackCanary?: string,
+    ) => Promise<boolean>;
+
+    await expect(probe(exec, fallback)).resolves.toBe(true);
+  });
 });

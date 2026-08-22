@@ -42,20 +42,25 @@ function mergeTreeResult(bytes: Uint8Array): string | null {
   }
 }
 
-function pathList(bytes: Uint8Array): string[] | null {
+function nulFields(bytes: Uint8Array): string[] | null {
   try {
     const decoded = decoder.decode(bytes);
     if (decoded.length > 0 && !decoded.endsWith("\0")) return null;
-    return [...new Set(decoded.split("\0").filter(Boolean))].sort();
+    return decoded.split("\0").filter(Boolean);
   } catch {
     return null;
   }
 }
 
+function pathList(bytes: Uint8Array): string[] | null {
+  const fields = nulFields(bytes);
+  return fields === null ? null : [...new Set(fields)].sort();
+}
+
 function conflictPaths(bytes: Uint8Array): string[] {
-  const fields = pathList(bytes);
-  if (fields === null) return [];
-  return fields.filter((field) => !objectId.test(field));
+  const fields = nulFields(bytes);
+  if (fields === null || fields[0] === undefined || !objectId.test(fields[0])) return [];
+  return [...new Set(fields.slice(1))].sort();
 }
 
 /** Reapply one pinned contribution and compare its structural result to the provider tree. */
@@ -69,7 +74,7 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
     .every(Boolean)) return { status: "refused", reason: "contribution-endpoints-unverified" };
   const comparison = compareDeliveryContribution(input);
   if (comparison.status === "accepted") return comparison;
-  if (!await supportsMergeTreeWriteTree(input.exec)) {
+  if (!await supportsMergeTreeWriteTree(input.exec, input.before.predecessor.head)) {
     return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
   }
   const mergeArgs = [
