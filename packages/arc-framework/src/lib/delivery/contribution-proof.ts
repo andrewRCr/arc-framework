@@ -1,5 +1,7 @@
 /** Pure identity proof for one delivery member across a predecessor-changing rewrite. */
 
+import type { MergeTreeCapabilityRefusalReason } from "../git/merge-tree-capability.js";
+
 export interface DeliveryContributionCoordinate {
   readonly head: string;
   readonly tree: string;
@@ -23,7 +25,13 @@ export interface DeliveryContributionPatch {
 
 export type DeliveryContributionProofResult =
   | { readonly status: "accepted"; readonly proof: "tree-equality" | "aggregate-patch" }
-  | { readonly status: "refused"; readonly reason: "patch-evidence-invalid" | "contribution-mismatch" };
+  | {
+      readonly status: "refused";
+      readonly reason:
+        | "patch-evidence-invalid"
+        | "contribution-mismatch"
+        | MergeTreeCapabilityRefusalReason;
+    };
 
 const PREFIX = new TextEncoder().encode("arc-delivery-contribution-patch-v1\0");
 const decoder = new TextDecoder("utf-8", { fatal: true });

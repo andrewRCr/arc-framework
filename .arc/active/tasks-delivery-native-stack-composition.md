@@ -241,28 +241,15 @@ member head onto the new predecessor with an explicit merge base and compares th
 identity is rejected as the arbiter: it hashes context lines, so it false-refuses the adjacent-edit case a busy
 trunk makes common, which is the observed failure with different bytes.
 
-### `[ ]` **2.1 Extract the `merge-tree` capability probe to a shared seam and widen its canary**
+### `[x]` **2.1 Extract the `merge-tree` capability probe to a shared seam and widen its canary**
 
 - _Goal:_ Both the branch-inspection path and the arbiter establish `merge-tree` support once, through one probe
   that also exercises the explicit merge base, and refuse through the existing typed reason when it is absent.
 
-- _Context:_ The probe is module-private and memoized per branch-inspection call rather than shared, and its
-  typed refusal belongs to the branch-inspection refusal union alone. The package already declares a Git floor
-  above the version the explicit merge base requires, so no new floor, disclosure mechanism, or degrade path is
-  authored — the work is extracting the probe and widening a second closed union to carry the same reason.
-
-- _Shape:_ The shared probe establishes one result per exec boundary, and its canary resolves its own input
-  rather than taking a caller-supplied commit that may be absent. A negative produced from an unusable canary
-  input is never cached — otherwise one degenerate call poisons every later probe on that exec into a spurious
-  unsupported refusal.
-
-    - Build `test-first` (one behavior at a time):
-        - The shared probe reports support when both the write-tree form and the explicit merge base succeed
-        - The probe reports no support when the explicit merge base is unrecognized, even where write-tree works
-        - The probe result is established once per exec boundary rather than per call
-        - A negative produced from an unusable canary input is not cached for the exec boundary
-        - The arbiter's refusal union carries the same unsupported reason as the branch-inspection union
-        - Branch inspection's existing classification behavior is unchanged by the extraction
+- _Outcome:_ `merge-tree-capability.ts` now resolves its own `HEAD` canary, exercises both write-tree forms, and
+  memoizes the result per injected Git executor while dropping unusable-canary negatives for retry. Branch
+  inspection consumes the shared probe without classification drift, and both refusal unions share the existing
+  `merge-tree-write-tree-unsupported` reason.
 
 ### `[ ]` **2.2 Implement the in-core reapply arbiter and its three verdicts**
 
