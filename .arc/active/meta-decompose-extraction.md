@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Admit the surviving origin into preflight
+- **Last Completed:** Task 4.1 — Prove the complete extraction boundary
+- **Next Task:** Task 5.1 — Complete verification (line ~184)
 - **Blockers:** [none]
 
-- **Next Action:** Begin task execution (process-task-loop) at Task 1.1
+- **Next Action:** verify-work-unit Step 1 — clean, self-review, and run Tier 3 quality gates
 
 - **PR URL:** [none]
 - **Completed:** [none]
