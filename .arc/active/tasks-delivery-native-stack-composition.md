@@ -386,34 +386,16 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
   refuses a divergent local head without moving it. Eligibility continues to own lifecycle filtering and now
   rejects delivery-namespace refs as authoring candidates, while derived published refs retain the planned namespace.
 
-### `[ ]` **4.2 Adopt the chain by content-neutral ancestry merge under the subset guard**
+### `[x]` **4.2 Adopt the chain by content-neutral ancestry merge under the subset guard**
 
 - _Goal:_ The originating branch records the member chain as ancestry without changing its own tree, so its diff
   against the highest member is exactly the residual and the branch remains both the work unit's branch and the
   stack's top.
 
-- _Rationale:_ An ordinary content merge is the wrong instrument here — merging equivalent content under two
-  independently authored histories is what produced the fourteen-conflict reconciliation the retained control
-  branch forced. Adoption records ancestry and keeps the top's tree exactly, guarded by a dedicated pure
-  containment classifier rather than the eligibility comparator's equality verdict. The classifier takes the
-  exact common pre-adoption base, top head/tree, and highest-member head/tree, then reuses the in-core merge
-  machinery to reapply the member onto the top. Only a clean result equal to the pre-merge top tree is contained;
-  conflict, a changed result, or unavailable evidence refuses with exact paths or a typed reason.
-
-- _Note:_ "Top" is never a moving designation. A later member is carved from beneath the top and adopted the same
-  way.
-
-    - Build `test-first` (one behavior at a time):
-        - Containment is a closed pure result distinct from normalized tree equality
-        - Reapplying a fully contained highest member produces the unchanged top tree
-        - A top with an allowed residual beyond the contained member still classifies as contained
-        - Conflict and clean-but-changed results refuse with exact paths
-        - Unavailable merge evidence returns the typed unavailable refusal
-        - Adoption leaves the top's tree byte-identical while adding the highest member head as a parent
-        - The top's diff against the highest member equals the residual after adoption
-        - Adoption refuses when the chain's contribution is not contained in the top's content
-        - Adoption never rewrites or force-updates the originating branch
-        - A second member carved beneath the top adopts without changing which branch is the top
+- _Outcome:_ A containment-specific classifier now reuses structural contribution reapplication while preserving
+  exact conflict, divergence, and unavailable evidence. Materialization advances the unchanged originating tree
+  through a two-parent `commit-tree` plus exact `update-ref` CAS; retries adopt only the exact prior result, and the
+  same top ref accepts later contained members without rewrite or force semantics.
 
 ### `[ ]` **4.3 Bind the terminal member at publish**
 

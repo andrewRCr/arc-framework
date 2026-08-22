@@ -43,6 +43,7 @@ import {
   publishDeliveryRequests,
   resolveDeliveryMemberPresentations,
 } from "../lib/delivery/materialization.js";
+import { adoptGitDeliveryChain } from "../lib/delivery/chain-adoption.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
   DeliveryPositionFactsV1Schema,
@@ -316,6 +317,11 @@ const ContributionRefusalSchema = z.strictObject({
   reason: ContributionPathReasonSchema,
   paths: z.array(z.string()),
 });
+const ContainmentRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.enum(["containment-conflicted", "containment-diverged"]),
+  paths: z.array(z.string()),
+});
 const BlockedContributionRefusalSchema = z.strictObject({
   status: z.literal("blocked"),
   reason: ContributionPathReasonSchema,
@@ -358,6 +364,7 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("pending"), effectIdentity: z.string().min(1), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("pending"), recommendedActionText: z.string().min(1) }),
   ContributionRefusalSchema,
+  ContainmentRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
 ]);
@@ -878,7 +885,18 @@ async function executeDeliveryCommand(
         const materialized = await materializeBoundDeliveryChain({
           plan, materialization: derived.value, stateStore, refs,
         });
-        if (materialized.status !== "materialized" || command === "materialize") return materialized;
+        if (materialized.status !== "materialized") return materialized;
+        const highestMember = [...derived.value.members].reverse().find((member) => member.ref !== null);
+        if (highestMember === undefined) return { status: "refused" as const, reason: "projection-invalid" };
+        const adoption = await adoptGitDeliveryChain({
+          exec: createRawGitExec(cwd),
+          topRef: parsed.controlRef,
+          commonBase: snapshot.protectedBase,
+          highestMember: { head: highestMember.head, tree: highestMember.tree },
+          top: snapshot.control,
+        });
+        if (adoption.status !== "adopted") return adoption;
+        if (command === "materialize") return materialized;
         const publish = publishRequest;
         if (publish === null) return { status: "refused" as const, reason: "initial-request-refused" };
         return publishDeliveryRequests({

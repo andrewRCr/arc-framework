@@ -310,6 +310,39 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves chain-containment refusal paths through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const request = JSON.stringify({
+      planId: plan.planId,
+      protectedBaseRef: "refs/heads/main",
+      controlRef: "refs/heads/feat/example",
+      candidates: plan.members.map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: `refs/heads/candidate-${index + 1}`,
+        checkoutPath: `/tmp/candidate-${index + 1}`,
+      })),
+      remote: "origin",
+    });
+    const write = vi.fn();
+
+    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "containment-diverged",
+        paths: ["feature.txt"],
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "containment-diverged",
+      paths: ["feature.txt"],
+    });
+  });
+
   it("accepts raw suffix locators without serialized proof or snapshots", async () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "refused", reason: "candidate-moved" });
