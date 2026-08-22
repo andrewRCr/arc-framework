@@ -136,7 +136,7 @@ describe("hosted finding settlement", () => {
     await expect(settleHostedFinding(invalidRequest, { port: port() })).rejects.toThrow();
   });
 
-  it("reports an already-settled thread idempotently", async () => {
+  it("reports an exactly replied and resolved thread idempotently", async () => {
     const result = await settleHostedFinding(request, {
       port: port({
         readThread: () => Promise.resolve({
@@ -144,10 +144,100 @@ describe("hosted finding settlement", () => {
           isResolved: true,
           commentIds: ["PRRC_1"],
         }),
+        findReplies: () => Promise.resolve([{
+          id: "PRRC_REPLY",
+          actorIdentity: request.actorIdentity,
+          body: request.reply,
+          inReplyToId: request.finding.commentId,
+        }]),
       }),
     });
 
-    expect(result).toMatchObject({ state: "already-settled", nextAction: "complete" });
+    expect(result).toMatchObject({
+      state: "already-settled",
+      nextAction: "complete",
+      replyId: "PRRC_REPLY",
+    });
+  });
+
+  it("reconciles an exact authoritative settlement after the head moves without mutating the host", async () => {
+    let replies = 0;
+    let resolutions = 0;
+    const result = await settleHostedFinding(request, {
+      port: port({
+        readHead: () => Promise.resolve("b".repeat(40)),
+        readThread: () => Promise.resolve({
+          kind: "present",
+          isResolved: true,
+          commentIds: [request.finding.commentId],
+        }),
+        findReplies: () => Promise.resolve([{
+          id: "PRRC_REPLY",
+          actorIdentity: request.actorIdentity,
+          body: request.reply,
+          inReplyToId: request.finding.commentId,
+        }]),
+        postReply: () => {
+          replies += 1;
+          return Promise.resolve({ kind: "created", id: "PRRC_OTHER" });
+        },
+        resolveThread: () => {
+          resolutions += 1;
+          return Promise.resolve({ kind: "resolved" });
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      state: "already-settled",
+      nextAction: "complete",
+      replyId: "PRRC_REPLY",
+    });
+    expect(replies).toBe(0);
+    expect(resolutions).toBe(0);
+  });
+
+  it("does not reconcile a resolved thread without one exact actor-and-body reply", async () => {
+    const result = await settleHostedFinding(request, {
+      port: port({
+        readHead: () => Promise.resolve("b".repeat(40)),
+        readThread: () => Promise.resolve({
+          kind: "present",
+          isResolved: true,
+          commentIds: [request.finding.commentId],
+        }),
+        findReplies: () => Promise.resolve([]),
+      }),
+    });
+
+    expect(result).toMatchObject({ state: "ambiguous", nextAction: "stop" });
+  });
+
+  it("keeps an already-resolved fix bound to its exact current fix target", async () => {
+    const fixedHead = "b".repeat(40);
+    const result = await settleHostedFinding({
+      ...request,
+      disposition: "fix",
+      fixTarget: { ...request.target, headSha: fixedHead },
+      reply: "Fixed in the current reviewed head.",
+    }, {
+      port: port({
+        readHead: () => Promise.resolve("c".repeat(40)),
+        readThread: () => Promise.resolve({
+          kind: "present",
+          isResolved: true,
+          commentIds: [request.finding.commentId],
+        }),
+        findReplies: () => Promise.resolve([{
+          id: "PRRC_REPLY",
+          actorIdentity: request.actorIdentity,
+          body: "Fixed in the current reviewed head.",
+          inReplyToId: request.finding.commentId,
+        }]),
+      }),
+    });
+
+    expect(result).toMatchObject({ state: "stale-target", nextAction: "stop" });
   });
 
   it("stops without posting when multiple canonical replies already exist", async () => {
