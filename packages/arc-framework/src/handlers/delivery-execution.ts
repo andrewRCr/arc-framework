@@ -310,6 +310,19 @@ const RequestSchemas = {
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
 
+const ContributionPathReasonSchema = z.enum(["contribution-conflicted", "contribution-diverged"]);
+const ContributionRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: ContributionPathReasonSchema,
+  paths: z.array(z.string()),
+});
+const BlockedContributionRefusalSchema = z.strictObject({
+  status: z.literal("blocked"),
+  reason: ContributionPathReasonSchema,
+  paths: z.array(z.string()),
+  guidance: z.string().min(1),
+});
+
 const ResultSchema = z.union([
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
@@ -323,6 +336,8 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("retryable"), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("retryable"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
+  BlockedContributionRefusalSchema,
+  z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("torn-down"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
@@ -342,6 +357,7 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("prepared"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }), operationId: z.string().min(1), members: z.array(NativeLandingMemberSchema), consequence: z.string().min(1) }),
   z.strictObject({ status: z.literal("pending"), effectIdentity: z.string().min(1), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("pending"), recommendedActionText: z.string().min(1) }),
+  ContributionRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
 ]);
@@ -1022,11 +1038,13 @@ async function executeDeliveryCommand(
       observation: {
         observe: async () => {
           const operation = currentState.value.activeOperation;
-          if (operation === null) return { status: "refused" as const };
+          if (operation === null) {
+            return { status: "refused" as const, reason: "observation-unavailable" as const };
+          }
           if (operation.kind === "teardown") {
             const before = operation.before.members[0];
             if (before?.ref === null || before === undefined || before.changeRequest === null) {
-              return { status: "refused" as const };
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
             const [ref, request, position] = await Promise.all([
               observeDeliveryRemoteRef(exec, parsed.remote, before.ref),
@@ -1042,12 +1060,14 @@ async function executeDeliveryCommand(
               && (request.request.state === "merged" || request.request.state === "closed")
               && position.status === "observed"
               ? { status: "observed" as const, value: operation.requested }
-              : { status: "refused" as const };
+              : { status: "refused" as const, reason: "observation-unavailable" as const };
           }
           if (operation.kind === "land") {
             const beforeMember = operation.before.members[0];
             if (beforeMember === undefined || beforeMember.changeRequest === null
-              || beforeMember.coordinates === null) return { status: "refused" as const };
+              || beforeMember.coordinates === null) {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
             const host = new GhDeliveryHostPort(hostedGhRunner);
             const request = await host.readRequest(parsed.repository, beforeMember.changeRequest);
             if (request.status !== "observed"
@@ -1057,7 +1077,9 @@ async function executeDeliveryCommand(
               || beforeMember.ref === null
               || request.request.headRef !== beforeMember.ref.replace(/^refs\/heads\//u, "")
               || request.request.headSha !== operation.effect.headSha
-              || request.request.baseRef !== operation.effect.baseRef) return { status: "refused" as const };
+              || request.request.baseRef !== operation.effect.baseRef) {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
             if (request.request.state === "open") {
               const before = await observePosition(currentPlan, currentState, parsed.repository, parsed.remote);
               return before.status === "observed"
@@ -1065,25 +1087,27 @@ async function executeDeliveryCommand(
                 && before.operationObservation !== null
                 && (before.operationObservation as { outcome?: unknown }).outcome === "not-applied"
                 ? { status: "observed" as const, value: { outcome: "not-applied" } }
-                : { status: "refused" as const };
+                : { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            if (request.request.state !== "merged") return { status: "refused" as const };
+            if (request.request.state !== "merged") {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
             const target = await host.observeTarget(parsed.repository, operation.effect.targetRef);
             const beforeTarget = operation.before.target?.coordinates;
             if (target.status !== "observed" || beforeTarget === null || beforeTarget === undefined) {
-              return { status: "refused" as const };
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
             try {
               await exec("git", ["fetch", "--no-write-fetch-head", parsed.remote, target.coordinates.head]);
             } catch {
-              return { status: "refused" as const };
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
             const proof = await proveGitDeliveryContribution({
               exec: createRawGitExec(cwd),
               before: { predecessor: beforeTarget, member: beforeMember.coordinates },
               after: { predecessor: beforeTarget, member: target.coordinates },
             });
-            if (proof.status !== "accepted") return { status: "refused" as const };
+            if (proof.status !== "accepted") return proof;
             return {
               status: "observed" as const,
               value: {
@@ -1109,7 +1133,7 @@ async function executeDeliveryCommand(
           }
           const observed = await observePosition(currentPlan, currentState, parsed.repository, parsed.remote);
           if (observed.status !== "observed" || observed.operationObservation === null) {
-            return { status: "refused" as const };
+            return { status: "refused" as const, reason: "observation-unavailable" as const };
           }
           return { status: "observed" as const, value: observed.operationObservation };
         },
@@ -1347,7 +1371,7 @@ async function executeDeliveryCommand(
           baseRef: "", state: "closed", draft: false,
         },
         targetBefore: { head: "", tree: "" }, targetAfter: { head: "", tree: "" },
-        proveResidual: () => Promise.resolve({ status: "refused", reason: "patch-evidence-invalid" }),
+        proveResidual: () => Promise.resolve({ status: "refused", reason: "git-failure" }),
         stateStore,
       });
     }

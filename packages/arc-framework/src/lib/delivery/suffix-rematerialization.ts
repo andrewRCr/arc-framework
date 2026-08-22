@@ -6,6 +6,7 @@ import type {
   DeliveryContributionCoordinate,
   DeliveryContributionEndpoints,
   DeliveryContributionProofResult,
+  DeliveryContributionRefusal,
 } from "./contribution-proof.js";
 import type { DeliveryEligibilitySnapshot } from "./eligibility.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
@@ -27,6 +28,7 @@ export interface DeliverySuffixRewritePlan {
 export type PrepareDeliverySuffixRematerializationResult =
   | { readonly status: "prepared"; readonly rewrites: readonly DeliverySuffixRewritePlan[] }
   | { readonly status: "plan-amendment"; readonly disposition: DeliveryPlanAmendmentResult }
+  | DeliveryContributionRefusal
   | {
       readonly status: "refused";
       readonly reason:
@@ -34,8 +36,7 @@ export type PrepareDeliverySuffixRematerializationResult =
         | "snapshot-mismatch"
         | "suffix-incomplete"
         | "selected-member-invalid"
-        | "direct-delivery-ref"
-        | "unselected-contribution-changed";
+        | "direct-delivery-ref";
     };
 
 /** Fresh per-step acquisition and the existing reserved rewrite executor. */
@@ -127,13 +128,14 @@ export async function prepareDeliverySuffixRematerialization(input: {
     const afterPredecessor = suffixIndex === 0 ? snapshot.protectedBase : snapshot.members[suffixIndex - 1];
     if (stored?.coordinates === null || stored?.coordinates === undefined
       || beforePredecessor === null || afterPredecessor === undefined
-      || beforePredecessor.head !== stored.coordinates.base
-      || (await input.proveCarried({
-        before: { predecessor: beforePredecessor, member: stored.coordinates },
-        after: { predecessor: afterPredecessor, member: candidate },
-      })).status !== "accepted") {
-      return { status: "refused", reason: "unselected-contribution-changed" };
+      || beforePredecessor.head !== stored.coordinates.base) {
+      return { status: "refused", reason: "snapshot-mismatch" };
     }
+    const proof = await input.proveCarried({
+      before: { predecessor: beforePredecessor, member: stored.coordinates },
+      after: { predecessor: afterPredecessor, member: candidate },
+    });
+    if (proof.status !== "accepted") return proof;
   }
 
   const rewrites: DeliverySuffixRewritePlan[] = [];
@@ -165,7 +167,22 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
   readonly selectedDeliverableIds: readonly string[];
 }, dependencies: DeliverySuffixRematerializationDependencies): Promise<
   | { readonly status: "rematerialized"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-  | { readonly status: "refused"; readonly reason: string }
+  | DeliveryContributionRefusal
+  | {
+      readonly status: "refused";
+      readonly reason:
+        | "observation-unavailable"
+        | "state-moved"
+        | "plan-amendment"
+        | "suffix-moved"
+        | "candidate-moved"
+        | "rewrite-refused"
+        | "position-mismatch"
+        | "snapshot-mismatch"
+        | "suffix-incomplete"
+        | "selected-member-invalid"
+        | "direct-delivery-ref";
+    }
 > {
   let expectedState: DeliveryRevisionedRecord<DeliveryStateV1> | null = null;
   let rewriteOrder: readonly string[] | null = null;
@@ -187,7 +204,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       proveCarried: (endpoints) => dependencies.proveCarried(endpoints),
     });
     if (prepared.status !== "prepared") {
-      return { status: "refused", reason: prepared.status === "refused" ? prepared.reason : "plan-amendment" };
+      return prepared.status === "refused" ? prepared : { status: "refused", reason: "plan-amendment" };
     }
     const currentOrder = prepared.rewrites.map((rewrite) => rewrite.deliverableId);
     if (rewriteOrder === null) rewriteOrder = currentOrder;

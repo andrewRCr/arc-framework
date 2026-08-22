@@ -47,7 +47,7 @@ async function resolveCoordinate(head: string) {
 describe("delivery suffix rematerialization", () => {
   it("accepts a selected fix and requires every unselected suffix contribution to carry", async () => {
     const { plan, state, facts, snapshot, second } = fixture();
-    const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "aggregate-patch" as const }));
+    const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }));
     const result = await prepareDeliverySuffixRematerialization({
       plan, state, facts, eligibleSnapshot: snapshot,
       selectedDeliverableIds: [second.deliverableId], resolveCoordinate, proveCarried,
@@ -82,7 +82,7 @@ describe("delivery suffix rematerialization", () => {
       lifecyclePaths: [],
     };
     const seenRevisions: number[] = [];
-    const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "aggregate-patch" as const }));
+    const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }));
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [initial.members[1]!.deliverableId],
     }, {
@@ -147,8 +147,8 @@ describe("delivery suffix rematerialization", () => {
       (endpoints.before.predecessor.head === endpoints.after.predecessor.head
         && endpoints.before.member.head === endpoints.after.member.head)
       || originalBaseByMemberHead.get(endpoints.before.member.head) === endpoints.before.predecessor.head
-      ? { status: "accepted" as const, proof: "aggregate-patch" as const }
-      : { status: "refused" as const, reason: "contribution-mismatch" as const });
+      ? { status: "accepted" as const, proof: "mechanical-reapply" as const }
+      : { status: "refused" as const, reason: "git-failure" as const });
     let interruptSecondRewrite = true;
     let applyCount = 0;
     const dependencies: DeliverySuffixRematerializationDependencies = {
@@ -237,8 +237,30 @@ describe("delivery suffix rematerialization", () => {
       plan, state, facts, eligibleSnapshot: snapshot,
       selectedDeliverableIds: [second.deliverableId],
       resolveCoordinate,
-      proveCarried: async () => ({ status: "refused", reason: "contribution-mismatch" }),
-    })).resolves.toEqual({ status: "refused", reason: "unselected-contribution-changed" });
+      proveCarried: async () => ({
+        status: "refused",
+        reason: "contribution-conflicted",
+        paths: ["shared.txt"],
+      }),
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-conflicted",
+      paths: ["shared.txt"],
+    });
+    await expect(prepareDeliverySuffixRematerialization({
+      plan, state, facts, eligibleSnapshot: snapshot,
+      selectedDeliverableIds: [second.deliverableId],
+      resolveCoordinate,
+      proveCarried: async () => ({
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: ["feature.txt"],
+      }),
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-diverged",
+      paths: ["feature.txt"],
+    });
   });
 
   it("keeps the landed prefix exact and routes semantic changes through plan amendment", async () => {

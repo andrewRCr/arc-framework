@@ -251,110 +251,42 @@ trunk makes common, which is the observed failure with different bytes.
   inspection consumes the shared probe without classification drift, and both refusal unions share the existing
   `merge-tree-write-tree-unsupported` reason.
 
-### `[ ]` **2.2 Implement the in-core reapply arbiter and its three verdicts**
+### `[x]` **2.2 Implement the in-core reapply arbiter and its three verdicts**
 
 - _Goal:_ A member carried across a predecessor rewrite is judged by whether reapplying its contribution onto the
   new predecessor reproduces the provider's tree — so a mechanically rebased member with an unchanged semantic
   patch is admitted, and anything else refuses with its reason named.
 
-- _Approach:_ One in-core three-way merge per member — merge base is the old predecessor, ours the new
-  predecessor, theirs the old member head — with the result tree compared to the provider's new member tree. It
-  lands in the Git-backed proof path, which already holds the exec and pins all four endpoints, so the endpoint
-  shape is unchanged and the pure module keeps the types and the tree-equality comparison. The tree-equality
-  shortcut is available only when the predecessor is unchanged; once it moves, the arbiter always performs the
-  reapply even when the old and new member trees are equal. Tree comparison ignores commit metadata, so a
-  server-side restack producing unsigned commits cannot perturb equivalence.
+- _Outcome:_ The Git-backed proof now pins all four endpoints, reapplies the old member with the old predecessor as
+  the explicit merge base, and compares the resulting tree to the provider tree. Only an unchanged predecessor
+  can take the tree-equality shortcut; moved predecessors and merge commits are judged by mechanical reapplication.
 
-- **Additional Context:** `notes-delivery-native-stack-composition.md` § Comparator vs plan-semantics
-  fingerprinting — the comparator and the plan-semantics fingerprint are distinct and must not be conflated
-
-    - Build `test-first` (one behavior at a time):
-        - An unchanged predecessor plus identical member trees accepts on the tree-equality fast path without a
-          merge
-        - A moved predecessor plus identical member trees still runs the mechanical reapply
-        - A member mechanically rebased onto a moved predecessor, semantic patch unchanged, accepts as a mechanical
-          reapply
-        - A member whose contribution conflicts against the new predecessor refuses, carrying the conflicted paths
-        - A member whose reapply succeeds but whose result tree differs from the provider's refuses, carrying the
-          divergent paths
-        - A member carrying a merge commit is judged on its tree rather than rejected for non-linearity
-        - The explicit merge base is always supplied; an auto-computed base is never relied on
-        - An arbiter call refuses through the shared probe's unsupported reason when `merge-tree` support is
-          absent
-
-### `[ ]` **2.3 Carry conflicted and divergent paths in the result vocabulary**
+### `[x]` **2.3 Carry conflicted and divergent paths in the result vocabulary**
 
 - _Goal:_ A refusal names which paths caused it, so an operator resolving a carried-member refusal reads the
   evidence instead of re-deriving it.
 
-- _Shape:_ The accepted discriminator becomes unchanged-predecessor tree equality or mechanical reapply, and the
-  refusal reasons close
-  over five cases: unverified endpoints, absent `merge-tree` support carrying the shared probe's existing reason,
-  a conflicted reapply, a divergent result, and a hard Git failure. The two contribution cases carry their exact
-  paths and the other three carry none, so the field discriminates rather than going optional. The byte-patch
-  reasons retire with the envelope they described, and the downstream unions that mirror them — suffix
-  rematerialization's flattened reason and the landing port's — take the same case set. Evidence stays ephemeral
-  operation output — per member the verdict, old and new heads, and for refusals the paths — surfaced at adoption
-  and recorded only as the state's updated current coordinates. No durable proof ledger, and exact-head pinning
-  stays at the merge instant only.
+- _Outcome:_ Accepted results distinguish tree equality from mechanical reapply. Refusals distinguish unverified
+  endpoints, unsupported Git, conflicts, divergence, and hard Git failures; only conflict and divergence carry
+  path arrays, while malformed conflict output remains a conflict with empty path evidence.
 
-- _Note:_ Conflict information is printed alongside a conflict exit status; the exact parse that yields the path
-  list, and its distinction from a hard error, is established against the installed Git during this task. Output
-  that will not parse still refuses as conflicted, with an empty path list — the verdict does not depend on the
-  evidence being extractable.
-
-    - Build `test-first` (one behavior at a time):
-        - An accepted result reports which of the two proofs admitted it
-        - A conflicted refusal carries a non-empty path list
-        - A conflicted refusal whose output will not parse still refuses as conflicted, with an empty path list
-        - A divergent refusal carries a non-empty path list distinct from the conflict reason
-        - A hard Git failure is distinguished from a conflict rather than reported as conflicted paths
-        - No proof record is written to any store by a comparison
-
-### `[ ]` **2.4 Propagate path evidence through the six collapsing call sites**
+### `[x]` **2.4 Propagate path evidence through the six collapsing call sites**
 
 - _Goal:_ Every consumer that today reduces the proof to a boolean carries the verdict's reason and paths into
   its own typed refusal, so no caller silently discards the evidence the arbiter produces.
 
-- _Context:_ Three sites in suffix reconciliation (post-observation reserve, reserved reconcile, explicit
-  rewrite), one in suffix rematerialization that flattens every verdict into a single unselected-contribution
-  reason, one in landing, and one in the execution handler's reconcile land-observation branch — an
-  operator-visible surface that returns a reason-free refusal today. Native landing declares the dependency but
-  delegates consumption to suffix reconciliation, so it needs no change.
+- _Outcome:_ All three suffix-reconciliation paths, suffix rematerialization, landing, and reconciliation preserve
+  the typed proof refusal through their public results. The strict CLI result envelope now admits the corresponding
+  reason-and-path shapes, while terminal residual consumers carry the vocabulary without behavioral expansion.
 
-- _Note:_ Landing needs more than propagation. Its port declares a narrowed accepted-or-refused union, so the
-  verdict is erased at the type boundary before the call site and the outer refusal carries no reason field. The
-  richer result stays structurally assignable to the narrow port, so this drops silently rather than failing to
-  compile — widening that port and adding a refusal reason is part of the change, not a consequence of it.
-
-- _Note:_ Two further proof consumers sit outside this member and are not reworked here: the terminal arm's two
-  residual checks, and the terminal verb wiring that stubs a refusal literal. They retire with the disconnected
-  terminal request three members later, so this member carries them onto the new vocabulary and no further.
-  Deferring that until the retirement instead would break the build at this member's own boundary.
-
-    - Build `test-first` (one behavior at a time):
-        - Each suffix-reconciliation site surfaces the arbiter's reason and paths in its refusal
-        - Suffix rematerialization distinguishes a conflicted carried member from a divergent one
-        - The landing port carries a refusal reason rather than erasing the verdict at its boundary
-        - The reconcile verb's land-observation refusal is no longer reason-free
-        - The terminal residual sites carry the new vocabulary without gaining behavior
-        - An accepted verdict changes no caller's success path
-
-### `[ ]` **2.5 Retire the aggregate-patch envelope and the linearity precondition**
+### `[x]` **2.5 Retire the aggregate-patch envelope and the linearity precondition**
 
 - _Goal:_ The byte-identical patch envelope and the linear-range precondition are gone from the code base, so no
   second equivalence notion survives beside the arbiter.
 
-- _Note:_ Suffix rematerialization is not part of this retirement. It is the review-fix recut path and survives
-  with the top branch replacing the control branch as its authoring locus; its guard against a snapshot member
-  already under the delivery namespace keeps discriminating exactly the case it was written for, because
-  authoring candidates stay outside that namespace.
-
-    - Remove the versioned patch encode and parse pair, the patch envelope interface, the comparator's patch
-      parameters and its patch-parsing branch, and the linear-range check — each with its tests
-    - What survives in the pure module is the endpoint types and the unchanged-predecessor tree-equality comparison
-    - A three-way reapply requires no linear range, and retaining the check would refuse a member that
-      legitimately carries a merge
+- _Outcome:_ The patch envelope, byte-patch comparator branch, and linear-range guard are absent. The pure module
+  retains endpoint types plus the unchanged-predecessor tree shortcut, and suffix rematerialization remains the
+  review-fix recut path using the single structural arbiter.
 
 ### `[ ]` **2.6 Close delivery member 2** — validate criteria at member scope
 
