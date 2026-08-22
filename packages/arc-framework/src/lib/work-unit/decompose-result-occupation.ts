@@ -47,6 +47,7 @@ export interface DecomposeResultOccupationAdapter {
 export interface DecomposeResultOccupationInput {
   protection: ProtectionMode;
   configuredBase: string;
+  origin: string;
   plan: ValidatedDecomposePlan;
 }
 
@@ -121,7 +122,7 @@ export async function occupyDecomposeResult(
     return { status: "occupied", protection: "partial" };
   }
 
-  const origin = input.plan.prospectiveOverlay.origin;
+  const origin = input.origin;
   const branch = decomposeCandidateBranch(origin);
   const path = await adapter.candidatePath(origin);
   const observation = await adapter.observeCandidate(branch, path);

@@ -162,11 +162,14 @@ export function metaCohortField(content: string): string {
   return normalizeCohortField(content);
 }
 
-/** Whether a cohort doc carries a non-empty `**Purpose:**` floor. */
+/** Whether a cohort doc carries a finalized `**Purpose:**` floor. */
 function hasPurposeFloor(content: string): boolean {
   for (const line of content.split(/\r?\n/)) {
     const match = /^\s*\*\*Purpose:\*\*\s*(.*)$/.exec(line);
-    if (match) return (match[1] ?? "").trim().length > 0;
+    if (match) {
+      const purpose = (match[1] ?? "").trim();
+      return purpose.length > 0 && purpose !== "—";
+    }
   }
   return false;
 }

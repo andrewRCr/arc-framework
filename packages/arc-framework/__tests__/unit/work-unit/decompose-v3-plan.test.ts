@@ -31,8 +31,10 @@ describe("validated v3 decomposition plan path registry", () => {
       facts: [{ kind: "none" as const }],
       digest: v3TopologyDigest([{ kind: "none" }]),
     },
-    origin: "origin",
-    sourceBranch: "plan/origin",
+    prospectiveTransition: {
+      origin: "origin",
+      sourceBranch: "plan/origin",
+    },
   };
   const topology = (
     kind: Exclude<V3TopologyFact, { kind: "none" }>["kind"],
@@ -157,6 +159,27 @@ describe("validated v3 decomposition plan path registry", () => {
       before: file("roadmap-before"),
       after: file("roadmap-after"),
     });
+  });
+
+  it("omits prospective transition authority when the caller supplies none", () => {
+    const input = {
+      ...operands,
+      prospectiveTransition: undefined,
+      claims: [{
+        kind: "exclusive" as const,
+        path: ".arc/backlog/ROADMAP.md",
+        role: "roadmap" as const,
+        base: file("roadmap-before"),
+        after: file("roadmap-after"),
+      }],
+    } as unknown as Parameters<typeof buildValidatedDecomposePlan>[0];
+    delete input.prospectiveTransition;
+
+    const result = buildValidatedDecomposePlan(input);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.prospectiveOverlay).toBeUndefined();
   });
 
   it("refuses exclusive role collisions before composing a shared path", () => {

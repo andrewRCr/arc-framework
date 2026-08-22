@@ -91,8 +91,10 @@ export interface V3PlanCompositionInput {
   cutMapDigest: CanonicalDigest;
   sourceHead: string;
   expectedBaseHead: string;
-  origin: string;
-  sourceBranch: string;
+  prospectiveTransition?: {
+    origin: string;
+    sourceBranch: string;
+  };
   planningProfile: V3DecomposeMachine["planningProfile"];
   destinations: Destination[];
   validatedAllocations: Allocation[];
@@ -100,8 +102,8 @@ export interface V3PlanCompositionInput {
   content: V3PlannedContentContribution[];
   topology: V3TopologyAction[];
   dependencies: V3PlannedDependencyContribution[];
-  predecessorRetirement: V3PlannedExclusivePath;
-  sourceRetirements: V3PlannedExclusivePath[];
+  predecessorRetirement?: V3PlannedExclusivePath;
+  sourceRetirements?: V3PlannedExclusivePath[];
   roadmap: V3PlannedExclusivePath;
 }
 
@@ -489,8 +491,10 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
       after: state(entry.after, blobs),
     });
   };
-  exclusive(input.predecessorRetirement, "predecessor-retirement");
-  for (const retirement of input.sourceRetirements) exclusive(retirement, "retiring-source");
+  if (input.predecessorRetirement !== undefined) {
+    exclusive(input.predecessorRetirement, "predecessor-retirement");
+  }
+  for (const retirement of input.sourceRetirements ?? []) exclusive(retirement, "retiring-source");
   exclusive(input.roadmap, "roadmap");
 
   const expectedPaths = sortByCanonicalBytes(input.expectedPaths);
@@ -529,8 +533,7 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
       facts: topologyFacts,
       digest: observedTopologyDigest,
     },
-    origin: input.origin,
-    sourceBranch: input.sourceBranch,
+    prospectiveTransition: input.prospectiveTransition,
     claims,
   });
   if (!result.ok) return { status: "refused", refusal: result.refusal };

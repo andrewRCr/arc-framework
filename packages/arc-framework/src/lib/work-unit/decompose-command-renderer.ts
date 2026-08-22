@@ -26,6 +26,16 @@ export function renderV3DecomposeExecuteCommand(
   }`;
 }
 
+/** Render an additive extraction command from one exact canonical cut-map invocation. */
+export function renderV3DecomposeExtractCommand(
+  origin: string,
+  cutMapPath: string,
+): string {
+  return `${commandOrigin(origin)} --extract ${
+    renderV3DecomposeCommandArgument(cutMapPath)
+  }`;
+}
+
 /** Render committed-candidate base advancement from one canonical cut map. */
 export function renderV3DecomposeAdvanceBaseCommand(
   origin: string,

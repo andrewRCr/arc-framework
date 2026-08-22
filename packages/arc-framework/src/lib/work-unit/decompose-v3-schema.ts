@@ -87,7 +87,7 @@ export const V3DecomposeLocatorSchema = z.discriminatedUnion("kind", [
 
 const SourceSchema = z.strictObject({
   origin: DecomposeSlugSchema,
-  kind: z.enum(["started-planning", "backlog-stub"]),
+  kind: z.enum(["started-planning", "active-origin", "backlog-stub"]),
   logicalBranch: NonEmptyStringSchema,
   ref: NonEmptyStringSchema,
   head: NonEmptyStringSchema,
@@ -163,6 +163,7 @@ const SourceDispositionSchema = z.discriminatedUnion("kind", [
     destinationId: NonEmptyStringSchema,
     targetLocator: V3DecomposeLocatorSchema,
   }),
+  z.strictObject({ kind: z.literal("retained-origin") }),
   DropSchema,
 ]);
 const IncomingDispositionSchema = z.discriminatedUnion("kind", [
@@ -189,7 +190,7 @@ const StarterAuthoringSchema = z.strictObject({
   outgoingDispositions: z.array(z.strictObject({ edgeId: DigestSchema, disposition: AuthorSlotSchema })),
 });
 const CompletedAuthoringSchema = z.strictObject({
-  shape: z.enum(["symmetric", "heterogeneous"]),
+  shape: z.enum(["symmetric", "heterogeneous", "extraction"]),
   placement: PlacementSchema,
   destinations: z.array(DestinationSchema),
   internalEdges: z.array(InternalEdgeSchema),
@@ -231,6 +232,8 @@ export interface V3DecomposeMapIssue {
     | "machine-identity"
     | "authoring-identity"
     | "authoring-order"
+    | "source-shape"
+    | "destination-coverage"
     | "placement-cardinality"
     | "shape-cardinality";
   path: string;
@@ -453,6 +456,20 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
   if (!parsed.success) return { status: "rejected", issue: structuralIssue(input, parsed.error) };
   const invalidMachine = machineIssue(parsed.data.machine);
   if (invalidMachine !== null) return { status: "rejected", issue: invalidMachine };
+  const extraction = parsed.data.authoring.shape === "extraction";
+  if ((parsed.data.machine.source.kind === "active-origin" && !extraction)
+    || (parsed.data.machine.source.kind === "backlog-stub" && extraction)) {
+    return {
+      status: "rejected",
+      issue: {
+        code: "source-shape",
+        path: "machine.source.kind",
+        message: extraction
+          ? "Extraction requires a started-Planning or Active surviving origin."
+          : "Retirement shapes do not accept an Active surviving origin.",
+      },
+    };
+  }
   const identityPairs = [
     ["sourceAllocations", parsed.data.machine.sourceUnits.map(({ sourceId }) => sourceId),
       parsed.data.authoring.sourceAllocations.map(({ sourceId }) => sourceId)],
@@ -472,6 +489,29 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
     },
   };
   const { authoring } = parsed.data;
+  for (const [index, allocation] of authoring.sourceAllocations.entries()) {
+    if (allocation.disposition.kind !== "retained-origin") continue;
+    if (!extraction) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "source-shape",
+          path: `authoring.sourceAllocations.${index}.disposition`,
+          message: "Only extraction may retain source scope at the surviving origin.",
+        },
+      };
+    }
+    if (allocation.ownership !== "destination-owned") {
+      return {
+        status: "rejected",
+        issue: {
+          code: "source-shape",
+          path: `authoring.sourceAllocations.${index}.ownership`,
+          message: "Retained-origin scope must carry destination-owned ownership.",
+        },
+      };
+    }
+  }
   const destinationIds = authoring.destinations.map(({ destinationId }) => destinationId);
   const internalIds = authoring.internalEdges.map(({ from, to }) => `${from}\0${to}`);
   const newCount = authoring.destinations.filter(({ kind }) => kind === "new-member").length;
@@ -513,6 +553,8 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
       : destination.kind === "existing-home" && destination.target.kind === "work-unit"
         ? [destination.target.slug]
         : []));
+  const incomingRecipients = new Set(dependencyRecipients);
+  if (extraction) incomingRecipients.add(parsed.data.machine.source.origin);
   for (const [index, edge] of authoring.internalEdges.entries()) {
     for (const field of ["from", "to"] as const) {
       if (!dependencyRecipients.has(edge[field])) {
@@ -530,7 +572,7 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
   for (const [index, edge] of authoring.incomingDispositions.entries()) {
     if (edge.disposition.kind !== "replace") continue;
     for (const [targetIndex, target] of edge.disposition.replacementTargets.entries()) {
-      if (!dependencyRecipients.has(target)) {
+      if (!incomingRecipients.has(target)) {
         return {
           status: "rejected",
           issue: {
@@ -558,27 +600,51 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
     }
   }
   if ((authoring.shape === "symmetric" && (newCount < 2 || existingCount !== 0))
-    || (authoring.shape === "heterogeneous" && (newCount < 1 || existingCount < 1))) return {
+    || (authoring.shape === "heterogeneous" && (newCount < 1 || existingCount < 1))
+    || (authoring.shape === "extraction" && newCount < 1)) return {
     status: "rejected",
     issue: {
       code: "shape-cardinality",
       path: "authoring.shape",
       message: authoring.shape === "symmetric"
         ? "A symmetric map needs at least two new members and no existing home."
-        : "A heterogeneous map needs at least one new member and one existing home.",
+        : authoring.shape === "heterogeneous"
+          ? "A heterogeneous map needs at least one new member and one existing home."
+          : "An extraction map needs at least one new member.",
     },
   };
   if ((authoring.placement.kind === "direct-member" && newCount !== 1)
-    || (authoring.placement.kind !== "direct-member" && newCount < 2)) return {
+    || (authoring.placement.kind !== "direct-member" && newCount < (extraction ? 1 : 2))) return {
     status: "rejected",
     issue: {
       code: "placement-cardinality",
       path: "authoring.placement",
       message: authoring.placement.kind === "direct-member"
         ? "Direct-member placement requires exactly one new member."
-        : "Multiple-member placement requires at least two new members.",
+        : extraction
+          ? "Extraction cohort placement requires at least one new member."
+          : "Multiple-member placement requires at least two new members.",
     },
   };
+  if (extraction) {
+    for (const [index, destination] of authoring.destinations.entries()) {
+      if (destination.kind !== "new-member") continue;
+      const covered = authoring.sourceAllocations.some((allocation) =>
+        allocation.ownership === "destination-owned"
+        && allocation.disposition.kind === "target"
+        && allocation.disposition.destinationId === destination.destinationId);
+      if (!covered) {
+        return {
+          status: "rejected",
+          issue: {
+            code: "destination-coverage",
+            path: `authoring.destinations.${index}`,
+            message: "Every extracted new member must own at least one destination-owned source unit.",
+          },
+        };
+      }
+    }
+  }
   return { status: "accepted", value: parsed.data };
 }
 

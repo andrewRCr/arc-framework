@@ -96,7 +96,10 @@ import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
 import {
   executeGitV3DecomposeCommand,
+  executeGitV3ExtractionCommand,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
+import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
+import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
 import { advanceGitDecomposeTransitionBase } from
   "../lib/work-unit/git-decompose-transition-base-advancement.js";
 import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
@@ -507,12 +510,15 @@ const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).
 export const DECOMPOSE_MODE_KEYS = [
   "preflight",
   "execute",
+  "extract",
+  "finish",
   "advanceBase",
 ] as const;
 
 /** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
 export const DECOMPOSE_MACHINE_READABLE_KEYS = [
   ...DECOMPOSE_MODE_KEYS,
+  "apply",
 ] as const;
 
 type DecomposeRoutingOptions = Partial<Record<
@@ -534,13 +540,23 @@ export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
   preflight: z.literal(true).optional(),
   execute: z.string().trim().min(1).optional(),
+  extract: z.string().trim().min(1).optional(),
+  finish: z.string().trim().min(1).optional(),
+  apply: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
   if (modes !== 1) {
     refinement.addIssue({
       code: "custom",
-      message: "Exactly one of --preflight, --execute, or --advance-base is required.",
+      message: "Exactly one of --preflight, --execute, --extract, --finish, or --advance-base is required.",
+    });
+  }
+  if (value.apply !== undefined && value.finish === undefined) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["apply"],
+      message: "--apply is valid only with --finish.",
     });
   }
 });
@@ -650,6 +666,9 @@ export const lifecycleCommandInputRegistrations = [
       "operand.origin": "origin",
       "option.preflight": "preflight",
       "option.execute": "execute",
+      "option.extract": "extract",
+      "option.finish": "finish",
+      "option.apply": "apply",
       "option.advance-base": "advanceBase",
     },
   },
@@ -885,6 +904,12 @@ export interface DecomposeOptions {
   preflight?: true;
   /** Stage one exact repository result from a canonical completed cut map. */
   execute?: string;
+  /** Stage one additive result while preserving the source origin. */
+  extract?: string;
+  /** Preview source thinning from one completed extraction map. */
+  finish?: string;
+  /** Apply the exact source-thinning preview authority. */
+  apply?: string;
   /** Advance one committed full-protection candidate from its canonical completed cut map. */
   advanceBase?: string;
 }
@@ -962,6 +987,23 @@ export async function handleDecompose(
       cohortTemplate,
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
+    if (parsed.data.finish !== undefined) {
+      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
+        cwd,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.finish,
+        applyAuthority: (parsed.data.apply ?? null) as `sha256:${string}` | null,
+      }));
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status === "refused") {
+        process.stderr.write(
+          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
+        );
+        process.exitCode = 1;
+      }
+      return;
+    }
     if (parsed.data.execute !== undefined) {
       const result = await executeGitV3DecomposeCommand({
         ...repository,
@@ -971,6 +1013,23 @@ export async function handleDecompose(
         baseBranch: settings["branch.base"],
         origin: parsed.data.origin,
         cutMapPath: parsed.data.execute,
+      });
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status !== "staged") {
+        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
+        process.exitCode = 1;
+      }
+      return;
+    }
+    if (parsed.data.extract !== undefined) {
+      const result = await executeGitV3ExtractionCommand({
+        ...repository,
+        spawningIdentity: await resolveUserIdentity(),
+      }, {
+        protection,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.extract,
       });
       process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status !== "staged") {

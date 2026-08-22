@@ -5,8 +5,12 @@ import { dirname, join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import {
+  resolveV3DecomposeContentLocator,
+  scanV3DecomposeContent,
+} from "../../src/lib/work-unit/decompose-content.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -194,6 +198,53 @@ async function writeCompletedCutMap(repo: string): Promise<string> {
     },
   };
   const cutMapPath = join(repo, "cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completed)}\n`);
+  return cutMapPath;
+}
+
+async function writeExtractionCutMap(repo: string): Promise<string> {
+  const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
+  expect(preflight.exitCode, preflight.stderr).toBe(0);
+  const starter = JSON.parse(preflight.stdout) as {
+    machine: {
+      sourceUnits: Array<{
+        sourceId: string;
+        sourceLocator: { artifact: string; [key: string]: unknown };
+      }>;
+    };
+  };
+  expect(starter.machine.sourceUnits.length).toBeGreaterThan(2);
+  const completed = {
+    schemaVersion: 3,
+    machine: starter.machine,
+    authoring: {
+      shape: "extraction",
+      placement: { kind: "direct-member" },
+      destinations: [{
+        kind: "new-member",
+        destinationId: "member",
+        slug: "member",
+        workClass: "Heavy",
+      }],
+      internalEdges: [],
+      sourceAllocations: starter.machine.sourceUnits.map((unit, index) => ({
+        sourceId: unit.sourceId,
+        ownership: "destination-owned",
+        disposition: index === 0
+          ? { kind: "retained-origin" }
+          : index === 1
+            ? { kind: "drop", reason: "obsolete framing" }
+            : {
+                kind: "target",
+                destinationId: "member",
+                targetLocator: { ...unit.sourceLocator, artifact: "draft-member.md" },
+              },
+      })),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  const cutMapPath = join(repo, "extraction-cut-map.json");
   await writeFile(cutMapPath, `${canonicalize(completed)}\n`);
   return cutMapPath;
 }
@@ -409,6 +460,282 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("receiptId");
     expect(executed.stdout).not.toContain("continuation");
     expect(executed.stdout).not.toContain("discard");
+  });
+
+  it("lands a direct-member extraction with a reasoned drop then durably finishes the source", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeExtractionCutMap(repo);
+    const sourceHeadBefore = await git(repo, ["rev-parse", "plan/origin"]);
+    const sourceTreeBefore = await git(repo, ["rev-parse", "plan/origin^{tree}"]);
+    const beforeModeRefusals = await repositorySnapshot(repo);
+
+    for (const mode of ["--execute", "--advance-base"] as const) {
+      const refused = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, {
+        timeout: 60_000,
+      });
+      expect(refused.exitCode).not.toBe(0);
+      expect(JSON.parse(refused.stdout)).toMatchObject({
+        status: "refused",
+        reason: "map:authoring-shape",
+      });
+      expect(await repositorySnapshot(repo)).toEqual(beforeModeRefusals);
+    }
+
+    const extracted = await runArcNoTty(
+      ["decompose", "origin", "--extract", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(extracted.exitCode, extracted.stderr).toBe(0);
+    const result = JSON.parse(extracted.stdout) as {
+      operation: {
+        occupation: { protection: string; path: string };
+        report: {
+          extraction: {
+            retainedOrigin: {
+              origin: string;
+              path: string;
+              allocations: Array<{ sourceId: string; ownership: string }>;
+            };
+            reasonedDrops: Array<{
+              sourceId: string;
+              ownership: string;
+              reason: string;
+            }>;
+            anchor: { origin: string; path: string };
+          };
+        };
+        stagedPaths: string[];
+      };
+    };
+    const cutMap = JSON.parse(await readFile(cutMapPath, "utf8")) as {
+      machine: {
+        sourceUnits: Array<{
+          sourceId: string;
+          sourcePath: string;
+          sourceLocator: unknown;
+        }>;
+      };
+      authoring: {
+        sourceAllocations: Array<{
+          sourceId: string;
+          disposition: { kind: string; reason?: string };
+        }>;
+      };
+    };
+    const dropAllocation = cutMap.authoring.sourceAllocations.find(({ disposition }) =>
+      disposition.kind === "drop");
+    if (dropAllocation === undefined) throw new Error("extraction fixture needs a reasoned drop");
+    expect(result).toMatchObject({
+      status: "staged",
+      operation: {
+        occupation: { protection: "full" },
+        report: {
+          extraction: {
+            anchor: { origin: "origin", path: ".arc/active/meta-origin.md" },
+          },
+        },
+      },
+    });
+    expect(result.operation.report.extraction.reasonedDrops).toEqual([{
+      sourceId: dropAllocation.sourceId,
+      ownership: "destination-owned",
+      reason: "obsolete framing",
+    }]);
+    expect(result.operation.stagedPaths).not.toEqual(expect.arrayContaining([
+      expect.stringContaining(".arc/system/.internal/transitions/"),
+      expect.stringContaining(".arc/active/meta-origin.md"),
+    ]));
+    const memberMetaPath = ".arc/backlog/planned/member/meta-member.md";
+    const originMetaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const candidatePaths = (await git(result.operation.occupation.path, ["ls-files"])).split("\n");
+    expect(candidatePaths).not.toEqual(expect.arrayContaining([
+      expect.stringMatching(/(?:^|\/)(?:transitions?|receipts?|continuations?)(?:\/|$)/u),
+      expect.stringMatching(/(?:^|\/)cohort-[^/]+\.md$/u),
+    ]));
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(extracted.stdout).not.toMatch(/receipt|continuation|teardown|launch|publication/iu);
+    const basePathsBeforeLanding = (await git(repo, ["ls-tree", "-r", "--name-only", "main"]))
+      .split("\n");
+    expect(basePathsBeforeLanding).not.toEqual(expect.arrayContaining([
+      memberMetaPath,
+      originMetaPath,
+    ]));
+    const memberBeforeLanding = await runArcNoTty(["status", "member", "--json"], repo);
+    expect(memberBeforeLanding.exitCode, memberBeforeLanding.stderr).toBe(0);
+    expect(JSON.parse(memberBeforeLanding.stdout)).toMatchObject({
+      slug: "member",
+      position: null,
+      state: "nonexistent",
+    });
+    const memberMeta = await readFile(
+      join(result.operation.occupation.path, memberMetaPath),
+      "utf8",
+    );
+    expect(parseMetaRecord(memberMeta)).toMatchObject({
+      state: "Planning",
+      branch: null,
+      cohort: null,
+      promotionReceipt: null,
+      candidateId: null,
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+      prUrl: null,
+      completed: null,
+    });
+    expect(await readFile(
+      join(result.operation.occupation.path, originMetaPath),
+      "utf8",
+    )).toContain("# Metadata: origin");
+    expect(await git(repo, ["rev-parse", "plan/origin"])).toBe(sourceHeadBefore);
+    expect(await git(repo, ["rev-parse", "plan/origin^{tree}"])).toBe(sourceTreeBefore);
+
+    const retainedId = cutMap.authoring.sourceAllocations.find(({ disposition }) =>
+      disposition.kind === "retained-origin")?.sourceId;
+    const retainedSource = cutMap.machine.sourceUnits.find(({ sourceId }) => sourceId === retainedId);
+    if (retainedSource === undefined) throw new Error("extraction fixture needs retained source");
+    const droppedSource = cutMap.machine.sourceUnits.find(({ sourceId }) =>
+      sourceId === dropAllocation.sourceId);
+    if (droppedSource === undefined) throw new Error("extraction fixture needs dropped source");
+
+    await git(result.operation.occupation.path, ["commit", "-m", "land additive extraction"]);
+    const candidateHead = await git(result.operation.occupation.path, ["rev-parse", "HEAD"]);
+    await git(repo, ["merge", "--ff-only", candidateHead]);
+    const landedPaths = (await git(repo, ["ls-tree", "-r", "--name-only", "main"])).split("\n");
+    expect(landedPaths).toEqual(expect.arrayContaining([memberMetaPath, originMetaPath]));
+    await git(repo, ["push", "origin", "main"]);
+    const memberAfterLanding = await runArcNoTty(["status", "member", "--json"], repo);
+    expect(memberAfterLanding.exitCode, memberAfterLanding.stderr).toBe(0);
+    expect(JSON.parse(memberAfterLanding.stdout)).toMatchObject({
+      slug: "member",
+      position: { phase: "Planning", location: "planned" },
+      state: "planned",
+    });
+    const projectAfterLanding = await runArcNoTty(
+      ["status", "--project", "--local", "--json"],
+      repo,
+    );
+    expect(projectAfterLanding.exitCode, projectAfterLanding.stderr).toBe(0);
+    expect(JSON.parse(projectAfterLanding.stdout)).toMatchObject({
+      facts: expect.arrayContaining([
+        expect.objectContaining({ slug: "member", readiness: "ready" }),
+      ]),
+    });
+    await git(repo, ["switch", "plan/origin"]);
+    const sourceBytes = new Uint8Array(await readFile(join(repo, retainedSource.sourcePath)));
+    const scan = scanV3DecomposeContent("draft-origin.md", sourceBytes);
+    if (scan.status !== "scanned") throw new Error(scan.reason);
+    const retained = resolveV3DecomposeContentLocator(
+      scan.units,
+      retainedSource.sourceLocator,
+      "draft-origin.md",
+    );
+    if (retained.status !== "resolved") throw new Error(retained.reason);
+
+    const beforeTeardownRefusal = await repositorySnapshot(repo);
+    const teardown = await runArcNoTty(["teardown", "origin"], repo, { timeout: 60_000 });
+    expect(teardown.exitCode).not.toBe(0);
+    expect(teardown.stdout + teardown.stderr).toMatch(/retirement evidence is missing/iu);
+    expect(await repositorySnapshot(repo)).toEqual(beforeTeardownRefusal);
+
+    const beforePreview = await repositorySnapshot(repo);
+    const preview = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(preview.exitCode, preview.stderr).toBe(0);
+    const previewResult = JSON.parse(preview.stdout) as {
+      status: string;
+      preview: { applyAuthority: string };
+    };
+    expect(previewResult).toMatchObject({
+      status: "previewed",
+      preview: {
+        liveBase: {
+          ref: "refs/heads/main",
+          head: candidateHead,
+          destinations: expect.arrayContaining([
+            expect.objectContaining({ path: memberMetaPath, mode: "100644" }),
+          ]),
+        },
+        sources: [expect.objectContaining({
+          path: retainedSource.sourcePath,
+          before: {
+            mode: "100644",
+            contentDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+          },
+          after: {
+            kind: "file",
+            mode: "100644",
+            contentBase64: Buffer.from(retained.unit.bytes).toString("base64"),
+          },
+          removedLocators: expect.arrayContaining([droppedSource.sourceLocator]),
+        })],
+      },
+    });
+    expect(await repositorySnapshot(repo)).toEqual(beforePreview);
+    const finished = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath, "--apply", previewResult.preview.applyAuthority],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(finished.exitCode, finished.stderr).toBe(0);
+    expect(JSON.parse(finished.stdout)).toEqual({ status: "finished" });
+    expect(new Uint8Array(await readFile(join(repo, retainedSource.sourcePath))))
+      .toEqual(retained.unit.bytes);
+    expect((await git(repo, ["diff", "--cached", "--name-only"])).trim())
+      .toBe(retainedSource.sourcePath);
+
+    const originMetaSourcePath = ".arc/active/meta-origin.md";
+    const originMetaBeforeReconciliation = await readFile(join(repo, originMetaSourcePath), "utf8");
+    const originMetaAfterReconciliation = originMetaBeforeReconciliation.replace(
+      "- **Next Action:** Begin draft-design",
+      "- **Next Action:** Continue retained origin planning",
+    );
+    expect(originMetaAfterReconciliation).not.toBe(originMetaBeforeReconciliation);
+    await writeFile(join(repo, originMetaSourcePath), originMetaAfterReconciliation, "utf8");
+    await git(repo, ["add", "--", retainedSource.sourcePath, originMetaSourcePath]);
+    expect((await git(repo, ["diff", "--name-only", "--", retainedSource.sourcePath, originMetaSourcePath])))
+      .toBe("");
+    expect((await git(repo, ["diff", "--cached", "--name-only", "--no-renames"]))
+      .split("\n")
+      .filter(Boolean)
+      .sort())
+      .toEqual([originMetaSourcePath, retainedSource.sourcePath].sort());
+    await git(repo, [
+      "commit",
+      "-m",
+      "chore(planning): finish source extraction for origin",
+      "-m",
+      "Context: draft-origin.md (planning)",
+    ]);
+    const durableFinishHead = await git(repo, ["rev-parse", "HEAD"]);
+    expect((await git(repo, [
+      "diff-tree",
+      "--no-commit-id",
+      "--name-only",
+      "-r",
+      durableFinishHead,
+    ])).split("\n").filter(Boolean).sort())
+      .toEqual([originMetaSourcePath, retainedSource.sourcePath].sort());
+
+    const repeated = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(repeated.exitCode, repeated.stderr).toBe(0);
+    expect(JSON.parse(repeated.stdout)).toEqual({ status: "already-finished" });
+    const committedRepeat = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath, "--apply", previewResult.preview.applyAuthority],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(committedRepeat.exitCode, committedRepeat.stderr).toBe(0);
+    expect(JSON.parse(committedRepeat.stdout)).toEqual({ status: "already-finished" });
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(durableFinishHead);
+    expect(await git(repo, ["status", "--porcelain=v1", "--untracked-files=no"])).toBe("");
   });
 
   it("refuses destination-owned multi-member direct placement before repository mutation", async () => {

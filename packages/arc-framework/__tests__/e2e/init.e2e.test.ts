@@ -136,11 +136,20 @@ describe("init", () => {
       .map((match) => match.index);
     const releaseIndex = decomposeWorkflow.indexOf("## 6. Release through the reported protection arm");
     const advancementIndex = decomposeWorkflow.indexOf("--advance-base");
-    expect(interlockIndexes).toHaveLength(2);
+    const finishPreviewIndex = decomposeWorkflow.indexOf(
+      "arc decompose <origin> --finish <completed-map>\n",
+    );
+    const finishApplyIndex = decomposeWorkflow.indexOf(
+      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
+    );
+    expect(interlockIndexes).toHaveLength(3);
     expect(authoringIndex).toBeGreaterThanOrEqual(0);
     expect(interlockIndexes[0]).toBeGreaterThan(authoringIndex);
     expect(releaseIndex).toBeGreaterThan(interlockIndexes[0]!);
     expect(interlockIndexes[1]).toBeGreaterThan(advancementIndex);
+    expect(finishPreviewIndex).toBeGreaterThanOrEqual(0);
+    expect(interlockIndexes[2]).toBeGreaterThan(finishPreviewIndex);
+    expect(finishApplyIndex).toBeGreaterThan(interlockIndexes[2]!);
     expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);
   });
 

@@ -342,25 +342,39 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
     const observed = sourceMetaFor(candidate, input.origin);
     if (observed.reason !== null) return { status: "rejected", reason: observed.reason };
     const meta = observed.meta;
-    if (meta === null || meta.location !== "active" || meta.state !== "Planning") continue;
+    if (meta === null || meta.location !== "active"
+      || (meta.state !== "Planning" && meta.state !== "Active")) continue;
     if (meta.branch !== branchName(candidate.ref)) return { status: "rejected", reason: "source-self-identity" };
     qualifying.push({ snapshot: candidate, meta });
   }
   if (qualifying.length > 1) return { status: "rejected", reason: "source-ambiguous" };
 
-  let selected: { snapshot: V3DecomposeTreeSnapshot; meta: V3DecomposeSourceMeta; kind: "started-planning" | "backlog-stub" };
+  let selected: {
+    snapshot: V3DecomposeTreeSnapshot;
+    meta: V3DecomposeSourceMeta;
+    kind: V3DecomposeMachine["source"]["kind"];
+  };
   if (qualifying.length === 1) {
     const winner = qualifying[0];
     if (winner === undefined) return { status: "rejected", reason: "source-predecessor" };
-    selected = { ...winner, kind: "started-planning" };
+    selected = {
+      ...winner,
+      kind: winner.meta.state === "Active" ? "active-origin" : "started-planning",
+    };
   } else {
     const observed = sourceMetaFor(input.sourceBase, input.origin);
     if (observed.reason !== null || observed.meta === null) {
       return { status: "rejected", reason: observed.reason ?? "source-predecessor" };
     }
     const meta = observed.meta;
-    if (meta.location === "active" && meta.state === "Planning" && meta.branch === branchName(input.sourceBase.ref)) {
-      selected = { snapshot: input.sourceBase, meta, kind: "started-planning" };
+    if (meta.location === "active"
+      && (meta.state === "Planning" || meta.state === "Active")
+      && meta.branch === branchName(input.sourceBase.ref)) {
+      selected = {
+        snapshot: input.sourceBase,
+        meta,
+        kind: meta.state === "Active" ? "active-origin" : "started-planning",
+      };
     } else if (
       meta.location === "backlog"
       && (meta.state === "Planning" || meta.state === "Provisional")
@@ -428,7 +442,7 @@ export function deriveV3DecomposeSourceFacts(
   const meta = observed.meta;
   const expectedBranch = branchName(snapshot.ref);
   const validActive = meta.location === "active"
-    && meta.state === "Planning"
+    && (meta.state === "Planning" || meta.state === "Active")
     && meta.branch === expectedBranch;
   const validBacklog = meta.location === "backlog"
     && (meta.state === "Planning" || meta.state === "Provisional")

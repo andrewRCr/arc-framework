@@ -8,6 +8,7 @@ import {
 } from "../../src/handlers/lifecycle.js";
 
 const origin = "origin";
+const authority = `sha256:${"a".repeat(64)}`;
 describe("DecomposeCommandInputSchema", () => {
   it("accepts the complete read-only preflight mode", () => {
     expect(DecomposeCommandInputSchema.safeParse({ origin, preflight: true }).success).toBe(true);
@@ -15,6 +16,9 @@ describe("DecomposeCommandInputSchema", () => {
 
   it.each([
     { origin, execute: "map.json" },
+    { origin, extract: "map.json" },
+    { origin, finish: "map.json" },
+    { origin, finish: "map.json", apply: authority },
     { origin, advanceBase: "map.json" },
   ])("accepts a complete repository command mode: %o", (input) => {
     expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(true);
@@ -23,6 +27,12 @@ describe("DecomposeCommandInputSchema", () => {
   it.each([
     { origin },
     { origin, preflight: true, advanceBase: "map.json" },
+    { origin, execute: "map.json", extract: "map.json" },
+    { origin, extract: "map.json", finish: "map.json" },
+    { origin, apply: true },
+    { origin, execute: "map.json", apply: true },
+    { origin, finish: "map.json", apply: true },
+    { origin, finish: "map.json", apply: "not-an-authority" },
     { origin, preflight: true, cutMap: "map.json" },
     { origin, cutMap: "map.json" },
     { origin, finalize: `sha256:${"a".repeat(64)}` },
@@ -44,9 +54,11 @@ describe("DecomposeCommandInputSchema", () => {
     expect(DECOMPOSE_MODE_KEYS).toEqual([
       "preflight",
       "execute",
+      "extract",
+      "finish",
       "advanceBase",
     ]);
-    expect(DECOMPOSE_MACHINE_READABLE_KEYS).toEqual(DECOMPOSE_MODE_KEYS);
+    expect(DECOMPOSE_MACHINE_READABLE_KEYS).toEqual([...DECOMPOSE_MODE_KEYS, "apply"]);
     for (const key of DECOMPOSE_MODE_KEYS) {
       const value = key === "preflight" ? true : "operand";
       expect(isDecomposeMachineReadableInvocation({ [key]: value })).toBe(true);

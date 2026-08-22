@@ -9,6 +9,7 @@ import type {
   V3ValidatedPathMutation,
   ValidatedDecomposePlan,
 } from "./decompose-v3-plan.js";
+import type { CanonicalDigest } from "../canonical/canonical-json.js";
 
 export type V3ReportedPathDisposition =
   | "applied"
@@ -46,6 +47,29 @@ export interface V3DecomposeResultReport {
   paths: V3ReportedPathOutcome[];
   topology: V3ReportedTopologyOutcome[];
   destinations: V3ReportedDestinationOutcome[];
+  extraction?: V3ExtractionReportFacts;
+}
+
+/** Authored extraction facts carried from the immutable repository projection. */
+export interface V3ExtractionReportFacts {
+  retainedOrigin: {
+    origin: string;
+    path: string;
+    allocations: Array<{
+      sourceId: CanonicalDigest;
+      ownership: "destination-owned";
+    }>;
+  };
+  reasonedDrops: Array<{
+    sourceId: CanonicalDigest;
+    ownership: "destination-owned";
+    reason: string;
+  }>;
+  anchor: {
+    kind: "surviving-origin";
+    origin: string;
+    path: string;
+  };
 }
 
 function materializedPathMap(paths: readonly V3MaterializedPath[]): Map<string, V3MaterializedPath> {
@@ -75,6 +99,7 @@ function pathDisposition(
 export function reportV3DecomposeResult(
   plan: ValidatedDecomposePlan,
   materialization: V3MaterializationResult,
+  extraction?: V3ExtractionReportFacts,
 ): V3DecomposeResultReport {
   const materialized = materialization.status === "materialized"
     ? materializedPathMap(materialization.paths)
@@ -135,5 +160,6 @@ export function reportV3DecomposeResult(
     paths,
     topology,
     destinations,
+    ...(extraction === undefined ? {} : { extraction: structuredClone(extraction) }),
   };
 }
