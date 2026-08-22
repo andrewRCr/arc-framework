@@ -181,36 +181,41 @@ _Purpose:_ Prove the cross-leg contract end to end on one real topology.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, ARC contract checks, TypeScript and shell lint, both type checks, 10,438 tests
+  across 813 files, and build all passed; one file and one test were skipped.
+- _Success criteria:_ All 16 criteria met with no superseded items; adversarial verification's two material gaps
+  were repaired and reverified before attestation.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Extraction admits a surviving origin in started `Planning` or `Active` state and scans only its design
+- `[x]` Extraction admits a surviving origin in started `Planning` or `Active` state and scans only its design
   artifacts; a backlog-stub envelope under the extraction shape is a typed decode mismatch.
-- `[ ]` The surviving origin, committed implementation, and unrelated source work remain unchanged through the
+- `[x]` The surviving origin, committed implementation, and unrelated source work remain unchanged through the
   additive leg.
-- `[ ]` Multi-member extraction cannot select `direct-member` placement and reports its durable logical anchor; a
+- `[x]` Multi-member extraction cannot select `direct-member` placement and reports its durable logical anchor; a
   surviving origin plus exactly one new member remains valid under `direct-member`.
-- `[ ]` Additive destinations land before the surviving source changes.
-- `[ ]` Prepared members are invisible to lifecycle resolution and in-flight derivation before the additive
+- `[x]` Additive destinations land before the surviving source changes.
+- `[x]` Prepared members are invisible to lifecycle resolution and in-flight derivation before the additive
   result lands — asserted by test — and become discoverable, ready, or blocked only from the synchronized landed
   base.
-- `[ ]` Every extracted member owns substantive allocated scope, enforced by the destination→allocation coverage
+- `[x]` Every extracted member owns substantive allocated scope, enforced by the destination→allocation coverage
   check.
-- `[ ]` A dependent of retained scope keeps its origin dependency edge; extraction never silently strips one.
-- `[ ]` The staged ROADMAP projection keeps the surviving origin visible, through the core's existing render seam.
-- `[ ]` Finish previews by default and applies only against reread live-base destination facts.
-- `[ ]` Thinning preserves every unrelated byte and mode and restores bounded preimages on failure.
-- `[ ]` Changed source, base race, partial apply, already-finished, missing target, and lost scratch are
+- `[x]` A dependent of retained scope keeps its origin dependency edge; extraction never silently strips one.
+- `[x]` The staged ROADMAP projection keeps the surviving origin visible, through the core's existing render seam.
+- `[x]` Finish previews by default and applies only against reread live-base destination facts.
+- `[x]` Thinning preserves every unrelated byte and mode and restores bounded preimages on failure.
+- `[x]` Changed source, base race, partial apply, already-finished, missing target, and lost scratch are
   recoverable.
-- `[ ]` No transition record, extraction ledger, fuzzy reconciliation, or automated launch claim is introduced;
+- `[x]` No transition record, extraction ledger, fuzzy reconciliation, or automated launch claim is introduced;
   `--execute` and `--advance-base` refuse extraction-shaped maps with typed reasons, and retirement-shaped maps
   reject retained-by-origin dispositions and `Active`-origin envelopes at decode.
-- `[ ]` An incomplete cohort scaffold cannot commit: the shared cohort-consistency check refuses the `—` sentinel
+- `[x]` An incomplete cohort scaffold cannot commit: the shared cohort-consistency check refuses the `—` sentinel
   Purpose floor.
-- `[ ]` `assess-boundary-fit.md`, `decompose-work-unit.md`, and `strategy-work-organization.md` state the same
+- `[x]` `assess-boundary-fit.md`, `decompose-work-unit.md`, and `strategy-work-organization.md` state the same
   extraction boundary.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
