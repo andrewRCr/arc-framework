@@ -83,12 +83,10 @@ _Purpose:_ Remove approved source units only after their exact destinations are 
 
 - _Goal:_ Preview and mutation have one explicit command boundary.
 
-    - `[ ]` **2.1.a Extend schema, options, and handler**
-        - Add `--finish <cut-map>` as a mutually exclusive mode; preview by default and accept `--apply` only
-          with `--finish`.
-        - Return `previewed`, `finished`, `already-finished`, or one typed refusal.
-        - _Note:_ Scoped to mode plumbing and the outcome contract; the preview payload's substance lands with
-          the thinning planner in 2.2.b.
+    - `[x]` **2.1.a Extend schema, options, and handler**
+        - `--finish <cut-map>` now routes as an exclusive machine-readable mode, `--apply` is finish-only, and the
+          handler emits the closed previewed/finished/already-finished/refused contract while destination proof
+          remains fail-closed behind its production adapter.
 
     - `[ ]` **2.1.b Prove landed destinations**
         - Require the exact surviving source branch/head and clean relevant paths.

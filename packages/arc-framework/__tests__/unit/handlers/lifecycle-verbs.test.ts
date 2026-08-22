@@ -162,6 +162,10 @@ vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
   executeGitV3ExtractionCommand: (...args: unknown[]) =>
     mockExecuteGitV3ExtractionCommand(...args),
 }));
+const mockFinishGitV3Extraction = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-finish.js", () => ({
+  finishGitV3Extraction: (...args: unknown[]) => mockFinishGitV3Extraction(...args),
+}));
 const mockAdvanceGitDecomposeTransitionBase = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-decompose-transition-base-advancement.js", () => ({
   advanceGitDecomposeTransitionBase: (...args: unknown[]) =>
@@ -466,6 +470,7 @@ beforeEach(() => {
     status: "staged",
     operation: { report: { extraction: { anchor: { origin: "mono" } } } },
   });
+  mockFinishGitV3Extraction.mockResolvedValue({ status: "previewed" });
   mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
     status: "advanced",
     candidateBranch: "chore/decompose-mono",
@@ -627,6 +632,45 @@ describe("handleDecompose", () => {
     );
   });
 
+  it.each([
+    ["previewed", false],
+    ["finished", true],
+    ["already-finished", true],
+  ] as const)("routes finish and emits the typed %s outcome", async (status, apply) => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockFinishGitV3Extraction.mockResolvedValue({ status });
+
+    await handleDecompose("mono", { finish: "cut-map.json", ...(apply ? { apply: true } : {}) });
+
+    expect(mockFinishGitV3Extraction).toHaveBeenCalledWith({
+      cwd: "/repo",
+      baseBranch: "main",
+      origin: "mono",
+      cutMapPath: "cut-map.json",
+      apply,
+    });
+    expect(stdoutWrite).toHaveBeenCalledWith(`{"status":"${status}"}\n`);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("surfaces a typed finish refusal", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    mockFinishGitV3Extraction.mockResolvedValue({
+      status: "refused",
+      reason: "destination-missing",
+      locus: "member",
+    });
+
+    await handleDecompose("mono", { finish: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"locus":"member","reason":"destination-missing","status":"refused"}\n',
+    );
+    expect(stderrWrite).toHaveBeenCalledWith("destination-missing: member\n");
+    expect(process.exitCode).toBe(1);
+  });
+
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
@@ -682,6 +726,7 @@ describe("handleDecompose", () => {
   it.each([
     ["conflicting modes", { preflight: true, execute: "cut-map.json" }],
     ["advance-base with another mode", { preflight: true, advanceBase: "cut-map.json" }],
+    ["apply without finish", { apply: true }],
   ])("refuses %s before any production adapter", async (_case, options) => {
     await handleDecompose(
       "mono",
@@ -691,6 +736,7 @@ describe("handleDecompose", () => {
     expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
     expect(mockExecuteGitV3ExtractionCommand).not.toHaveBeenCalled();
+    expect(mockFinishGitV3Extraction).not.toHaveBeenCalled();
     expect(mockAdvanceGitDecomposeTransitionBase).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });

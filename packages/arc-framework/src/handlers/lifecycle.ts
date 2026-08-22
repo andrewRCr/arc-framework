@@ -98,6 +98,8 @@ import {
   executeGitV3DecomposeCommand,
   executeGitV3ExtractionCommand,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
+import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
+import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
 import { advanceGitDecomposeTransitionBase } from
   "../lib/work-unit/git-decompose-transition-base-advancement.js";
 import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
@@ -509,12 +511,14 @@ export const DECOMPOSE_MODE_KEYS = [
   "preflight",
   "execute",
   "extract",
+  "finish",
   "advanceBase",
 ] as const;
 
 /** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
 export const DECOMPOSE_MACHINE_READABLE_KEYS = [
   ...DECOMPOSE_MODE_KEYS,
+  "apply",
 ] as const;
 
 type DecomposeRoutingOptions = Partial<Record<
@@ -537,13 +541,22 @@ export const DecomposeCommandInputSchema = z.object({
   preflight: z.literal(true).optional(),
   execute: z.string().trim().min(1).optional(),
   extract: z.string().trim().min(1).optional(),
+  finish: z.string().trim().min(1).optional(),
+  apply: z.literal(true).optional(),
   advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
   if (modes !== 1) {
     refinement.addIssue({
       code: "custom",
-      message: "Exactly one of --preflight, --execute, --extract, or --advance-base is required.",
+      message: "Exactly one of --preflight, --execute, --extract, --finish, or --advance-base is required.",
+    });
+  }
+  if (value.apply === true && value.finish === undefined) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["apply"],
+      message: "--apply is valid only with --finish.",
     });
   }
 });
@@ -654,6 +667,8 @@ export const lifecycleCommandInputRegistrations = [
       "option.preflight": "preflight",
       "option.execute": "execute",
       "option.extract": "extract",
+      "option.finish": "finish",
+      "option.apply": "apply",
       "option.advance-base": "advanceBase",
     },
   },
@@ -891,6 +906,10 @@ export interface DecomposeOptions {
   execute?: string;
   /** Stage one additive result while preserving the source origin. */
   extract?: string;
+  /** Preview source thinning from one completed extraction map. */
+  finish?: string;
+  /** Apply the exact source-thinning preview. */
+  apply?: true;
   /** Advance one committed full-protection candidate from its canonical completed cut map. */
   advanceBase?: string;
 }
@@ -950,6 +969,23 @@ export async function handleDecompose(
         return;
       }
       process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
+      return;
+    }
+    if (parsed.data.finish !== undefined) {
+      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction({
+        cwd,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.finish,
+        apply: parsed.data.apply === true,
+      }));
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status === "refused") {
+        process.stderr.write(
+          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
+        );
+        process.exitCode = 1;
+      }
       return;
     }
     const cohortTemplate = new Uint8Array(await readFile(join(

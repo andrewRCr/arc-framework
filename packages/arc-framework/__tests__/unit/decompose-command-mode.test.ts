@@ -16,6 +16,8 @@ describe("DecomposeCommandInputSchema", () => {
   it.each([
     { origin, execute: "map.json" },
     { origin, extract: "map.json" },
+    { origin, finish: "map.json" },
+    { origin, finish: "map.json", apply: true },
     { origin, advanceBase: "map.json" },
   ])("accepts a complete repository command mode: %o", (input) => {
     expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(true);
@@ -25,6 +27,9 @@ describe("DecomposeCommandInputSchema", () => {
     { origin },
     { origin, preflight: true, advanceBase: "map.json" },
     { origin, execute: "map.json", extract: "map.json" },
+    { origin, extract: "map.json", finish: "map.json" },
+    { origin, apply: true },
+    { origin, execute: "map.json", apply: true },
     { origin, preflight: true, cutMap: "map.json" },
     { origin, cutMap: "map.json" },
     { origin, finalize: `sha256:${"a".repeat(64)}` },
@@ -47,9 +52,10 @@ describe("DecomposeCommandInputSchema", () => {
       "preflight",
       "execute",
       "extract",
+      "finish",
       "advanceBase",
     ]);
-    expect(DECOMPOSE_MACHINE_READABLE_KEYS).toEqual(DECOMPOSE_MODE_KEYS);
+    expect(DECOMPOSE_MACHINE_READABLE_KEYS).toEqual([...DECOMPOSE_MODE_KEYS, "apply"]);
     for (const key of DECOMPOSE_MODE_KEYS) {
       const value = key === "preflight" ? true : "operand";
       expect(isDecomposeMachineReadableInvocation({ [key]: value })).toBe(true);
