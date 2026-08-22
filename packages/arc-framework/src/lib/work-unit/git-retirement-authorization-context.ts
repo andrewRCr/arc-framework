@@ -6,6 +6,8 @@ import { metaCohortDir } from "../active/cohort-consistency.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { assessReapSafety, isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
+import { normalizeGitRejection } from "../git/process-error.js";
+import { uniqueRefToken } from "../git/ref-tree.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
@@ -27,6 +29,7 @@ import type { ParkProofTarget } from "./park-retirement-proof.js";
 import { validateCommittedParkPlanningTransitionStrict } from "./park-planning-landing.js";
 import type {
   RetirementAuthorizationContext,
+  RemoteSourceRefRelation,
 } from "./retirement-authorization.js";
 import {
   gitTransitionResultDigest,
@@ -256,6 +259,8 @@ export function createGitRetirementAuthorizationContext(
       };
     },
     readRemoteRef: async (remote, branch) => await readRemoteOid(exec, remote, branch),
+    readRemoteSourceRef: async (remote, branch, retiringHead) =>
+      await readRemoteSourceRefRelation(exec, remote, branch, retiringHead),
     readShippedEvidence: async (request) => {
       const baseProofOid = await resolveCommit(exec, baseRef);
       const safety = await assessReapSafety(exec, {
@@ -543,6 +548,54 @@ async function readRemoteOid(exec: GitExec, remote: string, branch: string): Pro
   }
   const { stdout } = await exec("git", ["ls-remote", "--heads", remote, `refs/heads/${branch}`]);
   return stdout.trim().split(/\s+/u)[0] || null;
+}
+
+async function readRemoteSourceRefRelation(
+  exec: GitExec,
+  remote: string,
+  branch: string,
+  retiringHead: string,
+): Promise<RemoteSourceRefRelation> {
+  const advertisedOid = await readRemoteOid(exec, remote, branch);
+  if (advertisedOid === null) return { kind: "absent" };
+  if (advertisedOid === retiringHead) return { kind: "equal", oid: advertisedOid };
+
+  const snapshotRef = `refs/arc/tmp/retirement-source/${uniqueRefToken()}`;
+  try {
+    await exec("git", [
+      "fetch",
+      "--no-filter",
+      "--no-tags",
+      "--no-write-fetch-head",
+      remote,
+      `+refs/heads/${branch}:${snapshotRef}`,
+    ]);
+    const materializedOid = await resolveCommit(exec, snapshotRef);
+    if (materializedOid !== advertisedOid) {
+      throw new Error(`remote source ref moved while materializing: ${remote}/${branch}`);
+    }
+    if (await isStrictAncestor(exec, advertisedOid, retiringHead)) {
+      return { kind: "strict-ancestor", oid: advertisedOid };
+    }
+    if (await isStrictAncestor(exec, retiringHead, advertisedOid)) {
+      return { kind: "strict-descendant", oid: advertisedOid };
+    }
+    return { kind: "diverged", oid: advertisedOid };
+  } finally {
+    await exec("git", ["update-ref", "-d", snapshotRef]);
+  }
+}
+
+async function isStrictAncestor(exec: GitExec, ancestor: string, descendant: string): Promise<boolean> {
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
+  try {
+    await exec("git", args);
+    return true;
+  } catch (error) {
+    const normalized = normalizeGitRejection(error, { command: "git", args });
+    if (normalized.kind === "nonzero-exit" && normalized.exitCode === 1) return false;
+    throw normalized;
+  }
 }
 
 async function readTextAt(exec: GitExec, ref: string, path: string): Promise<string | null> {
