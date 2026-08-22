@@ -642,65 +642,14 @@ comparator and trivially accepted.
               preserve subject and mechanical equivalence, and keep bounded judgment, rerun, failure, unsupported,
               and unavailable outcomes distinct across unit, integration, handler, registration, and E2E coverage.
 
-        - `[ ]` **5.7.R.c Bind only an authorized applicability selection**
+        - `[x]` **5.7.R.c Bind only an authorized applicability selection**
 
-            - _Amendment:_ Implementation grounding found that replacing one current applicability binding would
-              remove the A→B bridge needed to replay a later approved B→C response. Replace the response-only
-              Candidate sequence in place with one ordered, strictly discriminated
-              `review-response | applicability-selection` transition lineage. This is the minimum currentness
-              history, not a new record family or generalized audit ledger; pre-public-release posture requires no
-              compatibility alias or migration reader.
-            - Extend the strict Candidate schema with the storage-agnostic applicability-selection transition and
-              write it only through the existing versioned Candidate store. The new
-              `arc candidate applicability resolve <name> <input>` verb rederives the exact projection, checks the
-              expected record version, and atomically appends Candidate identity, prior/current targets,
-              projection/residual digests, selecting actor, and `covered | targeted-check | changed`. It stores no
-              path, storage mode, rationale, proof transcript, retry state, pending selection, or superseded attempt.
-            - Own the verb's complete command surface: one canonical strict input/result schema; handler and Git/store
-              composition; the new `candidate applicability resolve` CLI group; operand/interaction declarations and
-              command-input registration; command-surface inventory; and unit, handler, registration, and E2E tests.
-              The input binds the expected record version, prior/current targets, projection/residual digests,
-              selecting actor, choice, and optional completed targeted evidence. The result distinguishes resolved,
-              exact replay, stale-bound-input, version conflict, and typed projection failure without exposing the
-              store path as domain data.
-            - Resolve formal selection through existing Rule Authority. The CLI precomposes the offer and
-              recommendation; the executing agent may recommend and mechanically record an operator's explicit
-              choice but cannot originate its own applicability selection. `targeted-check` writes only with its
-              completed bounded evidence in the same compare-and-set. Any changed head, subject, projection,
-              residual, or record version refuses or invalidates the binding and returns to classification.
-            - Add a canonical pure durable-baseline reduction over the Candidate root and ordered transitions. An
-              approved response may re-anchor only at the exact old target independently bound by its existing review
-              and verification evidence, then advance to its new target; this preserves replay after an intentionally
-              ephemeral machine carry without turning the response into mechanical proof. Applicability selections
-              retain ordinary continuity: `covered` and evidenced `targeted-check` advance the durable baseline,
-              while `changed` preserves the ordinary Candidate-change route. Above the reducer, add one asynchronous
-              effective-target projection that combines the baseline with current Git and D4 facts; machine-proved
-              applicability is rederived there and never persisted. Migrate status, pre-publication, review
-              response/status, lifecycle, lineage-review, and checkpoint consumers away from direct transition-tail
-              or current-subject assumptions so they all consume the effective projection.
-            - Applicability does not settle review. Run ordinary review/pre-publication settlement for the recognized
-              current subject and refresh its durable boundary before checkpoint may proceed. Then absorb Task 5.7.e:
-              only a current Candidate, independently settled boundary, coherent plan/state, exact top request, and
-              inactive operation may version-update stale terminal coordinates and return `rerun-checkpoint`.
-            - Build `test-first` (one behavior at a time):
-                - Exact `covered` and evidenced `targeted-check` bindings recognize only their bound current target
-                - `changed` follows ordinary Candidate change handling at the existing policy-selected scope
-                - Stale record revisions or any changed bound input refuse without modifying the Candidate record
-                - Rerunning an exact recorded selection does not ask again or append duplicate state
-                - Interrupted `targeted-check` before binding repeats the same choice with no pending record state
-                - An approved response after a machine-proved carry re-anchors from its exact independently reviewed
-                  old target without storing the mechanical proof
-                - A later applicability selection remains replayable after that response, while a changed selection
-                  never advances the durable target
-                - Every Candidate consumer agrees on the durable baseline plus effective recognized target and
-                  stale-binding behavior
-                - First, interrupted, and successive machine-proved carries are rederived from exact Git topology
-                  without a persisted proof, including a rerun after the merge already landed
-                - The strict command refuses stale projections and CAS conflicts, accepts an exact replay, and is
-                  covered through handler, command-registration, and E2E surfaces
-                - Checkpoint refuses until the recognized subject's publication boundary independently settles
-                - Terminal rebind changes only exact stale terminal coordinates and is idempotent across interruption
-                - Active operations, moved requests, incoherent state, or other binding changes refuse the rebind
+            - Candidate records now preserve an ordered `review-response | applicability-selection` lineage, and the
+              strict versioned resolve command records only exact authority-bearing selections with idempotent replay.
+            - One durable reducer plus the Git-backed effective projection serves every Candidate consumer, rederives
+              mechanical carry, preserves response re-anchoring, and keeps publication settlement independent.
+            - Existing delivery reconciliation now compare-and-set rebinds only stale terminal coordinates from the
+              settled current Candidate and exact top request, then returns `rerun-checkpoint`; ambiguity still stops.
 
         - `[ ]` **5.7.R.d Re-author the integration workflow around typed reruns and applicability**
 
