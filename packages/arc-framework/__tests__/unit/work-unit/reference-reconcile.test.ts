@@ -15,6 +15,10 @@ function rename(subject: string, targetSlug: string): ReachableReferenceTransiti
   return { subject, outcome: { kind: "rename", targetSlug } };
 }
 
+function decompose(subject: string): ReachableReferenceTransition {
+  return { subject, outcome: { kind: "decompose" } };
+}
+
 describe("planReferenceReconcile", () => {
   it("composes a unique rename chain into one final structured edit", () => {
     const result = planReferenceReconcile({
@@ -107,7 +111,7 @@ describe("planReferenceReconcile", () => {
 
   it("surfaces decomposed artifact references as dangling without guessing a target", () => {
     const result = planReferenceReconcile({
-      transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
+      transitions: [decompose("origin")],
       artifacts: [{
         path: "spec-dependent.md",
         content: "Compare `spec-origin.md`.\n",
@@ -125,11 +129,31 @@ describe("planReferenceReconcile", () => {
     });
   });
 
+  it.each([
+    ["direct", [decompose("origin")]],
+    ["rename-chain", [rename("origin", "middle"), decompose("middle")]],
+  ])("keeps narrative prose silent for a unique %s terminal decomposition", (_label, transitions) => {
+    const result = planReferenceReconcile({
+      transitions,
+      artifacts: [{
+        path: "notes-dependent.md",
+        content: "origin remains useful historical context.\n",
+      }],
+    });
+
+    expect(result).toEqual({
+      status: "ready",
+      edits: [],
+      advisories: [],
+      conflicts: [],
+    });
+  });
+
   it.each(["origin", "origin/sub"])(
     "does not treat the Cohort field value %s as a retired work-unit reference",
     (cohort) => {
       const result = planReferenceReconcile({
-        transitions: [{ subject: "origin", outcome: { kind: "decompose" } }],
+        transitions: [{ subject: "origin", outcome: { kind: "removed" } }],
         artifacts: [{
           path: "meta-dependent.md",
           content: [
