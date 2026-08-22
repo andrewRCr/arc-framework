@@ -66,17 +66,14 @@ _Purpose:_ Land complete new destinations from exact source evidence while prese
 - _Outcome:_ Extraction now produces an exact-base, additive-only candidate whose typed report exposes the
   surviving authority while the source remains byte-identical and candidate-only members remain unpublished.
 
-### `[ ]` **1.4 Keep incomplete topology uncommittable**
+### `[x]` **1.4 Keep incomplete topology uncommittable**
 
 - _Goal:_ An incomplete cohort scaffold cannot commit — for extraction and for every producer of the shared
   scaffold.
 
-    - `[ ]` **1.4.a Close the Purpose-floor sentinel gap, then prove refusal**
-        - Teach the shared cohort-consistency check that the scaffold's exact `—` finalization sentinel is an
-          unsatisfied Purpose floor — today the non-empty sentinel value passes the floor, so the incomplete
-          scaffold commits cleanly in every flow that emits it.
-        - Prove the sentinel-valued scaffold refuses the additive commit through the shared pre-commit check for
-          the backlog-planned paths extraction scaffolds into, with no extraction-specific validator.
+    - `[x]` **1.4.a Close the Purpose-floor sentinel gap, then prove refusal**
+        - The shared cohort-consistency check now treats the exact `—` scaffold sentinel as an unfinished Purpose;
+          unit and subprocess integration coverage prove backlog-planned cohort artifacts are refused.
 
 ## **Phase 2:** Explicit preview/apply source finish
 

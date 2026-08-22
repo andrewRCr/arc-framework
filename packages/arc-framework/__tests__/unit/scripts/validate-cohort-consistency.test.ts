@@ -144,6 +144,16 @@ describe("validateFiles — cohort-doc schema checks", () => {
     expect(result.diagnostics.some((d) => /purpose/i.test(d))).toBe(true);
   });
 
+  it("fails a cohort doc whose Purpose floor is the scaffold sentinel", () => {
+    const files = {
+      ".arc/backlog/planned/core/widget/meta-widget.md": metaFor("widget", "core"),
+      ".arc/backlog/planned/core/cohort-core.md": cohortDoc("core", { purpose: "—" }),
+    };
+    const result = run(files);
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((d) => /purpose/i.test(d))).toBe(true);
+  });
+
   it("fails an orphan member section (slug ∉ derived members)", () => {
     const files = {
       ".arc/backlog/planned/core/widget/meta-widget.md": metaFor("widget", "core"),
