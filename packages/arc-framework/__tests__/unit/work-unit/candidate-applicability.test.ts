@@ -98,6 +98,38 @@ describe("Candidate applicability", () => {
     });
   });
 
+  it("recognizes a reapply whose exact residual contains only non-reviewable Candidate entries", () => {
+    const currentSubject = createCandidateSubjectSnapshot([
+      {
+        path: "packages/arc-framework/src/example.ts",
+        mode: "100644",
+        digest: canonicalDigest({ source: "changed" }),
+        treatment: "reviewable",
+      },
+      {
+        path: ".arc/system/.internal/candidates/example.json",
+        mode: "100644",
+        digest: canonicalDigest({ source: "Candidate projection" }),
+        treatment: "candidate-projection",
+      },
+    ]);
+    const input = request(currentSubject);
+
+    expect(classifyCandidateApplicability(input, {
+      endpoints: endpoints(),
+      proof: {
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: [".arc/system/.internal/candidates/example.json"],
+      },
+    })).toMatchObject({
+      state: "applicable",
+      nextAction: "recognize-current",
+      proof: "mechanical-reapply",
+      currentTarget: { revision: oid("c"), subjectDigest: currentSubject.subjectDigest },
+    });
+  });
+
   it("returns complete exact-bound facts when clean reapplication diverges", () => {
     const input = request(subject("changed"));
     const projection = endpoints();

@@ -407,6 +407,58 @@ describe("review-fix Candidate lineage", () => {
     })).rejects.toThrow(/collides with Candidate key/u);
   });
 
+  it("projects a mechanically carried Candidate as the effective pre-publication target", async () => {
+    const root = await createTempRepo("arc-candidate-effective-target-");
+    roots.push(root);
+    const initialized = await runArc(["init", "--yes", "--name", "example"], root);
+    expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "base\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\ncommon-10\n",
+      "utf8",
+    );
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "install ARC"]);
+
+    await git(root, ["switch", "-c", "feat/example"]);
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", "meta-example.md"), META, "utf8");
+    await writeFile(
+      join(root, ".arc", "active", "tasks-example.md"),
+      "# Task List: Example\n\n- [x] Verification complete\n",
+      "utf8",
+    );
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "base\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\nfeature\n",
+      "utf8",
+    );
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "feature implementation"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "record candidate"]);
+
+    await git(root, ["switch", "main"]);
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "moved\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\ncommon-10\n",
+      "utf8",
+    );
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "move base"]);
+    await git(root, ["switch", "feat/example"]);
+    await git(root, ["merge", "--no-ff", "main", "-m", "merge base"]);
+    const mergedHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+
+    const composition = createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec });
+    const candidate = await composition.readCandidate("example");
+    expect(candidate, JSON.stringify(candidate)).toMatchObject({
+      status: "current",
+      headSha: mergedHead,
+    });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
   it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {
     const root = await fixture();
     const proposed = await runArc(["attest", "example", "--json"], root);

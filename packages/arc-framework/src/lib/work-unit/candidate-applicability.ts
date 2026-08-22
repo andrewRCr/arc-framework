@@ -227,12 +227,41 @@ export function classifyCandidateApplicability(
         ...digests,
       });
     }
+    let reviewableDivergence: string[] | null = null;
+    if (structural.proof.reason === "contribution-diverged") {
+      const treatments = new Map(
+        request.currentTarget.subject.entries.map((entry) => [entry.path, entry.treatment]),
+      );
+      const reviewableResidual = structural.proof.paths.filter((path) =>
+        treatments.get(path) === "reviewable" || !treatments.has(path));
+      // Candidate-owned projections and other operational entries deliberately do not participate
+      // in the reviewable subject. D4 still compares complete Git trees, so its exact tree residual
+      // can contain those post-attestation writes even when the reapplied reviewable contribution is
+      // identical. Unknown paths remain substantive and therefore fail closed into the judgment arm.
+      if (structural.proof.paths.length > 0 && reviewableResidual.length === 0) {
+        const digests = candidateApplicabilityDigests({
+          request,
+          projection: structural.endpoints,
+          verdict: "mechanical-reapply",
+          paths: [],
+        });
+        return CandidateApplicabilityResultSchema.parse({
+          ...candidateApplicabilityResultBase(request),
+          state: "applicable",
+          nextAction: "recognize-current",
+          proof: "mechanical-reapply",
+          projection: structural.endpoints,
+          ...digests,
+        });
+      }
+      reviewableDivergence = reviewableResidual;
+    }
     if (structural.proof.reason === "contribution-diverged"
       || structural.proof.reason === "contribution-conflicted") {
       const verdict = structural.proof.reason === "contribution-diverged"
         ? "clean-divergence" as const
         : "interaction" as const;
-      const paths = structural.proof.paths;
+      const paths = reviewableDivergence ?? structural.proof.paths;
       if (paths.length === 0) {
         return CandidateApplicabilityResultSchema.parse({
           ...candidateApplicabilityResultBase(request),
