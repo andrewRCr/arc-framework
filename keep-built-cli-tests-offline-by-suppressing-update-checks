@@ -3,7 +3,7 @@
   "slug": "keep-built-cli-tests-offline-by-suppressing-update-checks",
   "claimId": "3a4307043c75b6715100de46b9699453",
   "createdAt": "2026-08-22T02:34:18.665Z",
-  "updatedAt": "2026-08-22T02:34:18.665Z",
+  "updatedAt": "2026-08-22T03:10:58.774Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "keep-built-cli-tests-offline-by-suppressing-update-checks",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep built-CLI tests offline by suppressing update checks",
   "originEntrySourceDigest": "sha256:d11fc7effb58900a09a2034b1951974135f6f2ecf45ba20bdf2ae7affade6199",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/keep-built-cli-tests-offline-by-suppressing-update-checks",
+    "headSha": "e647110e51110124d6b2e65b1de51b40ceb30357"
+  }
 }
