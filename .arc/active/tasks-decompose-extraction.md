@@ -100,9 +100,9 @@ _Purpose:_ Remove approved source units only after their exact destinations are 
 
 - _Goal:_ Approved removal cannot perturb an unrelated source byte.
 
-    - `[ ]` **2.2.a Widen the scanner contract with byte ranges**
-        - Record each scanned unit's original UTF-8 byte range on the content-unit contract — the scanner
-          computes the offsets today and discards them. Additive; existing consumers are unchanged.
+    - `[x]` **2.2.a Widen the scanner contract with byte ranges**
+        - Every scanned unit now retains its exact half-open UTF-8 byte range, including BOM/multibyte/CRLF,
+          nested and adjacent Markdown sections, whole-file artifacts, and empty inputs.
 
     - `[ ]` **2.2.b Build the pure thinning planner**
         - Consume the recorded byte ranges and return path before digests/modes, retained bytes or deletion, and

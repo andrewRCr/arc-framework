@@ -284,6 +284,7 @@ export interface V3DecomposeContentUnit {
   locator: V3DecomposeContentLocator;
   content: string;
   bytes: Uint8Array;
+  byteRange: { start: number; end: number };
 }
 
 export type V3DecomposeContentScanResult =
@@ -331,7 +332,12 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
   if (!markdown) {
     return {
       status: "scanned",
-      units: [{ locator: { artifact, kind: "whole-file" }, content, bytes: new Uint8Array(bytes) }],
+      units: [{
+        locator: { artifact, kind: "whole-file" },
+        content,
+        bytes: new Uint8Array(bytes),
+        byteRange: { start: 0, end: bytes.length },
+      }],
     };
   }
   const classificationOffset = content.startsWith("\uFEFF") ? 1 : 0;
@@ -340,10 +346,13 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
   const headings = boundaries.filter(({ level }) => level >= 2);
   const units: V3DecomposeContentUnit[] = [];
   const appendUnit = (start: number, end: number, locator: V3DecomposeContentLocator): void => {
+    const startByte = byteOffset(content, start);
+    const endByte = byteOffset(content, end);
     units.push({
       locator,
       content: content.slice(start, end),
-      bytes: bytes.slice(byteOffset(content, start), byteOffset(content, end)),
+      bytes: bytes.slice(startByte, endByte),
+      byteRange: { start: startByte, end: endByte },
     });
   };
   if (headings.length === 0) {
