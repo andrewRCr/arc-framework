@@ -3,7 +3,7 @@
   "slug": "make-delivery-eligibility-close-honestly-read-only",
   "claimId": "ce630d69ce3c00e85b5e98dc6459c15d",
   "createdAt": "2026-08-22T01:38:33.695Z",
-  "updatedAt": "2026-08-22T01:38:33.695Z",
+  "updatedAt": "2026-08-22T02:32:50.040Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "make-delivery-eligibility-close-honestly-read-only",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make delivery eligibility close honestly read-only",
   "originEntrySourceDigest": "sha256:92d5198923ef987ee7e0a6a88ea4663a7f736f38f85f7b87d29454a3229c81fc",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/make-delivery-eligibility-close-honestly-read-only",
+    "headSha": "6daa3b4767d7562f2baac713315bc28e20fd1410"
+  }
 }
