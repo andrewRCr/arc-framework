@@ -31,6 +31,7 @@ import {
   type V3PlannedExclusivePath,
 } from "./decompose-v3-plan-composer.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
+import type { V3ExtractionReportFacts } from "./decompose-v3-result-report.js";
 import type { V3DecomposePreflight } from "./decompose-v3-preflight.js";
 import {
   decodeV3DecomposeCutMap,
@@ -65,7 +66,7 @@ export interface V3RepositoryPlanInput {
   cohortTemplate: Uint8Array;
   renderRoadmap(
     projectedTree: V3RepositoryPlanTree,
-    overlay: ProspectiveTransitionOverlay,
+    overlay?: ProspectiveTransitionOverlay,
   ): Promise<Uint8Array>;
 }
 
@@ -92,6 +93,7 @@ export type V3RepositoryPlanResult =
       plan: ValidatedDecomposePlan;
       blobs: V3PlanBlob[];
       sourceArtifactInventory: V3SourceArtifactEntry[];
+      extractionFacts?: V3ExtractionReportFacts;
     }
   | { status: "refused"; refusal: V3RepositoryPlanRefusal };
 
@@ -620,8 +622,8 @@ function applyPlannedProjection(
   topology: readonly V3TopologyAction[],
   content: readonly V3PlannedContentContribution[],
   dependenciesInput: readonly V3PlannedDependencyContribution[],
-  predecessor: V3PlannedExclusivePath,
-  sourceRetirements: readonly V3PlannedExclusivePath[],
+  predecessor?: V3PlannedExclusivePath,
+  sourceRetirements: readonly V3PlannedExclusivePath[] = [],
 ): V3RepositoryPlanTree {
   const projected = cloneTree(tree);
   for (const action of topology) {
@@ -629,34 +631,64 @@ function applyPlannedProjection(
   }
   for (const contribution of content) applyState(projected, contribution.path, contribution.after);
   for (const dependency of dependenciesInput) applyState(projected, dependency.path, dependency.after);
-  applyState(projected, predecessor.path, predecessor.after);
+  if (predecessor !== undefined) applyState(projected, predecessor.path, predecessor.after);
   for (const retirement of sourceRetirements) applyState(projected, retirement.path, retirement.after);
   return projected;
 }
 
-/**
- * Derive every immutable plan operand from a completed map and exact repository trees.
- *
- * @param input - Revalidated preflight, pinned trees, cohort template, and ROADMAP renderer.
- * @returns One content-addressed plan or a typed pre-occupation refusal.
- */
-export async function composeV3RepositoryPlan(
+function extractionFacts(
+  map: V3DecomposeCutMap,
+  sourceMetaPath: string,
+): V3ExtractionReportFacts {
+  const retainedOrigin = map.authoring.sourceAllocations.flatMap((allocation) =>
+    allocation.disposition.kind === "retained-origin"
+      ? [{ sourceId: allocation.sourceId, ownership: "destination-owned" as const }]
+      : []);
+  const reasonedDrops = map.authoring.sourceAllocations.flatMap((allocation) =>
+    allocation.disposition.kind === "drop"
+      ? [{
+          sourceId: allocation.sourceId,
+          ownership: "destination-owned" as const,
+          reason: allocation.disposition.reason,
+        }]
+      : []);
+  return {
+    retainedOrigin: {
+      origin: map.machine.source.origin,
+      path: sourceMetaPath,
+      allocations: retainedOrigin,
+    },
+    reasonedDrops,
+    anchor: {
+      kind: "surviving-origin",
+      origin: map.machine.source.origin,
+      path: sourceMetaPath,
+    },
+  };
+}
+
+type V3RepositoryPlanMode = "retirement" | "extraction";
+
+async function composeRepositoryPlan(
   input: V3RepositoryPlanInput,
+  mode: V3RepositoryPlanMode,
 ): Promise<V3RepositoryPlanResult> {
   const decoded = decodeV3DecomposeCutMap(input.completedMap);
   if (decoded.status === "rejected") {
     return refuse("map", decoded.issue.code, decoded.issue.path);
   }
   const map = decoded.value;
+  const extraction = map.authoring.shape === "extraction";
+  if ((mode === "extraction") !== extraction) {
+    return refuse("map", "authoring-shape", "authoring.shape");
+  }
   const sourceMetas = readTreeMetas(input.sourceTree);
   const baseMetas = readTreeMetas(input.resultBaseTree);
   if (sourceMetas === null || baseMetas === null) return refuse("source", "invalid-meta");
   const sourceMeta = uniqueMeta(sourceMetas, map.machine.source.origin);
-  const predecessorMeta = uniqueMeta(baseMetas, map.machine.source.origin);
   if (sourceMeta === null || sourceMeta.path !== input.currentPreflight.sourceOriginPath) {
     return refuse("source", "source-meta-mismatch", input.currentPreflight.sourceOriginPath);
   }
-  if (predecessorMeta === null) return refuse("retirement", "ambiguous-predecessor");
 
   for (const artifact of input.currentPreflight.sourceArtifactInventory) {
     const observed = stateAt(input.sourceTree, artifact.path);
@@ -682,35 +714,39 @@ export async function composeV3RepositoryPlan(
     );
   }
 
-  if (map.machine.source.kind === "active-origin") {
-    return refuse("retirement", "source-kind");
-  }
-
-  const predecessorArtifactPaths = originArtifactPaths(
-    input.resultBaseTree,
-    predecessorMeta.path,
-    map.machine.source.origin,
-  );
-  const retirement = planV3RetirementDelta({
-    sourceKind: map.machine.source.kind,
-    mergeBases: input.mergeBases,
-    predecessorCandidates: [predecessorMeta.path],
-    predecessorArtifactPaths,
-    originArtifactPaths: input.currentPreflight.sourceArtifactInventory.map(({ path }) => path),
-    roadmapPath: ROADMAP_PATH,
-    baseTree: regularTree(input.mergeBaseTree),
-    sourceTree: regularTree(input.sourceTree),
-    resultTree: regularTree(input.resultBaseTree),
-  });
-  if (retirement.status === "refused") {
-    return refuse("retirement", retirement.refusal.code, retirement.refusal.path);
-  }
-  if (retirement.riders.length > 0) {
-    return refuse("retirement", retirement.riders[0]?.reason ?? "source-rider");
+  let retirements: ReturnType<typeof exclusiveRetirements> | undefined;
+  if (mode === "retirement") {
+    const sourceKind = map.machine.source.kind;
+    if (sourceKind === "active-origin") return refuse("retirement", "source-kind");
+    const predecessorMeta = uniqueMeta(baseMetas, map.machine.source.origin);
+    if (predecessorMeta === null) return refuse("retirement", "ambiguous-predecessor");
+    const retirement = planV3RetirementDelta({
+      sourceKind,
+      mergeBases: input.mergeBases,
+      predecessorCandidates: [predecessorMeta.path],
+      predecessorArtifactPaths: originArtifactPaths(
+        input.resultBaseTree,
+        predecessorMeta.path,
+        map.machine.source.origin,
+      ),
+      originArtifactPaths: input.currentPreflight.sourceArtifactInventory.map(({ path }) => path),
+      roadmapPath: ROADMAP_PATH,
+      baseTree: regularTree(input.mergeBaseTree),
+      sourceTree: regularTree(input.sourceTree),
+      resultTree: regularTree(input.resultBaseTree),
+    });
+    if (retirement.status === "refused") {
+      return refuse("retirement", retirement.refusal.code, retirement.refusal.path);
+    }
+    if (retirement.riders.length > 0) {
+      return refuse("retirement", retirement.riders[0]?.reason ?? "source-rider");
+    }
+    retirements = exclusiveRetirements(retirement, input.resultBaseTree);
   }
 
   const topology = planV3DecomposeTopology({
     origin: map.machine.source.origin,
+    ...(mode === "extraction" ? { survivingOrigin: map.machine.source.origin } : {}),
     placement: map.authoring.placement,
     destinations: map.authoring.destinations,
     baseTree: Object.fromEntries(
@@ -741,15 +777,14 @@ export async function composeV3RepositoryPlan(
   );
   if (dependencyContributions === null) return refuse("dependency", "dependency-projection-failed");
 
-  const retirements = exclusiveRetirements(retirement, input.resultBaseTree);
   const roadmapBefore = stateAt(input.resultBaseTree, ROADMAP_PATH);
   if (!regularFile(roadmapBefore)) return refuse("roadmap", "roadmap-missing", ROADMAP_PATH);
   const expectedPaths = [...new Set([
     ...topology.plan.actions.flatMap((action) => action.kind === "none" ? [] : [action.path]),
     ...projectedContent.content.map(({ path }) => path),
     ...dependencyContributions.map(({ path }) => path),
-    retirements.predecessor.path,
-    ...retirements.source.map(({ path }) => path),
+    ...(retirements === undefined ? [] : [retirements.predecessor.path]),
+    ...(retirements?.source.map(({ path }) => path) ?? []),
     ROADMAP_PATH,
   ])].sort(compareUtf8);
 
@@ -758,8 +793,12 @@ export async function composeV3RepositoryPlan(
     cutMapDigest: v3CutMapDigest(map),
     sourceHead: map.machine.source.head,
     expectedBaseHead: map.machine.resultBase.head,
-    origin: map.machine.source.origin,
-    sourceBranch: map.machine.source.logicalBranch,
+    ...(mode === "retirement" ? {
+      prospectiveTransition: {
+        origin: map.machine.source.origin,
+        sourceBranch: map.machine.source.logicalBranch,
+      },
+    } : {}),
     planningProfile: map.machine.planningProfile,
     destinations: map.authoring.destinations,
     validatedAllocations: conservation.allocations,
@@ -767,8 +806,10 @@ export async function composeV3RepositoryPlan(
     content: projectedContent.content,
     topology: topology.plan.actions,
     dependencies: dependencyContributions,
-    predecessorRetirement: retirements.predecessor,
-    sourceRetirements: retirements.source,
+    ...(retirements === undefined ? {} : {
+      predecessorRetirement: retirements.predecessor,
+      sourceRetirements: retirements.source,
+    }),
     roadmap: { path: ROADMAP_PATH, before: roadmapBefore, after: roadmapAfter },
   });
 
@@ -781,8 +822,8 @@ export async function composeV3RepositoryPlan(
     topology.plan.actions,
     projectedContent.content,
     dependencyContributions,
-    retirements.predecessor,
-    retirements.source,
+    retirements?.predecessor,
+    retirements?.source,
   );
   let roadmapBytes: Uint8Array;
   try {
@@ -807,5 +848,32 @@ export async function composeV3RepositoryPlan(
     plan: final.plan,
     blobs: final.blobs,
     sourceArtifactInventory: structuredClone(input.currentPreflight.sourceArtifactInventory),
+    ...(mode === "extraction" ? {
+      extractionFacts: extractionFacts(map, sourceMeta.path),
+    } : {}),
   };
+}
+
+/**
+ * Derive one retirement plan from a completed map and exact repository trees.
+ *
+ * @param input - Revalidated preflight, pinned trees, cohort template, and ROADMAP renderer.
+ * @returns One content-addressed retirement plan or a typed pre-occupation refusal.
+ */
+export async function composeV3RepositoryPlan(
+  input: V3RepositoryPlanInput,
+): Promise<V3RepositoryPlanResult> {
+  return await composeRepositoryPlan(input, "retirement");
+}
+
+/**
+ * Derive one additive extraction plan from a completed map and exact repository trees.
+ *
+ * @param input - Revalidated preflight, pinned trees, cohort template, and ROADMAP renderer.
+ * @returns One content-addressed additive plan or a typed pre-occupation refusal.
+ */
+export async function composeV3ExtractionRepositoryPlan(
+  input: V3RepositoryPlanInput,
+): Promise<V3RepositoryPlanResult> {
+  return await composeRepositoryPlan(input, "extraction");
 }

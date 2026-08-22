@@ -155,9 +155,12 @@ vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
   createGitV3DecomposePreflight: (...args: unknown[]) => mockCreateGitV3DecomposePreflight(...args),
 }));
 const mockExecuteGitV3DecomposeCommand = vi.fn();
+const mockExecuteGitV3ExtractionCommand = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
   executeGitV3DecomposeCommand: (...args: unknown[]) =>
     mockExecuteGitV3DecomposeCommand(...args),
+  executeGitV3ExtractionCommand: (...args: unknown[]) =>
+    mockExecuteGitV3ExtractionCommand(...args),
 }));
 const mockAdvanceGitDecomposeTransitionBase = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-decompose-transition-base-advancement.js", () => ({
@@ -459,6 +462,10 @@ beforeEach(() => {
     status: "staged",
     operation: { report: { destinations: ["member"] } },
   });
+  mockExecuteGitV3ExtractionCommand.mockResolvedValue({
+    status: "staged",
+    operation: { report: { extraction: { anchor: { origin: "mono" } } } },
+  });
   mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
     status: "advanced",
     candidateBranch: "chore/decompose-mono",
@@ -600,6 +607,26 @@ describe("handleDecompose", () => {
     );
   });
 
+  it("routes extract only through the additive repository operation adapter", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { extract: "cut-map.json" });
+
+    expect(mockExecuteGitV3ExtractionCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo", spawningIdentity: "andrew" }),
+      {
+        protection: "partial",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+      },
+    );
+    expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      '{"operation":{"report":{"extraction":{"anchor":{"origin":"mono"}}}},"status":"staged"}\n',
+    );
+  });
+
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
@@ -663,6 +690,7 @@ describe("handleDecompose", () => {
 
     expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
+    expect(mockExecuteGitV3ExtractionCommand).not.toHaveBeenCalled();
     expect(mockAdvanceGitDecomposeTransitionBase).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });

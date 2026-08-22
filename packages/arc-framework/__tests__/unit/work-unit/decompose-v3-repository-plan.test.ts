@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import {
+  composeV3ExtractionRepositoryPlan,
   composeV3RepositoryPlan,
   type V3RepositoryPlanTree,
 } from "../../../src/lib/work-unit/decompose-v3-repository-plan.js";
@@ -185,11 +186,11 @@ describe("v3 repository plan projection", () => {
     const input = fixture();
     const renderRoadmap = vi.fn(async (
       tree: V3RepositoryPlanTree,
-      overlay: { origin: string; sourceBranch: string; planId: string },
+      overlay?: { origin: string; sourceBranch: string; planId: string },
     ) => encoder.encode([
       "# Roadmap after",
-      overlay.origin,
-      overlay.sourceBranch,
+      overlay?.origin ?? "",
+      overlay?.sourceBranch ?? "",
       ...Object.keys(tree).filter((path) => path.includes("meta-")).sort(),
       "",
     ].join("\n")));
@@ -265,5 +266,67 @@ describe("v3 repository plan projection", () => {
       refusal: { stage: "content", reason: "target-projection-failed" },
     });
     expect(renderRoadmap).not.toHaveBeenCalled();
+  });
+
+  it("composes an additive result without predecessor retirement or transition authority", async () => {
+    const input = fixture();
+    input.completedMap.authoring.shape = "extraction" as never;
+    const allocations = input.completedMap.authoring.sourceAllocations;
+    allocations[0]!.disposition = { kind: "retained-origin" } as never;
+    allocations[1]!.disposition = {
+      kind: "drop",
+      reason: "obsolete framing",
+    } as never;
+    delete input.resultBaseTree[".arc/backlog/planned/origin/draft-origin.md"];
+    delete input.resultBaseTree[".arc/backlog/planned/origin/meta-origin.md"];
+    delete input.mergeBaseTree[".arc/backlog/planned/origin/draft-origin.md"];
+    delete input.mergeBaseTree[".arc/backlog/planned/origin/meta-origin.md"];
+    const renderRoadmap = vi.fn(async (
+      tree: V3RepositoryPlanTree,
+      overlay?: { origin: string },
+    ) => encoder.encode([
+      "# Roadmap after",
+      String(overlay?.origin ?? "origin-visible"),
+      ...Object.keys(tree).filter((path) => path.includes("meta-")).sort(),
+      "",
+    ].join("\n")));
+
+    const result = await composeV3ExtractionRepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap,
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    expect(result.plan.prospectiveOverlay).toBeUndefined();
+    expect(result.plan.mutations).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "predecessor-retirement" }),
+      expect.objectContaining({ role: "retiring-source" }),
+    ]));
+    expect(result.plan.allowedPaths).not.toContain(".arc/active/meta-origin.md");
+    expect(renderRoadmap.mock.calls[0]?.[1]).toBeUndefined();
+    expect(result.extractionFacts).toEqual({
+      retainedOrigin: {
+        origin: "origin",
+        path: ".arc/active/meta-origin.md",
+        allocations: [{ sourceId: allocations[0]!.sourceId, ownership: "destination-owned" }],
+      },
+      reasonedDrops: [{
+        sourceId: allocations[1]!.sourceId,
+        ownership: "destination-owned",
+        reason: "obsolete framing",
+      }],
+      anchor: {
+        kind: "surviving-origin",
+        origin: "origin",
+        path: ".arc/active/meta-origin.md",
+      },
+    });
   });
 });

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 import { canonicalize } from "../canonical/canonical-json.js";
 import {
+  composeGitV3ExtractionRepositoryPlan,
   composeGitV3RepositoryPlan,
   type GitV3RepositoryPlanDependencies,
   type GitV3RepositoryPlanResult,
@@ -16,6 +17,8 @@ import {
 import {
   executeV3DecomposeOperation,
   type V3DecomposeOperationResult,
+  executeV3ExtractionOperation,
+  type V3ExtractionOperationResult,
 } from "./decompose-v3-operation.js";
 import type { V3MaterializerIO } from "./decompose-v3-materializer.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
@@ -35,6 +38,7 @@ import { createExecaRawGitExec } from "../git/process-executor.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
 import { readLiveRemoteBranchTip } from "../git/remote-ref-reader.js";
 import {
+  renderV3DecomposeExtractCommand,
   renderV3DecomposeExecuteCommand,
   renderV3DecomposePreflightCommand,
 } from "./decompose-command-renderer.js";
@@ -77,9 +81,44 @@ export type GitV3DecomposeCommandResult =
       remedy: string;
     });
 
+export type GitV3ExtractionOperationResult =
+  | {
+      status: "staged";
+      plan: ValidatedDecomposePlan;
+      operation: Extract<V3ExtractionOperationResult, { status: "staged" }>;
+    }
+  | {
+      status: "refused";
+      stage: "repository-plan";
+      reason: string;
+      locus?: string;
+      recovery: { kind: "none" };
+    }
+  | Extract<V3ExtractionOperationResult, { status: "refused" }>;
+
+export type GitV3ExtractionCommandResult =
+  | Extract<GitV3ExtractionOperationResult, { status: "staged" }>
+  | (Extract<GitV3ExtractionOperationResult, { status: "refused" }> & {
+      remedy: string;
+    });
+
 function repositoryRefusal(
   result: Extract<GitV3RepositoryPlanResult, { status: "refused" }>,
 ): GitV3DecomposeOperationResult {
+  return {
+    status: "refused",
+    stage: "repository-plan",
+    reason: `${result.refusal.stage}:${result.refusal.reason}`,
+    ...("locus" in result.refusal && result.refusal.locus !== undefined
+      ? { locus: result.refusal.locus }
+      : {}),
+    recovery: { kind: "none" },
+  };
+}
+
+function extractionRepositoryRefusal(
+  result: Extract<GitV3RepositoryPlanResult, { status: "refused" }>,
+): GitV3ExtractionOperationResult {
   return {
     status: "refused",
     stage: "repository-plan",
@@ -104,6 +143,13 @@ function exactInventory(
 ): boolean {
   return canonicalize(expected.sourceArtifactInventory)
     === canonicalize(candidate.sourceArtifactInventory);
+}
+
+function exactExtractionFacts(
+  expected: GitV3RepositoryPlanResult & { status: "composed" },
+  candidate: GitV3RepositoryPlanResult & { status: "composed" },
+): boolean {
+  return canonicalize(expected.extractionFacts) === canonicalize(candidate.extractionFacts);
 }
 
 function materializerProxy(
@@ -254,6 +300,107 @@ export async function executeGitV3DecomposeOperation(
 }
 
 /**
+ * Compose, occupy, and stage one additive extraction result without retirement history.
+ *
+ * @param dependencies - Exact Git/object readers plus the candidate worktree owner.
+ * @param input - Protection mode, configured base, and completed extraction map.
+ * @returns One prepared additive result or a closed refusal with exact recovery.
+ */
+export async function executeGitV3ExtractionOperation(
+  dependencies: GitV3DecomposeOperationDependencies,
+  input: GitV3DecomposeOperationInput,
+): Promise<GitV3ExtractionOperationResult> {
+  const composed = await composeGitV3ExtractionRepositoryPlan(
+    dependencies,
+    input.baseBranch,
+    input.completedMap,
+  );
+  if (composed.status === "refused") return extractionRepositoryRefusal(composed);
+  const completedMap = decodeV3DecomposeCutMap(input.completedMap);
+  if (completedMap.status === "rejected" || completedMap.value.authoring.shape !== "extraction") {
+    return {
+      status: "refused",
+      stage: "repository-plan",
+      reason: "map:authoring-shape",
+      locus: "authoring.shape",
+      recovery: { kind: "none" },
+    };
+  }
+  if (composed.extractionFacts === undefined) {
+    return {
+      status: "refused",
+      stage: "repository-plan",
+      reason: "composition:extraction-facts-missing",
+      recovery: { kind: "none" },
+    };
+  }
+  const io = await createGitV3DecomposeOperationIO({
+    cwd: dependencies.cwd,
+    exec: dependencies.exec,
+    spawningIdentity: dependencies.spawningIdentity,
+    blobs: composed.blobs,
+  });
+  let targetCwd: string | null = null;
+  const partialRecovery = io.partialRecovery(dependencies.cwd);
+  const revalidate = async (plan: ValidatedDecomposePlan, requireCleanProjection: boolean) => {
+    const refreshed = await composeGitV3ExtractionRepositoryPlan(
+      dependencies,
+      input.baseBranch,
+      input.completedMap,
+    );
+    if (refreshed.status === "refused") {
+      return {
+        status: "refused" as const,
+        reason: `${refreshed.refusal.stage}:${refreshed.refusal.reason}`,
+      };
+    }
+    if (!exactPlan(plan, refreshed.plan)
+      || !exactInventory(composed, refreshed)
+      || !exactExtractionFacts(composed, refreshed)) {
+      return { status: "refused" as const, reason: "repository-plan-drift" };
+    }
+    if (input.protection === "partial" && requireCleanProjection) {
+      const projection = await io.occupation.inspectPartial(input.baseBranch, plan.allowedPaths);
+      if (projection.baseHead !== plan.expectedBaseHead
+        || !projection.indexClean
+        || !projection.worktreeClean) {
+        return { status: "refused" as const, reason: "partial-projection-drift" };
+      }
+    }
+    return { status: "valid" as const };
+  };
+  const operation = await executeV3ExtractionOperation({
+    protection: input.protection,
+    configuredBase: input.baseBranch,
+    origin: completedMap.value.machine.source.origin,
+    plan: composed.plan,
+    extractionFacts: composed.extractionFacts,
+  }, {
+    occupy: async (occupationInput): Promise<DecomposeResultOccupationResult> => {
+      const occupied = await occupyDecomposeResult(occupationInput, io.occupation);
+      if (occupied.status === "occupied") {
+        targetCwd = occupied.protection === "full" ? occupied.path : dependencies.cwd;
+      }
+      return occupied;
+    },
+    revalidate: async (plan) => await revalidate(plan, true),
+    materializer: materializerProxy(
+      () => targetCwd,
+      (cwd) => io.materializer(cwd),
+    ),
+    ...(input.protection === "partial" ? { partialRecovery } : {}),
+    revalidateStaged: async (plan) => {
+      if (targetCwd === null) {
+        return { status: "refused" as const, reason: "result-locus-unavailable" };
+      }
+      return await revalidate(plan, false);
+    },
+  });
+  if (operation.status === "refused") return operation;
+  return { status: "staged", plan: composed.plan, operation };
+}
+
+/**
  * Read one canonical cut map, revalidate its invocation provenance, and execute its immutable result.
  *
  * @param dependencies - Exact Git/object readers plus the candidate worktree owner.
@@ -292,6 +439,16 @@ export async function executeGitV3DecomposeCommand(
       locus: revalidated.locus,
       recovery: { kind: "none" },
       remedy: `Re-preflight: ${renderV3DecomposePreflightCommand(input.origin)}`,
+    };
+  }
+  if (revalidated.completedMap.authoring.shape === "extraction") {
+    return {
+      status: "refused",
+      stage: "repository-plan",
+      reason: "map:authoring-shape",
+      locus: "authoring.shape",
+      recovery: { kind: "none" },
+      remedy: `Use the extraction mode: ${renderV3DecomposeExtractCommand(input.origin, cutMapPath)}`,
     };
   }
   const { source, resultBase } = revalidated.completedMap.machine;
@@ -335,6 +492,111 @@ export async function executeGitV3DecomposeCommand(
       case "partial-restoration":
         remedy = result.recovery.status === "restored"
           ? `Retry: ${renderV3DecomposeExecuteCommand(input.origin, cutMapPath)}`
+          : `Restore the reported transform-owned paths before retrying: ${
+            result.recovery.affectedPaths.join(", ")
+          }`;
+        break;
+      case "none":
+        remedy = "No recovery command was authorized; resolve the reported refusal before retrying.";
+        break;
+    }
+    return { ...result, remedy };
+  }
+  return result;
+}
+
+/**
+ * Read one canonical extraction map, revalidate its provenance, and stage its additive result.
+ *
+ * @param dependencies - Exact Git/object readers plus the candidate worktree owner.
+ * @param input - Closed extraction-command operands and configured repository policy.
+ * @returns One prepared additive result or a closed refusal with exact recovery.
+ */
+export async function executeGitV3ExtractionCommand(
+  dependencies: GitV3DecomposeOperationDependencies,
+  input: GitV3DecomposeCommandInput,
+): Promise<GitV3ExtractionCommandResult> {
+  const cutMapPath = resolve(dependencies.cwd, input.cutMapPath);
+  const revalidated = await revalidateV3DecomposeExecutionPreflight({
+    readCutMap: async (path) => new Uint8Array(await readFile(path)),
+    resolvePreflight: async (origin) => {
+      const result = await createGitV3DecomposePreflight({
+        cwd: dependencies.cwd,
+        exec: dependencies.exec,
+        readBlob: (ref, path) => dependencies.readBlob(ref, path),
+      }, input.baseBranch, origin);
+      return result.status === "ready"
+        ? result
+        : {
+            status: "rejected",
+            reason: result.reason,
+            ...("locus" in result && result.locus !== undefined
+              ? { locus: result.locus }
+              : {}),
+          };
+    },
+  }, input.origin, cutMapPath);
+  if (revalidated.status !== "current") {
+    return {
+      status: "refused",
+      stage: "repository-plan",
+      reason: revalidated.reason,
+      locus: revalidated.locus,
+      recovery: { kind: "none" },
+      remedy: `Re-preflight: ${renderV3DecomposePreflightCommand(input.origin)}`,
+    };
+  }
+  if (revalidated.completedMap.authoring.shape !== "extraction") {
+    return {
+      status: "refused",
+      stage: "repository-plan",
+      reason: "map:authoring-shape",
+      locus: "authoring.shape",
+      recovery: { kind: "none" },
+      remedy: `Use the retirement mode: ${renderV3DecomposeExecuteCommand(input.origin, cutMapPath)}`,
+    };
+  }
+  const { source, resultBase } = revalidated.completedMap.machine;
+  if (source.ref !== resultBase.ref) {
+    const branch = source.logicalBranch;
+    const expectedRef = `refs/heads/${branch}`;
+    const live = source.ref === expectedRef
+      ? await readLiveRemoteBranchTip({
+          exec: async (command, args, options) => await dependencies.exec(command, args, {
+            ...options,
+            cwd: options?.cwd ?? dependencies.cwd,
+          }),
+          remote: "origin",
+          branch,
+        })
+      : { reachable: true, tip: null };
+    if (!live.reachable || live.tip !== source.head) {
+      return {
+        status: "refused",
+        stage: "repository-plan",
+        reason: "source-unpublished",
+        locus: branch,
+        recovery: { kind: "none" },
+        remedy: "Publish the reported source branch to origin before retrying.",
+      };
+    }
+  }
+  const result = await executeGitV3ExtractionOperation(dependencies, {
+    protection: input.protection,
+    baseBranch: input.baseBranch,
+    completedMap: revalidated.completedMap,
+  });
+  if (result.status === "refused") {
+    let remedy: string;
+    switch (result.recovery.kind) {
+      case "full-candidate":
+        remedy = `Clean the owned candidate at ${result.recovery.path}: `
+          + `arc teardown --branch ${result.recovery.candidateBranch}. Then retry: `
+          + renderV3DecomposeExtractCommand(input.origin, cutMapPath);
+        break;
+      case "partial-restoration":
+        remedy = result.recovery.status === "restored"
+          ? `Retry: ${renderV3DecomposeExtractCommand(input.origin, cutMapPath)}`
           : `Restore the reported transform-owned paths before retrying: ${
             result.recovery.affectedPaths.join(", ")
           }`;

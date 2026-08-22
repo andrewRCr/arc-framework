@@ -15,6 +15,7 @@ describe("DecomposeCommandInputSchema", () => {
 
   it.each([
     { origin, execute: "map.json" },
+    { origin, extract: "map.json" },
     { origin, advanceBase: "map.json" },
   ])("accepts a complete repository command mode: %o", (input) => {
     expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(true);
@@ -23,6 +24,7 @@ describe("DecomposeCommandInputSchema", () => {
   it.each([
     { origin },
     { origin, preflight: true, advanceBase: "map.json" },
+    { origin, execute: "map.json", extract: "map.json" },
     { origin, preflight: true, cutMap: "map.json" },
     { origin, cutMap: "map.json" },
     { origin, finalize: `sha256:${"a".repeat(64)}` },
@@ -44,6 +46,7 @@ describe("DecomposeCommandInputSchema", () => {
     expect(DECOMPOSE_MODE_KEYS).toEqual([
       "preflight",
       "execute",
+      "extract",
       "advanceBase",
     ]);
     expect(DECOMPOSE_MACHINE_READABLE_KEYS).toEqual(DECOMPOSE_MODE_KEYS);

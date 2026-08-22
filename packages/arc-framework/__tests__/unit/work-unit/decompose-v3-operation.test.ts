@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
   executeV3DecomposeOperation,
+  executeV3ExtractionOperation,
   type V3DecomposeOperationDependencies,
   type V3PartialPathPreimage,
 } from "../../../src/lib/work-unit/decompose-v3-operation.js";
@@ -190,6 +191,41 @@ function dependencies(
 }
 
 describe("executeV3DecomposeOperation", () => {
+  it("stages an additive result without creating retirement history", async () => {
+    const fixture = operationFixture();
+    delete fixture.plan.prospectiveOverlay;
+    const events: string[] = [];
+    const extractionDependencies = dependencies(fixture, fullOccupation(), events);
+    const extractionFacts = {
+      retainedOrigin: {
+        origin: "origin",
+        path: ".arc/active/meta-origin.md",
+        allocations: [],
+      },
+      reasonedDrops: [],
+      anchor: {
+        kind: "surviving-origin" as const,
+        origin: "origin",
+        path: ".arc/active/meta-origin.md",
+      },
+    };
+
+    const result = await executeV3ExtractionOperation({
+      protection: "full",
+      configuredBase: "main",
+      origin: "origin",
+      plan: fixture.plan,
+      extractionFacts,
+    }, extractionDependencies);
+
+    expect(result.status).toBe("staged");
+    if (result.status !== "staged") return;
+    expect(events).not.toContain("record");
+    expect(result.stagedPaths).toEqual([fixture.firstPath, fixture.secondPath]);
+    expect(result.releasePaths).toEqual([fixture.firstPath, fixture.secondPath]);
+    expect(result.report.extraction).toEqual(extractionFacts);
+  });
+
   it("uses one plan through occupation, revalidation, materialization, reporting, and lean history", async () => {
     const fixture = operationFixture();
     const events: string[] = [];

@@ -857,6 +857,39 @@ describe("deriveInFlight", () => {
     expect(result.warnings.map(({ branch }) => branch)).toEqual(["chore/foreign"]);
   });
 
+  it("suppresses prepared work units on an exact validated decomposition candidate branch", async () => {
+    const exec = makeExec({
+      worktrees: [{ path: "/repo/candidate", branch: "chore/decompose-origin" }],
+      localRefs: ["chore/decompose-origin"],
+      metas: {
+        "chore/decompose-origin:.arc/active/meta-member.md": metaContent({
+          state: "Planning",
+          branch: "[none]",
+        }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      branches: ["chore/decompose-origin"],
+      identity: null,
+      teamMode: false,
+      readMarker: async () => ({
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          spawningIdentity: "andrew",
+          createdAt: "2026-08-06T00:00:00.000Z",
+          createdFor: { kind: "branch", ref: "chore/decompose-origin" },
+        },
+      }),
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.residue).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
   it("surfaces an errand record whose branch no longer exists", async () => {
     const exec = makeExec({ liveBranches: [] });
 

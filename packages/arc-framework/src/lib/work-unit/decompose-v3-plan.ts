@@ -163,8 +163,10 @@ export interface BuildValidatedDecomposePlanInput {
     facts: V3TopologyFact[];
     digest: CanonicalDigest;
   };
-  origin: string;
-  sourceBranch: string;
+  prospectiveTransition?: {
+    origin: string;
+    sourceBranch: string;
+  };
   claims: readonly V3PlanPathClaim[];
 }
 
@@ -199,7 +201,7 @@ export interface ValidatedDecomposePlan {
   };
   allowedPaths: string[];
   allowedPathsDigest: CanonicalDigest;
-  prospectiveOverlay: ProspectiveTransitionOverlay;
+  prospectiveOverlay?: ProspectiveTransitionOverlay;
   roadmap: {
     path: string;
     before: V3PlanCanonicalPathState;
@@ -326,8 +328,9 @@ function invalidOperand(input: BuildValidatedDecomposePlanInput): boolean {
     || input.topology.digest !== v3TopologyDigest(topologyFacts)
     || !validIdentity(input.sourceHead)
     || !validIdentity(input.expectedBaseHead)
-    || !validIdentity(input.origin)
-    || !validIdentity(input.sourceBranch);
+    || (input.prospectiveTransition !== undefined
+      && (!validIdentity(input.prospectiveTransition.origin)
+        || !validIdentity(input.prospectiveTransition.sourceBranch)));
 }
 
 /**
@@ -500,10 +503,11 @@ export function buildValidatedDecomposePlan(
       topology: structuredClone(input.topology),
       allowedPaths,
       allowedPathsDigest,
-      prospectiveOverlay: createProspectiveTransitionOverlay({
-        origin: input.origin,
-        sourceBranch: input.sourceBranch,
-        planId,
+      ...(input.prospectiveTransition === undefined ? {} : {
+        prospectiveOverlay: createProspectiveTransitionOverlay({
+          ...input.prospectiveTransition,
+          planId,
+        }),
       }),
       roadmap,
       mutations,

@@ -198,6 +198,53 @@ async function writeCompletedCutMap(repo: string): Promise<string> {
   return cutMapPath;
 }
 
+async function writeExtractionCutMap(repo: string): Promise<string> {
+  const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
+  expect(preflight.exitCode, preflight.stderr).toBe(0);
+  const starter = JSON.parse(preflight.stdout) as {
+    machine: {
+      sourceUnits: Array<{
+        sourceId: string;
+        sourceLocator: { artifact: string; [key: string]: unknown };
+      }>;
+    };
+  };
+  expect(starter.machine.sourceUnits.length).toBeGreaterThan(2);
+  const completed = {
+    schemaVersion: 3,
+    machine: starter.machine,
+    authoring: {
+      shape: "extraction",
+      placement: { kind: "direct-member" },
+      destinations: [{
+        kind: "new-member",
+        destinationId: "member",
+        slug: "member",
+        workClass: "Heavy",
+      }],
+      internalEdges: [],
+      sourceAllocations: starter.machine.sourceUnits.map((unit, index) => ({
+        sourceId: unit.sourceId,
+        ownership: "destination-owned",
+        disposition: index === 0
+          ? { kind: "retained-origin" }
+          : index === 1
+            ? { kind: "drop", reason: "obsolete framing" }
+            : {
+                kind: "target",
+                destinationId: "member",
+                targetLocator: { ...unit.sourceLocator, artifact: "draft-member.md" },
+              },
+      })),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  const cutMapPath = join(repo, "extraction-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completed)}\n`);
+  return cutMapPath;
+}
+
 async function writeMultiMemberCohortlessCutMap(repo: string): Promise<string> {
   const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
   expect(preflight.exitCode, preflight.stderr).toBe(0);
@@ -409,6 +456,63 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("receiptId");
     expect(executed.stdout).not.toContain("continuation");
     expect(executed.stdout).not.toContain("discard");
+  });
+
+  it("stages an additive extraction while retirement modes refuse its structural shape", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeExtractionCutMap(repo);
+    const sourceHeadBefore = await git(repo, ["rev-parse", "plan/origin"]);
+    const sourceTreeBefore = await git(repo, ["rev-parse", "plan/origin^{tree}"]);
+
+    for (const mode of ["--execute", "--advance-base"] as const) {
+      const refused = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, {
+        timeout: 60_000,
+      });
+      expect(refused.exitCode).not.toBe(0);
+      expect(JSON.parse(refused.stdout)).toMatchObject({
+        status: "refused",
+        reason: "map:authoring-shape",
+      });
+    }
+
+    const extracted = await runArcNoTty(
+      ["decompose", "origin", "--extract", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(extracted.exitCode, extracted.stderr).toBe(0);
+    const result = JSON.parse(extracted.stdout) as {
+      operation: {
+        occupation: { protection: string; path: string };
+        report: { extraction: { anchor: { origin: string; path: string } } };
+        stagedPaths: string[];
+      };
+    };
+    expect(result).toMatchObject({
+      status: "staged",
+      operation: {
+        occupation: { protection: "full" },
+        report: {
+          extraction: {
+            anchor: { origin: "origin", path: ".arc/active/meta-origin.md" },
+          },
+        },
+      },
+    });
+    expect(result.operation.stagedPaths).not.toEqual(expect.arrayContaining([
+      expect.stringContaining(".arc/system/.internal/transitions/"),
+      expect.stringContaining(".arc/active/meta-origin.md"),
+    ]));
+    expect(await readFile(
+      join(result.operation.occupation.path, ".arc", "backlog", "planned", "member", "meta-member.md"),
+      "utf8",
+    )).toContain("# Metadata: member");
+    expect(await readFile(
+      join(result.operation.occupation.path, ".arc", "backlog", "planned", "origin", "meta-origin.md"),
+      "utf8",
+    )).toContain("# Metadata: origin");
+    expect(await git(repo, ["rev-parse", "plan/origin"])).toBe(sourceHeadBefore);
+    expect(await git(repo, ["rev-parse", "plan/origin^{tree}"])).toBe(sourceTreeBefore);
   });
 
   it("refuses destination-owned multi-member direct placement before repository mutation", async () => {

@@ -42,43 +42,29 @@ _Purpose:_ Land complete new destinations from exact source evidence while prese
           destination coverage, retained and extended origin edges, and unchanged retirement decoding alongside
           the existing identity, ordering, placeholder, and canonical-form checks.
 
-### `[ ]` **1.3 Compose and land the additive result**
+### `[x]` **1.3 Compose and land the additive result**
 
 - _Goal:_ Extraction reuses the core exact-base substrate through a new additive-only composer entered by its own
   command mode, without retirement evidence.
 
-    - `[ ]` **1.3.a Build the additive-only result composer**
-        - Compose the reusable sub-planners — exact-base path-state planning, plan composition, dependency
-          transforms, internal topology, allowed-path enforcement, and bounded preimage recovery — under a new
-          top-level composer that plans no retirement delta, requires no predecessor meta, and writes no
-          transition record; the retirement projection stays untouched.
-        - Validate the retained origin under a surviving-origin conservation arm: the retirement flow's
-          origin-as-destination and origin-reference refusals must not reach explicitly retained scope or a
-          retained dependency edge, and a deliberately unchanged edge is not a refused no-op.
-        - Mint no origin-suppressing transition overlay — make the shared plan contract's overlay slot optional
-          rather than minting-and-discarding, so the surviving origin stays visible in the staged ROADMAP
-          projection — and make the plan composition's retirement-coupled exclusive inputs optional rather than
-          feeding degenerate claims into the allowed-path set.
-        - Reuse the core's existing projection render seam; add no renderer contract or stamp variant.
-        - Report retained-origin ownership, reasoned drops, and anchor orientation as typed result fields for
-          the distribution interlock to surface.
-        - Scaffold and stage only additive destination, dependency, cohort, and ROADMAP changes.
+    - `[x]` **1.3.a Build the additive-only result composer**
+        - Added separate repository and operation entry points that reuse the shared immutable plan, topology,
+          content, dependency, materialization, and recovery seams while omitting predecessor lookup, retirement
+          claims, transition overlays, and transition records. Typed reports carry retained allocations, reasoned
+          drops, and surviving-origin anchor orientation.
 
-    - `[ ]` **1.3.b Expose the additive leg as `--extract`**
-        - Add `--extract <cut-map>` as a mutually exclusive mode entering the additive composer.
-        - Make `--execute` and `--advance-base` refuse an extraction-shaped map with typed reasons; the shape
-          discriminator is structural, never inferred from disposition contents.
+    - `[x]` **1.3.b Expose the additive leg as `--extract`**
+        - Added the mutually exclusive `--extract <cut-map>` mode and canonical additive command remedies;
+          retirement execution and base advancement now refuse the structural extraction shape before mutation.
 
-    - `[ ]` **1.3.c Prove source/result separation and pre-landing invisibility**
-        - Use a real source-only branch and base-rooted result across the `draft`, `single-spec`, and
-          `paired-spec` profiles, with and without the provisional-task contributor.
-        - Assert the source ref/tree/worktree, committed implementation, retained-origin allocations, and
-          unrelated material remain exact; assert a dependent of retained scope keeps its origin edge, and the
-          staged ROADMAP projection keeps the surviving origin visible.
-        - Add the dedicated invisibility test: prepared members — Planning-state backlog metas on the extraction
-          candidate branch — are absent from checkout-rooted lifecycle resolution at the base and never surfaced
-          by in-flight derivation, then become discoverable with dependency-derived ready or blocked state only
-          after landing and base synchronization.
+    - `[x]` **1.3.c Prove source/result separation and pre-landing invisibility**
+        - Real-Git coverage spans all three planning profiles with and without provisional tasks, preserves the
+          exact source ref/tree, proves additive-only paths and retained-origin ROADMAP visibility, and exercises
+          the CLI's structural retirement refusals. Marker-owned candidate branches now suppress prepared member
+          entries as well as residue until the base-rooted result lands.
+
+- _Outcome:_ Extraction now produces an exact-base, additive-only candidate whose typed report exposes the
+  surviving authority while the source remains byte-identical and candidate-only members remain unpublished.
 
 ### `[ ]` **1.4 Keep incomplete topology uncommittable**
 

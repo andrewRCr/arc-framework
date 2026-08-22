@@ -10,7 +10,9 @@ import {
   type ProjectViewFs,
 } from "../status/project-view.js";
 import {
+  composeV3ExtractionRepositoryPlan,
   composeV3RepositoryPlan,
+  type V3RepositoryPlanInput,
   type V3RepositoryPlanResult,
   type V3RepositoryPlanTree,
 } from "./decompose-v3-repository-plan.js";
@@ -216,10 +218,11 @@ function gitRefusal(reason: string, locus?: string): GitV3RepositoryPlanResult {
  * @param completedMap - Fully authored closed v3 map.
  * @returns One exact repository plan or a typed read/projection refusal.
  */
-export async function composeGitV3RepositoryPlan(
+async function composeGitRepositoryPlan(
   dependencies: GitV3RepositoryPlanDependencies,
   baseBranch: string,
   completedMap: unknown,
+  compose: (input: V3RepositoryPlanInput) => Promise<V3RepositoryPlanResult>,
 ): Promise<GitV3RepositoryPlanResult> {
   const decoded = decodeV3DecomposeCutMap(completedMap);
   if (decoded.status === "rejected") {
@@ -264,7 +267,7 @@ export async function composeGitV3RepositoryPlan(
     if (sourceTree === null || mergeBaseTree === null || resultBaseTree === null) {
       return gitRefusal("tree-read-failed");
     }
-    const result = await composeV3RepositoryPlan({
+    const result = await compose({
       completedMap: map,
       currentPreflight: refreshed.preflight,
       sourceTree,
@@ -281,7 +284,9 @@ export async function composeGitV3RepositoryPlan(
             acquisitionPolicy: "local",
             baseBranch,
           },
-          transitionOverlays: [transitionOverlayCompositionInput(overlay)],
+          transitionOverlays: overlay === undefined
+            ? []
+            : [transitionOverlayCompositionInput(overlay)],
         });
         const markdown = composeProjectReadinessViewResult({
           ...readiness,
@@ -307,4 +312,46 @@ export async function composeGitV3RepositoryPlan(
       error instanceof Error ? error.message : String(error),
     );
   }
+}
+
+/**
+ * Pin exact Git inputs and compose a retirement result.
+ *
+ * @param dependencies - Git object, preflight-blob, and bundled-template boundaries.
+ * @param baseBranch - Configured result base branch.
+ * @param completedMap - Fully authored closed v3 retirement map.
+ * @returns One exact repository plan or a typed read/projection refusal.
+ */
+export async function composeGitV3RepositoryPlan(
+  dependencies: GitV3RepositoryPlanDependencies,
+  baseBranch: string,
+  completedMap: unknown,
+): Promise<GitV3RepositoryPlanResult> {
+  return await composeGitRepositoryPlan(
+    dependencies,
+    baseBranch,
+    completedMap,
+    composeV3RepositoryPlan,
+  );
+}
+
+/**
+ * Pin exact Git inputs and compose an additive extraction result.
+ *
+ * @param dependencies - Git object, preflight-blob, and bundled-template boundaries.
+ * @param baseBranch - Configured result base branch.
+ * @param completedMap - Fully authored closed v3 extraction map.
+ * @returns One exact additive repository plan or a typed read/projection refusal.
+ */
+export async function composeGitV3ExtractionRepositoryPlan(
+  dependencies: GitV3RepositoryPlanDependencies,
+  baseBranch: string,
+  completedMap: unknown,
+): Promise<GitV3RepositoryPlanResult> {
+  return await composeGitRepositoryPlan(
+    dependencies,
+    baseBranch,
+    completedMap,
+    composeV3ExtractionRepositoryPlan,
+  );
 }

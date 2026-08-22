@@ -18,7 +18,10 @@ import {
 import { advanceGitDecomposeTransitionBase } from
   "../../src/lib/work-unit/git-decompose-transition-base-advancement.js";
 import { resolveTransitionRecordRelativePath } from "../../src/lib/work-unit/transition-record-store.js";
-import { composeGitV3RepositoryPlan } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
+import {
+  composeGitV3ExtractionRepositoryPlan,
+  composeGitV3RepositoryPlan,
+} from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
 import { runCli } from "../helpers/run-cli.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
@@ -233,6 +236,111 @@ Medium.
   return { repo, remote, baseHead, sourceHead, completedMap, dependencies };
 }
 
+async function activeExtractionRepository(
+  profile: "draft" | "single-spec" | "paired-spec",
+  provisionalTask: boolean,
+) {
+  const repo = await mkdtemp(join(tmpdir(), "arc-v3-extraction-plan-"));
+  roots.push(repo);
+  await git(repo, ["init", "-b", "main"]);
+  await git(repo, ["config", "user.name", "ARC Test"]);
+  await git(repo, ["config", "user.email", "arc@example.test"]);
+  await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap before\n");
+  await write(repo, ".arc/system/arc-config.yml", "branch.base: main\npm.mode: arc-in-git\n");
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "-m", "base"]);
+  const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+
+  await git(repo, ["switch", "-c", "feat/origin"]);
+  const design = profile === "draft"
+    ? ["draft-origin.md"]
+    : profile === "single-spec"
+      ? ["spec-origin.md"]
+      : ["spec-origin-prd.md", "spec-origin-rfc.md"];
+  const designBodies = design.map((artifact, index) => `# ${artifact}\n\n`
+    + `## Scope ${index}\n\nOwned scope ${index}.\n\n`
+    + `## Detail ${index}\n\nImplementation detail ${index}.\n\n`
+    + `## Verification ${index}\n\nVerification detail ${index}.\n`);
+  for (const [index, artifact] of design.entries()) {
+    await write(repo, `.arc/active/${artifact}`, designBodies[index]!);
+  }
+  await write(repo, ".arc/active/tasks-origin.md", designBodies[0]!);
+  await write(repo, ".arc/active/meta-origin.md", renderMetaFile("origin", {
+    state: "Active",
+    owner: "andrew",
+    branch: "feat/origin",
+    workClass: "Heavy",
+    priority: "P1",
+    origin: "internal",
+    design,
+    ...(profile === "draft" ? {} : { taskList: "tasks-origin.md" }),
+    nextAction: "Continue implementation",
+  }));
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "-m", "active origin"]);
+  const sourceHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+  const sourceTree = (await git(repo, ["rev-parse", "HEAD^{tree}"])).trim();
+  await git(repo, ["switch", "main"]);
+
+  const dependencies = await repositoryDependencies(repo);
+  const preflight = await createGitV3DecomposePreflight({
+    cwd: repo,
+    exec: dependencies.exec,
+    readBlob: async (ref, path) => await readBlob(repo, ref, path),
+  }, "main", "origin");
+  if (preflight.status !== "ready") throw new Error(JSON.stringify(preflight));
+  const machine = preflight.preflight.starterMap.machine;
+  if (machine.sourceUnits.length < 3) throw new Error("extraction fixture needs three source units");
+  const completedMap = {
+    schemaVersion: 3 as const,
+    machine,
+    authoring: {
+      shape: "extraction" as const,
+      placement: { kind: "direct-member" as const },
+      destinations: [{
+        kind: "new-member" as const,
+        destinationId: "member",
+        slug: "member",
+        workClass: "Heavy" as const,
+      }],
+      internalEdges: [],
+      sourceAllocations: machine.sourceUnits.map((unit, index) => ({
+        sourceId: unit.sourceId,
+        ownership: "destination-owned" as const,
+        disposition: provisionalTask && index === 0
+          ? {
+              kind: "target" as const,
+              destinationId: "member",
+              targetLocator: { ...unit.sourceLocator, artifact: "tasks-member.md" },
+            }
+          : index === (provisionalTask ? 1 : 0)
+            ? { kind: "retained-origin" as const }
+          : index === machine.sourceUnits.length - 1
+            ? { kind: "drop" as const, reason: "obsolete framing" }
+            : {
+                kind: "target" as const,
+                destinationId: "member",
+                targetLocator: {
+                  ...unit.sourceLocator,
+                  artifact: unit.sourceLocator.artifact.replace("origin", "member"),
+                },
+              },
+      })),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  return {
+    repo,
+    dependencies,
+    completedMap,
+    preflight: preflight.preflight,
+    baseHead,
+    sourceHead,
+    sourceTree,
+  };
+}
+
 async function committedTransitionCandidate() {
   const started = await startedRepository();
   const staged = await executeGitV3DecomposeOperation({
@@ -368,6 +476,52 @@ afterEach(async () => {
 });
 
 describe("Git v3 repository plan", () => {
+  it.each([
+    ["draft", false],
+    ["draft", true],
+    ["single-spec", false],
+    ["single-spec", true],
+    ["paired-spec", false],
+    ["paired-spec", true],
+  ] as const)("composes an additive %s result with provisional-task=%s", async (profile, provisionalTask) => {
+    const fixture = await activeExtractionRepository(profile, provisionalTask);
+
+    const result = await composeGitV3ExtractionRepositoryPlan(
+      fixture.dependencies,
+      "main",
+      fixture.completedMap,
+    );
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    expect(result.plan.expectedBaseHead).toBe(fixture.baseHead);
+    expect(result.plan.sourceHead).toBe(fixture.sourceHead);
+    expect(result.plan.prospectiveOverlay).toBeUndefined();
+    expect(result.plan.mutations.some((mutation) => mutation.kind === "exclusive"
+      && (mutation.role === "retiring-source" || mutation.role === "predecessor-retirement"))).toBe(false);
+    expect(result.plan.allowedPaths).not.toContain(".arc/active/meta-origin.md");
+    expect(result.plan.allowedPaths.some((path) => path.endsWith("tasks-member.md")))
+      .toBe(provisionalTask);
+    expect(result.extractionFacts).toMatchObject({
+      anchor: {
+        kind: "surviving-origin",
+        origin: "origin",
+        path: ".arc/active/meta-origin.md",
+      },
+      retainedOrigin: { allocations: [expect.objectContaining({ ownership: "destination-owned" })] },
+      reasonedDrops: [expect.objectContaining({ reason: "obsolete framing" })],
+    });
+    const roadmap = result.plan.mutations.find((mutation) => mutation.path === ".arc/backlog/ROADMAP.md");
+    const roadmapAfter = roadmap?.after;
+    expect(roadmapAfter?.kind).toBe("file");
+    if (roadmapAfter?.kind === "file") {
+      const blob = result.blobs.find(({ contentDigest }) => contentDigest === roadmapAfter.contentDigest);
+      expect(blob === undefined ? "" : new TextDecoder().decode(blob.bytes)).toContain("origin");
+    }
+    expect((await git(fixture.repo, ["rev-parse", "feat/origin"])).trim()).toBe(fixture.sourceHead);
+    expect((await git(fixture.repo, ["rev-parse", "feat/origin^{tree}"])).trim()).toBe(fixture.sourceTree);
+  });
+
   it("forwards byte input through the repository raw Git boundary", async () => {
     const { repo } = await startedRepository();
     const sentinel = "planning-lane raw input\n";
