@@ -72,13 +72,16 @@ arc delivery materialize - --json
 arc delivery publish - --json
 ```
 
-These verbs resolve the current plan and lifecycle paths, rerun mechanical eligibility against the exact post-gate
-checkouts, and create or adopt guarded refs and requests in plan order. Set the publish input's `draft` flag from the
-configured `merge.lock` posture (`draft` ⇒ `true`) so every non-terminal request opens under the configured hold; the
-landing sequence releases that lock only after readiness.
+These verbs resolve the current plan and lifecycle paths and rerun mechanical eligibility against the exact post-gate
+checkouts. Materialization creates or adopts every member ref before publication opens any request: delivery refs in
+plan order, then the content-neutral top adoption and ordinary top-branch push. Publication opens requests bottom-up,
+each based on its predecessor branch; the terminal request uses the originating branch over the highest delivery ref.
+Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request opens under the configured
+hold; the landing sequence releases that lock only after readiness.
 
-Before `publish`, load the delivery-member variant of [`template-pull-request.md`][template-pull-request] and author
-one `presentations` entry for every non-terminal deliverable ID:
+Before the first mutation, load both the ordinary and delivery-member forms of
+[`template-pull-request.md`][template-pull-request]. Author one `presentations` entry for every non-terminal
+deliverable ID plus the ordinary terminal request as `terminalPresentation`:
 
 ```json
 {
@@ -87,13 +90,18 @@ one `presentations` entry for every non-terminal deliverable ID:
     "summary": "{reviewer-facing purpose and outcome}",
     "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }],
     "designReference": "{accessible filename or URL}"
-  }]
+  }],
+  "terminalPresentation": {
+    "title": "{ordinary Conventional Commits pull-request title}",
+    "body": "{complete ordinary work-unit pull-request body}"
+  }
 }
 ```
 
-`summary` is required; `changes` and `designReference` are content-gated. The verb requires exact non-terminal
-coverage before mutation, derives titles from the canonical plan, and uses authored presentation only when creating
-a missing request. An exact existing request is adopted unchanged.
+`summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
+The complete presentation set validates before the first ref push. The verb derives non-terminal titles from the
+canonical plan and uses authored presentation only when creating a missing request; an exact existing request is
+adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact publication retry.
 
 After interruption, rerun the candidate gates before invoking the mutation verbs again. Resume any persisted
 reservation through:
@@ -106,13 +114,14 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
-After the exact chain exists, an operator may opt into native presentation:
+Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
 
 ```bash
 arc delivery native link - --json
 ```
 
-The CLI receives the explicit opt-in and exact plan/state-derived member set. `linked` continues only after a fresh
+The CLI receives the explicit opt-in and exact plan/state-derived non-terminal member set; the terminal is never
+registered. A one-member delivery has no registration set and skips this verb. `linked` continues only after a fresh
 exact host observation. An opt-out `unlinked` result makes zero native host calls and enters the ordinary singleton
 path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the explicit unlink verb; `refused`
 stops. On the linked path, refresh presentation facts before every landing:

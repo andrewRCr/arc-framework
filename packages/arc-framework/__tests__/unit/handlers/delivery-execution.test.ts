@@ -203,7 +203,7 @@ describe("delivery execution handler", () => {
     });
   });
 
-  it("requires structured reviewer presentation when publishing delivery members", async () => {
+  it("requires complete non-terminal and ordinary terminal presentations before publication", async () => {
     const plan = deliveryStackPlanFixture();
     const baseRequest = {
       planId: plan.planId,
@@ -217,6 +217,11 @@ describe("delivery execution handler", () => {
       repository: "andrewRCr/arc-framework",
       draft: true,
       remote: "origin",
+      presentations: plan.members.slice(0, -1).map((member) => ({
+        deliverableId: member.deliverableId,
+        summary: `Review ${member.title}.`,
+        changes: [{ topic: "Boundary", description: "Adds the concrete reviewer-facing change." }],
+      })),
     };
     const rejected = vi.fn();
     const rejectedWrite = vi.fn();
@@ -236,11 +241,10 @@ describe("delivery execution handler", () => {
     await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         ...baseRequest,
-        presentations: plan.members.slice(0, -1).map((member) => ({
-          deliverableId: member.deliverableId,
-          summary: `Review ${member.title}.`,
-          changes: [{ topic: "Boundary", description: "Adds the concrete reviewer-facing change." }],
-        })),
+        terminalPresentation: {
+          title: "feat(delivery): publish the work unit",
+          body: "## Summary\n\nPublish the complete work unit.",
+        },
       })),
       execute: accepted,
       write: vi.fn(),

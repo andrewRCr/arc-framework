@@ -48,6 +48,11 @@ describe("packaged delivery workflow", () => {
     const nativeSection = section(packaged, "Select and execute the native landing arm");
     const reviewSection = section(packaged, "Review and land the current member");
     expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
+    expect(materializeSection).toContain("terminalPresentation");
+    expect(materializeSection.indexOf("arc delivery publish")).toBeLessThan(
+      materializeSection.indexOf("arc delivery native link"),
+    );
+    expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
     expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
     expect(nativeSection).toMatch(
       /only the plan, request, and remote locators[\s\S]*effect\s+identity from delivery state/iu,

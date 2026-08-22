@@ -397,70 +397,24 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
   through a two-parent `commit-tree` plus exact `update-ref` CAS; retries adopt only the exact prior result, and the
   same top ref accepts later contained members without rewrite or force semantics.
 
-### `[ ]` **4.3 Bind the terminal member at publish**
+### `[x]` **4.3 Bind the terminal member at publish**
 
 - _Goal:_ The terminal member binds its ref, change request, and coordinates when its pull request opens, exactly
   like any other member, so no member is left unbound through the landing window.
 
-- _Context:_ Materialization derives a null ref and null request base for the final index today and binds the
-  terminal only after merge. That rule is what the disconnected terminal request required; with the top chained
-  onto the highest member it no longer applies.
+- _Outcome:_ The terminal now derives the originating ref and its predecessor base, binds ref, coordinates, and the
+  ordinary request through publication, and adopts an exact existing request without rewriting presentation. The
+  member composer remains non-terminal-only, and a one-member stack follows the same protected-base-to-top path.
 
-- _Shape:_ The terminal's coordinates already flow from the snapshot's top slot rather than from the member list,
-  so its ref is the originating branch and stays outside the delivery namespace that every other member ref
-  occupies. That is what keeps the recut path's direct-delivery-ref guard discriminating the case it was written
-  for.
-
-- _Note:_ The top pull request uses the ordinary work-unit template and the ordinary Conventional-Commits title,
-  which the pull-request template already prescribes for the terminal member. Stack affiliation is conveyed
-  structurally by the base ref, so no delivery-specific title convention is introduced — pull-request title policy
-  is owned elsewhere and consumed here, not pre-empted.
-
-- _Note:_ A null ref is what excludes the terminal from the publish arm's presentation and request loops today, so
-  binding it draws the terminal into both. The presentation route dispatches by index — the ordinary work-unit
-  form at the terminal, the member composer below it — and the member composer keeps its terminal guard as an
-  internal invariant rather than as the exclusion mechanism. Left unrouted, the terminal reaches a composer that
-  refuses it and publication returns a reason-free refusal.
-
-- _Shape:_ Publication accepts one strict caller-authored `terminalPresentation` with the ordinary `title` and
-  `body`, separate from the non-terminal presentation array. The calling workflow authors it through the existing
-  ordinary template. The complete presentation set validates before any push or host mutation. On replay, an
-  already-open request at the exact head and base is adopted without rewriting presentation; the terminal input is
-  consumed only when the request is missing and is not persisted in delivery state.
-
-    - Build `test-first` (one behavior at a time):
-        - The terminal member derives its ref from the top and a request base pointing at the highest member's
-          branch
-        - Terminal binding populates ref, change request, and coordinates at publish rather than post-merge
-        - The terminal receives the ordinary work-unit presentation, and the member composer is never called for it
-        - The member composer still guards its terminal index when called directly
-        - A missing or malformed terminal presentation refuses before any ref push or host mutation
-        - Retrying an already-open exact terminal request does not rewrite its title or body
-        - Existing tests encoding the terminal-unbound invariant are updated to the new contract, not worked around
-        - A single-member plan still publishes coherently
-
-### `[ ]` **4.4 Re-author the publish arm: push members, open requests bottom-up, optionally register**
+### `[x]` **4.4 Re-author the publish arm: push members, open requests bottom-up, optionally register**
 
 - _Goal:_ Publication pushes the member set, opens every pull request bottom-up, then optionally registers the
   non-terminal members after their provider-assigned request IDs exist, with the terminal request in the same arm.
 
-- _Context:_ The shipped boundary is unchanged around it: whole-work-unit attestation over the top branch's union
-  tree precedes publication at the publication-step head. What changes is the push arm's shape.
-
-- _Approach:_ The workflow's materialize and publish sections are re-authored around the transition and this arm.
-  Prose stays dispatch-shaped — the returned next action selects the member and prose implements no loop.
-
-- **Additional Context:** `strategy-workflow-authoring.md` — this task re-authors sections of a shipped workflow
-  that exists in the package source and the project copy
-
-    - Build `test-first` (one behavior at a time):
-        - Publication pushes every member ref before opening any request
-        - The complete non-terminal and terminal presentation input validates before the first push
-        - Requests open bottom-up, each based on its predecessor's branch
-        - The terminal request opens in the same arm, based on the highest member's branch
-        - Optional registration runs only after every request ID exists and covers the non-terminal members only
-        - Declining registration issues zero registration calls
-        - A failure partway through leaves state resumable rather than half-bound
+- _Outcome:_ Materialization publishes every delivery ref and advances the adopted top by ordinary fast-forward
+  before publication opens bottom-up requests, while an interrupted request reservation resumes by exact host
+  observation. The shipped workflow validates both presentation forms first and routes optional non-terminal native
+  registration only after every request ID exists; opt-out and one-member paths make no registration call.
 
 ### `[ ]` **4.5 Extend the window-time mutation loop with its mechanical tail**
 

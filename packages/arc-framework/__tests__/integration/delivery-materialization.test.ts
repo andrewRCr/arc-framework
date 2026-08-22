@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   deleteDeliveryRemoteRef,
   publishDeliveryMemberRef,
+  publishDeliveryTopRef,
 } from "../../src/lib/delivery/git-materialization.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
@@ -49,6 +50,17 @@ describe("delivery materialization against a bare remote", () => {
     await execFileAsync("git", ["add", "second.txt"], { cwd: repository });
     await execFileAsync("git", ["commit", "-m", "second"], { cwd: repository });
     const second = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repository })).stdout.trim();
+    const topRef = "refs/heads/feat/example";
+    await execFileAsync("git", ["push", "origin", `${first}:${topRef}`], { cwd: repository });
+    await expect(publishDeliveryTopRef({
+      exec, remote: "origin", ref: topRef, beforeHead: first, requestedHead: second,
+    })).resolves.toEqual({ status: "published" });
+    await expect(publishDeliveryTopRef({
+      exec, remote: "origin", ref: topRef, beforeHead: first, requestedHead: second,
+    })).resolves.toEqual({ status: "adopted" });
+    const publishedTop = await execFileAsync("git", ["ls-remote", "--refs", "origin", topRef], { cwd: repository });
+    expect(publishedTop.stdout.trim()).toBe(`${second}\t${topRef}`);
+
     await expect(publishDeliveryMemberRef({ exec, remote: "origin", ref, head: second }))
       .resolves.toEqual({ status: "refused", reason: "collision" });
     const retained = await execFileAsync("git", ["ls-remote", "--refs", "origin", ref], { cwd: repository });

@@ -5,6 +5,7 @@ import {
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
   publishDeliveryRemoteRef,
+  publishDeliveryTopRef,
   rewriteDeliveryRemoteRef,
 } from "../../../src/lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
@@ -43,6 +44,41 @@ describe("delivery remote-ref leases", () => {
     await expect(publishDeliveryMemberRef({ exec, remote: "origin", ref, head }))
       .resolves.toEqual({ status: "refused", reason: "collision" });
     expect(remoteMutation).toBe(false);
+  });
+
+  it("advances the ordinary top ref from the exact prior head without force semantics", async () => {
+    const topRef = "refs/heads/feat/example";
+    const beforeHead = "b".repeat(40);
+    const requestedHead = "c".repeat(40);
+    let remoteHead = beforeHead;
+    const mutations: string[][] = [];
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "ls-remote") return { stdout: `${remoteHead}\t${topRef}\n` };
+      mutations.push(args);
+      remoteHead = requestedHead;
+      return { stdout: "" };
+    };
+
+    await expect(publishDeliveryTopRef({
+      exec, remote: "origin", ref: topRef, beforeHead, requestedHead,
+    })).resolves.toEqual({ status: "published" });
+    expect(mutations).toEqual([["push", "origin", `${requestedHead}:${topRef}`]]);
+    await expect(publishDeliveryTopRef({
+      exec, remote: "origin", ref: topRef, beforeHead, requestedHead,
+    })).resolves.toEqual({ status: "adopted" });
+  });
+
+  it("refuses an ordinary top publication when the remote moved unexpectedly", async () => {
+    const topRef = "refs/heads/feat/example";
+    const exec: GitExec = async () => ({ stdout: `${"d".repeat(40)}\t${topRef}\n` });
+
+    await expect(publishDeliveryTopRef({
+      exec,
+      remote: "origin",
+      ref: topRef,
+      beforeHead: "b".repeat(40),
+      requestedHead: "c".repeat(40),
+    })).resolves.toEqual({ status: "refused", reason: "collision" });
   });
 
   it("refuses a different remote head, malformed evidence, or an unavailable read", async () => {

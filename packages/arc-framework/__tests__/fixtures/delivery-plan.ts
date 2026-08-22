@@ -18,6 +18,11 @@ export function deliveryStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1
   return buildDeliveryPlanFixture(planId, "stack-to-main");
 }
 
+/** Construct a valid independently-landable one-member stack plan. */
+export function deliverySingleMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 1);
+}
+
 /** Construct a valid independently-landable three-member stack plan. */
 export function deliveryThreeMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
   return buildDeliveryPlanFixture(planId, "stack-to-main", 3);

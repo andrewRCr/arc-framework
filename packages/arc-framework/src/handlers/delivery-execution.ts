@@ -32,6 +32,7 @@ import {
   deleteDeliveryRemoteRef,
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
+  publishDeliveryTopRef,
   rewriteDeliveryRemoteRef,
 } from "../lib/delivery/git-materialization.js";
 import {
@@ -147,6 +148,10 @@ const PublishSchema = MaterializeSchema.extend({
     })).min(1).optional(),
     designReference: z.string().trim().min(1).regex(/^[^\r\n]+$/u).optional(),
   })),
+  terminalPresentation: z.strictObject({
+    title: z.string().trim().min(1).regex(/^[^\r\n]+$/u),
+    body: z.string().trim().min(1),
+  }),
 });
 const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: DeliveryPositionFactsV1Schema });
 const ReconcileSchema = z.strictObject({
@@ -855,9 +860,10 @@ async function executeDeliveryCommand(
             return outcome.status === "refused" ? { status: "refused" as const } : outcome;
           },
         };
-        const current = await stateStore.read(plan.planId);
-        if (current.status !== "ok") return { status: "refused" as const, reason: "state-unavailable" };
-        if (current.value === null) {
+        const initial = await stateStore.read(plan.planId);
+        if (initial.status !== "ok") return { status: "refused" as const, reason: "state-unavailable" };
+        const nonTerminalMembers = derived.value.members.filter((member) => member.kind === "member");
+        if (initial.value === null && nonTerminalMembers.length > 0) {
           if (command === "publish") {
             const publish = publishRequest;
             if (publish === null) return { status: "refused" as const, reason: "initial-request-refused" };
@@ -882,32 +888,81 @@ async function executeDeliveryCommand(
             if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
           }
         }
-        const materialized = await materializeBoundDeliveryChain({
-          plan, materialization: derived.value, stateStore, refs,
+        let materialized = null;
+        let adoptedMaterialization = derived.value;
+        const highestMember = nonTerminalMembers.at(-1);
+        if (highestMember !== undefined) {
+          materialized = await materializeBoundDeliveryChain({
+            plan, materialization: derived.value, stateStore, refs,
+          });
+          if (materialized.status !== "materialized") return materialized;
+          const adoption = await adoptGitDeliveryChain({
+            exec: createRawGitExec(cwd),
+            topRef: parsed.controlRef,
+            commonBase: snapshot.protectedBase,
+            highestMember: { head: highestMember.head, tree: highestMember.tree },
+            top: snapshot.control,
+          });
+          if (adoption.status !== "adopted") return adoption;
+          adoptedMaterialization = {
+            ...derived.value,
+            members: derived.value.members.map((member) => member.kind === "terminal"
+              ? {
+                  ...member,
+                  ref: parsed.controlRef,
+                  head: adoption.head,
+                  tree: adoption.tree,
+                  coordinates: { ...member.coordinates, head: adoption.head, tree: adoption.tree },
+                }
+              : member),
+          };
+        }
+        const terminal = adoptedMaterialization.members.at(-1);
+        if (terminal?.kind !== "terminal" || terminal.ref === null) {
+          return { status: "refused" as const, reason: "projection-invalid" };
+        }
+        const terminalRef = terminal.ref;
+        const publishTop = () => publishDeliveryTopRef({
+          exec,
+          remote: parsed.remote,
+          ref: terminalRef,
+          beforeHead: snapshot.control.head,
+          requestedHead: terminal.head,
         });
-        if (materialized.status !== "materialized") return materialized;
-        const highestMember = [...derived.value.members].reverse().find((member) => member.ref !== null);
-        if (highestMember === undefined) return { status: "refused" as const, reason: "projection-invalid" };
-        const adoption = await adoptGitDeliveryChain({
-          exec: createRawGitExec(cwd),
-          topRef: parsed.controlRef,
-          commonBase: snapshot.protectedBase,
-          highestMember: { head: highestMember.head, tree: highestMember.tree },
-          top: snapshot.control,
-        });
-        if (adoption.status !== "adopted") return adoption;
+        const topPublication = await publishTop();
+        if (topPublication.status === "refused") return topPublication;
+        if (nonTerminalMembers.length === 0 && initial.value === null) {
+          const topRefs = {
+            observe: (ref: string) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
+            publish: async () => {
+              const outcome = await publishTop();
+              return outcome.status === "refused" ? { status: "refused" as const } : outcome;
+            },
+          };
+          const bound = await bindInitialDeliveryRef({
+            plan, materialization: adoptedMaterialization, stateStore, refs: topRefs,
+          });
+          if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
+        }
+        if (materialized === null) {
+          materialized = await materializeBoundDeliveryChain({
+            plan, materialization: adoptedMaterialization, stateStore, refs,
+          });
+          if (materialized.status !== "materialized") return materialized;
+        }
         if (command === "materialize") return materialized;
         const publish = publishRequest;
         if (publish === null) return { status: "refused" as const, reason: "initial-request-refused" };
         return publishDeliveryRequests({
           plan,
-          materialization: derived.value,
+          materialization: adoptedMaterialization,
           stateStore,
           host: new GhDeliveryHostPort(hostedGhRunner),
           providerId: "github",
           repository: publish.repository,
           draft: publish.draft,
-          presentation: (member) => {
+          terminalPresentation: publish.terminalPresentation,
+          memberPresentation: (member) => {
             const authored = reviewerPresentations?.value.get(member.deliverableId);
             if (authored === undefined) throw new Error("validated delivery presentation coverage was lost");
             return describeDeliveryMemberPresentation(plan, member, authored);
