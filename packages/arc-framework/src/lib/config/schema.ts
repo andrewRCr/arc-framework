@@ -9,7 +9,11 @@ export type QuotedEmptyPosture = "default" | "unset" | "invalid";
 export type ArcConfigFieldPolicy =
   | { readonly kind: "enum"; readonly values: readonly string[] }
   | { readonly kind: "boolean-token" }
-  | { readonly kind: "positive-safe-integer"; readonly minimum: number }
+  | {
+    readonly kind: "positive-safe-integer";
+    readonly minimum: number;
+    readonly maximum?: number;
+  }
   | { readonly kind: "unsigned-safe-integer" }
   | { readonly kind: "registry-id-list" }
   | {
@@ -138,15 +142,19 @@ function positiveSafeIntegerField<const Key extends string>(
   key: Key,
   defaultValue: string,
   minimum: 1 | 10,
+  maximum?: number,
 ) {
+  const baseSchema = z.string().regex(
+    minimum === 1 ? POSITIVE_SAFE_INTEGER_PATTERN : SAFE_INTEGER_AT_LEAST_TEN_PATTERN,
+  );
   return {
     key,
-    schema: z.string().regex(
-      minimum === 1 ? POSITIVE_SAFE_INTEGER_PATTERN : SAFE_INTEGER_AT_LEAST_TEN_PATTERN,
-    ),
+    schema: maximum === undefined
+      ? baseSchema
+      : baseSchema.refine((value) => Number(value) <= maximum),
     defaultValue,
     quotedEmpty: "invalid",
-    policy: { kind: "positive-safe-integer", minimum },
+    policy: { kind: "positive-safe-integer", minimum, ...(maximum === undefined ? {} : { maximum }) },
   } satisfies ArcConfigFieldDescriptor<Key>;
 }
 
@@ -272,6 +280,9 @@ export const ARC_CONFIG_FIELDS = [
   registryIdListField("review.standard_sources", StandardSourceListSchema, "[]", "invalid"),
   positiveSafeIntegerField("review.frontline_max_passes", "2", 1),
   positiveSafeIntegerField("review.standard_max_passes", "2", 1),
+  positiveSafeIntegerField("review.hosted_await_timeout_seconds", "120", 1, 30 * 60),
+  positiveSafeIntegerField("review.hosted_await_initial_poll_interval_seconds", "15", 1, 60),
+  positiveSafeIntegerField("review.hosted_await_attention_after_minutes", "15", 1),
   unsignedSafeIntegerField("changeset.advisory_threshold_lines", "0"),
   unsignedSafeIntegerField("changeset.advisory_threshold_files", "0"),
   enumField("pm.mode", ["none", "arc-in-git", "external"], "none"),

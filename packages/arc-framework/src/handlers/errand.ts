@@ -523,6 +523,8 @@ async function runErrandOpenHandler(
       inbox,
       protection,
       base,
+      syncPrimaryBase: settings["session.remote_sync"] === "enabled"
+        && settings["session.init_pull.base"] === "always",
       createdAt,
       identity,
       locationTemplate: settings["worktree.location_template"],
@@ -873,6 +875,7 @@ export async function handleErrandMaterialize(
             executeBound: false,
           },
           protection: "full",
+          syncPrimaryBase: false,
           isolation: "require-isolation",
           changeRequestReentry: "strict",
           pausedHeadReentry: "exact",
@@ -1211,10 +1214,10 @@ async function runErrandCloseHandler(
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
-        removeInbox: async (record, parentCheckoutPath) => {
+        removeInbox: async (record, parentCheckoutPath, settlementCheckoutPath) => {
           if (record.originEntry === null) return { kind: "absent", nextOffer: null };
           const removed = await removeCurrentInboxEntry({
-            cwd: parentCheckoutPath ?? cwd,
+            cwd: settlementCheckoutPath ?? parentCheckoutPath ?? cwd,
             io,
             identity,
             title: record.originEntry,

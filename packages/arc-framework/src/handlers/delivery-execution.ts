@@ -569,6 +569,9 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  const resolveMemberReadOnly = (head: string) => (
+    stateStore.resolveMemberReadOnly({ selector: { kind: "head", objectId: head } })
+  );
   const eligibilityDeps = {
     observeRef: (ref: string) => observeDeliveryEligibilityRef(exec, ref),
     readAncestry: (ancestor: string, descendant: string) => readAncestry(exec, ancestor, descendant),
@@ -869,7 +872,10 @@ async function executeDeliveryCommand(
     return prepareDeliveryEligibility(PrepareSchema.parse(request), eligibilityDeps);
   }
   if (command === "eligibility-close") {
-    return closeDeliveryEligibility(CloseSchema.parse(request).snapshot, eligibilityDeps);
+    return closeDeliveryEligibility(CloseSchema.parse(request).snapshot, {
+      ...eligibilityDeps,
+      resolveMember: resolveMemberReadOnly,
+    });
   }
   if (command === "publish") {
     const parsed = PublishSchema.parse(request);

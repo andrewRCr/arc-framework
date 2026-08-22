@@ -11,6 +11,8 @@ import {
 } from "../../../src/lib/command-input/index.js";
 import { commandInputRegistrations } from "../../../src/command-input-registrations.js";
 
+const REPOSITORY_SCAN_TIMEOUT = 15_000;
+
 describe("command-input schema adapter and registry", () => {
   it("parses equivalent argument and prompt values through one command-owned schema", () => {
     const schema = z.object({ name: z.string().trim().min(1) }).strict();
@@ -88,7 +90,7 @@ describe("command-input schema adapter and registry", () => {
       "work-class",
       "work-unit-state",
     ].sort());
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it("preserves stub cohort-path acceptance in the JSON Schema projection", () => {
     const registry = createCommandInputRegistry(commandInputRegistrations);

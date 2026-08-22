@@ -188,6 +188,9 @@ remote base all name the same exact head. Any tracked change continues through t
      author Errand-side delivery state.
 
    Select whole-target or chunked scope separately for each role and pass it to `arc review resolve -`.
+   Configured standard-source order is the default. For an explicit Owner selection of a configured source, pass
+   `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
+   Errand binding carries that source and its ordered fallbacks through hosted request and await.
 
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
@@ -266,16 +269,30 @@ remote base all name the same exact head. Any tracked change continues through t
    `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
    `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
 
-   - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use that bounded
-     wait again for `pending / await`; do not build an agent polling loop.
+   - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing
+     uses the project's configured bounded-call defaults.
+   - `pending / await` — re-invoke the same handle; do not build an agent polling loop.
+   - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
+     request intact. Re-invoking the same handle checks once; on explicit direction, pass
+     `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
+     provider outcome.
+
+   Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
+   the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
+   series and non-pass outcomes retain the prior count.
+
    - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-   - `findings / triage` — run the disposition protocol. For each approved finding with
-     `settlement: reply-and-resolve`, settle before feeding `findings` back to the driver. For `defer` or `reject`,
-     invoke `arc review hosted settle -` with the unchanged originating `target` and `fixTarget: null`. For `fix`,
-     apply and verify the approved change, commit and push it, recompose the current target, then invoke the same
-     verb with the originating `target` plus that changed `fixTarget`. A finding with
-     `settlement: not-applicable` is triage-only: never invoke `hosted settle`, post a reply or compensating summary
-     comment, or resolve anything for it, regardless of disposition.
+   - `findings / triage` — run the disposition protocol. When `arc review respond -` returns
+     `payload.hostedSettlementPlan` for approved `settlement: reply-and-resolve` findings, execute its phases in
+     order: invoke `arc review hosted settle -` for every ID in the active phase. Settle each `beforeFixFindingIds`
+     entry against the unchanged originating `target` with `fixTarget: null`, and require every result to complete
+     before any approved fix changes the head; then apply, verify, commit, and push the approved fixes; then settle
+     every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified for the
+     current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
+     never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
+     On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
+     only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
+     mutation; every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay

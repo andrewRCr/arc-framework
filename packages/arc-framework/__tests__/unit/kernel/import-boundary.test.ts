@@ -8,6 +8,7 @@ import ts from "typescript";
 import { auditKernelBoundary } from "./import-boundary.js";
 
 const temporaryRoots: string[] = [];
+const REPOSITORY_SCAN_TIMEOUT = 15_000;
 
 function fixture(files: Readonly<Record<string, string>>): { kernelRoot: string; sourceRoot: string } {
   const sourceRoot = mkdtempSync(join(tmpdir(), "arc-kernel-boundary-"));
@@ -187,5 +188,5 @@ describe("kernel import boundary", () => {
     const kernelRoot = join(sourceRoot, "lib/kernel");
 
     expect(auditKernelBoundary({ kernelRoot, sourceRoot })).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 });

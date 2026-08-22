@@ -525,10 +525,16 @@ export const LocalAttestEnvelopeSchema = z.union([
   ),
 ]);
 
+const HostedSettlementPlanSchema = z.strictObject({
+  beforeFixFindingIds: z.array(IdentifierSchema),
+  afterFixFindingIds: z.array(IdentifierSchema),
+});
+
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
   frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
+  hostedSettlementPlan: HostedSettlementPlanSchema.optional(),
 });
 export const RespondEnvelopeSchema = z.union([
   envelopeVariant(
@@ -582,6 +588,24 @@ export const RespondEnvelopeSchema = z.union([
       candidateId: CanonicalDigestSchema,
       recordPath: DurableReferenceSchema,
       implementationChanged: z.boolean(),
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "errand-advanced",
+    "continue-review",
+    z.strictObject({
+      ...DispositionPayloadSchema.shape,
+      fixAuthorizationId: CanonicalDigestSchema,
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "errand-current",
+    "continue-review",
+    z.strictObject({
+      ...DispositionPayloadSchema.shape,
+      fixAuthorizationId: CanonicalDigestSchema,
     }),
   ),
   // Settlement-replay invalidations. The replay runs unattended behind the merge verb, where an

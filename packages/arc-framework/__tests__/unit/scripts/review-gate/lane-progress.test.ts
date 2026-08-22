@@ -197,7 +197,7 @@ describe("lane progress", () => {
     expect(hostedAwaitLaneOutcome("terminal-failure")).toBe("terminal-failure");
   });
 
-  it("treats a deadline yield as no concluded attempt", () => {
+  it("treats ordinary and attention-bound pending results as no concluded attempt", () => {
     expect(hostedAwaitLaneOutcome("pending")).toBeNull();
   });
 });
@@ -323,6 +323,27 @@ describe("hosted await lane recording", () => {
       result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "pending", nextAction: "await", elapsedMs: 10 },
       now: "2026-08-15T12:00:00Z",
     });
+    expect(state).toBeNull();
+    expect(store.state).toBeNull();
+  });
+
+  it("records nothing when unattended waiting requests inspection or extension", async () => {
+    const store = createStore();
+    const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "pending",
+        nextAction: "inspect-or-extend",
+        ageMs: 900_000,
+        attentionAfterMs: 900_000,
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
     expect(state).toBeNull();
     expect(store.state).toBeNull();
   });

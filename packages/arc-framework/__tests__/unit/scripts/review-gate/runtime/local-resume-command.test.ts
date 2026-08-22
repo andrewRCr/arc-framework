@@ -511,6 +511,7 @@ describe("local resume command", () => {
       repositoryId: records.operation.repositoryId,
       operationId: records.operation.operationId,
       candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
       source: {
         kind: "attested-local",
         receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
@@ -518,6 +519,7 @@ describe("local resume command", () => {
       },
       approvedDisposition,
       fixAuthorization: null,
+      errandFixResponse: null,
     });
 
     await expect(resumeLocalReviewCommand({

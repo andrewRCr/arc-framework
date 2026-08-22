@@ -7,12 +7,18 @@ import {
   type KernelRegistry,
 } from "../../../lib/kernel/index.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { CandidateVerificationApplicabilitySchema } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import {
   FrontlineExecutionOutcomeSchema,
   type FrontlineExecutionOutcome,
 } from "../policy/frontline-outcome.js";
+import { HostedTargetSchema } from "../hosted/request.js";
 import { ApprovedDispositionSetSchema } from "./disposition-records.js";
-import { FixAuthorizationSchema } from "./fix-authorization-records.js";
+import {
+  FixAuthorizationConsumptionSchema,
+  FixAuthorizationSchema,
+} from "./fix-authorization-records.js";
 import {
   ReviewCanonicalDigestSchema,
   ReviewIdentifierSchema,
@@ -43,16 +49,43 @@ export const ApprovedDispositionSourceSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+/** Exact ordinary Errand claim that owns a review response. */
+export const ErrandReviewBindingSchema = z.strictObject({
+  key: SlugSchema,
+  claimId: z.string().trim().min(1),
+  branch: z.string().trim().min(1),
+});
+export type ErrandReviewBinding = z.infer<typeof ErrandReviewBindingSchema>;
+
+/** Monotonic evidence that one approved Errand fix landed and was verified. */
+export const ErrandReviewFixResponseSchema = z.strictObject({
+  oldTarget: ReviewTargetSchema,
+  newTarget: ReviewTargetSchema,
+  applicability: CandidateVerificationApplicabilitySchema,
+  fixConsumption: FixAuthorizationConsumptionSchema,
+  hostedTarget: HostedTargetSchema.nullable(),
+});
+export type ErrandReviewFixResponse = z.infer<typeof ErrandReviewFixResponseSchema>;
+
 export const ApprovedDispositionRecordSchema = z.strictObject({
   ...AdvisoryRecordHeaderShape,
   candidate: z.strictObject({
     workUnit: SlugSchema,
     candidateId: ReviewCanonicalDigestSchema,
   }).nullable(),
+  errand: ErrandReviewBindingSchema.nullable(),
   source: ApprovedDispositionSourceSchema,
   approvedDisposition: ApprovedDispositionSetSchema,
   fixAuthorization: FixAuthorizationSchema.nullable(),
+  errandFixResponse: ErrandReviewFixResponseSchema.nullable(),
 }).superRefine((record, context) => {
+  if (record.candidate !== null && record.errand !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "a disposition record cannot bind both a Candidate and an Errand",
+      path: ["errand"],
+    });
+  }
   if (record.fixAuthorization !== null
     && record.fixAuthorization.dispositionSetId
       !== record.approvedDisposition.dispositionSet.dispositionSetId) {
@@ -60,6 +93,39 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
       code: "custom",
       message: "fix authorization must bind the approved disposition set",
       path: ["fixAuthorization"],
+    });
+  }
+  const response = record.errandFixResponse;
+  if (response === null) return;
+  if (record.errand === null || record.candidate !== null || record.fixAuthorization === null) {
+    context.addIssue({
+      code: "custom",
+      message: "an Errand fix response requires one bound Errand and its fix authorization",
+      path: ["errandFixResponse"],
+    });
+    return;
+  }
+  if (response.oldTarget.targetId !== record.approvedDisposition.dispositionSet.targetId
+    || response.oldTarget.targetId !== record.fixAuthorization.oldTargetId
+    || response.oldTarget.headSha !== record.fixAuthorization.oldHeadSha
+    || response.fixConsumption.fixAuthorizationId !== record.fixAuthorization.fixAuthorizationId
+    || response.fixConsumption.dispositionSetId !== record.fixAuthorization.dispositionSetId
+    || response.fixConsumption.oldTargetId !== response.oldTarget.targetId
+    || response.fixConsumption.newTargetId !== response.newTarget.targetId
+    || response.fixConsumption.oldHeadSha !== response.oldTarget.headSha
+    || response.fixConsumption.newHeadSha !== response.newTarget.headSha) {
+    context.addIssue({
+      code: "custom",
+      message: "Errand fix response must bind the exact authorization and target transition",
+      path: ["errandFixResponse"],
+    });
+  }
+  if ((record.source.kind === "hosted") !== (response.hostedTarget !== null)
+    || (response.hostedTarget !== null && response.hostedTarget.headSha !== response.oldTarget.headSha)) {
+    context.addIssue({
+      code: "custom",
+      message: "hosted Errand fixes must retain their exact originating change request",
+      path: ["errandFixResponse", "hostedTarget"],
     });
   }
 });

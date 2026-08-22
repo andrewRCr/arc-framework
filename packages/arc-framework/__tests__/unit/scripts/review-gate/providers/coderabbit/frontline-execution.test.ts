@@ -285,6 +285,35 @@ describe("CodeRabbit frontline execution", () => {
     });
   });
 
+  it.each(["0.6.4", "0.7.2"])(
+    "accepts structurally valid output from resolved CodeRabbit CLI version %s",
+    async (cliVersion) => {
+      const resolvedIdentity = {
+        ...executableIdentity,
+        qualifiedVersion: `coderabbit/${cliVersion}`,
+      };
+
+      await expect(executeCodeRabbitFrontline({
+        source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+        target,
+        pass: 1,
+        maxPasses: 2,
+        reviewRoot: "/tmp/exact-head",
+        remainingMs: 60_000,
+        signal: new AbortController().signal,
+      }, {
+        run: vi.fn().mockResolvedValue({ exitCode: 0, signal: null, stdout: cleanOutput, stderr: "" }),
+        resolveExecutable: vi.fn().mockResolvedValue(resolvedIdentity),
+      })).resolves.toMatchObject({
+        outcome: { outcome: "clean" },
+        executableIdentity: {
+          digest: resolvedIdentity.digest,
+          qualifiedVersion: resolvedIdentity.qualifiedVersion,
+        },
+      });
+    },
+  );
+
   it("preserves structured findings for author-side triage", async () => {
     const finding = {
       type: "finding",
