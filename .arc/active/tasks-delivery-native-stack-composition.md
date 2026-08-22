@@ -288,10 +288,16 @@ trunk makes common, which is the observed failure with different bytes.
   retains endpoint types plus the unchanged-predecessor tree shortcut, and suffix rematerialization remains the
   review-fix recut path using the single structural arbiter.
 
-### `[ ]` **2.6 Close delivery member 2** — validate criteria at member scope
+### `[x]` **2.6 Close delivery member 2** — validate criteria at member scope
 
 - _Goal:_ Member 2's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
+
+- _Outcome:_ All three Member 2 criteria resolved `[x]` over `22c11cc63..a8eaa4d70` and the cumulative tree.
+  The structural arbiter reapplies every moved-predecessor case and carries exact conflict or divergence paths;
+  the shared capability probe preserves the typed refusal while verifying a pinned fallback when `HEAD` is
+  unusable; and the aggregate-patch and linearity substrate is absent. The first Heavy adversarial pass exposed
+  both edge cases, their approved fixes landed in the evidence span, and the second full pass returned no findings.
 
 ## **Phase 3:** Delivery-aware review-gate resolution
 
