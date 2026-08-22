@@ -422,12 +422,13 @@ one concern" fact is preserved as **provenance — an immutable past-event recor
 
 ### Active-state decomposition
 
-Decomposition is normally a planning-time act, before code is written. Extraction is the supported active-origin
-arm. It is entered through its own command mode, and the core retirement transform remains unchanged. Extraction
-keeps the origin active and its committed code in place while retained unbuilt scope stays with the origin and
-transferred unbuilt scope splits into new members.
+Decomposition is normally a planning-time act, before code is written. Extraction is the supported surviving-origin
+arm for a started `Planning` or `Active` source. It is entered through its own command mode, and the core retirement
+transform remains unchanged. Extraction preserves the origin in its current lifecycle state and keeps its committed
+code in place while retained unbuilt scope stays with the origin and transferred unbuilt scope splits into new
+members.
 
-The surviving active origin is the natural continuation, not a selected successor. Extraction writes no transition
+The surviving origin is the natural continuation, not a selected successor. Extraction writes no transition
 record or receipt and stores no launch advice or publication packet. New leaves become startable only through their
 landed base metas and ordinary lifecycle resolution.
 

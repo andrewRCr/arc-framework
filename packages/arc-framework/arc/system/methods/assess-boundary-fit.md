@@ -121,7 +121,7 @@ The method produces exactly one of **"stays one WU"**, the author-owned half of 
 **"stays one WU + delivery-plan candidate"**. For a cut-map, the CLI supplies the immutable source units and
 dependency edges; complete only these authoring decisions:
 
-- **shape** — `symmetric` or `heterogeneous`;
+- **shape** — `symmetric`, `heterogeneous`, or `extraction`;
 - **placement** — `direct-member`, `cohort`, `subcohort`, or `at-cap`;
 - **destinations** — each exact `new-member`, `existing-home`, or `cohort-coordination` target;
 - **source allocations** — one destination and locator, one `retained-origin` disposition, or one reasoned drop,
@@ -138,10 +138,10 @@ member must select `cohort`, `subcohort`, or `at-cap`, regardless of content own
 remain `existing-home` destinations, not members. Ownerless shared coordination independently requires a
 cohort-backed placement and a `cohort-coordination` destination.
 
-Extraction is the supported active-origin arm. It is entered through its own command mode, and the core retirement
-transform remains unchanged. A retirement cut-map transfers every source unit into declared destinations or
-reasoned drops and retires the origin. An extraction cut-map may instead keep units under `retained-origin`; the
-surviving origin is their owner and logical anchor, not another destination.
+Extraction is the supported surviving-origin arm for a started `Planning` or `Active` source. It is entered through
+its own command mode, and the core retirement transform remains unchanged. A retirement cut-map transfers every
+source unit into declared destinations or reasoned drops and retires the origin. An extraction cut-map may instead
+keep units under `retained-origin`; the surviving origin is their owner and logical anchor, not another destination.
 
 Producing the cut-map ends this method's job — it _decides_, it never executes the cut. `decompose-work-unit`
 consumes the cut-map and runs the transform.

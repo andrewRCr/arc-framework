@@ -13,8 +13,8 @@ arc:
 **The operator owns semantic distribution; `arc decompose` owns source discovery, closed mode dispatch, topology,
 mutation, validation, and rollback. Retirement alone owns the durable transition record** · `[invariant]`.
 
-Extraction is the supported active-origin arm. It is entered through its own command mode, and the core retirement
-transform remains unchanged.
+Extraction is the supported surviving-origin arm for a started `Planning` or `Active` source. It is entered through
+its own command mode, and the core retirement transform remains unchanged.
 
 Use only CLI-reported paths, packets, statuses, and remedies. On refusal, surface the returned status and remedy
 unchanged, stop, and re-enter only at the reported action. Never construct identifiers, Git topology, recovery
@@ -27,8 +27,8 @@ commands, or extraction report fields.
 - Destination, dependency, retained/transferred ownership, and placement intent is settled.
 - Existing destinations are exact edit homes, never implicit new members.
 
-The completed map's machine-owned shape selects one closed command arm. Never reinterpret the map or substitute one
-arm when the CLI refuses another.
+The completed map's operator-owned `authoring.shape` selects one closed command arm. Never reinterpret the map or
+substitute one arm when the CLI refuses another.
 
 ## 1. Emit the exact preflight
 
@@ -51,15 +51,15 @@ Edit only the starter map's authoring slots:
 - name each new member or exact existing destination;
 - allocate every source unit once, retaining extraction scope at the origin or dropping scope with a reason;
 - disposition every incoming and outgoing dependency edge once;
-- select the already-settled placement; and
-- for extraction, author the retained/transferred ownership and stable anchor orientation requested by the map.
+- select the already-settled authoring shape and placement; and
+- for extraction, encode retained or transferred ownership only through the existing source-allocation slots.
 
 Preserve every machine-owned field. Do not calculate paths or identifiers, create unreported destinations, or
 derive machine facts from prose.
 
 ## 3. Dispatch the complete result
 
-Dispatch on the completed map's CLI-reported shape. Run exactly one arm.
+Dispatch on the completed map's operator-authored `authoring.shape`. Run exactly one arm.
 
 **Retirement dispatch:**
 
@@ -101,7 +101,7 @@ For extraction, add these exact typed result fields to the common review surface
 - `report.extraction.anchor`.
 
 Use their reported values verbatim and never re-derive them from artifacts or Git state. In the human orientation,
-name the surviving active origin as the natural continuation; it is not a successor selected by the workflow.
+name the surviving origin as the natural continuation; it is not a successor selected by the workflow.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after every reported destination is authored. Surface the actual distributed authority,
