@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/contribution-proof.js";
+import { DeliveryStateV1Schema } from "../../../src/lib/delivery/schema.js";
 import {
   assessDeliveryTerminalChecks,
   assessDeliveryTerminalTop,
   classifyDeliveryTerminalDrift,
   composeDeliveryTerminalClaim,
+  rebindDeliveryTerminalCoordinates,
 } from "../../../src/lib/delivery/terminal-integration.js";
 import {
   createCandidateAttestation,
@@ -108,7 +110,150 @@ async function terminalBoundaryFixture() {
   return { state, claim, targets };
 }
 
+function terminalRebindFixture() {
+  const f = fixture();
+  const terminal = f.state.members.at(-1)!;
+  const candidate = {
+    schemaVersion: 1 as const,
+    mode: "candidate-effective-target" as const,
+    state: "current" as const,
+    nextAction: "continue" as const,
+    candidateId: f.record.attestation.candidateId,
+    durableBaselineTarget: { revision: CANDIDATE_HEAD, subject: f.record.subject },
+    recognizedTarget: { revision: CANDIDATE_HEAD, subject: f.record.subject },
+    recognition: { kind: "durable" as const },
+    implementationChanged: false,
+    convergenceVerification: "satisfied" as const,
+  };
+  const coordinates = {
+    base: "c".repeat(40),
+    head: CANDIDATE_HEAD,
+    tree: CANDIDATE_TREE,
+  };
+  return {
+    ...f,
+    candidate,
+    coordinates,
+    input: {
+      plan: f.plan,
+      state: f.state,
+      candidate,
+      publication: {
+        settled: true,
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest: candidate.recognizedTarget.subject.subjectDigest,
+      },
+      repository: "owner/repo",
+      request: {
+        binding: terminal.changeRequest!,
+        repository: "owner/repo",
+        headRepository: "owner/repo",
+        headRef: terminal.ref!.replace(/^refs\/heads\//u, ""),
+        headSha: CANDIDATE_HEAD,
+        baseRef: f.state.target!.ref.replace(/^refs\/heads\//u, ""),
+        state: "open" as const,
+      },
+      coordinates,
+    },
+  };
+}
+
 describe("delivery terminal integration", () => {
+  it("rebinds only the terminal coordinates to the settled current Candidate", () => {
+    const f = terminalRebindFixture();
+    const result = rebindDeliveryTerminalCoordinates(f.input);
+
+    expect(result).toEqual({
+      status: "rebound",
+      state: {
+        ...f.state,
+        members: f.state.members.map((member, index, members) => index === members.length - 1
+          ? { ...member, coordinates: f.coordinates }
+          : member),
+      },
+      nextAction: "rerun-checkpoint",
+    });
+  });
+
+  it("returns the same checkpoint continuation when the exact rebind is rerun", () => {
+    const f = terminalRebindFixture();
+    const first = rebindDeliveryTerminalCoordinates(f.input);
+    if (first.status !== "rebound") throw new Error("fixture rebind must succeed");
+
+    expect(rebindDeliveryTerminalCoordinates({ ...f.input, state: first.state })).toEqual(first);
+  });
+
+  it.each([
+    ["active operation", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      state: {
+        ...f.state,
+        activeOperation: {
+          operationId: "operation-1",
+          kind: "materialize" as const,
+          affectedDeliverableIds: [f.state.members[0]!.deliverableId],
+          stateRevision: 1,
+          boundPlanDigest: f.plan.planDigest,
+          before: { target: f.state.target, members: f.state.members },
+          requested: { target: f.state.target, members: f.state.members },
+        },
+      },
+    }), "operation-active"],
+    ["moved request", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      request: { ...f.input.request, headSha: "f".repeat(40) },
+    }), "top-request-mismatch"],
+    ["incoherent state", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      state: DeliveryStateV1Schema.parse({ ...f.state, workUnitId: "other-work-unit" }),
+    }), "state-mismatch"],
+    ["unsettled publication boundary", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      publication: { ...f.input.publication, settled: false },
+    }), "publication-boundary-unsettled"],
+    ["different publication subject", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      publication: {
+        ...f.input.publication,
+        candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+      },
+    }), "publication-boundary-mismatch"],
+    ["non-current Candidate", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      candidate: {
+        schemaVersion: 1 as const,
+        mode: "candidate-effective-target" as const,
+        state: "changed" as const,
+        nextAction: "establish-new-root" as const,
+        candidateId: f.candidate.candidateId,
+        durableBaselineTarget: f.candidate.durableBaselineTarget,
+        currentTarget: {
+          revision: "f".repeat(40),
+          subject: f.candidate.recognizedTarget.subject,
+        },
+        projectionDigest: f.candidate.candidateId,
+        residualDigest: f.candidate.candidateId,
+        selectedBy: "owner",
+      },
+    }), "candidate-not-current"],
+    ["Candidate coordinate movement", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      coordinates: { ...f.coordinates, head: "f".repeat(40) },
+    }), "candidate-coordinate-mismatch"],
+    ["missing terminal request binding", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      state: {
+        ...f.state,
+        members: f.state.members.map((member, index, members) => index === members.length - 1
+          ? { ...member, changeRequest: null }
+          : member),
+      },
+    }), "terminal-binding-missing"],
+  ])("refuses rebind with %s", (_name, build, reason) => {
+    const f = terminalRebindFixture();
+    expect(rebindDeliveryTerminalCoordinates(build(f))).toEqual({ status: "refused", reason });
+  });
+
   it("composes the residual from the Candidate and retained non-terminal member heads", async () => {
     const f = fixture();
     const result = await composeDeliveryTerminalClaim({

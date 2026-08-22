@@ -84,7 +84,10 @@ import {
   classifyDeliveryTopRemedyObservation,
   matchesDeliveryTopRemedyTrigger,
 } from "../lib/delivery/top-remedy.js";
-import { assessDeliveryTerminalTop } from "../lib/delivery/terminal-integration.js";
+import {
+  assessDeliveryTerminalTop,
+  rebindDeliveryTerminalCoordinates,
+} from "../lib/delivery/terminal-integration.js";
 import {
   degradeNativeDeliveryStack,
   linkDeliveryNativeStack,
@@ -103,6 +106,12 @@ import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
+import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
+import {
+  projectGitCandidateEffectiveTarget,
+  resolveGitCandidateTargetBase,
+} from "../lib/work-unit/git-candidate-effective-target.js";
+import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -364,6 +373,11 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("prepared"), presentation: PreparedLandingSchema }),
   z.strictObject({ status: z.literal("landed"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({
+    status: z.literal("rebound"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("rerun-checkpoint"),
+  }),
   z.strictObject({
     status: z.literal("position"),
     position: z.unknown(),
@@ -1238,6 +1252,97 @@ async function executeDeliveryCommand(
     }
     const currentPlan = plan.value;
     const currentState = state.value;
+    if (currentState.value.activeOperation === null) {
+      const terminal = currentState.value.members.at(-1);
+      const targetRef = currentState.value.target?.ref;
+      if (terminal?.ref === null || terminal?.ref === undefined
+        || terminal.changeRequest === null || terminal.coordinates === null
+        || targetRef === undefined) {
+        return { status: "refused", reason: "terminal-binding-missing" };
+      }
+      try {
+        const [record, boundary] = await Promise.all([
+          readCandidateRecord(cwd, currentPlan.workUnitId),
+          readSubmissionBoundary(cwd, currentPlan.workUnitId),
+        ]);
+        if (record === null || boundary === null) {
+          return await reconcileDeliveryExecution({
+            planId: parsed.planId,
+            current: currentState,
+            stateStore,
+            observation: {
+              observe: () => Promise.resolve({
+                status: "refused" as const,
+                reason: "observation-unavailable" as const,
+              }),
+            },
+          });
+        }
+        const effective = await projectGitCandidateEffectiveTarget({
+          cwd,
+          name: currentPlan.workUnitId,
+          baseBranch: targetRef,
+          record,
+          exec,
+          rawExec: createRawGitExec(cwd),
+        });
+        if (effective.state !== "current") {
+          return { status: "refused", reason: "candidate-not-current" };
+        }
+        const localExec: GitExec = (commandName, args, options) => exec(commandName, args, {
+          ...options,
+          cwd,
+          objectAccess: "local-only",
+        });
+        const [base, coordinates, observedTop] = await Promise.all([
+          resolveGitCandidateTargetBase({
+            cwd,
+            revision: effective.recognizedTarget.revision,
+            baseBranch: targetRef,
+            exec,
+          }),
+          observeDeliveryEligibilityRef(localExec, effective.recognizedTarget.revision),
+          new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, terminal.changeRequest),
+        ]);
+        if (coordinates === null || coordinates.head !== effective.recognizedTarget.revision) {
+          return { status: "refused", reason: "candidate-coordinate-unavailable" };
+        }
+        if (observedTop.status !== "observed") {
+          return { status: "refused", reason: "top-request-unavailable" };
+        }
+        const projected = rebindDeliveryTerminalCoordinates({
+          plan: currentPlan,
+          state: currentState.value,
+          candidate: effective,
+          publication: {
+            settled: boundary.locus === "publication-pending"
+              || boundary.locus === "hosted-review-pending",
+            candidateId: boundary.candidateId,
+            candidateSubjectDigest: boundary.candidateSubjectDigest,
+          },
+          repository: parsed.repository,
+          request: observedTop.request,
+          coordinates: { base, head: coordinates.head, tree: coordinates.tree },
+        });
+        if (projected.status === "refused") return projected;
+        const published = await stateStore.publish(
+          parsed.planId,
+          projected.state,
+          currentState.revision,
+        );
+        if (published.status !== "ok") {
+          return {
+            status: "refused",
+            reason: published.reason === "version-conflict"
+              ? "state-version-conflict"
+              : "state-persistence-failed",
+          };
+        }
+        return { status: "rebound", state: published.value, nextAction: projected.nextAction };
+      } catch {
+        return { status: "refused", reason: "terminal-rebind-unavailable" };
+      }
+    }
     return reconcileDeliveryExecution({
       planId: parsed.planId,
       current: currentState,

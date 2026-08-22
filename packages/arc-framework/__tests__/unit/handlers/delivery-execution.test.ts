@@ -366,6 +366,43 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves the terminal-coordinate rebind and checkpoint rerun envelope", async () => {
+    const state = deliveryStateFixture(deliveryStackPlanFixture());
+    const terminalHead = "a".repeat(40);
+    const rebound = {
+      ...state,
+      members: state.members.map((member, index, members) => index === members.length - 1
+        ? {
+            ...member,
+            coordinates: { base: "b".repeat(40), head: terminalHead, tree: "c".repeat(40) },
+          }
+        : member),
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        repository: "owner/repo",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "rebound",
+        state: { revision: 9, value: rebound },
+        nextAction: "rerun-checkpoint",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery reconcile",
+      status: "rebound",
+      state: { revision: 9, value: rebound },
+      nextAction: "rerun-checkpoint",
+    });
+  });
+
   it("serializes every recovery action-selector arm and rejects malformed pairings", async () => {
     const plan = deliveryStackPlanFixture();
     const affectedDeliverableIds = [plan.members[0]!.deliverableId];

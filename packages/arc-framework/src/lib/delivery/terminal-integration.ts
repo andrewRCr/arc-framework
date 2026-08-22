@@ -5,15 +5,18 @@ import type {
   CandidateManagedRecordV1,
 } from "../work-unit/candidate-attestation.js";
 import { CandidateManagedRecordV1Schema } from "../work-unit/candidate-attestation.js";
+import type { CandidateEffectiveTargetProjection } from "../work-unit/candidate-effective-target.js";
 import type {
   DeliveryContributionEndpoints,
   DeliveryContributionProofResult,
 } from "./contribution-proof.js";
 import type {
   DeliveryChangeRequestV1,
+  DeliveryMemberCoordinatesV1,
   DeliveryPlanV1,
   DeliveryStateV1,
 } from "./schema.js";
+import { DeliveryMemberCoordinatesV1Schema } from "./schema.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 export interface DeliveryTerminalLanding {
@@ -92,6 +95,95 @@ export interface DeliveryTerminalTopObservation {
   readonly headSha: string;
   readonly baseRef: string;
   readonly state: "open" | "merged" | "closed";
+}
+
+export interface DeliveryTerminalRebindTopObservation extends DeliveryTerminalTopObservation {
+  readonly headRepository: string;
+}
+
+export type DeliveryTerminalCoordinateRebindResult =
+  | {
+      readonly status: "rebound";
+      readonly state: DeliveryStateV1;
+      readonly nextAction: "rerun-checkpoint";
+    }
+  | {
+      readonly status: "refused";
+      readonly reason:
+        | "candidate-not-current"
+        | "publication-boundary-unsettled"
+        | "publication-boundary-mismatch"
+        | "state-mismatch"
+        | "operation-active"
+        | "terminal-binding-missing"
+        | "candidate-coordinate-mismatch"
+        | "top-request-mismatch";
+    };
+
+/** Rebind only stale terminal coordinates from independently settled exact current facts. */
+export function rebindDeliveryTerminalCoordinates(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+  readonly candidate: CandidateEffectiveTargetProjection;
+  readonly publication: {
+    readonly settled: boolean;
+    readonly candidateId: string;
+    readonly candidateSubjectDigest: string | null;
+  };
+  readonly repository: string;
+  readonly request: DeliveryTerminalRebindTopObservation;
+  readonly coordinates: DeliveryMemberCoordinatesV1;
+}): DeliveryTerminalCoordinateRebindResult {
+  if (input.candidate.state !== "current") {
+    return { status: "refused", reason: "candidate-not-current" };
+  }
+  if (!input.publication.settled) {
+    return { status: "refused", reason: "publication-boundary-unsettled" };
+  }
+  if (input.publication.candidateId !== input.candidate.candidateId
+    || input.publication.candidateSubjectDigest
+      !== input.candidate.recognizedTarget.subject.subjectDigest) {
+    return { status: "refused", reason: "publication-boundary-mismatch" };
+  }
+  const validated = validateDeliveryStateAgainstPlan(input.state, input.plan);
+  if (validated.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
+    return { status: "refused", reason: "state-mismatch" };
+  }
+  if (validated.state.activeOperation !== null) {
+    return { status: "refused", reason: "operation-active" };
+  }
+  const terminalIndex = validated.state.members.length - 1;
+  const terminal = validated.state.members[terminalIndex];
+  const targetRef = validated.state.target?.ref;
+  if (terminal === undefined || terminal.ref === null || terminal.changeRequest === null
+    || terminal.coordinates === null || targetRef === undefined) {
+    return { status: "refused", reason: "terminal-binding-missing" };
+  }
+  const coordinates = DeliveryMemberCoordinatesV1Schema.safeParse(input.coordinates);
+  if (!coordinates.success
+    || coordinates.data.head !== input.candidate.recognizedTarget.revision) {
+    return { status: "refused", reason: "candidate-coordinate-mismatch" };
+  }
+  if (input.request.binding.providerId !== terminal.changeRequest.providerId
+    || input.request.binding.changeRequestId !== terminal.changeRequest.changeRequestId
+    || input.request.repository !== input.repository
+    || input.request.headRepository !== input.repository
+    || input.request.headRef !== terminal.ref.replace(/^refs\/heads\//u, "")
+    || input.request.headSha !== coordinates.data.head
+    || input.request.baseRef !== targetRef.replace(/^refs\/heads\//u, "")
+    || input.request.state !== "open") {
+    return { status: "refused", reason: "top-request-mismatch" };
+  }
+  return {
+    status: "rebound",
+    state: {
+      ...validated.state,
+      members: validated.state.members.map((member, index) => index === terminalIndex
+        ? { ...member, coordinates: coordinates.data }
+        : member),
+    },
+    nextAction: "rerun-checkpoint",
+  };
 }
 
 export type DeliveryTerminalDriftResult =

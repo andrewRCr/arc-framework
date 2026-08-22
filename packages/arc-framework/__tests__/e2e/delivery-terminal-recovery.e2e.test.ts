@@ -10,6 +10,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  serializeCandidateManagedRecord,
+} from "../../src/lib/work-unit/candidate-attestation.js";
+import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/candidate-record-store.js";
+import { resolveSubmissionBoundaryPath } from "../../src/lib/work-unit/submission-boundary-store.js";
+import { parseIntegrationBoundaryLocus } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
@@ -389,6 +397,110 @@ describe("delivery terminal recovery", () => {
       command: "delivery top-remedy",
       status: "remedied",
       nextAction: "terminal-checkpoint",
+    });
+  });
+
+  it("rebinds stale terminal coordinates to the independently settled current Candidate", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    const plan = deliveryStackPlanFixture();
+    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      planId: string;
+      revision: number;
+      value: DeliveryStateV1;
+    };
+    const terminal = envelope.value.members.at(-1)!;
+    const currentHead = await git(repository, ["rev-parse", "HEAD"]);
+    const currentTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+    const currentBase = await git(repository, ["merge-base", currentHead, "refs/heads/main"]);
+    const subject = createCandidateSubjectSnapshot([]);
+    const attestation = createCandidateAttestation({
+      workUnit: plan.workUnitId,
+      subject,
+      baseRevision: currentHead,
+      attestedBy: "owner",
+      attestedAt: "2026-08-22T12:00:00.000Z",
+      verificationEvidenceRef: "verification://delivery-terminal",
+    });
+    const candidatePath = join(repository, resolveCandidateRecordRelativePath(plan.workUnitId));
+    const boundaryPath = join(repository, resolveSubmissionBoundaryPath(plan.workUnitId));
+    await mkdir(join(candidatePath, ".."), { recursive: true });
+    await Promise.all([
+      writeFile(candidatePath, serializeCandidateManagedRecord({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation,
+        subject,
+        transitions: [],
+        lineageAttestations: [],
+      })),
+      writeFile(boundaryPath, `${JSON.stringify(parseIntegrationBoundaryLocus({
+        schemaVersion: 1,
+        mode: "integration-boundary",
+        workUnit: plan.workUnitId,
+        candidateId: attestation.candidateId,
+        candidateSubjectDigest: subject.subjectDigest,
+        locus: "publication-pending",
+        nextAction: {
+          kind: "continue-publication",
+          command: `arc publish ${plan.workUnitId}`,
+          interactionText: "Continue publication.",
+        },
+        policy: null,
+        reservation: null,
+        terminus: null,
+      }))}\n`),
+      writeFile(join(repository, "top-remedy-mutated"), ""),
+    ]);
+    const stale = DeliveryStateV1Schema.parse({
+      ...envelope.value,
+      members: envelope.value.members.map((member, index, members) => index === members.length - 1
+        ? {
+            ...member,
+            coordinates: {
+              ...member.coordinates!,
+              base: fixture.triggerHead,
+              head: fixture.triggerHead,
+            },
+          }
+        : member),
+    });
+    await writeFile(fixture.statePath, `${JSON.stringify({ ...envelope, value: stale })}\n`);
+    const request = `${JSON.stringify({
+      planId: fixture.planId,
+      repository: "owner/repo",
+      remote: "origin",
+    })}\n`;
+
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "rebound",
+      nextAction: "rerun-checkpoint",
+      state: {
+        value: {
+          members: [
+            expect.anything(),
+            {
+              ...terminal,
+              coordinates: { base: currentBase, head: currentHead, tree: currentTree },
+            },
+          ],
+        },
+      },
+    });
+
+    const replay = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+    );
+    expect(replay.exitCode, replay.stderr).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({
+      status: "rebound",
+      state: { revision: envelope.revision + 1 },
+      nextAction: "rerun-checkpoint",
     });
   });
 
