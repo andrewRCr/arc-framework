@@ -124,7 +124,7 @@ describe("executeV3ExtractionSourceFinish", () => {
     const io = memoryIO();
 
     await expect(executeV3ExtractionSourceFinish(plans(), false, io))
-      .resolves.toEqual({ status: "previewed" });
+      .resolves.toEqual({ status: "previewed", files: plans() });
     expect(io.applied).toEqual([]);
   });
 
@@ -180,6 +180,26 @@ describe("executeV3ExtractionSourceFinish", () => {
     await expect(executeV3ExtractionSourceFinish(plans(), true, io))
       .resolves.toEqual({ status: "finished" });
     expect(io.applied).toEqual([".arc/active/spec-origin.md"]);
+  });
+
+  it("previews only paths still pending after an exact partial prior apply", async () => {
+    const io = memoryIO({
+      initial: {
+        ".arc/active/rfc-origin.md": {
+          index: { kind: "absent" },
+          worktree: { kind: "absent" },
+        },
+        ".arc/active/spec-origin.md": {
+          index: image("before\n", "100755"),
+          worktree: image("before\n", "100755"),
+        },
+      },
+    });
+
+    await expect(executeV3ExtractionSourceFinish(plans(), false, io)).resolves.toEqual({
+      status: "previewed",
+      files: [plans()[1]],
+    });
   });
 
   it("refuses any changed preimage before the first mutation", async () => {

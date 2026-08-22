@@ -572,8 +572,25 @@ describe("Git v3 repository plan", () => {
   });
 
   it("previews finish only after the additive result is committed on the configured base", async () => {
-    await expect(previewFinish(await landedExtractionRepository()))
-      .resolves.toEqual({ status: "previewed" });
+    const fixture = await landedExtractionRepository();
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({
+      status: "previewed",
+      preview: {
+        liveBase: {
+          ref: "refs/heads/main",
+          head: fixture.landedHead,
+          destinations: expect.arrayContaining([
+            expect.objectContaining({ path: fixture.destinationPath, mode: "100644" }),
+          ]),
+        },
+        sources: [expect.objectContaining({
+          path: ".arc/active/spec-origin.md",
+          after: expect.objectContaining({ kind: "file", mode: "100644" }),
+          removedLocators: expect.any(Array),
+        })],
+      },
+    });
   });
 
   it("applies exact source thinning to the index and worktree", async () => {
@@ -660,7 +677,10 @@ describe("Git v3 repository plan", () => {
     await write(changedHead.repo, "unrelated.txt", "changed head\n");
     await git(changedHead.repo, ["add", "unrelated.txt"]);
     await git(changedHead.repo, ["commit", "-m", "change source head"]);
-    await expect(previewFinish(changedHead)).resolves.toEqual({ status: "previewed" });
+    await expect(previewFinish(changedHead)).resolves.toMatchObject({
+      status: "previewed",
+      preview: { liveBase: { ref: "refs/heads/main" } },
+    });
   });
 
   it("refuses refreshed transferred bytes that are absent from the landed destination", async () => {

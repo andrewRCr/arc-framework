@@ -593,7 +593,27 @@ describe("arc decompose command modes", () => {
       { timeout: 60_000 },
     );
     expect(preview.exitCode, preview.stderr).toBe(0);
-    expect(JSON.parse(preview.stdout)).toEqual({ status: "previewed" });
+    expect(JSON.parse(preview.stdout)).toMatchObject({
+      status: "previewed",
+      preview: {
+        liveBase: {
+          ref: "refs/heads/main",
+          head: candidateHead,
+          destinations: expect.arrayContaining([
+            expect.objectContaining({ path: memberMetaPath, mode: "100644" }),
+          ]),
+        },
+        sources: [expect.objectContaining({
+          path: retainedSource.sourcePath,
+          after: {
+            kind: "file",
+            mode: "100644",
+            contentBase64: Buffer.from(retained.unit.bytes).toString("base64"),
+          },
+          removedLocators: expect.any(Array),
+        })],
+      },
+    });
     expect(await repositorySnapshot(repo)).toEqual(beforePreview);
     const finished = await runArcNoTty(
       ["decompose", "origin", "--finish", cutMapPath, "--apply"],

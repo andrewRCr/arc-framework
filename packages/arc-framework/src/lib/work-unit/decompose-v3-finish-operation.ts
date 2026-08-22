@@ -7,7 +7,13 @@ import type {
   V3PartialRecoveryIO,
 } from "./decompose-v3-operation.js";
 import type { V3ExtractionSourceThinningFilePlan } from "./decompose-v3-thinning.js";
-import type { V3ExtractionFinishResult } from "./decompose-v3-finish.js";
+
+/** Internal finish result before the Git adapter adds live-base preview evidence. */
+export type V3ExtractionSourceFinishResult =
+  | { status: "previewed"; files: V3ExtractionSourceThinningFilePlan[] }
+  | { status: "finished" }
+  | { status: "already-finished" }
+  | { status: "refused"; reason: string; locus?: string };
 
 /** Mutation seam layered on the shared bounded-preimage recovery contract. */
 export interface V3ExtractionSourceFinishIO extends V3PartialRecoveryIO {
@@ -74,7 +80,7 @@ async function refuseAfterRestoration(
   preimages: readonly V3PartialPathPreimage[],
   mutatedPaths: ReadonlySet<string>,
   io: V3ExtractionSourceFinishIO,
-): Promise<V3ExtractionFinishResult> {
+): Promise<V3ExtractionSourceFinishResult> {
   const restoration = await restoreMutated(preimages, mutatedPaths, io);
   return restoration.status === "restored"
     ? { status: "refused", reason, locus }
@@ -97,10 +103,10 @@ export function executeV3ExtractionSourceFinish(
   files: readonly V3ExtractionSourceThinningFilePlan[],
   apply: boolean,
   io: V3ExtractionSourceFinishIO,
-): Promise<V3ExtractionFinishResult> {
+): Promise<V3ExtractionSourceFinishResult> {
   return execute();
 
-  async function execute(): Promise<V3ExtractionFinishResult> {
+  async function execute(): Promise<V3ExtractionSourceFinishResult> {
     if (files.length === 0) return { status: "refused", reason: "source-plan-empty" };
     const ordered = files.slice().sort((left, right) => compareUtf8(left.path, right.path));
     if (ordered.some((file, index) => file.path !== files[index]?.path
@@ -147,7 +153,12 @@ export function executeV3ExtractionSourceFinish(
       return { status: "refused", reason: "source-preimage-raced" };
     }
     if (pendingPaths.size === 0) return { status: "already-finished" };
-    if (!apply) return { status: "previewed" };
+    if (!apply) {
+      return {
+        status: "previewed",
+        files: files.filter(({ path }) => pendingPaths.has(path)),
+      };
+    }
 
     const mutatedPaths = new Set<string>();
     for (const file of files) {

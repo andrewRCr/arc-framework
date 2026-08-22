@@ -6,7 +6,10 @@ import { posix, resolve as resolvePath } from "node:path";
 import { digestBytes, type CanonicalDigest } from "../canonical/canonical-json.js";
 import { validateManagedPath } from "../canonical/managed-path.js";
 import { resolveArcPath } from "../layout/index.js";
-import type { V3ExtractionFinishResult } from "./decompose-v3-finish.js";
+import type {
+  V3ExtractionFinishPreview,
+  V3ExtractionFinishResult,
+} from "./decompose-v3-finish.js";
 import { executeV3ExtractionSourceFinish } from "./decompose-v3-finish-operation.js";
 import {
   resolveV3DecomposeContentLocator,
@@ -35,7 +38,10 @@ import {
   type V3DecomposeCutMap,
 } from "./decompose-v3-schema.js";
 import type { V3RepositoryPlanTree } from "./decompose-v3-repository-plan.js";
-import { planV3ExtractionSourceThinning } from "./decompose-v3-thinning.js";
+import {
+  planV3ExtractionSourceThinning,
+  type V3ExtractionSourceThinningFilePlan,
+} from "./decompose-v3-thinning.js";
 import { createGitV3ExtractionSourceFinishIO } from "./git-decompose-v3-operation-io.js";
 
 /** Inputs shared by finish preview and explicit application. */
@@ -78,6 +84,30 @@ export type GitV3ExtractionDestinationProofResult =
 export type V3ExtractionDestinationValidationResult =
   | { status: "proven"; destinations: V3ExtractionDestinationState[] }
   | { status: "refused"; reason: string; locus?: string };
+
+function composeFinishPreview(
+  preparation: V3ExtractionFinishPreparation,
+  files: readonly V3ExtractionSourceThinningFilePlan[],
+): V3ExtractionFinishPreview {
+  return {
+    liveBase: {
+      ref: preparation.proof.baseRef,
+      head: preparation.proof.baseHead,
+      destinations: structuredClone(preparation.proof.destinations),
+    },
+    sources: files.map((file) => ({
+      path: file.path,
+      after: file.after.kind === "absent"
+        ? { kind: "absent" }
+        : {
+            kind: "file",
+            mode: file.after.mode,
+            contentBase64: Buffer.from(file.after.bytes).toString("base64"),
+          },
+      removedLocators: structuredClone(file.removedLocators),
+    })),
+  };
+}
 
 /**
  * Compare an extraction plan's destination mutations with one pinned base tree.
@@ -480,6 +510,12 @@ export async function finishGitV3Extraction(
     && result.reason === "source-worktree-preimage"
     && dirt.worktree.length > 0) {
     return { status: "refused", reason: "source-worktree-dirty", locus: sourceDir };
+  }
+  if (result.status === "previewed") {
+    return {
+      status: "previewed",
+      preview: composeFinishPreview(proof.preparation, result.files),
+    };
   }
   return result;
 }

@@ -633,7 +633,6 @@ describe("handleDecompose", () => {
   });
 
   it.each([
-    ["previewed", false],
     ["finished", true],
     ["already-finished", true],
   ] as const)("routes finish and emits the typed %s outcome", async (status, apply) => {
@@ -653,6 +652,39 @@ describe("handleDecompose", () => {
       },
     );
     expect(stdoutWrite).toHaveBeenCalledWith(`{"status":"${status}"}\n`);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("emits the exact typed finish preview", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const preview = {
+      liveBase: {
+        ref: "refs/heads/main",
+        head: "a".repeat(40),
+        destinations: [{
+          path: ".arc/backlog/planned/member/meta-member.md",
+          mode: "100644" as const,
+          contentDigest: `sha256:${"b".repeat(64)}`,
+        }],
+      },
+      sources: [{
+        path: ".arc/active/spec-mono.md",
+        after: {
+          kind: "file" as const,
+          mode: "100644" as const,
+          contentBase64: Buffer.from("retained\n", "utf8").toString("base64"),
+        },
+        removedLocators: [{ artifact: "spec-mono.md", kind: "preamble" as const }],
+      }],
+    };
+    mockFinishGitV3Extraction.mockResolvedValue({ status: "previewed", preview });
+
+    await handleDecompose("mono", { finish: "cut-map.json" });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toEqual({
+      preview,
+      status: "previewed",
+    });
     expect(process.exitCode).toBeUndefined();
   });
 
