@@ -3,7 +3,7 @@
   "slug": "stop-retirement-cleanup-from-flagging-local-ahead-active-work-units",
   "claimId": "056fdac328d32d973973e534e578957c",
   "createdAt": "2026-08-22T03:14:18.706Z",
-  "updatedAt": "2026-08-22T03:14:18.706Z",
+  "updatedAt": "2026-08-22T03:57:37.567Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "stop-retirement-cleanup-from-flagging-local-ahead-active-work-units",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop retirement cleanup from flagging local-ahead active work units",
   "originEntrySourceDigest": "sha256:000d5a35abb57f68c83f78c871faa780e80d8bf0914698c06c548f3b685016c8",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/stop-retirement-cleanup-from-flagging-local-ahead-active-work-units",
+    "headSha": "c256df4b40b03997157f2b284ac19e37880c30da"
+  }
 }
