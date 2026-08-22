@@ -147,6 +147,7 @@ describe("init", () => {
     expect(interlockIndexes[0]).toBeGreaterThan(authoringIndex);
     expect(releaseIndex).toBeGreaterThan(interlockIndexes[0]!);
     expect(interlockIndexes[1]).toBeGreaterThan(advancementIndex);
+    expect(finishPreviewIndex).toBeGreaterThanOrEqual(0);
     expect(interlockIndexes[2]).toBeGreaterThan(finishPreviewIndex);
     expect(finishApplyIndex).toBeGreaterThan(interlockIndexes[2]!);
     expect(decomposeWorkflow).not.toMatch(/\b(?:planning-lane|arc-cleared)\b/);

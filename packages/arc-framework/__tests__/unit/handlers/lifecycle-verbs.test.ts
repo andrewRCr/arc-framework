@@ -681,6 +681,16 @@ describe("handleDecompose", () => {
 
     await handleDecompose("mono", { finish: "cut-map.json" });
 
+    expect(mockFinishGitV3Extraction).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo" }),
+      {
+        cwd: "/repo",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+        apply: false,
+      },
+    );
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toEqual({
       preview,
       status: "previewed",

@@ -155,6 +155,34 @@ export type V3ExtractionOperationResult =
       recovery: V3DecomposeOperationRecovery;
     };
 
+type V3SharedOperationRefusal = Extract<V3ExtractionOperationResult, { status: "refused" }>;
+
+interface V3SharedOperationInput {
+  protection: ProtectionMode;
+  configuredBase: string;
+  origin: string;
+  plan: ValidatedDecomposePlan;
+  extractionFacts: V3ExtractionReportFacts | undefined;
+}
+
+type V3SharedOperationDependencies = Pick<
+  V3DecomposeOperationDependencies,
+  "occupy" | "revalidate" | "materializer" | "partialRecovery" | "revalidateStaged"
+>;
+
+interface V3PreparedOperation {
+  occupation: OccupiedResult;
+  materialization: Extract<V3MaterializationResult, { status: "materialized" }>;
+  report: V3DecomposeResultReport;
+  mutatedPaths: string[];
+  authorablePaths: string[];
+  recoverMutation(): Promise<V3DecomposeOperationRecovery>;
+}
+
+type V3StagedRollback = () => Promise<
+  Awaited<ReturnType<TerminalTransitionRecordWriter["rollback"]>>
+>;
+
 function fullRecovery(
   plan: ValidatedDecomposePlan,
   occupation: Pick<FullOccupiedResult, "path" | "candidateBranch">,
@@ -225,210 +253,10 @@ async function restorePartial(
   }
 }
 
-/**
- * Execute one authenticated plan without consulting any authority resolver after revalidation.
- *
- * Occupation and the post-occupation gate run before the canonical materializer can write.
- * Partial compensation receives only paths that this invocation actually changed.
- */
-export async function executeV3DecomposeOperation(
-  input: V3DecomposeOperationInput,
-  dependencies: V3DecomposeOperationDependencies,
-): Promise<V3DecomposeOperationResult> {
-  let occupation: DecomposeResultOccupationResult;
-  try {
-    occupation = await dependencies.occupy({
-      protection: input.protection,
-      configuredBase: input.configuredBase,
-      origin: input.completedMap.machine.source.origin,
-      plan: input.plan,
-    });
-  } catch {
-    return {
-      status: "refused",
-      stage: "occupation",
-      reason: "occupation-failed",
-      recovery: { kind: "none" },
-    };
-  }
-  if (occupation.status === "refused") {
-    return {
-      status: "refused",
-      stage: "occupation",
-      reason: occupation.reason,
-      recovery: refusedOccupationRecovery(input.plan, occupation),
-    };
-  }
-
-  let revalidated: V3PostOccupationRevalidation;
-  try {
-    revalidated = await dependencies.revalidate(input.plan, occupation);
-  } catch {
-    revalidated = { status: "refused", reason: "post-occupation-revalidation-failed" };
-  }
-  if (revalidated.status === "refused") {
-    return {
-      status: "refused",
-      stage: "post-occupation-revalidation",
-      reason: revalidated.reason,
-      recovery: recoveryFor(input.plan, occupation),
-    };
-  }
-
-  let partialPreimages: V3PartialPathPreimage[] = [];
-  let partialRecovery: V3PartialRecoveryIO | undefined;
-  if (occupation.protection === "partial") {
-    partialRecovery = dependencies.partialRecovery;
-    if (partialRecovery === undefined) {
-      return {
-        status: "refused",
-        stage: "partial-capture",
-        reason: "partial-recovery-unavailable",
-        recovery: { kind: "none" },
-      };
-    }
-    try {
-      partialPreimages = await partialRecovery.capture(input.plan.allowedPaths);
-    } catch {
-      return {
-        status: "refused",
-        stage: "partial-capture",
-        reason: "partial-preimage-capture-failed",
-        recovery: { kind: "none" },
-      };
-    }
-    if (!exactPreimages(input.plan.allowedPaths, partialPreimages)) {
-      return {
-        status: "refused",
-        stage: "partial-capture",
-        reason: "partial-preimage-set-mismatch",
-        recovery: { kind: "none" },
-      };
-    }
-  }
-
-  const materialization = await materializeV3DecomposePlan(input.plan, dependencies.materializer);
-  const report = reportV3DecomposeResult(input.plan, materialization);
-  if (materialization.status === "refused") {
-    let recovery;
-    if (occupation.protection === "partial") {
-      if (partialRecovery === undefined) throw new Error("partial recovery dependency lost after capture");
-      recovery = await restorePartial(
-        partialPreimages,
-        materialization.appliedPaths,
-        partialRecovery,
-      );
-    } else {
-      recovery = fullRecovery(input.plan, occupation);
-    }
-    return {
-      status: "refused",
-      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
-        ? "restoration"
-        : "materialization",
-      reason: materialization.reason,
-      report,
-      recovery,
-    };
-  }
-
-  const mutatedPaths = materialization.paths
-    .filter(({ disposition }) => disposition === "applied")
-    .map(({ path }) => path);
-  const authorablePaths = materialization.paths.map(({ path }) => path);
-  const recoverMutation = async (): Promise<V3DecomposeOperationRecovery> => {
-    if (occupation.protection === "full") return fullRecovery(input.plan, occupation);
-    if (partialRecovery === undefined) {
-      throw new Error("partial recovery dependency lost after capture");
-    }
-    return await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
-  };
-  const transitionRecord = createDecomposeTransitionRecord(input.completedMap);
-  if (transitionRecord === null) {
-    const recovery = await recoverMutation();
-    return {
-      status: "refused",
-      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
-        ? "restoration"
-        : "transition-record",
-      reason: "transition-record-projection-invalid",
-      report,
-      recovery,
-    };
-  }
-  let recorded: Awaited<ReturnType<TerminalTransitionRecordWriter["record"]>>;
-  try {
-    recorded = await dependencies.transitionRecords.record(transitionRecord);
-  } catch {
-    recorded = { status: "unavailable", diagnostic: "transition record write failed" };
-  }
-  if (recorded.status !== "recorded") {
-    const recovery = await recoverMutation();
-    return {
-      status: "refused",
-      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
-        ? "restoration"
-        : "transition-record",
-      reason: recorded.status === "origin-occupied"
-        ? "transition-record-origin-occupied"
-        : recorded.diagnostic,
-      report,
-      recovery,
-    };
-  }
-
-  if (dependencies.revalidateStaged !== undefined) {
-    let stagedValidation: V3PostOccupationRevalidation;
-    try {
-      stagedValidation = await dependencies.revalidateStaged(input.plan, occupation);
-    } catch {
-      stagedValidation = { status: "refused", reason: "post-stage-revalidation-failed" };
-    }
-    if (stagedValidation.status === "refused") {
-      const recordRollback = await dependencies.transitionRecords.rollback(transitionRecord);
-      const recovery = await recoverMutation();
-      return {
-        status: "refused",
-        stage: recordRollback.status === "unavailable"
-          || (recovery.kind === "partial-restoration" && recovery.status === "failed")
-          ? "restoration"
-          : "post-stage-revalidation",
-        reason: stagedValidation.reason
-          + (recordRollback.status === "unavailable" ? `; ${recordRollback.diagnostic}` : ""),
-        report,
-        recovery,
-      };
-    }
-  }
-
-  return {
-    status: "staged",
-    occupation,
-    materialization,
-    report,
-    transitionRecord,
-    stagedPaths: [
-      ...mutatedPaths,
-      resolveTransitionRecordRelativePath(transitionRecord.origin),
-    ],
-    releasePaths: [
-      ...authorablePaths,
-      resolveTransitionRecordRelativePath(transitionRecord.origin),
-    ],
-  };
-}
-
-/**
- * Execute one additive extraction plan without creating retirement history.
- *
- * @param input - Exact plan, surviving origin, and authored extraction report facts.
- * @param dependencies - Occupation, revalidation, materialization, and bounded recovery seams.
- * @returns One staged additive result or a closed refusal with exact recovery.
- */
-export async function executeV3ExtractionOperation(
-  input: V3ExtractionOperationInput,
-  dependencies: V3ExtractionOperationDependencies,
-): Promise<V3ExtractionOperationResult> {
+async function prepareV3Operation(
+  input: V3SharedOperationInput,
+  dependencies: V3SharedOperationDependencies,
+): Promise<V3PreparedOperation | V3SharedOperationRefusal> {
   let occupation: DecomposeResultOccupationResult;
   try {
     occupation = await dependencies.occupy({
@@ -525,38 +353,163 @@ export async function executeV3ExtractionOperation(
   const mutatedPaths = materialization.paths
     .filter(({ disposition }) => disposition === "applied")
     .map(({ path }) => path);
-  const recoverMutation = async (): Promise<V3DecomposeOperationRecovery> => {
-    if (occupation.protection === "full") return fullRecovery(input.plan, occupation);
-    if (partialRecovery === undefined) throw new Error("partial recovery dependency lost after capture");
-    return await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
-  };
-  if (dependencies.revalidateStaged !== undefined) {
-    let stagedValidation: V3PostOccupationRevalidation;
-    try {
-      stagedValidation = await dependencies.revalidateStaged(input.plan, occupation);
-    } catch {
-      stagedValidation = { status: "refused", reason: "post-stage-revalidation-failed" };
-    }
-    if (stagedValidation.status === "refused") {
-      const recovery = await recoverMutation();
-      return {
-        status: "refused",
-        stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
-          ? "restoration"
-          : "post-stage-revalidation",
-        reason: stagedValidation.reason,
-        report,
-        recovery,
-      };
-    }
-  }
-
   return {
-    status: "staged",
     occupation,
     materialization,
     report,
-    stagedPaths: mutatedPaths,
-    releasePaths: materialization.paths.map(({ path }) => path),
+    mutatedPaths,
+    authorablePaths: materialization.paths.map(({ path }) => path),
+    recoverMutation: async () => {
+      if (occupation.protection === "full") return fullRecovery(input.plan, occupation);
+      if (partialRecovery === undefined) {
+        throw new Error("partial recovery dependency lost after capture");
+      }
+      return await restorePartial(partialPreimages, mutatedPaths, partialRecovery);
+    },
+  };
+}
+
+async function revalidatePreparedV3Operation(
+  input: V3SharedOperationInput,
+  dependencies: V3SharedOperationDependencies,
+  prepared: V3PreparedOperation,
+  rollback?: V3StagedRollback,
+): Promise<{ status: "valid" } | V3SharedOperationRefusal> {
+  if (dependencies.revalidateStaged === undefined) return { status: "valid" };
+
+  let stagedValidation: V3PostOccupationRevalidation;
+  try {
+    stagedValidation = await dependencies.revalidateStaged(input.plan, prepared.occupation);
+  } catch {
+    stagedValidation = { status: "refused", reason: "post-stage-revalidation-failed" };
+  }
+  if (stagedValidation.status === "valid") return stagedValidation;
+
+  const rollbackResult = rollback === undefined ? null : await rollback();
+  const recovery = await prepared.recoverMutation();
+  const rollbackFailed = rollbackResult?.status === "unavailable";
+  return {
+    status: "refused",
+    stage: rollbackFailed
+      || (recovery.kind === "partial-restoration" && recovery.status === "failed")
+      ? "restoration"
+      : "post-stage-revalidation",
+    reason: stagedValidation.reason
+      + (rollbackFailed ? `; ${rollbackResult.diagnostic}` : ""),
+    report: prepared.report,
+    recovery,
+  };
+}
+
+/**
+ * Execute one authenticated plan without consulting any authority resolver after revalidation.
+ *
+ * Occupation and the post-occupation gate run before the canonical materializer can write.
+ * Partial compensation receives only paths that this invocation actually changed.
+ */
+export async function executeV3DecomposeOperation(
+  input: V3DecomposeOperationInput,
+  dependencies: V3DecomposeOperationDependencies,
+): Promise<V3DecomposeOperationResult> {
+  const sharedInput: V3SharedOperationInput = {
+    protection: input.protection,
+    configuredBase: input.configuredBase,
+    origin: input.completedMap.machine.source.origin,
+    plan: input.plan,
+    extractionFacts: undefined,
+  };
+  const prepared = await prepareV3Operation(sharedInput, dependencies);
+  if ("status" in prepared) return prepared;
+
+  const transitionRecord = createDecomposeTransitionRecord(input.completedMap);
+  if (transitionRecord === null) {
+    const recovery = await prepared.recoverMutation();
+    return {
+      status: "refused",
+      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
+        ? "restoration"
+        : "transition-record",
+      reason: "transition-record-projection-invalid",
+      report: prepared.report,
+      recovery,
+    };
+  }
+  let recorded: Awaited<ReturnType<TerminalTransitionRecordWriter["record"]>>;
+  try {
+    recorded = await dependencies.transitionRecords.record(transitionRecord);
+  } catch {
+    recorded = { status: "unavailable", diagnostic: "transition record write failed" };
+  }
+  if (recorded.status !== "recorded") {
+    const recovery = await prepared.recoverMutation();
+    return {
+      status: "refused",
+      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
+        ? "restoration"
+        : "transition-record",
+      reason: recorded.status === "origin-occupied"
+        ? "transition-record-origin-occupied"
+        : recorded.diagnostic,
+      report: prepared.report,
+      recovery,
+    };
+  }
+
+  const stagedValidation = await revalidatePreparedV3Operation(
+    sharedInput,
+    dependencies,
+    prepared,
+    async () => await dependencies.transitionRecords.rollback(transitionRecord),
+  );
+  if (stagedValidation.status === "refused") return stagedValidation;
+
+  return {
+    status: "staged",
+    occupation: prepared.occupation,
+    materialization: prepared.materialization,
+    report: prepared.report,
+    transitionRecord,
+    stagedPaths: [
+      ...prepared.mutatedPaths,
+      resolveTransitionRecordRelativePath(transitionRecord.origin),
+    ],
+    releasePaths: [
+      ...prepared.authorablePaths,
+      resolveTransitionRecordRelativePath(transitionRecord.origin),
+    ],
+  };
+}
+
+/**
+ * Execute one additive extraction plan without creating retirement history.
+ *
+ * @param input - Exact plan, surviving origin, and authored extraction report facts.
+ * @param dependencies - Occupation, revalidation, materialization, and bounded recovery seams.
+ * @returns One staged additive result or a closed refusal with exact recovery.
+ */
+export async function executeV3ExtractionOperation(
+  input: V3ExtractionOperationInput,
+  dependencies: V3ExtractionOperationDependencies,
+): Promise<V3ExtractionOperationResult> {
+  const sharedInput: V3SharedOperationInput = {
+    protection: input.protection,
+    configuredBase: input.configuredBase,
+    origin: input.origin,
+    plan: input.plan,
+    extractionFacts: input.extractionFacts,
+  };
+  const prepared = await prepareV3Operation(sharedInput, dependencies);
+  if ("status" in prepared) return prepared;
+
+  const stagedValidation = await revalidatePreparedV3Operation(sharedInput, dependencies, prepared);
+  if (stagedValidation.status === "refused") return stagedValidation;
+
+  return {
+    status: "staged",
+    occupation: prepared.occupation,
+    materialization: prepared.materialization,
+    report: prepared.report,
+    stagedPaths: prepared.mutatedPaths,
+    releasePaths: prepared.authorablePaths,
   };
 }

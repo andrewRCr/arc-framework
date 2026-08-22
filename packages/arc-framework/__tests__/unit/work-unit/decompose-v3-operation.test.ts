@@ -190,25 +190,29 @@ function dependencies(
   };
 }
 
+function extractionReportFacts() {
+  return {
+    retainedOrigin: {
+      origin: "origin",
+      path: ".arc/active/meta-origin.md",
+      allocations: [],
+    },
+    reasonedDrops: [],
+    anchor: {
+      kind: "surviving-origin" as const,
+      origin: "origin",
+      path: ".arc/active/meta-origin.md",
+    },
+  };
+}
+
 describe("executeV3DecomposeOperation", () => {
   it("stages an additive result without creating retirement history", async () => {
     const fixture = operationFixture();
     delete fixture.plan.prospectiveOverlay;
     const events: string[] = [];
     const extractionDependencies = dependencies(fixture, fullOccupation(), events);
-    const extractionFacts = {
-      retainedOrigin: {
-        origin: "origin",
-        path: ".arc/active/meta-origin.md",
-        allocations: [],
-      },
-      reasonedDrops: [],
-      anchor: {
-        kind: "surviving-origin" as const,
-        origin: "origin",
-        path: ".arc/active/meta-origin.md",
-      },
-    };
+    const extractionFacts = extractionReportFacts();
 
     const result = await executeV3ExtractionOperation({
       protection: "full",
@@ -321,48 +325,60 @@ describe("executeV3DecomposeOperation", () => {
     expect(events).not.toContain(`apply:${fixture.firstPath}`);
   });
 
-  it("restores only actually changed partial paths from distinct index and worktree preimages", async () => {
-    const fixture = operationFixture();
-    const events: string[] = [];
-    const captured = preimages(fixture.plan);
-    let restored: readonly V3PartialPathPreimage[] = [];
-    const deps = dependencies(fixture, partialOccupation(), events, {
-      materializer: {
-        observe: async () => ({ kind: "absent" }),
-        readBlob: async (digest) => digest === firstAfter.contentDigest ? firstBytes : secondBytes,
-        applyAndStageFinal: async (path) => {
-          if (path === fixture.secondPath) throw new Error("stage failed");
+  it.each(["retirement", "extraction"] as const)(
+    "restores only actually changed %s paths from distinct index and worktree preimages",
+    async (mode) => {
+      const fixture = operationFixture();
+      if (mode === "extraction") delete fixture.plan.prospectiveOverlay;
+      const events: string[] = [];
+      const captured = preimages(fixture.plan);
+      let restored: readonly V3PartialPathPreimage[] = [];
+      const deps = dependencies(fixture, partialOccupation(), events, {
+        materializer: {
+          observe: async () => ({ kind: "absent" }),
+          readBlob: async (digest) => digest === firstAfter.contentDigest ? firstBytes : secondBytes,
+          applyAndStageFinal: async (path) => {
+            if (path === fixture.secondPath) throw new Error("stage failed");
+          },
         },
-      },
-      partialRecovery: {
-        capture: async () => captured,
-        restore: async (images) => {
-          restored = images;
+        partialRecovery: {
+          capture: async () => captured,
+          restore: async (images) => {
+            restored = images;
+          },
+          verify: async () => ({ status: "restored" }),
         },
-        verify: async () => ({ status: "restored" }),
-      },
-    });
+      });
 
-    const result = await executeV3DecomposeOperation({
-      protection: "partial",
-      configuredBase: "main",
-      plan: fixture.plan,
-      completedMap: fixture.completedMap,
-    }, deps);
+      const result = mode === "retirement"
+        ? await executeV3DecomposeOperation({
+            protection: "partial",
+            configuredBase: "main",
+            plan: fixture.plan,
+            completedMap: fixture.completedMap,
+          }, deps)
+        : await executeV3ExtractionOperation({
+            protection: "partial",
+            configuredBase: "main",
+            origin: "origin",
+            plan: fixture.plan,
+            extractionFacts: extractionReportFacts(),
+          }, deps);
 
-    expect(result).toMatchObject({
-      status: "refused",
-      stage: "materialization",
-      reason: "apply-failed",
-      recovery: {
-        kind: "partial-restoration",
-        status: "restored",
-        restoredPaths: [fixture.firstPath],
-      },
-    });
-    expect(restored).toEqual([captured.find(({ path }) => path === fixture.firstPath)]);
-    expect(restored[0]?.index).not.toEqual(restored[0]?.worktree);
-  });
+      expect(result).toMatchObject({
+        status: "refused",
+        stage: "materialization",
+        reason: "apply-failed",
+        recovery: {
+          kind: "partial-restoration",
+          status: "restored",
+          restoredPaths: [fixture.firstPath],
+        },
+      });
+      expect(restored).toEqual([captured.find(({ path }) => path === fixture.firstPath)]);
+      expect(restored[0]?.index).not.toEqual(restored[0]?.worktree);
+    },
+  );
 
   it("returns bounded restoration failure without claiming partial parity", async () => {
     const fixture = operationFixture();
@@ -466,6 +482,34 @@ describe("executeV3DecomposeOperation", () => {
       },
     });
     expect(events).toContain("rollback-record");
+    expect(events).toContain(`restore:${fixture.firstPath},${fixture.secondPath}`);
+  });
+
+  it("restores extraction paths without creating retirement history when post-stage authority moves", async () => {
+    const fixture = operationFixture();
+    delete fixture.plan.prospectiveOverlay;
+    const events: string[] = [];
+    const result = await executeV3ExtractionOperation({
+      protection: "partial",
+      configuredBase: "main",
+      origin: "origin",
+      plan: fixture.plan,
+      extractionFacts: extractionReportFacts(),
+    }, dependencies(fixture, partialOccupation(), events, {
+      revalidateStaged: async () => ({ status: "refused", reason: "source-moved-after-stage" }),
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "post-stage-revalidation",
+      reason: "source-moved-after-stage",
+      recovery: {
+        kind: "partial-restoration",
+        status: "restored",
+        restoredPaths: [fixture.firstPath, fixture.secondPath],
+      },
+    });
+    expect(events).not.toContain("record");
     expect(events).toContain(`restore:${fixture.firstPath},${fixture.secondPath}`);
   });
 
