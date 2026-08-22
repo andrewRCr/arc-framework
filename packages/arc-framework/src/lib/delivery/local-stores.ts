@@ -475,6 +475,13 @@ export class RepositoryDeliveryStateStore implements DeliveryStateStore<Delivery
     const listed = await this.publisher.list(STATE_LOCATION);
     const entries = await Promise.all(listed.map(async (entry) => {
       if (entry.kind !== "file") return { name: entry.name, kind: "other" as const };
+      const rawPlanId = entry.name.endsWith(".json")
+        ? entry.name.slice(0, -".json".length)
+        : "";
+      const parsedPlanId = DeliveryPlanIdSchema.safeParse(rawPlanId);
+      if (!parsedPlanId.success || parsedPlanId.data !== rawPlanId) {
+        return { name: entry.name, kind: "other" as const };
+      }
       const content = await this.publisher.read(STATE_LOCATION, entry.name);
       return content === null ? { name: entry.name, kind: "other" as const } : {
         name: entry.name,
