@@ -321,7 +321,11 @@ export async function reconcileDeliveryExecution(input: {
   readonly observation: DeliveryRecoveryObservationPort;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | {
+      readonly status: "applied";
+      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+      readonly nextAction: "read-position";
+    }
   | { readonly status: "retryable"; readonly guidance: string }
   | BlockedDeliveryRecoveryObservationRefusal
   | {
@@ -370,7 +374,7 @@ export async function reconcileDeliveryExecution(input: {
   }
   const persisted = await input.stateStore.publish(input.planId, reconciled.state, input.current.revision);
   return persisted.status === "ok"
-    ? { status: "applied", state: persisted.value }
+    ? { status: "applied", state: persisted.value, nextAction: "read-position" }
     : {
         status: "blocked",
         reason: "result-persistence-failed",

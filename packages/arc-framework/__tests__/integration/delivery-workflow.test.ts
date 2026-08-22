@@ -87,6 +87,8 @@ describe("packaged delivery workflow", () => {
     expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
     expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
     expect(terminalTail).toMatch(/explicit[\s\S]*arc delivery top-remedy[\s\S]*terminal-checkpoint/iu);
+    expect(packaged).toMatch(/applied \/ read-position[\s\S]*arc delivery position/iu);
+    expect(reviewSection).toMatch(/teardown-member[\s\S]*selectedDeliverableId[\s\S]*arc delivery teardown/iu);
     expect(terminalSection).not.toContain("`integration-interlock`");
     expect(packaged).not.toMatch(/if\s+.*(?:state|status)\s*==/iu);
     const nativeObserve = packaged.indexOf("arc delivery native observe");

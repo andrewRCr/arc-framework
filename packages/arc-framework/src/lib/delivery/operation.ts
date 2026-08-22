@@ -71,14 +71,27 @@ const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outc
   z.strictObject({ outcome: z.literal("not-applied") }),
   z.strictObject({ outcome: z.literal("ambiguous") }),
 ]);
+const DeliveryTeardownReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
+  z.strictObject({
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
+  z.strictObject({ outcome: z.literal("not-applied") }),
+  z.strictObject({ outcome: z.literal("ambiguous") }),
+]);
 /** Host-assigned observation used to reconcile an interrupted publish or land. */
 export type DeliveryHostReconciliationObservationV1 = z.infer<
   typeof DeliveryHostReconciliationObservationV1Schema
 >;
+/** Physical outcome used when teardown intentionally retains its exact logical snapshot. */
+export type DeliveryTeardownReconciliationObservationV1 = z.infer<
+  typeof DeliveryTeardownReconciliationObservationV1Schema
+>;
 /** Exact observation accepted by delivery-operation reconciliation. */
 export type DeliveryOperationReconciliationObservationV1 =
   | DeliveryOperationSnapshotV1
-  | DeliveryHostReconciliationObservationV1;
+  | DeliveryHostReconciliationObservationV1
+  | DeliveryTeardownReconciliationObservationV1;
 
 /** Closed failures while reserving the single delivery-operation slot. */
 export type ReserveDeliveryOperationFailure =
@@ -429,6 +442,23 @@ export function reconcileDeliveryOperation(
 ): ReconcileDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
+  if (active.operation.kind === "teardown") {
+    const parsedTeardown = DeliveryTeardownReconciliationObservationV1Schema.safeParse(observed);
+    if (!parsedTeardown.success) return { status: "blocked", reason: "observed-facts-invalid" };
+    if (parsedTeardown.data.outcome === "not-applied") {
+      return { status: "retry", operationId: active.operation.operationId };
+    }
+    if (parsedTeardown.data.outcome === "ambiguous") {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    if (canonicalize(parsedTeardown.data.snapshot) !== canonicalize(active.operation.requested)) {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    const next = applyObservedSnapshot(active.state, parsedTeardown.data.snapshot);
+    return next === null
+      ? { status: "blocked", reason: "state-invalid" }
+      : { status: "adopt", state: next };
+  }
   const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
     || active.operation.kind === "top-remedy";
   if (hostAssigned) {

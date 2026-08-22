@@ -559,40 +559,52 @@ describe("delivery operation pre- and post-mutation comparison", () => {
 });
 
 describe("reconcileDeliveryOperation", () => {
-  it.each(["rewrite", "teardown"] as const)(
-    "%s operations adopt exact application, retry exact non-application, and retain ambiguity",
-    (kind) => {
-      const plan = deliveryPlanFixture();
-      const state = deliveryStateFixture(plan);
-      const request = operationRequest(state, {
-        kind,
-        ...(kind === "teardown" ? {
-          requested: {
-            target: state.target,
-            members: [{
-              deliverableId: state.members[0]!.deliverableId,
-              ref: null,
-              changeRequest: null,
-              coordinates: null,
-            }],
-          },
-        } : {}),
-      });
-      const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
-      expect(reserved.status).toBe("reserved");
-      if (reserved.status !== "reserved") return;
-      const current = { revision: STATE_REVISION + 1, value: reserved.state };
-      expect(reconcileDeliveryOperation(current, request.requested).status).toBe("adopt");
-      expect(reconcileDeliveryOperation(current, request.before)).toEqual({
-        status: "retry", operationId: request.operationId,
-      });
-      expect(reconcileDeliveryOperation(current, {
-        ...request.requested,
-        target: { ...request.requested.target!, ref: "refs/heads/unrelated" },
-      })).toEqual({ status: "blocked", reason: "ambiguous-result" });
-      expect(current.value.activeOperation?.kind).toBe(kind);
-    },
-  );
+  it("reconciles an ordinary snapshot operation from exact coordinates", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const request = operationRequest(state, { kind: "rewrite" });
+    const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const current = { revision: STATE_REVISION + 1, value: reserved.state };
+    expect(reconcileDeliveryOperation(current, request.requested).status).toBe("adopt");
+    expect(reconcileDeliveryOperation(current, request.before)).toEqual({
+      status: "retry", operationId: request.operationId,
+    });
+    expect(reconcileDeliveryOperation(current, {
+      ...request.requested,
+      target: { ...request.requested.target!, ref: "refs/heads/unrelated" },
+    })).toEqual({ status: "blocked", reason: "ambiguous-result" });
+  });
+
+  it("requires an explicit physical outcome when teardown retains identical bindings", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const before = stateSnapshot(state, [state.members[0]!.deliverableId]);
+    const request = operationRequest(state, {
+      kind: "teardown",
+      before,
+      requested: before,
+    });
+    const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const current = { revision: STATE_REVISION + 1, value: reserved.state };
+
+    expect(reconcileDeliveryOperation(current, {
+      outcome: "applied",
+      snapshot: request.requested,
+    }).status).toBe("adopt");
+    expect(reconcileDeliveryOperation(current, { outcome: "not-applied" })).toEqual({
+      status: "retry", operationId: request.operationId,
+    });
+    expect(reconcileDeliveryOperation(current, { outcome: "ambiguous" })).toEqual({
+      status: "blocked", reason: "ambiguous-result",
+    });
+    expect(reconcileDeliveryOperation(current, request.requested)).toEqual({
+      status: "blocked", reason: "observed-facts-invalid",
+    });
+  });
 
   it("adopts an exact requested result and permits retry after exact non-application", () => {
     const { current, request } = reservedRecord();

@@ -359,8 +359,17 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("prepared"), presentation: PreparedLandingSchema }),
   z.strictObject({ status: z.literal("landed"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
-  z.strictObject({ status: z.literal("position"), position: z.unknown(), nextAction: z.string().min(1) }),
-  z.strictObject({ status: z.literal("applied"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({
+    status: z.literal("position"),
+    position: z.unknown(),
+    nextAction: z.string().min(1),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+  }),
+  z.strictObject({
+    status: z.literal("applied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("read-position").optional(),
+  }),
   z.strictObject({
     status: z.literal("rematerialized"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
@@ -1066,9 +1075,27 @@ async function executeDeliveryCommand(
       return { status: "refused", reason: "delivery-unavailable" };
     }
     const position = deriveDeliveryPosition(plan.value, state.value.value, parsed.facts);
-    return position.status === "derived"
-      ? { status: "position", position: position.position, nextAction: position.position.firstUnlanded === null ? "terminal-handoff" : "review-member" }
-      : { status: "refused", reason: position.reason };
+    if (position.status !== "derived") return { status: "refused", reason: position.reason };
+    const terminal = plan.value.members.at(-1);
+    if (position.position.firstUnlanded === null || plan.value.members.length === 1) {
+      return { status: "position", position: position.position, nextAction: "terminal-handoff" };
+    }
+    if (position.position.firstUnlanded === terminal?.deliverableId) {
+      const highest = plan.value.members.at(-2);
+      if (highest === undefined) return { status: "refused", reason: "position-mismatch" };
+      return {
+        status: "position",
+        position: position.position,
+        nextAction: "teardown-member",
+        selectedDeliverableId: highest.deliverableId,
+      };
+    }
+    return {
+      status: "position",
+      position: position.position,
+      nextAction: "review-member",
+      selectedDeliverableId: position.position.firstUnlanded,
+    };
   }
   if (command === "land-prepare" || command === "land-apply") {
     const parsed = (command === "land-prepare" ? LandPrepareSchema : LandApplySchema).parse(request);
@@ -1244,16 +1271,27 @@ async function executeDeliveryCommand(
               new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, before.changeRequest),
             ]);
             const targetRef = operation.before.target?.ref;
-            return ref.status === "absent" && request.status === "observed"
-              && targetRef !== undefined
-              && matchesDeliveryTeardownRequest({
+            if (ref.status === "refused" || request.status !== "observed" || targetRef === undefined) {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
+            const exactRequest = matchesDeliveryTeardownRequest({
                 request: request.request,
                 repository: parsed.repository,
                 protectedTargetRef: targetRef,
                 member: before,
-              })
-              ? { status: "observed" as const, value: operation.requested }
-              : { status: "refused" as const, reason: "observation-unavailable" as const };
+            });
+            if (!exactRequest) {
+              return { status: "observed" as const, value: { outcome: "ambiguous" as const } };
+            }
+            if (ref.status === "absent") {
+              return {
+                status: "observed" as const,
+                value: { outcome: "applied" as const, snapshot: operation.requested },
+              };
+            }
+            return ref.head === before.coordinates?.head
+              ? { status: "observed" as const, value: { outcome: "not-applied" as const } }
+              : { status: "observed" as const, value: { outcome: "ambiguous" as const } };
           }
           if (operation.kind === "land") {
             const beforeMember = operation.before.members[0];

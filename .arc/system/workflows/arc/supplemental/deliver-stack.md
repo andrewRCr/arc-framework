@@ -114,6 +114,10 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
+Follow the typed result. `applied / read-position` returns to `arc delivery position`. `retryable` follows the
+returned guidance: prepare a landed member again and re-fire its interlock, or revalidate and retry the exact owning
+mutation that was reconciled. A blocked, refused, unavailable, or ambiguous result stops with its reason rendered.
+
 Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
 
 ```bash
@@ -185,8 +189,11 @@ Read the next action from:
 arc delivery position - --json
 ```
 
-For a non-terminal member, run the existing review sequence with the exact delivery-member vehicle returned by the
-CLI:
+Dispatch only on its typed route. `review-member` enters the review and landing path below with the returned
+`selectedDeliverableId`. `teardown-member` skips review and landing and enters the teardown path below with its
+exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. Every refusal stops.
+
+For `review-member`, run the existing review sequence with the exact delivery-member vehicle returned by the CLI:
 
 ```json
 {"kind":"delivery-member","planId":"<planId>","deliverableId":"<deliverableId>","workUnitSlug":"<workUnitSlug>"}
@@ -244,6 +251,10 @@ After a member is authoritatively landed and its request is merged or closed, re
 ```bash
 arc delivery teardown - --json
 ```
+
+The request carries the position result's exact `selectedDeliverableId` plus the current plan, repository, protected
+target, remote, and freshly observed position facts. This makes `teardown-member` idempotent after reconciliation;
+never select a member from prose or provider order.
 
 The CLI retains the exact member binding, deletes the proven remote branch, and, after the highest non-terminal
 member, immediately reobserves the top request. Follow only its returned `nextAction`:

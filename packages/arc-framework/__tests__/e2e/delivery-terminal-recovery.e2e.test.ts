@@ -267,6 +267,7 @@ describe("delivery terminal recovery", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery reconcile",
       status: "applied",
+      nextAction: "read-position",
       state: { value: { activeOperation: null } },
     });
 
@@ -278,6 +279,68 @@ describe("delivery terminal recovery", () => {
       coordinates: { head: fixture.triggerHead },
       changeRequest: { providerId: "github", changeRequestId: "401" },
     });
+
+    const plan = deliveryStackPlanFixture();
+    const facts = {
+      target: restored.value.target,
+      members: restored.value.members,
+      landedDeliverableIds: [plan.members[0]!.deliverableId],
+    };
+    const position = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, facts })}\n`,
+      { env: fixture.env },
+    );
+    expect(position.exitCode, position.stderr).toBe(0);
+    expect(JSON.parse(position.stdout)).toMatchObject({
+      command: "delivery position",
+      status: "position",
+      nextAction: "teardown-member",
+      selectedDeliverableId: plan.members[0]!.deliverableId,
+    });
+
+    const teardown = await runArcWithStdin(
+      ["delivery", "teardown", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: fixture.planId,
+        deliverableId: plan.members[0]!.deliverableId,
+        facts,
+        repository: "owner/repo",
+        protectedTargetRef: "refs/heads/main",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(teardown.exitCode, teardown.stderr).toBe(0);
+    expect(JSON.parse(teardown.stdout)).toMatchObject({
+      command: "delivery teardown",
+      status: "torn-down",
+      nextAction: "retarget",
+    });
+  });
+
+  it("retries an interrupted teardown when the exact trigger ref is still present", async () => {
+    const fixture = await installFixture({ triggerPresent: true, teardownReserved: true });
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "retryable",
+    });
+    const restored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    expect(restored.value.activeOperation).toBeNull();
+    await expect(git(repository, ["ls-remote", "--exit-code", "origin", "refs/heads/member-1"]))
+      .resolves.toContain(fixture.triggerHead);
   });
 
   it("retains an interrupted teardown reservation when the request head moved", async () => {

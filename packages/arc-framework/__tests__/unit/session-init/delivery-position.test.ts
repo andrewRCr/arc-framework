@@ -86,4 +86,55 @@ describe("session-init delivery position", () => {
     expect(result.value.activeOperation).toEqual({ kind: "rewrite", operationId: "op-1" });
     expect(result.value.line).toBe("Delivery position: 0/2 landed; active operation: rewrite op-1.");
   });
+
+  it("renders an interrupted top remedy as a recoverable active operation", async () => {
+    const plan = deliveryStackPlanFixture();
+    const clean = deliveryStateFixture(plan);
+    const trigger = clean.members.at(-2)!;
+    const terminal = clean.members.at(-1)!;
+    const before = { target: clean.target, members: [terminal] };
+    const active = {
+      ...clean,
+      activeOperation: {
+        operationId: "top-remedy-1",
+        kind: "top-remedy" as const,
+        affectedDeliverableIds: [terminal.deliverableId],
+        stateRevision: 3,
+        boundPlanDigest: plan.planDigest,
+        before,
+        requested: before,
+        effect: {
+          providerId: "github",
+          repository: "owner/repository",
+          changeRequestId: "402",
+          headRef: terminal.ref!.replace(/^refs\/heads\//u, ""),
+          headSha: terminal.coordinates!.head,
+          triggerRef: trigger.ref!,
+          triggerHeadSha: trigger.coordinates!.head,
+          fromBaseRef: trigger.ref!.replace(/^refs\/heads\//u, ""),
+          protectedBaseRef: "main",
+          action: "retarget" as const,
+        },
+      },
+    };
+    const facts = { target: clean.target, members: clean.members, landedDeliverableIds: [] };
+    const result = await readDeliveryPositionView(plan.workUnitId, {
+      plans: { enumerateCurrentReadOnly: vi.fn().mockResolvedValue({ status: "ok", value: [plan] }) },
+      states: { read: vi.fn().mockResolvedValue({ status: "ok", value: { revision: 4, value: active } }) },
+      observe: vi.fn().mockResolvedValue({
+        status: "observed",
+        facts,
+        operationObservation: { outcome: "not-applied" },
+        projectedState: { ...active, activeOperation: null },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: "ok",
+      value: {
+        activeOperation: { kind: "top-remedy", operationId: "top-remedy-1" },
+        line: "Delivery position: 0/2 landed; active operation: top-remedy top-remedy-1.",
+      },
+    });
+  });
 });
