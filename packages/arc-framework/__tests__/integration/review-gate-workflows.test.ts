@@ -747,7 +747,7 @@ describe("trusted review-gate workflows", () => {
     const full = sectionBetween(
       decompose,
       "### Full protection",
-      "## 7. Confirm lifecycle readiness and clean up",
+      "## 7. Confirm lifecycle readiness and finish",
     );
     const status = full.indexOf("Surface PR status");
     const interlock = full.indexOf("`integration-interlock`");

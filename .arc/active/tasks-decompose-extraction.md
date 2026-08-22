@@ -139,15 +139,10 @@ shipped doctrine.
 - _Goal:_ One semantic interlock governs the additive result, a separate apply confirmation governs thinning, and
   the shipped doctrine surfaces state one extraction boundary.
 
-    - `[ ]` **3.2.a Extend the authoritative decomposition workflow**
-        - Dispatch on core-reported paths/profile, author retained/transferred ownership and stable anchor
-          orientation, then commit/land additively.
-        - Widen the workflow's sole semantic distribution interlock to surface the result report's
-          retained-origin ownership, reasoned drops, and anchor orientation — CLI-reported typed fields, never
-          agent re-derivation — alongside the distributed authority, dependency effects, and topology it reviews
-          today.
-        - Present finish preview/apply later as destructive mutation confirmation, not a second semantic
-          distribution gate.
+    - `[x]` **3.2.a Extend the authoritative decomposition workflow**
+        - The workflow now dispatches retirement and extraction from the completed map, surfaces extraction's exact
+          typed report fields at the sole semantic distribution gate, releases the additive result without a
+          record or base advancement, and gates the later finish apply as destructive mutation confirmation.
 
     - `[ ]` **3.2.b Align the three doctrine surfaces**
         - Amend the extraction exclusions in `assess-boundary-fit.md` (retained-origin foreclosure) and
