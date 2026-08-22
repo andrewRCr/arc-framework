@@ -50,6 +50,7 @@ function requestMatches(input: {
     && request.binding.providerId === member.changeRequest.providerId
     && request.binding.changeRequestId === member.changeRequest.changeRequestId
     && request.headRef === member.ref.replace(/^refs\/heads\//u, "")
+    && member.coordinates !== null && request.headSha === member.coordinates.head
     && request.baseRef === input.protectedTargetRef.replace(/^refs\/heads\//u, "")
     && (request.state === "merged" || request.state === "closed");
 }
@@ -110,7 +111,7 @@ export async function teardownLandedDeliveryMember(input: {
     input.plan.planId, reserved.state, input.current.revision,
   );
   if (persistedReservation.status !== "ok") return { status: "refused", reason: "state-conflict" };
-  const deletion = await input.deleteRef({ ref: member.ref, expectedHead: initialRequest.request.headSha });
+  const deletion = await input.deleteRef({ ref: member.ref, expectedHead: member.coordinates.head });
   if (deletion.status === "refused") {
     return { status: "blocked", reason: "delete-refused", reservation: persistedReservation.value };
   }

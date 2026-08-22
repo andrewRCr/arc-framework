@@ -51,6 +51,14 @@ describe("landed delivery teardown", () => {
     };
     await expect(teardownLandedDeliveryMember({
       ...common,
+      host: { readRequest: async () => ({
+        status: "observed",
+        request: { ...request, headSha: `${request.headSha.slice(0, -1)}0` },
+      }) },
+      deleteRef: async () => ({ status: "adopted" }),
+    })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
+    await expect(teardownLandedDeliveryMember({
+      ...common,
       host: { readRequest: async () => ({ status: "observed", request: { ...request, state: "open" as const } }) },
       deleteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
