@@ -104,10 +104,10 @@ _Purpose:_ Remove approved source units only after their exact destinations are 
         - Every scanned unit now retains its exact half-open UTF-8 byte range, including BOM/multibyte/CRLF,
           nested and adjacent Markdown sections, whole-file artifacts, and empty inputs.
 
-    - `[ ]` **2.2.b Build the pure thinning planner**
-        - Consume the recorded byte ranges and return path before digests/modes, retained bytes or deletion, and
-          removed locators.
-        - Retain surviving-origin units; remove validated transfers and interlock-approved reasoned drops only.
+    - `[x]` **2.2.b Build the pure thinning planner**
+        - The pure planner authenticates every mapped source artifact and allocation, then emits sorted path
+          preimages, exact retained byte slices or deletion, preserved modes, and removed locators. Only explicit
+          target and reasoned-drop dispositions remove units; retained-origin units remain byte-for-byte.
 
     - `[ ]` **2.2.c Apply through bounded preimages**
         - Compare-and-swap every source preimage before the first write and restore only owned paths on failure.
