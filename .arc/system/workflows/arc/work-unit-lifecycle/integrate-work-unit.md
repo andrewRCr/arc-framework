@@ -400,10 +400,12 @@ After approval, invoke:
 arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
 ```
 
-`merged / complete` proceeds to the tail. `awaiting-checks / retry` retains the checkpoint and re-invokes this
-same command immediately — `payload.elapsedMs` discloses the wait already served, not a delay to observe.
-`invalidated / checkpoint` returns to the checkpoint; `blocked / stop`
-stops. The integration interlock is the sole merge authority.
+`merged / complete` proceeds to the tail. `awaiting-checks / retry` keeps the checkpoint and draft lock, surfaces
+`payload.checks` and any `payload.diagnosticFailures`, and ends the current foreground attempt;
+`payload.elapsedMs` discloses the bounded wait already served. Do not re-invoke recursively. A later retry invokes
+the same command with the same checkpoint handle; the verb revalidates exact head and lifecycle, so the prior
+approval carries only while both remain unchanged. `invalidated / checkpoint` returns to the checkpoint;
+`blocked / stop` stops. The integration interlock is the sole merge authority.
 
 **Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the
 merge already landed (attended elsewhere, or unattended on the auto-merge lane); enter the same attachment below.

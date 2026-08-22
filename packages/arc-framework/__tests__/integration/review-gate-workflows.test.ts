@@ -587,7 +587,11 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
     expect(gate).toContain("`checks-pending / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
-    expect(gate).toContain("`payload.elapsedMs` discloses the wait already served");
+    expect(gate).toContain("keeps the checkpoint and draft lock");
+    expect(gate).toContain("`payload.diagnosticFailures`");
+    expect(gate).toContain("Do not re-invoke recursively");
+    expect(gate).not.toContain("re-invokes this same command immediately");
+    expect(gate).toContain("`payload.elapsedMs` discloses the bounded wait already served");
     expect(gate).not.toContain("after `payload.elapsedMs` milliseconds");
     expect(gate).not.toContain("returned deadline");
     expect(gate).not.toContain("otherwise render `None`");

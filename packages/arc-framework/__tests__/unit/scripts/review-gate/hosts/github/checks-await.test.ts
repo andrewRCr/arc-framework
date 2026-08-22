@@ -6,6 +6,25 @@ import { createGhRequiredChecksPort } from "../../../../../../src/scripts/review
 import type { HostedProcessRunner } from "../../../../../../src/scripts/review-gate/hosted/gh-process.js";
 
 describe("GitHub required-check port", () => {
+  it("observes individual check failures outside required-check authority", async () => {
+    const run = vi.fn(async (args: string[]) => {
+      if (args.includes("--required")) throw new Error("observed checks must not use the required-only query");
+      return {
+        stdout: JSON.stringify([
+          { name: "merge-ok", state: "IN_PROGRESS", bucket: "pending" },
+          { name: "E2E shard 3", state: "FAILURE", bucket: "fail" },
+        ]),
+        stderr: "",
+      };
+    });
+    const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.readObservedChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
+      { name: "merge-ok", state: "pending" },
+      { name: "E2E shard 3", state: "failed" },
+    ]);
+  });
+
   it("normalizes required check buckets while allowing their meaningful nonzero exit", async () => {
     const run = vi.fn(async () => ({
       stdout: JSON.stringify([

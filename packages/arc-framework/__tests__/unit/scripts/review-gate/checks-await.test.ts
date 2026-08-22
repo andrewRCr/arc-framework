@@ -22,6 +22,7 @@ function port(checks: RequiredCheck[]): RequiredChecksPort {
     resolveRepository: async () => "owner/repo",
     readHead: async () => headSha,
     readRequiredChecks: async () => checks,
+    readObservedChecks: async () => checks,
   };
 }
 
@@ -63,6 +64,31 @@ describe("required-checks await", () => {
       nextAction: "await",
       elapsedMs: 2_000,
       checks: [{ name: "build", state: "pending" }],
+    });
+  });
+
+  it("returns early diagnostic failures without granting them merge authority", async () => {
+    const required = [{ name: "merge-ok", state: "pending" }] satisfies RequiredCheck[];
+    const diagnosticPort = {
+      ...port(required),
+      readObservedChecks: async () => [
+        ...required,
+        { name: "E2E shard 3", state: "failed" },
+      ],
+    } as RequiredChecksPort;
+
+    await expect(awaitRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, { port: diagnosticPort, clock: clock() })).resolves.toMatchObject({
+      state: "pending",
+      nextAction: "await",
+      elapsedMs: 0,
+      checks: required,
+      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
     });
   });
 

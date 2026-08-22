@@ -211,7 +211,7 @@ describe("integration merge", () => {
     expect(heldTarget).toEqual(refreshedTarget);
   });
 
-  it("re-locks the refreshed live head when an unexpected post-release operation fails", async () => {
+  it("re-locks the refreshed live head when an unexpected post-check operation fails", async () => {
     const { value } = dependencies();
     const movedTarget = {
       repository: "owner/repo",
@@ -224,7 +224,11 @@ describe("integration merge", () => {
     value.readFinalDrift = async () => {
       throw new Error("drift reader unavailable");
     };
-    value.refreshTarget = async () => movedTarget;
+    let refreshes = 0;
+    value.refreshTarget = async (target) => {
+      refreshes += 1;
+      return refreshes === 1 ? target : movedTarget;
+    };
     value.holdLock = async (target) => {
       heldTarget = target;
       return { state: "held" };
@@ -249,7 +253,19 @@ describe("integration merge", () => {
     expect(state).toEqual({ held: true, merged: false });
   });
 
-  it("re-locks when the configured base moves after lock release", async () => {
+  it("keeps the lock held when the pull-request head moves after checks complete", async () => {
+    const { value, state } = dependencies();
+    value.refreshTarget = async (target) => ({ ...target, headSha: oid("f") });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "head-mismatch",
+      payload: { approvedHead: oid("c"), actualHead: oid("f") },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("keeps the lock held when the configured base moves after checks complete", async () => {
     const { value, state } = dependencies();
     let reads = 0;
     value.readConfiguredBase = async () => {
@@ -433,7 +449,8 @@ describe("integration merge", () => {
           headSha: oid("c"),
           state: "pending",
           nextAction: "await",
-          checks: [{ name: "test", state: "pending" }],
+          checks: [{ name: "merge-ok", state: "pending" }],
+          diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
           elapsedMs: 600_000,
         };
       }
@@ -449,8 +466,14 @@ describe("integration merge", () => {
       };
     };
 
-    await expect(mergeIntegration(request, value)).resolves.toMatchObject({ state: "awaiting-checks" });
-    expect(state.held).toBe(false);
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "awaiting-checks",
+      payload: {
+        checks: [{ name: "merge-ok", state: "pending" }],
+        diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+      },
+    });
+    expect(state.held).toBe(true);
     expect(state.merged).toBe(false);
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({ state: "merged" });
