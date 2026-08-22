@@ -19,6 +19,7 @@ import {
 import { decodeV3DecomposeCutMap } from "./decompose-v3-schema.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
 import { transitionOverlayCompositionInput } from "./transition-overlay.js";
+import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
 
 export interface GitV3RepositoryPlanDependencies {
   cwd: string;
@@ -199,6 +200,39 @@ async function shortRef(
   return stdout.trim() || oid;
 }
 
+/** Render the canonical ROADMAP bytes for one pinned repository tree. */
+export async function renderGitV3RepositoryTreeRoadmap(
+  dependencies: GitV3RepositoryPlanDependencies,
+  baseBranch: string,
+  tree: V3RepositoryPlanTree,
+  renderedHead: string,
+  overlay?: ProspectiveTransitionOverlay,
+  renderedRefInput?: string,
+): Promise<Uint8Array> {
+  const readiness = await resolveProjectReadinessViewInput({
+    cwd: dependencies.cwd,
+    fs: createGitV3RepositoryTreeProjectViewFs(dependencies.cwd, tree),
+    localRefs: {
+      exec: bindGitCwd(dependencies.exec, dependencies.cwd),
+      acquisitionPolicy: "local",
+      baseBranch,
+    },
+    transitionOverlays: overlay === undefined
+      ? []
+      : [transitionOverlayCompositionInput(overlay)],
+  });
+  const renderedRef = renderedRefInput ?? await shortRef(dependencies, renderedHead);
+  const markdown = composeProjectReadinessViewResult({
+    ...readiness,
+    renderedRef: {
+      ref: renderedRef,
+      scope: "tree + local refs",
+      liveView: "arc status --project",
+    },
+  }).markdown;
+  return new TextEncoder().encode(markdown.endsWith("\n") ? markdown : `${markdown}\n`);
+}
+
 function gitRefusal(reason: string, locus?: string): GitV3RepositoryPlanResult {
   return {
     status: "refused",
@@ -275,29 +309,15 @@ async function composeGitRepositoryPlan(
       resultBaseTree,
       mergeBases,
       cohortTemplate: dependencies.cohortTemplate,
-      renderRoadmap: async (projectedTree, overlay) => {
-        const readiness = await resolveProjectReadinessViewInput({
-          cwd: dependencies.cwd,
-          fs: createGitV3RepositoryTreeProjectViewFs(dependencies.cwd, projectedTree),
-          localRefs: {
-            exec: bindGitCwd(dependencies.exec, dependencies.cwd),
-            acquisitionPolicy: "local",
-            baseBranch,
-          },
-          transitionOverlays: overlay === undefined
-            ? []
-            : [transitionOverlayCompositionInput(overlay)],
-        });
-        const markdown = composeProjectReadinessViewResult({
-          ...readiness,
-          renderedRef: {
-            ref: renderedRef,
-            scope: "tree + local refs",
-            liveView: "arc status --project",
-          },
-        }).markdown;
-        return new TextEncoder().encode(markdown.endsWith("\n") ? markdown : `${markdown}\n`);
-      },
+      renderRoadmap: async (projectedTree, overlay) =>
+        await renderGitV3RepositoryTreeRoadmap(
+          dependencies,
+          baseBranch,
+          projectedTree,
+          resultBaseHead,
+          overlay,
+          renderedRef,
+        ),
     });
     const [sourceAfter, resultAfter] = await Promise.all([
       exactRef(dependencies, map.machine.source.ref),

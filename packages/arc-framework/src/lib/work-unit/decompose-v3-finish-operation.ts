@@ -17,6 +17,10 @@ export type V3ExtractionSourceFinishResult =
 
 /** Mutation seam layered on the shared bounded-preimage recovery contract. */
 export interface V3ExtractionSourceFinishIO extends V3PartialRecoveryIO {
+  authorizeApply?(files: readonly V3ExtractionSourceThinningFilePlan[]): Promise<
+    | { status: "ready" }
+    | { status: "refused"; reason: string; locus?: string }
+  >;
   beforeApply?(): Promise<
     | { status: "ready" }
     | { status: "refused"; reason: string; locus?: string }
@@ -162,6 +166,15 @@ export function executeV3ExtractionSourceFinish(
         status: "previewed",
         files: files.filter(({ path }) => pendingPaths.has(path)),
       };
+    }
+    if (io.authorizeApply !== undefined) {
+      let authorization: Awaited<ReturnType<NonNullable<V3ExtractionSourceFinishIO["authorizeApply"]>>>;
+      try {
+        authorization = await io.authorizeApply(files.filter(({ path }) => pendingPaths.has(path)));
+      } catch {
+        return { status: "refused", reason: "apply-authority", locus: "apply" };
+      }
+      if (authorization.status === "refused") return authorization;
     }
     if (io.beforeApply !== undefined) {
       let guard: Awaited<ReturnType<NonNullable<V3ExtractionSourceFinishIO["beforeApply"]>>>;

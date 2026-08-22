@@ -222,8 +222,9 @@ From the surviving source, preview the separately retryable finish:
 arc decompose <origin> --finish <completed-map>
 ```
 
-Surface the exact preview, including source paths, retained bytes or deletion, transferred locators, and live-base
-destination validation. This is destructive mutation confirmation, not a second semantic distribution gate.
+Surface the exact preview, including `preview.applyAuthority`, source paths, retained bytes or deletion,
+transferred locators, and live-base destination validation. This is destructive mutation confirmation, not a
+second semantic distribution gate.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the exact finish preview. Surface the preview; await explicit 'apply' direction
@@ -232,7 +233,7 @@ destination validation. This is destructive mutation confirmation, not a second 
 On approval, apply the exact preview:
 
 ```bash
-arc decompose <origin> --finish <completed-map> --apply
+arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>
 ```
 
 Route only the CLI-reported finish outcome or remedy. An `already-finished` outcome completes this leg without

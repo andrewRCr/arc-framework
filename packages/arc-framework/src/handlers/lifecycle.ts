@@ -542,7 +542,7 @@ export const DecomposeCommandInputSchema = z.object({
   execute: z.string().trim().min(1).optional(),
   extract: z.string().trim().min(1).optional(),
   finish: z.string().trim().min(1).optional(),
-  apply: z.literal(true).optional(),
+  apply: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
@@ -552,7 +552,7 @@ export const DecomposeCommandInputSchema = z.object({
       message: "Exactly one of --preflight, --execute, --extract, --finish, or --advance-base is required.",
     });
   }
-  if (value.apply === true && value.finish === undefined) {
+  if (value.apply !== undefined && value.finish === undefined) {
     refinement.addIssue({
       code: "custom",
       path: ["apply"],
@@ -908,8 +908,8 @@ export interface DecomposeOptions {
   extract?: string;
   /** Preview source thinning from one completed extraction map. */
   finish?: string;
-  /** Apply the exact source-thinning preview. */
-  apply?: true;
+  /** Apply the exact source-thinning preview authority. */
+  apply?: string;
   /** Advance one committed full-protection candidate from its canonical completed cut map. */
   advanceBase?: string;
 }
@@ -993,7 +993,7 @@ export async function handleDecompose(
         baseBranch: settings["branch.base"],
         origin: parsed.data.origin,
         cutMapPath: parsed.data.finish,
-        apply: parsed.data.apply === true,
+        applyAuthority: (parsed.data.apply ?? null) as `sha256:${string}` | null,
       }));
       process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status === "refused") {

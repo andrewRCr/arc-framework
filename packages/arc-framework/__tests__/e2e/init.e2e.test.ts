@@ -140,7 +140,7 @@ describe("init", () => {
       "arc decompose <origin> --finish <completed-map>\n",
     );
     const finishApplyIndex = decomposeWorkflow.indexOf(
-      "arc decompose <origin> --finish <completed-map> --apply",
+      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
     );
     expect(interlockIndexes).toHaveLength(3);
     expect(authoringIndex).toBeGreaterThanOrEqual(0);

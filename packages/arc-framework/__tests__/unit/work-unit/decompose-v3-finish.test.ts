@@ -6,6 +6,7 @@ import {
 
 describe("V3ExtractionFinishResultSchema", () => {
   const preview = {
+    applyAuthority: `sha256:${"c".repeat(64)}`,
     liveBase: {
       ref: "refs/heads/main",
       head: "a".repeat(40),
@@ -40,6 +41,7 @@ describe("V3ExtractionFinishResultSchema", () => {
     { status: "unknown" },
     { status: "previewed" },
     { status: "previewed", reason: "unexpected" },
+    { status: "previewed", preview: { ...preview, applyAuthority: "invalid" } },
   ])("refuses an incomplete or open-ended outcome: %o", (result) => {
     expect(V3ExtractionFinishResultSchema.safeParse(result).success).toBe(false);
   });

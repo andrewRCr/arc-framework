@@ -281,6 +281,29 @@ describe("executeV3ExtractionSourceFinish", () => {
     expect(io.applied).toEqual([]);
   });
 
+  it("authorizes the exact pending paths before the pre-mutation guard", async () => {
+    const events: string[] = [];
+    const io = memoryIO();
+    io.authorizeApply = (pending) => {
+      events.push(`authorize:${pending.map(({ path }) => path).join(",")}`);
+      return Promise.resolve({ status: "refused", reason: "apply-authority", locus: "apply" });
+    };
+    io.beforeApply = () => {
+      events.push("guard");
+      return Promise.resolve({ status: "ready" });
+    };
+
+    await expect(executeV3ExtractionSourceFinish(plans(), true, io)).resolves.toEqual({
+      status: "refused",
+      reason: "apply-authority",
+      locus: "apply",
+    });
+    expect(events).toEqual([
+      "authorize:.arc/active/rfc-origin.md,.arc/active/spec-origin.md",
+    ]);
+    expect(io.applied).toEqual([]);
+  });
+
   it("refuses any changed preimage before the first mutation", async () => {
     const io = memoryIO({
       initial: {

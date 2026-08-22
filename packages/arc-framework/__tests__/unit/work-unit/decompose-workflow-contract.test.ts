@@ -32,7 +32,7 @@ describe("decompose workflow contract", () => {
     const release = workflow.indexOf("## 6. Release through the reported protection arm");
     const finishPreview = workflow.indexOf("arc decompose <origin> --finish <completed-map>");
     const finishApply = workflow.indexOf(
-      "arc decompose <origin> --finish <completed-map> --apply",
+      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
     );
     const interlocks = [...workflow.matchAll(/`workflow-interlock`/gu)];
 
@@ -45,7 +45,7 @@ describe("decompose workflow contract", () => {
     expect(interlocks[2]!.index).toBeGreaterThan(finishPreview);
     expect(interlocks[2]!.index).toBeLessThan(finishApply);
     expect(workflow.slice(interlocks[2]!.index, finishApply)).toContain("explicit 'apply' direction");
-    expect(workflow).toContain("This is destructive mutation confirmation, not a second semantic");
+    expect(workflow).toMatch(/This is destructive mutation confirmation, not a\s+second semantic/u);
   });
 
   it("surfaces extraction's typed report fields at the sole semantic distribution gate", () => {
@@ -92,7 +92,7 @@ describe("decompose workflow contract", () => {
       "arc decompose <origin> --advance-base <completed-map>",
       "arc status",
       "arc decompose <origin> --finish <completed-map>",
-      "arc decompose <origin> --finish <completed-map> --apply",
+      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
       "git add -- <finish-source-paths> <changed-owner-reconciliation-paths>\n"
         + "git diff --quiet -- <finish-source-paths> <changed-owner-reconciliation-paths>\n"
         + "git diff --cached --name-only --no-renames",
@@ -164,7 +164,7 @@ describe("decompose workflow contract", () => {
 
   it("makes finished source reconciliation durable before candidate cleanup", () => {
     const finishApply = workflow.indexOf(
-      "arc decompose <origin> --finish <completed-map> --apply",
+      "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
     );
     const finished = workflow.indexOf("A `finished` outcome leaves the exact source thinning staged");
     const stage = workflow.indexOf("git add -- <finish-source-paths> <changed-owner-reconciliation-paths>");

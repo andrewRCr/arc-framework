@@ -645,7 +645,11 @@ describe("arc decompose command modes", () => {
       { timeout: 60_000 },
     );
     expect(preview.exitCode, preview.stderr).toBe(0);
-    expect(JSON.parse(preview.stdout)).toMatchObject({
+    const previewResult = JSON.parse(preview.stdout) as {
+      status: string;
+      preview: { applyAuthority: string };
+    };
+    expect(previewResult).toMatchObject({
       status: "previewed",
       preview: {
         liveBase: {
@@ -668,7 +672,7 @@ describe("arc decompose command modes", () => {
     });
     expect(await repositorySnapshot(repo)).toEqual(beforePreview);
     const finished = await runArcNoTty(
-      ["decompose", "origin", "--finish", cutMapPath, "--apply"],
+      ["decompose", "origin", "--finish", cutMapPath, "--apply", previewResult.preview.applyAuthority],
       repo,
       { timeout: 60_000 },
     );
@@ -720,7 +724,7 @@ describe("arc decompose command modes", () => {
     expect(repeated.exitCode, repeated.stderr).toBe(0);
     expect(JSON.parse(repeated.stdout)).toEqual({ status: "already-finished" });
     const committedRepeat = await runArcNoTty(
-      ["decompose", "origin", "--finish", cutMapPath, "--apply"],
+      ["decompose", "origin", "--finish", cutMapPath, "--apply", previewResult.preview.applyAuthority],
       repo,
       { timeout: 60_000 },
     );

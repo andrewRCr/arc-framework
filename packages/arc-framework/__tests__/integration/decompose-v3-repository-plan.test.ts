@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalize, digestBytes } from "../../src/lib/canonical/canonical-json.js";
 import { createRawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
@@ -245,6 +245,7 @@ Medium.
 async function activeExtractionRepository(
   profile: "draft" | "single-spec" | "paired-spec",
   provisionalTask: boolean,
+  incoming = false,
 ) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-extraction-plan-"));
   roots.push(repo);
@@ -255,6 +256,21 @@ async function activeExtractionRepository(
   await write(repo, ".arc/system/arc-config.yml", "branch.base: main\npm.mode: arc-in-git\n");
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "base"]);
+  if (incoming) {
+    await write(repo, ".arc/backlog/planned/dependent/meta-dependent.md", renderMetaFile("dependent", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: ["origin"],
+      origin: "internal",
+      design: ["draft-dependent.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "add dependent"]);
+  }
   const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
 
   await git(repo, ["switch", "-c", "feat/origin"]);
@@ -332,7 +348,10 @@ async function activeExtractionRepository(
                 },
               },
       })),
-      incomingDispositions: [],
+      incomingDispositions: machine.incomingEdges.map((edge) => ({
+        edgeId: edge.edgeId,
+        disposition: { kind: "replace" as const, replacementTargets: ["origin"] },
+      })),
       outgoingDispositions: [],
     },
   };
@@ -386,7 +405,7 @@ async function previewFinish(fixture: Awaited<ReturnType<typeof stageExtractionR
     baseBranch: "main",
     origin: "origin",
     cutMapPath: fixture.cutMapPath,
-    apply: false,
+    applyAuthority: null,
   });
 }
 
@@ -595,13 +614,15 @@ describe("Git v3 repository plan", () => {
 
   it("applies exact source thinning to the index and worktree", async () => {
     const fixture = await landedExtractionRepository();
+    const preview = await previewFinish(fixture);
+    if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
 
     await expect(finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
-      apply: true,
+      applyAuthority: preview.preview.applyAuthority,
     })).resolves.toEqual({ status: "finished" });
     await expect(readFile(join(fixture.repo, ".arc/active/spec-origin.md"), "utf8"))
       .resolves.toBe("## Scope 0\n\nOwned scope 0.\n\n");
@@ -613,10 +634,160 @@ describe("Git v3 repository plan", () => {
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
-      apply: true,
+      applyAuthority: preview.preview.applyAuthority,
     })).resolves.toEqual({ status: "already-finished" });
     await git(fixture.repo, ["commit", "-m", "finish source extraction"]);
     await expect(previewFinish(fixture)).resolves.toEqual({ status: "already-finished" });
+  });
+
+  it("accepts finalized cohort and member authoring while preserving extraction claims", async () => {
+    const fixture = await activeExtractionRepository("single-spec", false);
+    const completedMap = {
+      ...fixture.completedMap,
+      authoring: {
+        ...fixture.completedMap.authoring,
+        placement: { kind: "cohort" as const, cohort: "group" },
+      },
+    };
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    const cohortPath = ".arc/backlog/planned/group/cohort-group.md";
+    const memberPath = ".arc/backlog/planned/group/member/spec-member.md";
+    await write(
+      candidatePath,
+      cohortPath,
+      (await readFile(join(candidatePath, cohortPath), "utf8")).replace(
+        "**Purpose:** —",
+        "**Purpose:** Coordinate the extracted member with its surviving origin.",
+      ),
+    );
+    const authoredMember = `${await readFile(join(candidatePath, memberPath), "utf8")}`
+      + "\n## Owner-authored plan\n\nReady for task generation.\n";
+    await write(
+      candidatePath,
+      memberPath,
+      authoredMember,
+    );
+    await git(candidatePath, ["add", cohortPath, memberPath]);
+    await git(candidatePath, ["commit", "-m", "author grouped extraction"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+    const cutMapPath = join(fixture.repo, "grouped-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+
+    const preview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    });
+    expect(preview).toMatchObject({
+      status: "previewed",
+      preview: { applyAuthority: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u) },
+    });
+    if (preview.status !== "previewed") return;
+    expect(preview.preview.liveBase.destinations).toContainEqual({
+      path: memberPath,
+      mode: "100644",
+      contentDigest: digestBytes(new TextEncoder().encode(authoredMember)),
+    });
+  });
+
+  it("refuses a mismatched preview authority without source mutation", async () => {
+    const fixture = await landedExtractionRepository();
+    const sourcePath = ".arc/active/spec-origin.md";
+    const before = await readFile(join(fixture.repo, sourcePath), "utf8");
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: `sha256:${"0".repeat(64)}`,
+    })).resolves.toEqual({ status: "refused", reason: "apply-authority", locus: "apply" });
+    await expect(readFile(join(fixture.repo, sourcePath), "utf8")).resolves.toBe(before);
+    expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
+  });
+
+  it("authenticates an authored preserved incoming dependency against the live base", async () => {
+    const fixture = await activeExtractionRepository("single-spec", false, true);
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: fixture.completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    await git(candidatePath, ["commit", "-m", "land preserved dependency extraction"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    const cutMapPath = join(fixture.repo, "incoming-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({ status: "previewed" });
+
+    await git(fixture.repo, ["switch", "main"]);
+    await write(fixture.repo, ".arc/backlog/planned/dependent/meta-dependent.md", renderMetaFile("dependent", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      origin: "internal",
+      design: ["draft-dependent.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(fixture.repo, ["add", ".arc/backlog/planned/dependent/meta-dependent.md"]);
+    await git(fixture.repo, ["commit", "-m", "remove preserved dependency"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({ status: "refused", reason: "dependency-claim" });
+  });
+
+  it("refuses a stale live ROADMAP after the additive result lands", async () => {
+    const fixture = await landedExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    await write(fixture.repo, ".arc/backlog/ROADMAP.md", "# Stale roadmap\n");
+    await git(fixture.repo, ["add", ".arc/backlog/ROADMAP.md"]);
+    await git(fixture.repo, ["commit", "-m", "make roadmap stale"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({
+      status: "refused",
+      reason: "roadmap-current-render",
+      locus: ".arc/backlog/ROADMAP.md",
+    });
   });
 
   it("refuses a complete result that exists only on its additive candidate branch", async () => {
@@ -633,7 +804,7 @@ describe("Git v3 repository plan", () => {
     ["destination-missing", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
       await git(fixture.repo, ["rm", fixture.destinationPath]);
     }],
-    ["destination-bytes", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
+    ["destination-locator", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
       await write(fixture.repo, fixture.destinationPath, "# Changed after landing\n");
       await git(fixture.repo, ["add", fixture.destinationPath]);
     }],
@@ -711,7 +882,7 @@ describe("Git v3 repository plan", () => {
 
     await expect(previewFinish(fixture)).resolves.toMatchObject({
       status: "refused",
-      reason: "destination-bytes",
+      reason: "source:source-units",
     });
   });
 
@@ -744,12 +915,14 @@ describe("Git v3 repository plan", () => {
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
-      apply: false,
+      applyAuthority: null,
     })).resolves.toMatchObject({ status: "refused", reason: "base-raced" });
   });
 
   it("refuses without source mutation when the base moves after verified source capture", async () => {
     const fixture = await landedExtractionRepository();
+    const preview = await previewFinish(fixture);
+    if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
     await git(fixture.repo, ["switch", "main"]);
     await git(fixture.repo, ["switch", "-c", "finish-race-base"]);
     await write(fixture.repo, "finish-race.txt", "race\n");
@@ -781,7 +954,7 @@ describe("Git v3 repository plan", () => {
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
-      apply: true,
+      applyAuthority: preview.preview.applyAuthority,
     })).resolves.toEqual({
       status: "refused",
       reason: "base-raced",
@@ -817,7 +990,7 @@ describe("Git v3 repository plan", () => {
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
-      apply: false,
+      applyAuthority: null,
     })).resolves.toMatchObject({ status: "refused", reason: "source-raced" });
   });
 
@@ -1507,6 +1680,45 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["diff", "--cached", "--name-only"]))
       .toBe(".arc/reference/foreign.txt\n");
     expect(await claimFiles(repo)).toEqual([]);
+  });
+
+  it("restores the path whose write succeeded when its Git stage fails", async () => {
+    const { repo, completedMap, dependencies } = await activeExtractionRepository("single-spec", false);
+    let stageCount = 0;
+    let failedPath: string | undefined;
+    const failingExec: GitExec = async (command, args, options) => {
+      if (command === "git" && args[0] === "add" && args[1] === "-A") {
+        stageCount += 1;
+        if (stageCount === 2) {
+          failedPath = args.at(-1)?.replace(/^:\(literal\)/u, "");
+          throw new Error("synthetic stage failure after write");
+        }
+      }
+      return await dependencies.exec(command, args, options);
+    };
+
+    const result = await executeGitV3ExtractionOperation({
+      ...dependencies,
+      exec: failingExec,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "partial",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(stageCount).toBeGreaterThanOrEqual(2);
+    expect(failedPath).toBeDefined();
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "materialization",
+      reason: "apply-failed",
+      recovery: { kind: "partial-restoration", status: "restored" },
+    });
+    if (result.status !== "refused" || result.recovery.kind !== "partial-restoration") return;
+    if (result.recovery.status !== "restored") return;
+    expect(result.recovery.restoredPaths).toContain(failedPath);
+    expect(await git(repo, ["status", "--porcelain=v1"])).toBe("");
   });
 
   it("retires and prunes one configured-ref backlog stub on the partial base", async () => {

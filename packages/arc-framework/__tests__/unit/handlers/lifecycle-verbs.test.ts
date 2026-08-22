@@ -639,7 +639,8 @@ describe("handleDecompose", () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     mockFinishGitV3Extraction.mockResolvedValue({ status });
 
-    await handleDecompose("mono", { finish: "cut-map.json", ...(apply ? { apply: true } : {}) });
+    const authority = `sha256:${"a".repeat(64)}`;
+    await handleDecompose("mono", { finish: "cut-map.json", ...(apply ? { apply: authority } : {}) });
 
     expect(mockFinishGitV3Extraction).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: "/repo" }),
@@ -648,7 +649,7 @@ describe("handleDecompose", () => {
         baseBranch: "main",
         origin: "mono",
         cutMapPath: "cut-map.json",
-        apply,
+        applyAuthority: apply ? authority : null,
       },
     );
     expect(stdoutWrite).toHaveBeenCalledWith(`{"status":"${status}"}\n`);
@@ -658,6 +659,7 @@ describe("handleDecompose", () => {
   it("emits the exact typed finish preview", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const preview = {
+      applyAuthority: `sha256:${"c".repeat(64)}`,
       liveBase: {
         ref: "refs/heads/main",
         head: "a".repeat(40),
@@ -688,7 +690,7 @@ describe("handleDecompose", () => {
         baseBranch: "main",
         origin: "mono",
         cutMapPath: "cut-map.json",
-        apply: false,
+        applyAuthority: null,
       },
     );
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toEqual({
@@ -771,7 +773,7 @@ describe("handleDecompose", () => {
   it.each([
     ["conflicting modes", { preflight: true, execute: "cut-map.json" }],
     ["advance-base with another mode", { preflight: true, advanceBase: "cut-map.json" }],
-    ["apply without finish", { apply: true }],
+    ["apply without finish", { apply: `sha256:${"a".repeat(64)}` }],
   ])("refuses %s before any production adapter", async (_case, options) => {
     await handleDecompose(
       "mono",

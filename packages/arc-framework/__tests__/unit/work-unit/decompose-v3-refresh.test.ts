@@ -41,7 +41,7 @@ function withPreflightId(machine: V3DecomposeMachine): V3DecomposeMachine {
 }
 
 describe("refreshV3ExtractionCutMap", () => {
-  it("carries authored choices across a unique content-only source refresh", () => {
+  it("requires reauthoring when transferred source bytes change", () => {
     const map = extractionMap();
     const machine = structuredClone(map.machine);
     machine.source.head = "c".repeat(40);
@@ -51,12 +51,66 @@ describe("refreshV3ExtractionCutMap", () => {
     const result = refreshV3ExtractionCutMap(map, preflight(refreshedMachine));
 
     expect(result).toEqual({
-      status: "refreshed",
-      completedMap: { ...map, machine: refreshedMachine },
-      preflight: preflight(refreshedMachine),
+      status: "reauthor",
+      reason: "source-units",
+      locus: "machine.sourceUnits.0.contentDigest",
     });
     expect(map.machine.source.head).toBe("a".repeat(40));
   });
+
+  it.each(["retained-origin", "drop"] as const)(
+    "carries authored %s authority across a unique byte refresh",
+    (kind) => {
+      const map = extractionMap();
+      const retainedLocator = {
+        artifact: "draft-origin.md",
+        kind: "section" as const,
+        level: 2,
+        headingSource: "Retained",
+        ancestry: [],
+        occurrence: 0,
+      };
+      const retained = {
+        sourceId: v3SourceId({
+          sourcePath: ".arc/active/draft-origin.md",
+          sourceLocator: retainedLocator,
+        }),
+        sourcePath: ".arc/active/draft-origin.md",
+        sourceLocator: retainedLocator,
+        contentDigest: `sha256:${"e".repeat(64)}` as const,
+      };
+      map.machine = withPreflightId({
+        ...map.machine,
+        sourceUnits: [...map.machine.sourceUnits, retained].sort((left, right) =>
+          Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId))),
+      });
+      map.authoring.sourceAllocations = map.machine.sourceUnits.map((unit) =>
+        unit.sourceId === retained.sourceId
+          ? {
+              sourceId: unit.sourceId,
+              ownership: "destination-owned" as const,
+              disposition: kind === "retained-origin"
+                ? { kind }
+                : { kind, reason: "obsolete framing" },
+            }
+          : map.authoring.sourceAllocations[0]!);
+      const current = structuredClone(map.machine);
+      current.source.head = "c".repeat(40);
+      current.sourceUnits.find(({ sourceId }) => sourceId === retained.sourceId)!.contentDigest =
+        `sha256:${"f".repeat(64)}`;
+      const refreshedMachine = withPreflightId(current);
+
+      const result = refreshV3ExtractionCutMap(map, preflight(refreshedMachine));
+
+      expect(result.status).toBe("refreshed");
+      if (result.status !== "refreshed") throw new Error(JSON.stringify(result));
+      expect(result.completedMap.authoring.sourceAllocations.find(
+        ({ sourceId }) => sourceId === retained.sourceId,
+      )?.disposition).toEqual(kind === "retained-origin"
+        ? { kind }
+        : { kind, reason: "obsolete framing" });
+    },
+  );
 
   it("requires reauthoring when changed bytes belong to a repeated-heading identity", () => {
     const map = extractionMap();

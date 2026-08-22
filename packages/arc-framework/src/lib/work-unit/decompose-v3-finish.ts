@@ -18,8 +18,8 @@ const Base64Schema = z.string().refine(
   "must be canonical base64",
 );
 
-/** Exact source mutations and live-base destination facts shown before apply. */
-export const V3ExtractionFinishPreviewSchema = z.strictObject({
+/** Exact source mutations and live-base destination facts bound into apply authority. */
+export const V3ExtractionFinishEvidenceSchema = z.strictObject({
   liveBase: z.strictObject({
     ref: z.string().min(1),
     head: GitObjectIdSchema,
@@ -42,6 +42,14 @@ export const V3ExtractionFinishPreviewSchema = z.strictObject({
     removedLocators: z.array(V3DecomposeLocatorSchema),
   })).min(1),
 });
+
+/** Exact evidence packet shown before apply, with its stateless consumption identity. */
+export const V3ExtractionFinishPreviewSchema = V3ExtractionFinishEvidenceSchema.extend({
+  applyAuthority: DigestSchema,
+});
+
+/** Exact finish evidence before its canonical authority is attached. */
+export type V3ExtractionFinishEvidence = z.infer<typeof V3ExtractionFinishEvidenceSchema>;
 
 /** Exact evidence packet returned by a successful finish preview. */
 export type V3ExtractionFinishPreview = z.infer<typeof V3ExtractionFinishPreviewSchema>;

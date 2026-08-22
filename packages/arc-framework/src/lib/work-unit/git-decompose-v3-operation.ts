@@ -164,9 +164,8 @@ function materializerProxy(
   return {
     observe: async (path) => await resolve().observe(path),
     readBlob: async (contentDigest) => await resolve().readBlob(contentDigest),
-    applyAndStageFinal: async (path, state, bytes) => {
-      await resolve().applyAndStageFinal(path, state, bytes);
-    },
+    applyAndStageFinal: async (path, state, bytes) =>
+      await resolve().applyAndStageFinal(path, state, bytes),
   };
 }
 

@@ -185,6 +185,28 @@ landed facts. Git may prove destinations and already-applied thinning, but it ca
 or stale additive attempt leaves only an ARC-owned candidate that ordinary cleanup removes; extraction adds no
 discard verb or recovery protocol of its own.
 
+## Review Amendments
+
+The following forward amendments close authority gaps found after implementation without rewriting the original
+precommitments above:
+
+- A finish preview carries a canonical apply-authority digest over its exact pending source plan. Apply requires
+  that digest, recomputes it after source preimage classification, and rechecks both source and configured-base
+  refs immediately before mutation. An old, altered, or independently reconstructed preview cannot authorize a
+  later apply.
+- The original additive plan remains the immutable basis for destination proof. Owner-authored destinations may
+  evolve after scaffolding, so finish authenticates their invariant semantics rather than requiring scaffold-byte
+  identity: transferred locators still resolve; meta, dependency, and topology claims remain exact; authored
+  incoming-edge dispositions match the live dependent metas; and the live ROADMAP exactly matches a canonical
+  render of the same pinned base tree. This supersedes the earlier exact-stored-byte wording for authorable
+  destination content while retaining exact mode, identity, and semantic-claim checks.
+- Source refresh may carry forward byte changes only for retained-origin units and explicitly reasoned drops.
+  A byte change to transferred scope requires reauthoring, even when its locator still resolves, because the
+  original additive destination remains the transfer proof.
+- Partial recovery treats a path as mutated as soon as its filesystem write or removal succeeds. If later staging,
+  mode application, or pruning fails, the failing path joins all earlier changed paths in bounded restoration and
+  exact post-restore verification.
+
 ## Alternatives & Rationale
 
 ### Thin the source in the additive result

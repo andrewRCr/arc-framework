@@ -349,7 +349,7 @@ program
   .option("--execute <cut-map>", "Stage one exact result from a canonical completed cut map")
   .option("--extract <cut-map>", "Stage one additive result while preserving the source origin")
   .option("--finish <cut-map>", "Preview source thinning after proving the additive result landed")
-  .option("--apply", "Apply the exact source-thinning preview")
+  .option("--apply <authority>", "Apply the exact source-thinning preview authority")
   .option("--advance-base <cut-map>", "Advance one committed candidate from its completed cut map")
   .action(withInteractionContext(
     {

@@ -497,19 +497,27 @@ function materializer(
     },
     applyAndStageFinal: async (path, state, bytes) => {
       let removedParent: string | null = null;
-      if (state.kind === "absent") {
-        const absolute = join(cwd, ...validateManagedPath(path).split("/"));
-        await rm(absolute, { force: true });
-        removedParent = dirname(absolute);
-      } else {
-        if (bytes === null) throw new Error(`Missing final bytes: ${path}`);
-        const absolute = await ensureSafeParents(cwd, path);
-        await atomicWriteFile(absolute, bytes);
-        await chmod(absolute, state.mode === "100755" ? 0o755 : 0o644);
-      }
-      await stagePath(exec, cwd, path);
-      if (removedParent !== null) {
-        await pruneEmptyBacklogSource({ readdir, rmdir }, removedParent);
+      let mutated = false;
+      try {
+        if (state.kind === "absent") {
+          const absolute = join(cwd, ...validateManagedPath(path).split("/"));
+          await rm(absolute, { force: true });
+          mutated = true;
+          removedParent = dirname(absolute);
+        } else {
+          if (bytes === null) return { status: "refused", mutated: false };
+          const absolute = await ensureSafeParents(cwd, path);
+          await atomicWriteFile(absolute, bytes);
+          mutated = true;
+          await chmod(absolute, state.mode === "100755" ? 0o755 : 0o644);
+        }
+        await stagePath(exec, cwd, path);
+        if (removedParent !== null) {
+          await pruneEmptyBacklogSource({ readdir, rmdir }, removedParent);
+        }
+        return { status: "applied" };
+      } catch {
+        return { status: "refused", mutated };
       }
     },
   };

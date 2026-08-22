@@ -12,8 +12,13 @@ export interface V3MaterializerIO {
     path: string,
     state: V3PlanCanonicalPathState,
     bytes: Uint8Array | null,
-  ): Promise<void>;
+  ): Promise<V3MaterializerApplyResult>;
 }
+
+/** Whether one adapter call completed or may have changed its path before refusing. */
+export type V3MaterializerApplyResult =
+  | { status: "applied" }
+  | { status: "refused"; mutated: boolean };
 
 export interface V3MaterializedPath {
   path: string;
@@ -163,17 +168,32 @@ export async function materializeV3DecomposePlan(
       paths.push({ path: mutation.path, disposition: "already-applied", mutation });
       continue;
     }
+    let applied: V3MaterializerApplyResult;
     try {
       const bytes = mutation.after.kind === "absent"
         ? null
         : blobs.get(mutation.after.contentDigest) ?? null;
-      await io.applyAndStageFinal(mutation.path, mutation.after, bytes);
+      applied = await io.applyAndStageFinal(mutation.path, mutation.after, bytes);
     } catch {
       return {
         status: "refused",
         reason: "apply-failed",
         path: mutation.path,
-        appliedPaths: paths.filter(({ disposition }) => disposition === "applied").map(({ path }) => path),
+        appliedPaths: [
+          ...paths.filter(({ disposition }) => disposition === "applied").map(({ path }) => path),
+          mutation.path,
+        ],
+      };
+    }
+    if (applied.status === "refused") {
+      return {
+        status: "refused",
+        reason: "apply-failed",
+        path: mutation.path,
+        appliedPaths: [
+          ...paths.filter(({ disposition }) => disposition === "applied").map(({ path }) => path),
+          ...(applied.mutated ? [mutation.path] : []),
+        ],
       };
     }
     paths.push({ path: mutation.path, disposition: "applied", mutation });

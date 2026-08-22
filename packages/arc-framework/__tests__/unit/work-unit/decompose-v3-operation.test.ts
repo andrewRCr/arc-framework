@@ -164,6 +164,7 @@ function dependencies(
       applyAndStageFinal: async (path, state) => {
         events.push(`apply:${path}`);
         states.set(path, state);
+        return { status: "applied" };
       },
     },
     partialRecovery: {
@@ -296,6 +297,7 @@ describe("executeV3DecomposeOperation", () => {
         readBlob: async (digest) => digest === firstAfter.contentDigest ? firstBytes : secondBytes,
         applyAndStageFinal: async (path) => {
           events.push(`apply:${path}`);
+          return { status: "applied" };
         },
       },
     });
@@ -339,6 +341,7 @@ describe("executeV3DecomposeOperation", () => {
           readBlob: async (digest) => digest === firstAfter.contentDigest ? firstBytes : secondBytes,
           applyAndStageFinal: async (path) => {
             if (path === fixture.secondPath) throw new Error("stage failed");
+            return { status: "applied" };
           },
         },
         partialRecovery: {
@@ -372,10 +375,13 @@ describe("executeV3DecomposeOperation", () => {
         recovery: {
           kind: "partial-restoration",
           status: "restored",
-          restoredPaths: [fixture.firstPath],
+          restoredPaths: [fixture.firstPath, fixture.secondPath],
         },
       });
-      expect(restored).toEqual([captured.find(({ path }) => path === fixture.firstPath)]);
+      expect(restored).toEqual([
+        captured.find(({ path }) => path === fixture.firstPath),
+        captured.find(({ path }) => path === fixture.secondPath),
+      ]);
       expect(restored[0]?.index).not.toEqual(restored[0]?.worktree);
     },
   );

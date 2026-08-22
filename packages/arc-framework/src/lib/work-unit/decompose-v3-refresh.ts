@@ -106,6 +106,10 @@ export function refreshV3ExtractionCutMap(
     }
   }
   const ambiguousGroups = repeatedHeadingGroups(prior.sourceUnits);
+  const allocationBySource = new Map(completedMap.authoring.sourceAllocations.map((allocation) => [
+    allocation.sourceId,
+    allocation,
+  ]));
   for (let index = 0; index < prior.sourceUnits.length; index += 1) {
     const previous = prior.sourceUnits[index];
     const refreshed = current.sourceUnits[index];
@@ -115,6 +119,15 @@ export function refreshV3ExtractionCutMap(
       return {
         status: "reauthor",
         reason: "source-unit-ambiguous",
+        locus: `machine.sourceUnits.${index}.contentDigest`,
+      };
+    }
+    if (previous !== undefined && refreshed !== undefined
+      && previous.contentDigest !== refreshed.contentDigest
+      && allocationBySource.get(previous.sourceId)?.disposition.kind === "target") {
+      return {
+        status: "reauthor",
+        reason: "source-units",
         locus: `machine.sourceUnits.${index}.contentDigest`,
       };
     }
