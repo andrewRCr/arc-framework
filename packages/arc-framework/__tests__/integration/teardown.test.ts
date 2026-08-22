@@ -265,7 +265,11 @@ describe("retirement authorization remote snapshot materialization", () => {
 
       const retiringHead = await git(h.cloneA, ["rev-parse", "main"]);
       const remoteHead = await git(h.cloneB, ["rev-parse", branch]);
+      const treeOid = await git(h.cloneB, ["rev-parse", `${branch}^{tree}`]);
       const blobOid = await git(h.cloneB, ["rev-parse", `${branch}:large.bin`]);
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${treeOid}^{tree}`]),
+      ).rejects.toThrow();
       await expect(
         git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${blobOid}^{blob}`]),
       ).rejects.toThrow();
@@ -278,6 +282,9 @@ describe("retirement authorization remote snapshot materialization", () => {
       await expect(
         context.readRemoteSourceRef("origin", branch, retiringHead),
       ).resolves.toEqual({ kind: "strict-descendant", oid: remoteHead });
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${treeOid}^{tree}`]),
+      ).rejects.toThrow();
       await expect(
         git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${blobOid}^{blob}`]),
       ).rejects.toThrow();
