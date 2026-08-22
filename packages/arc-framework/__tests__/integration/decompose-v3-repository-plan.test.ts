@@ -17,6 +17,10 @@ import {
   executeGitV3ExtractionOperation,
 } from "../../src/lib/work-unit/git-decompose-v3-operation.js";
 import { finishGitV3Extraction } from "../../src/lib/work-unit/git-decompose-v3-finish.js";
+import {
+  resolveV3DecomposeContentLocator,
+  scanV3DecomposeContent,
+} from "../../src/lib/work-unit/decompose-content.js";
 import { advanceGitDecomposeTransitionBase } from
   "../../src/lib/work-unit/git-decompose-transition-base-advancement.js";
 import { resolveTransitionRecordRelativePath } from "../../src/lib/work-unit/transition-record-store.js";
@@ -634,7 +638,7 @@ describe("Git v3 repository plan", () => {
     await expect(previewFinish(fixture)).resolves.toMatchObject({ status: "refused", reason });
   });
 
-  it("refuses the wrong source branch and a changed source head", async () => {
+  it("refuses the wrong source branch and refreshes an identity-stable source head", async () => {
     const wrongBranch = await landedExtractionRepository();
     await git(wrongBranch.repo, ["switch", "main"]);
     await expect(previewFinish(wrongBranch)).resolves.toMatchObject({
@@ -646,9 +650,38 @@ describe("Git v3 repository plan", () => {
     await write(changedHead.repo, "unrelated.txt", "changed head\n");
     await git(changedHead.repo, ["add", "unrelated.txt"]);
     await git(changedHead.repo, ["commit", "-m", "change source head"]);
-    await expect(previewFinish(changedHead)).resolves.toMatchObject({
+    await expect(previewFinish(changedHead)).resolves.toEqual({ status: "previewed" });
+  });
+
+  it("refuses refreshed transferred bytes that are absent from the landed destination", async () => {
+    const fixture = await landedExtractionRepository();
+    const allocation = fixture.completedMap.authoring.sourceAllocations.find(({ disposition }) =>
+      disposition.kind === "target");
+    const sourceUnit = fixture.completedMap.machine.sourceUnits.find(({ sourceId }) =>
+      sourceId === allocation?.sourceId);
+    if (sourceUnit === undefined) throw new Error("extraction fixture needs transferred source scope");
+    const sourcePath = join(fixture.repo, sourceUnit.sourcePath);
+    const sourceBytes = new Uint8Array(await readFile(sourcePath));
+    const scan = scanV3DecomposeContent(sourceUnit.sourceLocator.artifact, sourceBytes);
+    if (scan.status !== "scanned") throw new Error(scan.reason);
+    const resolved = resolveV3DecomposeContentLocator(
+      scan.units,
+      sourceUnit.sourceLocator,
+      sourceUnit.sourceLocator.artifact,
+    );
+    if (resolved.status !== "resolved") throw new Error(resolved.reason);
+    const changed = Buffer.concat([
+      sourceBytes.slice(0, resolved.unit.byteRange.end),
+      Buffer.from("Changed after additive landing.\n", "utf8"),
+      sourceBytes.slice(resolved.unit.byteRange.end),
+    ]);
+    await writeFile(sourcePath, changed);
+    await git(fixture.repo, ["add", sourceUnit.sourcePath]);
+    await git(fixture.repo, ["commit", "-m", "change transferred source bytes"]);
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({
       status: "refused",
-      reason: "source-head",
+      reason: "destination-bytes",
     });
   });
 

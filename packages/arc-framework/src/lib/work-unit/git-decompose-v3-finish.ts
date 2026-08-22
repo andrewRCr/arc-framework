@@ -14,9 +14,9 @@ import {
 } from "./decompose-content.js";
 import {
   createV3DecomposePreflight,
-  revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
 } from "./decompose-v3-preflight.js";
+import { refreshV3ExtractionCutMap } from "./decompose-v3-refresh.js";
 import {
   composeV3ExtractionRepositoryPlan,
   type V3RepositoryPlanResult,
@@ -278,8 +278,8 @@ export async function proveGitV3ExtractionDestinations(
     if (branch !== map.machine.source.logicalBranch) {
       return refused("source-branch", "machine.source.logicalBranch");
     }
-    if (head !== map.machine.source.head) return refused("source-head", "HEAD");
-    if (sourceRef !== map.machine.source.head) return refused("source-ref-moved", map.machine.source.ref);
+    if (head === null) return refused("source-head", "HEAD");
+    if (sourceRef !== head) return refused("source-ref-moved", map.machine.source.ref);
     if (baseHead === null) return refused("base-missing", baseRef);
     try {
       await dependencies.exec(
@@ -295,7 +295,7 @@ export async function proveGitV3ExtractionDestinations(
       readGitV3DecomposeTreeSnapshot(
         dependencies,
         map.machine.source.ref,
-        map.machine.source.head,
+        head,
         input.origin,
       ),
       readGitV3DecomposeTreeSnapshot(
@@ -316,24 +316,24 @@ export async function proveGitV3ExtractionDestinations(
     if (refreshed.status === "rejected") {
       return refused(`source:${refreshed.reason}`, refreshed.locus);
     }
-    const binding = revalidateV3DecomposeCutMapBinding(map, refreshed.preflight);
-    if (binding.status === "stale") return refused(`source:${binding.reason}`, binding.locus);
+    const binding = refreshV3ExtractionCutMap(map, refreshed.preflight);
+    if (binding.status === "reauthor") return refused(`source:${binding.reason}`, binding.locus);
     const sourceDir = posix.dirname(binding.preflight.sourceOriginPath);
     const dirt = await sourceDirt(dependencies, sourceDir);
     if (dirt !== null) return refused(dirt, sourceDir);
 
     const [sourceTree, originalBaseTree, currentBaseTree] = await Promise.all([
-      readGitV3RepositoryTree(dependencies, map.machine.source.head),
+      readGitV3RepositoryTree(dependencies, head),
       readGitV3RepositoryTree(dependencies, map.machine.resultBase.head),
       readGitV3RepositoryTree(dependencies, baseHead),
     ]);
-    if (sourceTree === null) return refused("source-tree-unreadable", map.machine.source.head);
+    if (sourceTree === null) return refused("source-tree-unreadable", head);
     if (originalBaseTree === null) return refused("result-base-tree-unreadable", map.machine.resultBase.head);
     if (currentBaseTree === null) return refused("base-tree-unreadable", baseHead);
     const originalRoadmap = roadmapBytes(originalBaseTree);
     if (originalRoadmap === null) return refused("result-base-roadmap-unreadable", ROADMAP_PATH);
     const expected = await composeV3ExtractionRepositoryPlan({
-      completedMap: map,
+      completedMap: binding.completedMap,
       currentPreflight: binding.preflight,
       sourceTree,
       mergeBaseTree: originalBaseTree,
@@ -352,9 +352,9 @@ export async function proveGitV3ExtractionDestinations(
       currentBranch(dependencies),
       exactRef(dependencies, "HEAD"),
     ]);
-    if (sourceAfter !== map.machine.source.head
+    if (sourceAfter !== head
       || branchAfter !== map.machine.source.logicalBranch
-      || headAfter !== map.machine.source.head) {
+      || headAfter !== head) {
       return refused("source-raced", map.machine.source.ref);
     }
     if (baseAfter !== baseHead) return refused("base-raced", baseRef);
@@ -364,7 +364,7 @@ export async function proveGitV3ExtractionDestinations(
     return {
       status: "proven",
       preparation: {
-        completedMap: map,
+        completedMap: binding.completedMap,
         currentPreflight: binding.preflight,
         sourceTree,
         proof: {

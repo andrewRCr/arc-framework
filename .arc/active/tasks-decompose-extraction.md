@@ -123,11 +123,9 @@ shipped doctrine.
 
 - _Goal:_ Machine refresh never guesses an authored ownership decision.
 
-    - `[ ]` **3.1.a Carry uniquely stable choices**
-        - Refresh machine digests only when the exact v3 source ID/locator still resolves uniquely and the
-          destination remains valid.
-        - Require reauthoring for hierarchy movement, repeated-heading ambiguity, added/removed units, or changed
-          target/dependency state.
+    - `[x]` **3.1.a Carry uniquely stable choices**
+        - Finish refreshes machine evidence in memory only across exact source identities, unchanged dependency
+          facts, and still-valid landed destinations; structural or repeated-heading ambiguity requires reauthoring.
 
     - `[ ]` **3.1.b Regenerate lost scratch**
         - Let preflight recreate machine inventory, require human reauthoring, and detect exact already-finished
