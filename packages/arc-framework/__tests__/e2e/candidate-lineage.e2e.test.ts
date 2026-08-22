@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { gitExec } from "../../src/lib/io-context.js";
+import { runActiveStatus } from "../../src/commands/active.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import {
@@ -461,6 +462,22 @@ describe("review-fix Candidate lineage", () => {
         status: "current",
         recognizedRevision: mergedHead,
       });
+    await expect(runActiveStatus({ cwd: root, exec: gitExec })).resolves.toMatchObject({
+      candidates: [{
+        integrationBoundary: {
+          candidateSubjectDigest: candidate.status === "current" ? candidate.subjectDigest : "unavailable",
+        },
+      }],
+    });
+    if (candidate.status !== "current") throw new Error("machine-carried Candidate was not current");
+    await expect(readRoutedObligation(root, gitExec, {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: mergedHead,
+    }, 42)).resolves.toMatchObject({
+      state: "blocked",
+      detail: "The publication boundary belongs to a different Candidate subject.",
+    });
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
@@ -488,6 +505,13 @@ describe("review-fix Candidate lineage", () => {
     })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     const record = await readCandidateRecord(root, "example");
     expect(candidateReviewResponses(record ?? { transitions: [] }).at(-1)?.oldTarget.revision).toBe(mergedHead);
+    await git(root, ["commit", "-m", "record verified response"]);
+    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })(
+      "example",
+      await git(root, ["rev-parse", "HEAD^{commit}"]),
+    )).resolves.toMatchObject({
+      dispositionIds: [dispositions.dispositionSet.dispositionSetId],
+    });
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {

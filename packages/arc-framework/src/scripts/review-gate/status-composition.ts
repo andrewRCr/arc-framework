@@ -4,8 +4,12 @@ import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
+import { createRawGitExec } from "../../lib/io-context.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
-import { reduceCandidateDurableBaseline } from "../../lib/work-unit/candidate-attestation.js";
+import {
+  projectGitCandidateEffectiveTarget,
+  resolveGitCandidateTargetBase,
+} from "../../lib/work-unit/git-candidate-effective-target.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
@@ -92,7 +96,26 @@ export async function readRoutedObligation(
     if (record === null) {
       return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
     }
-    const candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+    const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"];
+    const targetBase = await resolveGitCandidateTargetBase({
+      cwd,
+      revision: target.headSha,
+      baseBranch,
+      exec,
+    });
+    const effective = await projectGitCandidateEffectiveTarget({
+      cwd,
+      name: workUnit,
+      baseBranch,
+      record,
+      exec,
+      rawExec: createRawGitExec(cwd),
+      target: { revision: target.headSha, currentBase: targetBase },
+    });
+    if (effective.state !== "current" || effective.recognizedTarget.revision !== target.headSha) {
+      return { state: "blocked", detail: "The exact review target is not a current Candidate subject." };
+    }
+    const candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
     if (boundary.candidateId !== record.attestation.candidateId
       || boundary.candidateSubjectDigest !== candidateSubjectDigest) {
       return { state: "blocked", detail: "The publication boundary belongs to a different Candidate subject." };

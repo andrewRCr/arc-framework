@@ -1783,7 +1783,7 @@ export async function handlePublish(
     });
     const candidateSubjectDigest = effective.state === "current"
       ? effective.recognizedTarget.subject.subjectDigest
-      : effective.state === "changed"
+      : effective.state === "changed" || effective.state === "staged-change"
         ? effective.currentTarget.subject.subjectDigest
         : effective.currentTarget.subjectDigest;
     return {
@@ -2565,6 +2565,14 @@ export async function handleAttest(
       name: slug,
       baseBranch: settings["branch.base"],
       exec: base.io.exec,
+    }),
+    effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
+      cwd: base.cwd,
+      name: slug,
+      baseBranch: settings["branch.base"],
+      record,
+      exec: base.io.exec,
+      rawExec: createRawGitExec(base.cwd),
     }),
     publish: async (publication) => {
       const recordPath = await writeCandidateRecord(

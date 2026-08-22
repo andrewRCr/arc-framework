@@ -6,8 +6,11 @@ import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js
 import {
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../../../src/lib/work-unit/candidate-attestation.js";
+import { projectEffectiveCandidateTarget } from
+  "../../../../src/lib/work-unit/candidate-effective-target.js";
 import {
   runAttest,
   type AttestContext,
@@ -43,6 +46,17 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
     readRecord: async () => ({ record: storedRecord, version: recordVersion }),
     currentTarget: async () => currentTarget,
+    effectiveTarget: async (_name, candidateRecord) => {
+      const baseline = reduceCandidateDurableBaseline(candidateRecord);
+      return projectEffectiveCandidateTarget({
+        record: candidateRecord,
+        current: baseline.target,
+        currentBase: candidateRecord.attestation.baseRevision,
+        projectApplicability: async () => {
+          throw new Error("A durable target must not request applicability.");
+        },
+      });
+    },
     publish: async (input) => {
       publicationCount += 1;
       storedRecord = input.record;
@@ -170,6 +184,41 @@ describe("runAttest", () => {
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: { lineageAttestations: [{ target: changedTarget }] },
     });
+  });
+
+  it("republishes a committed machine-carried target without masking later staged content", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const root = fixture.state().storedRecord!;
+    const carriedTarget = { revision: CHANGED_REVISION, subject: subject("mechanically-carried") };
+    fixture.setCurrentTarget(carriedTarget);
+    fixture.context.effectiveTarget = async () => ({
+      schemaVersion: 1,
+      mode: "candidate-effective-target",
+      state: "current",
+      nextAction: "continue",
+      candidateId: root.attestation.candidateId,
+      durableBaselineTarget: { revision: root.attestation.baseRevision, subject: root.subject },
+      recognizedTarget: carriedTarget,
+      recognition: {
+        kind: "machine",
+        proof: "mechanical-reapply",
+        projectionDigest: canonicalDigest({ projection: "carried" }),
+        residualDigest: canonicalDigest({ residual: "carried" }),
+      },
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+    });
+
+    await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))
+      .resolves.toMatchObject({
+        status: "unchanged",
+        locus: { candidateSubjectDigest: carriedTarget.subject.subjectDigest },
+      });
+
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("staged-after-carry") });
+    await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))
+      .resolves.toMatchObject({ status: "blocked" });
   });
 
   it("rejects an unexplained reviewable delta without replacing the lineage root", async () => {

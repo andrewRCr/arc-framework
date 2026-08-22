@@ -79,7 +79,7 @@ export function createPrePublicationCompositionDependencies(input: {
         rawExec: rawGit,
       });
       if (effective.state !== "current") {
-        const reason = effective.state === "changed"
+        const reason = effective.state === "changed" || effective.state === "staged-change"
           ? "Run full work-unit verification to establish a new Candidate lineage root."
           : effective.state === "decision-required"
             ? `${effective.selectionOfferText}\n${effective.recommendedActionText}`

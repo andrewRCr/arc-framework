@@ -49,10 +49,31 @@ export interface CandidateEffectiveChangedProjection {
   readonly selectedBy: string;
 }
 
+export interface CandidateEffectiveStagedChangeProjection {
+  readonly schemaVersion: 1;
+  readonly mode: "candidate-effective-target";
+  readonly state: "staged-change";
+  readonly nextAction: "establish-new-root";
+  readonly candidateId: string;
+  readonly durableBaselineTarget: CandidateLineageTarget;
+  readonly currentTarget: CandidateLineageTarget;
+}
+
 export type CandidateEffectiveTargetProjection =
   | CandidateEffectiveCurrentProjection
   | CandidateEffectiveChangedProjection
+  | CandidateEffectiveStagedChangeProjection
   | NonApplicableProjection;
+
+export interface CandidateTargetProjectorInput {
+  readonly cwd: string;
+  readonly name: string;
+  readonly record: CandidateManagedRecordV1;
+}
+
+export type CandidateTargetProjector = (
+  input: CandidateTargetProjectorInput,
+) => Promise<CandidateEffectiveTargetProjection>;
 
 export type CandidateEffectiveCurrentnessProjection =
   | CandidateCurrentnessProjection
@@ -164,7 +185,7 @@ export function projectEffectiveCandidateCurrentness(
       convergenceVerification: input.convergenceVerification,
     };
   }
-  if (input.state === "changed") {
+  if (input.state === "changed" || input.state === "staged-change") {
     return {
       status: "blocked",
       candidateId: input.candidateId,
@@ -178,4 +199,24 @@ export function projectEffectiveCandidateCurrentness(
     };
   }
   return input;
+}
+
+/** Compare a staged attestation subject through the committed effective target without masking staged changes. */
+export function projectStagedCandidateCurrentness(input: {
+  readonly record: CandidateManagedRecordV1;
+  readonly staged: CandidateLineageTarget;
+  readonly committed: CandidateEffectiveTargetProjection;
+}): CandidateCurrentnessProjection {
+  const staged = CandidateLineageTargetSchema.parse(input.staged);
+  if (input.committed.state === "current"
+    && input.committed.recognizedTarget.subject.subjectDigest === staged.subject.subjectDigest) {
+    return {
+      status: "current",
+      candidateId: input.committed.candidateId,
+      recognizedRevision: staged.revision,
+      implementationChanged: input.committed.implementationChanged,
+      convergenceVerification: input.committed.convergenceVerification,
+    };
+  }
+  return projectCandidateCurrentness({ record: input.record, current: staged });
 }

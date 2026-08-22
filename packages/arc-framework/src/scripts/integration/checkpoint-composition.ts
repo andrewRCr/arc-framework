@@ -10,10 +10,7 @@ import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
-import {
-  reduceCandidateDurableBaseline,
-  type CandidateManagedRecordV1,
-} from "../../lib/work-unit/candidate-attestation.js";
+import type { CandidateManagedRecordV1 } from "../../lib/work-unit/candidate-attestation.js";
 import {
   projectEffectiveCandidateCurrentness,
   type CandidateEffectiveCurrentnessProjection,
@@ -613,7 +610,7 @@ export function createIntegrationCheckpointDependencies(input: {
       const checks = aggregateChecks(
         await checksPort.readRequiredChecks(repository, changeRequest.candidate.number, signal),
       );
-      const fromRevision = reduceCandidateDurableBaseline(value.record).target.revision;
+      const fromRevision = value.effective.durableBaselineTarget.revision;
       return CheckpointReadyCompositionSchema.parse({
         approvedHead: currentness.recognizedRevision,
         candidateTailDiff: {

@@ -369,7 +369,11 @@ describe("attest → pre-publication → publish", () => {
         return { stdout: result.stdout, stderr: result.stderr };
       },
     });
-    const projection = projectCandidateDeltaVerification({ record, current });
+    const projection = projectCandidateDeltaVerification({
+      record,
+      oldTarget: { revision: record.attestation.baseRevision, subject: record.subject },
+      current,
+    });
     const response = recordCandidateVerifiedResponse({
       projection,
       dispositionId: canonicalDigest({ disposition: "approved" }),

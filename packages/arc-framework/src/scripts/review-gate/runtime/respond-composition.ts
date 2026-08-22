@@ -8,7 +8,6 @@ import {
   readTransientInFlightIndexes,
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
-import { isGitObjectId } from "../../../lib/git/object-id.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
@@ -23,8 +22,10 @@ import {
   CandidateManagedRecordV1Schema,
   type CandidateManagedRecordV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
-import { projectGitCandidateEffectiveTarget } from
-  "../../../lib/work-unit/git-candidate-effective-target.js";
+import {
+  projectGitCandidateEffectiveTarget,
+  resolveGitCandidateTargetBase,
+} from "../../../lib/work-unit/git-candidate-effective-target.js";
 import {
   collectGitCandidateTarget,
   collectUnstagedReviewablePaths,
@@ -68,17 +69,6 @@ export function createRespondDependencies(input: {
   const settings = async () => {
     settingsPromise ??= readConfigSettings(input.cwd);
     return (await settingsPromise).settings;
-  };
-  const targetBase = async (revision: string, baseBranch: string): Promise<string> => {
-    const output = (await input.exec("git", ["merge-base", "--all", revision, baseBranch], {
-      cwd: input.cwd,
-      objectAccess: "local-only",
-    })).stdout.trim();
-    const revisions = output === "" ? [] : output.split(/\r?\n/u);
-    if (revisions.length !== 1 || revisions[0] === undefined || !isGitObjectId(revisions[0])) {
-      throw new Error("The reviewed Candidate target has no sole base coordinate.");
-    }
-    return revisions[0];
   };
   const transitionPrefixes = (record: CandidateManagedRecordV1): CandidateManagedRecordV1[] =>
     Array.from({ length: record.transitions.length + 1 }, (_, length) =>
@@ -163,7 +153,12 @@ export function createRespondDependencies(input: {
         reviewed: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>> & { state: "current" };
       }>;
       const baseBranch = (await settings())["branch.base"];
-      const reviewedBase = await targetBase(target.headSha, baseBranch);
+      const reviewedBase = await resolveGitCandidateTargetBase({
+        cwd: input.cwd,
+        revision: target.headSha,
+        baseBranch,
+        exec: input.exec,
+      });
       for (const workUnit of candidates) {
         const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit);
         if (record === null || version === null) continue;

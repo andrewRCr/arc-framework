@@ -27,11 +27,27 @@ import { stubGitExec } from "../helpers/integration.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
+  reduceCandidateDurableBaseline,
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
+import {
+  projectEffectiveCandidateTarget,
+  type CandidateTargetProjector,
+} from "../../src/lib/work-unit/candidate-effective-target.js";
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
+const projectDurableCandidateTarget: CandidateTargetProjector = async ({ record }) => {
+  const baseline = reduceCandidateDurableBaseline(record);
+  return projectEffectiveCandidateTarget({
+    record,
+    current: baseline.target,
+    currentBase: record.attestation.baseRevision,
+    projectApplicability: async () => {
+      throw new Error("A durable target must not request applicability.");
+    },
+  });
+};
 
 interface Fixture {
   root: string;
@@ -297,7 +313,10 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       }),
     );
 
-    const full = await runActiveStatus({ cwd: fixture.root });
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(full.candidates).toHaveLength(2);
     expect(full.candidates.find(({ filename }) => filename === "meta-alpha.md")).toMatchObject({
       candidateId,
@@ -309,7 +328,11 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     });
     expect(full.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
 
-    const session = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const session = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(session).toMatchObject({
       resolution: "multiple",
       path: null,
@@ -933,10 +956,17 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       }),
     );
 
-    const full = await runActiveStatus({ cwd: fixture.root });
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(full.candidates[0]?.integrationBoundary?.locus).toBe("candidate-review-pending");
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(result.sessionType).toBe("prepublication");
     expect(result.currentWorkflow).toBe("prepare-work-unit");
     expect(result.integrationBoundary).toMatchObject({
@@ -968,10 +998,17 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       JSON.stringify(boundary),
     );
 
-    const full = await runActiveStatus({ cwd: fixture.root });
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(full.candidates[0]?.integrationBoundary).toEqual(boundary);
 
-    const session = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const session = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(session.integrationBoundary).toEqual(boundary);
   });
 
@@ -998,7 +1035,11 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       JSON.stringify(boundary),
     );
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(result.integrationBoundary).toMatchObject({
       candidateId,
       candidateSubjectDigest: subjectDigest,
@@ -1087,10 +1128,17 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     await mkdir(boundaryDir, { recursive: true });
     await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(storedBoundary));
 
-    const full = await runActiveStatus({ cwd: fixture.root });
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
     expect(full.candidates[0]?.integrationBoundary).toEqual(recoveredBoundary);
 
-    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
 
     expect(result.integrationBoundary).toEqual(recoveredBoundary);
   });

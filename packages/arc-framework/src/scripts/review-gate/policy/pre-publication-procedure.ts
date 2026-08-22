@@ -11,7 +11,6 @@ import {
   candidateReviewResponses,
   createCandidateReviewResponseEvidence,
   diffCandidateSubjectSnapshots,
-  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
   type CandidateReviewResponseEvidenceV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
@@ -179,13 +178,11 @@ export type CandidateDeltaVerificationProjection = z.infer<typeof CandidateDelta
 export function projectCandidateDeltaVerification(input: {
   record: CandidateManagedRecordV1;
   current: z.input<typeof CandidateLineageTargetSchema>;
-  oldTarget?: z.input<typeof CandidateLineageTargetSchema>;
+  oldTarget: z.input<typeof CandidateLineageTargetSchema>;
 }): CandidateDeltaVerificationProjection {
   const record = CandidateManagedRecordV1Schema.parse(input.record);
   const current = CandidateLineageTargetSchema.parse(input.current);
-  const oldTarget = input.oldTarget === undefined
-    ? reduceCandidateDurableBaseline(record).target
-    : CandidateLineageTargetSchema.parse(input.oldTarget);
+  const oldTarget = CandidateLineageTargetSchema.parse(input.oldTarget);
   return CandidateDeltaVerificationProjectionSchema.parse({
     schemaVersion: 1,
     candidateId: record.attestation.candidateId,

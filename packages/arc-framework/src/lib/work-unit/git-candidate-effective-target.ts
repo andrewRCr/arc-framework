@@ -3,7 +3,11 @@
 import type { RawGitExec } from "../change-facts.js";
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
-import type { CandidateManagedRecordV1 } from "./candidate-attestation.js";
+import {
+  projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
+  type CandidateManagedRecordV1,
+} from "./candidate-attestation.js";
 import {
   projectEffectiveCandidateTarget,
   type CandidateEffectiveTargetProjection,
@@ -24,6 +28,24 @@ async function readCommit(input: {
     throw new Error(`Cannot resolve exact Candidate coordinate \`${input.expression}\``);
   }
   return revision;
+}
+
+/** Resolve the sole historical base coordinate for one exact Candidate target. */
+export async function resolveGitCandidateTargetBase(input: {
+  readonly cwd: string;
+  readonly revision: string;
+  readonly baseBranch: string;
+  readonly exec: GitExec;
+}): Promise<string> {
+  const output = (await input.exec("git", ["merge-base", "--all", input.revision, input.baseBranch], {
+    cwd: input.cwd,
+    objectAccess: "local-only",
+  })).stdout.trim();
+  const revisions = output === "" ? [] : output.split(/\r?\n/u);
+  if (revisions.length !== 1 || revisions[0] === undefined || !isGitObjectId(revisions[0])) {
+    throw new Error("The Candidate target has no sole base coordinate.");
+  }
+  return revisions[0];
 }
 
 export interface GitCandidateEffectiveTargetInput {
@@ -62,16 +84,46 @@ export async function projectGitCandidateEffectiveTarget(
     return { candidateHead, baseHead };
   };
   const observed = await observeEndpoints();
-  const current = await collectGitCandidateTarget({
+  const committed = await collectGitCandidateTarget({
     cwd: input.cwd,
     name: input.name,
     baseBranch: input.baseBranch,
     exec: input.exec,
     revision: observed.candidateHead,
   });
+  if (input.target === undefined) {
+    const staged = await collectGitCandidateTarget({
+      cwd: input.cwd,
+      name: input.name,
+      baseBranch: input.baseBranch,
+      exec: input.exec,
+    });
+    const stagedCurrentness = projectCandidateCurrentness({ record: input.record, current: staged });
+    if (stagedCurrentness.status === "current") {
+      return projectEffectiveCandidateTarget({
+        record: input.record,
+        current: staged,
+        currentBase: observed.baseHead,
+        projectApplicability: () => Promise.reject(
+          new Error("A durable staged target must not request applicability."),
+        ),
+      });
+    }
+    if (staged.subject.subjectDigest !== committed.subject.subjectDigest) {
+      return {
+        schemaVersion: 1,
+        mode: "candidate-effective-target",
+        state: "staged-change",
+        nextAction: "establish-new-root",
+        candidateId: stagedCurrentness.candidateId,
+        durableBaselineTarget: reduceCandidateDurableBaseline(input.record).target,
+        currentTarget: staged,
+      };
+    }
+  }
   return projectEffectiveCandidateTarget({
     record: input.record,
-    current,
+    current: committed,
     currentBase: observed.baseHead,
     projectApplicability: (request) => projectGitCandidateApplicability({
       request,

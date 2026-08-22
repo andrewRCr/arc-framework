@@ -676,6 +676,7 @@ describe("Candidate delta verification", () => {
     const record = candidateRecord();
     const projection = projectCandidateDeltaVerification({
       record,
+      oldTarget: { revision: record.attestation.baseRevision, subject: record.subject },
       current: { revision: "d".repeat(40), subject: subject("fixed") },
     });
 
@@ -706,6 +707,7 @@ describe("Candidate delta verification", () => {
     const record = candidateRecord();
     const projection = projectCandidateDeltaVerification({
       record,
+      oldTarget: { revision: record.attestation.baseRevision, subject: record.subject },
       current: { revision: "d".repeat(40), subject: subject("fixed") },
     });
 
