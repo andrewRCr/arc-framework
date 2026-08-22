@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "keep-integration-locked-bounded-wait",
+  "claimId": "0712db197f1b002c0fb9847f139c8513",
+  "createdAt": "2026-08-22T22:07:57.458Z",
+  "updatedAt": "2026-08-22T22:07:57.458Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep integration draft-locked while required checks are pending, bound each foreground wait, surface terminal individual-check failures early, and preserve a retryable exact-head merge checkpoint.",
+  "branch": "chore/keep-integration-locked-bounded-wait",
+  "origin": "inbox",
+  "originEntry": "Keep integration locked through a bounded checks wait",
+  "originEntrySourceDigest": "sha256:a16759a4d84a158b70ac1c1a296784b8d41c03b02f41693775f85df5f5fdee81",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
