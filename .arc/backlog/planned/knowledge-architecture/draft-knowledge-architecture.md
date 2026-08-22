@@ -18,6 +18,17 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Groom method-loading owners around the landed dependency substrate**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-08-22);
+  captured during `delivery-native-stack-composition` Member 1 closure.
+- _Concern:_ delivery pulled forward the narrow method-dependency substrate: method frontmatter owns direct
+  dependencies, workflows root the transitive graph, and the corpus audit deduplicates that graph while refusing
+  unknown roots, missing targets, and cycles.
+- _Fold-in:_ re-anchor this WU on the landed seam and coordinate consumption by `composable-workflows` for schema
+  and resolver mechanics and by `method-conventions` for the authoring contract. Preserve direct method-owned
+  dependencies and avoid minting a competing dependency model.
+
 ### `[ ]` **Use solution proportionality to prove transitive method loading**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during

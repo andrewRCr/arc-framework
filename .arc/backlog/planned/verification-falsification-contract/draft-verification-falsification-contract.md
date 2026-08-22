@@ -3,6 +3,25 @@
 - **Origin:** `USER-INBOX § Work Unit`, housekeep drain (2026-08-20).
 - **Purpose:** Make verification search for missing and broken behavior rather than confirm only what is present.
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Lint success criteria for reachability over the tree that verifies them**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: verification-falsification-contract`), housekeep drain
+  (2026-08-22); captured during `delivery-native-stack-composition` create-spec review.
+- _Concern:_ a criterion can be assigned to a partial-tree boundary whose validator cannot see the evidence needed
+  to prove it. Delivery member verification exposed the missing structural check, but the failure generalizes to
+  every criterion scoped below a whole-tree boundary.
+- _Fold-in:_ decide whether the falsification instrument should mechanically prove criterion-evidence reachability
+  or delegate a focused lint. Consume delivery's scope-parameterized invocation topology without re-deriving its
+  member boundaries, records, or cadence.
+
+---
+
 ## Problem / Motivation
 
 On `integration-boundary-accuracy`, two self-verification passes marked every success criterion met; two adversarial

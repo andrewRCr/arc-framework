@@ -15,6 +15,32 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Define terminal ownership and collection for review evidence**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-22); captured during `decompose-extraction`
+  integration checkpoint recovery.
+- _Concern:_ repository-common disposition records and their operation, outcome, and source evidence have no
+  terminal ownership boundary. Already-landed residue survived a development schema change and blocked an unrelated
+  Candidate because integration parsed the entire evidence directory before lineage scoping.
+- _Immediate extraction:_ an Errand isolates unrelated malformed residue while preserving strict failure for
+  evidence named by the current Candidate or Errand.
+- _Fold-in:_ decide which review records remain live through settlement and replay, when terminal paths collect
+  them, and how development-only schema changes reset the repository-common state without compatibility readers.
+  Keep the records storage-agnostic per `strategy-storage-evolution.md`; do not widen the managed-document WU into
+  a second review-orchestration owner.
+
+### `[ ]` **Give review-lane doctrine a strategy home**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-08-22).
+- _Concern:_ no adopter-facing strategy owns review architecture, so obligation, applicability, findings,
+  clearance, lane precedence, and carrier ranking land wherever a Work Unit happens to need them. The recurring
+  principle that review applicability follows covered semantic content rather than head movement likewise has no
+  durable strategy home.
+- _Fold-in:_ decide whether the review cohort should mint a review-architecture strategy and charter it against the
+  integration strategy. Own placement and charter here; preserve the cohort members as the doctrine's substantive
+  sources rather than re-authoring them in this WU.
+
 ### `[ ]` **Prune the interlock, status, discharge, and Candidate surfaces against their live readers**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain

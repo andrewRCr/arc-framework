@@ -12,6 +12,17 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make Owner-accepted termini settle hosted review blockers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain (2026-08-22).
+- _Concern:_ ARC can record an exact-target Owner-accepted terminus while the hosted provider's native review state
+  still blocks the host, forcing another metered pass or a second authority request after the Owner has already
+  accepted the residual review risk.
+- _Fold-in:_ make hosted authority universally moot after a valid Owner-accepted terminus, without binding the
+  behavior to one provider. Authorize and record the host's standard override or dismissal for the exact target,
+  preserve Owner acceptance as distinct from provider clean, and avoid another authority stop before the existing
+  exact-head integration approval.
+
 ### `[ ]` **Remove the pre-PR ordered-reservation item now owned by the shipped integration design**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain (2026-08-20).

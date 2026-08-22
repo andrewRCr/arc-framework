@@ -16,6 +16,17 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Qualify dependency edges with the lifecycle boundary they gate**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-22);
+  captured during `decomposition-doctrine` re-grounding.
+- _Concern:_ unqualified `Depends On` means blocks-start, leaving implement-time and integrate-time ordering in
+  unchecked prose that readily goes stale. The inverse also fails: recording a true later-boundary dependency as
+  today's edge falsely blocks planning.
+- _Fold-in:_ evaluate lifecycle-qualified degrees such as required-to-plan, required-to-implement, and
+  required-to-integrate against this WU's state axes. Preserve today's unqualified blocks-start reading as the
+  default, enforce each degree at its owning ceremony, and keep later-boundary session orientation advisory.
+
 ### `[ ]` **Prevent local-ref residue from outranking an archived Shipped record**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20); confirmed by teardown on 2026-08-15.
