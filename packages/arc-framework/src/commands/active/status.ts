@@ -36,6 +36,7 @@ import type {
 } from "./types.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { reduceCandidateDurableBaseline } from "../../lib/work-unit/candidate-attestation.js";
 import {
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
@@ -359,8 +360,7 @@ async function projectCandidateIntegrationBoundary(
     );
     return { ...candidate, integrationBoundary: null };
   }
-  const candidateSubjectDigest = record.responses.at(-1)?.newTarget.subject.subjectDigest
-    ?? record.subject.subjectDigest;
+  const candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
   if (candidate.state === "Integrating") {
     const stored = await readSubmissionBoundary(cwd, slug);
     if (candidate.branch === null) return candidate;

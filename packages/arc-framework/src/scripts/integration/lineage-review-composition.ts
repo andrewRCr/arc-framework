@@ -4,6 +4,7 @@ import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestation.js";
 import type { ApprovedDispositionRecord } from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
@@ -125,7 +126,7 @@ export function createLineageReviewComposer(input: {
     if (record === null) {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }
-    const named = new Set(record.responses.map(({ dispositionId }) => dispositionId));
+    const named = new Set(candidateReviewResponses(record).map(({ dispositionId }) => dispositionId));
     const [span, enumerated] = await Promise.all([
       candidateSpan(record.attestation.baseRevision, approvedHead),
       dispositionIndex.listDispositionRecords(),

@@ -6,6 +6,7 @@ import { canonicalize } from "../../../lib/kernel/index.js";
 import {
   CandidateManagedRecordV1Schema,
   CandidateVerificationApplicabilitySchema,
+  candidateReviewResponses,
   projectCandidateCurrentness,
   type CandidateLineageTarget,
   type CandidateManagedRecordV1,
@@ -607,7 +608,7 @@ async function persistCandidateResponse(
   }
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
   const currentness = projectCandidateCurrentness({ record: lineage.record, current: lineage.current });
-  const matchingResponses = lineage.record.responses.filter((response) =>
+  const matchingResponses = candidateReviewResponses(lineage.record).filter((response) =>
     response.dispositionId === dispositions.dispositionSet.dispositionSetId);
   if (matchingResponses.length > 0) {
     if (matchingResponses.length !== 1) {
@@ -660,7 +661,7 @@ async function persistCandidateResponse(
     expectedRecordVersion: lineage.recordVersion,
     record: CandidateManagedRecordV1Schema.parse({
       ...lineage.record,
-      responses: [...lineage.record.responses, response],
+      transitions: [...lineage.record.transitions, response],
     }),
   });
   return RespondEnvelopeSchema.parse({

@@ -269,7 +269,7 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
     attestArgv(workUnit),
   ),
   "candidate-unexplained-delta": (workUnit) => spineRemedy(
-    "A Candidate lineage advances only on approved review responses.",
+    "A Candidate lineage advances only on authorized transitions.",
     "Explain the reported delta through an approved response, or run full verification and root a new lineage over it",
     attestNewRootArgv(workUnit),
   ),

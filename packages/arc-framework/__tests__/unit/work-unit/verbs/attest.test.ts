@@ -101,7 +101,7 @@ describe("runAttest", () => {
       storedRecord: {
         schemaVersion: 1,
         semanticsVersion: "candidate-attestation/v1",
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
     });
@@ -149,7 +149,7 @@ describe("runAttest", () => {
       verificationEvidenceRefs: ["test://candidate/focused"],
       implementationChanged: true,
     });
-    fixture.replaceRecord({ ...root, responses: [response] });
+    fixture.replaceRecord({ ...root, transitions: [response] });
     fixture.setCurrentTarget(changedTarget);
 
     const converged = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
@@ -207,7 +207,7 @@ describe("runAttest", () => {
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: {
         attestation: { supersedes: superseded },
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
     });

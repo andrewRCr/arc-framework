@@ -64,7 +64,7 @@ function candidateRecord(slug: string): { candidateId: string; subjectDigest: st
       semanticsVersion: "candidate-attestation/v1",
       attestation,
       subject,
-      responses: [],
+      transitions: [],
       lineageAttestations: [],
     }),
   };

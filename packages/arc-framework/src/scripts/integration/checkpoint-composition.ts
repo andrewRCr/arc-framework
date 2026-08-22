@@ -12,6 +12,7 @@ import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
   projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
@@ -594,8 +595,7 @@ export function createIntegrationCheckpointDependencies(input: {
       const checks = aggregateChecks(
         await checksPort.readRequiredChecks(repository, changeRequest.candidate.number, signal),
       );
-      const lastResponse = value.record.responses.at(-1);
-      const fromRevision = lastResponse?.newTarget.revision ?? value.record.attestation.baseRevision;
+      const fromRevision = reduceCandidateDurableBaseline(value.record).target.revision;
       return CheckpointReadyCompositionSchema.parse({
         approvedHead: currentness.recognizedRevision,
         candidateTailDiff: {

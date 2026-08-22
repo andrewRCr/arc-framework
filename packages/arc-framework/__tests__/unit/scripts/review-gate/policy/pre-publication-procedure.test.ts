@@ -666,7 +666,7 @@ function candidateRecord(): CandidateManagedRecordV1 {
       verificationEvidenceRef: "verification://root",
     }),
     subject: rootSubject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   };
 }

@@ -182,7 +182,7 @@ async function writeCandidate(root: string, slug: string): Promise<string> {
     semanticsVersion: "candidate-attestation/v1",
     attestation,
     subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   }));
   return attestation.candidateId;

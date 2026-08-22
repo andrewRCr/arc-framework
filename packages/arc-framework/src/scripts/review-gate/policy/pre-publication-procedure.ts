@@ -8,8 +8,10 @@ import {
   CandidateManagedRecordV1Schema,
   CandidateSubjectDeltaSchema,
   CandidateVerificationApplicabilitySchema,
+  candidateReviewResponses,
   createCandidateReviewResponseEvidence,
   diffCandidateSubjectSnapshots,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
   type CandidateReviewResponseEvidenceV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
@@ -180,11 +182,7 @@ export function projectCandidateDeltaVerification(input: {
 }): CandidateDeltaVerificationProjection {
   const record = CandidateManagedRecordV1Schema.parse(input.record);
   const current = CandidateLineageTargetSchema.parse(input.current);
-  const lastResponse = record.responses.at(-1);
-  const oldTarget = lastResponse?.newTarget ?? {
-    revision: record.attestation.baseRevision,
-    subject: record.subject,
-  };
+  const oldTarget = reduceCandidateDurableBaseline(record).target;
   return CandidateDeltaVerificationProjectionSchema.parse({
     schemaVersion: 1,
     candidateId: record.attestation.candidateId,
@@ -193,7 +191,7 @@ export function projectCandidateDeltaVerification(input: {
     delta: diffCandidateSubjectSnapshots(oldTarget.subject, current.subject),
     priorEvidenceRefs: [
       record.attestation.verificationEvidenceRef,
-      ...record.responses.flatMap(({ verificationEvidenceRefs }) => verificationEvidenceRefs),
+      ...candidateReviewResponses(record).flatMap(({ verificationEvidenceRefs }) => verificationEvidenceRefs),
       ...record.lineageAttestations.map(({ verificationEvidenceRef }) => verificationEvidenceRef),
     ],
     allowedApplicability: ["targeted", "focused", "full"],

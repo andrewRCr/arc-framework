@@ -380,7 +380,7 @@ describe("attest → pre-publication → publish", () => {
     });
     await writeFile(candidatePath, serializeCandidateManagedRecord(CandidateManagedRecordV1Schema.parse({
       ...record,
-      responses: [...record.responses, response],
+      transitions: [...record.transitions, response],
     })));
     await git(repository, ["add", candidatePath]);
 

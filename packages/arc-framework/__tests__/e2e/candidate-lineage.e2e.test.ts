@@ -16,6 +16,10 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { gitExec } from "../../src/lib/io-context.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import {
+  candidateReviewResponses,
+  reduceCandidateDurableBaseline,
+} from "../../src/lib/work-unit/candidate-attestation.js";
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
@@ -771,7 +775,7 @@ describe("review-fix Candidate lineage", () => {
     // The deferred set moves no implementation and therefore does not advance the Candidate lineage.
     // Its durable approval still authorizes one exact-target replay action at checkpoint settlement.
     const lineage = await readCandidateRecord(root, "example");
-    expect(lineage?.responses.map(({ dispositionId }) => dispositionId))
+    expect(lineage === null ? [] : candidateReviewResponses(lineage).map(({ dispositionId }) => dispositionId))
       .not.toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.dispositionIds).toHaveLength(2);
     expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
@@ -1109,8 +1113,9 @@ const OBLIGATION = {
 async function reserveHostedReview(root: string, approvedHead: string): Promise<void> {
   const record = await readCandidateRecord(root, "example");
   const candidateId = record?.attestation.candidateId;
-  const candidateSubjectDigest = record?.responses.at(-1)?.newTarget.subject.subjectDigest
-    ?? record?.subject.subjectDigest;
+  const candidateSubjectDigest = record === null
+    ? undefined
+    : reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
   expect(candidateId).toBeDefined();
   expect(candidateSubjectDigest).toBeDefined();
   const { version } = await readSubmissionBoundaryVersioned(root, "example");

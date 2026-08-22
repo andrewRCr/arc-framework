@@ -5,6 +5,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { reduceCandidateDurableBaseline } from "../../lib/work-unit/candidate-attestation.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
@@ -91,8 +92,7 @@ export async function readRoutedObligation(
     if (record === null) {
       return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
     }
-    const candidateSubjectDigest = record.responses.at(-1)?.newTarget.subject.subjectDigest
-      ?? record.subject.subjectDigest;
+    const candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
     if (boundary.candidateId !== record.attestation.candidateId
       || boundary.candidateSubjectDigest !== candidateSubjectDigest) {
       return { state: "blocked", detail: "The publication boundary belongs to a different Candidate subject." };

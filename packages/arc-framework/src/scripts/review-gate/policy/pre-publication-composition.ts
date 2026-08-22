@@ -8,7 +8,10 @@ import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state
 import { getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
-import { projectCandidateCurrentness } from "../../../lib/work-unit/candidate-attestation.js";
+import {
+  candidateReviewResponses,
+  projectCandidateCurrentness,
+} from "../../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../../lib/work-unit/git-candidate-subject.js";
 import { resolveChangeRequest } from "../change-request.js";
@@ -85,7 +88,8 @@ export function createPrePublicationCompositionDependencies(input: {
         convergenceVerification: currentness.convergenceVerification,
         lineageHeadShas: [...new Set([
           record.attestation.baseRevision,
-          ...record.responses.flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
+          ...candidateReviewResponses(record)
+            .flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
           ...record.lineageAttestations.map((attestation) => attestation.target.revision),
           currentness.recognizedRevision,
         ])],

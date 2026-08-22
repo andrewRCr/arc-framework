@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
 import {
+  candidateReviewResponses,
   createCandidateAttestation,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
@@ -291,7 +292,7 @@ function candidateRecord(): CandidateManagedRecordV1 {
       verificationEvidenceRef: "verification://root",
     }),
     subject: rootSubject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   };
 }
@@ -1051,7 +1052,7 @@ describe("verified-fix Candidate settlement", () => {
     });
 
     expect(appends).toHaveLength(1);
-    const [response] = appends[0]?.record.responses ?? [];
+    const [response] = appends[0] === undefined ? [] : candidateReviewResponses(appends[0].record);
     expect(response).toMatchObject({
       candidateId: record.attestation.candidateId,
       dispositionId: request.dispositions.dispositionSet.dispositionSetId,
@@ -1102,7 +1103,7 @@ describe("verified-fix Candidate settlement", () => {
       expectedRecordVersion: canonicalDigest(record),
       record: {
         subject: record.subject,
-        responses: [expect.objectContaining({ implementationChanged: false })],
+        transitions: [expect.objectContaining({ implementationChanged: false })],
       },
     });
   });
@@ -1169,7 +1170,7 @@ describe("verified-fix Candidate settlement", () => {
     const request = verifiedFixRequest(records);
     await respondToReviewCommand(request, deps);
     const advanced = appends[0]?.record;
-    const response = advanced?.responses[0];
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
     if (advanced === undefined || response === undefined) {
       throw new Error("expected an appended Candidate response");
     }
@@ -1186,7 +1187,7 @@ describe("verified-fix Candidate settlement", () => {
     });
     const conflicting = {
       ...advanced,
-      responses: [conflictingResponse],
+      transitions: [conflictingResponse],
     };
     deps.readCandidateLineage = async () => ({
       workUnit: "example",

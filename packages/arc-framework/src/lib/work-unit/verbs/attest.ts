@@ -172,7 +172,7 @@ async function establishRoot(
     semanticsVersion: "candidate-attestation/v1",
     attestation,
     subject: current.subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   });
   const published = await context.publish({

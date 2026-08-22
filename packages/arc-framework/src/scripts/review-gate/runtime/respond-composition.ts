@@ -17,6 +17,7 @@ import {
   resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../../../lib/work-unit/candidate-record-store.js";
+import { candidateReviewResponses } from "../../../lib/work-unit/candidate-attestation.js";
 import {
   collectGitCandidateTarget,
   collectUnstagedReviewablePaths,
@@ -60,7 +61,8 @@ export function createRespondDependencies(input: {
     revision: string,
   ) => record !== null && [
     record.attestation.baseRevision,
-    ...record.responses.flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
+    ...candidateReviewResponses(record)
+      .flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
     ...record.lineageAttestations.map((attestation) => attestation.target.revision),
   ].includes(revision);
   const recordCarriesSubject = (
@@ -68,7 +70,7 @@ export function createRespondDependencies(input: {
     subjectDigest: string,
   ) => [
     record.subject.subjectDigest,
-    ...record.responses.flatMap((response) => [
+    ...candidateReviewResponses(record).flatMap((response) => [
       response.oldTarget.subject.subjectDigest,
       response.newTarget.subject.subjectDigest,
     ]),

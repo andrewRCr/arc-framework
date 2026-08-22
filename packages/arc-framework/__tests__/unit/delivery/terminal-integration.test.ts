@@ -39,7 +39,7 @@ function candidateRecord(): CandidateManagedRecordV1 {
       verificationEvidenceRef: "verification://candidate",
     }),
     subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   };
 }

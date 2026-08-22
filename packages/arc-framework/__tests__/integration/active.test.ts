@@ -62,7 +62,7 @@ async function writeCandidate(root: string, slug: string): Promise<{ candidateId
     semanticsVersion: "candidate-attestation/v1",
     attestation,
     subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   }));
   return { candidateId: attestation.candidateId, subjectDigest: subject.subjectDigest };

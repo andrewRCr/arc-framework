@@ -15,6 +15,7 @@ import {
 import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   parseCandidateManagedRecord,
+  reduceCandidateDurableBaseline,
 } from "../work-unit/candidate-attestation.js";
 import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
@@ -126,8 +127,7 @@ export async function projectCheckoutSubjectMeta(options: {
       if (candidateRecord === null || candidateRecord.attestation.candidateId !== record.candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");
       }
-      candidateSubjectDigest = candidateRecord.responses.at(-1)?.newTarget.subject.subjectDigest
-        ?? candidateRecord.subject.subjectDigest;
+      candidateSubjectDigest = reduceCandidateDurableBaseline(candidateRecord).target.subject.subjectDigest;
     } catch (error) {
       return {
         kind: "unresolved",
