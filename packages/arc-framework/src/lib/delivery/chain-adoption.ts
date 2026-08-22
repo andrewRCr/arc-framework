@@ -67,6 +67,8 @@ export async function adoptGitDeliveryChain(
     || /[\0\r\n]/u.test(input.topRef)) {
     return { status: "refused", reason: "top-ref-invalid" };
   }
+  const containment = await classifyGitDeliveryChainContainment(input);
+  if (containment.status !== "contained") return containment;
   const current = await observeCommit(input.exec, input.topRef);
   if (current === null) return { status: "refused", reason: "adoption-unavailable" };
   if (current !== input.top.head) {
@@ -74,8 +76,6 @@ export async function adoptGitDeliveryChain(
       ? { status: "adopted", head: current, tree: input.top.tree }
       : { status: "refused", reason: "top-moved" };
   }
-  const containment = await classifyGitDeliveryChainContainment(input);
-  if (containment.status !== "contained") return containment;
   let commit: string | null;
   try {
     commit = text((await input.exec([
