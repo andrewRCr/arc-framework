@@ -88,14 +88,32 @@ export async function handleUpdate(
 
 // --- Health ---
 
+/**
+ * Resolve the optional registry-derived version shown by `arc health`.
+ *
+ * @param environment - Process environment controlling production composition.
+ * @param requestLatestVersion - Registry request boundary.
+ * @returns The latest version when checked, or `null` when unavailable.
+ */
+export function resolveHealthLatestVersion(
+  environment: NodeJS.ProcessEnv,
+  requestLatestVersion: () => Promise<string | null>,
+): Promise<string | null> {
+  if (environment.ARC_DISABLE_UPDATE_CHECKS === "1") return Promise.resolve(null);
+  return requestLatestVersion();
+}
+
 export async function handleHealth(): Promise<void> {
   p.intro("arc health");
 
   try {
     const cwd = requireArcProjectRoot();
     if (!cwd) return;
-    // Check npm registry in parallel with health computation (non-blocking)
-    const latestVersionPromise = checkLatestVersion("@arc-framework/cli");
+    // Resolve the optional registry version in parallel with health computation.
+    const latestVersionPromise = resolveHealthLatestVersion(
+      process.env,
+      () => checkLatestVersion("@arc-framework/cli"),
+    );
     const result = await runHealth({
       cwd,
       io: {
