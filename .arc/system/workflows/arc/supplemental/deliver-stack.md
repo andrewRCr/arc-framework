@@ -114,9 +114,10 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
-Follow the typed result. `applied / read-position` returns to `arc delivery position`. `retryable` follows the
-returned guidance: prepare a landed member again and re-fire its interlock, or revalidate and retry the exact owning
-mutation that was reconciled. A blocked, refused, unavailable, or ambiguous result stops with its reason rendered.
+Follow the typed result. `applied / read-position` and `retryable / read-position` return to
+`arc delivery position`. A bare `retryable` follows the returned guidance: prepare a landed member again and re-fire
+its interlock, or revalidate and retry the exact owning mutation that was reconciled. A blocked, refused,
+unavailable, or ambiguous result stops with its reason rendered.
 
 Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
 

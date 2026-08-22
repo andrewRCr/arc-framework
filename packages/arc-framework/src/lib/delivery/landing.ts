@@ -326,7 +326,11 @@ export async function reconcileDeliveryExecution(input: {
       readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
       readonly nextAction: "read-position";
     }
-  | { readonly status: "retryable"; readonly guidance: string }
+  | {
+      readonly status: "retryable";
+      readonly guidance: string;
+      readonly nextAction?: "read-position";
+    }
   | BlockedDeliveryRecoveryObservationRefusal
   | {
       readonly status: "blocked";
@@ -358,11 +362,15 @@ export async function reconcileDeliveryExecution(input: {
         guidance: "Retry-state persistence failed; retain and reconcile the reservation.",
       };
     }
+    const operationKind = input.current.value.activeOperation?.kind;
     return {
       status: "retryable",
-      guidance: input.current.value.activeOperation?.kind === "land"
+      ...(operationKind === "teardown" ? { nextAction: "read-position" as const } : {}),
+      guidance: operationKind === "land"
         ? "Prepare the exact landing again and re-fire its integration interlock."
-        : "Retry the exact reserved mutation after revalidation.",
+        : operationKind === "teardown"
+          ? "Read delivery position and retry the exact teardown member."
+          : "Retry the exact reserved mutation after revalidation.",
     };
   }
   if (reconciled.status !== "adopt") {

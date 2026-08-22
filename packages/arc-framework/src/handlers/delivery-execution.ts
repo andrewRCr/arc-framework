@@ -380,7 +380,11 @@ const ResultSchema = z.union([
       tier1Required: z.literal(true),
     }),
   }),
-  z.strictObject({ status: z.literal("retryable"), guidance: z.string().min(1) }),
+  z.strictObject({
+    status: z.literal("retryable"),
+    guidance: z.string().min(1),
+    nextAction: z.literal("read-position").optional(),
+  }),
   z.strictObject({ status: z.literal("retryable"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   BlockedContributionRefusalSchema,

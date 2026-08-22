@@ -334,6 +334,7 @@ describe("delivery terminal recovery", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery reconcile",
       status: "retryable",
+      nextAction: "read-position",
     });
     const restored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       value: DeliveryStateV1;
@@ -341,6 +342,65 @@ describe("delivery terminal recovery", () => {
     expect(restored.value.activeOperation).toBeNull();
     await expect(git(repository, ["ls-remote", "--exit-code", "origin", "refs/heads/member-1"]))
       .resolves.toContain(fixture.triggerHead);
+
+    const plan = deliveryStackPlanFixture();
+    const facts = {
+      target: restored.value.target,
+      members: restored.value.members,
+      landedDeliverableIds: [plan.members[0]!.deliverableId],
+    };
+    const position = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, facts })}\n`,
+      { env: fixture.env },
+    );
+    expect(position.exitCode, position.stderr).toBe(0);
+    expect(JSON.parse(position.stdout)).toMatchObject({
+      command: "delivery position",
+      status: "position",
+      nextAction: "teardown-member",
+      selectedDeliverableId: plan.members[0]!.deliverableId,
+    });
+
+    const teardown = await runArcWithStdin(
+      ["delivery", "teardown", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: fixture.planId,
+        deliverableId: plan.members[0]!.deliverableId,
+        facts,
+        repository: "owner/repo",
+        protectedTargetRef: "refs/heads/main",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(teardown.exitCode, teardown.stderr).toBe(0);
+    expect(JSON.parse(teardown.stdout)).toMatchObject({
+      command: "delivery teardown",
+      status: "torn-down",
+      nextAction: "retarget",
+    });
+
+    const remedy = await runArcWithStdin(
+      ["delivery", "top-remedy", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: fixture.planId,
+        action: "retarget",
+        repository: "owner/repo",
+        protectedBaseRef: "main",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(remedy.exitCode, remedy.stderr).toBe(0);
+    expect(JSON.parse(remedy.stdout)).toMatchObject({
+      command: "delivery top-remedy",
+      status: "remedied",
+      nextAction: "terminal-checkpoint",
+    });
   });
 
   it("retains an interrupted teardown reservation when the request head moved", async () => {
