@@ -33,11 +33,10 @@ is parallel-able; it shares machinery with both but gates neither.
   ask vs. where work crystallizes into history) and the term reconsideration around "review increment." Owned by
   **`commit-increments`**. Consumed by **`unit-scoped-review`**, which introduces "review increment = whole WU"
   (the limit of that axis) and must settle its naming jointly — not mint a canonical-but-inconsistent gap.
-- **"One approval releases the tail."** A single, wider approval signal arming a sequence of downstream fires
-  instead of re-prompting each. Surfaces in **`interlock-release-refinement`** as the _errand_ approval-collapse
-  (one increment-approval → commit + push + merge + delete at errand scope) and in **`unit-scoped-review`** as the
-  _WU_-scoped batch (one authorization → the whole task list's per-leaf commits, **stopping at validation** — it
-  does not collapse the merge; the integration interlock holds). Same concept, two scopes; align the framing.
+- **A wider approval releases only the fires in its declared scope.** `unit-scoped-review` applies one
+  authorization across the task list's per-leaf review and commit work, stopping at validation. Wrapper routing
+  consumes explicit approval provenance for commit and push fires; integration settlement, merge authorization,
+  merge execution, and teardown remain with their lifecycle owners.
 - **Approval-provenance as first-class state.** The "what approval surface authorized this fire?" state captured
   for evaluation in `commit-increments` § Unknowns and re-surfaced from the wrapper angle in
   `interlock-release-refinement`. `unit-scoped-review`'s batch authorization is a provenance source with WU scope;
@@ -47,8 +46,8 @@ is parallel-able; it shares machinery with both but gates neither.
 
 - **The integration interlock is the cohort's invariant floor.** None of these members relaxes it — merge always
   requires explicit human authorization, never inferred. `unit-scoped-review` relaxes review _frequency_ up to the
-  WU boundary and stops there; the errand-collapse is opt-in and self-review-scoped. The floor is what keeps
-  "refine the approval flow" from sliding into "remove the approval."
+  WU boundary and stops there. The floor is what keeps "refine the approval flow" from sliding into "remove the
+  approval."
 - **Forward-compat with `composable-workflows`.** Express the relevant workflow procedures parametrically (e.g.
   process-task-loop over an increment-scope parameter; the wrapper-routing as a fixed procedure). The members
   define the parameters/contracts; CW owns extracting the loop into fragments — coordinate, don't pre-empt.

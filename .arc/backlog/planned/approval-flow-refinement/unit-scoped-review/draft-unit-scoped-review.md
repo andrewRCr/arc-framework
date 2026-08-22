@@ -288,12 +288,10 @@ follow-up.
 - **Depends On `commit-increments` (hard).** The per-leaf-commits-during-batch property _is_ that member's
   "deferred review releases commits at leaf boundaries" fix; without it a batch accumulates an entangled diff —
   the exact problem `commit-increments` solves. Also vocabulary-coupled (review-increment term).
-- **Tight coordination with `interlock-release-refinement`.** Shares the "widen the approval unit / release the
-  tail" machinery — its **errand approval-collapse** ("one increment-approval releases the full tail") is the
-  sibling shape at _errand_ scope; this is the same concept at _WU_ scope (but stops at validation; it does
-  **not** collapse the merge — the integration interlock holds). The pre-flight config gate consumes its
-  wrapper-routing + approval-provenance work. Its first-class approval-provenance state composes: a batch
-  authorization is a provenance source with WU scope.
+- **Tight coordination with `interlock-release-refinement`.** The pre-flight config gate consumes its
+  wrapper-routing and approval-provenance work. Its first-class approval-provenance state composes: a batch
+  authorization is a provenance source with WU scope. This WU stops at validation; integration settlement and
+  merge remain with their lifecycle owners.
 - **`compaction-recovery` (`agent-context-optimization`) — backstop, cross-cohort.** See Phasing; also the
   two-way alignment note below.
 - **Implies a methodology change to DEV-RULES.ARC § Sub-agent scope** if orchestration is adopted (the carve-out).
