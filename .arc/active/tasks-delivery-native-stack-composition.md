@@ -470,10 +470,15 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
     - The same ref reaches the same consumers under a name that still describes it — no behavior changes
     - Update the tests and fixtures that spell the old field names
 
-### `[ ]` **4.7 Close delivery member 4** — validate criteria at member scope
+### `[x]` **4.7 Close delivery member 4** — validate criteria at member scope
 
 - _Goal:_ Member 4's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
+
+- _Outcome:_ `[x]` The immutable Member 4 criterion is met through the recorded boundary-order deviation: the
+  Phase 4 diff (`a202eec2a..d26adf058`) establishes first-class member refs, bound terminal publication, complete
+  presentation preflight, and containment-guarded adoption; the boundary remained open through `c9a753e3b`, whose
+  reachable tree removes the incompatible terminal path and delegates directly to the ordinary checkpoint spine.
 
 ## **Phase 5:** Terminal integration arm
 
