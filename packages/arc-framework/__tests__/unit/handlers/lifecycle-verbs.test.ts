@@ -671,6 +671,10 @@ describe("handleDecompose", () => {
       },
       sources: [{
         path: ".arc/active/spec-mono.md",
+        before: {
+          mode: "100644" as const,
+          contentDigest: `sha256:${"d".repeat(64)}`,
+        },
         after: {
           kind: "file" as const,
           mode: "100644" as const,

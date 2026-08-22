@@ -605,6 +605,10 @@ describe("Git v3 repository plan", () => {
         },
         sources: [expect.objectContaining({
           path: ".arc/active/spec-origin.md",
+          before: expect.objectContaining({
+            mode: "100644",
+            contentDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+          }),
           after: expect.objectContaining({ kind: "file", mode: "100644" }),
           removedLocators: expect.any(Array),
         })],
@@ -720,6 +724,52 @@ describe("Git v3 repository plan", () => {
     })).resolves.toEqual({ status: "refused", reason: "apply-authority", locus: "apply" });
     await expect(readFile(join(fixture.repo, sourcePath), "utf8")).resolves.toBe(before);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
+  });
+
+  it("invalidates preview authority after a committed reasoned-drop byte refresh", async () => {
+    const fixture = await landedExtractionRepository();
+    const preview = await previewFinish(fixture);
+    if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
+    const dropAllocation = fixture.completedMap.authoring.sourceAllocations.find(({ disposition }) =>
+      disposition.kind === "drop");
+    const droppedUnit = fixture.completedMap.machine.sourceUnits.find(({ sourceId }) =>
+      sourceId === dropAllocation?.sourceId);
+    if (droppedUnit === undefined) throw new Error("extraction fixture needs reasoned-drop scope");
+    const sourcePath = join(fixture.repo, droppedUnit.sourcePath);
+    const sourceBytes = new Uint8Array(await readFile(sourcePath));
+    const scan = scanV3DecomposeContent(droppedUnit.sourceLocator.artifact, sourceBytes);
+    if (scan.status !== "scanned") throw new Error(scan.reason);
+    const resolved = resolveV3DecomposeContentLocator(
+      scan.units,
+      droppedUnit.sourceLocator,
+      droppedUnit.sourceLocator.artifact,
+    );
+    if (resolved.status !== "resolved") throw new Error(resolved.reason);
+    const changed = Buffer.concat([
+      sourceBytes.slice(0, resolved.unit.byteRange.end),
+      Buffer.from("Changed after finish preview.\n", "utf8"),
+      sourceBytes.slice(resolved.unit.byteRange.end),
+    ]);
+    await writeFile(sourcePath, changed);
+    await git(fixture.repo, ["add", droppedUnit.sourcePath]);
+    await git(fixture.repo, ["commit", "-m", "refresh reasoned-drop source bytes"]);
+    const committedSource = await readFile(sourcePath, "utf8");
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: preview.preview.applyAuthority,
+    })).resolves.toEqual({ status: "refused", reason: "apply-authority", locus: "apply" });
+    await expect(readFile(sourcePath, "utf8")).resolves.toBe(committedSource);
+    expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", droppedUnit.sourcePath]))
+      .toBe("");
+
+    const refreshedPreview = await previewFinish(fixture);
+    expect(refreshedPreview).toMatchObject({ status: "previewed" });
+    if (refreshedPreview.status !== "previewed") return;
+    expect(refreshedPreview.preview.applyAuthority).not.toBe(preview.preview.applyAuthority);
   });
 
   it("authenticates an authored preserved incoming dependency against the live base", async () => {

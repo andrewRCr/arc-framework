@@ -31,6 +31,10 @@ export const V3ExtractionFinishEvidenceSchema = z.strictObject({
   }),
   sources: z.array(z.strictObject({
     path: ManagedPathSchema,
+    before: z.strictObject({
+      mode: ModeSchema,
+      contentDigest: DigestSchema,
+    }),
     after: z.discriminatedUnion("kind", [
       z.strictObject({ kind: z.literal("absent") }),
       z.strictObject({

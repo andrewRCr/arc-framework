@@ -18,6 +18,10 @@ describe("V3ExtractionFinishResultSchema", () => {
     },
     sources: [{
       path: ".arc/active/spec-origin.md",
+      before: {
+        mode: "100644",
+        contentDigest: `sha256:${"d".repeat(64)}`,
+      },
       after: {
         kind: "file",
         mode: "100644",

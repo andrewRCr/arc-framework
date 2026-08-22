@@ -116,6 +116,7 @@ function composeFinishPreview(
     },
     sources: files.map((file) => ({
       path: file.path,
+      before: structuredClone(file.before),
       after: file.after.kind === "absent"
         ? { kind: "absent" }
         : {

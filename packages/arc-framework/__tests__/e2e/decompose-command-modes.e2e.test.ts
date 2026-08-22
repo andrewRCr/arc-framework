@@ -661,6 +661,10 @@ describe("arc decompose command modes", () => {
         },
         sources: [expect.objectContaining({
           path: retainedSource.sourcePath,
+          before: {
+            mode: "100644",
+            contentDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+          },
           after: {
             kind: "file",
             mode: "100644",
