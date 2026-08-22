@@ -9,6 +9,10 @@ import type { ObjectAvailabilityResult } from "../../../src/lib/git/object-avail
 import type { RemoteHeadSnapshotResult } from "../../../src/lib/git/remote-ref-reader.js";
 import type { RegisteredWorktree } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
+import {
+  authorizeRetirementStrict,
+  type RetirementAuthorizationContext,
+} from "../../../src/lib/work-unit/retirement-authorization.js";
 
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 
@@ -299,6 +303,22 @@ describe("runLandedRetirementSweep", () => {
     const result = await runLandedRetirementSweep({
       ...options(),
       authorize: async () => ({ status: "refused", reason: "evidence-missing" }),
+    });
+
+    expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
+  });
+
+  it("ignores a local-ahead active work unit before retirement evidence selects it", async () => {
+    const context: RetirementAuthorizationContext = {
+      readLocalProjection: async () => ({ oid: HEAD, worktreeProjectionSafe: true }),
+      readRemoteRef: async () => "d".repeat(40),
+      readShippedEvidence: async () => null,
+      readGitTransitionProof: async () => ({ status: "refused", reason: "evidence-missing" }),
+    };
+
+    const result = await runLandedRetirementSweep({
+      ...options(),
+      authorize: async (request) => await authorizeRetirementStrict(context, request),
     });
 
     expect(result).toEqual({ remoteEvidence: "not-applicable", retirements: [], warnings: [] });
