@@ -748,6 +748,50 @@ describe("Git v3 repository plan", () => {
     })).resolves.toMatchObject({ status: "refused", reason: "base-raced" });
   });
 
+  it("refuses without source mutation when the base moves after verified source capture", async () => {
+    const fixture = await landedExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    await git(fixture.repo, ["switch", "-c", "finish-race-base"]);
+    await write(fixture.repo, "finish-race.txt", "race\n");
+    await git(fixture.repo, ["add", "finish-race.txt"]);
+    await git(fixture.repo, ["commit", "-m", "race finish base"]);
+    const raceHead = (await git(fixture.repo, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["switch", "feat/origin"]);
+    await git(fixture.repo, ["branch", "-f", "main", fixture.landedHead]);
+    const sourcePath = ".arc/active/spec-origin.md";
+    const sourceBefore = await readFile(join(fixture.repo, sourcePath), "utf8");
+    let baseReads = 0;
+    const racedDependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<GitExec>) => {
+        if (args[0] === "git"
+          && args[1][0] === "rev-parse"
+          && args[1][2] === "refs/heads/main^{commit}") {
+          baseReads += 1;
+          if (baseReads === 3) {
+            await git(fixture.repo, ["branch", "-f", "main", raceHead]);
+          }
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    await expect(finishGitV3Extraction(racedDependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      apply: true,
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "base-raced",
+      locus: "refs/heads/main",
+    });
+    expect(baseReads).toBe(3);
+    await expect(readFile(join(fixture.repo, sourcePath), "utf8")).resolves.toBe(sourceBefore);
+    expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
+  });
+
   it("refuses when the surviving source moves during destination proof", async () => {
     const fixture = await landedExtractionRepository();
     let sourceReads = 0;

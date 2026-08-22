@@ -462,7 +462,7 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("discard");
   });
 
-  it("lands additive extraction then previews and applies source finish through the CLI", async () => {
+  it("lands a direct-member extraction with a reasoned drop then durably finishes the source", async () => {
     repo = await startedRepository();
     const cutMapPath = await writeExtractionCutMap(repo);
     const sourceHeadBefore = await git(repo, ["rev-parse", "plan/origin"]);
@@ -490,10 +490,42 @@ describe("arc decompose command modes", () => {
     const result = JSON.parse(extracted.stdout) as {
       operation: {
         occupation: { protection: string; path: string };
-        report: { extraction: { anchor: { origin: string; path: string } } };
+        report: {
+          extraction: {
+            retainedOrigin: {
+              origin: string;
+              path: string;
+              allocations: Array<{ sourceId: string; ownership: string }>;
+            };
+            reasonedDrops: Array<{
+              sourceId: string;
+              ownership: string;
+              reason: string;
+            }>;
+            anchor: { origin: string; path: string };
+          };
+        };
         stagedPaths: string[];
       };
     };
+    const cutMap = JSON.parse(await readFile(cutMapPath, "utf8")) as {
+      machine: {
+        sourceUnits: Array<{
+          sourceId: string;
+          sourcePath: string;
+          sourceLocator: unknown;
+        }>;
+      };
+      authoring: {
+        sourceAllocations: Array<{
+          sourceId: string;
+          disposition: { kind: string; reason?: string };
+        }>;
+      };
+    };
+    const dropAllocation = cutMap.authoring.sourceAllocations.find(({ disposition }) =>
+      disposition.kind === "drop");
+    if (dropAllocation === undefined) throw new Error("extraction fixture needs a reasoned drop");
     expect(result).toMatchObject({
       status: "staged",
       operation: {
@@ -505,6 +537,11 @@ describe("arc decompose command modes", () => {
         },
       },
     });
+    expect(result.operation.report.extraction.reasonedDrops).toEqual([{
+      sourceId: dropAllocation.sourceId,
+      ownership: "destination-owned",
+      reason: "obsolete framing",
+    }]);
     expect(result.operation.stagedPaths).not.toEqual(expect.arrayContaining([
       expect.stringContaining(".arc/system/.internal/transitions/"),
       expect.stringContaining(".arc/active/meta-origin.md"),
@@ -553,22 +590,13 @@ describe("arc decompose command modes", () => {
     expect(await git(repo, ["rev-parse", "plan/origin"])).toBe(sourceHeadBefore);
     expect(await git(repo, ["rev-parse", "plan/origin^{tree}"])).toBe(sourceTreeBefore);
 
-    const cutMap = JSON.parse(await readFile(cutMapPath, "utf8")) as {
-      machine: {
-        sourceUnits: Array<{
-          sourceId: string;
-          sourcePath: string;
-          sourceLocator: unknown;
-        }>;
-      };
-      authoring: {
-        sourceAllocations: Array<{ sourceId: string; disposition: { kind: string } }>;
-      };
-    };
     const retainedId = cutMap.authoring.sourceAllocations.find(({ disposition }) =>
       disposition.kind === "retained-origin")?.sourceId;
     const retainedSource = cutMap.machine.sourceUnits.find(({ sourceId }) => sourceId === retainedId);
     if (retainedSource === undefined) throw new Error("extraction fixture needs retained source");
+    const droppedSource = cutMap.machine.sourceUnits.find(({ sourceId }) =>
+      sourceId === dropAllocation.sourceId);
+    if (droppedSource === undefined) throw new Error("extraction fixture needs dropped source");
 
     await git(result.operation.occupation.path, ["commit", "-m", "land additive extraction"]);
     const candidateHead = await git(result.operation.occupation.path, ["rev-parse", "HEAD"]);
@@ -634,7 +662,7 @@ describe("arc decompose command modes", () => {
             mode: "100644",
             contentBase64: Buffer.from(retained.unit.bytes).toString("base64"),
           },
-          removedLocators: expect.any(Array),
+          removedLocators: expect.arrayContaining([droppedSource.sourceLocator]),
         })],
       },
     });
@@ -650,6 +678,40 @@ describe("arc decompose command modes", () => {
       .toEqual(retained.unit.bytes);
     expect((await git(repo, ["diff", "--cached", "--name-only"])).trim())
       .toBe(retainedSource.sourcePath);
+
+    const originMetaSourcePath = ".arc/active/meta-origin.md";
+    const originMetaBeforeReconciliation = await readFile(join(repo, originMetaSourcePath), "utf8");
+    const originMetaAfterReconciliation = originMetaBeforeReconciliation.replace(
+      "- **Next Action:** Begin draft-design",
+      "- **Next Action:** Continue retained origin planning",
+    );
+    expect(originMetaAfterReconciliation).not.toBe(originMetaBeforeReconciliation);
+    await writeFile(join(repo, originMetaSourcePath), originMetaAfterReconciliation, "utf8");
+    await git(repo, ["add", "--", retainedSource.sourcePath, originMetaSourcePath]);
+    expect((await git(repo, ["diff", "--name-only", "--", retainedSource.sourcePath, originMetaSourcePath])))
+      .toBe("");
+    expect((await git(repo, ["diff", "--cached", "--name-only", "--no-renames"]))
+      .split("\n")
+      .filter(Boolean)
+      .sort())
+      .toEqual([originMetaSourcePath, retainedSource.sourcePath].sort());
+    await git(repo, [
+      "commit",
+      "-m",
+      "chore(planning): finish source extraction for origin",
+      "-m",
+      "Context: draft-origin.md (planning)",
+    ]);
+    const durableFinishHead = await git(repo, ["rev-parse", "HEAD"]);
+    expect((await git(repo, [
+      "diff-tree",
+      "--no-commit-id",
+      "--name-only",
+      "-r",
+      durableFinishHead,
+    ])).split("\n").filter(Boolean).sort())
+      .toEqual([originMetaSourcePath, retainedSource.sourcePath].sort());
+
     const repeated = await runArcNoTty(
       ["decompose", "origin", "--finish", cutMapPath],
       repo,
@@ -657,7 +719,6 @@ describe("arc decompose command modes", () => {
     );
     expect(repeated.exitCode, repeated.stderr).toBe(0);
     expect(JSON.parse(repeated.stdout)).toEqual({ status: "already-finished" });
-    await git(repo, ["commit", "-m", "finish source extraction"]);
     const committedRepeat = await runArcNoTty(
       ["decompose", "origin", "--finish", cutMapPath, "--apply"],
       repo,
@@ -665,6 +726,8 @@ describe("arc decompose command modes", () => {
     );
     expect(committedRepeat.exitCode, committedRepeat.stderr).toBe(0);
     expect(JSON.parse(committedRepeat.stdout)).toEqual({ status: "already-finished" });
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(durableFinishHead);
+    expect(await git(repo, ["status", "--porcelain=v1", "--untracked-files=no"])).toBe("");
   });
 
   it("refuses destination-owned multi-member direct placement before repository mutation", async () => {

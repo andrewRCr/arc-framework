@@ -56,10 +56,11 @@ itself is retirement-coupled and stays untouched. Base mobility has shipped for 
 
 The surviving origin is always a logical decomposition anchor and always counts as a placement constituent. When
 extraction creates more than one new member, the completed map must select `cohort`, `subcohort`, or `at-cap`
-placement; `direct-member` is valid only when extraction creates exactly one new member, every source unit has a
-destination-owned or retained home, and the surviving origin is an adequate human anchor. Under `at-cap` placement
-the origin's name persists as the parent cohort's write-once fan-out provenance note, not as a live grouping node,
-and the origin is never listed among the rendered fan-out members — it counts for placement cardinality only.
+placement; `direct-member` is valid only when extraction creates exactly one new member, every non-dropped source
+unit has a destination-owned or retained home, explicitly reasoned drops remain valid, and the surviving origin is
+an adequate human anchor. Under `at-cap` placement the origin's name persists as the parent cohort's write-once
+fan-out provenance note, not as a live grouping node, and the origin is never listed among the rendered fan-out
+members — it counts for placement cardinality only.
 
 The core's internal topology planner already accepts a surviving origin; extraction becomes its first caller. The
 origin folds into the constituent count for the multi-member gates, and the planner gains a direct-member arm so a
@@ -84,20 +85,23 @@ and profile inference reads the same design-artifact families. A backlog stub is
 has no committed implementation to protect, and splitting one is retirement decomposition's territory — so a
 backlog-stub envelope under the extraction shape is a typed decode mismatch. The scanned inventory remains those
 design artifacts — the origin's task list is never a source unit, so pruning it after extraction is ordinary
-work-unit editing by the origin's owner, not part of the transform. The envelope's source kind and the map's authoring shape
-cross-validate at decode: an `Active`-state origin is valid only under the extraction shape, and the retirement
-shapes accept only the retirement source kinds — widening admission cannot open the retirement transform to a
-surviving origin.
+work-unit editing by the origin's owner, not part of the transform. After finish applies, that ordinary edit and
+any affected Next Task / Next Action pointer reconciliation join the durable finish release for both Active and
+started-Planning origins. The envelope's source kind and the map's authoring shape cross-validate at decode: an
+`Active`-state origin is valid only under the extraction shape, and the retirement shapes accept only the
+retirement source kinds — widening admission cannot open the retirement transform to a surviving origin.
 
 The completed v3 map declares itself with an explicit `extraction` authoring shape — at least one new member,
 existing homes permitted, placement counting the surviving origin as a constituent (`direct-member` valid only
 with exactly one new member; the cohort placements valid from one new member up) — and allocates every scanned
 source unit exactly once: to a new-member destination, an existing home, cohort coordination, an explicit
-retained-by-origin disposition, or an explicitly reasoned drop. A retained-by-origin allocation carries
-`destination-owned` ownership, mirroring drops. Retained-by-origin dispositions are valid only under the
-extraction shape; retirement-shaped maps reject them at decode, so the retirement transform stays fail-closed
-against extraction content. Every new extracted member owns at least one real destination-owned unit; an existing
-home, cohort-shared unit, or retained origin scope cannot stand in for substantive member scope. That
+retained-by-origin disposition, or an explicitly reasoned drop. Every non-dropped unit therefore has either a
+destination-owned home or an explicit retained-origin home; a reasoned drop remains approved removal authority
+and is not rejected for having no surviving home. The schema's existing ownership tag remains
+`destination-owned` for retained-origin and drop dispositions. Retained-by-origin dispositions are valid only
+under the extraction shape; retirement-shaped maps reject them at decode, so the retirement transform stays
+fail-closed against extraction content. Every new extracted member owns at least one real destination-owned unit;
+an existing home, cohort-shared unit, or retained origin scope cannot stand in for substantive member scope. That
 destination→allocation coverage check is net-new — the core validates only that each allocation names a declared
 destination.
 
@@ -168,9 +172,13 @@ style, ordering, and file mode. A failure restores only bounded preimages and re
 
 ### Proportional recovery
 
-Finish returns `previewed`, `finished`, `already-finished`, or one typed refusal. Authored choices carry forward
-only while the exact v3 source ID and locator resolve uniquely and the destination remains valid; machine digests
-may refresh. Added, moved, removed, or ambiguous units require reauthoring.
+Finish returns `previewed`, `finished`, `already-finished`, or one typed refusal. A `finished` apply leaves exact
+source mutations staged; the origin owner reconciles the surviving task list and affected Next Task / Next Action
+pointers, exact-set verifies the combined release, and commits it before candidate cleanup. An
+`already-finished` result makes no new mutation and requires proof that this state is already durable rather than a
+new ceremonial commit. Authored choices carry forward only while the exact v3 source ID and locator resolve
+uniquely and the destination remains valid; machine digests may refresh. Added, moved, removed, or ambiguous units
+require reauthoring.
 
 If scratch is lost, preflight regenerates machine inventory and the operator reauthors the semantic cut against
 landed facts. Git may prove destinations and already-applied thinning, but it cannot reconstruct intent. A failed
@@ -244,6 +252,9 @@ with a typed reason instead of admitting them.
 - A dependent of retained scope keeps its origin dependency edge; extraction never silently strips one.
 - The staged ROADMAP projection keeps the surviving origin visible, through the core's existing render seam.
 - Finish previews by default and applies only after exact live-base destination validation and reread.
+- A finished apply durably commits exact source thinning together with ordinary surviving task-list and affected
+  Next Task / Next Action reconciliation for both Active and started-Planning origins before candidate cleanup;
+  already-finished retries make no mutation or invented commit.
 - Thinning preserves every byte and mode outside the approved transfer/drop set across Markdown and whole files.
 - Repeat finish is idempotent; changed source, base race, partial apply, missing target, and lost scratch remain
   recoverable without durable coordination state.

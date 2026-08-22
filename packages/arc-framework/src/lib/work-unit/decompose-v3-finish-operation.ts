@@ -17,6 +17,10 @@ export type V3ExtractionSourceFinishResult =
 
 /** Mutation seam layered on the shared bounded-preimage recovery contract. */
 export interface V3ExtractionSourceFinishIO extends V3PartialRecoveryIO {
+  beforeApply?(): Promise<
+    | { status: "ready" }
+    | { status: "refused"; reason: string; locus?: string }
+  >;
   apply(file: V3ExtractionSourceThinningFilePlan): Promise<
     | { status: "applied" }
     | { status: "refused"; reason: string; mutated: boolean }
@@ -142,7 +146,7 @@ export function executeV3ExtractionSourceFinish(
       if (indexBefore !== worktreeBefore || indexAfter !== worktreeAfter) {
         return { status: "refused", reason: "source-worktree-preimage", locus: file.path };
       }
-      if (indexBefore) pendingPaths.add(file.path);
+      if (indexBefore && !indexAfter) pendingPaths.add(file.path);
     }
     try {
       const stable = await io.verify(preimages);
@@ -158,6 +162,15 @@ export function executeV3ExtractionSourceFinish(
         status: "previewed",
         files: files.filter(({ path }) => pendingPaths.has(path)),
       };
+    }
+    if (io.beforeApply !== undefined) {
+      let guard: Awaited<ReturnType<NonNullable<V3ExtractionSourceFinishIO["beforeApply"]>>>;
+      try {
+        guard = await io.beforeApply();
+      } catch {
+        return { status: "refused", reason: "source-before-apply" };
+      }
+      if (guard.status === "refused") return guard;
     }
 
     const mutatedPaths = new Set<string>();

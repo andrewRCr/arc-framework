@@ -268,9 +268,10 @@ describe("v3 repository plan projection", () => {
     expect(renderRoadmap).not.toHaveBeenCalled();
   });
 
-  it("composes an additive result without predecessor retirement or transition authority", async () => {
+  it("routes additive cohort planning through surviving-origin topology without retirement authority", async () => {
     const input = fixture();
     input.completedMap.authoring.shape = "extraction" as never;
+    input.completedMap.authoring.placement = { kind: "cohort", cohort: "origin" } as never;
     const allocations = input.completedMap.authoring.sourceAllocations;
     allocations[0]!.disposition = { kind: "retained-origin" } as never;
     allocations[1]!.disposition = {
@@ -310,7 +311,12 @@ describe("v3 repository plan projection", () => {
       expect.objectContaining({ role: "retiring-source" }),
     ]));
     expect(result.plan.allowedPaths).not.toContain(".arc/active/meta-origin.md");
+    expect(result.plan.allowedPaths).toContain(".arc/backlog/planned/origin/cohort-origin.md");
     expect(renderRoadmap.mock.calls[0]?.[1]).toBeUndefined();
+    expect(renderRoadmap.mock.calls[0]?.[0]).toMatchObject({
+      ".arc/backlog/planned/origin/cohort-origin.md": { kind: "object" },
+      ".arc/backlog/planned/origin/member/meta-member.md": { kind: "object" },
+    });
     expect(result.extractionFacts).toEqual({
       retainedOrigin: {
         origin: "origin",

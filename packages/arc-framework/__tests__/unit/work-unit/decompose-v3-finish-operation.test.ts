@@ -35,6 +35,16 @@ function plans(): V3ExtractionSourceThinningFilePlan[] {
   }];
 }
 
+function retainedPlan(): V3ExtractionSourceThinningFilePlan {
+  const bytes = encoder.encode("retained\n");
+  return {
+    path: ".arc/active/meta-origin.md",
+    before: { mode: "100644", contentDigest: digestBytes(bytes) },
+    after: { kind: "file", mode: "100644", bytes },
+    removedLocators: [],
+  };
+}
+
 function memoryIO(overrides: {
   failPath?: string;
   failMutated?: boolean;
@@ -200,6 +210,75 @@ describe("executeV3ExtractionSourceFinish", () => {
       status: "previewed",
       files: [plans()[1]],
     });
+  });
+
+  it("treats a retained-only plan as complete for preview, apply, and repeat", async () => {
+    const retained = retainedPlan();
+    const io = memoryIO({
+      initial: {
+        [retained.path]: {
+          index: image("retained\n"),
+          worktree: image("retained\n"),
+        },
+      },
+    });
+
+    await expect(executeV3ExtractionSourceFinish([retained], false, io))
+      .resolves.toEqual({ status: "already-finished" });
+    await expect(executeV3ExtractionSourceFinish([retained], true, io))
+      .resolves.toEqual({ status: "already-finished" });
+    await expect(executeV3ExtractionSourceFinish([retained], true, io))
+      .resolves.toEqual({ status: "already-finished" });
+    expect(io.applied).toEqual([]);
+  });
+
+  it("excludes retained paths from a mixed preview, apply, and repeat", async () => {
+    const retained = retainedPlan();
+    const changed = plans()[1]!;
+    const mixed = [retained, changed];
+    const io = memoryIO({
+      initial: {
+        [retained.path]: {
+          index: image("retained\n"),
+          worktree: image("retained\n"),
+        },
+        [changed.path]: {
+          index: image("before\n", "100755"),
+          worktree: image("before\n", "100755"),
+        },
+      },
+    });
+
+    await expect(executeV3ExtractionSourceFinish(mixed, false, io)).resolves.toEqual({
+      status: "previewed",
+      files: [changed],
+    });
+    await expect(executeV3ExtractionSourceFinish(mixed, true, io))
+      .resolves.toEqual({ status: "finished" });
+    expect(io.applied).toEqual([changed.path]);
+    await expect(executeV3ExtractionSourceFinish(mixed, true, io))
+      .resolves.toEqual({ status: "already-finished" });
+    expect(io.applied).toEqual([changed.path]);
+  });
+
+  it("runs the pre-mutation guard for apply only", async () => {
+    let guardCalls = 0;
+    const io = memoryIO();
+    io.beforeApply = () => {
+      guardCalls += 1;
+      return Promise.resolve({ status: "refused", reason: "base-raced", locus: "refs/heads/main" });
+    };
+
+    await expect(executeV3ExtractionSourceFinish(plans(), false, io))
+      .resolves.toEqual({ status: "previewed", files: plans() });
+    expect(guardCalls).toBe(0);
+    await expect(executeV3ExtractionSourceFinish(plans(), true, io)).resolves.toEqual({
+      status: "refused",
+      reason: "base-raced",
+      locus: "refs/heads/main",
+    });
+    expect(guardCalls).toBe(1);
+    expect(io.applied).toEqual([]);
   });
 
   it("refuses any changed preimage before the first mutation", async () => {

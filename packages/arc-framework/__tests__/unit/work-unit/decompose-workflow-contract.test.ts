@@ -93,6 +93,9 @@ describe("decompose workflow contract", () => {
       "arc status",
       "arc decompose <origin> --finish <completed-map>",
       "arc decompose <origin> --finish <completed-map> --apply",
+      "git add -- <finish-source-paths> <changed-owner-reconciliation-paths>\n"
+        + "git diff --quiet -- <finish-source-paths> <changed-owner-reconciliation-paths>\n"
+        + "git diff --cached --name-only --no-renames",
       "arc teardown --branch <reported-candidate-branch>",
       "arc teardown <origin>",
     ]);
@@ -157,6 +160,46 @@ describe("decompose workflow contract", () => {
     expect(workflow).toContain("packet, or selected successor");
     expect(workflow).toContain("startable only through their landed base metas");
     expect(workflow).toContain("Never tear down the surviving extraction origin");
+  });
+
+  it("makes finished source reconciliation durable before candidate cleanup", () => {
+    const finishApply = workflow.indexOf(
+      "arc decompose <origin> --finish <completed-map> --apply",
+    );
+    const finished = workflow.indexOf("A `finished` outcome leaves the exact source thinning staged");
+    const stage = workflow.indexOf("git add -- <finish-source-paths> <changed-owner-reconciliation-paths>");
+    const exactSet = workflow.indexOf("complete staged path set exactly equals their union");
+    const commit = workflow.indexOf(
+      "`commit-interlock` release — commit the exact staged finish and owner reconciliation",
+    );
+    const cleanup = workflow.indexOf("arc teardown --branch <reported-candidate-branch>");
+
+    expect(finished).toBeGreaterThan(finishApply);
+    expect(workflow.slice(finished, stage)).toContain("surviving `tasks-{origin}.md`");
+    expect(workflow.slice(finished, stage)).toContain("`**Next Task:**`");
+    expect(workflow.slice(finished, stage)).toContain("`**Next Action:**`");
+    expect(workflow.slice(finished, stage)).toContain("both an `Active` origin and a started `Planning` origin");
+    expect(exactSet).toBeGreaterThan(finished);
+    expect(stage).toBeGreaterThan(exactSet);
+    expect(commit).toBeGreaterThan(stage);
+    expect(cleanup).toBeGreaterThan(commit);
+    expect(workflow.slice(commit, cleanup)).toContain(
+      "chore(planning): finish source extraction for {origin}",
+    );
+  });
+
+  it("keeps already-finished as a durable no-mutation, no-commit outcome", () => {
+    const alreadyFinished = workflow.indexOf(
+      "An `already-finished` outcome takes no mutation or commit arm",
+    );
+    const cleanup = workflow.indexOf("arc teardown --branch <reported-candidate-branch>");
+    const arm = workflow.slice(alreadyFinished, cleanup);
+
+    expect(alreadyFinished).toBeGreaterThan(-1);
+    expect(arm).toContain("already reside in `HEAD`");
+    expect(arm).toContain("no indexed or\nworking-tree diff");
+    expect(arm).toContain("never mint an empty or\nceremonial source-finish commit");
+    expect(arm).not.toContain("`commit-interlock`");
   });
 
   it("keeps package source and the self-hosted project projection byte-equal", () => {

@@ -499,7 +499,19 @@ export async function finishGitV3Extraction(
   const result = await executeV3ExtractionSourceFinish(
     thinning.files,
     input.apply,
-    createGitV3ExtractionSourceFinishIO(dependencies),
+    {
+      ...createGitV3ExtractionSourceFinishIO(dependencies),
+      beforeApply: async () => {
+        const liveBase = await exactRef(dependencies, proof.preparation.proof.baseRef);
+        return liveBase === proof.preparation.proof.baseHead
+          ? { status: "ready" as const }
+          : {
+              status: "refused" as const,
+              reason: "base-raced",
+              locus: proof.preparation.proof.baseRef,
+            };
+      },
+    },
   );
   if (result.status === "refused"
     && result.reason === "source-index-preimage"

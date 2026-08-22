@@ -8,6 +8,7 @@ import {
   type InFlightWarning,
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
@@ -888,6 +889,94 @@ describe("deriveInFlight", () => {
     expect(result.entries).toEqual([]);
     expect(result.residue).toEqual([]);
     expect(result.warnings).toEqual([]);
+  });
+
+  it.each<[
+    string,
+    () => Promise<WorktreeMarkerReadResult>,
+  ]>([
+    ["the marker is absent", async () => ({ kind: "absent" })],
+    ["createdFor.ref does not match", async () => ({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        spawningIdentity: "andrew",
+        createdAt: "2026-08-06T00:00:00.000Z",
+        createdFor: { kind: "branch", ref: "chore/decompose-other" },
+      },
+    })],
+    ["spawnedByArc is false", async () => ({
+      kind: "present",
+      marker: {
+        spawnedByArc: false,
+        spawningIdentity: "andrew",
+        createdAt: "2026-08-06T00:00:00.000Z",
+        createdFor: { kind: "branch", ref: "chore/decompose-origin" },
+      },
+    })],
+    ["createdFor has the wrong kind", async () => ({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        spawningIdentity: "andrew",
+        createdAt: "2026-08-06T00:00:00.000Z",
+        wuName: "member",
+        createdFor: { kind: "work-unit", name: "member" },
+      },
+    })],
+    ["the marker read throws", async () => {
+      throw new Error("marker unavailable");
+    }],
+  ])("does not suppress same-namespace evidence when %s", async (_label, readMarker) => {
+    const branch = "chore/decompose-origin";
+    const common = {
+      worktrees: [{ path: "/repo/candidate", branch }],
+      localRefs: [branch],
+    };
+    const prepared = await deriveInFlight({
+      exec: makeExec({
+        ...common,
+        metas: {
+          [`${branch}:.arc/active/meta-member.md`]: metaContent({
+            state: "Planning",
+            branch: "[none]",
+          }),
+        },
+      }),
+      branches: [branch],
+      identity: null,
+      teamMode: false,
+      readMarker: async () => await readMarker(),
+    });
+
+    expect(prepared.entries).toEqual([
+      expect.objectContaining({
+        kind: "work-unit",
+        name: "member",
+        branch,
+        marks: ["degraded"],
+      }),
+    ]);
+    expect(prepared.warnings).toEqual([
+      expect.objectContaining({ code: "branch-field-missing", branch, workUnit: "member" }),
+    ]);
+
+    const residue = await deriveInFlight({
+      exec: makeExec(common),
+      branches: [branch],
+      identity: null,
+      teamMode: false,
+      readMarker: async () => await readMarker(),
+    });
+
+    expect(residue.residue).toEqual([{
+      branch,
+      slug: "decompose-origin",
+      reason: "no-record-or-meta",
+    }]);
+    expect(residue.warnings).toEqual([
+      expect.objectContaining({ code: "branch-residue", branch }),
+    ]);
   });
 
   it("surfaces an errand record whose branch no longer exists", async () => {

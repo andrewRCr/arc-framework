@@ -44,8 +44,11 @@ import {
   type V3RetirementDeltaResult,
 } from "./decompose-v3-retirement-delta.js";
 import {
+  planInternalV3DecomposeTopology,
   planV3DecomposeTopology,
+  type V3InternalTopologyPlanInput,
   type V3TopologyAction,
+  type V3TopologyPlanInput,
 } from "./decompose-v3-topology.js";
 import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
 
@@ -744,9 +747,8 @@ async function composeRepositoryPlan(
     retirements = exclusiveRetirements(retirement, input.resultBaseTree);
   }
 
-  const topology = planV3DecomposeTopology({
+  const topologyInput: V3TopologyPlanInput = {
     origin: map.machine.source.origin,
-    ...(mode === "extraction" ? { survivingOrigin: map.machine.source.origin } : {}),
     placement: map.authoring.placement,
     destinations: map.authoring.destinations,
     baseTree: Object.fromEntries(
@@ -755,7 +757,13 @@ async function composeRepositoryPlan(
           entry[1].kind === "object"),
     ),
     cohortTemplate: input.cohortTemplate,
-  });
+  };
+  const topology = mode === "extraction"
+    ? planInternalV3DecomposeTopology({
+        ...topologyInput,
+        survivingOrigin: map.machine.source.origin,
+      } satisfies V3InternalTopologyPlanInput)
+    : planV3DecomposeTopology(topologyInput);
   if (topology.status === "refused") {
     return refuse("topology", topology.refusal.code, topology.refusal.path);
   }

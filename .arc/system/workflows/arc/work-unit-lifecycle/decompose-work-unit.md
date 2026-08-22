@@ -236,7 +236,46 @@ arc decompose <origin> --finish <completed-map> --apply
 ```
 
 Route only the CLI-reported finish outcome or remedy. An `already-finished` outcome completes this leg without
-further mutation. Never tear down the surviving extraction origin.
+new mutation; it does not authorize a new commit by itself. Never tear down the surviving extraction origin.
+
+A `finished` outcome leaves the exact source thinning staged. Before cleanup, the surviving origin's owner must
+perform ordinary work-unit reconciliation against the approved transfer and drop set:
+
+- reconcile the surviving `tasks-{origin}.md`, when present, so transferred or dropped future work no longer
+  remains assigned to the origin while completed history and retained work remain truthful; and
+- review and revise every affected `**Next Task:**` and `**Next Action:**` pointer to name the next real
+  origin-owned step.
+
+This reconciliation is required for both an `Active` origin and a started `Planning` origin. A started Planning
+origin that has not produced a task list does not gain a synthetic one, but its affected pointers still require
+review. These are owner-authored semantic edits, not finish-adapter output, and their changed paths join the same
+durable finish release.
+
+Stage only the preview's source paths and the changed owner-reconciliation paths. Verify that none retains an
+unstaged change and that the complete staged path set exactly equals their union:
+
+```bash
+git add -- <finish-source-paths> <changed-owner-reconciliation-paths>
+git diff --quiet -- <finish-source-paths> <changed-owner-reconciliation-paths>
+git diff --cached --name-only --no-renames
+```
+
+Any additional or missing cached path, or any unstaged finish-release path, stops release. Use the
+[`commit-format` method][commit-format] for the message.
+
+> [!CAUTION]
+> `commit-interlock` release — commit the exact staged finish and owner reconciliation as `workflowCommit`:
+
+```text
+chore(planning): finish source extraction for {origin}
+
+Context: {deepest-planning-artifact} (planning)
+```
+
+An `already-finished` outcome takes no mutation or commit arm. Before cleanup, prove that the thinned source and
+the required task/pointer reconciliation already reside in `HEAD` and that their paths have no indexed or
+working-tree diff. If they are not durable, stop and reconcile the incomplete prior finish; never mint an empty or
+ceremonial source-finish commit merely because the CLI reported `already-finished`.
 
 For a full-protection landing, remove the reported candidate projection through the ordinary branch teardown:
 
