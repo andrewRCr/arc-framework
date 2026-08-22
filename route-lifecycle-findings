@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-lifecycle-findings",
+  "claimId": "f60a1220fa2071dbf9756a42016a15b3",
+  "createdAt": "2026-08-22T20:27:03.143Z",
+  "updatedAt": "2026-08-22T20:27:03.143Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "route-lifecycle-findings",
+  "branch": "chore/route-lifecycle-findings",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
