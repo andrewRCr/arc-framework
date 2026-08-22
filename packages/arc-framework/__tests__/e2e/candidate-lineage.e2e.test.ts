@@ -715,7 +715,7 @@ describe("review-fix Candidate lineage", () => {
       .rejects.toThrow(/review operation behind approved dispositions .* is unavailable/u);
   });
 
-  it("refuses a Candidate-bound disposition whose local review source moved target", async () => {
+  it("refuses a Candidate-named disposition whose record is malformed", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
     const [approved] = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
@@ -737,7 +737,7 @@ describe("review-fix Candidate lineage", () => {
     });
 
     await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
-      .rejects.toThrow(/malformed-local-disposition/u);
+      .rejects.toThrow(/approved disposition record .* is unavailable/u);
   });
 
   it("ignores unrelated disposition residue whose source is unavailable", async () => {
@@ -753,6 +753,25 @@ describe("review-fix Candidate lineage", () => {
       operationId: "unrelated-missing-operation",
       candidate: { workUnit: approved.candidate.workUnit, candidateId: `sha256:${"9".repeat(64)}` },
     });
+
+    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+      .resolves.toMatchObject({ dispositionIds: [approved.approvedDisposition.dispositionSet.dispositionSetId] });
+  });
+
+  it("ignores malformed disposition residue outside Candidate applicability", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const index = new LocalApprovedDispositionRecordStore(publisher);
+    const [approved] = await index.listDispositionRecords();
+    expect(approved).toBeDefined();
+    if (approved === undefined) throw new Error("missing approved dispositions");
+    const residueName = `disposition-${canonicalDigest({ operationId: "unrelated-malformed-operation" })
+      .slice("sha256:".length)}.json`;
+    await publisher.update({ root: "review-gate", namespace: "evidence" }, residueName, () => ({
+      kind: "write",
+      content: "{\n",
+      result: undefined,
+    }));
 
     await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
       .resolves.toMatchObject({ dispositionIds: [approved.approvedDisposition.dispositionSet.dispositionSetId] });

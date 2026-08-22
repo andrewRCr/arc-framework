@@ -36,9 +36,10 @@ export interface LineageReviewComposition {
  *
  * Records the lineage names are still resolved strictly: anything it names but the repository cannot
  * produce refuses rather than composing a partial plan, because a plan missing an action would settle
- * less than approval covered. The disposition store is repository-common, so enumeration also returns
- * other work units' records; one whose originating operation is unreadable cannot be placed in any
- * span and is left out rather than refusing this work unit's checkpoint.
+ * less than approval covered. The disposition store is repository-common, so broad enumeration omits
+ * malformed records and also returns other work units' readable records. Candidate-named malformed
+ * records remain unavailable at the completeness check below, while a readable record whose originating
+ * operation is unavailable cannot be placed in any span and is left out when it is unrelated.
  *
  * @param input - The repository root and its Git boundary.
  * @returns A composer memoized per work unit and approved head.

@@ -53,7 +53,8 @@ export interface ApprovedDispositionRecordStore {
  *
  * Separate from the keyed store because only the integration checkpoint needs it: its input is the
  * Candidate lineage, which records the approved set each response settled and not the operation
- * that produced it.
+ * that produced it. Enumeration returns only readable records; the consumer must fail when a
+ * disposition identity it requires is absent. Keyed reads remain strict for exact-record callers.
  */
 export interface ApprovedDispositionRecordIndex {
   listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]>;
