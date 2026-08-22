@@ -129,7 +129,7 @@ async function checkoutPrimary(
         `Primary base synchronization requires cleanup at '${synchronized.worktreePath}'.`,
       );
     }
-    if (synchronized.status === "refused") {
+    if (synchronized.status === "refused" && synchronized.reason !== "local-ahead") {
       throw new Error(`Primary base synchronization refused (${synchronized.reason}).`);
     }
   }
