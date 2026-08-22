@@ -3,14 +3,20 @@
   "slug": "route-lifecycle-findings",
   "claimId": "f60a1220fa2071dbf9756a42016a15b3",
   "createdAt": "2026-08-22T20:27:03.143Z",
-  "updatedAt": "2026-08-22T20:27:03.143Z",
+  "updatedAt": "2026-08-22T20:55:43.617Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "route-lifecycle-findings",
   "branch": "chore/route-lifecycle-findings",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-lifecycle-findings",
+    "headSha": "3e405898ff5f167bfdead99728fb9faeb4603bf3"
+  }
 }
