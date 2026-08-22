@@ -166,9 +166,10 @@ _Purpose:_ Prove the cross-leg contract end to end on one real topology.
 
 - _Goal:_ One real topology covers the cross-leg contract; focused tests own the mismatch matrix.
 
-    - `[ ]` **4.1.a Exercise additive land and source finish**
-        - Cover exact success, repeat finish, wrong branch, dirty source, base race, missing/changed target,
-          partial prior thinning, and multi-file apply restoration.
+    - `[x]` **4.1.a Exercise additive land and source finish**
+        - The built-CLI topology proves immutable mode refusals, pre-land invisibility, post-land discovery,
+          preview immutability, exact finish, and repeat finish. Focused real-Git and unit coverage owns the wrong
+          branch, dirty source, base race, destination mismatch, partial-resume, and multi-file restoration matrix.
 
     - `[ ]` **4.1.b Assert absence of terminal-transition state and mode fail-closure**
         - Verify no transition record, receipt residue, teardown authority, persistent coordinator, or automatic

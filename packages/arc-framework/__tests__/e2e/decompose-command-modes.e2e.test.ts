@@ -467,6 +467,7 @@ describe("arc decompose command modes", () => {
     const cutMapPath = await writeExtractionCutMap(repo);
     const sourceHeadBefore = await git(repo, ["rev-parse", "plan/origin"]);
     const sourceTreeBefore = await git(repo, ["rev-parse", "plan/origin^{tree}"]);
+    const beforeModeRefusals = await repositorySnapshot(repo);
 
     for (const mode of ["--execute", "--advance-base"] as const) {
       const refused = await runArcNoTty(["decompose", "origin", mode, cutMapPath], repo, {
@@ -477,6 +478,7 @@ describe("arc decompose command modes", () => {
         status: "refused",
         reason: "map:authoring-shape",
       });
+      expect(await repositorySnapshot(repo)).toEqual(beforeModeRefusals);
     }
 
     const extracted = await runArcNoTty(
@@ -507,12 +509,20 @@ describe("arc decompose command modes", () => {
       expect.stringContaining(".arc/system/.internal/transitions/"),
       expect.stringContaining(".arc/active/meta-origin.md"),
     ]));
+    const memberMetaPath = ".arc/backlog/planned/member/meta-member.md";
+    const originMetaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const basePathsBeforeLanding = (await git(repo, ["ls-tree", "-r", "--name-only", "main"]))
+      .split("\n");
+    expect(basePathsBeforeLanding).not.toEqual(expect.arrayContaining([
+      memberMetaPath,
+      originMetaPath,
+    ]));
     expect(await readFile(
-      join(result.operation.occupation.path, ".arc", "backlog", "planned", "member", "meta-member.md"),
+      join(result.operation.occupation.path, memberMetaPath),
       "utf8",
     )).toContain("# Metadata: member");
     expect(await readFile(
-      join(result.operation.occupation.path, ".arc", "backlog", "planned", "origin", "meta-origin.md"),
+      join(result.operation.occupation.path, originMetaPath),
       "utf8",
     )).toContain("# Metadata: origin");
     expect(await git(repo, ["rev-parse", "plan/origin"])).toBe(sourceHeadBefore);
@@ -538,6 +548,8 @@ describe("arc decompose command modes", () => {
     await git(result.operation.occupation.path, ["commit", "-m", "land additive extraction"]);
     const candidateHead = await git(result.operation.occupation.path, ["rev-parse", "HEAD"]);
     await git(repo, ["merge", "--ff-only", candidateHead]);
+    const landedPaths = (await git(repo, ["ls-tree", "-r", "--name-only", "main"])).split("\n");
+    expect(landedPaths).toEqual(expect.arrayContaining([memberMetaPath, originMetaPath]));
     await git(repo, ["switch", "plan/origin"]);
     const sourceBytes = new Uint8Array(await readFile(join(repo, retainedSource.sourcePath)));
     const scan = scanV3DecomposeContent("draft-origin.md", sourceBytes);
@@ -549,6 +561,7 @@ describe("arc decompose command modes", () => {
     );
     if (retained.status !== "resolved") throw new Error(retained.reason);
 
+    const beforePreview = await repositorySnapshot(repo);
     const preview = await runArcNoTty(
       ["decompose", "origin", "--finish", cutMapPath],
       repo,
@@ -556,6 +569,7 @@ describe("arc decompose command modes", () => {
     );
     expect(preview.exitCode, preview.stderr).toBe(0);
     expect(JSON.parse(preview.stdout)).toEqual({ status: "previewed" });
+    expect(await repositorySnapshot(repo)).toEqual(beforePreview);
     const finished = await runArcNoTty(
       ["decompose", "origin", "--finish", cutMapPath, "--apply"],
       repo,
