@@ -179,10 +179,13 @@ export type CandidateDeltaVerificationProjection = z.infer<typeof CandidateDelta
 export function projectCandidateDeltaVerification(input: {
   record: CandidateManagedRecordV1;
   current: z.input<typeof CandidateLineageTargetSchema>;
+  oldTarget?: z.input<typeof CandidateLineageTargetSchema>;
 }): CandidateDeltaVerificationProjection {
   const record = CandidateManagedRecordV1Schema.parse(input.record);
   const current = CandidateLineageTargetSchema.parse(input.current);
-  const oldTarget = reduceCandidateDurableBaseline(record).target;
+  const oldTarget = input.oldTarget === undefined
+    ? reduceCandidateDurableBaseline(record).target
+    : CandidateLineageTargetSchema.parse(input.oldTarget);
   return CandidateDeltaVerificationProjectionSchema.parse({
     schemaVersion: 1,
     candidateId: record.attestation.candidateId,

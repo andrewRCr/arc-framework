@@ -7,10 +7,14 @@ import {
   CandidateManagedRecordV1Schema,
   CandidateVerificationApplicabilitySchema,
   candidateReviewResponses,
-  projectCandidateCurrentness,
   type CandidateLineageTarget,
   type CandidateManagedRecordV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
+import {
+  projectEffectiveCandidateCurrentness,
+  type CandidateEffectiveCurrentProjection,
+  type CandidateEffectiveTargetProjection,
+} from "../../../lib/work-unit/candidate-effective-target.js";
 import {
   ApprovedDispositionRecordSchema,
   ErrandReviewFixResponseSchema,
@@ -135,6 +139,10 @@ export interface CandidateLineageBinding {
   workUnit: string;
   record: CandidateManagedRecordV1;
   recordVersion: string;
+  /** Effective projection of the exact review target that authorizes this response. */
+  reviewed: CandidateEffectiveCurrentProjection;
+  /** Effective projection of the repository's current committed target. */
+  effective: CandidateEffectiveTargetProjection;
   current: CandidateLineageTarget;
   /**
    * Reviewable paths the index does not carry, read alongside the subject it does.
@@ -607,14 +615,14 @@ async function persistCandidateResponse(
     );
   }
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
-  const currentness = projectCandidateCurrentness({ record: lineage.record, current: lineage.current });
+  const currentness = projectEffectiveCandidateCurrentness(lineage.effective);
   const matchingResponses = candidateReviewResponses(lineage.record).filter((response) =>
     response.dispositionId === dispositions.dispositionSet.dispositionSetId);
   if (matchingResponses.length > 0) {
     if (matchingResponses.length !== 1) {
       throw new RespondCommandError("corrupt-state", "disposition response appears more than once");
     }
-    if (currentness.status !== "current") {
+    if (!("status" in currentness) || currentness.status !== "current") {
       throw new RespondCommandError("invalid-input", "Candidate changed after the recorded disposition response");
     }
     const matching = matchingResponses[0];
@@ -641,7 +649,14 @@ async function persistCandidateResponse(
       },
     });
   }
-  const projection = projectCandidateDeltaVerification({ record: lineage.record, current: lineage.current });
+  if (lineage.reviewed.recognizedTarget.revision !== source.target.headSha) {
+    throw new RespondCommandError("invalid-input", "Candidate review authority belongs to a different exact target");
+  }
+  const projection = projectCandidateDeltaVerification({
+    record: lineage.record,
+    oldTarget: lineage.reviewed.recognizedTarget,
+    current: lineage.current,
+  });
   const response = recordCandidateVerifiedResponse({
     projection: {
       ...projection,
@@ -883,8 +898,8 @@ export async function respondToReviewCommand(
     const lineage = await dependencies.readCandidateLineage(source.target);
     const currentness = lineage === null
       ? null
-      : projectCandidateCurrentness({ record: lineage.record, current: lineage.current });
-    if (currentness?.status !== "current") {
+      : projectEffectiveCandidateCurrentness(lineage.effective);
+    if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
       return staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget);
     }
     // Lifecycle ceremony may commit around an unchanged Candidate after its review target was minted.

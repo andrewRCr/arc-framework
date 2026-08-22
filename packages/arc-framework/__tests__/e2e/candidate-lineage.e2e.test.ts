@@ -332,9 +332,8 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "unexplained implementation"]);
 
     await expect(checkpointOver(root)).resolves.toMatchObject({
-      state: "blocked",
-      reason: "candidate-unexplained-delta",
-      payload: { candidate: { delta: { changed: ["reviewed.txt"] } } },
+      state: "candidate-applicability",
+      payload: { state: "decision-required", paths: ["reviewed.txt"] },
     });
   });
 
@@ -368,8 +367,8 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "edit the archived task list"]);
 
     await expect(checkpointOver(root, "with-integration")).resolves.toMatchObject({
-      state: "blocked",
-      reason: "candidate-unexplained-delta",
+      state: "candidate-applicability",
+      payload: { state: "decision-required" },
     });
   });
 
@@ -462,6 +461,33 @@ describe("review-fix Candidate lineage", () => {
         status: "current",
         recognizedRevision: mergedHead,
       });
+
+    const source = await reviewToFindings(root);
+    const dispositions = await approvedSet(root, source);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "moved\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\nfixed\n",
+      "utf8",
+    );
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply approved fix"]);
+
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    const record = await readCandidateRecord(root, "example");
+    expect(candidateReviewResponses(record ?? { transitions: [] }).at(-1)?.oldTarget.revision).toBe(mergedHead);
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {
@@ -482,14 +508,14 @@ describe("review-fix Candidate lineage", () => {
       remedy: { argv: ["arc", "attest", "example", "--new-root"] },
     });
 
-    // The default re-attestation refuses and the checkpoint refuses with it, so the remedy has to name
-    // the escape rather than the invocation that just failed.
+    // The default re-attestation refuses while checkpoint exposes the bounded applicability decision.
+    // Re-rooting remains the explicit escape when the change is genuinely outside the Candidate.
     const refused = await runArc(["attest", "example", "--json"], root);
     expect(refused.exitCode).toBe(1);
     expect(JSON.parse(refused.stdout)).toMatchObject({ status: "blocked", candidateId: superseded });
     await expect(checkpointOver(root)).resolves.toMatchObject({
-      reason: "candidate-unexplained-delta",
-      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+      state: "candidate-applicability",
+      payload: { state: "decision-required", paths: ["reviewed.txt"] },
     });
 
     const rerooted = await runArc(["attest", "example", "--new-root", "--json"], root);

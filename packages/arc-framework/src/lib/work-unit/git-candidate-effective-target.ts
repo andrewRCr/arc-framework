@@ -33,6 +33,11 @@ export interface GitCandidateEffectiveTargetInput {
   readonly record: CandidateManagedRecordV1;
   readonly exec: GitExec;
   readonly rawExec: RawGitExec;
+  /** Optional immutable historical coordinates, used when validating an already-reviewed target. */
+  readonly target?: {
+    readonly revision: string;
+    readonly currentBase: string;
+  };
 }
 
 /** Collect exact committed Candidate/base coordinates and project their effective recognized target. */
@@ -41,8 +46,18 @@ export async function projectGitCandidateEffectiveTarget(
 ): Promise<CandidateEffectiveTargetProjection> {
   const observeEndpoints = async () => {
     const [candidateHead, baseHead] = await Promise.all([
-      readCommit({ cwd: input.cwd, exec: input.exec, expression: "HEAD^{commit}" }),
-      readCommit({ cwd: input.cwd, exec: input.exec, expression: `${input.baseBranch}^{commit}` }),
+      readCommit({
+        cwd: input.cwd,
+        exec: input.exec,
+        expression: input.target === undefined ? "HEAD^{commit}" : `${input.target.revision}^{commit}`,
+      }),
+      readCommit({
+        cwd: input.cwd,
+        exec: input.exec,
+        expression: input.target === undefined
+          ? `${input.baseBranch}^{commit}`
+          : `${input.target.currentBase}^{commit}`,
+      }),
     ]);
     return { candidateHead, baseHead };
   };
