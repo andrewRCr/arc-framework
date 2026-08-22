@@ -564,7 +564,7 @@ async function readRemoteSourceRefRelation(
   try {
     await exec("git", [
       "fetch",
-      "--no-filter",
+      "--filter=tree:0",
       "--no-tags",
       "--no-write-fetch-head",
       remote,
