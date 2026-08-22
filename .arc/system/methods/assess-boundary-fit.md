@@ -124,7 +124,8 @@ dependency edges; complete only these authoring decisions:
 - **shape** — `symmetric` or `heterogeneous`;
 - **placement** — `direct-member`, `cohort`, `subcohort`, or `at-cap`;
 - **destinations** — each exact `new-member`, `existing-home`, or `cohort-coordination` target;
-- **source allocations** — one destination and locator, or one reasoned drop, for every reported source unit;
+- **source allocations** — one destination and locator, one `retained-origin` disposition, or one reasoned drop,
+  for every reported source unit;
 - **dependency dispositions** — one replacement, target set, or reasoned drop for every reported edge;
 - **internal dependency edges** — authored from the cut's delivery order.
 
@@ -137,8 +138,10 @@ member must select `cohort`, `subcohort`, or `at-cap`, regardless of content own
 remain `existing-home` destinations, not members. Ownerless shared coordination independently requires a
 cohort-backed placement and a `cohort-coordination` destination.
 
-Keeping an origin active or performing extraction is outside the core decomposition transform. The cut-map retires
-the supported origin into its declared destinations and does not model a retained origin as another destination.
+Extraction is the supported active-origin arm. It is entered through its own command mode, and the core retirement
+transform remains unchanged. A retirement cut-map transfers every source unit into declared destinations or
+reasoned drops and retires the origin. An extraction cut-map may instead keep units under `retained-origin`; the
+surviving origin is their owner and logical anchor, not another destination.
 
 Producing the cut-map ends this method's job — it _decides_, it never executes the cut. `decompose-work-unit`
 consumes the cut-map and runs the transform.

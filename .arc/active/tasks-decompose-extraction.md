@@ -134,7 +134,7 @@ shipped doctrine.
 - _Outcome:_ Authored extraction choices survive only exact machine-evidence refresh, while repeat and interrupted
   finish converge from bounded source/base facts without inventing semantic or durable continuity.
 
-### `[ ]` **3.2 Publish the extraction workflow and align doctrine**
+### `[x]` **3.2 Publish the extraction workflow and align doctrine**
 
 - _Goal:_ One semantic interlock governs the additive result, a separate apply confirmation governs thinning, and
   the shipped doctrine surfaces state one extraction boundary.
@@ -144,19 +144,19 @@ shipped doctrine.
           typed report fields at the sole semantic distribution gate, releases the additive result without a
           record or base advancement, and gates the later finish apply as destructive mutation confirmation.
 
-    - `[ ]` **3.2.b Align the three doctrine surfaces**
-        - Amend the extraction exclusions in `assess-boundary-fit.md` (retained-origin foreclosure) and
-          `decompose-work-unit.md`, and re-ground `strategy-work-organization.md` § Active-state decomposition,
-          to the one shared statement: extraction is the supported active-origin arm, entered through its own
-          command mode, with the core retirement transform unchanged.
-        - _Note:_ These files ship — edit package source and sync per DEV-RULES.PROJECT § Package-Project Sync,
-          and confirm each file's recipe disposition in both directions before relying on its ship status.
+    - `[x]` **3.2.b Align the three doctrine surfaces**
+        - The boundary-fit method, decomposition workflow, and work-organization strategy now share one supported
+          active-origin extraction statement while leaving the core retirement transform unchanged; package and
+          project copies remain aligned and every surface is recipe-backed.
 
-    - `[ ]` **3.2.c Preserve the no-record boundary**
-        - Write no transition record of any kind; store no launch advice, publication packet, or selected
-          successor.
-        - Name the surviving active origin as the natural continuation in the interlock's human orientation; new
-          leaves become ordinarily startable only through their landed base metas.
+    - `[x]` **3.2.c Preserve the no-record boundary**
+        - Extraction writes no transition or recovery record, receipt, launch advice, publication packet, or
+          selected successor; the surviving active origin is the natural continuation and landed metas alone make
+          new leaves ordinarily startable.
+
+- _Outcome:_ Shipped doctrine and the executable workflow now expose one additive extraction lifecycle: typed
+  semantic review precedes landing, explicit apply gates source thinning, and ordinary origin/meta state supplies
+  continuity without durable extraction authority.
 
 ## **Phase 4:** Real additive-land-then-finish acceptance
 

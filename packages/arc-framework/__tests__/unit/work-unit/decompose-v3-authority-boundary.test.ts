@@ -123,7 +123,8 @@ describe("decomposition v3 authority boundary", () => {
     expect(packageMethod).toContain("concern multiplicity is a third axis");
     expect(packageMethod).not.toContain("parentPosition");
     expect(packageMethod).not.toContain("surviving-origin");
-    expect(packageMethod).toContain("outside the core");
+    expect(packageMethod).toMatch(/core retirement\s+transform remains unchanged/u);
+    expect(packageMethod).toContain("`retained-origin`");
     expect(projectPark).toBe(packagePark);
     expect(packagePark).not.toContain("#the-park-exit-block");
   });

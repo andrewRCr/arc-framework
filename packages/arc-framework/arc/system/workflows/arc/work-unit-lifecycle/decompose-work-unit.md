@@ -13,6 +13,9 @@ arc:
 **The operator owns semantic distribution; `arc decompose` owns source discovery, closed mode dispatch, topology,
 mutation, validation, and rollback. Retirement alone owns the durable transition record** · `[invariant]`.
 
+Extraction is the supported active-origin arm. It is entered through its own command mode, and the core retirement
+transform remains unchanged.
+
 Use only CLI-reported paths, packets, statuses, and remedies. On refusal, surface the returned status and remedy
 unchanged, stop, and re-enter only at the reported action. Never construct identifiers, Git topology, recovery
 commands, or extraction report fields.

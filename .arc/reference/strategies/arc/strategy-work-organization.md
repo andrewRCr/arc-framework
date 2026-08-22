@@ -422,9 +422,14 @@ one concern" fact is preserved as **provenance — an immutable past-event recor
 
 ### Active-state decomposition
 
-Decomposition is normally a planning-time act, before code is written. Mid-implementation the supported path is
-**extraction**: the origin stays active and only its _unbuilt_ scope splits off into new members — committed code
-stays put. ARC runs this directly.
+Decomposition is normally a planning-time act, before code is written. Extraction is the supported active-origin
+arm. It is entered through its own command mode, and the core retirement transform remains unchanged. Extraction
+keeps the origin active and its committed code in place while retained unbuilt scope stays with the origin and
+transferred unbuilt scope splits into new members.
+
+The surviving active origin is the natural continuation, not a selected successor. Extraction writes no transition
+record or receipt and stores no launch advice or publication packet. New leaves become startable only through their
+landed base metas and ordinary lifecycle resolution.
 
 Splitting an origin's _already-committed_ code across several members — a **full split** — is not an ARC operation;
 there is no `arc decompose` for it. It is the ordinary git task of dividing a branch's history across branches, and
