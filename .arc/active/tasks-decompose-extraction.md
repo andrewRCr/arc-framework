@@ -96,7 +96,7 @@ _Purpose:_ Remove approved source units only after their exact destinations are 
 - _Outcome:_ Preview and apply share one typed boundary whose immutable Git proof pins the surviving source and
   descendant integration base before any source mutation; apply remains reserved for bounded thinning.
 
-### `[ ]` **2.2 Plan byte-preserving thinning**
+### `[x]` **2.2 Plan byte-preserving thinning**
 
 - _Goal:_ Approved removal cannot perturb an unrelated source byte.
 
@@ -109,9 +109,10 @@ _Purpose:_ Remove approved source units only after their exact destinations are 
           preimages, exact retained byte slices or deletion, preserved modes, and removed locators. Only explicit
           target and reasoned-drop dispositions remove units; retained-origin units remain byte-for-byte.
 
-    - `[ ]` **2.2.c Apply through bounded preimages**
-        - Compare-and-swap every source preimage before the first write and restore only owned paths on failure.
-        - Preserve BOM, multibyte text, CRLF, nested/adjacent blocks, whole-file behavior, empty results, and modes.
+    - `[x]` **2.2.c Apply through bounded preimages**
+        - Finish captures and rechecks every index/worktree preimage before mutation, atomically writes or removes
+          and stages paths in canonical order, then verifies the final state. Failures restore only mutated owned
+          paths and report exact residue; real Git and built-CLI coverage prove apply and multi-path restoration.
 
 ## **Phase 3:** Recovery, workflow, and doctrine
 

@@ -8,6 +8,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import {
+  resolveV3DecomposeContentLocator,
+  scanV3DecomposeContent,
+} from "../../src/lib/work-unit/decompose-content.js";
+import {
   cleanupTempDir,
   createTempRepo,
   git,
@@ -458,7 +462,7 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("discard");
   });
 
-  it("stages an additive extraction while retirement modes refuse its structural shape", async () => {
+  it("lands additive extraction then previews and applies source finish through the CLI", async () => {
     repo = await startedRepository();
     const cutMapPath = await writeExtractionCutMap(repo);
     const sourceHeadBefore = await git(repo, ["rev-parse", "plan/origin"]);
@@ -513,6 +517,56 @@ describe("arc decompose command modes", () => {
     )).toContain("# Metadata: origin");
     expect(await git(repo, ["rev-parse", "plan/origin"])).toBe(sourceHeadBefore);
     expect(await git(repo, ["rev-parse", "plan/origin^{tree}"])).toBe(sourceTreeBefore);
+
+    const cutMap = JSON.parse(await readFile(cutMapPath, "utf8")) as {
+      machine: {
+        sourceUnits: Array<{
+          sourceId: string;
+          sourcePath: string;
+          sourceLocator: unknown;
+        }>;
+      };
+      authoring: {
+        sourceAllocations: Array<{ sourceId: string; disposition: { kind: string } }>;
+      };
+    };
+    const retainedId = cutMap.authoring.sourceAllocations.find(({ disposition }) =>
+      disposition.kind === "retained-origin")?.sourceId;
+    const retainedSource = cutMap.machine.sourceUnits.find(({ sourceId }) => sourceId === retainedId);
+    if (retainedSource === undefined) throw new Error("extraction fixture needs retained source");
+
+    await git(result.operation.occupation.path, ["commit", "-m", "land additive extraction"]);
+    const candidateHead = await git(result.operation.occupation.path, ["rev-parse", "HEAD"]);
+    await git(repo, ["merge", "--ff-only", candidateHead]);
+    await git(repo, ["switch", "plan/origin"]);
+    const sourceBytes = new Uint8Array(await readFile(join(repo, retainedSource.sourcePath)));
+    const scan = scanV3DecomposeContent("draft-origin.md", sourceBytes);
+    if (scan.status !== "scanned") throw new Error(scan.reason);
+    const retained = resolveV3DecomposeContentLocator(
+      scan.units,
+      retainedSource.sourceLocator,
+      "draft-origin.md",
+    );
+    if (retained.status !== "resolved") throw new Error(retained.reason);
+
+    const preview = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(preview.exitCode, preview.stderr).toBe(0);
+    expect(JSON.parse(preview.stdout)).toEqual({ status: "previewed" });
+    const finished = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath, "--apply"],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(finished.exitCode, finished.stderr).toBe(0);
+    expect(JSON.parse(finished.stdout)).toEqual({ status: "finished" });
+    expect(new Uint8Array(await readFile(join(repo, retainedSource.sourcePath))))
+      .toEqual(retained.unit.bytes);
+    expect((await git(repo, ["diff", "--cached", "--name-only"])).trim())
+      .toBe(retainedSource.sourcePath);
   });
 
   it("refuses destination-owned multi-member direct placement before repository mutation", async () => {

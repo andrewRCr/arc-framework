@@ -572,6 +572,22 @@ describe("Git v3 repository plan", () => {
       .resolves.toEqual({ status: "previewed" });
   });
 
+  it("applies exact source thinning to the index and worktree", async () => {
+    const fixture = await landedExtractionRepository();
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      apply: true,
+    })).resolves.toEqual({ status: "finished" });
+    await expect(readFile(join(fixture.repo, ".arc/active/spec-origin.md"), "utf8"))
+      .resolves.toBe("## Scope 0\n\nOwned scope 0.\n\n");
+    expect((await git(fixture.repo, ["diff", "--cached", "--name-only"])).trim())
+      .toBe(".arc/active/spec-origin.md");
+  });
+
   it("refuses a complete result that exists only on its additive candidate branch", async () => {
     const fixture = await stageExtractionRepository();
     await git(fixture.repo, ["switch", "feat/origin"]);

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-/** Closed finish result; preview details are added by the thinning planner. */
+/** Closed result shared by finish preview, application, and recovery. */
 export const V3ExtractionFinishResultSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("previewed") }),
   z.strictObject({ status: z.literal("finished") }),

@@ -35,6 +35,7 @@ import type {
   V3PartialPathPreimage,
   V3PartialRecoveryIO,
 } from "./decompose-v3-operation.js";
+import type { V3ExtractionSourceFinishIO } from "./decompose-v3-finish-operation.js";
 import type { V3PlanBlob } from "./decompose-v3-plan-composer.js";
 import type { V3MaterializerIO } from "./decompose-v3-materializer.js";
 import type { V3PlanCanonicalPathState } from "./decompose-v3-plan.js";
@@ -430,6 +431,40 @@ function partialRecovery(exec: GitExec, cwd: string): V3PartialRecoveryIO {
         }
       }
       return { status: "restored" };
+    },
+  };
+}
+
+/**
+ * Bind extraction source finish to atomic filesystem writes and exact Git staging.
+ *
+ * @param input - Repository locus and Git execution boundary
+ * @returns Compare-and-swap capture, apply, and bounded-restoration operations
+ */
+export function createGitV3ExtractionSourceFinishIO(input: {
+  cwd: string;
+  exec: GitExec;
+}): V3ExtractionSourceFinishIO {
+  return {
+    ...partialRecovery(input.exec, input.cwd),
+    apply: async (file) => {
+      let mutated = false;
+      try {
+        const absolute = join(input.cwd, ...validateManagedPath(file.path).split("/"));
+        if (file.after.kind === "absent") {
+          await rm(absolute, { force: true });
+          mutated = true;
+        } else {
+          await ensureSafeParents(input.cwd, file.path);
+          await atomicWriteFile(absolute, file.after.bytes);
+          mutated = true;
+          await chmod(absolute, file.after.mode === "100755" ? 0o755 : 0o644);
+        }
+        await stagePath(input.exec, input.cwd, file.path);
+        return { status: "applied" };
+      } catch {
+        return { status: "refused", reason: "source-apply-failed", mutated };
+      }
     },
   };
 }

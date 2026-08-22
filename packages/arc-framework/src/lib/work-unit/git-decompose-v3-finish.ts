@@ -7,6 +7,7 @@ import { digestBytes, type CanonicalDigest } from "../canonical/canonical-json.j
 import { validateManagedPath } from "../canonical/managed-path.js";
 import { resolveArcPath } from "../layout/index.js";
 import type { V3ExtractionFinishResult } from "./decompose-v3-finish.js";
+import { executeV3ExtractionSourceFinish } from "./decompose-v3-finish-operation.js";
 import {
   resolveV3DecomposeContentLocator,
   scanV3DecomposeContent,
@@ -33,6 +34,8 @@ import {
   type V3DecomposeCutMap,
 } from "./decompose-v3-schema.js";
 import type { V3RepositoryPlanTree } from "./decompose-v3-repository-plan.js";
+import { planV3ExtractionSourceThinning } from "./decompose-v3-thinning.js";
+import { createGitV3ExtractionSourceFinishIO } from "./git-decompose-v3-operation-io.js";
 
 /** Inputs shared by finish preview and explicit application. */
 export interface GitV3ExtractionFinishInput {
@@ -384,16 +387,29 @@ export async function proveGitV3ExtractionDestinations(
  *
  * @param dependencies - Git, object, and bundled-template boundaries.
  * @param input - Exact finish invocation operands.
- * @returns A preview result, or a typed refusal without source mutation.
+ * @returns A preview, finished application, or typed refusal with bounded recovery.
  */
-export function finishGitV3Extraction(
+export async function finishGitV3Extraction(
   dependencies: GitV3RepositoryPlanDependencies,
   input: GitV3ExtractionFinishInput,
 ): Promise<V3ExtractionFinishResult> {
-  return proveGitV3ExtractionDestinations(dependencies, input).then((result) => {
-    if (result.status === "refused") return result;
-    return input.apply
-      ? { status: "refused", reason: "apply-not-available" }
-      : { status: "previewed" };
+  const proof = await proveGitV3ExtractionDestinations(dependencies, input);
+  if (proof.status === "refused") return proof;
+  const thinning = planV3ExtractionSourceThinning({
+    completedMap: proof.preparation.completedMap,
+    currentPreflight: proof.preparation.currentPreflight,
+    sourceTree: proof.preparation.sourceTree,
   });
+  if (thinning.status === "refused") {
+    return {
+      status: "refused",
+      reason: `source-plan:${thinning.reason}`,
+      ...(thinning.locus === undefined ? {} : { locus: thinning.locus }),
+    };
+  }
+  return await executeV3ExtractionSourceFinish(
+    thinning.files,
+    input.apply,
+    createGitV3ExtractionSourceFinishIO(dependencies),
+  );
 }
