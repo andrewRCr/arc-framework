@@ -7,6 +7,7 @@ export interface DeliveryMemberBinding {
   readonly workUnitId: string;
   readonly base: string;
   readonly baseRef: string | null;
+  readonly headRef: string | null;
   readonly head: string;
   readonly isFinalMember: boolean;
 }

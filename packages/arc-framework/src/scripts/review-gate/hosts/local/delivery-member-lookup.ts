@@ -73,6 +73,7 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, Del
         workUnitId,
         base: coordinates.base,
         baseRef,
+        headRef: branchName(state.members[memberIndex]?.ref ?? null),
         head: coordinates.head,
         isFinalMember: state.members[state.members.length - 1]?.deliverableId === deliverableId,
       },

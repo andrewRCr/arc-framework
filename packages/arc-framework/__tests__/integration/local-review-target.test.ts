@@ -281,6 +281,7 @@ describe("member-coordinate target derivation", () => {
         baseRef: "main",
         isFinalMember: false,
         ...overrides,
+        headRef: overrides.headRef === undefined ? "delivery/plan/member-1" : overrides.headRef,
       };
     }
 

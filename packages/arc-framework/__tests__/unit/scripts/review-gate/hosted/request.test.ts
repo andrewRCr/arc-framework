@@ -29,6 +29,7 @@ const DELIVERY_MEMBER = {
   workUnitId: "example",
   base: "b".repeat(40),
   baseRef: "main",
+  headRef: "delivery/plan-1/member-1",
   head: HEAD,
   isFinalMember: false,
 };

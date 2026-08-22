@@ -7,6 +7,7 @@ import {
   resolveAcceptableDeliveryBaseRefs,
 } from "../../../../../src/scripts/review-gate/core/delivery-member-lookup.js";
 import {
+  resolveReviewHeadRef,
   resolveReviewSubject,
 } from "../../../../../src/scripts/review-gate/core/review-subject.js";
 
@@ -17,6 +18,7 @@ const member = {
   workUnitId: "example",
   base: "b".repeat(40),
   baseRef: "main",
+  headRef: "delivery/plan-1/member-1",
   head: HEAD,
   isFinalMember: false,
 };
@@ -26,6 +28,11 @@ function lookup(result: DeliveryMemberLookupResult) {
 }
 
 describe("review subject resolution", () => {
+  it("selects the retained member ref while review runs from the originating checkout", () => {
+    expect(resolveReviewHeadRef("feat/example", member)).toBe("delivery/plan-1/member-1");
+    expect(resolveReviewHeadRef("feat/example", null)).toBe("feat/example");
+  });
+
   it("derives the exact base branch from a bound delivery head", async () => {
     await expect(resolveAcceptableDeliveryBaseRefs(
       lookup({ status: "resolved", member }),

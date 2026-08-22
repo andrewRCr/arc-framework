@@ -17,6 +17,7 @@ import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { RepositoryDeliveryMemberLookup } from "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { resolveReviewHeadRef } from "../../src/scripts/review-gate/core/review-subject.js";
 import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
@@ -137,10 +138,22 @@ describe("repository delivery member lookup", () => {
         workUnitId: "delivery-plan-record",
         base: BASE,
         baseRef: "main",
+        headRef: "delivery/example/member-0",
         head: FIRST_HEAD,
         isFinalMember: false,
       },
     });
+  });
+
+  it("selects the retained member branch while running from the originating checkout", async () => {
+    const { cwd, lookup } = await repository();
+    await publish(cwd, state({ heads: [FIRST_HEAD, SECOND_HEAD] }));
+
+    const resolved = await lookup.resolveMemberByHead(FIRST_HEAD);
+    expect(resolved.status).toBe("resolved");
+    if (resolved.status !== "resolved") return;
+    expect(resolveReviewHeadRef("feat/delivery-plan-record", resolved.member))
+      .toBe("delivery/example/member-0");
   });
 
   it("answers unbound for a head no member holds, distinct from unavailable", async () => {

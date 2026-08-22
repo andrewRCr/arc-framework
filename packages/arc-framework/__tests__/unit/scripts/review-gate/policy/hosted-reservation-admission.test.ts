@@ -55,6 +55,7 @@ describe("hosted reservation admission", () => {
       provider: "codex-pr",
       repository: "owner/repo",
       headSha: CURRENT_HEAD,
+      targetKind: "change-set",
       attempts,
       ...binding,
     })).not.toThrow();
@@ -67,6 +68,19 @@ describe("hosted reservation admission", () => {
       provider: "coderabbit-pr",
       repository: "owner/repo",
       headSha: CURRENT_HEAD,
+      targetKind: "change-set",
+      attempts: [],
+      ...binding,
+    })).not.toThrow();
+  });
+
+  it("admits an exact delivery member under the originating Candidate authority", () => {
+    expect(() => assertHostedReservationAdmission({
+      reservation,
+      provider: "coderabbit-pr",
+      repository: "owner/repo",
+      headSha: "f".repeat(40),
+      targetKind: "delivery-member",
       attempts: [],
       ...binding,
     })).not.toThrow();
@@ -78,6 +92,7 @@ describe("hosted reservation admission", () => {
       provider: "codex-pr",
       repository: "owner/repo",
       headSha: CURRENT_HEAD,
+      targetKind: "change-set",
       attempts: [],
       ...binding,
     })).toThrow(/requires `coderabbit-pr` next/u);
@@ -89,6 +104,7 @@ describe("hosted reservation admission", () => {
       provider: "coderabbit-pr",
       repository: "owner/repo",
       headSha: CURRENT_HEAD,
+      targetKind: "change-set",
       attempts: [],
       ...binding,
       candidate: { ...binding.candidate, subjectDigest: `sha256:${"f".repeat(64)}` },

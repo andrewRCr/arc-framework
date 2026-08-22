@@ -123,6 +123,7 @@ import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { resolveAcceptableDeliveryBaseRefs } from
   "../scripts/review-gate/core/delivery-member-lookup.js";
+import { resolveReviewHeadRef } from "../scripts/review-gate/core/review-subject.js";
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
@@ -1331,10 +1332,13 @@ async function resolveHostedProgressContext(input: {
   if (reviewTarget.headSha !== input.target.headSha) {
     throw new Error("Hosted review target does not match the current local review target.");
   }
-  const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+  const currentBranch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.root,
   })).stdout.trim();
-  if (branch === "" || branch === "HEAD") throw new Error("Hosted review requires an attached branch.");
+  if (currentBranch === "" || currentBranch === "HEAD") {
+    throw new Error("Hosted review requires an attached originating branch.");
+  }
+  const branch = resolveReviewHeadRef(currentBranch, member);
   const acceptableBaseRefs = member?.baseRef === null || member === null ? [] : [member.baseRef];
   const changeRequest = await resolveChangeRequest(
     { headRef: branch, headSha: reviewTarget.headSha, baseRef, acceptableBaseRefs, requireRemote: true },
@@ -1430,6 +1434,7 @@ async function resolveHostedProgressContext(input: {
     provider: input.provider,
     repository: input.target.repository,
     headSha: input.target.headSha,
+    targetKind: reviewTarget.kind,
     boundary: {
       candidateId: boundary.candidateId,
       candidateSubjectDigest: boundary.candidateSubjectDigest,

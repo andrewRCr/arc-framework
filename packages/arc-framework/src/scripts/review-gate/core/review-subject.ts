@@ -13,6 +13,24 @@ export type ReviewSubjectResolution =
   | { readonly status: "unavailable" };
 
 /**
+ * Select the branch whose change request carries a resolved review subject.
+ *
+ * @param currentHeadRef - Attached branch of the originating review checkout
+ * @param member - Exact-head delivery binding, or null for an ordinary work-unit subject
+ * @returns The retained member branch when bound, otherwise the originating branch
+ */
+export function resolveReviewHeadRef(
+  currentHeadRef: string,
+  member: DeliveryMemberBinding | null,
+): string {
+  if (member === null) return currentHeadRef;
+  if (member.headRef === null) {
+    throw new Error("The delivery member has no retained branch ref for change-request resolution.");
+  }
+  return member.headRef;
+}
+
+/**
  * Resolve one exact review target without creating lifecycle or session authority.
  *
  * @param input - Exact branch/head coordinates and the delivery reverse lookup
