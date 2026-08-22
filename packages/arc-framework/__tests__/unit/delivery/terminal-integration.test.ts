@@ -292,12 +292,10 @@ describe("delivery terminal integration", () => {
       request: {
         binding: { providerId: "github", changeRequestId: "403" },
         repository: "owner/repo",
-        headRepository: "owner/repo",
         headRef: "feature",
         headSha: CANDIDATE_HEAD,
         baseRef: "member-2",
         state: "open",
-        draft: true,
       },
     })).toEqual({ status: "window-open" });
   });
@@ -306,12 +304,10 @@ describe("delivery terminal integration", () => {
     const request = {
       binding: { providerId: "github", changeRequestId: "403" },
       repository: "owner/repo",
-      headRepository: "owner/repo",
       headRef: "feature",
       headSha: CANDIDATE_HEAD,
       baseRef: "main",
       state: "open" as const,
-      draft: true,
     };
     expect(assessDeliveryTerminalTop({
       terminal: true,
@@ -329,12 +325,10 @@ describe("delivery terminal integration", () => {
       request: {
         binding: { providerId: "github", changeRequestId: "403" },
         repository: "owner/repo",
-        headRepository: "owner/repo",
         headRef: "feature",
         headSha: CANDIDATE_HEAD,
         baseRef: "member-2",
         state: "open",
-        draft: true,
       },
     })).toEqual({
       status: "refused",
@@ -356,12 +350,10 @@ describe("delivery terminal integration", () => {
       request: {
         binding: { providerId: "github", changeRequestId: "403" },
         repository: "owner/repo",
-        headRepository: "owner/repo",
         headRef: "feature",
         headSha: CANDIDATE_HEAD,
         baseRef: "member-2",
         state: "closed",
-        draft: true,
       },
     })).toMatchObject({
       status: "refused",
@@ -374,12 +366,10 @@ describe("delivery terminal integration", () => {
     const request = {
       binding: { providerId: "github", changeRequestId: "403" },
       repository: "owner/repo",
-      headRepository: "owner/repo",
       headRef: "feature",
       headSha: CANDIDATE_HEAD,
       baseRef: "member-2",
       state: "open" as const,
-      draft: true,
     };
     const decision = assessDeliveryTerminalTop({
       terminal: true,

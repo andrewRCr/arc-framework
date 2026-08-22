@@ -345,12 +345,10 @@ const ContributionVerdictSchema = z.strictObject({
 const DeliveryHostRequestSchema = z.strictObject({
   binding: DeliveryChangeRequestV1Schema,
   repository: z.string().min(1),
-  headRepository: z.string().min(1),
   headRef: z.string().min(1),
   headSha: GitObjectIdSchema,
   baseRef: z.string().min(1),
   state: z.enum(["open", "merged", "closed"]),
-  draft: z.boolean(),
 });
 const DeliveryTopReadySchema = z.strictObject({
   status: z.literal("ready"),

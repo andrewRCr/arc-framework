@@ -490,104 +490,45 @@ comparison against the plan's terminal member resolves to intent or to self-refe
 precisely what the retired residual proof did — it passed identical before-and-after coordinates into the
 comparator and trivially accepted.
 
-### `[ ]` **5.1 Compose the terminal claim from attestation, bound heads, and the derived residual**
+### `[x]` **5.1 Compose the terminal claim from attestation, bound heads, and the derived residual**
 
 - _Goal:_ At the terminal boundary the claim is that the attested union tree, minus the exactly-bound landed
   members' contributions, equals the top's terminal delta — composed from three existing records rather than the
   single-subject digest equality the singleton path uses.
 
-- _Context:_ The ancestry-merge construction plus merge-commit member landings advance the recomputed merge base
-  between the top and the base through each landed member. The currentness projection computes its candidate
-  subject against a fresh merge base, so the top's freshly computed candidate at the terminal instant is the
-  residual, never the attested union — deterministically, drift or no drift. The union attestation therefore
-  exists once per publication candidate, recomposed mechanically by the window loop when movement produces a new
-  candidate. Physical teardown may already have removed a landed member's refs, so the terminal composition reads
-  the exact ref, change-request, and coordinate bindings retained in active delivery state until final retirement.
+- _Outcome:_ The checkpoint's delivery arm composes from the current Candidate, coherent plan/state records, exact
+  retained non-terminal landing heads, and the derived top delta, then proves the residual through the shared
+  contribution comparator. Missing or mismatched bindings refuse, while an unbound singleton keeps the existing path.
 
-- _Note:_ The arm lands in the integration checkpoint's composition, while the comparator it calls lives in the
-  delivery library — the direction the review gate's delivery member lookup already takes.
-
-- **Additional Context:** `notes-delivery-native-stack-composition.md` § Consumed `integration-boundary-accuracy`
-  substrate — the typed reads this composition builds on rather than re-deriving
-
-    - Build `test-first` (one behavior at a time):
-        - The claim composes from the attestation record, the state's exact bound member heads, and the derived residual
-        - The residual is derived from the attested union and bound contributions, never read from the plan
-        - Comparison runs through the eligibility comparator's content-comparison machinery over exact trees
-        - A composition whose bound heads do not match observed landings refuses rather than recomposing silently
-        - A landed member whose physical refs were reaped still contributes through its retained exact binding
-        - The singleton non-delivery path composes exactly as before
-
-### `[ ]` **5.2 Assert the delivery arm's four terminal checks**
+### `[x]` **5.2 Assert the delivery arm's four terminal checks**
 
 - _Goal:_ The terminal boundary passes only when the candidate is the currently bound publication candidate,
   every non-terminal member landed at its exact bound head, the residual carries no unexplained delta, and the
   work-unit review obligation reports discharged against the delivery's derived member targets rather than the
   top's own request, including every member binding retained after physical teardown.
 
-- _Rationale:_ The fourth check is load-bearing rather than defensive. The shipped composition derives its
-  hosted-review requirement from exactly one target — the current branch's open change request — and that request
-  is now the top's, whose diff is the residual only. Left unchanged, the terminal boundary would clear the whole
-  work-unit obligation on a review of a sliver. This arm binds the check to the derived member targets; the
-  conjunction over them is the review fan-out member's, verified here at the terminal boundary.
+- _Outcome:_ Terminal composition now binds the current publication Candidate, verifies every non-terminal landing at
+  its retained head, refuses a residual mismatch, and discharges hosted review only through the exact derived member
+  target conjunction. A ready delivery still exits through the unchanged integration approval interlock.
 
-- _Note:_ Exact-head pinning, the integration interlock, and the refusal posture are unchanged. This arm adds
-  checks; it removes none.
-
-    - Build `test-first` (one behavior at a time):
-        - A boundary whose candidate is not the currently bound publication candidate refuses
-        - A non-terminal member landed at a head other than its bound head refuses, naming the member
-        - A residual carrying an unexplained delta refuses with the delta surfaced
-        - The obligation check reads the derived member targets, never the current branch's single request
-        - The obligation check includes a member whose physical refs were already reaped
-        - A discharge read reporting the obligation outstanding refuses rather than clearing the work unit
-        - The interlock still gates the merge after all four checks pass
-
-### `[ ]` **5.3 Expect the protected base at the instant and carry the top-retarget remedies**
+### `[x]` **5.3 Expect the protected base at the instant and carry the top-retarget remedies**
 
 - _Goal:_ A top pull request whose base is not the protected base at the terminal boundary refuses with a typed
   refusal carrying the applicable failure-only remedy after branch deletion and reobservation, and the terminal
   merge never proceeds on a stale base reading.
 
-- _Context:_ Under this topology the top's base is legitimately a member branch while unlanded non-terminal
-  members remain, and the configured base is required only at the terminal instant. The enforcement point is not
-  the checkpoint composition's own base equality — that check is unreachable, because change-request resolution
-  refuses a mismatched base upstream and the composition throws before reaching it. This element owns only the
-  expectation the delivery arm asserts.
+- _Outcome:_ The delivery arm requires a freshly observed open top against the protected base only at the terminal
+  instant. Highest-member teardown retains its binding, deletes the branch, and reobserves the top; wrong-base open
+  and closed observations return explicit `retarget` and `reopen-and-retarget` remedies that reassess after invocation.
 
-- _Shape:_ After the highest non-terminal member lands, teardown retains its delivery-state binding but deletes
-  its remote branch as the host's retarget trigger, then immediately reobserves the top request. An automatically
-  retargeted open request proceeds. An open request still on the wrong base yields the narrow `retarget` remedy;
-  `closed-unmerged` yields `reopen-and-retarget`. Both are explicit, failure-only invocations followed by another
-  observation, and the terminal arm refuses until the top is freshly observed open against the protected base.
-  The delivery workflow reports the typed next action and implements no loop of its own.
-
-- _Note:_ Retargeting a pull request's base rewrites no ref, so the append-only contract is untouched. Remedies
-  are offered, never auto-applied, and the refusal is fail-closed.
-
-    - Build `test-first` (one behavior at a time):
-        - A top based on a member branch during the landing window does not refuse
-        - Highest-member teardown retains the member binding, deletes its remote branch, and then reobserves the top
-        - An automatic retarget to the protected base proceeds without another host mutation
-        - An open top still on a member base yields a retarget remedy
-        - A top observed closed-unmerged yields a reopen-and-retarget remedy instead
-        - Applying either remedy is followed by reobservation before the terminal arm proceeds
-        - No remedy is applied without explicit invocation
-
-### `[ ]` **5.4 Re-fire member-scope verification on residual-overlapping drift**
+### `[x]` **5.4 Re-fire member-scope verification on residual-overlapping drift**
 
 - _Goal:_ Drift absorbed into the top during the window re-verifies only the terminal slice when it overlaps the
   residual's own paths, never the whole work unit.
 
-- _Approach:_ Drift absorbed by the top's predecessor merges is fail-closed at the same seam. Drift overlapping
-  the residual's paths re-fires member-scope verification for the terminal slice, because the residual is the
-  terminal member's scope. Drift outside those paths reconciles as ordinary absorbed base movement.
-
-    - Build `test-first` (one behavior at a time):
-        - Drift outside the residual's paths reconciles without re-verification
-        - Drift overlapping the residual's paths re-fires verification at member scope for the terminal slice
-        - Whole-work-unit re-verification is never triggered by window drift
-        - The overlap test reads the residual's paths rather than the whole union
+- _Outcome:_ The reconcile checkpoint derives predecessor and residual path sets from retained coordinates and the
+  current Candidate. Predecessor overlap refuses, residual overlap routes only the terminal member through
+  verification, and disjoint drift retains the ordinary base-reconcile path.
 
 ### `[ ]` **5.5 Retire the absorption and terminal-attachment machinery with both call sites**
 

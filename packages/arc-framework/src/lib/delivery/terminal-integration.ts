@@ -9,8 +9,11 @@ import type {
   DeliveryContributionEndpoints,
   DeliveryContributionProofResult,
 } from "./contribution-proof.js";
-import type { DeliveryHostChangeRequest } from "./host.js";
-import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
+import type {
+  DeliveryChangeRequestV1,
+  DeliveryPlanV1,
+  DeliveryStateV1,
+} from "./schema.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 export interface DeliveryTerminalLanding {
@@ -65,7 +68,7 @@ export type DeliveryTerminalCheckResult =
 
 export type DeliveryTerminalTopResult =
   | { readonly status: "window-open" }
-  | { readonly status: "ready"; readonly request: DeliveryHostChangeRequest }
+  | { readonly status: "ready"; readonly request: DeliveryTerminalTopObservation }
   | { readonly status: "refused"; readonly reason: "top-request-mismatch" }
   | {
       readonly status: "refused";
@@ -81,6 +84,15 @@ export type DeliveryTerminalTopRemedy = Extract<
   DeliveryTerminalTopResult,
   { readonly reason: "top-target-mismatch" }
 >["remedy"];
+
+export interface DeliveryTerminalTopObservation {
+  readonly binding: DeliveryChangeRequestV1;
+  readonly repository: string;
+  readonly headRef: string;
+  readonly headSha: string;
+  readonly baseRef: string;
+  readonly state: "open" | "merged" | "closed";
+}
 
 export type DeliveryTerminalDriftResult =
   | { readonly status: "reconcile"; readonly nextAction: "reconcile-base" }
@@ -128,7 +140,7 @@ export function assessDeliveryTerminalTop(input: {
   readonly terminal: boolean;
   readonly protectedBaseRef: string;
   readonly publicationHead: string;
-  readonly request: DeliveryHostChangeRequest;
+  readonly request: DeliveryTerminalTopObservation;
 }): DeliveryTerminalTopResult {
   if (!input.terminal) return { status: "window-open" };
   if (input.request.headSha !== input.publicationHead || input.request.state === "merged") {
@@ -136,7 +148,8 @@ export function assessDeliveryTerminalTop(input: {
   }
   const protectedBase = input.protectedBaseRef.replace(/^refs\/heads\//u, "");
   if (input.request.state === "open" && input.request.baseRef === protectedBase) {
-    return { status: "ready", request: input.request };
+    const { binding, repository, headRef, headSha, baseRef, state } = input.request;
+    return { status: "ready", request: { binding, repository, headRef, headSha, baseRef, state } };
   }
   return {
     status: "refused",
@@ -156,7 +169,7 @@ export async function applyDeliveryTerminalTopRemedy(input: {
   readonly remedy: DeliveryTerminalTopRemedy;
   apply(remedy: DeliveryTerminalTopRemedy): Promise<{ readonly status: "submitted" | "refused" }>;
   observe(): Promise<
-    | { readonly status: "observed"; readonly request: DeliveryHostChangeRequest }
+    | { readonly status: "observed"; readonly request: DeliveryTerminalTopObservation }
     | { readonly status: "refused" }
   >;
 }): Promise<DeliveryTerminalTopResult | { readonly status: "refused"; readonly reason: "remedy-application-refused" }> {
