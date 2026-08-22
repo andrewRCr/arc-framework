@@ -138,7 +138,7 @@ member must select `cohort`, `subcohort`, or `at-cap`, regardless of content own
 remain `existing-home` destinations, not members. Ownerless shared coordination independently requires a
 cohort-backed placement and a `cohort-coordination` destination.
 
-Extraction is the supported surviving-origin arm for a started `Planning` or `Active` source. It is entered through
+Extraction is the supported source-preserving arm for a started `Planning` or `Active` source. It is entered through
 its own command mode, and the core retirement transform remains unchanged. A retirement cut-map transfers every
 source unit into declared destinations or reasoned drops and retires the origin. An extraction cut-map may instead
 keep units under `retained-origin`; the surviving origin is their owner and logical anchor, not another destination.

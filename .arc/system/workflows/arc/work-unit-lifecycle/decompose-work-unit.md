@@ -13,7 +13,7 @@ arc:
 **The operator owns semantic distribution; `arc decompose` owns source discovery, closed mode dispatch, topology,
 mutation, validation, and rollback. Retirement alone owns the durable transition record** · `[invariant]`.
 
-Extraction is the supported surviving-origin arm for a started `Planning` or `Active` source. It is entered through
+Extraction is the supported source-preserving arm for a started `Planning` or `Active` source. It is entered through
 its own command mode, and the core retirement transform remains unchanged.
 
 Use only CLI-reported paths, packets, statuses, and remedies. On refusal, surface the returned status and remedy

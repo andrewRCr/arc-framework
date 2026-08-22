@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
-const SHARED_BOUNDARY = "Extraction is the supported active-origin arm. It is entered through its own command "
-  + "mode, and the core retirement transform remains unchanged.";
+const SHARED_BOUNDARY = "Extraction is the supported source-preserving arm for a started `Planning` or `Active` "
+  + "source. It is entered through its own command mode, and the core retirement transform remains unchanged.";
 
 const relativePaths = [
   "system/methods/assess-boundary-fit.md",
@@ -48,7 +48,7 @@ describe("decomposition doctrine contract", () => {
 
     expect(workflow).toContain("Extraction writes no transition record, recovery record, or receipt.");
     expect(workflow).toContain("It stores no launch advice, publication packet, or selected successor.");
-    expect(strategy).toContain("The surviving active origin is the natural continuation");
+    expect(strategy).toContain("The surviving origin is the natural continuation");
     expect(strategy).toContain("New leaves become startable only through their landed base metas");
   });
 });

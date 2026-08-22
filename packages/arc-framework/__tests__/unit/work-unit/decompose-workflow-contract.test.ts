@@ -56,7 +56,7 @@ describe("decompose workflow contract", () => {
     expect(review).toContain("report.extraction.retainedOrigin");
     expect(review).toContain("report.extraction.reasonedDrops");
     expect(review).toContain("report.extraction.anchor");
-    expect(review).toContain("surviving active origin as the natural continuation");
+    expect(review).toContain("surviving origin as the natural continuation");
     expect(review).toContain("never re-derive");
     expect(review.match(/`workflow-interlock`/gu)).toHaveLength(1);
     expect(review).toContain("sole semantic distribution approval");
