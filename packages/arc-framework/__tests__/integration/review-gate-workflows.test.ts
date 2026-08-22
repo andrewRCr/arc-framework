@@ -441,7 +441,8 @@ describe("trusted review-gate workflows", () => {
     const pinnedInterlockText = interlockText.replace(/^>\s?/gmu, "").replace(/\s+/gu, " ");
     expect(pinnedInterlockText).toContain("Surface the exact head");
     expect(pinnedInterlockText).toContain("proposed final dispositions");
-    expect(pinnedInterlockText).toContain("authorizes the lane action");
+    expect(pinnedInterlockText).toContain("authorizes exact-head merge");
+    expect(pinnedInterlockText).toMatch(/redirect[\s\S]*release-only/iu);
     expect(full).not.toContain("## Review");
     expect(full).not.toMatch(/`Local`, `Hosted PR`, and `Triage`|`Coverage`/u);
     expect(full).not.toContain("authorizes the lane action only if");
@@ -499,7 +500,10 @@ describe("trusted review-gate workflows", () => {
     const lanes = sectionBetween(packaged, "6. Land per lane:", "7. **Leave");
     expect(lanes).toMatch(/Auto-merge-lane[\s\S]*--auto <merge-flag>[\s\S]*--match-head-commit/iu);
     expect(lanes).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
-    expect(lanes).toMatch(/only literal `planning`[\s\S]*arm(?:ing)?[\s\S]*auto-merge/iu);
+    expect(lanes).toMatch(/only literal `planning`[\s\S]*preserves this lane/iu);
+    expect(lanes).toMatch(/Reviewed-lane[\s\S]*arm[\s\S]*exact-head[\s\S]*auto-merge/iu);
+    expect(lanes).toMatch(/release-only[\s\S]*explicit/iu);
+    expect(lanes).not.toMatch(/reviewed lane stays open for owner review/iu);
     const method = lanes.indexOf("arc review merge-method resolve --json");
     const release = lanes.indexOf("arc merge lock release -", method);
     const arm = lanes.indexOf("gh pr merge <pr-number> --auto", release);
@@ -544,7 +548,7 @@ describe("trusted review-gate workflows", () => {
     const documents = Object.fromEntries(entries);
 
     expect(documents.errand).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
-    expect(documents.errand).toMatch(/only literal `planning`[\s\S]*arm(?:ing)?[\s\S]*auto-merge/iu);
+    expect(documents.errand).toMatch(/only literal `planning`[\s\S]*preserves this lane/iu);
     expect(documents.drain).toMatch(
       /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
     );

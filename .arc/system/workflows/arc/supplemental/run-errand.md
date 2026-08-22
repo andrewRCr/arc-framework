@@ -343,14 +343,16 @@ remote base all name the same exact head. Any tracked change continues through t
    No review-authored commit or push may occur after this checkpoint.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the current head is settled and before arming auto-merge or releasing the
-> reviewed lane. Surface the exact head, review applicability calls and targeted verification, proposed final
+> `integration-interlock`: Stop after the current head is settled and before releasing the exact target and arming
+> its merge. Surface the exact head, review applicability calls and targeted verification, proposed final
 > dispositions, PR checks, required approvals, base freshness, and the resolved lane. State
 > that approval applies final dispositions and channel settlement, ends review, invokes the exact-head release on
-> whichever lane resolves, and authorizes the lane action.
+> whichever lane resolves, and authorizes exact-head merge. A redirect may instead select release-only for
+> asynchronous host review or later manual merge.
 > Close with `Approve (or redirect)?`.
 
-After approval, apply the approved final dispositions and channel settlements, then continue to the lane action.
+After approval, apply the approved final dispositions and channel settlements, then continue to the selected lane
+action.
 
 6. Land per lane:
 
@@ -359,30 +361,41 @@ After approval, apply the approved final dispositions and channel settlements, t
 
    **Auto-merge-lane** — re-read the PR's exact base SHA and rerun the canonical classifier immediately before
    arming. Only literal `planning` preserves this lane; `reviewed` returns to Step 5 as reviewed-lane, while command
-   failure or malformed output stops. Invoke `arc review merge-method resolve --json`; `validated / use-method`
-   supplies the method, while `blocked / stop` stops before release. Then invoke `arc merge lock release -` for the
-   exact approved target — auto-merge cannot be armed on a locked PR, so the release is structurally required here
-   rather than a courtesy. Arm native auto-merge with the validated method (`merge` → `--merge`, `squash` →
-   `--squash`, `rebase` → `--rebase`):
+   failure or malformed output stops.
 
    ```bash
    arc review planning-lane <base-sha> {approved-head-sha}
+   ```
+
+   **Reviewed-lane** — continue to the common arm below; the approval selects an exact-head native auto-merge by
+   default. Any independently required host approval remains host-enforced.
+
+   For either lane, invoke `arc review merge-method resolve --json`; `validated / use-method` supplies the method,
+   while `blocked / stop` stops before release. Then invoke `arc merge lock release -` for the exact approved target.
+   Follow only the release verb's typed action: `released / proceed` continues; `no-lock / none` continues because
+   no lock applies or the PR already holds that state; `blocked / stop` stops on its typed reason.
+
+   On ordinary approval, arm native auto-merge with the validated method (`merge` → `--merge`, `squash` →
+   `--squash`, `rebase` → `--rebase`):
+
+   ```bash
    arc review merge-method resolve --json
    arc merge lock release -
    gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
    ```
 
-   **Reviewed-lane** — invoke `arc merge lock release -` for the exact approved target. On both lanes, follow only
-   the verb's typed action: `released / proceed` continues; `no-lock / none` continues because no lock applies or
-   the PR already holds that state; `blocked / stop` stops on its typed reason.
+   On a release-only redirect explicitly selected at the interlock, stop after release and report the required-check
+   and approval state. Keep the PR open for asynchronous host review or later manual merge; the selection authorizes
+   that unlocked waiting state, not merge.
 
-   Lock release changes PR state only; the auto-merge command's `--match-head-commit` is the head pin. Report
-   required-check state as observed. The host remains the waiting authority: native auto-merge waits server-side,
-   while the reviewed lane stays open for owner review and host enforcement on `{approved-head-sha}`.
+   Lock release changes PR state only; the auto-merge command's `--match-head-commit` is the merge head pin. Report
+   required-check state as observed. Native auto-merge waits server-side for CI and any host-required approvals, with
+   no second ARC merge approval.
 
-   Once a lane releases, **every other exit re-locks first**. This includes a failed or refused auto-merge arm and a
-   later reviewed-lane head change before Step 4 re-entry. Invoke `arc merge lock hold -` for the exact target,
-   dispatch on its typed action, then surface the originating exit rather than the hold in its place.
+   Once a lane releases, **every other unapproved exit re-locks first**. The explicitly selected release-only state
+   is the sole exception. A failed or refused auto-merge arm, or a later head change before Step 4 re-entry, invokes
+   `arc merge lock hold -` for the exact target. Dispatch on its typed action, then surface the originating exit
+   rather than the hold in its place.
 
 7. **Leave only at a terminal session exit.** When the session is ending with the merge tail unresolved, or work is
    moving machines, invoke `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the
