@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "authorize-remote-source-ref-teardown",
+  "claimId": "057e16518b964bb0f05aa05855b76bdb",
+  "createdAt": "2026-08-22T12:20:09.975Z",
+  "updatedAt": "2026-08-22T12:20:09.975Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "authorize-remote-source-ref-teardown",
+  "branch": "chore/authorize-remote-source-ref-teardown",
+  "origin": "inbox",
+  "originEntry": "Authorize remote source-ref teardown for absent, equal, or strict-ancestor states",
+  "originEntrySourceDigest": "sha256:73a4e313c599eb771c8c9db5cabf0925b2b1b2f2910da37f871b1e9eb7b7a9b2",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
