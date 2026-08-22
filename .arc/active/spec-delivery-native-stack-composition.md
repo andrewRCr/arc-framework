@@ -127,6 +127,13 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   over an inconclusive residual. It still excludes a new lineage or proof record family, autonomous semantic
   inference, and any carry whose heads or evidence changed. The prompt was the supported-path finding that ordinary
   overlapping base movement would otherwise re-spend verification solely because its file blobs moved.
+- **Amended 2026-08-22 — replayable Candidate transitions enter scope after implementation grounding.** The narrow
+  applicability selection must remain replayable when an approved review response follows it, so the existing
+  Candidate record's ordered response lineage becomes an ordered transition union of approved review responses and
+  exact-bound applicability selections. This is not a new record family or generalized decision ledger: the
+  transition stores only the authority-bearing facts needed to reduce the current Candidate, while mechanical proof,
+  rationale, paths, retries, and superseded attempts remain absent. The prompt was the concrete supported sequence in
+  which replacing one current binding would remove the bridge needed to replay a later response.
 - No aggregate hosted-review surface across members. That remains `delivery-review-cardinality`'s demand-held
   question.
 
@@ -443,6 +450,34 @@ attestation semantics.
   authorities. This intentionally reverses the attestation-lineage non-goal above at the narrowest compatible seam.
   It serves Goal 8 and `PROJECT-PRD.md`'s "Operational friction down, judgment friction up" principle: deterministic
   equivalence costs no attention, while irreducible semantics stay with the applicable authority.
+
+- **D3.10a Replayable Candidate transition lineage — amended 2026-08-22 after implementation grounding exposed a
+  continuity break in D3.10's replaceable binding.** Replacing a single A→B applicability binding after an approved
+  B→C review response removes the bridge the strict Candidate reducer needs to replay that response. The Candidate
+  record therefore carries one ordered, strictly discriminated `review-response | applicability-selection`
+  transition sequence in place of its response-only sequence and D3.10's replaceable current binding. This is the
+  minimum lineage already required to derive the Candidate's current target, not a separate audit surface.
+
+  An applicability-selection transition carries exactly the fields D3.10 authorizes: Candidate identity, prior and
+  current targets, projection and residual digests, selecting actor, `covered | targeted-check | changed`, and the
+  completed targeted-evidence reference only for `targeted-check`. `covered` and evidenced `targeted-check` advance
+  the durable target; `changed` records the selected ordinary-change route without advancing it. Exact replay of an
+  identical tail transition is a no-op; a different tail, stale record version, or changed bound input refuses. The
+  sequence stores no mechanical proof, path set, rationale, storage mode, retry state, pending selection, or
+  superseded attempt.
+
+  An approved review-response transition remains independently authoritative for the exact old target its existing
+  review and verification evidence binds. It may re-anchor the reducer at that old target before advancing to its
+  new target when the preceding carry was machine-proved and therefore intentionally ephemeral. This exception is
+  limited to the existing approved-response authority: it does not let an applicability selection skip durable
+  continuity, does not turn a response into mechanical proof, and does not weaken response evidence validation.
+  Candidate lineage attestations remain evidence over recognized subjects and never advance the target themselves.
+
+  The pure durable-baseline reducer folds the root and ordered transitions under those rules. The asynchronous
+  effective projection then rederives any further machine carry from Git and D4 exactly as D3.10 specifies. Every
+  existing Candidate consumer moves to that shared reducer/projection before this amendment is complete; no
+  response-tail or raw current-subject shortcut remains. Pre-public-release compatibility applies, so the record
+  changes in place with no response alias or migration reader.
 
 ### D4 — Structural contribution identity: reapply and compare trees
 
@@ -1429,6 +1464,14 @@ added.
     and stop. Highest-member teardown remains reserved through fresh top observation across stack cardinalities. No
     owner or retry-policy field, recovery record family, autonomous replay, or provider-general recovery engine is
     introduced (D9.6).
+24. Criterion 22's replaceable applicability binding is superseded. The Candidate record carries one ordered,
+    strictly discriminated transition sequence containing approved review responses and exact-bound applicability
+    selections. Covered and evidenced targeted selections advance the durable target, changed does not, and an exact
+    replay does not duplicate the tail. An approved response may re-anchor only at its independently reviewed exact
+    old target before advancing, preserving replay after an intentionally ephemeral machine carry; a later
+    applicability selection remains reducible from the response's new target. Mechanical proof and generalized
+    decision history remain absent, every Candidate consumer uses the shared reducer/effective projection, and the
+    unpublished response-only record changes in place without an alias or migration reader (D3.10a).
 
 ## Open Questions
 
