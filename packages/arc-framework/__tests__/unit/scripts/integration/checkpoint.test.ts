@@ -6,6 +6,9 @@ import {
   checkpointIntegration,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
+import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
+import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -109,6 +112,51 @@ function dependencies(): IntegrationCheckpointDependencies {
 }
 
 describe("integration checkpoint", () => {
+  it("returns the exact bounded Candidate applicability decision for authority selection", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const subject = (source: string) => createCandidateSubjectSnapshot([{
+      path: "src/example.ts",
+      mode: "100644",
+      digest: canonicalDigest({ source }),
+      treatment: "reviewable",
+    }]);
+    const request = {
+      candidateId: digest("c"),
+      baselineTarget: { revision: oid("a"), subject: subject("prior") },
+      currentTarget: { revision: oid("c"), subject: subject("current") },
+      currentBase: oid("b"),
+    };
+    const decision = classifyCandidateApplicability(request, {
+      endpoints: {
+        before: {
+          predecessor: { head: oid("1"), tree: oid("2") },
+          member: { head: oid("a"), tree: oid("3") },
+        },
+        after: {
+          predecessor: { head: oid("b"), tree: oid("4") },
+          member: { head: oid("c"), tree: oid("5") },
+        },
+      },
+      proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
+    });
+    if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
+    deps.readCandidate = async () => decision as never;
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "candidate-applicability",
+        nextAction: "request-authority",
+        payload: {
+          state: "decision-required",
+          projectionDigest: decision.projectionDigest,
+          residualDigest: decision.residualDigest,
+          selectionOfferText: decision.selectionOfferText,
+          recommendedActionText: decision.recommendedActionText,
+        },
+      });
+  });
+
   it("returns a safe behind-base verdict with the validated facts", async () => {
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, dependencies()))
       .resolves.toMatchObject({

@@ -6,13 +6,15 @@ import type {
 } from "./candidate-applicability.js";
 import {
   CandidateLineageTargetSchema,
+  diffCandidateSubjectSnapshots,
   projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
+  type CandidateCurrentnessProjection,
   type CandidateLineageTarget,
   type CandidateManagedRecordV1,
 } from "./candidate-attestation.js";
 
-type NonApplicableProjection = Exclude<CandidateApplicabilityResult, { state: "applicable" }>;
+export type NonApplicableProjection = Exclude<CandidateApplicabilityResult, { state: "applicable" }>;
 
 export interface CandidateEffectiveCurrentProjection {
   readonly schemaVersion: 1;
@@ -50,6 +52,10 @@ export interface CandidateEffectiveChangedProjection {
 export type CandidateEffectiveTargetProjection =
   | CandidateEffectiveCurrentProjection
   | CandidateEffectiveChangedProjection
+  | NonApplicableProjection;
+
+export type CandidateEffectiveCurrentnessProjection =
+  | CandidateCurrentnessProjection
   | NonApplicableProjection;
 
 export interface CandidateEffectiveTargetInput {
@@ -143,4 +149,33 @@ export async function projectEffectiveCandidateTarget(
     };
   }
   return applicability;
+}
+
+/** Adapt the effective target to legacy current/changed policy while preserving typed applicability outcomes. */
+export function projectEffectiveCandidateCurrentness(
+  input: CandidateEffectiveTargetProjection,
+): CandidateEffectiveCurrentnessProjection {
+  if (input.state === "current") {
+    return {
+      status: "current",
+      candidateId: input.candidateId,
+      recognizedRevision: input.recognizedTarget.revision,
+      implementationChanged: input.implementationChanged,
+      convergenceVerification: input.convergenceVerification,
+    };
+  }
+  if (input.state === "changed") {
+    return {
+      status: "blocked",
+      candidateId: input.candidateId,
+      recognizedRevision: input.durableBaselineTarget.revision,
+      currentRevision: input.currentTarget.revision,
+      delta: diffCandidateSubjectSnapshots(
+        input.durableBaselineTarget.subject,
+        input.currentTarget.subject,
+      ),
+      nextAction: "Run full work-unit verification to establish a new Candidate lineage root.",
+    };
+  }
+  return input;
 }

@@ -11,12 +11,16 @@ import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
-  projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../lib/work-unit/candidate-attestation.js";
+import {
+  projectEffectiveCandidateCurrentness,
+  type CandidateEffectiveCurrentnessProjection,
+  type CandidateEffectiveTargetProjection,
+} from "../../lib/work-unit/candidate-effective-target.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
+import { projectGitCandidateEffectiveTarget } from "../../lib/work-unit/git-candidate-effective-target.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
 import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
@@ -60,7 +64,8 @@ import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 
 interface CachedCandidate {
   record: CandidateManagedRecordV1;
-  current: Awaited<ReturnType<typeof collectGitCandidateTarget>>;
+  effective: CandidateEffectiveTargetProjection;
+  currentness: CandidateEffectiveCurrentnessProjection;
 }
 
 export type IntegrationLifecycleReadFs = NonNullable<
@@ -258,6 +263,7 @@ export function createIntegrationCheckpointDependencies(input: {
     return settingsPromise;
   };
   const candidates = new Map<string, Promise<CachedCandidate | null>>();
+  const rawGit = createRawGitExec(input.cwd);
   let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
   const identity = () => {
     identityPromise ??= resolveIdentity({ exec: input.exec });
@@ -283,13 +289,15 @@ export function createIntegrationCheckpointDependencies(input: {
         const record = await readCandidateRecord(input.cwd, workUnit);
         if (record === null) return null;
         const config = await settings();
-        const current = await collectGitCandidateTarget({
+        const effective = await projectGitCandidateEffectiveTarget({
           cwd: input.cwd,
           name: workUnit,
           baseBranch: config.settings["branch.base"],
+          record,
           exec: input.exec,
+          rawExec: rawGit,
         });
-        return { record, current };
+        return { record, effective, currentness: projectEffectiveCandidateCurrentness(effective) };
       })();
       candidates.set(workUnit, value);
     }
@@ -326,8 +334,8 @@ export function createIntegrationCheckpointDependencies(input: {
       }
       try {
         const value = await candidate(workUnit);
-        const currentness = value === null ? null : projectCandidateCurrentness(value);
-        if (currentness?.status !== "current") {
+        const currentness = value?.currentness ?? null;
+        if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
           return { status: "unavailable", detail: "The current delivery Candidate is unavailable." };
         }
         const terminal = records.state.members.at(-1);
@@ -383,7 +391,7 @@ export function createIntegrationCheckpointDependencies(input: {
     },
     readCandidate: async (workUnit) => {
       const value = await candidate(workUnit);
-      return value === null ? null : projectCandidateCurrentness(value);
+      return value?.currentness ?? null;
     },
     composeDelivery: async ({ workUnit, candidate: currentness }) => {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);
@@ -397,8 +405,13 @@ export function createIntegrationCheckpointDependencies(input: {
       if (value === null || publicationBoundary === null) {
         throw new Error("The delivery Candidate publication boundary is unavailable.");
       }
+      if (value.effective.state !== "current"
+        || value.effective.recognizedTarget.revision !== currentness.recognizedRevision) {
+        throw new Error("The delivery Candidate effective target changed during checkpoint composition.");
+      }
       if (publicationBoundary.candidateId !== currentness.candidateId
-        || publicationBoundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+        || publicationBoundary.candidateSubjectDigest
+          !== value.effective.recognizedTarget.subject.subjectDigest) {
         throw new Error("The delivery publication boundary belongs to a different Candidate.");
       }
       const configuredBase = config.settings["branch.base"];
@@ -538,9 +551,14 @@ export function createIntegrationCheckpointDependencies(input: {
         boundary(workUnit),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
+      if (value.effective.state !== "current"
+        || value.effective.recognizedTarget.revision !== currentness.recognizedRevision) {
+        throw new Error("The effective Candidate target changed during checkpoint composition.");
+      }
       if (publicationBoundary === null) throw new Error("The durable publication boundary is unavailable.");
       if (publicationBoundary.candidateId !== value.record.attestation.candidateId
-        || publicationBoundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+        || publicationBoundary.candidateSubjectDigest
+          !== value.effective.recognizedTarget.subject.subjectDigest) {
         throw new Error("The durable publication boundary belongs to a different Candidate subject.");
       }
       if (publicationBoundary.locus !== "publication-pending"
@@ -558,7 +576,7 @@ export function createIntegrationCheckpointDependencies(input: {
         workUnit,
         branch: changeRequest.targetRef.headRef,
         candidateId: value.record.attestation.candidateId,
-        candidateSubjectDigest: value.current.subject.subjectDigest,
+        candidateSubjectDigest: value.effective.recognizedTarget.subject.subjectDigest,
         reservation: publicationBoundary.reservation,
         terminus: publicationBoundary.terminus,
         changeRequest: {

@@ -457,6 +457,11 @@ describe("review-fix Candidate lineage", () => {
       status: "current",
       headSha: mergedHead,
     });
+    await expect(createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec })
+      .readCandidate("example")).resolves.toMatchObject({
+        status: "current",
+        recognizedRevision: mergedHead,
+      });
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {

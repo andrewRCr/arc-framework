@@ -4,6 +4,10 @@ import { z } from "zod";
 
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
+import {
+  CandidateApplicabilityResultSchema,
+  type CandidateApplicabilityResult,
+} from "../../lib/work-unit/candidate-applicability.js";
 import { MergeMethodSchema, type MergeMethodResolveResult } from "../review-gate/merge-method.js";
 import { RequiredCheckStatusSchema } from "../review-gate/status.js";
 import {
@@ -177,6 +181,28 @@ const CheckpointBlockedBaseShape = {
   remedy: SpineRemedySchema,
 };
 
+const CandidateApplicabilityCheckpointResultSchema = z.strictObject({
+  ...ResultBaseShape,
+  state: z.literal("candidate-applicability"),
+  nextAction: z.enum(["request-authority", "rerun-checkpoint", "stop", "upgrade"]),
+  payload: CandidateApplicabilityResultSchema,
+}).superRefine((result, context) => {
+  if (result.payload.state === "applicable") {
+    context.addIssue({
+      code: "custom",
+      path: ["payload", "state"],
+      message: "an applicable Candidate must be reduced to currentness before checkpoint dispatch",
+    });
+  }
+  if (result.payload.nextAction !== result.nextAction) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction"],
+      message: "must match the Candidate applicability result",
+    });
+  }
+});
+
 
 const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", [
   z.strictObject({
@@ -349,6 +375,7 @@ export const IntegrationCheckpointResultSchema = z.union([
       candidateHead: ObjectIdSchema,
     }),
   }),
+  CandidateApplicabilityCheckpointResultSchema,
   IntegrationCheckpointBlockedResultSchema,
   z.strictObject({
     schemaVersion: z.literal(1),
@@ -418,7 +445,9 @@ export interface IntegrationCheckpointDependencies {
   >;
   readReconcileHost(workUnit: string, drift: BaseDriftResult): Promise<ReconcileHostFact>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
-  readCandidate(workUnit: string): Promise<CandidateCurrentnessProjection | null>;
+  readCandidate(workUnit: string): Promise<
+    CandidateCurrentnessProjection | Exclude<CandidateApplicabilityResult, { state: "applicable" }> | null
+  >;
   composeDelivery(input: {
     workUnit: string;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
@@ -439,6 +468,18 @@ export interface IntegrationCheckpointDependencies {
     settlementPlan: CanonicalSettlementPlan;
     mergeMethod: Extract<MergeMethodResolveResult, { state: "validated" }>;
   }): Promise<string>;
+}
+
+function candidateApplicabilityResult(
+  base: { schemaVersion: 1; mode: "integrate-checkpoint"; workUnit: string },
+  candidate: Exclude<CandidateApplicabilityResult, { state: "applicable" }>,
+): IntegrationCheckpointResult {
+  return IntegrationCheckpointResultSchema.parse({
+    ...base,
+    state: "candidate-applicability",
+    nextAction: candidate.nextAction,
+    payload: candidate,
+  });
 }
 
 function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): ReconcileSafetyFacts {
@@ -551,6 +592,7 @@ export async function checkpointIntegration(
           payload: { workUnit: request.workUnit },
         });
       }
+      if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate);
       if (candidate.status === "blocked") {
         return IntegrationCheckpointResultSchema.parse({
           ...base,
@@ -638,6 +680,7 @@ export async function checkpointIntegration(
       payload: { workUnit: request.workUnit },
     });
   }
+  if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate);
   if (candidate.status === "blocked") {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
