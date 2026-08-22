@@ -524,6 +524,13 @@ describe("arc decompose command modes", () => {
       memberMetaPath,
       originMetaPath,
     ]));
+    const memberBeforeLanding = await runArcNoTty(["status", "member", "--json"], repo);
+    expect(memberBeforeLanding.exitCode, memberBeforeLanding.stderr).toBe(0);
+    expect(JSON.parse(memberBeforeLanding.stdout)).toMatchObject({
+      slug: "member",
+      position: null,
+      state: "nonexistent",
+    });
     const memberMeta = await readFile(
       join(result.operation.occupation.path, memberMetaPath),
       "utf8",
@@ -569,6 +576,23 @@ describe("arc decompose command modes", () => {
     const landedPaths = (await git(repo, ["ls-tree", "-r", "--name-only", "main"])).split("\n");
     expect(landedPaths).toEqual(expect.arrayContaining([memberMetaPath, originMetaPath]));
     await git(repo, ["push", "origin", "main"]);
+    const memberAfterLanding = await runArcNoTty(["status", "member", "--json"], repo);
+    expect(memberAfterLanding.exitCode, memberAfterLanding.stderr).toBe(0);
+    expect(JSON.parse(memberAfterLanding.stdout)).toMatchObject({
+      slug: "member",
+      position: { phase: "Planning", location: "planned" },
+      state: "planned",
+    });
+    const projectAfterLanding = await runArcNoTty(
+      ["status", "--project", "--local", "--json"],
+      repo,
+    );
+    expect(projectAfterLanding.exitCode, projectAfterLanding.stderr).toBe(0);
+    expect(JSON.parse(projectAfterLanding.stdout)).toMatchObject({
+      facts: expect.arrayContaining([
+        expect.objectContaining({ slug: "member", readiness: "ready" }),
+      ]),
+    });
     await git(repo, ["switch", "plan/origin"]);
     const sourceBytes = new Uint8Array(await readFile(join(repo, retainedSource.sourcePath)));
     const scan = scanV3DecomposeContent("draft-origin.md", sourceBytes);
