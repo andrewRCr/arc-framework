@@ -73,11 +73,6 @@ import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
 } from "../lib/delivery/suffix-rematerialization.js";
-import {
-  adoptDeliveryTerminalMerge,
-  assessDeliveryAbsorption,
-  assessDeliveryTerminalReadiness,
-} from "../lib/delivery/terminal.js";
 import { teardownLandedDeliveryMember } from "../lib/delivery/teardown.js";
 import {
   degradeNativeDeliveryStack,
@@ -93,11 +88,9 @@ import {
   submitReservedNativeDeliveryMerge,
 } from "../lib/delivery/native-landing.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
+import { validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
-import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
-import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -221,26 +214,6 @@ const TeardownSchema = z.strictObject({
   protectedTargetRef: RefSchema,
   remote: z.string().min(1).default("origin"),
 });
-const TerminalPrepareSchema = z.strictObject({
-  repository: z.string().min(1),
-  remote: z.string().min(1).default("origin"),
-  controlRef: RefSchema,
-  controlCheckoutPath: z.string().min(1),
-  protectedTargetRef: RefSchema,
-});
-const TerminalAttachSchema = z.strictObject({
-  workUnitId: SlugSchema,
-  repository: z.string().min(1),
-  remote: z.string().min(1).default("origin"),
-  retainedControlRef: RefSchema,
-  changeRequestId: z.string().min(1),
-});
-const TerminalAbsorptionIntentSchema = z.strictObject({
-  controlRef: RefSchema,
-  controlHead: GitObjectIdSchema,
-  protectedTargetRef: RefSchema,
-  protectedTargetHead: GitObjectIdSchema,
-});
 const NativeMemberSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   changeRequestId: z.string().min(1),
@@ -307,8 +280,6 @@ const RequestSchemas = {
   rematerialize: RematerializeSchema,
   rewrite: RewriteSchema,
   teardown: TeardownSchema,
-  "terminal-prepare": TerminalPrepareSchema,
-  "terminal-attach": TerminalAttachSchema,
   "native-observe": NativeObserveSchema,
   "native-link": NativeLinkSchema,
   "native-unlink": NativeObserveSchema,
@@ -408,11 +379,6 @@ const ResultSchema = z.union([
     nextAction: z.enum(["retarget", "reopen-and-retarget"]),
     top: DeliveryTopRemedyRefusalSchema,
   }),
-  z.strictObject({ status: z.literal("absorption-ready"), intent: TerminalAbsorptionIntentSchema }),
-  z.strictObject({ status: z.literal("absorbed"), recommendedActionText: z.string().min(1) }),
-  z.strictObject({ status: z.literal("terminal-ready") }),
-  z.strictObject({ status: z.literal("not-applicable") }),
-  z.strictObject({ status: z.enum(["attached", "already-attached"]), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("registered"), stackNumber: z.number().int().positive() }),
   z.strictObject({ status: z.literal("unregistered") }),
   z.strictObject({ status: z.enum(["partial", "incoherent"]), affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema) }),
@@ -482,7 +448,6 @@ function executionPath(command: DeliveryExecutionCommand): string {
   if (command.startsWith("eligibility-")) return `delivery eligibility ${command.slice("eligibility-".length)}`;
   if (command.startsWith("land-")) return `delivery land ${command.slice("land-".length)}`;
   if (command.startsWith("native-")) return `delivery native ${command.slice("native-".length)}`;
-  if (command.startsWith("terminal-")) return `delivery terminal ${command.slice("terminal-".length)}`;
   return `delivery ${command}`;
 }
 
@@ -1416,179 +1381,6 @@ async function executeDeliveryCommand(
       adoptTop: (input) => adoptGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote: parsed.remote, ...input }),
       publishState: (planId, value, expectedRevision) => stateStore.publish(planId, value, expectedRevision),
-    });
-  }
-  if (command === "terminal-prepare") {
-    const parsed = TerminalPrepareSchema.parse(request);
-    const active = await resolveActiveWu({ cwd });
-    if (active.status !== "resolved") return { status: "refused", reason: "work-unit-unavailable" };
-    const plans = await planStore.enumerateCurrentReadOnly();
-    if (plans.status !== "ok") return { status: "refused", reason: "plan-unavailable" };
-    const matches = plans.value.filter((plan) => plan.workUnitId === active.name);
-    const plan = matches[0];
-    if (matches.length !== 1 || plan === undefined) return { status: "refused", reason: "plan-unavailable" };
-    const state = await stateStore.read(plan.planId);
-    if (state.status !== "ok" || state.value === null) return { status: "refused", reason: "state-unavailable" };
-    const position = await observePosition(plan, state.value, parsed.repository, parsed.remote);
-    if (position.status !== "observed") return { status: "refused", reason: "position-unavailable" };
-    const [retainedControl, checkout, target] = await Promise.all([
-      observeDeliveryEligibilityRef(exec, parsed.controlRef),
-      inspectDeliveryCandidateCheckout(exec, parsed.controlCheckoutPath),
-      new GhDeliveryHostPort(hostedGhRunner).observeTarget(parsed.repository, parsed.protectedTargetRef),
-    ]);
-    if (retainedControl === null || checkout === null || target.status !== "observed") {
-      return { status: "refused", reason: "terminal-unavailable" };
-    }
-    const observedControl = await observeDeliveryEligibilityRef(exec, parsed.controlRef);
-    if (observedControl === null) return { status: "refused", reason: "terminal-unavailable" };
-    const ancestry = await readAncestry(exec, target.coordinates.head, observedControl.head);
-    const decision = assessDeliveryAbsorption({
-      plan,
-      state: state.value.value,
-      landedDeliverableIds: position.facts.landedDeliverableIds,
-      retainedControl: { ref: parsed.controlRef, ...retainedControl },
-      observedControl: { ref: parsed.controlRef, ...observedControl },
-      protectedTarget: { ref: parsed.protectedTargetRef, ...target.coordinates },
-      dirty: checkout.trackedDirty,
-      suffixReconciled: true,
-      absorption: ancestry === "ancestor" ? "exact" : ancestry === "not-ancestor" ? "required" : "stale",
-    });
-    if (decision.status === "blocked") return decision;
-    if (decision.status === "absorption-ready") {
-      const [freshControl, freshCheckout, freshTarget] = await Promise.all([
-        observeDeliveryEligibilityRef(exec, parsed.controlRef),
-        inspectDeliveryCandidateCheckout(exec, parsed.controlCheckoutPath),
-        new GhDeliveryHostPort(hostedGhRunner).observeTarget(parsed.repository, parsed.protectedTargetRef),
-      ]);
-      if (freshControl === null || freshCheckout === null || freshTarget.status !== "observed"
-        || freshCheckout.trackedDirty
-        || freshControl.head !== decision.intent.controlHead
-        || freshControl.tree !== observedControl.tree
-        || freshCheckout.head !== decision.intent.controlHead
-        || freshCheckout.tree !== observedControl.tree
-        || freshTarget.coordinates.head !== decision.intent.protectedTargetHead
-        || freshTarget.coordinates.tree !== target.coordinates.tree) {
-        return { status: "blocked", reason: "absorption-precondition-moved" };
-      }
-      try {
-        await exec("git", ["fetch", "--no-write-fetch-head", parsed.remote, decision.intent.protectedTargetHead], {
-          cwd: parsed.controlCheckoutPath,
-        });
-        await exec("git", ["merge", "--no-edit", decision.intent.protectedTargetHead], {
-          cwd: parsed.controlCheckoutPath,
-        });
-      } catch {
-        return { status: "blocked", reason: "absorption-refused" };
-      }
-      const absorbed = await inspectDeliveryCandidateCheckout(exec, parsed.controlCheckoutPath);
-      if (absorbed === null || absorbed.trackedDirty
-        || await readAncestry(exec, decision.intent.protectedTargetHead, absorbed.head) !== "ancestor") {
-        return { status: "blocked", reason: "absorption-result-unavailable" };
-      }
-      return {
-        status: "absorbed",
-        recommendedActionText: "Run Tier 1 gates over the absorbed control branch, then rerun terminal prepare.",
-      };
-    }
-    const terminal = state.value.value.members.at(-1);
-    return assessDeliveryTerminalReadiness({
-      absorption: decision,
-      terminalUnbound: terminal !== undefined && terminal.ref === null
-        && terminal.changeRequest === null && terminal.coordinates === null,
-      proveResidual: () => proveGitDeliveryContribution({
-        exec: createRawGitExec(cwd),
-        before: { predecessor: target.coordinates, member: observedControl },
-        after: { predecessor: target.coordinates, member: observedControl },
-      }),
-    });
-  }
-  if (command === "terminal-attach") {
-    const parsed = TerminalAttachSchema.parse(request);
-    const lifecycle = await buildLifecycleIndex({
-      cwd,
-      fs: {
-        readdir: (path) => readdir(path, { withFileTypes: true }),
-        readFile: (path) => readFile(path, "utf8"),
-      },
-    });
-    const lifecycleState = resolveSlugState(lifecycle, parsed.workUnitId);
-    if (lifecycleState !== "integrating" && lifecycleState !== "shipped") {
-      return { status: "refused", reason: "work-unit-unavailable" };
-    }
-    const plans = await planStore.enumerateCurrentReadOnly();
-    if (plans.status !== "ok") return { status: "blocked", reason: "plan-unavailable" };
-    const matches = plans.value.filter((plan) => plan.workUnitId === parsed.workUnitId);
-    if (matches.length === 0) {
-      return adoptDeliveryTerminalMerge({
-        resolution: { status: "ordinary" },
-        repository: parsed.repository,
-        retainedControlRef: parsed.retainedControlRef,
-        retainedControlHead: "",
-        landedDeliverableIds: [],
-        request: {
-          binding: { providerId: "github", changeRequestId: parsed.changeRequestId },
-          repository: parsed.repository, headRepository: parsed.repository, headRef: "", headSha: "",
-          baseRef: "", state: "closed", draft: false,
-        },
-        targetBefore: { head: "", tree: "" }, targetAfter: { head: "", tree: "" },
-        proveResidual: () => Promise.resolve({ status: "refused", reason: "git-failure" }),
-        stateStore,
-      });
-    }
-    const plan = matches[0];
-    if (matches.length !== 1 || plan === undefined) return { status: "blocked", reason: "plan-unavailable" };
-    const current = await stateStore.read(plan.planId);
-    const control = await observeDeliveryEligibilityRef(exec, parsed.retainedControlRef);
-    const host = new GhDeliveryHostPort(hostedGhRunner);
-    const requestObservation = await host.readRequest(parsed.repository, {
-      providerId: "github", changeRequestId: parsed.changeRequestId,
-    });
-    if (current.status !== "ok" || current.value === null || control === null
-      || requestObservation.status !== "observed" || current.value.value.target?.coordinates == null) {
-      return { status: "blocked", reason: "terminal-unavailable" };
-    }
-    const targetBefore = current.value.value.target.coordinates;
-    const target = await host.observeTarget(parsed.repository, current.value.value.target.ref);
-    if (target.status !== "observed") return { status: "blocked", reason: "terminal-unavailable" };
-    try {
-      await exec("git", ["fetch", "--no-write-fetch-head", parsed.remote, target.coordinates.head]);
-    } catch {
-      return { status: "blocked", reason: "terminal-unavailable" };
-    }
-    const prefix = plan.members.slice(0, -1).map((member) => member.deliverableId);
-    const prefixState = current.value.value.members.slice(0, -1);
-    if (prefixState.length !== prefix.length || prefixState.some((member) => {
-      const cleared = member.ref === null && member.changeRequest === null && member.coordinates === null;
-      const bound = member.ref !== null && member.changeRequest !== null && member.coordinates !== null;
-      return !cleared && !bound;
-    })) return { status: "blocked", reason: "landed-prefix-incomplete" };
-    for (const member of prefixState) {
-      if (member.ref === null || member.changeRequest === null || member.coordinates === null) continue;
-      const [remoteRef, prefixRequest] = await Promise.all([
-        observeDeliveryRemoteRef(exec, parsed.remote, member.ref),
-        host.readRequest(parsed.repository, member.changeRequest),
-      ]);
-      if (remoteRef.status !== "observed" || remoteRef.head !== member.coordinates.head
-        || prefixRequest.status !== "observed" || prefixRequest.request.state !== "merged"
-        || prefixRequest.request.headSha !== member.coordinates.head) {
-        return { status: "blocked", reason: "landed-prefix-incomplete" };
-      }
-    }
-    return adoptDeliveryTerminalMerge({
-      resolution: { status: "delivery", plan, current: current.value },
-      repository: parsed.repository,
-      retainedControlRef: parsed.retainedControlRef,
-      retainedControlHead: control.head,
-      landedDeliverableIds: prefix,
-      request: requestObservation.request,
-      targetBefore,
-      targetAfter: target.coordinates,
-      proveResidual: () => proveGitDeliveryContribution({
-        exec: createRawGitExec(cwd),
-        before: { predecessor: targetBefore, member: control },
-        after: { predecessor: targetBefore, member: target.coordinates },
-      }),
-      stateStore,
     });
   }
   if (command === "rewrite") {

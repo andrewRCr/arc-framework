@@ -34,7 +34,7 @@ describe("packaged delivery workflow", () => {
     expect(packaged).toContain("arc delivery reconcile");
     expect(packaged).toContain("arc delivery rematerialize");
     expect(packaged).not.toContain("arc delivery rewrite");
-    expect(packaged).toContain("arc delivery terminal prepare");
+    expect(packaged).not.toContain("arc delivery terminal prepare");
     expect(packaged).toContain("arc delivery teardown");
     expect(packaged).toContain("arc delivery native link");
     expect(packaged).toContain("arc delivery native observe");
@@ -47,6 +47,8 @@ describe("packaged delivery workflow", () => {
     const materializeSection = section(packaged, "Validate and publish");
     const nativeSection = section(packaged, "Select and execute the native landing arm");
     const reviewSection = section(packaged, "Review and land the current member");
+    const terminalSection = section(packaged, "Terminal handoff");
+    const terminalTail = packaged.slice(packaged.indexOf("arc delivery teardown"));
     expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
     expect(materializeSection).toContain("terminalPresentation");
     expect(materializeSection.indexOf("terminalPresentation")).toBeLessThan(
@@ -78,6 +80,12 @@ describe("packaged delivery workflow", () => {
     expect(mutationTail).toMatch(/tier1Required[\s\S]*Tier 1/iu);
     expect(mutationTail).toMatch(/same finding-disposition approval/iu);
     expect(mutationTail).not.toContain("`integration-interlock`");
+    expect(reviewSection.indexOf("arc delivery teardown")).toBeLessThan(
+      packaged.indexOf("## Terminal handoff") - packaged.indexOf("## Review and land the current member"),
+    );
+    expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
+    expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
+    expect(terminalSection).not.toContain("`integration-interlock`");
     expect(packaged).not.toMatch(/if\s+.*(?:state|status)\s*==/iu);
     const nativeObserve = packaged.indexOf("arc delivery native observe");
     const nativeSelect = packaged.indexOf("arc delivery native land-select", nativeObserve);

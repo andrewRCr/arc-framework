@@ -245,23 +245,19 @@ After a member is authoritatively landed and its request is merged or closed, re
 arc delivery teardown - --json
 ```
 
-The CLI's returned `nextAction` selects the next member, reconciliation, or terminal handoff. Workflow prose does
-not implement a loop.
+The CLI retains the exact member binding, deletes the proven remote branch, and, after the highest non-terminal
+member, immediately reobserves the top request. Follow only its returned `nextAction`:
+
+- `continue` returns to the position read for the next member.
+- `terminal-checkpoint` enters the ordinary [`integrate-work-unit.md`][integrate-work-unit] workflow.
+- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Do not sequence or repair
+  the request in workflow prose.
 
 ## Terminal handoff
 
-Before delegating, derive the repository-owned terminal handoff:
-
-```bash
-arc delivery terminal prepare - --json
-```
-
-`blocked` stops. `absorbed` means the command applied the exact ordinary append-only base reconcile; run Tier 1 and
-rerun the command from fresh facts. Only `terminal-ready` delegates to the ordinary
-[`integrate-work-unit.md`][integrate-work-unit] workflow. Its existing integration interlock owns the terminal merge;
-do not fire a delivery interlock. Both fresh-merge and already-merged resume converge on the workflow's single
-post-merge delivery adoption call before close or teardown. Repeated adoption is idempotent, and an ordinary work
-unit returns `not-applicable`.
+On `terminal-checkpoint`, delegate to [`integrate-work-unit.md`][integrate-work-unit]. Its checkpoint composes the
+delivery arm from the current Candidate and retained member bindings, and its existing integration interlock owns the
+terminal merge. Do not fire a delivery interlock here.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md

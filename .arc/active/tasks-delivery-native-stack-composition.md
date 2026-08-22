@@ -530,54 +530,38 @@ comparator and trivially accepted.
   current Candidate. Predecessor overlap refuses, residual overlap routes only the terminal member through
   verification, and disjoint drift retains the ordinary base-reconcile path.
 
-### `[ ]` **5.5 Retire the absorption and terminal-attachment machinery with both call sites**
+### `[x]` **5.5 Retire the absorption and terminal-attachment machinery with both call sites**
 
 - _Goal:_ The absorption, terminal-readiness, and post-merge attachment machinery is gone along with both
   workflow call sites, because the disconnected terminal request it served no longer exists.
 
-- _Note:_ The archival-refusal defect this machinery carried — resolving its owner only through the active work
-  unit, which archival has already removed — is fixed rather than inherited. It is removed because its subject no
-  longer exists, not because it is broken.
+    - `[x]` **5.5.a Remove the terminal module and its verbs**
 
-- _Note:_ Two carriers arrive with the contribution-proof vocabulary and retire here, compile-only and no more:
-  the terminal module's two residual-proof call sites, and the attach verb's stubbed refusal literal.
+        - Deleted the absorption/readiness/attachment module and unit suite, both CLI subcommands, their handler
+          schemas and branches, and the command-input and E2E inventory that exposed them.
 
-    - `[ ]` **5.5.a Remove the terminal module and its verbs**
+    - `[x]` **5.5.b Remove both workflow call sites**
 
-        - The absorption assessment and execution, terminal readiness, and post-merge adoption, with their tests
-        - The prepare and attach verbs that expose them
+        - Re-authored both shipped copies of the delivery handoff around the checkpoint arm and removed the
+          integration workflow's post-merge mutation while preserving its cleanup ordering and link definitions.
 
-    - `[ ]` **5.5.b Remove both workflow call sites**
+    - `[x]` **5.5.c Re-author the landing-loop teardown step**
 
-        - The delivery workflow's terminal-handoff section, re-authored around the delivery arm
-        - The integration workflow's post-merge attachment step, removed outright
-        - Both are shipped workflows, so each changes in the package source and the project copy together
-        - The delivery workflow's link definitions sit inside that section and one is consumed earlier in the
-          file, so the re-author keeps them
+        - The workflow now follows the teardown verb's `continue`, `terminal-checkpoint`, `retarget`, or
+          `reopen-and-retarget` result after binding retention, branch deletion, and top reobservation, with no prose
+          loop.
 
-    - `[ ]` **5.5.c Re-author the landing-loop teardown step**
+- _Outcome:_ The disconnected terminal path has no library, command, workflow, or test surface left; the ordinary
+  integration checkpoint is now the sole terminal authorization path, and cleanup begins directly after merge.
 
-        - The step retains the binding, deletes the landed member branch, and reports the reobserved top state or
-          typed failure-only remedy returned by the CLI rather than sequencing or repairing in prose
-
-### `[ ]` **5.6 Re-author both workflow guards against the contracts that survive**
+### `[x]` **5.6 Re-author both workflow guards against the contracts that survive**
 
 - _Goal:_ Each guard asserts the contract that survives rather than the terminal machinery that does not, and
   each still fails by name when either copy of its own workflow drifts.
 
-- _Rationale:_ The attachment guard's eleven assertions are anchored on the terminal-attachment block, and the
-  delivery workflow's own guard pins a terminal-prepare invocation. Removing that machinery reddens both, which
-  is the intended signal rather than a breakage to route around — but not every assertion goes red, because the
-  ordering comparisons still hold against a missing anchor. Author each replacement from the surviving contract
-  rather than by deleting whatever failed, asserting presence, uniqueness, and ordering over that contract —
-  never a digest over a shared document.
-
-- **Additional Context:** `notes-delivery-native-stack-composition.md` § Guard-test digest history — why the
-  whole-file digest was removed and what replaced it
-
-    - Retire the assertions whose subject is gone; rewrite the rest against the delivery arm's contract
-    - Pin the delivery arm's handoff in place of the delivery workflow guard's terminal-prepare invocation
-    - Keep each guard's package and project parity assertion so both copies change together
+- _Outcome:_ The workflow guards now pin package/project parity, delivery teardown-to-checkpoint handoff and typed
+  remedy routing, one checkpoint/interlock/merge sequence, merged-resume convergence, and close-before-teardown
+  ordering. The obsolete terminal-command subjects are asserted absent rather than used as ordering anchors.
 
 ### `[ ]` **5.7 Close delivery member 5** — validate criteria at member scope
 
