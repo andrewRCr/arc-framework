@@ -32,7 +32,7 @@ function fixture() {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: target.ref, ...target.coordinates! },
-    control: { ref: "refs/heads/feat/control", head: "d".repeat(40), tree: "e".repeat(40) },
+    top: { ref: "refs/heads/feat/control", head: "d".repeat(40), tree: "e".repeat(40) },
     members: [{ deliverableId: second.deliverableId, ref: "refs/heads/candidate/second", head: "a".repeat(40), tree: "b".repeat(40) }, {
       deliverableId: third.deliverableId, ref: "refs/heads/candidate/third", head: "c".repeat(40), tree: "d".repeat(40),
     }],
@@ -175,7 +175,7 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
-      control: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
+      top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 2}`,
@@ -239,7 +239,7 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
-      control: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
+      top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 2}`,

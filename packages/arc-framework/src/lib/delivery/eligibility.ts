@@ -22,7 +22,7 @@ export interface DeliveryEligibilitySnapshot {
   readonly planRevision: number;
   readonly planDigest: string;
   readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
-  readonly control: DeliveryEligibilityCoordinates & { readonly ref: string };
+  readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
   readonly members: readonly DeliveryEligibilityMember[];
   readonly lifecyclePaths: readonly string[];
 }
@@ -38,7 +38,7 @@ export interface DeliveryEligibilityDependencies {
   }): Promise<{ readonly status: "ok" } | { readonly status: "refused"; readonly paths: readonly string[] }>;
   compareNormalizedCompleteness(input: {
     readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
-    readonly control: DeliveryEligibilityCoordinates & { readonly ref: string };
+    readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
     readonly finalCandidate: DeliveryEligibilityMember;
     readonly lifecyclePaths: readonly string[];
   }): Promise<
@@ -104,7 +104,7 @@ extends DeliveryEligibilityDependencies {
 export async function executeWithFreshDeliveryEligibility<Result>(input: {
   readonly planId: string;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly memberOffset?: number;
   readonly candidates: readonly {
     readonly deliverableId: string;
@@ -135,7 +135,7 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
 async function revalidateDeliveryEligibilityForMutation(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly candidates: readonly {
     readonly deliverableId: string;
     readonly ref: string;
@@ -167,7 +167,7 @@ async function revalidateDeliveryEligibilityForMutation(input: {
 export async function prepareDeliveryEligibility(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly memberOffset?: number;
   readonly candidates: readonly { readonly deliverableId: string; readonly ref: string }[];
   readonly lifecyclePaths: readonly string[];
@@ -206,12 +206,12 @@ export async function prepareDeliveryEligibility(input: {
 
   const observed = await Promise.all([
     deps.observeRef(input.protectedBaseRef),
-    deps.observeRef(input.controlRef),
+    deps.observeRef(input.topRef),
     ...input.candidates.map((candidate) => deps.observeRef(candidate.ref)),
   ]);
   const protectedBase = observed[0];
-  const control = observed[1];
-  if (protectedBase === null || control === null) return { status: "refused", reason: "evidence-unavailable" };
+  const top = observed[1];
+  if (protectedBase === null || top === null) return { status: "refused", reason: "evidence-unavailable" };
   const members: DeliveryEligibilityMember[] = [];
   for (const [index, candidate] of input.candidates.entries()) {
     const coordinates = observed[index + 2];
@@ -255,7 +255,7 @@ export async function prepareDeliveryEligibility(input: {
       planRevision: input.plan.planRevision,
       planDigest: input.plan.planDigest,
       protectedBase: { ref: input.protectedBaseRef, ...protectedBase },
-      control: { ref: input.controlRef, ...control },
+      top: { ref: input.topRef, ...top },
       members,
       lifecyclePaths: [...new Set(input.lifecyclePaths)].sort(byteSort),
     },
@@ -297,7 +297,7 @@ export async function closeDeliveryEligibility(
   if (finalCandidate === undefined) return { status: "refused", reason: "candidate-unavailable" };
   const completeness = await deps.compareNormalizedCompleteness({
     protectedBase: snapshot.protectedBase,
-    control: snapshot.control,
+    top: snapshot.top,
     finalCandidate,
     lifecyclePaths: snapshot.lifecyclePaths,
   });
@@ -309,7 +309,7 @@ export async function closeDeliveryEligibility(
         : `completeness-${completeness.reason}`,
     };
   }
-  const refs = [snapshot.protectedBase, snapshot.control, ...snapshot.members];
+  const refs = [snapshot.protectedBase, snapshot.top, ...snapshot.members];
   const currentRefs = await Promise.all(refs.map((entry) => deps.observeRef(entry.ref)));
   for (const [index, entry] of currentRefs.entries()) {
     const expected = refs[index];

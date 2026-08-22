@@ -20,8 +20,8 @@ const protectedHead = "1".repeat(40);
 const protectedTree = "2".repeat(40);
 const firstHead = "3".repeat(40);
 const firstTree = "4".repeat(40);
-const controlHead = "5".repeat(40);
-const controlTree = "6".repeat(40);
+const topHead = "5".repeat(40);
+const topTree = "6".repeat(40);
 
 function eligible(plan = deliveryPlanFixture()) {
   return {
@@ -30,12 +30,12 @@ function eligible(plan = deliveryPlanFixture()) {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: protectedHead, tree: protectedTree },
-    control: { ref: "refs/heads/feat/example", head: controlHead, tree: controlTree },
+    top: { ref: "refs/heads/feat/example", head: topHead, tree: topTree },
     members: plan.members.map((member, index) => ({
       deliverableId: member.deliverableId,
       ref: `refs/heads/candidate-${index + 1}`,
-      head: index === 0 ? firstHead : controlHead,
-      tree: index === 0 ? firstTree : controlTree,
+      head: index === 0 ? firstHead : topHead,
+      tree: index === 0 ? firstTree : topTree,
     })),
     lifecyclePaths: [],
   };
@@ -72,7 +72,7 @@ describe("deriveDeliveryMaterialization", () => {
         deliverableId: plan.members[1]!.deliverableId,
         ref: "refs/heads/feat/example",
         requestBaseRef: `refs/heads/delivery/${plan.workUnitId}/${plan.members[0]!.chunkKey}`,
-        coordinates: { base: firstHead, head: controlHead, tree: controlTree },
+        coordinates: { base: firstHead, head: topHead, tree: topTree },
       }),
     ]);
     expect(deriveDeliveryMaterialization(plan, { ...eligible(plan), planDigest: "sha256:" + "0".repeat(64) }))
@@ -88,8 +88,8 @@ describe("deriveDeliveryMaterialization", () => {
       members: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 1}`,
-        head: [firstHead, secondHead, controlHead][index]!,
-        tree: [firstTree, secondTree, controlTree][index]!,
+        head: [firstHead, secondHead, topHead][index]!,
+        tree: [firstTree, secondTree, topTree][index]!,
       })),
     };
     const result = deriveDeliveryMaterialization(plan, snapshot);
@@ -109,7 +109,7 @@ describe("deriveDeliveryMaterialization", () => {
       expect.objectContaining({
         ref: "refs/heads/feat/example",
         requestBaseRef: `refs/heads/delivery/${plan.workUnitId}/${plan.members[1]!.chunkKey}`,
-        coordinates: { base: secondHead, head: controlHead, tree: controlTree },
+        coordinates: { base: secondHead, head: topHead, tree: topTree },
       }),
     ]);
   });
@@ -124,7 +124,7 @@ describe("deriveDeliveryMaterialization", () => {
           kind: "terminal",
           ref: "refs/heads/feat/example",
           requestBaseRef: "refs/heads/main",
-          coordinates: { base: protectedHead, head: controlHead, tree: controlTree },
+          coordinates: { base: protectedHead, head: topHead, tree: topTree },
         }],
       },
     });
@@ -389,7 +389,7 @@ describe("delivery materialization orchestration", () => {
           members: [{
             ref: "refs/heads/feat/example",
             changeRequest: { providerId: "github", changeRequestId: "401" },
-            coordinates: { base: protectedHead, head: controlHead, tree: controlTree },
+            coordinates: { base: protectedHead, head: topHead, tree: topTree },
           }],
         },
       },

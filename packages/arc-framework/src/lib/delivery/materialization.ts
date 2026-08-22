@@ -100,7 +100,7 @@ export function deriveDeliveryMaterialization(
       target: snapshot.protectedBase,
       members: plan.members.map((member, index) => {
         const terminal = index === plan.members.length - 1;
-        const candidate = terminal ? snapshot.control : snapshot.members[index];
+        const candidate = terminal ? snapshot.top : snapshot.members[index];
         const predecessor = index === 0 ? snapshot.protectedBase : snapshot.members[index - 1];
         const predecessorMember = index === 0 ? undefined : plan.members[index - 1];
         if (candidate === undefined || predecessor === undefined || (index > 0 && predecessorMember === undefined)) {
@@ -110,7 +110,7 @@ export function deriveDeliveryMaterialization(
           kind: terminal ? "terminal" : "member",
           deliverableId: member.deliverableId,
           chunkKey: member.chunkKey,
-          ref: terminal ? snapshot.control.ref : `refs/heads/delivery/${plan.workUnitId}/${member.chunkKey}`,
+          ref: terminal ? snapshot.top.ref : `refs/heads/delivery/${plan.workUnitId}/${member.chunkKey}`,
           requestBaseRef: index === 0
             ? snapshot.protectedBase.ref
             : `refs/heads/delivery/${plan.workUnitId}/${predecessorMember?.chunkKey ?? ""}`,

@@ -1,4 +1,4 @@
-/** Preparation of a complete review-fix suffix from the retained control branch. */
+/** Preparation of a complete review-fix suffix from the delivery top. */
 
 import { canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import { classifyDeliveryPlanAmendment, type DeliveryPlanAmendmentResult } from "./amendment.js";

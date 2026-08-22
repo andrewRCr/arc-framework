@@ -118,7 +118,7 @@ const EligibilitySnapshotSchema = z.strictObject({
   planRevision: z.number().int().positive(),
   planDigest: DeliveryCanonicalDigestSchema,
   protectedBase: CoordinateSchema.extend({ ref: RefSchema }),
-  control: CoordinateSchema.extend({ ref: RefSchema }),
+  top: CoordinateSchema.extend({ ref: RefSchema }),
   members: z.array(EligibilityMemberSchema).min(1),
   lifecyclePaths: z.array(z.string().min(1)),
 });
@@ -126,7 +126,7 @@ const EligibilitySnapshotSchema = z.strictObject({
 const PrepareSchema = z.strictObject({
   plan: DeliveryPlanV1Schema,
   protectedBaseRef: RefSchema,
-  controlRef: RefSchema,
+  topRef: RefSchema,
   candidates: z.array(CandidateSchema).min(1),
   lifecyclePaths: z.array(z.string().min(1)),
 });
@@ -135,7 +135,7 @@ const MutationCandidateSchema = CandidateSchema.extend({ checkoutPath: z.string(
 const MaterializeSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   protectedBaseRef: RefSchema,
-  controlRef: RefSchema,
+  topRef: RefSchema,
   candidates: z.array(MutationCandidateSchema).min(1),
   remote: z.string().min(1).default("origin"),
 });
@@ -551,14 +551,14 @@ async function executeDeliveryCommand(
     ),
     compareNormalizedCompleteness: async (input: z.infer<typeof EligibilitySnapshotSchema> extends never ? never : {
       protectedBase: { ref: string; head: string; tree: string };
-      control: { ref: string; head: string; tree: string };
+      top: { ref: string; head: string; tree: string };
       finalCandidate: { deliverableId: string; ref: string; head: string; tree: string };
       lifecyclePaths: readonly string[];
     }) => {
       const compared = await compareGitNormalizedDeliveryTrees({
         exec,
         protectedBaseTree: input.protectedBase.tree,
-        controlTree: input.control.tree,
+        topTree: input.top.tree,
         finalCandidateTree: input.finalCandidate.tree,
         lifecyclePaths: input.lifecyclePaths,
       });
@@ -856,7 +856,7 @@ async function executeDeliveryCommand(
             workUnitId: plan.workUnitId,
             activeMetaPath: validateManagedPath(active.path),
             protectedBaseRef: parsed.protectedBaseRef,
-            controlRef: parsed.controlRef,
+            topRef: parsed.topRef,
           });
           return [...paths.workUnitArtifacts, ...paths.sharedProjections];
         } catch {
@@ -915,10 +915,10 @@ async function executeDeliveryCommand(
           if (materialized.status !== "materialized") return materialized;
           const adoption = await adoptGitDeliveryChain({
             exec: createRawGitExec(cwd),
-            topRef: parsed.controlRef,
+            topRef: parsed.topRef,
             commonBase: snapshot.protectedBase,
             highestMember: { head: highestMember.head, tree: highestMember.tree },
-            top: snapshot.control,
+            top: snapshot.top,
           });
           if (adoption.status !== "adopted") return adoption;
           adoptedMaterialization = {
@@ -926,7 +926,7 @@ async function executeDeliveryCommand(
             members: derived.value.members.map((member) => member.kind === "terminal"
               ? {
                   ...member,
-                  ref: parsed.controlRef,
+                  ref: parsed.topRef,
                   head: adoption.head,
                   tree: adoption.tree,
                   coordinates: { ...member.coordinates, head: adoption.head, tree: adoption.tree },
@@ -943,7 +943,7 @@ async function executeDeliveryCommand(
           exec,
           remote: parsed.remote,
           ref: terminalRef,
-          beforeHead: snapshot.control.head,
+          beforeHead: snapshot.top.head,
           requestedHead: terminal.head,
         });
         const topPublication = await publishTop();
@@ -1249,7 +1249,7 @@ async function executeDeliveryCommand(
         const eligible = await executeWithFreshDeliveryEligibility({
           planId: parsed.planId,
           protectedBaseRef: parsed.protectedBaseRef,
-          controlRef: parsed.controlRef,
+          topRef: parsed.topRef,
           memberOffset: landedCount,
           candidates: parsed.candidates,
         }, {
@@ -1265,7 +1265,7 @@ async function executeDeliveryCommand(
                 workUnitId: plan.workUnitId,
                 activeMetaPath: validateManagedPath(active.path),
                 protectedBaseRef: parsed.protectedBaseRef,
-                controlRef: parsed.controlRef,
+                topRef: parsed.topRef,
               });
               return [...paths.workUnitArtifacts, ...paths.sharedProjections];
             } catch {
@@ -1353,7 +1353,7 @@ async function executeDeliveryCommand(
     return completeDeliverySuffixMutationTail({
       rematerialized,
       commonBase: snapshot.protectedBase,
-      topRef: parsed.controlRef,
+      topRef: parsed.topRef,
     }, {
       adoptTop: (input) => adoptGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote: parsed.remote, ...input }),

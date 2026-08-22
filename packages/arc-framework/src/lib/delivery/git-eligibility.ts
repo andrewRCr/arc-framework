@@ -62,23 +62,23 @@ export async function inspectDeliveryCandidateCheckout(
   }
 }
 
-/** Read and compare the normalized control and final-candidate trees. */
+/** Read and compare the normalized top and final-candidate trees. */
 export async function compareGitNormalizedDeliveryTrees(input: {
   readonly exec: GitExec;
   readonly protectedBaseTree: string;
-  readonly controlTree: string;
+  readonly topTree: string;
   readonly finalCandidateTree: string;
   readonly lifecyclePaths: readonly string[];
 }): Promise<ReturnType<typeof compareNormalizedDeliveryTree> | { readonly status: "unavailable" }> {
-  const [protectedBase, control, finalCandidate] = await Promise.all([
+  const [protectedBase, top, finalCandidate] = await Promise.all([
     readDeliveryEligibilityTree(input.exec, input.protectedBaseTree),
-    readDeliveryEligibilityTree(input.exec, input.controlTree),
+    readDeliveryEligibilityTree(input.exec, input.topTree),
     readDeliveryEligibilityTree(input.exec, input.finalCandidateTree),
   ]);
-  if (protectedBase === null || control === null || finalCandidate === null) return { status: "unavailable" };
+  if (protectedBase === null || top === null || finalCandidate === null) return { status: "unavailable" };
   return compareNormalizedDeliveryTree({
     protectedBase,
-    control,
+    top,
     finalCandidate,
     lifecyclePaths: input.lifecyclePaths,
   });

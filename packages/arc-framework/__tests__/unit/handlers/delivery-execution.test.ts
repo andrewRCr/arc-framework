@@ -13,7 +13,7 @@ describe("delivery execution handler", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
-      control: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
+      top: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
       members: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 1}`,
@@ -29,7 +29,7 @@ describe("delivery execution handler", () => {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         protectedBaseRef: "refs/heads/main",
-        controlRef: "refs/heads/control",
+        topRef: "refs/heads/control",
         candidates: snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
         lifecyclePaths: snapshot.lifecyclePaths,
       })),
@@ -45,6 +45,32 @@ describe("delivery execution handler", () => {
       snapshot,
     });
     expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects the retired control-ref spelling at the eligibility boundary", async () => {
+    const plan = deliveryStackPlanFixture();
+    const execute = vi.fn();
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-prepare", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        plan,
+        protectedBaseRef: "refs/heads/main",
+        controlRef: "refs/heads/feat/example",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+        })),
+        lifecyclePaths: [],
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
   });
 
   it("rejects malformed input before execution and invalid service output at the boundary", async () => {
@@ -151,7 +177,7 @@ describe("delivery execution handler", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
-          control: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
+          top: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
           members: plan.members.map((member, index) => ({
             deliverableId: member.deliverableId,
             ref: `refs/heads/candidate-${index + 1}`,
@@ -183,7 +209,7 @@ describe("delivery execution handler", () => {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
-        controlRef: "refs/heads/control",
+        topRef: "refs/heads/control",
         candidates: plan.members.map((member, index) => ({
           deliverableId: member.deliverableId,
           ref: `refs/heads/candidate-${index + 1}`,
@@ -208,7 +234,7 @@ describe("delivery execution handler", () => {
     const baseRequest = {
       planId: plan.planId,
       protectedBaseRef: "refs/heads/main",
-      controlRef: "refs/heads/control",
+      topRef: "refs/heads/control",
       candidates: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 1}`,
@@ -319,7 +345,7 @@ describe("delivery execution handler", () => {
     const request = JSON.stringify({
       planId: plan.planId,
       protectedBaseRef: "refs/heads/main",
-      controlRef: "refs/heads/feat/example",
+      topRef: "refs/heads/feat/example",
       candidates: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 1}`,
@@ -355,7 +381,7 @@ describe("delivery execution handler", () => {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
-        controlRef: "refs/heads/control",
+        topRef: "refs/heads/control",
         candidates: plan.members.map((member, index) => ({
           deliverableId: member.deliverableId,
           ref: `refs/heads/candidate-${index + 1}`,
@@ -392,7 +418,7 @@ describe("delivery execution handler", () => {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
-        controlRef: "refs/heads/control",
+        topRef: "refs/heads/control",
         candidates: plan.members.map((member, index) => ({
           deliverableId: member.deliverableId,
           ref: `refs/heads/candidate-${index + 1}`,

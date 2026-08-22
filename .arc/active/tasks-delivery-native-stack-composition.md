@@ -448,10 +448,15 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
         - A member proved contribution-equivalent across the recut re-verifies nothing
         - Tier 1 gates re-run per the existing after-fix rule
 
-### `[ ]` **4.6 Retire the control-branch vocabulary from the surfaces that survive**
+### `[x]` **4.6 Retire the control-branch vocabulary from the surfaces that survive**
 
 - _Goal:_ The eligibility and lifecycle surfaces name the top rather than a control branch, so no field carries the
   name of a construct this member removes.
+
+- _Outcome:_ Eligibility snapshots, normalized-tree comparison, lifecycle path discovery, materialization, and the
+  prepare/materialize/publish/rematerialize request schemas now carry `top` / `topRef` end to end without changing
+  the observed ref or coordinates. The strict wire cutover rejects the retired spelling; only the deliberately
+  excluded terminal readiness/attachment machinery retains it for Phase 5 removal.
 
 - _Context:_ The top's identity already flows through the control ref input and the snapshot's control
   coordinates — that is how the terminal's coordinates resolve — so this is nomenclature, not behavior. It reaches
