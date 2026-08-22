@@ -16,6 +16,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | State      | Work unit                         | Priority | Owner  | Depends on                      | Cohort                    |
 | ---------- | --------------------------------- | -------- | ------ | ------------------------------- | ------------------------- |
 | `Active`   | delivery-native-stack-composition | P1       | andrew | —                               | chunked-delivery          |
+| `Planning` | decompose-conservation-coverage   | P1       | andrew | —                               | decompose-core-hardening  |
 | `Planning` | review-signal-convergence         | P1       | andrew | —                               | review-protocol-alignment |
 | `Planning` | decomposition-doctrine            | P1       | andrew | decompose-conservation-coverage | —                         |
 | `Planning` | review-checkout-lifecycle         | P1       | andrew | —                               | —                         |
@@ -26,7 +27,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                           | Priority | Owner  | Depends on | Cohort                     |
 | ----------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement        | P1       | andrew | —          | approval-flow-refinement   |
-| decompose-conservation-coverage     | P1       | andrew | —          | decompose-core-hardening   |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
