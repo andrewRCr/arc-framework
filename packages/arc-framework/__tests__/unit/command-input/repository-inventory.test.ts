@@ -210,6 +210,7 @@ describe("repository command-input inventory", () => {
       "archive",
       "attest",
       "base merge",
+      "candidate applicability resolve",
       "deactivate",
       "decompose",
       "delivery compose",

@@ -71,6 +71,7 @@ import {
   type DeliveryTransferExportOptions,
   type DeliveryTransferImportOptions,
 } from "./handlers/delivery-transfer.js";
+import { handleCandidateApplicabilityResolve } from "./handlers/candidate.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -561,6 +562,22 @@ program
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, name: string, opts: AttestOptions) => handleAttest(name, opts, context),
+  ));
+
+const candidate = program
+  .command("candidate")
+  .description("Resolve Candidate lineage transitions");
+
+const candidateApplicability = candidate
+  .command("applicability")
+  .description("Classify and bind Candidate applicability");
+
+candidateApplicability
+  .command("resolve <name> <input>")
+  .description("Re-derive and bind one exact applicability selection")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, name: string, input: string) => handleCandidateApplicabilityResolve(name, input, context),
   ));
 
 program

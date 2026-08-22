@@ -56,6 +56,7 @@ const rawGitCommandPaths = [
   "archive",
   "attest",
   "base merge",
+  "candidate applicability resolve",
   "deactivate",
   "decompose",
   "delivery compose",

@@ -96,6 +96,8 @@ export const CandidateApplicabilityResultSchema = z.union([
     projection: DeliveryContributionEndpointsSchema,
     paths: BoundedApplicabilityPathsSchema,
     choices: CandidateApplicabilityChoicesSchema,
+    selectionOfferText: z.string().min(1),
+    recommendedActionText: z.string().min(1),
     projectionDigest: DigestSchema,
     residualDigest: DigestSchema,
   }),
@@ -143,6 +145,34 @@ export type CandidateApplicabilityResult = z.infer<typeof CandidateApplicability
 
 function target(revision: string, subjectDigest: string): CandidateApplicabilityTarget {
   return CandidateApplicabilityTargetSchema.parse({ revision, subjectDigest });
+}
+
+function decisionPresentation(input: {
+  request: CandidateApplicabilityRequest;
+  verdict: "clean-divergence" | "interaction";
+  paths: readonly string[];
+  projectionDigest: string;
+  residualDigest: string;
+}): { selectionOfferText: string; recommendedActionText: string } {
+  return {
+    selectionOfferText: [
+      `Candidate applicability is not mechanically decidable for ${input.request.candidateId}.`,
+      `Prior target: ${input.request.baselineTarget.revision} `
+        + `(${input.request.baselineTarget.subject.subjectDigest})`,
+      `Current target: ${input.request.currentTarget.revision} `
+        + `(${input.request.currentTarget.subject.subjectDigest})`,
+      `Current base: ${input.request.currentBase}`,
+      `Structural verdict: ${input.verdict}`,
+      `Bounded residual (${String(input.paths.length)} paths): ${input.paths.join(", ")}`,
+      `Projection digest: ${input.projectionDigest}`,
+      `Residual digest: ${input.residualDigest}`,
+      "Select one explicit authority outcome: covered | targeted-check | changed.",
+    ].join("\n"),
+    recommendedActionText:
+      "Recommend `covered` only when existing settled review and verification already cover the bounded residual; "
+      + "recommend `targeted-check` when a completed bounded check can settle it; otherwise recommend `changed`. "
+      + "Record only the operator's explicit selection.",
+  };
 }
 
 /** Compose the exact request context shared by every Candidate applicability result. */
@@ -239,6 +269,7 @@ export function classifyCandidateApplicability(
         verdict,
         paths: bounded.data,
       });
+      const presentation = decisionPresentation({ request, verdict, paths: bounded.data, ...digests });
       return CandidateApplicabilityResultSchema.parse({
         ...candidateApplicabilityResultBase(request),
         state: "decision-required",
@@ -248,6 +279,7 @@ export function classifyCandidateApplicability(
         paths: bounded.data,
         choices: CANDIDATE_APPLICABILITY_CHOICES,
         ...digests,
+        ...presentation,
       });
     }
     if (structural.proof.reason === "merge-tree-write-tree-unsupported") {

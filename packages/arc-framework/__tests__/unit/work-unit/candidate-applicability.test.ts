@@ -108,6 +108,17 @@ describe("Candidate applicability", () => {
       verdict: "clean-divergence",
       paths,
     });
+    const selectionOfferText = [
+      `Candidate applicability is not mechanically decidable for ${input.candidateId}.`,
+      `Prior target: ${oid("a")} (${input.baselineTarget.subject.subjectDigest})`,
+      `Current target: ${oid("c")} (${input.currentTarget.subject.subjectDigest})`,
+      `Current base: ${oid("b")}`,
+      "Structural verdict: clean-divergence",
+      `Bounded residual (2 paths): ${paths.join(", ")}`,
+      `Projection digest: ${digests.projectionDigest}`,
+      `Residual digest: ${digests.residualDigest}`,
+      "Select one explicit authority outcome: covered | targeted-check | changed.",
+    ].join("\n");
 
     expect(classifyCandidateApplicability(input, {
       endpoints: projection,
@@ -128,6 +139,11 @@ describe("Candidate applicability", () => {
       projection,
       paths,
       choices: ["covered", "targeted-check", "changed"],
+      selectionOfferText,
+      recommendedActionText:
+        "Recommend `covered` only when existing settled review and verification already cover the bounded "
+        + "residual; recommend `targeted-check` when a completed bounded check can settle it; otherwise recommend "
+        + "`changed`. Record only the operator's explicit selection.",
       ...digests,
     });
   });
