@@ -216,6 +216,19 @@ export const DeliveryLandEffectV1Schema = z.strictObject({
 });
 export type DeliveryLandEffectV1 = z.infer<typeof DeliveryLandEffectV1Schema>;
 
+/** Exact, explicitly selected repair of the retained terminal change request. */
+export const DeliveryTopRemedyEffectV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  repository: DeliveryOpaqueIdSchema,
+  changeRequestId: DeliveryOpaqueIdSchema,
+  headRef: DeliveryOpaqueIdSchema,
+  headSha: DeliveryGitObjectIdSchema,
+  fromBaseRef: DeliveryOpaqueIdSchema,
+  protectedBaseRef: DeliveryOpaqueIdSchema,
+  action: z.enum(["retarget", "reopen-and-retarget"]),
+});
+export type DeliveryTopRemedyEffectV1 = z.infer<typeof DeliveryTopRemedyEffectV1Schema>;
+
 export const DeliveryHostEffectIdentityV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
   effectId: DeliveryOpaqueIdSchema,
@@ -241,6 +254,10 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
     kind: z.literal("land"),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),
+  }),
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("top-remedy"),
+    effect: DeliveryTopRemedyEffectV1Schema,
   }),
 ]);
 export type DeliveryActiveOperationV1 = z.infer<typeof DeliveryActiveOperationV1Schema>;

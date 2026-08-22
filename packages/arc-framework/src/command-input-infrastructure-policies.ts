@@ -80,6 +80,7 @@ const rawGitCommandPaths = [
   "delivery rematerialize",
   "delivery rewrite",
   "delivery teardown",
+  "delivery top-remedy",
   "demote",
   "finalize",
   "integrate checkpoint",

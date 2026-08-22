@@ -75,6 +75,10 @@ import {
 } from "../lib/delivery/suffix-rematerialization.js";
 import { teardownLandedDeliveryMember } from "../lib/delivery/teardown.js";
 import {
+  applyDeliveryTopRemedy,
+  classifyDeliveryTopRemedyObservation,
+} from "../lib/delivery/top-remedy.js";
+import {
   degradeNativeDeliveryStack,
   linkDeliveryNativeStack,
   observeDeliveryNativeStack,
@@ -214,6 +218,13 @@ const TeardownSchema = z.strictObject({
   protectedTargetRef: RefSchema,
   remote: z.string().min(1).default("origin"),
 });
+const TopRemedySchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  action: z.enum(["retarget", "reopen-and-retarget"]),
+  repository: z.string().min(1),
+  protectedBaseRef: z.string().min(1).refine((value) => !value.startsWith("refs/")),
+  remote: z.string().min(1).default("origin"),
+});
 const NativeMemberSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   changeRequestId: z.string().min(1),
@@ -280,6 +291,7 @@ const RequestSchemas = {
   rematerialize: RematerializeSchema,
   rewrite: RewriteSchema,
   teardown: TeardownSchema,
+  "top-remedy": TopRemedySchema,
   "native-observe": NativeObserveSchema,
   "native-link": NativeLinkSchema,
   "native-unlink": NativeObserveSchema,
@@ -379,6 +391,12 @@ const ResultSchema = z.union([
     nextAction: z.enum(["retarget", "reopen-and-retarget"]),
     top: DeliveryTopRemedyRefusalSchema,
   }),
+  z.strictObject({
+    status: z.literal("remedied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("terminal-checkpoint"),
+    top: DeliveryTopReadySchema,
+  }),
   z.strictObject({ status: z.literal("registered"), stackNumber: z.number().int().positive() }),
   z.strictObject({ status: z.literal("unregistered") }),
   z.strictObject({ status: z.enum(["partial", "incoherent"]), affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema) }),
@@ -451,8 +469,12 @@ function executionPath(command: DeliveryExecutionCommand): string {
   return `delivery ${command}`;
 }
 
-function requireTeardownCommand(command: DeliveryExecutionCommand): asserts command is "teardown" {
-  if (command !== "teardown") throw new Error(`Unhandled delivery execution command: ${command}`);
+function requireTerminalMutationCommand(
+  command: DeliveryExecutionCommand,
+): asserts command is "teardown" | "top-remedy" {
+  if (command !== "teardown" && command !== "top-remedy") {
+    throw new Error(`Unhandled delivery execution command: ${command}`);
+  }
 }
 
 async function readStdin(): Promise<string> {
@@ -1149,6 +1171,26 @@ async function executeDeliveryCommand(
           if (operation === null) {
             return { status: "refused" as const, reason: "observation-unavailable" as const };
           }
+          if (operation.kind === "top-remedy") {
+            if (parsed.repository !== operation.effect.repository) {
+              return { status: "observed" as const, value: { outcome: "ambiguous" as const } };
+            }
+            const request = await new GhDeliveryHostPort(hostedGhRunner).readRequest(
+              operation.effect.repository,
+              {
+                providerId: operation.effect.providerId,
+                changeRequestId: operation.effect.changeRequestId,
+              },
+            );
+            return request.status === "observed"
+              ? {
+                  status: "observed" as const,
+                  value: classifyDeliveryTopRemedyObservation(
+                    operation.effect, request.request, operation.requested,
+                  ),
+                }
+              : { status: "refused" as const, reason: "observation-unavailable" as const };
+          }
           if (operation.kind === "teardown") {
             const before = operation.before.members[0];
             if (before?.ref === null || before === undefined || before.changeRequest === null) {
@@ -1420,7 +1462,29 @@ async function executeDeliveryCommand(
       stateStore,
     });
   }
-  requireTeardownCommand(command);
+  requireTerminalMutationCommand(command);
+  if (command === "top-remedy") {
+    const parsed = TopRemedySchema.parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return { status: "refused", reason: "delivery-unavailable" };
+    }
+    const observed = await observePosition(planRead.value, stateRead.value, parsed.repository, parsed.remote);
+    if (observed.status !== "observed") return { status: "refused", reason: "position-unavailable" };
+    return applyDeliveryTopRemedy({
+      plan: planRead.value,
+      current: stateRead.value,
+      facts: observed.facts,
+      action: parsed.action,
+      repository: parsed.repository,
+      protectedBaseRef: parsed.protectedBaseRef,
+      host: new GhDeliveryHostPort(hostedGhRunner),
+      stateStore,
+    });
+  }
   const parsed = TeardownSchema.parse(request);
     const [planRead, stateRead] = await Promise.all([
       planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId),

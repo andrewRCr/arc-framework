@@ -15,6 +15,7 @@ import type {
   DeliveryStateV1,
 } from "../delivery/schema.js";
 import type { DeliveryPositionObservation } from "./delivery-position.js";
+import { classifyDeliveryTopRemedyObservation } from "../delivery/top-remedy.js";
 
 interface DeliveryPositionFactsDependencies {
   readonly exec: GitExec;
@@ -160,6 +161,15 @@ async function observeOperation(
         },
       };
     } else return null;
+  } else if (operation.kind === "top-remedy") {
+    const request = await dependencies.host.readRequest(operation.effect.repository, {
+      providerId: operation.effect.providerId,
+      changeRequestId: operation.effect.changeRequestId,
+    });
+    if (request.status !== "observed") return null;
+    observation = classifyDeliveryTopRemedyObservation(
+      operation.effect, request.request, operation.requested,
+    );
   } else if (await snapshotIsCurrent(operation.requested, dependencies)) {
     observation = operation.requested;
   } else if (await snapshotIsCurrent(operation.before, dependencies)) {

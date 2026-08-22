@@ -46,6 +46,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "delivery rematerialize", args: ["delivery", "rematerialize", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery rewrite", args: ["delivery", "rewrite", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery teardown", args: ["delivery", "teardown", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery top-remedy", args: ["delivery", "top-remedy", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "demote", args: ["demote", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "errand open", args: ["errand", "open", "matrix", "--inbox-title-file", "-"], stdin: "Matrix title\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "Missing USER-INBOX entry 'Matrix title'" } },
   { commandPath: "finalize", args: ["finalize", "invalid"], expected: { exitCode: 1 } },

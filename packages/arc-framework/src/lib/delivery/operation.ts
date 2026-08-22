@@ -12,6 +12,7 @@ import {
   DeliveryOperationSnapshotV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
+  DeliveryTopRemedyEffectV1Schema,
   type DeliveryActiveOperationV1,
   type DeliveryOperationSnapshotV1,
   type DeliveryPlanV1,
@@ -34,6 +35,8 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
     .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("land"), effect: DeliveryLandEffectV1Schema }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("top-remedy"), effect: DeliveryTopRemedyEffectV1Schema }),
 ]);
 export type DeliveryOperationReservationRequestV1 = z.infer<
   typeof DeliveryOperationReservationRequestV1Schema
@@ -49,6 +52,12 @@ const DeliveryHostAssignedObservationV1Schema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("land"),
     effect: DeliveryLandEffectV1Schema,
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
+  z.strictObject({
+    kind: z.literal("top-remedy"),
+    effect: DeliveryTopRemedyEffectV1Schema,
     outcome: z.literal("applied"),
     snapshot: DeliveryOperationSnapshotV1Schema,
   }),
@@ -305,6 +314,7 @@ export function reserveDeliveryOperation(
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
+        || parsedRequest.data.kind === "top-remedy"
         ? { effect: parsedRequest.data.effect }
         : {}),
       ...(parsedRequest.data.kind === "land" ? { effectIdentity: null } : {}),
@@ -385,7 +395,8 @@ export function acceptDeliveryOperationResult(
 ): AcceptDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   const parsedHost = hostAssigned ? DeliveryHostAssignedObservationV1Schema.safeParse(observed) : null;
   if (hostAssigned && (parsedHost === null || !parsedHost.success
     || parsedHost.data.kind !== active.operation.kind
@@ -418,7 +429,8 @@ export function reconcileDeliveryOperation(
 ): ReconcileDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   if (hostAssigned) {
     const parsedHost = DeliveryHostReconciliationObservationV1Schema.safeParse(observed);
     if (!parsedHost.success) return { status: "blocked", reason: "observed-facts-invalid" };
@@ -447,7 +459,8 @@ function acceptHostReconciliation(
   active: Extract<ValidateDeliveryActiveOperationResult, { readonly status: "valid" }>,
   observed: z.infer<typeof DeliveryHostAssignedObservationV1Schema>,
 ): ReconcileDeliveryOperationResult {
-  if ((active.operation.kind !== "publish" && active.operation.kind !== "land")
+  if ((active.operation.kind !== "publish" && active.operation.kind !== "land"
+      && active.operation.kind !== "top-remedy")
     || observed.kind !== active.operation.kind
     || canonicalize(observed.effect) !== canonicalize(active.operation.effect)
     || !matchesHostAssignedResult(active.operation, observed.snapshot)) {

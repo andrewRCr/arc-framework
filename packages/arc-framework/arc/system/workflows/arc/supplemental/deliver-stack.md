@@ -250,8 +250,16 @@ member, immediately reobserves the top request. Follow only its returned `nextAc
 
 - `continue` returns to the position read for the next member.
 - `terminal-checkpoint` enters the ordinary [`integrate-work-unit.md`][integrate-work-unit] workflow.
-- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Do not sequence or repair
-  the request in workflow prose.
+- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Await explicit user direction
+  for that exact action; do not sequence or repair the request in workflow prose. After that explicit direction,
+  invoke the reserved mutation surface with the current plan ID and returned repository, protected base, and action:
+
+```bash
+arc delivery top-remedy - --json
+```
+
+The command freshly rederives the terminal position and exact remedy before reserving and mutating. Follow only its
+returned `terminal-checkpoint`; a refusal or blocked result stops with any persisted reservation intact.
 
 ## Terminal handoff
 

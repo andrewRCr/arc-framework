@@ -89,6 +89,19 @@ function landEffect() {
   } as const;
 }
 
+function topRemedyEffect() {
+  return {
+    providerId: "github",
+    repository: "andrewRCr/arc-framework",
+    changeRequestId: "402",
+    headRef: "member-2",
+    headSha: "5".repeat(40),
+    fromBaseRef: "member-1",
+    protectedBaseRef: "main",
+    action: "retarget",
+  } as const;
+}
+
 function reservedRecord() {
   const plan = deliveryPlanFixture();
   const state = deliveryStateFixture(plan);
@@ -161,6 +174,7 @@ describe("reserveDeliveryOperation", () => {
     for (const request of [
       { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
       { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
+      { ...operationRequest(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
     ]) {
       const result = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
       expect(result.status).toBe("reserved");
@@ -175,18 +189,23 @@ describe("reserveDeliveryOperation", () => {
     }
   });
 
-  it("requires the matching host effect for publish and land reservations", () => {
+  it("requires the matching host effect for host-bearing reservations", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
     const publish = { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() };
     const land = { ...operationRequest(state), kind: "land" as const, effect: landEffect() };
+    const topRemedy = {
+      ...operationRequest(state), kind: "top-remedy" as const, effect: topRemedyEffect(),
+    };
     const publishWithoutEffect = { ...publish, effect: undefined };
     const landWithoutEffect = { ...land, effect: undefined };
     for (const invalid of [
       publishWithoutEffect,
       landWithoutEffect,
+      { ...topRemedy, effect: undefined },
       { ...publish, effect: landEffect() },
       { ...land, effect: publishEffect() },
+      { ...topRemedy, effect: landEffect() },
     ]) {
       expect(reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, invalid))
         .toEqual({ status: "refused", reason: "operation-invalid" });
@@ -616,12 +635,13 @@ describe("reconcileDeliveryOperation", () => {
     }
   });
 
-  it("adopts only a matching host-assigned result and retains ambiguous publish or land reservations", () => {
+  it("adopts only a matching host-assigned result and retains ambiguous host reservations", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
     for (const request of [
       { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
       { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
+      { ...operationRequest(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
     ]) {
       const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
       expect(reserved.status).toBe("reserved");
@@ -637,5 +657,31 @@ describe("reconcileDeliveryOperation", () => {
       });
       expect(current.value.activeOperation).not.toBeNull();
     }
+  });
+
+  it("accepts only a typed matching top-remedy effect observation", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const before = stateSnapshot(state, [state.members[0]!.deliverableId]);
+    const request = {
+      ...operationRequest(state, { before, requested: before }),
+      kind: "top-remedy" as const,
+      effect: topRemedyEffect(),
+    };
+    const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const current = { revision: STATE_REVISION + 1, value: reserved.state };
+    const applied = {
+      kind: "top-remedy" as const, effect: request.effect, outcome: "applied" as const, snapshot: before,
+    };
+    expect(acceptDeliveryOperationResult(current, applied)).toMatchObject({
+      status: "applied", state: { activeOperation: null },
+    });
+    expect(reconcileDeliveryOperation(current, { outcome: "applied", observation: applied }))
+      .toMatchObject({ status: "adopt", state: { activeOperation: null } });
+    expect(acceptDeliveryOperationResult(current, {
+      ...applied, effect: { ...request.effect, protectedBaseRef: "release" },
+    })).toEqual({ status: "blocked", reason: "requested-mismatch" });
   });
 });

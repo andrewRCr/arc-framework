@@ -234,6 +234,7 @@ describe("repository command-input inventory", () => {
       "delivery rematerialize",
       "delivery rewrite",
       "delivery teardown",
+      "delivery top-remedy",
       "demote",
       "finalize",
       "integrate checkpoint",

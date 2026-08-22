@@ -163,29 +163,6 @@ export function assessDeliveryTerminalTop(input: {
   };
 }
 
-/** Apply one explicitly selected failure remedy, then reassess only a fresh top observation. */
-export async function applyDeliveryTerminalTopRemedy(input: {
-  readonly publicationHead: string;
-  readonly remedy: DeliveryTerminalTopRemedy;
-  apply(remedy: DeliveryTerminalTopRemedy): Promise<{ readonly status: "submitted" | "refused" }>;
-  observe(): Promise<
-    | { readonly status: "observed"; readonly request: DeliveryTerminalTopObservation }
-    | { readonly status: "refused" }
-  >;
-}): Promise<DeliveryTerminalTopResult | { readonly status: "refused"; readonly reason: "remedy-application-refused" }> {
-  if ((await input.apply(input.remedy)).status !== "submitted") {
-    return { status: "refused", reason: "remedy-application-refused" };
-  }
-  const fresh = await input.observe();
-  if (fresh.status !== "observed") return { status: "refused", reason: "remedy-application-refused" };
-  return assessDeliveryTerminalTop({
-    terminal: true,
-    protectedBaseRef: input.remedy.protectedBaseRef,
-    publicationHead: input.publicationHead,
-    request: fresh.request,
-  });
-}
-
 /** Assert the publication binding and member-review conjunction over one composed terminal claim. */
 export function assessDeliveryTerminalChecks(input: {
   readonly claim: Extract<DeliveryTerminalClaimResult, { readonly status: "composed" }>;

@@ -178,6 +178,58 @@ describe("delivery execution handler", () => {
     expect(setExitCode).not.toHaveBeenCalled();
   });
 
+  it("exposes the explicit terminal remedy as a strict typed command", async () => {
+    const state = deliveryStateFixture();
+    const terminal = state.members.at(-1)!;
+    const bound = {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(401 + index) },
+      })),
+    };
+    const execute = vi.fn().mockResolvedValue({
+      status: "remedied",
+      state: { revision: 9, value: bound },
+      nextAction: "terminal-checkpoint",
+      top: {
+        status: "ready",
+        request: {
+          binding: { providerId: "github", changeRequestId: "402" },
+          repository: "owner/repo",
+          headRef: terminal.ref!.replace("refs/heads/", ""),
+          headSha: terminal.coordinates!.head,
+          baseRef: "main",
+          state: "open",
+        },
+      },
+    });
+    const write = vi.fn();
+    await handleDeliveryExecution("top-remedy", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        action: "retarget",
+        repository: "owner/repo",
+        protectedBaseRef: "main",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).toHaveBeenCalledWith("top-remedy", {
+      planId: state.planId,
+      action: "retarget",
+      repository: "owner/repo",
+      protectedBaseRef: "main",
+      remote: "origin",
+    }, undefined);
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery top-remedy",
+      status: "remedied",
+      nextAction: "terminal-checkpoint",
+    });
+  });
+
   it("rejects a closed eligibility snapshot as materialization authority", async () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "materialized" });

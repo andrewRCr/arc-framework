@@ -295,4 +295,73 @@ describe("session-init delivery position facts", () => {
         },
       });
   });
+
+  it("classifies a reserved top remedy as applied, retryable, or ambiguous from exact request facts", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const bindings = initial.members.map((_, index) => ({
+      providerId: "github", changeRequestId: String(401 + index),
+    }));
+    const state = {
+      ...initial,
+      target: { ...initial.target!, ref: "refs/heads/main" },
+      members: initial.members.map((member, index) => ({ ...member, changeRequest: bindings[index]! })),
+    };
+    const top = state.members.at(-1)!;
+    const before = { target: state.target, members: [top] };
+    const effect = {
+      providerId: "github",
+      repository: "owner/repository",
+      changeRequestId: top.changeRequest!.changeRequestId,
+      headRef: top.ref!.replace(/^refs\/heads\//u, ""),
+      headSha: top.coordinates!.head,
+      fromBaseRef: "member-1",
+      protectedBaseRef: "main",
+      action: "retarget" as const,
+    };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "top-remedy-1",
+      kind: "top-remedy",
+      affectedDeliverableIds: [top.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested: before,
+      effect,
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const requestFor = (changeRequestId: string, topBaseRef: string) => ({
+      status: "observed" as const,
+      request: {
+        binding: { providerId: "github", changeRequestId },
+        repository: "owner/repository",
+        headRepository: "owner/repository",
+        headRef: changeRequestId === effect.changeRequestId
+          ? effect.headRef : state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
+        headSha: changeRequestId === effect.changeRequestId
+          ? effect.headSha : state.members[0]!.coordinates!.head,
+        baseRef: changeRequestId === effect.changeRequestId ? topBaseRef : "main",
+        state: changeRequestId === effect.changeRequestId ? "open" as const : "merged" as const,
+        draft: true,
+      },
+    });
+    for (const [baseRef, outcome] of [["main", "applied"], ["member-1", "not-applied"]] as const) {
+      const dependencies = exactDependencies(state);
+      dependencies.host.readRequest.mockImplementation(async (_repository, binding) => (
+        requestFor(binding.changeRequestId, baseRef)
+      ));
+      await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, dependencies))
+        .resolves.toMatchObject({
+          status: "observed",
+          operationObservation: { outcome },
+          projectedState: { activeOperation: null },
+        });
+    }
+    const ambiguous = exactDependencies(state);
+    ambiguous.host.readRequest.mockImplementation(async (_repository, binding) => (
+      requestFor(binding.changeRequestId, binding.changeRequestId === effect.changeRequestId ? "release" : "main")
+    ));
+    await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, ambiguous))
+      .resolves.toEqual({ status: "refused" });
+  });
 });

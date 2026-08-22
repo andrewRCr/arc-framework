@@ -4,7 +4,6 @@ import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/co
 import {
   assessDeliveryTerminalChecks,
   assessDeliveryTerminalTop,
-  applyDeliveryTerminalTopRemedy,
   classifyDeliveryTerminalDrift,
   composeDeliveryTerminalClaim,
 } from "../../../src/lib/delivery/terminal-integration.js";
@@ -360,43 +359,6 @@ describe("delivery terminal integration", () => {
       reason: "top-target-mismatch",
       remedy: { nextAction: "reopen-and-retarget" },
     });
-  });
-
-  it("applies a selected remedy and reobserves before terminal readiness", async () => {
-    const request = {
-      binding: { providerId: "github", changeRequestId: "403" },
-      repository: "owner/repo",
-      headRef: "feature",
-      headSha: CANDIDATE_HEAD,
-      baseRef: "member-2",
-      state: "open" as const,
-    };
-    const decision = assessDeliveryTerminalTop({
-      terminal: true,
-      protectedBaseRef: "main",
-      publicationHead: CANDIDATE_HEAD,
-      request,
-    });
-    if (decision.status !== "refused" || decision.reason !== "top-target-mismatch") {
-      throw new Error("fixture must require a remedy");
-    }
-    const events: string[] = [];
-    const apply = async () => {
-      events.push("apply");
-      return { status: "submitted" as const };
-    };
-    const observe = async () => {
-      events.push("observe");
-      return { status: "observed" as const, request: { ...request, baseRef: "main" } };
-    };
-
-    await expect(applyDeliveryTerminalTopRemedy({
-      publicationHead: CANDIDATE_HEAD,
-      remedy: decision.remedy,
-      apply,
-      observe,
-    })).resolves.toMatchObject({ status: "ready", request: { baseRef: "main" } });
-    expect(events).toEqual(["apply", "observe"]);
   });
 
   it("re-fires only terminal-member verification when drift overlaps residual paths", () => {

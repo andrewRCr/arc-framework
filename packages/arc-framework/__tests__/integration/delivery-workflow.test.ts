@@ -36,6 +36,7 @@ describe("packaged delivery workflow", () => {
     expect(packaged).not.toContain("arc delivery rewrite");
     expect(packaged).not.toContain("arc delivery terminal prepare");
     expect(packaged).toContain("arc delivery teardown");
+    expect(packaged).toContain("arc delivery top-remedy");
     expect(packaged).toContain("arc delivery native link");
     expect(packaged).toContain("arc delivery native observe");
     expect(packaged).toContain("arc delivery native unlink");
@@ -85,6 +86,7 @@ describe("packaged delivery workflow", () => {
     );
     expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
     expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
+    expect(terminalTail).toMatch(/explicit[\s\S]*arc delivery top-remedy[\s\S]*terminal-checkpoint/iu);
     expect(terminalSection).not.toContain("`integration-interlock`");
     expect(packaged).not.toMatch(/if\s+.*(?:state|status)\s*==/iu);
     const nativeObserve = packaged.indexOf("arc delivery native observe");

@@ -840,6 +840,11 @@ delivery.command("teardown").description("Retire one proven-landed member ref an
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("teardown", { ...opts, input }, context)
   )));
+delivery.command("top-remedy").description("Apply one explicitly selected terminal request remedy")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("top-remedy", { ...opts, input }, context)
+  )));
 
 delivery
   .command("compose")

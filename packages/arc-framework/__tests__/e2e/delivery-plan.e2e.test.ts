@@ -68,7 +68,7 @@ describe("arc delivery", () => {
     for (const command of [
       ["eligibility", "prepare"], ["eligibility", "close"], ["publish"],
       ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"],
-      ["teardown"],
+      ["teardown"], ["top-remedy"],
     ]) {
       const help = await runArc(["delivery", ...command, "--help"], repository);
       expect(help.exitCode, help.stderr).toBe(0);
