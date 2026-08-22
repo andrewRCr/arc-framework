@@ -23,8 +23,12 @@ import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github
 import { aggregateChecks } from "../review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
 import { GitObjectIdSchema } from "../review-gate/core/gate-contract-v2-schema.js";
+import { resolveAcceptableDeliveryBaseRefs } from
+  "../review-gate/core/delivery-member-lookup.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
+import { RepositoryDeliveryMemberLookup } from
+  "../review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
 import {
   MergeMethodSchema,
@@ -90,8 +94,14 @@ async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string
 async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
   const target = await currentHead(exec, cwd);
   const baseRef = (await readConfigSettings(cwd)).settings["branch.base"];
+  const memberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd });
   const result = await resolveChangeRequest(
-    { headRef: target.branch, headSha: target.head, baseRef },
+    {
+      headRef: target.branch,
+      headSha: target.head,
+      baseRef,
+      acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(memberLookup, target.head),
+    },
     createGhChangeRequestResolutionPort(exec, cwd),
   );
   if (result.state !== "open") {

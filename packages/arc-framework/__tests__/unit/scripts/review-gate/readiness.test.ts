@@ -139,6 +139,7 @@ function resolvedMember(
       deliverableId: DELIVERABLE_ID,
       workUnitId: "demo",
       base: "d".repeat(40),
+      baseRef: "main",
       head: SHA,
       isFinalMember: false,
       ...overrides,

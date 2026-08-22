@@ -312,107 +312,45 @@ like any other. The entire change is which subject a review addresses, internall
 shared primitive rather than bypassed for delivery: bypassing would leave review status broken on the top branch
 throughout the landing window and leave every other consumer refusing, which is a special case to maintain forever.
 
-### `[ ]` **3.1 Resolve a member branch to its work unit at the review-gate seam**
+### `[x]` **3.1 Resolve a member branch to its work unit at the review-gate seam**
 
 - _Goal:_ A delivery member head resolves to its owning work unit where review reads its subject, so review status
   and the hosted request path can address a member instead of refusing.
 
-- _Rationale:_ Ownership resolves through the delivery reverse lookup, never a branch-name prefix test — written
-  as a prefix test it rots at convergence, where work-unit identity decouples from branch identity. The fallback
-  is added where review resolves its subject rather than by widening the shared branch-to-slug helper, whose
-  delivery guard is load-bearing for its other consumers: teardown's reap filter and the orphan sweep both key off
-  a non-null slug, so widening it there would draw member branches into destructive cleanup. A narrow fallback in
-  the read, never a new roster authority. It is a review-subject resolution only: the originating checkout remains
-  the sole work-unit session and compaction-recovery locus, while member and gate checkouts are operation inputs
-  that carry no lifecycle context or load-set authority.
+- _Outcome:_ `resolveReviewSubject` composes ordinary branch resolution with the exact-head delivery lookup and
+  preserves distinct resolved, unbound, and unavailable outcomes. Review status and hosted request composition
+  consume the narrow seam; the shared branch helper and all session, roster, cleanup, and recovery machinery are
+  unchanged.
 
-- _Shape:_ The reverse lookup is head-keyed — both selector arms require an observed head, which is the exactness
-  guard — so the seam resolves a head before consulting it, and reuses the existing delivery binding lookup's
-  bound / authoritatively-unbound / unavailable outcomes rather than restating them.
-
-    - Build `test-first` (one behavior at a time):
-        - A bound member head resolves to its owning work unit
-        - An unbound head in the delivery namespace resolves to nothing rather than throwing
-        - An unavailable delivery read is distinguishable from an authoritatively unbound head
-        - An ordinary work-unit branch resolves exactly as before
-        - The review-gate consumers take ownership from the lookup rather than from the branch name
-        - The shared branch-to-slug helper is unchanged, and its roster and cleanup consumers gain no new
-          resolutions
-        - A member or gate checkout cannot become a WU session locus, provide a recovery seed, or borrow the
-          originating checkout's load set
-        - Compaction recovery from the originating checkout resolves exactly as before
-
-### `[ ]` **3.2 Convert the hosted request vehicle to a discriminated union with a delivery-member arm**
+### `[x]` **3.2 Convert the hosted request vehicle to a discriminated union with a delivery-member arm**
 
 - _Goal:_ A hosted review request can name a delivery member — plan, deliverable, and exact head — alongside the
   errand binding it carries today.
 
-- _Context:_ The vehicle is a single kind-tagged errand schema on an optional field, not yet a union, with
-  errand-specific binding validation inline in the request path. Two sibling vehicle unions already carry a
-  delivery-member arm and the head-keyed member admission machinery shipped with the first delivery topology, so
-  this aligns the request vehicle with those rather than minting a fourth notion.
+- _Outcome:_ The hosted request envelope now carries an optional discriminated errand/delivery-member vehicle;
+  the member arm binds plan, deliverable, and exact head through its own state validation. Errand behavior remains
+  unchanged, vehicle-less requests remain valid, and resumable handles still persist only the separate errand
+  progress binding rather than copying member state.
 
-- _Shape:_ The arm names plan, deliverable, and exact head, and stays projection-neutral so storage evolution
-  does not touch it.
-
-- _Note:_ Only the request envelope's vehicle becomes a union. The request handle carries a second, separate
-  errand-kinded binding, and it stays errand-only: member targets derive fresh from bound state at each read
-  rather than being stored, so a member request has no progress binding to record.
-
-    - Build `test-first` (one behavior at a time):
-        - The errand arm parses and validates exactly as before the union
-        - A delivery-member arm parses with plan, deliverable, and exact head
-        - Binding validation is extracted per arm rather than remaining inline in the request path
-        - A delivery arm resolves its own binding rather than falling through the errand binding's parse
-        - A request naming neither arm is still valid
-        - A malformed arm refuses at parse rather than at the request call
-
-### `[ ]` **3.3 Admit a member-branch base in change-request resolution**
+### `[x]` **3.3 Admit a member-branch base in change-request resolution**
 
 - _Goal:_ Resolving the top's change request succeeds while its base is a member branch, so the terminal spine
   and review status keep working through the whole landing window.
 
-- _Context:_ Resolution filters candidates by base equality and blocks with a base-mismatch reading when every
-  visible candidate targets a different base, and callers throw before their own base checks execute. Once the
-  terminal member binds at publish, a member-branch base is the top's normal state for the entire window, so the
-  terminal spine cannot resolve the top's request at all today.
+- _Outcome:_ Change-request classification accepts a caller-supplied set alongside the configured base while
+  preserving every existing disposition and unrelated-base refusal. The exact-head member lookup derives the
+  predecessor branch, and all callers in review handling, status, pre-publication, checkpoint, and merge
+  composition supply it without making the shared classifier store-backed.
 
-- _Shape:_ The classifier stays pure. Its caller holds the delivery state, so the caller supplies the
-  additionally-acceptable member bases alongside the configured base rather than the classifier consulting
-  delivery state itself — which would make a shared primitive store-backed for one consumer.
-
-- _Note:_ Wire every caller of `resolveChangeRequest`: `handlers/review.ts`,
-  `review-gate/policy/pre-publication-composition.ts`, `review-gate/status-composition.ts`,
-  `integration/checkpoint-composition.ts`, and `integration/merge-composition.ts`. Each derives the acceptable-base
-  set from its own resolved subject and context; no terminal-only bypass stands in for the shared contract.
-
-- _Note:_ This admits a member-branch base; it does not relax the terminal boundary's own expectation that the
-  base is the protected branch at the merge instant. That expectation is asserted by the delivery arm.
-
-    - Build `test-first` (one behavior at a time):
-        - A candidate based on a member branch resolves rather than blocking with a base mismatch
-        - A candidate based on an unrelated branch still blocks with a base mismatch
-        - The open, merged-at-head, merged-stale-head, and closed-unmerged readings are unchanged
-        - An ambiguous multi-candidate result is unchanged
-        - Review status on the top branch succeeds while the base is a member branch
-        - Every shared-resolution caller supplies the delivery-member base when its resolved subject permits it
-
-### `[ ]` **3.4 Derive discharge targets from the bound members at read time**
+### `[x]` **3.4 Derive discharge targets from the bound members at read time**
 
 - _Goal:_ Discharge consults the delivery's member targets rather than only the current branch's single open
   request, so a work-unit obligation can be read against the whole member set.
 
-- _Shape:_ Targets derive fresh from every retained bound member at each discharge read, including members whose
-  physical refs were already reaped — never copied into a target list and never walked by a mutating pointer, so
-  facts re-derive per operation as the rest of delivery state does.
-
-    - Build `test-first` (one behavior at a time):
-        - A non-delivery work unit resolves the single current-branch target exactly as before
-        - A delivery work unit derives one target per bound member from current state
-        - A member bound after the previous read appears in the next read without a stored list being updated
-        - A physically reaped member remains a discharge target through its retained binding
-        - An unavailable delivery read degrades to a contained result rather than throwing into the caller
-        - No discharge read writes state
+- _Outcome:_ The repository delivery reader enumerates current plan/state on every call and projects one discharge
+  target per member with retained request and coordinates, including a member whose physical ref is gone. The
+  hosted target resolver preserves singleton behavior for an authoritatively unbound work unit, returns a contained
+  unavailable result on read failure, and persists no target list or cursor.
 
 ### `[ ]` **3.5 Close delivery member 3** — validate criteria at member scope
 

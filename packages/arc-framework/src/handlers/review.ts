@@ -121,6 +121,8 @@ import {
 } from "../scripts/review-gate/merge-lock.js";
 import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { resolveAcceptableDeliveryBaseRefs } from
+  "../scripts/review-gate/core/delivery-member-lookup.js";
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
@@ -132,7 +134,7 @@ import {
   HostedErrandProgressBindingSchema,
   type HostedReviewAdapter,
   type HostedErrandProgressBinding,
-  type HostedErrandRequestVehicle,
+  type HostedRequestVehicle,
   type HostedProviderId,
   type HostedTarget,
 } from "../scripts/review-gate/hosted/request.js";
@@ -211,7 +213,10 @@ import {
   type ChangeRequestResolveResult,
 } from "../scripts/review-gate/change-request.js";
 import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
-import { deriveLocalReviewTarget } from "../scripts/review-gate/hosts/local/repository-target.js";
+import {
+  composeDeliveryMemberTarget,
+  deriveLocalReviewTarget,
+} from "../scripts/review-gate/hosts/local/repository-target.js";
 import {
   MergeMethodSchema,
   MergeMethodResolveResultSchema,
@@ -395,7 +400,13 @@ export async function handleReviewChangeRequestResolve(
 ): Promise<void> {
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: ReviewChangeRequestResolveHandlerDependencies = {
-    resolve: (input, cwd) => resolveChangeRequest(input, createGhChangeRequestResolutionPort(exec, cwd)),
+    resolve: async (input, cwd) => resolveChangeRequest({
+      ...input,
+      acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(
+        new RepositoryDeliveryMemberLookup({ exec, cwd }),
+        input.headSha,
+      ),
+    }, createGhChangeRequestResolutionPort(exec, cwd)),
     resolveRoot: (cwd) => resolveArcRoot(cwd),
     readBaseRef: async (cwd) => {
       const config = await readConfigSettings(cwd);
@@ -1272,7 +1283,7 @@ function createHostedAdapters(): {
   return { adapters, observers: adapters, port };
 }
 
-type HostedProgressVehicle = HostedErrandRequestVehicle | HostedErrandProgressBinding;
+type HostedProgressVehicle = HostedRequestVehicle | HostedErrandProgressBinding;
 
 async function resolveHostedProgressContext(input: {
   root: string;
@@ -1284,12 +1295,39 @@ async function resolveHostedProgressContext(input: {
   const settings = (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
-  const reviewTarget = await deriveLocalReviewTarget({
-    exec: gitExec,
-    cwd: input.root,
-    baseRef,
-    repositoryId,
-  });
+  const memberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: input.root });
+  const memberResolution = await memberLookup.resolveMemberByHead(
+    input.vehicle?.kind === "delivery-member" ? input.vehicle.head : input.target.headSha,
+  );
+  if (input.vehicle?.kind === "delivery-member") {
+    if (memberResolution.status === "unavailable") {
+      throw new Error("Hosted delivery-member binding is unavailable.");
+    }
+    if (memberResolution.status === "unbound"
+      || memberResolution.member.planId !== input.vehicle.planId
+      || memberResolution.member.deliverableId !== input.vehicle.deliverableId
+      || memberResolution.member.head !== input.vehicle.head) {
+      throw new Error("Hosted delivery-member binding does not match the requested member.");
+    }
+  }
+  const member = memberResolution.status === "resolved"
+    && (input.vehicle?.kind === "delivery-member" || !memberResolution.member.isFinalMember)
+    ? memberResolution.member
+    : null;
+  const reviewTarget = member === null
+    ? await deriveLocalReviewTarget({
+        exec: gitExec,
+        cwd: input.root,
+        baseRef,
+        repositoryId,
+      })
+    : await composeDeliveryMemberTarget({
+        exec: gitExec,
+        cwd: input.root,
+        baseRef,
+        repositoryId,
+        member,
+      });
   if (reviewTarget.headSha !== input.target.headSha) {
     throw new Error("Hosted review target does not match the current local review target.");
   }
@@ -1297,14 +1335,15 @@ async function resolveHostedProgressContext(input: {
     cwd: input.root,
   })).stdout.trim();
   if (branch === "" || branch === "HEAD") throw new Error("Hosted review requires an attached branch.");
+  const acceptableBaseRefs = member?.baseRef === null || member === null ? [] : [member.baseRef];
   const changeRequest = await resolveChangeRequest(
-    { headRef: branch, headSha: reviewTarget.headSha, baseRef, requireRemote: true },
+    { headRef: branch, headSha: reviewTarget.headSha, baseRef, acceptableBaseRefs, requireRemote: true },
     createGhChangeRequestResolutionPort(gitExec, input.root),
   );
   if (changeRequest.state !== "open"
     || changeRequest.targetRef.repository.toLowerCase() !== input.target.repository.toLowerCase()
     || changeRequest.candidate.number !== input.target.pullRequest
-    || changeRequest.candidate.baseRefName !== baseRef) {
+    || !new Set([baseRef, ...acceptableBaseRefs]).has(changeRequest.candidate.baseRefName)) {
     throw new Error("Hosted review target does not identify the current open change request.");
   }
   const store = new LocalReviewOperationStateStore(input.publisher);
@@ -1321,7 +1360,7 @@ async function resolveHostedProgressContext(input: {
         && attempt.hosted.target.headSha === input.target.headSha
       ))
     : [];
-  if (input.vehicle !== undefined) {
+  if (input.vehicle?.kind === "errand") {
     const identity = await resolveUserIdentity(gitExec);
     const frame = await runDerivedLocusStateProbe({
       cwd: input.root,
@@ -1368,11 +1407,13 @@ async function resolveHostedProgressContext(input: {
     return { store, repositoryId, reviewTarget, requirement, errandBinding };
   }
 
-  const active = await resolveActiveWu({ cwd: input.root });
-  if (active.status !== "resolved" || active.name === "") {
-    throw new Error("Hosted review progress requires one active work unit or an explicit Errand vehicle.");
+  const active = member === null ? await resolveActiveWu({ cwd: input.root }) : null;
+  const workUnitId = member?.workUnitId
+    ?? (active?.status === "resolved" && active.name !== "" ? active.name : null);
+  if (workUnitId === null) {
+    throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
   }
-  const boundary = (await readSubmissionBoundaryVersioned(input.root, active.name)).boundary;
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId)).boundary;
   if (boundary?.reservation === null || boundary?.reservation === undefined) {
     throw new Error("Hosted review progress requires the carried standard-review reservation.");
   }
@@ -1380,7 +1421,7 @@ async function resolveHostedProgressContext(input: {
   const candidate = await createPrePublicationCompositionDependencies({
     cwd: input.root,
     exec: gitExec,
-  }).readCandidate(active.name);
+  }).readCandidate(workUnitId);
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
   }
@@ -1821,6 +1862,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
       });
       const result = await requestHostedReview(request, {
         adapters,
+        deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root }),
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
       });
       if (result.nextAction === "try-next-source") {

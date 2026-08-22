@@ -23,6 +23,15 @@ const ERRAND_BINDING = {
   sources: ["coderabbit-pr", "codex-pr"],
   standardReview: STANDARD_REVIEW,
 };
+const DELIVERY_MEMBER = {
+  planId: "plan-1",
+  deliverableId: "member-1",
+  workUnitId: "example",
+  base: "b".repeat(40),
+  baseRef: "main",
+  head: HEAD,
+  isFinalMember: false,
+};
 
 function adapter(
   request: HostedReviewAdapter["request"],
@@ -112,6 +121,59 @@ describe("hosted review request", () => {
       state: "requested",
       handle: { vehicle: ERRAND_BINDING },
     });
+  });
+
+  it("parses and validates a delivery-member request without storing member progress in the handle", async () => {
+    const input = {
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr" as const,
+      coverage: "complete" as const,
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        head: DELIVERY_MEMBER.head,
+      },
+    };
+    const result = await requestHostedReview(input, {
+      adapters: [adapter(async () => ({
+        kind: "created",
+        effectiveCoverage: "complete",
+        artifact: {
+          kind: "issue-comment",
+          id: "IC_kwDO123",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+          createdAt: "2026-07-23T12:00:00.000Z",
+        },
+      }))],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+    });
+
+    expect(result).toMatchObject({ state: "requested", handle: { target: input.target } });
+    expect(result.state === "requested" ? result.handle : null).not.toHaveProperty("vehicle");
+  });
+
+  it("rejects a delivery-member request whose exact binding does not match", async () => {
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: "plan-other",
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        head: HEAD,
+      },
+    }, {
+      adapters: [],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+    })).rejects.toThrow("does not match");
   });
 
   it("rejects malformed and unsupported-version requests", () => {

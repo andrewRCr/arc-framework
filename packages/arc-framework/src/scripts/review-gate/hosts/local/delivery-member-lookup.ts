@@ -1,24 +1,38 @@
 /** Repository-common delivery-state adapter for the review lane's member lookup. */
 
-import { RepositoryDeliveryStateStore } from "../../../../lib/delivery/local-stores.js";
+import {
+  RepositoryDeliveryPlanStore,
+  RepositoryDeliveryStateStore,
+} from "../../../../lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../../../lib/delivery/plan.js";
+import type { DeliveryPlanV1 } from "../../../../lib/delivery/schema.js";
+import { validateDeliveryStateAgainstPlan } from "../../../../lib/delivery/state.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type {
+  DeliveryDischargeTargetLookup,
+  DeliveryDischargeTargetLookupResult,
   DeliveryMemberLookup,
   DeliveryMemberLookupResult,
 } from "../../core/delivery-member-lookup.js";
 
+function branchName(ref: string | null): string | null {
+  if (ref === null) return null;
+  return ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : ref;
+}
+
 /** Delivery-member lookup backed by one repository's Git-common delivery state. */
-export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup {
+export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, DeliveryDischargeTargetLookup {
+  private readonly plans: RepositoryDeliveryPlanStore<DeliveryPlanV1>;
   private readonly store: RepositoryDeliveryStateStore;
 
   /**
    * @param input - Git executor and the resolved repository root to bind against.
    */
   constructor(input: { readonly exec: GitExec; readonly cwd: string }) {
-    this.store = new RepositoryDeliveryStateStore(
-      new RepositoryGitCommonStatePublisher(input.exec, input.cwd),
-    );
+    const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+    this.plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+    this.store = new RepositoryDeliveryStateStore(publisher);
   }
 
   /**
@@ -45,9 +59,12 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup {
     const { deliverableId, planId, state, workUnitId } = resolution.value;
     // The store selects only on recorded coordinates, so a match always carries
     // them; the fallback keeps the port total rather than guarding a real case.
-    const coordinates = state.members
-      .find((candidate) => candidate.deliverableId === deliverableId)?.coordinates ?? null;
-    if (coordinates === null) return { status: "unavailable" };
+    const memberIndex = state.members.findIndex((candidate) => candidate.deliverableId === deliverableId);
+    const coordinates = state.members[memberIndex]?.coordinates ?? null;
+    if (memberIndex < 0 || coordinates === null) return { status: "unavailable" };
+    const baseRef = branchName(memberIndex === 0
+      ? state.target?.ref ?? null
+      : state.members[memberIndex - 1]?.ref ?? null);
     return {
       status: "resolved",
       member: {
@@ -55,9 +72,45 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup {
         deliverableId,
         workUnitId,
         base: coordinates.base,
+        baseRef,
         head: coordinates.head,
         isFinalMember: state.members[state.members.length - 1]?.deliverableId === deliverableId,
       },
     };
+  }
+
+  /** Read every currently bound member target for one work unit without writing delivery state. */
+  async resolveDischargeTargets(workUnitId: string): Promise<DeliveryDischargeTargetLookupResult> {
+    try {
+      const plans = await this.plans.enumerateCurrentReadOnly();
+      if (plans.status === "refused") return { status: "unavailable" };
+      const matching = plans.value.filter((plan) => plan.workUnitId === workUnitId);
+      if (matching.length === 0) return { status: "unbound" };
+      const plan = matching.length === 1 ? matching[0] : undefined;
+      if (plan === undefined) return { status: "unavailable" };
+      const record = await this.store.read(plan.planId);
+      if (record.status === "refused") return { status: "unavailable" };
+      if (record.value === null) return { status: "unbound" };
+      const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
+      if (coherence.status === "refused") return { status: "unavailable" };
+      return {
+        status: "resolved",
+        targets: coherence.state.members.flatMap((member) => {
+          if (member.changeRequest === null || member.coordinates === null) return [];
+          return [{
+            planId: coherence.state.planId,
+            deliverableId: member.deliverableId,
+            workUnitId: coherence.state.workUnitId,
+            ref: member.ref,
+            providerId: member.changeRequest.providerId,
+            changeRequestId: member.changeRequest.changeRequestId,
+            base: member.coordinates.base,
+            head: member.coordinates.head,
+          }];
+        }),
+      };
+    } catch {
+      return { status: "unavailable" };
+    }
   }
 }
