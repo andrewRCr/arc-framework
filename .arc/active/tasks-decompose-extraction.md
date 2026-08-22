@@ -162,7 +162,7 @@ shipped doctrine.
 
 _Purpose:_ Prove the cross-leg contract end to end on one real topology.
 
-### `[ ]` **4.1 Prove the complete extraction boundary**
+### `[x]` **4.1 Prove the complete extraction boundary**
 
 - _Goal:_ One real topology covers the cross-leg contract; focused tests own the mismatch matrix.
 
@@ -171,12 +171,13 @@ _Purpose:_ Prove the cross-leg contract end to end on one real topology.
           preview immutability, exact finish, and repeat finish. Focused real-Git and unit coverage owns the wrong
           branch, dirty source, base race, destination mismatch, partial-resume, and multi-file restoration matrix.
 
-    - `[ ]` **4.1.b Assert absence of terminal-transition state and mode fail-closure**
-        - Verify no transition record, receipt residue, teardown authority, persistent coordinator, or automatic
-          launch publication exists.
-        - Verify `--execute` and `--advance-base` refuse an extraction-shaped map with their typed reasons, and a
-          retirement-shaped map carrying a retained-by-origin disposition or an `Active`-origin envelope is
-          rejected at decode.
+    - `[x]` **4.1.b Assert absence of terminal-transition state and mode fail-closure**
+        - The real topology leaves no transition, receipt, continuation, cohort-coordinator, or transient-claim
+          residue; publishes an ordinary unlaunched Planning meta; and cannot authorize teardown. Focused schema
+          tests reject both retirement-shape mismatches, while both incompatible command modes refuse immutably.
+
+- _Outcome:_ The composed built-CLI, real-Git, and focused-unit proof covers the additive-land-then-finish contract
+  and its mismatch matrix without introducing terminal state, coordinator state, publication, or teardown authority.
 
 ## **Phase 5:** Verification
 

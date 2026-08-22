@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import {
   resolveV3DecomposeContentLocator,
@@ -511,16 +511,34 @@ describe("arc decompose command modes", () => {
     ]));
     const memberMetaPath = ".arc/backlog/planned/member/meta-member.md";
     const originMetaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const candidatePaths = (await git(result.operation.occupation.path, ["ls-files"])).split("\n");
+    expect(candidatePaths).not.toEqual(expect.arrayContaining([
+      expect.stringMatching(/(?:^|\/)(?:transitions?|receipts?|continuations?)(?:\/|$)/u),
+      expect.stringMatching(/(?:^|\/)cohort-[^/]+\.md$/u),
+    ]));
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(extracted.stdout).not.toMatch(/receipt|continuation|teardown|launch|publication/iu);
     const basePathsBeforeLanding = (await git(repo, ["ls-tree", "-r", "--name-only", "main"]))
       .split("\n");
     expect(basePathsBeforeLanding).not.toEqual(expect.arrayContaining([
       memberMetaPath,
       originMetaPath,
     ]));
-    expect(await readFile(
+    const memberMeta = await readFile(
       join(result.operation.occupation.path, memberMetaPath),
       "utf8",
-    )).toContain("# Metadata: member");
+    );
+    expect(parseMetaRecord(memberMeta)).toMatchObject({
+      state: "Planning",
+      branch: null,
+      cohort: null,
+      promotionReceipt: null,
+      candidateId: null,
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+      prUrl: null,
+      completed: null,
+    });
     expect(await readFile(
       join(result.operation.occupation.path, originMetaPath),
       "utf8",
@@ -550,6 +568,7 @@ describe("arc decompose command modes", () => {
     await git(repo, ["merge", "--ff-only", candidateHead]);
     const landedPaths = (await git(repo, ["ls-tree", "-r", "--name-only", "main"])).split("\n");
     expect(landedPaths).toEqual(expect.arrayContaining([memberMetaPath, originMetaPath]));
+    await git(repo, ["push", "origin", "main"]);
     await git(repo, ["switch", "plan/origin"]);
     const sourceBytes = new Uint8Array(await readFile(join(repo, retainedSource.sourcePath)));
     const scan = scanV3DecomposeContent("draft-origin.md", sourceBytes);
@@ -560,6 +579,12 @@ describe("arc decompose command modes", () => {
       "draft-origin.md",
     );
     if (retained.status !== "resolved") throw new Error(retained.reason);
+
+    const beforeTeardownRefusal = await repositorySnapshot(repo);
+    const teardown = await runArcNoTty(["teardown", "origin"], repo, { timeout: 60_000 });
+    expect(teardown.exitCode).not.toBe(0);
+    expect(teardown.stdout + teardown.stderr).toMatch(/retirement evidence is missing/iu);
+    expect(await repositorySnapshot(repo)).toEqual(beforeTeardownRefusal);
 
     const beforePreview = await repositorySnapshot(repo);
     const preview = await runArcNoTty(
