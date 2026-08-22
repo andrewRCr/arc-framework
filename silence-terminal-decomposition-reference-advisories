@@ -3,7 +3,7 @@
   "slug": "silence-terminal-decomposition-reference-advisories",
   "claimId": "3ea8d8c0f5bb40e1b161b71a07b82d79",
   "createdAt": "2026-08-22T04:05:15.286Z",
-  "updatedAt": "2026-08-22T04:05:15.286Z",
+  "updatedAt": "2026-08-22T12:14:53.484Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "silence-terminal-decomposition-reference-advisories",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Silence dangling-reference advisories for uniquely resolved terminal decompositions",
   "originEntrySourceDigest": "sha256:61a136f613ba55939ed00de278479d85564833b711f78aebfb706f1f92455fa4",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/silence-terminal-decomposition-reference-advisories",
+    "headSha": "fd34f0c5be58dc3d8d03e71d7b2d5ddf4cc0bfb6"
+  }
 }
