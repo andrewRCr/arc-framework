@@ -231,6 +231,7 @@ export async function reserveNativeDeliveryLanding(input: {
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: input.operationId,
     kind: "land",
+    mode: "native",
     affectedDeliverableIds: ids,
     expectedStateRevision: input.current.revision,
     before: snapshot,
@@ -270,7 +271,8 @@ export async function submitReservedNativeDeliveryMerge(input: {
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<SubmitReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
-  if (operation === null || operation.kind !== "land" || operation.operationId !== input.operationId
+  if (operation === null || operation.kind !== "land" || operation.mode !== "native"
+    || operation.operationId !== input.operationId
     || operation.effect.repository !== input.request.repository
     || operation.effect.changeRequestId !== input.request.topChangeRequestId
     || operation.effect.headSha !== input.request.topHeadSha || operation.effect.strategy !== "merge") {
@@ -352,7 +354,8 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<ReconcileReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
-  if (operation === null || operation.kind !== "land" || operation.effectIdentity === null) {
+  if (operation === null || operation.kind !== "land" || operation.mode !== "native"
+    || operation.effectIdentity === null) {
     return { status: "blocked", reason: "effect-identity-missing", recommendedActionText: "Resolve submission-before-persist from fresh host facts; do not submit again." };
   }
   if (operation.effect.repository !== input.request.repository
@@ -412,7 +415,8 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<ReconcileLinkedNativeDeliverySuffixResult> {
   const operation = input.before.value.activeOperation;
-  const landedId = operation?.kind === "land" && operation.affectedDeliverableIds.length === 1
+  const landedId = operation?.kind === "land" && operation.mode === "native"
+    && operation.affectedDeliverableIds.length === 1
     ? operation.affectedDeliverableIds[0]
     : undefined;
   const landedIndex = landedId === undefined
@@ -423,7 +427,9 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   }
   const next = input.landed.value.members[landedIndex + 1];
   const oldNext = input.before.value.members[landedIndex + 1];
-  const oldPredecessor = operation?.kind === "land" ? operation.before.members[0]?.coordinates : null;
+  const oldPredecessor = operation?.kind === "land" && operation.mode === "native"
+    ? operation.before.members[0]?.coordinates
+    : null;
   const target = input.landed.value.target;
   if (next?.ref === null || next?.ref === undefined || next.changeRequest === null || oldNext?.coordinates === null
     || oldNext?.coordinates === undefined || oldPredecessor === null || oldPredecessor === undefined

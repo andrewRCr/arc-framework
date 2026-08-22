@@ -241,7 +241,7 @@ describe("native delivery landing", () => {
       baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", affectedDeliverableIds: ids,
+      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -275,6 +275,43 @@ describe("native delivery landing", () => {
     expect(record.value.activeOperation).toBeNull();
   });
 
+  it("does not submit a sequential reservation through native landing", async () => {
+    const state = deliveryStateFixture(plan);
+    const member = state.members[0]!;
+    const snapshot = { target: state.target, members: [member] };
+    const effect = {
+      providerId: "github", repository: "o/r", changeRequestId: "41", headSha: member.coordinates!.head,
+      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+    } as const;
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "operation-1", kind: "land", mode: "sequential",
+      affectedDeliverableIds: [member.deliverableId], expectedStateRevision: 1,
+      before: snapshot, requested: snapshot, effect,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const host = {
+      submitNativeMerge: vi.fn().mockResolvedValue({ status: "submitted", effectIdentity: "uuid-1" }),
+      observeNativeMerge: vi.fn(),
+    };
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: { revision: 2, value: reserved.state },
+      operationId: "operation-1",
+      request: {
+        repository: "o/r", topChangeRequestId: "41", topHeadSha: member.coordinates!.head,
+        mergeAction: "direct_merge", mergeMethod: "merge",
+      },
+    }, {
+      host,
+      stateStore: { publish: vi.fn() },
+      reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
+      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
+      observeEffect: vi.fn(),
+    })).resolves.toMatchObject({ status: "blocked", reason: "reservation-mismatch" });
+    expect(host.submitNativeMerge).not.toHaveBeenCalled();
+  });
+
   it("retains the reservation for pending, none-landed, partial, and unavailable effects", async () => {
     const state = deliveryStateFixture(plan);
     const ids = state.members.slice(0, -1).map((member) => member.deliverableId);
@@ -284,7 +321,7 @@ describe("native delivery landing", () => {
       baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", affectedDeliverableIds: ids,
+      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -337,7 +374,7 @@ describe("native delivery landing", () => {
       baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land",
+      operationId: "operation-1", kind: "land", mode: "native",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
@@ -389,7 +426,7 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: bound }, plan, {
-      operationId: "operation-1", kind: "land", affectedDeliverableIds: [first.deliverableId],
+      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 1, before: beforeSnapshot, requested: beforeSnapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");

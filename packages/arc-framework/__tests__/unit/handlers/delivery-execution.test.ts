@@ -366,6 +366,87 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("serializes every recovery action-selector arm and rejects malformed pairings", async () => {
+    const plan = deliveryStackPlanFixture();
+    const affectedDeliverableIds = [plan.members[0]!.deliverableId];
+    const request = JSON.stringify({
+      planId: plan.planId,
+      repository: "andrewRCr/arc-framework",
+      remote: "origin",
+    });
+    const cases = [
+      { operationKind: "materialize", transition: "cleared", action: "delivery-publish" },
+      { operationKind: "publish", transition: "preserved", action: "delivery-publish" },
+      {
+        operationKind: "rewrite", mode: "review-fix", transition: "cleared",
+        action: "delivery-rematerialize",
+      },
+      {
+        operationKind: "rewrite", mode: "provider-adoption", transition: "cleared",
+        action: "delivery-native-observe",
+      },
+      { operationKind: "land", mode: "sequential", transition: "cleared", action: "delivery-land-prepare" },
+      {
+        operationKind: "land", mode: "native", transition: "cleared",
+        action: "delivery-native-land-select",
+      },
+      { operationKind: "teardown", transition: "preserved", action: "delivery-teardown" },
+      { operationKind: "top-remedy", transition: "cleared", action: "delivery-top-remedy" },
+    ] as const;
+    for (const [index, entry] of cases.entries()) {
+      const result = {
+        status: "retryable" as const,
+        transition: entry.transition,
+        action: entry.action,
+        selector: {
+          planId: plan.planId,
+          operationKind: entry.operationKind,
+          operationId: `operation-${index + 1}`,
+          affectedDeliverableIds,
+          ...(entry.operationKind === "rewrite" || entry.operationKind === "land"
+            ? { mode: entry.mode }
+            : {}),
+        },
+        recommendedActionText: `Rerun the exact ${entry.action} action.`,
+      };
+      const write = vi.fn();
+      await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+        readText: vi.fn().mockResolvedValue(request),
+        execute: vi.fn().mockResolvedValue(result),
+        write,
+        setExitCode: vi.fn(),
+      });
+      expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+        schemaVersion: 1,
+        command: "delivery reconcile",
+        ...result,
+      });
+    }
+
+    const write = vi.fn();
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "retryable",
+        transition: "preserved",
+        action: "delivery-teardown",
+        selector: {
+          planId: plan.planId,
+          operationKind: "materialize",
+          operationId: "operation-invalid",
+          affectedDeliverableIds,
+        },
+        recommendedActionText: "This action and selector do not match.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-service-result",
+    });
+  });
+
   it("preserves contribution refusal evidence through the strict result envelope", async () => {
     const request = JSON.stringify({
       planId: "123e4567-e89b-42d3-a456-426614174000",

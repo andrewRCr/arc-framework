@@ -1,5 +1,7 @@
 /** Attended preparation, application, and recovery for one ordinary delivery landing. */
 
+import { z } from "zod";
+
 import type { DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
@@ -22,6 +24,194 @@ import type {
   DeliveryPlanV1,
   DeliveryStateV1,
 } from "./schema.js";
+import {
+  DeliveryCanonicalDigestSchema,
+  DeliveryChangeRequestV1Schema,
+  DeliveryGitObjectIdSchema,
+  DeliveryOpaqueIdSchema,
+  DeliveryPlanIdSchema,
+  DeliveryStateV1Schema,
+} from "./schema.js";
+
+const DeliveryRecoverySelectorCommonV1Shape = {
+  planId: DeliveryPlanIdSchema,
+  operationId: z.string().min(1),
+  affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+};
+const DeliveryRecoveryRerunCommonV1Shape = {
+  status: z.literal("retryable"),
+  recommendedActionText: z.string().min(1),
+};
+
+/** Closed executable rerun plus the minimum exact reservation-subject selector. */
+export const DeliveryRecoveryRerunV1Schema = z.union([
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-publish"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("materialize"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("preserved"),
+    action: z.literal("delivery-publish"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("publish"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-rematerialize"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("rewrite"),
+      mode: z.literal("review-fix"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-native-observe"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("rewrite"),
+      mode: z.literal("provider-adoption"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-land-prepare"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("land"),
+      mode: z.literal("sequential"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-native-land-select"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("land"),
+      mode: z.literal("native"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("preserved"),
+    action: z.literal("delivery-teardown"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("teardown"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-top-remedy"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("top-remedy"),
+    }),
+  }),
+]);
+export type DeliveryRecoveryRerunV1 = z.infer<typeof DeliveryRecoveryRerunV1Schema>;
+
+const DeliveryRecoveryStateRecordV1Schema = z.strictObject({
+  revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  value: DeliveryStateV1Schema,
+});
+const DeliveryRecoveryReadyTopV1Schema = z.strictObject({
+  status: z.literal("ready"),
+  request: z.strictObject({
+    binding: DeliveryChangeRequestV1Schema,
+    repository: DeliveryOpaqueIdSchema,
+    headRef: DeliveryOpaqueIdSchema,
+    headSha: DeliveryGitObjectIdSchema,
+    baseRef: DeliveryOpaqueIdSchema,
+    state: z.enum(["open", "merged", "closed"]),
+  }),
+});
+const DeliveryRecoveryRemedyTopV1Schema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("top-target-mismatch"),
+  remedy: z.strictObject({
+    nextAction: z.enum(["retarget", "reopen-and-retarget"]),
+    repository: DeliveryOpaqueIdSchema,
+    changeRequestId: DeliveryOpaqueIdSchema,
+    protectedBaseRef: DeliveryOpaqueIdSchema,
+  }),
+});
+type DeliveryRecoveryTeardownContinuationV1 =
+  | {
+      readonly nextAction: "terminal-checkpoint";
+      readonly top: z.infer<typeof DeliveryRecoveryReadyTopV1Schema>;
+    }
+  | {
+      readonly nextAction: "retarget" | "reopen-and-retarget";
+      readonly top: z.infer<typeof DeliveryRecoveryRemedyTopV1Schema>;
+    };
+const DeliveryRecoveryBlockedV1Schema = z.union([
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.enum(["contribution-conflicted", "contribution-diverged"]),
+    paths: z.array(z.string()).readonly(),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.literal("native-effect-partial"),
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).readonly(),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.enum([
+      "observation-unavailable",
+      "contribution-endpoints-unverified",
+      "git-failure",
+      "merge-tree-write-tree-unsupported",
+      "retry-state-persistence-failed",
+      "operation-result-ambiguous",
+      "result-persistence-failed",
+      "top-observation-unavailable",
+      "native-effect-pending",
+      "native-effect-ambiguous",
+    ]),
+    recommendedActionText: z.string().min(1),
+  }),
+]);
+
+/** Canonical strict result envelope for interrupted delivery-operation recovery. */
+export const DeliveryRecoveryResultV1Schema = z.union([
+  DeliveryRecoveryRerunV1Schema,
+  z.strictObject({
+    status: z.literal("applied"),
+    state: DeliveryRecoveryStateRecordV1Schema,
+    nextAction: z.literal("read-position"),
+  }),
+  z.strictObject({
+    status: z.literal("applied"),
+    state: DeliveryRecoveryStateRecordV1Schema,
+    nextAction: z.literal("terminal-checkpoint"),
+    top: DeliveryRecoveryReadyTopV1Schema,
+  }),
+  z.strictObject({
+    status: z.literal("applied"),
+    state: DeliveryRecoveryStateRecordV1Schema,
+    nextAction: z.enum(["retarget", "reopen-and-retarget"]),
+    top: DeliveryRecoveryRemedyTopV1Schema,
+  }),
+  DeliveryRecoveryBlockedV1Schema,
+]);
+export type DeliveryRecoveryResultV1 = z.infer<typeof DeliveryRecoveryResultV1Schema>;
 
 /** Exact transient presentation authorized by the workflow interlock. */
 export interface PreparedDeliveryLanding {
@@ -87,20 +277,27 @@ function landingRefused(): DeliveryLandingRefusal {
 /** Fresh operation observation selected from the persisted operation kind. */
 export type DeliveryRecoveryObservationRefusal =
   | DeliveryContributionRefusal
-  | { readonly status: "refused"; readonly reason: "observation-unavailable" };
+  | { readonly status: "refused"; readonly reason: "observation-unavailable" }
+  | {
+      readonly status: "refused";
+      readonly reason: "native-effect-pending" | "native-effect-ambiguous";
+    }
+  | {
+      readonly status: "refused";
+      readonly reason: "native-effect-partial";
+      readonly affectedDeliverableIds: readonly string[];
+    };
 
 export interface DeliveryRecoveryObservationPort {
   observe(): Promise<
-    | { readonly status: "observed"; readonly value: unknown }
+    | {
+        readonly status: "observed";
+        readonly value: unknown;
+        readonly continuation?: DeliveryRecoveryTeardownContinuationV1;
+      }
     | DeliveryRecoveryObservationRefusal
   >;
 }
-
-type BlockedDeliveryRecoveryObservationRefusal = DeliveryRecoveryObservationRefusal extends infer Refusal
-  ? Refusal extends { readonly status: "refused" }
-    ? Omit<Refusal, "status"> & { readonly status: "blocked"; readonly guidance: string }
-    : never
-  : never;
 
 function memberSnapshot(state: DeliveryStateV1, deliverableId: string): DeliveryOperationSnapshotV1 | null {
   const member = state.members.find((candidate) => candidate.deliverableId === deliverableId);
@@ -197,6 +394,7 @@ export async function prepareDeliveryLanding(input: {
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId,
     kind: "land",
+    mode: "sequential",
     affectedDeliverableIds: [member.deliverableId],
     expectedStateRevision: input.current.revision,
     before,
@@ -238,7 +436,8 @@ export async function applyDeliveryLanding(input: {
   readonly reason: "landing-refused";
 } | DeliveryContributionRefusal> {
   const operation = input.current.value.activeOperation;
-  if (operation?.kind !== "land" || operation.operationId !== input.approved.operationId
+  if (operation?.kind !== "land" || operation.mode !== "sequential"
+    || operation.operationId !== input.approved.operationId
     || operation.affectedDeliverableIds[0] !== input.approved.deliverableId
     || operation.effect.headSha !== input.approved.head
     || operation.effect.repository !== input.approved.repository
@@ -314,43 +513,124 @@ export async function applyDeliveryLanding(input: {
   return persisted.status === "ok" ? { status: "landed", state: persisted.value } : landingRefused();
 }
 
+function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
+  const operation = state.activeOperation;
+  if (operation === null) return null;
+  const selector = {
+    planId: state.planId,
+    operationId: operation.operationId,
+    affectedDeliverableIds: operation.affectedDeliverableIds,
+  };
+  switch (operation.kind) {
+    case "materialize":
+      return {
+        status: "retryable",
+        transition: "cleared",
+        action: "delivery-publish",
+        selector: { ...selector, operationKind: "materialize" },
+        recommendedActionText:
+          "Rerun `arc delivery publish` for the exact materialization reservation subject.",
+      };
+    case "publish":
+      return {
+        status: "retryable",
+        transition: "preserved",
+        action: "delivery-publish",
+        selector: { ...selector, operationKind: "publish" },
+        recommendedActionText: "Rerun `arc delivery publish` for the exact publish reservation subject.",
+      };
+    case "rewrite":
+      return operation.mode === "review-fix"
+        ? {
+            status: "retryable",
+            transition: "cleared",
+            action: "delivery-rematerialize",
+            selector: { ...selector, operationKind: "rewrite", mode: "review-fix" },
+            recommendedActionText:
+              "Rerun `arc delivery rematerialize` for the exact review-fix reservation subject.",
+          }
+        : {
+            status: "retryable",
+            transition: "cleared",
+            action: "delivery-native-observe",
+            selector: { ...selector, operationKind: "rewrite", mode: "provider-adoption" },
+            recommendedActionText:
+              "Rerun `arc delivery native observe` for the exact provider-adoption reservation subject.",
+          };
+    case "teardown":
+      return {
+        status: "retryable",
+        transition: "preserved",
+        action: "delivery-teardown",
+        selector: { ...selector, operationKind: "teardown" },
+        recommendedActionText: "Rerun `arc delivery teardown` for the exact teardown reservation subject.",
+      };
+    case "land":
+      return operation.mode === "sequential"
+        ? {
+            status: "retryable",
+            transition: "cleared",
+            action: "delivery-land-prepare",
+            selector: { ...selector, operationKind: "land", mode: "sequential" },
+            recommendedActionText:
+              "Rerun `arc delivery land prepare` for the exact sequential landing reservation subject.",
+          }
+        : {
+            status: "retryable",
+            transition: "cleared",
+            action: "delivery-native-land-select",
+            selector: { ...selector, operationKind: "land", mode: "native" },
+            recommendedActionText:
+              "Rerun `arc delivery native land-select` for the exact native landing reservation subject.",
+          };
+    case "top-remedy":
+      return {
+        status: "retryable",
+        transition: "cleared",
+        action: "delivery-top-remedy",
+        selector: { ...selector, operationKind: "top-remedy" },
+        recommendedActionText: "Rerun `arc delivery top-remedy` for the exact top-remedy reservation subject.",
+      };
+  }
+}
+
 /** Reconcile one interrupted operation; an attended land retry always routes back to prepare. */
 export async function reconcileDeliveryExecution(input: {
   readonly planId: string;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly observation: DeliveryRecoveryObservationPort;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
-}): Promise<
-  | {
-      readonly status: "applied";
-      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
-      readonly nextAction: "read-position";
-    }
-  | {
-      readonly status: "retryable";
-      readonly guidance: string;
-      readonly nextAction?: "read-position";
-    }
-  | BlockedDeliveryRecoveryObservationRefusal
-  | {
-      readonly status: "blocked";
-      readonly reason:
-        | "retry-state-persistence-failed"
-        | "operation-result-ambiguous"
-        | "result-persistence-failed";
-      readonly guidance: string;
-    }
-> {
+}): Promise<DeliveryRecoveryResultV1> {
   const observed = await input.observation.observe();
   if (observed.status !== "observed") {
     return {
       ...observed,
       status: "blocked",
-      guidance: "The reserved operation result is unavailable; retain the reservation.",
+      recommendedActionText: "The reserved operation result is unavailable; retain the reservation.",
     };
   }
+  const operation = input.current.value.activeOperation;
+  const highestTeardown = operation?.kind === "teardown"
+    && operation.affectedDeliverableIds.length === 1
+    && operation.affectedDeliverableIds[0] === input.current.value.members.at(-2)?.deliverableId;
   const reconciled = reconcileDeliveryOperation(input.current, observed.value);
   if (reconciled.status === "retry") {
+    if (observed.continuation !== undefined) {
+      return {
+        status: "blocked",
+        reason: "operation-result-ambiguous",
+        recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
+      };
+    }
+    const rerun = recoveryRerun(input.current.value);
+    if (rerun === null) {
+      return {
+        status: "blocked",
+        reason: "operation-result-ambiguous",
+        recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
+      };
+    }
+    if (rerun.transition === "preserved") return rerun;
     const cleared = await input.stateStore.publish(input.planId, {
       ...input.current.value,
       activeOperation: null,
@@ -359,33 +639,40 @@ export async function reconcileDeliveryExecution(input: {
       return {
         status: "blocked",
         reason: "retry-state-persistence-failed",
-        guidance: "Retry-state persistence failed; retain and reconcile the reservation.",
+        recommendedActionText: "Retry-state persistence failed; retain and reconcile the reservation.",
       };
     }
-    const operationKind = input.current.value.activeOperation?.kind;
-    return {
-      status: "retryable",
-      ...(operationKind === "teardown" ? { nextAction: "read-position" as const } : {}),
-      guidance: operationKind === "land"
-        ? "Prepare the exact landing again and re-fire its integration interlock."
-        : operationKind === "teardown"
-          ? "Read delivery position and retry the exact teardown member."
-          : "Retry the exact reserved mutation after revalidation.",
-    };
+    return rerun;
   }
   if (reconciled.status !== "adopt") {
     return {
       status: "blocked",
       reason: "operation-result-ambiguous",
-      guidance: "The reserved operation result is ambiguous; inspect it explicitly.",
+      recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
+    };
+  }
+  if (highestTeardown && observed.continuation === undefined) {
+    return {
+      status: "blocked",
+      reason: "top-observation-unavailable",
+      recommendedActionText: "Top observation is unavailable; retain the highest teardown reservation.",
+    };
+  }
+  if (!highestTeardown && observed.continuation !== undefined) {
+    return {
+      status: "blocked",
+      reason: "operation-result-ambiguous",
+      recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
     };
   }
   const persisted = await input.stateStore.publish(input.planId, reconciled.state, input.current.revision);
   return persisted.status === "ok"
-    ? { status: "applied", state: persisted.value, nextAction: "read-position" }
+    ? observed.continuation === undefined
+      ? { status: "applied", state: persisted.value, nextAction: "read-position" }
+      : { status: "applied", state: persisted.value, ...observed.continuation }
     : {
         status: "blocked",
         reason: "result-persistence-failed",
-        guidance: "Result persistence failed; retain and reconcile the reservation.",
+        recommendedActionText: "Result persistence failed; retain and reconcile the reservation.",
       };
 }

@@ -63,6 +63,7 @@ describe("session-init delivery position", () => {
     const operation = {
       operationId: "op-1",
       kind: "rewrite" as const,
+      mode: "review-fix" as const,
       affectedDeliverableIds: [member.deliverableId],
       stateRevision: 3,
       boundPlanDigest: plan.planDigest,

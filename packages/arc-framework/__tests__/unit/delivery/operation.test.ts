@@ -18,6 +18,19 @@ import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const STATE_REVISION = 7;
 
+type SnapshotOperationRequest = Extract<DeliveryOperationReservationRequestV1, {
+  kind: "materialize" | "rewrite" | "teardown";
+}>;
+type SnapshotOperationOverrides = {
+  readonly operationId?: string;
+  readonly kind?: SnapshotOperationRequest["kind"];
+  readonly mode?: "review-fix" | "provider-adoption";
+  readonly affectedDeliverableIds?: string[];
+  readonly expectedStateRevision?: number;
+  readonly before?: DeliveryOperationSnapshotV1;
+  readonly requested?: DeliveryOperationSnapshotV1;
+};
+
 function stateSnapshot(
   state: DeliveryStateV1,
   deliverableIds: readonly string[],
@@ -38,32 +51,43 @@ function stateSnapshot(
 
 function operationRequest(
   state: DeliveryStateV1,
-  overrides: Partial<Omit<Extract<DeliveryOperationReservationRequestV1, {
-    kind: "materialize" | "rewrite" | "teardown";
-  }>, "kind">> & { kind?: "materialize" | "rewrite" | "teardown" } = {},
-): Extract<DeliveryOperationReservationRequestV1, {
-  kind: "materialize" | "rewrite" | "teardown";
-}> {
-  const affectedDeliverableIds = [state.members[0]!.deliverableId];
-  const before = stateSnapshot(state, affectedDeliverableIds);
-  return {
-    operationId: "opaque-operation",
-    kind: "rewrite",
-    affectedDeliverableIds,
-    expectedStateRevision: STATE_REVISION,
-    before,
-    requested: {
-      target: {
-        ref: "refs/heads/delivery-target",
-        coordinates: { head: "8".repeat(40), tree: "9".repeat(40) },
-      },
-      members: before.members.map((member) => ({
-        ...member,
-        coordinates: { base: "3".repeat(40), head: "a".repeat(40), tree: "b".repeat(40) },
-      })),
+  overrides: SnapshotOperationOverrides = {},
+): SnapshotOperationRequest {
+  const affectedDeliverableIds = overrides.affectedDeliverableIds
+    ?? [state.members[0]!.deliverableId];
+  const before = overrides.before ?? stateSnapshot(state, affectedDeliverableIds);
+  const requested = overrides.requested ?? {
+    target: {
+      ref: "refs/heads/delivery-target",
+      coordinates: { head: "8".repeat(40), tree: "9".repeat(40) },
     },
-    ...overrides,
+    members: before.members.map((member) => ({
+      ...member,
+      coordinates: { base: "3".repeat(40), head: "a".repeat(40), tree: "b".repeat(40) },
+    })),
   };
+  const common = {
+    operationId: overrides.operationId ?? "opaque-operation",
+    affectedDeliverableIds,
+    expectedStateRevision: overrides.expectedStateRevision ?? STATE_REVISION,
+    before,
+    requested,
+  };
+  const kind = overrides.kind ?? "rewrite";
+  return kind === "rewrite"
+    ? { ...common, kind, mode: overrides.mode ?? "review-fix" }
+    : { ...common, kind };
+}
+
+function operationRequestWithoutMode(
+  state: DeliveryStateV1,
+  overrides: Parameters<typeof operationRequest>[1] = {},
+) {
+  const request = operationRequest(state, overrides);
+  if (request.kind !== "rewrite") return request;
+  const { mode, ...withoutMode } = request;
+  void mode;
+  return withoutMode;
 }
 
 function publishEffect() {
@@ -163,6 +187,7 @@ describe("reserveDeliveryOperation", () => {
           activeOperation: {
             operationId: request.operationId,
             kind,
+            ...(request.kind === "rewrite" ? { mode: request.mode } : {}),
             affectedDeliverableIds: request.affectedDeliverableIds,
             stateRevision: STATE_REVISION,
             boundPlanDigest: plan.planDigest,
@@ -174,9 +199,14 @@ describe("reserveDeliveryOperation", () => {
     }
 
     for (const request of [
-      { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
-      { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
-      { ...operationRequest(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
+      { ...operationRequestWithoutMode(state), kind: "publish" as const, effect: publishEffect() },
+      {
+        ...operationRequestWithoutMode(state),
+        kind: "land" as const,
+        mode: "sequential" as const,
+        effect: landEffect(),
+      },
+      { ...operationRequestWithoutMode(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
     ]) {
       const result = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
       expect(result.status).toBe("reserved");
@@ -194,10 +224,17 @@ describe("reserveDeliveryOperation", () => {
   it("requires the matching host effect for host-bearing reservations", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
-    const publish = { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() };
-    const land = { ...operationRequest(state), kind: "land" as const, effect: landEffect() };
+    const publish = {
+      ...operationRequestWithoutMode(state), kind: "publish" as const, effect: publishEffect(),
+    };
+    const land = {
+      ...operationRequestWithoutMode(state),
+      kind: "land" as const,
+      mode: "sequential" as const,
+      effect: landEffect(),
+    };
     const topRemedy = {
-      ...operationRequest(state), kind: "top-remedy" as const, effect: topRemedyEffect(),
+      ...operationRequestWithoutMode(state), kind: "top-remedy" as const, effect: topRemedyEffect(),
     };
     const publishWithoutEffect = { ...publish, effect: undefined };
     const landWithoutEffect = { ...land, effect: undefined };
@@ -212,6 +249,44 @@ describe("reserveDeliveryOperation", () => {
       expect(reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, invalid))
         .toEqual({ status: "refused", reason: "operation-invalid" });
     }
+  });
+
+  it("requires and persists the narrow mode for overloaded operation kinds", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const rewrite = operationRequestWithoutMode(state);
+    const land = {
+      ...operationRequestWithoutMode(state),
+      kind: "land" as const,
+      effect: landEffect(),
+    };
+
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      { ...rewrite, mode: "review-fix" },
+    )).toMatchObject({
+      status: "reserved",
+      state: { activeOperation: { kind: "rewrite", mode: "review-fix" } },
+    });
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      { ...land, mode: "sequential" },
+    )).toMatchObject({
+      status: "reserved",
+      state: { activeOperation: { kind: "land", mode: "sequential" } },
+    });
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      rewrite,
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      land,
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
   });
 
   it("refuses a stale state revision or stale plan binding", () => {
@@ -313,9 +388,22 @@ describe("reserveDeliveryOperation", () => {
 describe("delivery operation pre- and post-mutation comparison", () => {
   it("attaches one async host identity idempotently and advances the operation revision guard", () => {
     const { current, request } = reservedRecord();
-    const land = { ...current.value.activeOperation!, kind: "land" as const, effect: landEffect(), effectIdentity: null };
+    const land = {
+      ...current.value.activeOperation!,
+      kind: "land" as const,
+      mode: "native" as const,
+      effect: landEffect(),
+      effectIdentity: null,
+    };
     const record = { ...current, value: { ...current.value, activeOperation: land } };
     const identity = { providerId: "github", effectId: "merge-request-uuid" };
+    expect(attachDeliveryOperationEffectIdentity({
+      ...record,
+      value: {
+        ...record.value,
+        activeOperation: { ...land, mode: "sequential" },
+      },
+    }, request.operationId, identity)).toEqual({ status: "refused", reason: "wrong-operation" });
     const attached = attachDeliveryOperationEffectIdentity(record, request.operationId, identity);
     expect(attached.status).toBe("attached");
     if (attached.status !== "attached") return;
@@ -382,8 +470,10 @@ describe("delivery operation pre- and post-mutation comparison", () => {
 
   it("records one uniquely observed publish handle without relaxing exact coordinates", () => {
     const { plan, request } = reservedRecord();
+    const state = deliveryStateFixture(plan);
+    const requestWithoutMode = operationRequestWithoutMode(state);
     const publishRequest = {
-      ...request,
+      ...requestWithoutMode,
       kind: "publish" as const,
       effect: publishEffect(),
       requested: {
@@ -392,7 +482,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       },
     };
     const reserved = reserveDeliveryOperation(
-      { revision: STATE_REVISION, value: deliveryStateFixture(plan) },
+      { revision: STATE_REVISION, value: state },
       plan,
       publishRequest,
     );
@@ -436,10 +526,11 @@ describe("delivery operation pre- and post-mutation comparison", () => {
     const { plan, request } = reservedRecord();
     const state = deliveryStateFixture(plan);
     const landRequest = {
-      ...operationRequest(state, {
+      ...operationRequestWithoutMode(state, {
       requested: stateSnapshot(state, request.affectedDeliverableIds),
       }),
       kind: "land" as const,
+      mode: "sequential" as const,
       effect: landEffect(),
     };
     const reservedLand = reserveDeliveryOperation(
@@ -506,8 +597,9 @@ describe("delivery operation pre- and post-mutation comparison", () => {
     const state = deliveryStateFixture(plan);
     const before = stateSnapshot(state, [state.members[0]!.deliverableId]);
     const request = {
-      ...operationRequest(state),
+      ...operationRequestWithoutMode(state),
       kind: "land" as const,
+      mode: "sequential" as const,
       before,
       requested: { ...before, target: null },
       effect: landEffect(),
@@ -653,9 +745,14 @@ describe("reconcileDeliveryOperation", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
     for (const request of [
-      { ...operationRequest(state), kind: "publish" as const, effect: publishEffect() },
-      { ...operationRequest(state), kind: "land" as const, effect: landEffect() },
-      { ...operationRequest(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
+      { ...operationRequestWithoutMode(state), kind: "publish" as const, effect: publishEffect() },
+      {
+        ...operationRequestWithoutMode(state),
+        kind: "land" as const,
+        mode: "sequential" as const,
+        effect: landEffect(),
+      },
+      { ...operationRequestWithoutMode(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
     ]) {
       const reserved = reserveDeliveryOperation({ revision: STATE_REVISION, value: state }, plan, request);
       expect(reserved.status).toBe("reserved");
@@ -678,7 +775,7 @@ describe("reconcileDeliveryOperation", () => {
     const state = deliveryStateFixture(plan);
     const before = stateSnapshot(state, [state.members[0]!.deliverableId]);
     const request = {
-      ...operationRequest(state, { before, requested: before }),
+      ...operationRequestWithoutMode(state, { before, requested: before }),
       kind: "top-remedy" as const,
       effect: topRemedyEffect(),
     };

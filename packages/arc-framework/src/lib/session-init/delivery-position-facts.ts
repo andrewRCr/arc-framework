@@ -162,6 +162,7 @@ async function observeOperation(
       };
     } else return null;
   } else if (operation.kind === "land") {
+    if (operation.mode !== "sequential") return null;
     const request = await dependencies.host.readRequest(dependencies.repository, {
       providerId: operation.effect.providerId,
       changeRequestId: operation.effect.changeRequestId,

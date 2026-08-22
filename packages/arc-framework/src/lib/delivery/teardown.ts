@@ -1,7 +1,12 @@
 /** Recoverable teardown of exact, proven-landed delivery residue. */
 
+import { canonicalize } from "../kernel/index.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "./host.js";
-import { acceptDeliveryOperationResult, reserveDeliveryOperation } from "./operation.js";
+import {
+  acceptDeliveryOperationResult,
+  reserveDeliveryOperation,
+  validateDeliveryActiveOperation,
+} from "./operation.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
@@ -75,7 +80,10 @@ export async function teardownLandedDeliveryMember(input: {
   }>;
   readonly stateStore: StateWriter;
 }): Promise<TeardownLandedDeliveryMemberResult> {
-  const position = deriveDeliveryPosition(input.plan, input.current.value, input.facts);
+  const position = deriveDeliveryPosition(input.plan, {
+    ...input.current.value,
+    activeOperation: null,
+  }, input.facts);
   if (position.status !== "derived") return { status: "refused", reason: "position-mismatch" };
   const index = input.plan.members.findIndex((member) => member.deliverableId === input.deliverableId);
   if (index < 0) return { status: "refused", reason: "unknown-member" };
@@ -86,14 +94,6 @@ export async function teardownLandedDeliveryMember(input: {
   if (member === undefined || member.ref === null || member.changeRequest === null || member.coordinates === null) {
     return { status: "refused", reason: "member-unbound" };
   }
-  const initialRequest = await input.host.readRequest(input.repository, member.changeRequest);
-  if (initialRequest.status !== "observed" || !matchesDeliveryTeardownRequest({
-    request: initialRequest.request,
-    repository: input.repository,
-    protectedTargetRef: input.protectedTargetRef,
-    member,
-  })) return { status: "refused", reason: "request-mismatch" };
-
   const before = {
     target: input.current.value.target,
     members: [{
@@ -104,22 +104,44 @@ export async function teardownLandedDeliveryMember(input: {
     }],
   };
   const requested = before;
-  const reserved = reserveDeliveryOperation(input.current, input.plan, {
-    operationId: crypto.randomUUID(),
-    kind: "teardown",
-    affectedDeliverableIds: [member.deliverableId],
-    expectedStateRevision: input.current.revision,
-    before,
-    requested,
-  });
-  if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
-  const persistedReservation = await input.stateStore.publish(
-    input.plan.planId, reserved.state, input.current.revision,
-  );
-  if (persistedReservation.status !== "ok") return { status: "refused", reason: "state-conflict" };
+  const initialRequest = await input.host.readRequest(input.repository, member.changeRequest);
+  if (initialRequest.status !== "observed" || !matchesDeliveryTeardownRequest({
+    request: initialRequest.request,
+    repository: input.repository,
+    protectedTargetRef: input.protectedTargetRef,
+    member,
+  })) return { status: "refused", reason: "request-mismatch" };
+
+  let persistedReservation: DeliveryRevisionedRecord<DeliveryStateV1>;
+  if (input.current.value.activeOperation === null) {
+    const reserved = reserveDeliveryOperation(input.current, input.plan, {
+      operationId: crypto.randomUUID(),
+      kind: "teardown",
+      affectedDeliverableIds: [member.deliverableId],
+      expectedStateRevision: input.current.revision,
+      before,
+      requested,
+    });
+    if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
+    const published = await input.stateStore.publish(
+      input.plan.planId, reserved.state, input.current.revision,
+    );
+    if (published.status !== "ok") return { status: "refused", reason: "state-conflict" };
+    persistedReservation = published.value;
+  } else {
+    const active = validateDeliveryActiveOperation(input.current);
+    if (active.status !== "valid" || active.operation.kind !== "teardown"
+      || active.operation.affectedDeliverableIds.length !== 1
+      || active.operation.affectedDeliverableIds[0] !== member.deliverableId
+      || canonicalize(active.operation.before) !== canonicalize(before)
+      || canonicalize(active.operation.requested) !== canonicalize(requested)) {
+      return { status: "refused", reason: "reservation-refused" };
+    }
+    persistedReservation = input.current;
+  }
   const deletion = await input.deleteRef({ ref: member.ref, expectedHead: member.coordinates.head });
   if (deletion.status === "refused") {
-    return { status: "blocked", reason: "delete-refused", reservation: persistedReservation.value };
+    return { status: "blocked", reason: "delete-refused", reservation: persistedReservation };
   }
   const finalRequest = await input.host.readRequest(input.repository, member.changeRequest);
   if (finalRequest.status !== "observed" || !matchesDeliveryTeardownRequest({
@@ -128,7 +150,7 @@ export async function teardownLandedDeliveryMember(input: {
     protectedTargetRef: input.protectedTargetRef,
     member,
   }) || finalRequest.request.headSha !== initialRequest.request.headSha) {
-    return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation.value };
+    return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation };
   }
   let top: Extract<DeliveryTerminalTopResult, { readonly status: "ready" } | {
     readonly reason: "top-target-mismatch";
@@ -137,11 +159,11 @@ export async function teardownLandedDeliveryMember(input: {
     const terminal = input.current.value.members.at(-1);
     if (terminal?.changeRequest === null || terminal?.changeRequest === undefined
       || terminal.coordinates === null) {
-      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation.value };
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
     }
     const observedTop = await input.host.readRequest(input.repository, terminal.changeRequest);
     if (observedTop.status !== "observed") {
-      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation.value };
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
     }
     const topDecision = assessDeliveryTerminalTop({
       terminal: true,
@@ -151,19 +173,19 @@ export async function teardownLandedDeliveryMember(input: {
     });
     if (topDecision.status === "window-open"
       || (topDecision.status === "refused" && topDecision.reason !== "top-target-mismatch")) {
-      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation.value };
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
     }
     top = topDecision;
   }
-  const accepted = acceptDeliveryOperationResult(persistedReservation.value, requested);
+  const accepted = acceptDeliveryOperationResult(persistedReservation, requested);
   if (accepted.status !== "applied") {
-    return { status: "blocked", reason: "ambiguous-result", reservation: persistedReservation.value };
+    return { status: "blocked", reason: "ambiguous-result", reservation: persistedReservation };
   }
   const persisted = await input.stateStore.publish(
-    input.plan.planId, accepted.state, persistedReservation.value.revision,
+    input.plan.planId, accepted.state, persistedReservation.revision,
   );
   if (persisted.status !== "ok") {
-    return { status: "blocked", reason: "state-conflict", reservation: persistedReservation.value };
+    return { status: "blocked", reason: "state-conflict", reservation: persistedReservation };
   }
   if (top === null) return { status: "torn-down", state: persisted.value, nextAction: "continue" };
   return top.status === "ready"

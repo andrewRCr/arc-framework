@@ -623,46 +623,16 @@ comparator and trivially accepted.
 
         - Replace the superseded recovery matrix and whole-work-unit fallback with the D3.10, D8.7, and D9.6 seams.
 
-        - `[ ]` **5.7.R.a Return informative ordinary reruns from minimum operation state**
+        - `[x]` **5.7.R.a Return informative ordinary reruns from minimum operation state**
 
-            - Keep the existing operation kind, ID, affected members, snapshots, plan binding, and host effects.
-              Add a closed mode only to distinguish review-fix from provider-adoption `rewrite`, and sequential from
-              native `land`; add no owner, retry-policy, recovery record, or autonomous replay surface.
-            - Return CLI-precomposed text, a minimal exact selector over fields already authoritative in state
-              (`planId`, operation ID, affected member IDs, narrow mode, and an existing effect identity only when the
-              action consumes it), and exactly one executable rerun action: `delivery-publish` for `materialize` or
-              `publish`, `delivery-rematerialize` for review-fix `rewrite`, `delivery-native-observe` for
-              provider-adoption `rewrite`, `delivery-land-prepare` for sequential `land`,
-              `delivery-native-land-select` for terminal none-landed native `land`, `delivery-teardown` for
-              `teardown`, or `delivery-top-remedy` for `top-remedy`. The selector identifies the reservation subject;
-              it is not a persisted downstream-command request. The ordinary action reobserves and prepares every
-              remaining input, while workflow prose interprets neither guidance strings nor operation fields. Exact
-              not-applied `publish` and `teardown` preserve reservations their ordinary verbs consume and revalidate;
-              the other exact not-applied arms version-clear before returning fresh preparation or invocation, and
-              obtain attended authorization again. Stop results carry no executable action; applied adoption returns
-              its existing domain continuation rather than a rerun action.
-            - Absorb Task 5.7.c's concrete seam: exact teardown reruns consume only the affected-member reservation,
-              and an applied highest-member deletion retains it through fresh top observation. Clear and return only
-              `terminal-checkpoint`, `retarget`, or `reopen-and-retarget`; unavailable or mismatched evidence retains
-              and stops. Exact applied results otherwise clear after their already-owed observation. Ambiguous,
-              unavailable, partial, pending, and persistence-failed facts retain and stop.
-            - Own one canonical strict recovery action/selector/result schema and share it from the reducer through
-              `delivery reconcile`'s strict handler result envelope. The CLI boundary preserves the closed action,
-              selector, and precomposed text without duplicating or widening their union.
-            - Build `test-first` (one behavior at a time):
-                - Every kind and overloaded mode selects its exact preserve-versus-clear transition and one member of
-                  the closed executable rerun union
-                - Matching `publish` and teardown reruns consume only the current reservation and repeat preconditions
-                - Interrupted teardown resumes the exact affected member in stacks of two and at least three members
-                - Applied highest deletion interrupted before top observation retains through each exact top result
-                - Ambiguous, unavailable, partial, pending, and persistence-failed observations retain and stop
-                - Failed cancellation leaves the reservation authoritative, and an exact cleared rerun is idempotent
-                - No reducer result requires guidance-string interpretation or agent memory to identify its command
-                  or reservation subject, and ordinary preparation rederives every non-selector input
-                - Canonical-schema and handler-serialization coverage pins every action/selector arm, preserves its
-                  precomposed text, and rejects malformed action/selector pairings
-                - E2E `delivery reconcile` coverage exercises a preserved reservation, a version-cleared action, an
-                  informative stop with no action, and the highest-teardown domain continuation
+            - Required mode discriminators now route every producer and consumer, and one canonical strict result
+              returns the exact action, reservation selector, transition, and precomposed text without new durable
+              recovery machinery.
+            - Publish and teardown revalidate preserved reservations; other exact retries clear before fresh
+              preparation, while highest teardown carries its fresh top continuation and every unresolved fact stops
+              without an executable action.
+            - Unit and built-CLI coverage pin all eight action/selector arms, malformed pairings, exact two- and
+              three-member teardown reruns, idempotent clearing, retained failures, and terminal continuation.
 
         - `[ ]` **5.7.R.b Project exact-head Candidate applicability through D4**
 

@@ -28,13 +28,22 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("materialize") }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("rewrite") }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("rewrite"),
+      mode: z.enum(["review-fix", "provider-adoption"]),
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("teardown") }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("land"), effect: DeliveryLandEffectV1Schema }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("land"),
+      mode: z.enum(["sequential", "native"]),
+      effect: DeliveryLandEffectV1Schema,
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("top-remedy"), effect: DeliveryTopRemedyEffectV1Schema }),
 ]);
@@ -326,6 +335,9 @@ export function reserveDeliveryOperation(
       boundPlanDigest: plan.planDigest,
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
+      ...(parsedRequest.data.kind === "rewrite" || parsedRequest.data.kind === "land"
+        ? { mode: parsedRequest.data.mode }
+        : {}),
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
         || parsedRequest.data.kind === "top-remedy"
         ? { effect: parsedRequest.data.effect }
@@ -351,7 +363,8 @@ export function attachDeliveryOperationEffectIdentity(
   if (active.status === "blocked") {
     return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
   }
-  if (active.operation.kind !== "land" || active.operation.operationId !== operationId) {
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.operationId !== operationId) {
     return { status: "refused", reason: "wrong-operation" };
   }
   const parsedIdentity = DeliveryHostEffectIdentityV1Schema.safeParse(identity);

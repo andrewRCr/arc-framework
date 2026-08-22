@@ -178,6 +178,7 @@ describe("session-init delivery position facts", () => {
     const reserved = reserveDeliveryOperation({ revision: 3, value: state }, plan, {
       operationId: "rewrite-1",
       kind: "rewrite",
+      mode: "provider-adoption",
       affectedDeliverableIds: [state.members[0]!.deliverableId],
       expectedStateRevision: 3,
       before,
@@ -283,6 +284,7 @@ describe("session-init delivery position facts", () => {
     const land = reserveDeliveryOperation({ revision: 5, value: publishedState }, plan, {
       operationId: "land-1",
       kind: "land",
+      mode: "sequential",
       affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 5,
       before: landBefore,
@@ -307,6 +309,14 @@ describe("session-init delivery position facts", () => {
         operationObservation: { outcome: "not-applied" },
         projectedState: { activeOperation: null },
       });
+    const landOperation = land.state.activeOperation;
+    if (landOperation?.kind !== "land") throw new Error("fixture must reserve landing");
+    const nativeLand: DeliveryStateV1 = {
+      ...land.state,
+      activeOperation: { ...landOperation, mode: "native" },
+    };
+    await expect(observeRepositoryDeliveryPosition(plan, nativeLand, 6, landDeps))
+      .resolves.toEqual({ status: "refused" });
 
     const mergedCoordinates = { head: "a".repeat(40), tree: "b".repeat(40) };
     const mergedState = {

@@ -252,7 +252,7 @@ describe("delivery terminal recovery", () => {
     });
   });
 
-  it("adopts an interrupted teardown only after exact post-delete proof", async () => {
+  it("continues an applied highest teardown through the freshly observed top remedy", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: true });
     const request = `${JSON.stringify({
       planId: fixture.planId,
@@ -267,7 +267,17 @@ describe("delivery terminal recovery", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery reconcile",
       status: "applied",
-      nextAction: "read-position",
+      nextAction: "retarget",
+      top: {
+        status: "refused",
+        reason: "top-target-mismatch",
+        remedy: {
+          nextAction: "retarget",
+          repository: "owner/repo",
+          changeRequestId: "402",
+          protectedBaseRef: "main",
+        },
+      },
       state: { value: { activeOperation: null } },
     });
 
@@ -280,48 +290,27 @@ describe("delivery terminal recovery", () => {
       changeRequest: { providerId: "github", changeRequestId: "401" },
     });
 
-    const plan = deliveryStackPlanFixture();
-    const facts = {
-      target: restored.value.target,
-      members: restored.value.members,
-      landedDeliverableIds: [plan.members[0]!.deliverableId],
-    };
-    const position = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
-      repository,
-      `${JSON.stringify({ planId: fixture.planId, facts })}\n`,
-      { env: fixture.env },
-    );
-    expect(position.exitCode, position.stderr).toBe(0);
-    expect(JSON.parse(position.stdout)).toMatchObject({
-      command: "delivery position",
-      status: "position",
-      nextAction: "teardown-member",
-      selectedDeliverableId: plan.members[0]!.deliverableId,
-    });
-
-    const teardown = await runArcWithStdin(
-      ["delivery", "teardown", "-", "--json"],
+    const remedy = await runArcWithStdin(
+      ["delivery", "top-remedy", "-", "--json"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
-        deliverableId: plan.members[0]!.deliverableId,
-        facts,
+        action: "retarget",
         repository: "owner/repo",
-        protectedTargetRef: "refs/heads/main",
+        protectedBaseRef: "main",
         remote: "origin",
       })}\n`,
       { env: fixture.env },
     );
-    expect(teardown.exitCode, teardown.stderr).toBe(0);
-    expect(JSON.parse(teardown.stdout)).toMatchObject({
-      command: "delivery teardown",
-      status: "torn-down",
-      nextAction: "retarget",
+    expect(remedy.exitCode, remedy.stderr).toBe(0);
+    expect(JSON.parse(remedy.stdout)).toMatchObject({
+      command: "delivery top-remedy",
+      status: "remedied",
+      nextAction: "terminal-checkpoint",
     });
   });
 
-  it("retries an interrupted teardown when the exact trigger ref is still present", async () => {
+  it("preserves an exact unperformed teardown for its ordinary rerun", async () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: true });
     const result = await runArcWithStdin(
       ["delivery", "reconcile", "-", "--json"],
@@ -331,38 +320,38 @@ describe("delivery terminal recovery", () => {
     );
 
     expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    const recovery = JSON.parse(result.stdout) as Record<string, unknown>;
+    const plan = deliveryStackPlanFixture();
+    expect(recovery).toMatchObject({
       command: "delivery reconcile",
       status: "retryable",
-      nextAction: "read-position",
+      transition: "preserved",
+      action: "delivery-teardown",
+      selector: {
+        planId: fixture.planId,
+        operationId: "teardown-recovery",
+        operationKind: "teardown",
+        affectedDeliverableIds: [plan.members[0]!.deliverableId],
+      },
+      recommendedActionText:
+        "Rerun `arc delivery teardown` for the exact teardown reservation subject.",
     });
     const restored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       value: DeliveryStateV1;
     };
-    expect(restored.value.activeOperation).toBeNull();
+    expect(restored.value.activeOperation).toMatchObject({
+      operationId: "teardown-recovery",
+      kind: "teardown",
+      affectedDeliverableIds: [plan.members[0]!.deliverableId],
+    });
     await expect(git(repository, ["ls-remote", "--exit-code", "origin", "refs/heads/member-1"]))
       .resolves.toContain(fixture.triggerHead);
 
-    const plan = deliveryStackPlanFixture();
     const facts = {
       target: restored.value.target,
       members: restored.value.members,
       landedDeliverableIds: [plan.members[0]!.deliverableId],
     };
-    const position = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
-      repository,
-      `${JSON.stringify({ planId: fixture.planId, facts })}\n`,
-      { env: fixture.env },
-    );
-    expect(position.exitCode, position.stderr).toBe(0);
-    expect(JSON.parse(position.stdout)).toMatchObject({
-      command: "delivery position",
-      status: "position",
-      nextAction: "teardown-member",
-      selectedDeliverableId: plan.members[0]!.deliverableId,
-    });
-
     const teardown = await runArcWithStdin(
       ["delivery", "teardown", "-", "--json"],
       repository,
@@ -403,6 +392,79 @@ describe("delivery terminal recovery", () => {
     });
   });
 
+  it("clears an unperformed top remedy before returning its fresh ordinary action", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    await reserveInterruptedTopRemedy(fixture);
+    const request = `${JSON.stringify({
+      planId: fixture.planId,
+      repository: "owner/repo",
+      remote: "origin",
+    })}\n`;
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    const recovery = JSON.parse(result.stdout) as Record<string, unknown>;
+    const plan = deliveryStackPlanFixture();
+    expect(recovery).toMatchObject({
+      command: "delivery reconcile",
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-top-remedy",
+      selector: {
+        planId: fixture.planId,
+        operationId: "top-remedy-recovery",
+        operationKind: "top-remedy",
+        affectedDeliverableIds: [plan.members.at(-1)!.deliverableId],
+      },
+      recommendedActionText:
+        "Rerun `arc delivery top-remedy` for the exact top-remedy reservation subject.",
+    });
+    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      revision: number;
+      value: DeliveryStateV1;
+    };
+    expect(cleared.value.activeOperation).toBeNull();
+
+    const replay = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+    );
+    expect(replay.exitCode, replay.stderr).toBe(1);
+    const replayResult = JSON.parse(replay.stdout) as Record<string, unknown>;
+    expect(replayResult).toMatchObject({
+      command: "delivery reconcile",
+      status: "blocked",
+      reason: "observation-unavailable",
+    });
+    expect(replayResult).not.toHaveProperty("action");
+    expect(replayResult).not.toHaveProperty("selector");
+    const replayedState = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      revision: number;
+      value: DeliveryStateV1;
+    };
+    expect(replayedState).toEqual(cleared);
+
+    const remedy = await runArcWithStdin(
+      ["delivery", "top-remedy", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: fixture.planId,
+        action: "retarget",
+        repository: "owner/repo",
+        protectedBaseRef: "main",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(remedy.exitCode, remedy.stderr).toBe(0);
+    expect(JSON.parse(remedy.stdout)).toMatchObject({
+      command: "delivery top-remedy",
+      status: "remedied",
+      nextAction: "terminal-checkpoint",
+    });
+  });
+
   it("retains an interrupted teardown reservation when the request head moved", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: true });
     const result = await runArcWithStdin(
@@ -413,10 +475,14 @@ describe("delivery terminal recovery", () => {
     );
 
     expect(result.exitCode, result.stderr).toBe(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    const recovery = JSON.parse(result.stdout) as Record<string, unknown>;
+    expect(recovery).toMatchObject({
       command: "delivery reconcile",
       status: "blocked",
     });
+    expect(recovery).not.toHaveProperty("action");
+    expect(recovery).not.toHaveProperty("selector");
+    expect(recovery).toHaveProperty("recommendedActionText");
     const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       value: DeliveryStateV1;
     };
