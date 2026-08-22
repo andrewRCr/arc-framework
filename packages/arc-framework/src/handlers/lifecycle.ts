@@ -971,23 +971,6 @@ export async function handleDecompose(
       process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
       return;
     }
-    if (parsed.data.finish !== undefined) {
-      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction({
-        cwd,
-        baseBranch: settings["branch.base"],
-        origin: parsed.data.origin,
-        cutMapPath: parsed.data.finish,
-        apply: parsed.data.apply === true,
-      }));
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status === "refused") {
-        process.stderr.write(
-          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
-        );
-        process.exitCode = 1;
-      }
-      return;
-    }
     const cohortTemplate = new Uint8Array(await readFile(join(
       getArcTemplatePath(),
       "reference",
@@ -1004,6 +987,23 @@ export async function handleDecompose(
       cohortTemplate,
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
+    if (parsed.data.finish !== undefined) {
+      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
+        cwd,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.finish,
+        apply: parsed.data.apply === true,
+      }));
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status === "refused") {
+        process.stderr.write(
+          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
+        );
+        process.exitCode = 1;
+      }
+      return;
+    }
     if (parsed.data.execute !== undefined) {
       const result = await executeGitV3DecomposeCommand({
         ...repository,

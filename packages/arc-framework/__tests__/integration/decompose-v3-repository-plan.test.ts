@@ -14,7 +14,9 @@ import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decom
 import {
   executeGitV3DecomposeCommand,
   executeGitV3DecomposeOperation,
+  executeGitV3ExtractionOperation,
 } from "../../src/lib/work-unit/git-decompose-v3-operation.js";
+import { finishGitV3Extraction } from "../../src/lib/work-unit/git-decompose-v3-finish.js";
 import { advanceGitDecomposeTransitionBase } from
   "../../src/lib/work-unit/git-decompose-transition-base-advancement.js";
 import { resolveTransitionRecordRelativePath } from "../../src/lib/work-unit/transition-record-store.js";
@@ -341,6 +343,49 @@ async function activeExtractionRepository(
   };
 }
 
+async function stageExtractionRepository() {
+  const fixture = await activeExtractionRepository("single-spec", false);
+  const staged = await executeGitV3ExtractionOperation({
+    ...fixture.dependencies,
+    spawningIdentity: "andrew",
+  }, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap: fixture.completedMap,
+  });
+  if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+    throw new Error(JSON.stringify(staged));
+  }
+  const candidatePath = staged.operation.occupation.path;
+  roots.push(candidatePath);
+  const destinationPath = staged.plan.mutations.find((mutation) =>
+    mutation.path.endsWith("spec-member.md"))?.path;
+  if (destinationPath === undefined) throw new Error("extraction fixture needs a member spec");
+  const cutMapPath = join(fixture.repo, "cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+  return { ...fixture, staged, candidatePath, destinationPath, cutMapPath };
+}
+
+async function landedExtractionRepository() {
+  const fixture = await stageExtractionRepository();
+  await git(fixture.candidatePath, ["commit", "-m", "land additive extraction"]);
+  const candidateHead = (await git(fixture.candidatePath, ["rev-parse", "HEAD"])).trim();
+  await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+  const landedHead = (await git(fixture.repo, ["rev-parse", "HEAD"])).trim();
+  await git(fixture.repo, ["switch", "feat/origin"]);
+  return { ...fixture, landedHead };
+}
+
+async function previewFinish(fixture: Awaited<ReturnType<typeof stageExtractionRepository>>) {
+  return await finishGitV3Extraction(fixture.dependencies, {
+    cwd: fixture.repo,
+    baseBranch: "main",
+    origin: "origin",
+    cutMapPath: fixture.cutMapPath,
+    apply: false,
+  });
+}
+
 async function committedTransitionCandidate() {
   const started = await startedRepository();
   const staged = await executeGitV3DecomposeOperation({
@@ -520,6 +565,108 @@ describe("Git v3 repository plan", () => {
     }
     expect((await git(fixture.repo, ["rev-parse", "feat/origin"])).trim()).toBe(fixture.sourceHead);
     expect((await git(fixture.repo, ["rev-parse", "feat/origin^{tree}"])).trim()).toBe(fixture.sourceTree);
+  });
+
+  it("previews finish only after the additive result is committed on the configured base", async () => {
+    await expect(previewFinish(await landedExtractionRepository()))
+      .resolves.toEqual({ status: "previewed" });
+  });
+
+  it("refuses a complete result that exists only on its additive candidate branch", async () => {
+    const fixture = await stageExtractionRepository();
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({
+      status: "refused",
+      reason: "destination-missing",
+    });
+  });
+
+  it.each([
+    ["destination-missing", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
+      await git(fixture.repo, ["rm", fixture.destinationPath]);
+    }],
+    ["destination-bytes", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
+      await write(fixture.repo, fixture.destinationPath, "# Changed after landing\n");
+      await git(fixture.repo, ["add", fixture.destinationPath]);
+    }],
+  ] as const)("refuses %s after a partial or changed base commit", async (reason, mutate) => {
+    const fixture = await landedExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    await mutate(fixture);
+    await git(fixture.repo, ["commit", "-m", "change landed destination"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({ status: "refused", reason });
+  });
+
+  it.each([
+    ["source-worktree-dirty", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
+      await write(fixture.repo, ".arc/active/spec-origin.md", "# Dirty source\n");
+    }],
+    ["source-index-dirty", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
+      await write(fixture.repo, ".arc/active/spec-origin.md", "# Staged source\n");
+      await git(fixture.repo, ["add", ".arc/active/spec-origin.md"]);
+    }],
+    ["source-untracked", async (fixture: Awaited<ReturnType<typeof landedExtractionRepository>>) => {
+      await write(fixture.repo, ".arc/active/notes-origin.md", "# Untracked source sibling\n");
+    }],
+  ] as const)("refuses %s in the relevant source directory", async (reason, dirty) => {
+    const fixture = await landedExtractionRepository();
+    await dirty(fixture);
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({ status: "refused", reason });
+  });
+
+  it("refuses the wrong source branch and a changed source head", async () => {
+    const wrongBranch = await landedExtractionRepository();
+    await git(wrongBranch.repo, ["switch", "main"]);
+    await expect(previewFinish(wrongBranch)).resolves.toMatchObject({
+      status: "refused",
+      reason: "source-branch",
+    });
+
+    const changedHead = await landedExtractionRepository();
+    await write(changedHead.repo, "unrelated.txt", "changed head\n");
+    await git(changedHead.repo, ["add", "unrelated.txt"]);
+    await git(changedHead.repo, ["commit", "-m", "change source head"]);
+    await expect(previewFinish(changedHead)).resolves.toMatchObject({
+      status: "refused",
+      reason: "source-head",
+    });
+  });
+
+  it("refuses when the configured base moves during destination proof", async () => {
+    const fixture = await landedExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    await git(fixture.repo, ["switch", "-c", "race-base"]);
+    await write(fixture.repo, "race.txt", "race\n");
+    await git(fixture.repo, ["add", "race.txt"]);
+    await git(fixture.repo, ["commit", "-m", "race base"]);
+    const raceHead = (await git(fixture.repo, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["switch", "feat/origin"]);
+    await git(fixture.repo, ["branch", "-f", "main", fixture.landedHead]);
+    let baseReads = 0;
+    const racedDependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<GitExec>) => {
+        if (args[0] === "git"
+          && args[1][0] === "rev-parse"
+          && args[1][2] === "refs/heads/main^{commit}") {
+          baseReads += 1;
+          if (baseReads === 2) await git(fixture.repo, ["branch", "-f", "main", raceHead]);
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    await expect(finishGitV3Extraction(racedDependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      apply: false,
+    })).resolves.toMatchObject({ status: "refused", reason: "base-raced" });
   });
 
   it("forwards byte input through the repository raw Git boundary", async () => {

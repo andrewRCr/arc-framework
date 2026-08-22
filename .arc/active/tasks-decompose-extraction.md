@@ -79,7 +79,7 @@ _Purpose:_ Land complete new destinations from exact source evidence while prese
 
 _Purpose:_ Remove approved source units only after their exact destinations are live on the integration base.
 
-### `[ ]` **2.1 Add the typed finish mode**
+### `[x]` **2.1 Add the typed finish mode**
 
 - _Goal:_ Preview and mutation have one explicit command boundary.
 
@@ -88,10 +88,13 @@ _Purpose:_ Remove approved source units only after their exact destinations are 
           handler emits the closed previewed/finished/already-finished/refused contract while destination proof
           remains fail-closed behind its production adapter.
 
-    - `[ ]` **2.1.b Prove landed destinations**
-        - Require the exact surviving source branch/head and clean relevant paths.
-        - Pin and reread the configured base; validate every transferred target's path, locator, bytes, mode,
-          profile, and dependencies. Refuse branch-only, uncommitted, partial, changed, missing, or raced targets.
+    - `[x]` **2.1.b Prove landed destinations**
+        - Finish now authenticates the exact source branch/head and relevant-path cleanliness, reconstructs the
+          additive plan from pinned Git objects, and proves every committed destination's locator, bytes, mode,
+          profile, and dependencies. Branch-only, partial, changed, missing, or raced states fail closed.
+
+- _Outcome:_ Preview and apply share one typed boundary whose immutable Git proof pins the surviving source and
+  descendant integration base before any source mutation; apply remains reserved for bounded thinning.
 
 ### `[ ]` **2.2 Plan byte-preserving thinning**
 

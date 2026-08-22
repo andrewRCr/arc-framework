@@ -642,13 +642,16 @@ describe("handleDecompose", () => {
 
     await handleDecompose("mono", { finish: "cut-map.json", ...(apply ? { apply: true } : {}) });
 
-    expect(mockFinishGitV3Extraction).toHaveBeenCalledWith({
-      cwd: "/repo",
-      baseBranch: "main",
-      origin: "mono",
-      cutMapPath: "cut-map.json",
-      apply,
-    });
+    expect(mockFinishGitV3Extraction).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: "/repo" }),
+      {
+        cwd: "/repo",
+        baseBranch: "main",
+        origin: "mono",
+        cutMapPath: "cut-map.json",
+        apply,
+      },
+    );
     expect(stdoutWrite).toHaveBeenCalledWith(`{"status":"${status}"}\n`);
     expect(process.exitCode).toBeUndefined();
   });
