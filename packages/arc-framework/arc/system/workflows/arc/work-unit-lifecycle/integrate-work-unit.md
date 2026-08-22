@@ -163,12 +163,14 @@ non-pass outcomes retain the prior count.
 
 - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
 - `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. When
-  `arc review respond -` returns `payload.hostedSettlementPlan`, execute its phases in order: settle every
+  `arc review respond -` returns `payload.hostedSettlementPlan` for approved `settlement: reply-and-resolve`
+  findings, execute its phases in order: invoke `arc review hosted settle -` for every ID in the active phase.
+  Settle each
   `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and require every
   result to complete before any approved fix changes the head; then apply, verify, commit, and push the approved
-  fixes; then settle every `afterFixFindingIds` entry against the originating `target` plus the verified changed
-  `fixTarget`. A `settlement: not-applicable` finding appears in neither phase and remains triage-only: never invoke
-  `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
+  fixes; then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget`
+  verified for the current head. A `settlement: not-applicable` finding appears in neither phase and remains
+  triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
   every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
