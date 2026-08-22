@@ -416,11 +416,16 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
   observation. The shipped workflow validates both presentation forms first and routes optional non-terminal native
   registration only after every request ID exists; opt-out and one-member paths make no registration call.
 
-### `[ ]` **4.5 Extend the window-time mutation loop with its mechanical tail**
+### `[x]` **4.5 Extend the window-time mutation loop with its mechanical tail**
 
 - _Goal:_ A review fix during the landing window recuts the suffix, re-adopts it, rebinds state, and re-verifies
   only the members whose contribution actually changed — all riding the finding-disposition approval that
   triggered it, with no new attended stop.
+
+- _Outcome:_ Rematerialization now retains arbiter-backed contribution verdicts, re-adopts and ordinarily publishes
+  the recut suffix beneath the content-neutral top, then CAS-rebinds the terminal coordinate with exact retry
+  convergence. Its strict next action routes only selected changed members through member-scope criteria and reruns
+  Tier 1 under the originating finding disposition; equivalent carried members and the interlock count remain zero.
 
 - _Context:_ The shipped singleton integration flow already recomposes over head movement without an added
   interlock: an approved fix applies and verifies, commits and pushes, recomposes the current target, and settles

@@ -67,7 +67,10 @@ import {
 import {
   executeDeliverySuffixRewrite,
 } from "../lib/delivery/suffix-reconciliation.js";
-import { executeFreshDeliverySuffixRematerialization } from "../lib/delivery/suffix-rematerialization.js";
+import {
+  completeDeliverySuffixMutationTail,
+  executeFreshDeliverySuffixRematerialization,
+} from "../lib/delivery/suffix-rematerialization.js";
 import {
   adoptDeliveryTerminalMerge,
   assessDeliveryAbsorption,
@@ -333,6 +336,11 @@ const BlockedContributionRefusalSchema = z.strictObject({
   paths: z.array(z.string()),
   guidance: z.string().min(1),
 });
+const ContributionVerdictSchema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  contribution: z.enum(["changed", "equivalent"]),
+  proof: z.enum(["selected-change", "tree-equality", "mechanical-reapply"]),
+});
 
 const ResultSchema = z.union([
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
@@ -343,7 +351,16 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("landed"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("position"), position: z.unknown(), nextAction: z.string().min(1) }),
   z.strictObject({ status: z.literal("applied"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
-  z.strictObject({ status: z.literal("rematerialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({
+    status: z.literal("rematerialized"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    contributionVerdicts: z.array(ContributionVerdictSchema),
+    nextAction: z.literal("verify-review-fix"),
+    verification: z.strictObject({
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema),
+      tier1Required: z.literal(true),
+    }),
+  }),
   z.strictObject({ status: z.literal("retryable"), guidance: z.string().min(1) }),
   z.strictObject({ status: z.literal("retryable"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
@@ -1216,7 +1233,7 @@ async function executeDeliveryCommand(
   if (command === "rematerialize") {
     const parsed = RematerializeSchema.parse(request);
     let latestSnapshot: DeliveryEligibilitySnapshot | null = null;
-    return executeFreshDeliverySuffixRematerialization({
+    const rematerialized = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: parsed.selectedDeliverableIds,
     }, {
       reobserve: async () => {
@@ -1329,6 +1346,18 @@ async function executeDeliveryCommand(
         });
         return result.status === "applied" ? result : { status: "refused" as const };
       },
+    });
+    if (rematerialized.status !== "rematerialized") return rematerialized;
+    const snapshot = latestSnapshot as DeliveryEligibilitySnapshot | null;
+    if (snapshot === null) return { status: "refused", reason: "observation-unavailable" };
+    return completeDeliverySuffixMutationTail({
+      rematerialized,
+      commonBase: snapshot.protectedBase,
+      topRef: parsed.controlRef,
+    }, {
+      adoptTop: (input) => adoptGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
+      publishTop: (input) => publishDeliveryTopRef({ exec, remote: parsed.remote, ...input }),
+      publishState: (planId, value, expectedRevision) => stateStore.publish(planId, value, expectedRevision),
     });
   }
   if (command === "terminal-prepare") {

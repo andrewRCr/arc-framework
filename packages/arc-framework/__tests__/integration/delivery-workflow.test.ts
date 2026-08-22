@@ -66,6 +66,15 @@ describe("packaged delivery workflow", () => {
     expect(interlock).toBeLessThan(apply);
     expect(reviewSection).toMatch(/retryable[\s\S]*prepare[\s\S]*new integration interlock/iu);
     expect(reviewSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
+    const rematerialize = reviewSection.indexOf("arc delivery rematerialize");
+    const teardown = reviewSection.indexOf("arc delivery teardown", rematerialize);
+    const mutationTail = reviewSection.slice(rematerialize, teardown);
+    expect(mutationTail).toContain("verify-review-fix");
+    expect(mutationTail).toContain("validate-criteria");
+    expect(mutationTail).toMatch(/memberDeliverableIds[\s\S]*contribution-equivalent[\s\S]*re-verifies nothing/iu);
+    expect(mutationTail).toMatch(/tier1Required[\s\S]*Tier 1/iu);
+    expect(mutationTail).toMatch(/same finding-disposition approval/iu);
+    expect(mutationTail).not.toContain("`integration-interlock`");
     expect(packaged).not.toMatch(/if\s+.*(?:state|status)\s*==/iu);
     const nativeObserve = packaged.indexOf("arc delivery native observe");
     const nativeSelect = packaged.indexOf("arc delivery native land-select", nativeObserve);

@@ -8,6 +8,7 @@ arc:
     - implementation-audit
     - review-triage
     - review-response
+    - validate-criteria
   extensions:
     - pre-push-review
     - pre-merge
@@ -231,6 +232,14 @@ It executes in plan order, using each persisted result as the next predecessor; 
 contribution drift stops with the current reservation/state intact. Never invoke the low-level rewrite verb as an
 operator-assembled batch.
 
+A successful `verify-review-fix` next action means the service has re-adopted the freshly recut suffix beneath the
+content-neutral top, published that exact top, and version-rebound the terminal state. Invoke
+[`validate-criteria`][validate-criteria] at member scope once for each ID in `memberDeliverableIds`; the list contains
+only contributions changed by the approved fix. An arbiter-accepted contribution-equivalent member, including a
+successful mechanical reapply after predecessor movement, is absent and re-verifies nothing. Then honor
+`tier1Required` by rerunning Tier 1 over the rebound top. These actions ride the same finding-disposition approval;
+do not add an interlock.
+
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 
 ```bash
@@ -257,3 +266,4 @@ unit returns `not-applicable`.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
+[validate-criteria]: ../../../methods/validate-criteria.md

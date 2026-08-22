@@ -376,6 +376,43 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("returns the typed after-fix verification route from rematerialization", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const changed = plan.members[0]!.deliverableId;
+    const execute = vi.fn().mockResolvedValue({
+      status: "rematerialized",
+      state: { revision: 8, value: state },
+      contributionVerdicts: [{ deliverableId: changed, contribution: "changed", proof: "selected-change" }],
+      nextAction: "verify-review-fix",
+      verification: { memberDeliverableIds: [changed], tier1Required: true },
+    });
+    const write = vi.fn();
+    await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        controlRef: "refs/heads/control",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+          checkoutPath: `/tmp/candidate-${index + 1}`,
+        })),
+        selectedDeliverableIds: [changed],
+        repository: "andrewRCr/arc-framework",
+        remote: "origin",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "rematerialized",
+      nextAction: "verify-review-fix",
+      verification: { memberDeliverableIds: [changed], tier1Required: true },
+    });
+  });
+
   it("accepts only terminal repository locators at the command boundary", async () => {
     const prepare = vi.fn().mockResolvedValue({ status: "terminal-ready" });
     const write = vi.fn();
