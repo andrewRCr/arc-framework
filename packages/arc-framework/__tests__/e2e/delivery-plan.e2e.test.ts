@@ -66,7 +66,7 @@ describe("arc delivery", () => {
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
     for (const command of [
-      ["eligibility", "prepare"], ["eligibility", "close"], ["materialize"], ["publish"],
+      ["eligibility", "prepare"], ["eligibility", "close"], ["publish"],
       ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"],
       ["terminal", "prepare"], ["terminal", "attach"], ["teardown"],
     ]) {

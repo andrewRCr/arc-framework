@@ -39,10 +39,11 @@ import {
   bindInitialDeliveryRef,
   bindInitialDeliveryRequest,
   deriveDeliveryMaterialization,
-  describeDeliveryMemberPresentation,
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
-  resolveDeliveryMemberPresentations,
+  resolveDeliveryPublicationPresentations,
+  type DeliveryMaterializationPlan,
+  type DeliveryPublicationPresentations,
 } from "../lib/delivery/materialization.js";
 import { adoptGitDeliveryChain } from "../lib/delivery/chain-adoption.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
@@ -297,7 +298,6 @@ const NativeStatusSchema = z.strictObject({
 const RequestSchemas = {
   "eligibility-prepare": PrepareSchema,
   "eligibility-close": CloseSchema,
-  materialize: MaterializeSchema,
   publish: PublishSchema,
   position: PositionSchema,
   "land-prepare": LandPrepareSchema,
@@ -575,6 +575,11 @@ async function executeDeliveryCommand(
     resolveMember: (head: string) => stateStore.resolveMember({ selector: { kind: "head", objectId: head } }),
     inspectCheckout: (path: string) => inspectDeliveryCandidateCheckout(exec, path),
   };
+  const resolveOriginatingTopRef = async (plan: z.infer<typeof DeliveryPlanV1Schema>): Promise<string | null> => {
+    const active = await resolveActiveWu({ cwd });
+    if (active.status !== "resolved" || active.name !== plan.workUnitId || active.branch === null) return null;
+    return `refs/heads/${active.branch}`;
+  };
   const observePosition = async (
     plan: z.infer<typeof DeliveryPlanV1Schema>,
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
@@ -840,11 +845,11 @@ async function executeDeliveryCommand(
   if (command === "eligibility-close") {
     return closeDeliveryEligibility(CloseSchema.parse(request).snapshot, eligibilityDeps);
   }
-  if (command === "materialize" || command === "publish") {
-    const publishRequest = command === "publish" ? PublishSchema.parse(request) : null;
-    const parsed = publishRequest ?? MaterializeSchema.parse(request);
+  if (command === "publish") {
+    const parsed = PublishSchema.parse(request);
     return executeWithFreshDeliveryEligibility(parsed, {
       ...eligibilityDeps,
+      resolveOriginatingTopRef,
       resolveLifecyclePaths: async (plan) => {
         const active = await resolveActiveWu({ cwd });
         if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
@@ -863,13 +868,32 @@ async function executeDeliveryCommand(
           return null;
         }
       },
-      mutate: async ({ plan, snapshot }) => {
+      prepareMutation: ({ plan, snapshot }): Promise<
+        | {
+            readonly status: "prepared";
+            readonly value: {
+              readonly materialization: DeliveryMaterializationPlan;
+              readonly presentations: DeliveryPublicationPresentations;
+            };
+          }
+        | { readonly status: "refused"; readonly reason: "snapshot-mismatch" | "presentation-mismatch" }
+      > => {
         const derived = deriveDeliveryMaterialization(plan, snapshot);
-        if (derived.status !== "derived") return derived;
-        const reviewerPresentations = publishRequest === null
-          ? null
-          : resolveDeliveryMemberPresentations(plan, publishRequest.presentations);
-        if (reviewerPresentations?.status === "refused") return reviewerPresentations;
+        if (derived.status !== "derived") return Promise.resolve(derived);
+        const presentations = resolveDeliveryPublicationPresentations(
+          plan,
+          parsed.presentations,
+          parsed.terminalPresentation,
+        );
+        return Promise.resolve(presentations.status === "resolved"
+          ? {
+              status: "prepared" as const,
+              value: { materialization: derived.value, presentations: presentations.value },
+            }
+          : presentations);
+      },
+      mutate: async ({ plan, snapshot, prepared }) => {
+        const derived = { status: "derived" as const, value: prepared.materialization };
         const refs = {
           observe: async (ref: string) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
           publish: async (ref: string, head: string) => {
@@ -881,26 +905,19 @@ async function executeDeliveryCommand(
         if (initial.status !== "ok") return { status: "refused" as const, reason: "state-unavailable" };
         const nonTerminalMembers = derived.value.members.filter((member) => member.kind === "member");
         if (initial.value === null && nonTerminalMembers.length > 0) {
-          if (command === "publish") {
-            const publish = publishRequest;
-            if (publish === null) return { status: "refused" as const, reason: "initial-request-refused" };
-            const recovered = await bindInitialDeliveryRequest({
-              plan,
-              materialization: derived.value,
-              stateStore,
-              host: new GhDeliveryHostPort(hostedGhRunner),
-              providerId: "github",
-              repository: publish.repository,
-              draft: publish.draft,
-            });
-            if (recovered.status === "refused") {
-              return { status: "refused" as const, reason: "initial-request-refused" };
-            }
-            if (recovered.status === "absent") {
-              const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore, refs });
-              if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
-            }
-          } else {
+          const recovered = await bindInitialDeliveryRequest({
+            plan,
+            materialization: derived.value,
+            stateStore,
+            host: new GhDeliveryHostPort(hostedGhRunner),
+            providerId: "github",
+            repository: parsed.repository,
+            draft: parsed.draft,
+          });
+          if (recovered.status === "refused") {
+            return { status: "refused" as const, reason: "initial-request-refused" };
+          }
+          if (recovered.status === "absent") {
             const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore, refs });
             if (bound.status !== "bound") return { status: "refused" as const, reason: bound.reason };
           }
@@ -967,22 +984,19 @@ async function executeDeliveryCommand(
           });
           if (materialized.status !== "materialized") return materialized;
         }
-        if (command === "materialize") return materialized;
-        const publish = publishRequest;
-        if (publish === null) return { status: "refused" as const, reason: "initial-request-refused" };
         return publishDeliveryRequests({
           plan,
           materialization: adoptedMaterialization,
           stateStore,
           host: new GhDeliveryHostPort(hostedGhRunner),
           providerId: "github",
-          repository: publish.repository,
-          draft: publish.draft,
-          terminalPresentation: publish.terminalPresentation,
+          repository: parsed.repository,
+          draft: parsed.draft,
+          terminalPresentation: prepared.presentations.terminal,
           memberPresentation: (member) => {
-            const authored = reviewerPresentations?.value.get(member.deliverableId);
-            if (authored === undefined) throw new Error("validated delivery presentation coverage was lost");
-            return describeDeliveryMemberPresentation(plan, member, authored);
+            const presentation = prepared.presentations.members.get(member.deliverableId);
+            if (presentation === undefined) throw new Error("validated delivery presentation coverage was lost");
+            return presentation;
           },
         });
       },
@@ -1254,6 +1268,7 @@ async function executeDeliveryCommand(
           candidates: parsed.candidates,
         }, {
           ...eligibilityDeps,
+          resolveOriginatingTopRef,
           resolveLifecyclePaths: async (plan) => {
             const active = await resolveActiveWu({ cwd });
             if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
@@ -1272,6 +1287,10 @@ async function executeDeliveryCommand(
               return null;
             }
           },
+          prepareMutation: ({ plan, snapshot }) => Promise.resolve({
+            status: "prepared" as const,
+            value: { plan, snapshot },
+          }),
           mutate: ({ plan, snapshot }) => Promise.resolve({ status: "observed" as const, plan, snapshot }),
         });
         if (eligible.status !== "observed") return { status: "refused" as const };

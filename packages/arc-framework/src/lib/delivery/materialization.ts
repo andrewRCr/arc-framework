@@ -57,25 +57,58 @@ export interface DeliveryTerminalPresentation {
   readonly body: string;
 }
 
+/** Complete effective presentation set admitted before publication mutation. */
+export interface DeliveryPublicationPresentations {
+  readonly members: ReadonlyMap<string, Pick<DeliveryHostOpenRequest, "title" | "body">>;
+  readonly terminal: DeliveryTerminalPresentation;
+}
+
 /** Validate exact authored presentation coverage without granting caller order authority. */
 export function resolveDeliveryMemberPresentations(
   plan: DeliveryPlanV1,
   presentations: readonly DeliveryMemberReviewerPresentation[],
-): { readonly status: "resolved"; readonly value: ReadonlyMap<string, DeliveryMemberReviewerPresentation> } | {
+): { readonly status: "resolved"; readonly value: ReadonlyMap<string, Pick<DeliveryHostOpenRequest, "title" | "body">> } | {
   readonly status: "refused";
   readonly reason: "presentation-mismatch";
 } {
   const expected = new Set(plan.members.slice(0, -1).map((member) => member.deliverableId));
-  const byDeliverableId = new Map<string, DeliveryMemberReviewerPresentation>();
+  const authoredByDeliverableId = new Map<string, DeliveryMemberReviewerPresentation>();
   for (const presentation of presentations) {
-    if (!expected.has(presentation.deliverableId) || byDeliverableId.has(presentation.deliverableId)) {
+    if (!expected.has(presentation.deliverableId) || authoredByDeliverableId.has(presentation.deliverableId)) {
       return { status: "refused", reason: "presentation-mismatch" };
     }
-    byDeliverableId.set(presentation.deliverableId, presentation);
+    authoredByDeliverableId.set(presentation.deliverableId, presentation);
   }
-  return byDeliverableId.size === expected.size
-    ? { status: "resolved", value: byDeliverableId }
-    : { status: "refused", reason: "presentation-mismatch" };
+  if (authoredByDeliverableId.size !== expected.size) {
+    return { status: "refused", reason: "presentation-mismatch" };
+  }
+  const effectiveByDeliverableId = new Map<string, Pick<DeliveryHostOpenRequest, "title" | "body">>();
+  for (const member of plan.members.slice(0, -1)) {
+    const authored = authoredByDeliverableId.get(member.deliverableId);
+    if (authored === undefined) return { status: "refused", reason: "presentation-mismatch" };
+    const effective = describeDeliveryMemberPresentation(plan, member, authored);
+    if (!isValidRequestPresentation(effective)) {
+      return { status: "refused", reason: "presentation-mismatch" };
+    }
+    effectiveByDeliverableId.set(member.deliverableId, effective);
+  }
+  return { status: "resolved", value: effectiveByDeliverableId };
+}
+
+/** Compose and validate the complete member and terminal request presentation set. */
+export function resolveDeliveryPublicationPresentations(
+  plan: DeliveryPlanV1,
+  presentations: readonly DeliveryMemberReviewerPresentation[],
+  terminal: DeliveryTerminalPresentation,
+): { readonly status: "resolved"; readonly value: DeliveryPublicationPresentations } | {
+  readonly status: "refused";
+  readonly reason: "presentation-mismatch";
+} {
+  const members = resolveDeliveryMemberPresentations(plan, presentations);
+  if (members.status === "refused" || !isValidRequestPresentation(terminal)) {
+    return { status: "refused", reason: "presentation-mismatch" };
+  }
+  return { status: "resolved", value: { members: members.value, terminal } };
 }
 
 /** Derive exact member refs and predecessor bases with the terminal on the originating branch. */

@@ -45,7 +45,7 @@ dispatch the returned route; the workflow never parses headings, derives members
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
 
-## Validate and materialize
+## Validate and publish
 
 Prepare the complete explicit candidate chain:
 
@@ -64,21 +64,6 @@ same observation window:
 ```bash
 arc delivery eligibility close - --json
 ```
-
-A refusal stops without materialization. An eligible result closes the workflow-owned gate bracket but is never
-mutation input. Supply the plan ID plus the same candidate refs and checkout locators to:
-
-```bash
-arc delivery materialize - --json
-arc delivery publish - --json
-```
-
-These verbs resolve the current plan and lifecycle paths and rerun mechanical eligibility against the exact post-gate
-checkouts. Materialization creates or adopts every member ref before publication opens any request: delivery refs in
-plan order, then the content-neutral top adoption and ordinary top-branch push. Publication opens requests bottom-up,
-each based on its predecessor branch; the terminal request uses the originating branch over the highest delivery ref.
-Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request opens under the configured
-hold; the landing sequence releases that lock only after readiness.
 
 Before the first mutation, load both the ordinary and delivery-member forms of
 [`template-pull-request.md`][template-pull-request]. Author one `presentations` entry for every non-terminal
@@ -100,11 +85,25 @@ deliverable ID plus the ordinary terminal request as `terminalPresentation`:
 ```
 
 `summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
-The complete presentation set validates before the first ref push. The verb derives non-terminal titles from the
-canonical plan and uses authored presentation only when creating a missing request; an exact existing request is
-adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact publication retry.
+Supply that complete presentation set with the plan ID, repository locators, and the same candidate refs and checkout
+locators to the sole initial mutation verb:
 
-After interruption, rerun the candidate gates before invoking the mutation verbs again. Resume any persisted
+```bash
+arc delivery publish - --json
+```
+
+A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
+work-unit state, validates the complete presentation set, and reruns mechanical eligibility against the exact
+post-gate checkouts before the first ref push or host mutation. It then creates or adopts every member ref before
+opening any request: delivery refs in plan order, the content-neutral top adoption and ordinary top-branch push, then
+requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the originating branch
+over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request
+opens under the configured hold; the landing sequence releases that lock only after readiness. The verb derives
+non-terminal titles from the canonical plan and uses authored presentation only when creating a missing request; an
+exact existing request is adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact
+publication retry.
+
+After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:
 
 ```bash

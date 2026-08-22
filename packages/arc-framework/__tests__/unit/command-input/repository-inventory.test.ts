@@ -218,7 +218,6 @@ describe("repository command-input inventory", () => {
       "delivery entry inspect",
       "delivery land apply",
       "delivery land prepare",
-      "delivery materialize",
       "delivery native land-prepare",
       "delivery native land-select",
       "delivery native land-status",

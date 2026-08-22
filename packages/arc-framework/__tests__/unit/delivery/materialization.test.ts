@@ -8,6 +8,7 @@ import {
   materializeBoundDeliveryChain,
   publishDeliveryRequests,
   resolveDeliveryMemberPresentations,
+  resolveDeliveryPublicationPresentations,
 } from "../../../src/lib/delivery/materialization.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import {
@@ -205,6 +206,40 @@ describe("describeDeliveryMemberPresentation", () => {
       expect(resolveDeliveryMemberPresentations(plan, invalid))
         .toEqual({ status: "refused", reason: "presentation-mismatch" });
     }
+  });
+
+  it("refuses an invalid effective member request presentation", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const first = plan.members[0]!;
+    const malformed = {
+      ...plan,
+      members: plan.members.map((member, index) => index === 0
+        ? { ...member, title: "Member title\nwith a second line" }
+        : member),
+    };
+
+    expect(resolveDeliveryMemberPresentations(malformed, plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    })))).toEqual({ status: "refused", reason: "presentation-mismatch" });
+    expect(first.title).not.toContain("\n");
+  });
+
+  it("validates the ordinary terminal presentation in the same preflight set", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    expect(resolveDeliveryPublicationPresentations(plan, members, {
+      title: "feat(delivery): publish the work unit",
+      body: "Publish the complete work unit.",
+    })).toMatchObject({ status: "resolved" });
+    expect(resolveDeliveryPublicationPresentations(plan, members, {
+      title: "feat(delivery): publish\nwork unit",
+      body: "Publish the complete work unit.",
+    })).toEqual({ status: "refused", reason: "presentation-mismatch" });
   });
 });
 

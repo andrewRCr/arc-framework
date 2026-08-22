@@ -4,6 +4,21 @@ import { handleDeliveryExecution } from "../../../src/handlers/delivery-executio
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
+function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
+  return {
+    repository: "andrewRCr/arc-framework",
+    draft: true,
+    presentations: plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    })),
+    terminalPresentation: {
+      title: "feat(delivery): publish the work unit",
+      body: "## Summary\n\nPublish the complete work unit.",
+    },
+  };
+}
+
 describe("delivery execution handler", () => {
   it("preserves a prepared service result through the strict verb envelope", async () => {
     const plan = deliveryStackPlanFixture();
@@ -168,7 +183,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn().mockResolvedValue({ status: "materialized" });
     const write = vi.fn();
 
-    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         snapshot: {
@@ -194,7 +209,7 @@ describe("delivery execution handler", () => {
     });
 
     expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
-      command: "delivery materialize",
+      command: "delivery publish",
       status: "refused",
       reason: "invalid-command-input",
     });
@@ -205,7 +220,7 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const write = vi.fn();
 
-    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -216,6 +231,7 @@ describe("delivery execution handler", () => {
           checkoutPath: `/tmp/candidate-${index + 1}`,
         })),
         remote: "origin",
+        ...publicationFields(plan),
       })),
       execute: vi.fn().mockResolvedValue({ status: "refused", reason: "checkout-moved" }),
       write,
@@ -223,7 +239,7 @@ describe("delivery execution handler", () => {
     });
 
     expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
-      command: "delivery materialize",
+      command: "delivery publish",
       status: "refused",
       reason: "checkout-moved",
     });
@@ -352,10 +368,11 @@ describe("delivery execution handler", () => {
         checkoutPath: `/tmp/candidate-${index + 1}`,
       })),
       remote: "origin",
+      ...publicationFields(plan),
     });
     const write = vi.fn();
 
-    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(request),
       execute: vi.fn().mockResolvedValue({
         status: "refused",

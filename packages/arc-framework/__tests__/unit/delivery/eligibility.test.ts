@@ -2,7 +2,11 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { deliveryPlanFixture, deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliveryStackPlanFixture,
+  deliveryStackPlanWithMemberTitlesFixture,
+} from "../../fixtures/delivery-plan.js";
 import {
   closeDeliveryEligibility,
   executeWithFreshDeliveryEligibility,
@@ -10,6 +14,7 @@ import {
   verifyDeliveryCandidateCheckout,
   type DeliveryEligibilityDependencies,
 } from "../../../src/lib/delivery/eligibility.js";
+import { resolveDeliveryMemberPresentations } from "../../../src/lib/delivery/materialization.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -155,6 +160,74 @@ describe("prepareDeliveryEligibility", () => {
 });
 
 describe("eligibility observation bracket", () => {
+  it("refuses malformed effective presentations before any publication mutation", async () => {
+    const malformed = deliveryStackPlanWithMemberTitlesFixture([
+      "Member title\nwith a second line",
+      "Second member",
+    ]);
+    const deps = dependencies();
+    deps.readCurrentPlan = vi.fn(async () => malformed);
+    const mutations = { refs: false, state: false, host: false };
+
+    const result = await executeWithFreshDeliveryEligibility({
+      planId: malformed.planId,
+      protectedBaseRef: "main",
+      topRef: "control",
+      candidates: candidates().map((candidate, index) => ({
+        ...candidate,
+        checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
+      })),
+    }, {
+      ...deps,
+      resolveOriginatingTopRef: async () => "control",
+      resolveLifecyclePaths: async () => [],
+      prepareMutation: async ({ plan: current }) => {
+        const presentations = resolveDeliveryMemberPresentations(current, current.members.slice(0, -1).map(
+          (member) => ({ deliverableId: member.deliverableId, summary: `Review ${member.title}.` }),
+        ));
+        return presentations.status === "resolved"
+          ? { status: "prepared" as const, value: presentations.value }
+          : presentations;
+      },
+      mutate: async () => {
+        mutations.refs = true;
+        mutations.state = true;
+        mutations.host = true;
+        return { status: "mutated" as const };
+      },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "presentation-mismatch" });
+    expect(mutations).toEqual({ refs: false, state: false, host: false });
+  });
+
+  it("refuses mutation when the requested top is not the repository-owned work-unit branch", async () => {
+    const deps = dependencies();
+    let mutated = false;
+
+    const result = await executeWithFreshDeliveryEligibility({
+      planId: deliveryStackPlanFixture().planId,
+      protectedBaseRef: "main",
+      topRef: "control",
+      candidates: candidates().map((candidate, index) => ({
+        ...candidate,
+        checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
+      })),
+    }, {
+      ...deps,
+      resolveOriginatingTopRef: async () => "refs/heads/feat/example",
+      resolveLifecyclePaths: async () => [],
+      prepareMutation: async () => ({ status: "prepared" as const, value: undefined }),
+      mutate: async () => {
+        mutated = true;
+        return { status: "mutated" as const };
+      },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "top-ref-mismatch" });
+    expect(mutated).toBe(false);
+  });
+
   it("refuses mutation when the current lifecycle path set moves during revalidation", async () => {
     const deps = dependencies();
     let readCount = 0;
@@ -170,7 +243,9 @@ describe("eligibility observation bracket", () => {
       })),
     }, {
       ...deps,
+      resolveOriginatingTopRef: async () => "control",
       resolveLifecyclePaths: async () => ++readCount === 1 ? ["meta.md"] : ["meta.md", "tasks.md"],
+      prepareMutation: async () => ({ status: "prepared" as const, value: undefined }),
       mutate: async () => {
         mutated = true;
         return { status: "mutated" as const };
@@ -198,7 +273,9 @@ describe("eligibility observation bracket", () => {
       })),
     }, {
       ...deps,
+      resolveOriginatingTopRef: async () => "control",
       resolveLifecyclePaths: async () => [],
+      prepareMutation: async () => ({ status: "prepared" as const, value: undefined }),
       mutate: async () => {
         mutated = true;
         return { status: "mutated" as const };

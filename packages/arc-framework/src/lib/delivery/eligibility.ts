@@ -78,6 +78,7 @@ export interface DeliveryEligibilityRefusal {
     | "evidence-unavailable"
     | "source-moved"
     | "plan-moved"
+    | "top-ref-mismatch"
     | "head-already-bound";
   readonly deliverableId?: string;
   /** Every mismatching lifecycle-contribution path; present only for `lifecycle-contribution` refusals. */
@@ -85,12 +86,18 @@ export interface DeliveryEligibilityRefusal {
 }
 
 /** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
-export interface FreshDeliveryEligibilityMutationDependencies<Result>
+export interface FreshDeliveryEligibilityMutationDependencies<Prepared, Result, PreparationRefusal>
 extends DeliveryEligibilityDependencies {
+  resolveOriginatingTopRef(plan: DeliveryPlanV1): Promise<string | null>;
   resolveLifecyclePaths(plan: DeliveryPlanV1): Promise<readonly string[] | null>;
+  prepareMutation(input: {
+    readonly plan: DeliveryPlanV1;
+    readonly snapshot: DeliveryEligibilitySnapshot;
+  }): Promise<{ readonly status: "prepared"; readonly value: Prepared } | PreparationRefusal>;
   mutate(input: {
     readonly plan: DeliveryPlanV1;
     readonly snapshot: DeliveryEligibilitySnapshot;
+    readonly prepared: Prepared;
   }): Promise<Result>;
 }
 
@@ -101,7 +108,11 @@ extends DeliveryEligibilityDependencies {
  * @param deps - Current plan/lifecycle readers, mechanical observers, and the guarded mutation
  * @returns The mutation result, or the first refusal before mutation begins
  */
-export async function executeWithFreshDeliveryEligibility<Result>(input: {
+export async function executeWithFreshDeliveryEligibility<
+  Prepared,
+  Result,
+  PreparationRefusal extends { readonly status: "refused" },
+>(input: {
   readonly planId: string;
   readonly protectedBaseRef: string;
   readonly topRef: string;
@@ -111,9 +122,14 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
     readonly ref: string;
     readonly checkoutPath: string;
   }[];
-}, deps: FreshDeliveryEligibilityMutationDependencies<Result>): Promise<Result | DeliveryEligibilityRefusal> {
+}, deps: FreshDeliveryEligibilityMutationDependencies<Prepared, Result, PreparationRefusal>): Promise<
+  Result | PreparationRefusal | DeliveryEligibilityRefusal
+> {
   const plan = await deps.readCurrentPlan(input.planId);
   if (plan === null) return { status: "refused", reason: "plan-moved" };
+  const originatingTopRef = await deps.resolveOriginatingTopRef(plan);
+  if (originatingTopRef === null) return { status: "refused", reason: "evidence-unavailable" };
+  if (originatingTopRef !== input.topRef) return { status: "refused", reason: "top-ref-mismatch" };
   const lifecyclePaths = await deps.resolveLifecyclePaths(plan);
   if (lifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
   const eligible = await revalidateDeliveryEligibilityForMutation({
@@ -122,6 +138,8 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
     lifecyclePaths,
   }, deps);
   if (eligible.status !== "eligible") return eligible;
+  const prepared = await deps.prepareMutation({ plan, snapshot: eligible.snapshot });
+  if (prepared.status === "refused") return prepared;
   const currentLifecyclePaths = await deps.resolveLifecyclePaths(plan);
   if (currentLifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
   const normalizedCurrentPaths = [...new Set(currentLifecyclePaths)].sort(byteSort);
@@ -129,7 +147,10 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
     || normalizedCurrentPaths.some((path, index) => path !== eligible.snapshot.lifecyclePaths[index])) {
     return { status: "refused", reason: "lifecycle-paths-moved" };
   }
-  return deps.mutate({ plan, snapshot: eligible.snapshot });
+  if (await deps.resolveOriginatingTopRef(plan) !== input.topRef) {
+    return { status: "refused", reason: "top-ref-mismatch" };
+  }
+  return deps.mutate({ plan, snapshot: eligible.snapshot, prepared: prepared.value });
 }
 
 async function revalidateDeliveryEligibilityForMutation(input: {

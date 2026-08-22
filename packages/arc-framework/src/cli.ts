@@ -763,12 +763,7 @@ deliveryEligibility.command("close").description("Close the post-gate eligibilit
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("eligibility-close", { ...opts, input }, context)
   )));
-delivery.command("materialize").description("Create or adopt exact member refs and bind state")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("materialize", { ...opts, input }, context)
-  )));
-delivery.command("publish").description("Open or adopt exact non-terminal change requests")
+delivery.command("publish").description("Publish exact member refs and open or adopt every change request")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("publish", { ...opts, input }, context)
