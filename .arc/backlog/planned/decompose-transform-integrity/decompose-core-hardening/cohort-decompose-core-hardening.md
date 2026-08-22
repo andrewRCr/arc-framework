@@ -16,7 +16,7 @@ independently.
 ## Coordination
 
 Every member consumes the shipped `decompose-transform-integrity` core. No member may weaken its pinned-ref,
-conservation, receipt, prospective-projection, or fail-closed publication contracts to obtain a cheaper or more
+conservation, authored cut-map, topology, atomic-transition, or rollback contracts to obtain a cheaper or more
 convenient path.
 
 ### Sequencing
@@ -28,15 +28,15 @@ decompose-transform-integrity (shipped core)
 ```
 
 Both members are independently deliverable and carry no dependency edges. The set was consolidated at the
-2026-08-11 residuals consolidation, after `decompose-transition-record` shipped and settled the finalization
+2026-08-11 residuals consolidation, after `decompose-transition-record` shipped and removed the finalization
 pipeline the former hold was waiting on (see § Retired and merged members). Safety and operability arms land
 before performance work when they touch the same core surface; further dependency edges belong in member metas if
 implementation grounding reveals a hard order.
 
 ### Shared contracts
 
-- The shipped core remains authoritative for inventory, allocation, preparation, finalization, receipt,
-  retirement, prospective projection, and publication semantics.
+- The shipped core remains authoritative for inventory, allocation, authored cut-map validation, topology,
+  conservation, rollback, exact transform-delta, and pinned-ref semantics.
 - Conservation coverage owns the definition of what content retirement must prove preserved. Diagnostics and
   authoring consume that boundary without redefining it.
 - Scaling work may batch, cache, or bound concurrency only behind byte-identical and order-identical outcomes.
@@ -50,9 +50,10 @@ first actual cuts. Rehearsals may operate on copies when a destructive transitio
 
 ### Cross-cohort
 
-- `decompose-transition-record` replaces the sealed receipt with a lean record of authored transition intent and
-  retires the apparatus built around the heavier shape. Members consuming receipt, preparation, or finalization
-  evidence should confirm which of those surfaces survive before designing against them.
+- `decompose-transition-record` replaced the sealed receipt with a lean record of authored transition intent and
+  retired the apparatus built around the heavier shape. The record is history rather than authorization; members
+  consume surviving cut-map, topology, and Git-derived proof contracts instead of receipt, preparation, or
+  finalization evidence.
 - `decomposition-doctrine` owns when and at what maturity a cut is valid, including dependency-contract
   revalidation and scale-overrun prevention. This subcohort owns the transform after that decision.
 - `delivery-intent-integrity` owns the general requirement that a delivered operation be exercised against a
@@ -64,8 +65,8 @@ first actual cuts. Rehearsals may operate on copies when a destructive transitio
 
 The subcohort closes when every member has either shipped or been retired against a recorded disposition, and a
 representative real cut demonstrates the properties its shipped members own — preserved complete artifact-group
-content, bounded preflight and finalization cost, actionable refusals, and an expressive authored cut map —
-without post-publication repair. A retired member's property is recorded as out of scope with the retirement
+content, bounded preflight and execute cost, actionable refusals, and an expressive authored cut map —
+without post-transition repair. A retired member's property is recorded as out of scope with the retirement
 rather than demonstrated.
 
 ## Members
@@ -73,11 +74,11 @@ rather than demonstrated.
 ### `decompose-conservation-coverage`
 
 _Exposes:_ a retirement-aligned conservation boundary for every origin artifact whose content would be removed,
-prospective destination placement and validated external dependency edges in the authored cut map, and actionable
+authored destination placement and validated external dependency edges in the cut map, and actionable
 refusals — differing evidence, precomposed remedies, and scoped repository gating.
 
-_Consumes:_ core inventory, allocation, retirement-delta, topology, scaffold, and prospective-projection
-contracts, plus projection decisions owned by `roadmap-tooling`.
+_Consumes:_ core inventory, allocation, retirement-delta, topology, scaffold, and authored cut-map contracts, plus
+projection decisions owned by `roadmap-tooling`.
 
 Conservation proof is the only remaining net under a content-preserving split now that transaction verification no
 longer duplicates git's own record; size the member against that role rather than the drafted scope. The
@@ -89,11 +90,11 @@ disposition in the transition record, which is unsealed, so coordinate with that
 _Exposes:_ measured and bounded subprocess, concurrency, and hydration cost across the command's read-only
 preflight and terminal execute halves.
 
-_Consumes:_ core preflight integrity, pinned-ref reread, canonical ordering, Git pathspec semantics, and
-fail-closed finalization behavior.
+_Consumes:_ core preflight integrity, pinned-ref reread, canonical ordering, Git pathspec semantics, and atomic
+execute/rollback behavior.
 
-Measurement precedes design: the execute-half numbers predate the transition record's projection retirement, and
-that half may retire on fresh evidence. Bounding lands only behind byte-identical, order-identical outcomes.
+Measurement precedes design: the execute-half numbers predate the lean transition-record cutover, and that half may
+retire on fresh evidence. Bounding lands only behind byte-identical, order-identical outcomes.
 
 ## Retired and merged members
 
