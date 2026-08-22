@@ -634,40 +634,13 @@ comparator and trivially accepted.
             - Unit and built-CLI coverage pin all eight action/selector arms, malformed pairings, exact two- and
               three-member teardown reruns, idempotent clearing, retained failures, and terminal continuation.
 
-        - `[ ]` **5.7.R.b Project exact-head Candidate applicability through D4**
+        - `[x]` **5.7.R.b Project exact-head Candidate applicability through D4**
 
-            - Add the checkpoint Candidate head across the complete `arc base merge` contract — input/result schemas,
-              port, handler dependency, command registration, CLI option, composition, and tests — and compare base
-              plus head immediately before mutation. Either movement returns `rerun-checkpoint` without mutation.
-              Classify ancestry before the merge: base already ancestral to head is already clean; head ancestral to
-              base returns `head-contained-by-base / rerun-checkpoint`; only proven divergence invokes
-              `git merge --no-ff --no-edit <exact-base>`. Accept that result only when its parents are the exact prior
-              head and base, so interruption can rederive both endpoints without persisted proof state.
-            - After ordinary new-head checks, one Git-backed producer supplies strict structural facts to Task
-              5.7.R.c's asynchronous effective-target projection; the pure durable-baseline reducer performs no Git
-              I/O. Bind `before.member` to the durable baseline target, `after.member` to the fresh Candidate head,
-              `after.predecessor` to the fresh configured base, and `before.predecessor` to the sole merge base of the
-              baseline head and current base. Missing or multiple merge bases are unavailable evidence. Equal subjects
-              keep the operational-only advance; `tree-equality` or `mechanical-reapply` returns `applicable`; every
-              non-mechanical result with a non-empty bounded path set returns `decision-required` with its
-              clean-divergence or interaction verdict plus canonical projection/residual digests. The classifier
-              never originates `changed` from structural divergence alone.
-            - Exact endpoint movement or transient snapshot invalidation returns `rerun-checkpoint`; Git operational
-              failure or malformed evidence returns `classification-failed / stop`; unsupported D4 capability returns
-              `classification-unsupported / upgrade`; and empty or otherwise unbounded evidence returns
-              `classification-unavailable / stop`. None becomes an authority choice. Define the result from the CLI's
-              canonical schema source rather than duplicating it in workflow prose.
-            - Build `test-first` (one behavior at a time):
-                - Base or Candidate head movement returns `rerun-checkpoint` without mutation
-                - Already-clean and head-contained-by-base ancestry create no merge commit
-                - Only proven divergence uses `--no-ff`, and the resulting parents bind the exact prior head and base
-                - Subject equality and mechanical reapply recognize the exact new head automatically
-                - First and successive base carries derive the sole baseline-to-current merge base, while missing or
-                  multiple merge bases stop as unavailable
-                - Clean divergence and interaction both carry complete exact-bound facts to `decision-required`
-                - Movement, failed or malformed Git, unsupported capability, and unavailable evidence remain distinct
-                  typed outcomes, with only movement rerunning automatically
-                - Unit, handler, command-registration, and E2E coverage pin the complete base-plus-head contract
+            - The guarded base merge now binds both exact endpoints, classifies ancestry before mutation, and accepts
+              only a divergent `--no-ff` result with the exact prior-head/base parent pair.
+            - One strict storage-neutral classifier and Git producer derive the sole baseline-to-current merge base,
+              preserve subject and mechanical equivalence, and keep bounded judgment, rerun, failure, unsupported,
+              and unavailable outcomes distinct across unit, integration, handler, registration, and E2E coverage.
 
         - `[ ]` **5.7.R.c Bind only an authorized applicability selection**
 
