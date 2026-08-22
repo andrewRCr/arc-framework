@@ -116,18 +116,27 @@ export function executeV3ExtractionSourceFinish(
     if (!exactPaths(files, preimages)) {
       return { status: "refused", reason: "source-preimage-set" };
     }
+    const pendingPaths = new Set<string>();
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
       const preimage = preimages[index];
       if (file === undefined || preimage === undefined) {
         return { status: "refused", reason: "source-preimage-set" };
       }
-      if (!matchesBefore(preimage.index, file)) {
+      const indexBefore = matchesBefore(preimage.index, file);
+      const indexAfter = matchesAfter(preimage.index, file);
+      if (!indexBefore && !indexAfter) {
         return { status: "refused", reason: "source-index-preimage", locus: file.path };
       }
-      if (!matchesBefore(preimage.worktree, file)) {
+      const worktreeBefore = matchesBefore(preimage.worktree, file);
+      const worktreeAfter = matchesAfter(preimage.worktree, file);
+      if (!worktreeBefore && !worktreeAfter) {
         return { status: "refused", reason: "source-worktree-preimage", locus: file.path };
       }
+      if (indexBefore !== worktreeBefore || indexAfter !== worktreeAfter) {
+        return { status: "refused", reason: "source-worktree-preimage", locus: file.path };
+      }
+      if (indexBefore) pendingPaths.add(file.path);
     }
     try {
       const stable = await io.verify(preimages);
@@ -137,10 +146,12 @@ export function executeV3ExtractionSourceFinish(
     } catch {
       return { status: "refused", reason: "source-preimage-raced" };
     }
+    if (pendingPaths.size === 0) return { status: "already-finished" };
     if (!apply) return { status: "previewed" };
 
     const mutatedPaths = new Set<string>();
     for (const file of files) {
+      if (!pendingPaths.has(file.path)) continue;
       let result: Awaited<ReturnType<V3ExtractionSourceFinishIO["apply"]>>;
       try {
         result = await io.apply(file);

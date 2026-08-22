@@ -590,6 +590,16 @@ describe("Git v3 repository plan", () => {
       .resolves.toBe("## Scope 0\n\nOwned scope 0.\n\n");
     expect((await git(fixture.repo, ["diff", "--cached", "--name-only"])).trim())
       .toBe(".arc/active/spec-origin.md");
+    await expect(previewFinish(fixture)).resolves.toEqual({ status: "already-finished" });
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      apply: true,
+    })).resolves.toEqual({ status: "already-finished" });
+    await git(fixture.repo, ["commit", "-m", "finish source extraction"]);
+    await expect(previewFinish(fixture)).resolves.toEqual({ status: "already-finished" });
   });
 
   it("refuses a complete result that exists only on its additive candidate branch", async () => {

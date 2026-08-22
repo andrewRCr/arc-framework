@@ -119,7 +119,7 @@ _Purpose:_ Remove approved source units only after their exact destinations are 
 _Purpose:_ Retry safely without inventing semantic continuity, and land extraction as a first-class arm of
 shipped doctrine.
 
-### `[ ]` **3.1 Refresh exact identities only**
+### `[x]` **3.1 Refresh exact identities only**
 
 - _Goal:_ Machine refresh never guesses an authored ownership decision.
 
@@ -127,11 +127,12 @@ shipped doctrine.
         - Finish refreshes machine evidence in memory only across exact source identities, unchanged dependency
           facts, and still-valid landed destinations; structural or repeated-heading ambiguity requires reauthoring.
 
-    - `[ ]` **3.1.b Regenerate lost scratch**
-        - Let preflight recreate machine inventory, require human reauthoring, and detect exact already-finished
-          state from source/base facts.
-        - Leave a failed or stale additive attempt as an ARC-owned candidate that ordinary cleanup removes; add
-          no discard verb, receipt, pending marker, ledger, fuzzy matcher, or transaction record.
+    - `[x]` **3.1.b Regenerate lost scratch**
+        - Read-only preflight remains the scratch-regeneration path with fresh author slots; finish derives exact
+          staged, committed, and partial prior states from Git facts without adding recovery records or verbs.
+
+- _Outcome:_ Authored extraction choices survive only exact machine-evidence refresh, while repeat and interrupted
+  finish converge from bounded source/base facts without inventing semantic or durable continuity.
 
 ### `[ ]` **3.2 Publish the extraction workflow and align doctrine**
 

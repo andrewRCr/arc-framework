@@ -39,7 +39,10 @@ function memoryIO(overrides: {
   failPath?: string;
   failMutated?: boolean;
   restorationResidue?: string;
-  initial?: Record<string, { index: ReturnType<typeof image>; worktree: ReturnType<typeof image> }>;
+  initial?: Record<string, {
+    index: V3PartialPathPreimage["index"];
+    worktree: V3PartialPathPreimage["worktree"];
+  }>;
 } = {}): V3ExtractionSourceFinishIO & { state: Map<string, V3PartialPathPreimage>; applied: string[] } {
   const initial = overrides.initial ?? {
     ".arc/active/rfc-origin.md": { index: image("remove\n"), worktree: image("remove\n") },
@@ -126,6 +129,44 @@ describe("executeV3ExtractionSourceFinish", () => {
       index: { kind: "absent" },
       worktree: { kind: "absent" },
     });
+  });
+
+  it.each([false, true])("recognizes an exact already-finished source state with apply=%s", async (apply) => {
+    const io = memoryIO({
+      initial: {
+        ".arc/active/rfc-origin.md": {
+          index: { kind: "absent" },
+          worktree: { kind: "absent" },
+        },
+        ".arc/active/spec-origin.md": {
+          index: image("after\n", "100755"),
+          worktree: image("after\n", "100755"),
+        },
+      },
+    });
+
+    await expect(executeV3ExtractionSourceFinish(plans(), apply, io))
+      .resolves.toEqual({ status: "already-finished" });
+    expect(io.applied).toEqual([]);
+  });
+
+  it("resumes only the before-images from an exact partial prior apply", async () => {
+    const io = memoryIO({
+      initial: {
+        ".arc/active/rfc-origin.md": {
+          index: { kind: "absent" },
+          worktree: { kind: "absent" },
+        },
+        ".arc/active/spec-origin.md": {
+          index: image("before\n", "100755"),
+          worktree: image("before\n", "100755"),
+        },
+      },
+    });
+
+    await expect(executeV3ExtractionSourceFinish(plans(), true, io))
+      .resolves.toEqual({ status: "finished" });
+    expect(io.applied).toEqual([".arc/active/spec-origin.md"]);
   });
 
   it("refuses any changed preimage before the first mutation", async () => {

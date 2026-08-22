@@ -14,6 +14,7 @@ import {
 } from "./decompose-content.js";
 import {
   createV3DecomposePreflight,
+  revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
 } from "./decompose-v3-preflight.js";
 import { refreshV3ExtractionCutMap } from "./decompose-v3-refresh.js";
@@ -186,39 +187,41 @@ function literalPath(path: string): string {
   return `:(literal)${validateManagedPath(path)}`;
 }
 
-async function changedPath(
+async function changedPaths(
   dependencies: GitV3RepositoryPlanDependencies,
   args: string[],
   path: string,
-): Promise<boolean> {
+): Promise<string[]> {
   const { stdout } = await dependencies.exec(
     "git",
     [...args, "--", literalPath(path)],
     { cwd: dependencies.cwd },
   );
-  return stdout !== "";
+  return stdout.split("\0").filter((entry) => entry !== "");
 }
 
 async function sourceDirt(
   dependencies: GitV3RepositoryPlanDependencies,
   sourceDir: string,
-): Promise<"source-index-dirty" | "source-worktree-dirty" | "source-untracked" | null> {
-  if (await changedPath(
-    dependencies,
-    ["diff", "--cached", "--name-only", "--no-renames", "-z"],
-    sourceDir,
-  )) return "source-index-dirty";
-  if (await changedPath(
-    dependencies,
-    ["diff", "--name-only", "--no-renames", "-z"],
-    sourceDir,
-  )) return "source-worktree-dirty";
-  if (await changedPath(
-    dependencies,
-    ["ls-files", "--others", "--exclude-standard", "-z"],
-    sourceDir,
-  )) return "source-untracked";
-  return null;
+): Promise<{ index: string[]; worktree: string[]; untracked: string[] }> {
+  const [index, worktree, untracked] = await Promise.all([
+    changedPaths(
+      dependencies,
+      ["diff", "--cached", "--name-only", "--no-renames", "-z"],
+      sourceDir,
+    ),
+    changedPaths(
+      dependencies,
+      ["diff", "--name-only", "--no-renames", "-z"],
+      sourceDir,
+    ),
+    changedPaths(
+      dependencies,
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+      sourceDir,
+    ),
+  ]);
+  return { index, worktree, untracked };
 }
 
 function roadmapBytes(tree: V3RepositoryPlanTree): Uint8Array | null {
@@ -291,11 +294,17 @@ export async function proveGitV3ExtractionDestinations(
       return refused("base-not-descendant", baseRef);
     }
 
-    const [sourceSnapshot, originalBaseSnapshot] = await Promise.all([
+    const [sourceSnapshot, originalSourceSnapshot, originalBaseSnapshot] = await Promise.all([
       readGitV3DecomposeTreeSnapshot(
         dependencies,
         map.machine.source.ref,
         head,
+        input.origin,
+      ),
+      readGitV3DecomposeTreeSnapshot(
+        dependencies,
+        map.machine.source.ref,
+        map.machine.source.head,
         input.origin,
       ),
       readGitV3DecomposeTreeSnapshot(
@@ -313,28 +322,62 @@ export async function proveGitV3ExtractionDestinations(
       resultBase: map.machine.resultBase,
       localBranches: map.machine.source.ref === map.machine.resultBase.ref ? [] : [sourceSnapshot],
     });
-    if (refreshed.status === "rejected") {
+    let selected: {
+      completedMap: V3DecomposeCutMap;
+      preflight: V3DecomposePreflight;
+      sourceHead: string;
+    } | null = null;
+    if (refreshed.status === "ready") {
+      const binding = refreshV3ExtractionCutMap(map, refreshed.preflight);
+      if (binding.status !== "reauthor") {
+        selected = {
+          completedMap: binding.completedMap,
+          preflight: binding.preflight,
+          sourceHead: head,
+        };
+      } else if (binding.reason !== "source-units") {
+        return refused(`source:${binding.reason}`, binding.locus);
+      }
+    } else if (refreshed.reason !== "planning-profile" && refreshed.reason !== "source-scan") {
       return refused(`source:${refreshed.reason}`, refreshed.locus);
     }
-    const binding = refreshV3ExtractionCutMap(map, refreshed.preflight);
-    if (binding.status === "reauthor") return refused(`source:${binding.reason}`, binding.locus);
-    const sourceDir = posix.dirname(binding.preflight.sourceOriginPath);
-    const dirt = await sourceDirt(dependencies, sourceDir);
-    if (dirt !== null) return refused(dirt, sourceDir);
-
+    if (selected === null) {
+      const original = createV3DecomposePreflight({
+        origin: input.origin,
+        sourceBase: map.machine.source.ref === map.machine.resultBase.ref
+          ? originalSourceSnapshot
+          : originalBaseSnapshot,
+        resultBase: map.machine.resultBase,
+        localBranches: map.machine.source.ref === map.machine.resultBase.ref
+          ? []
+          : [originalSourceSnapshot],
+      });
+      if (original.status === "rejected") {
+        return refused(`source:${original.reason}`, original.locus);
+      }
+      const originalBinding = revalidateV3DecomposeCutMapBinding(map, original.preflight);
+      if (originalBinding.status === "stale") {
+        return refused(`source:${originalBinding.reason}`, originalBinding.locus);
+      }
+      selected = {
+        completedMap: map,
+        preflight: originalBinding.preflight,
+        sourceHead: map.machine.source.head,
+      };
+    }
     const [sourceTree, originalBaseTree, currentBaseTree] = await Promise.all([
-      readGitV3RepositoryTree(dependencies, head),
+      readGitV3RepositoryTree(dependencies, selected.sourceHead),
       readGitV3RepositoryTree(dependencies, map.machine.resultBase.head),
       readGitV3RepositoryTree(dependencies, baseHead),
     ]);
-    if (sourceTree === null) return refused("source-tree-unreadable", head);
+    if (sourceTree === null) return refused("source-tree-unreadable", selected.sourceHead);
     if (originalBaseTree === null) return refused("result-base-tree-unreadable", map.machine.resultBase.head);
     if (currentBaseTree === null) return refused("base-tree-unreadable", baseHead);
     const originalRoadmap = roadmapBytes(originalBaseTree);
     if (originalRoadmap === null) return refused("result-base-roadmap-unreadable", ROADMAP_PATH);
     const expected = await composeV3ExtractionRepositoryPlan({
-      completedMap: binding.completedMap,
-      currentPreflight: binding.preflight,
+      completedMap: selected.completedMap,
+      currentPreflight: selected.preflight,
       sourceTree,
       mergeBaseTree: originalBaseTree,
       resultBaseTree: originalBaseTree,
@@ -358,14 +401,12 @@ export async function proveGitV3ExtractionDestinations(
       return refused("source-raced", map.machine.source.ref);
     }
     if (baseAfter !== baseHead) return refused("base-raced", baseRef);
-    const dirtAfter = await sourceDirt(dependencies, sourceDir);
-    if (dirtAfter !== null) return refused("source-raced", sourceDir);
 
     return {
       status: "proven",
       preparation: {
-        completedMap: binding.completedMap,
-        currentPreflight: binding.preflight,
+        completedMap: selected.completedMap,
+        currentPreflight: selected.preflight,
         sourceTree,
         proof: {
           baseRef,
@@ -407,9 +448,38 @@ export async function finishGitV3Extraction(
       ...(thinning.locus === undefined ? {} : { locus: thinning.locus }),
     };
   }
-  return await executeV3ExtractionSourceFinish(
+  const sourceDir = posix.dirname(proof.preparation.currentPreflight.sourceOriginPath);
+  let dirt: Awaited<ReturnType<typeof sourceDirt>>;
+  try {
+    dirt = await sourceDirt(dependencies, sourceDir);
+  } catch {
+    return { status: "refused", reason: "source-dirt-read", locus: sourceDir };
+  }
+  const plannedPaths = new Set(thinning.files.map(({ path }) => path));
+  const outsidePlan = [
+    ["source-index-dirty", dirt.index],
+    ["source-worktree-dirty", dirt.worktree],
+    ["source-untracked", dirt.untracked],
+  ] as const;
+  for (const [reason, paths] of outsidePlan) {
+    if (paths.some((path) => !plannedPaths.has(path))) {
+      return { status: "refused", reason, locus: sourceDir };
+    }
+  }
+  const result = await executeV3ExtractionSourceFinish(
     thinning.files,
     input.apply,
     createGitV3ExtractionSourceFinishIO(dependencies),
   );
+  if (result.status === "refused"
+    && result.reason === "source-index-preimage"
+    && dirt.index.length > 0) {
+    return { status: "refused", reason: "source-index-dirty", locus: sourceDir };
+  }
+  if (result.status === "refused"
+    && result.reason === "source-worktree-preimage"
+    && dirt.worktree.length > 0) {
+    return { status: "refused", reason: "source-worktree-dirty", locus: sourceDir };
+  }
+  return result;
 }

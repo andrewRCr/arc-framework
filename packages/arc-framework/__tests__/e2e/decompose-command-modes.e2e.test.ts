@@ -567,6 +567,21 @@ describe("arc decompose command modes", () => {
       .toEqual(retained.unit.bytes);
     expect((await git(repo, ["diff", "--cached", "--name-only"])).trim())
       .toBe(retainedSource.sourcePath);
+    const repeated = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(repeated.exitCode, repeated.stderr).toBe(0);
+    expect(JSON.parse(repeated.stdout)).toEqual({ status: "already-finished" });
+    await git(repo, ["commit", "-m", "finish source extraction"]);
+    const committedRepeat = await runArcNoTty(
+      ["decompose", "origin", "--finish", cutMapPath, "--apply"],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(committedRepeat.exitCode, committedRepeat.stderr).toBe(0);
+    expect(JSON.parse(committedRepeat.stdout)).toEqual({ status: "already-finished" });
   });
 
   it("refuses destination-owned multi-member direct placement before repository mutation", async () => {
