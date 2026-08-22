@@ -575,7 +575,9 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
     const checkpoint = gate.indexOf("arc integrate checkpoint {name} --json");
-    const baseMerge = gate.indexOf("arc base merge --expected-base {payload.safety.baseOid} --json");
+    const baseMerge = gate.indexOf(
+      "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
+    );
     const status = gate.indexOf("arc review status --target '{targetRef}' --json");
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
     const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
@@ -611,6 +613,8 @@ describe("trusted review-gate workflows", () => {
       merged: "run-quality-gates",
       "skipped-clean": "continue-reconcile",
       "base-moved": "rerun-checkpoint",
+      "head-moved": "rerun-checkpoint",
+      "head-contained-by-base": "rerun-checkpoint",
       conflict: "stop",
       blocked: "stop",
     } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;

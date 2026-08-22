@@ -29,7 +29,7 @@ describe("integration current-WU reconcile workflow", () => {
     const step = content.slice(start, end);
     const orderedSurfaces = [
       "arc integrate checkpoint {name} --json",
-      "arc base merge --expected-base {payload.safety.baseOid} --json",
+      "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
       "arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json",
       "arc review status --target '{targetRef}' --json",
       "arc wu reconcile {name} --apply --json",

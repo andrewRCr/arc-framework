@@ -41,6 +41,8 @@ export interface BaseDriftOptions {
 export interface BaseMergeOptions {
   /** Exact freshly observed base revision the merge is allowed to append. */
   expectedBase: string;
+  /** Exact checkpoint Candidate head the merge is allowed to extend. */
+  expectedHead: string;
   /** Emit the typed merge outcome as JSON. */
   json?: boolean;
 }
@@ -62,12 +64,15 @@ export const baseCommandInputPolicyDeclarations = [
 export const baseCommandInputRegistrations = [{
   commandPath: "base merge",
   schema: BaseMergeInputSchema,
-  schemaFields: { "option.expected-base": "expectedBase" },
+  schemaFields: {
+    "option.expected-base": "expectedBase",
+    "option.expected-head": "expectedHead",
+  },
 }] as const satisfies readonly CommandInputRegistration[];
 
 export interface BaseMergeHandlerDependencies {
   resolveRoot(): string | null;
-  merge(cwd: string, expectedBase: string): Promise<BaseMergeResult>;
+  merge(cwd: string, expectedBase: string, expectedHead: string): Promise<BaseMergeResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -81,13 +86,13 @@ export async function handleBaseMerge(
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: BaseMergeHandlerDependencies = {
     resolveRoot: () => resolveArcRoot(),
-    merge: async (root, expectedBase) => {
+    merge: async (root, expectedBase, expectedHead) => {
       const { settings, warnings } = await readConfigSettings(root);
       if (warnings.some((warning) => warning.startsWith("Unable to read arc-config.yml:"))) {
         throw new Error("The configured base branch is unavailable because arc-config.yml could not be read.");
       }
       return mergeExpectedBase(
-        { expectedBase },
+        { expectedBase, expectedHead },
         createBaseMergePort({ cwd: root, baseBranch: settings["branch.base"], exec }),
       );
     },
@@ -95,7 +100,10 @@ export async function handleBaseMerge(
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
-  const parsed = BaseMergeInputSchema.safeParse({ expectedBase: options.expectedBase });
+  const parsed = BaseMergeInputSchema.safeParse({
+    expectedBase: options.expectedBase,
+    expectedHead: options.expectedHead,
+  });
   if (!parsed.success) {
     dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
       schemaVersion: 1,
@@ -105,6 +113,7 @@ export async function handleBaseMerge(
       reason: "invalid-input",
       detail: parsed.error.issues.map(({ message }) => message).join("; "),
       expectedBase: null,
+      expectedHead: null,
     }))}\n`);
     dependencies.setExitCode(64);
     return;
@@ -119,13 +128,14 @@ export async function handleBaseMerge(
       reason: "operational-failure",
       detail: "Not inside an ARC project.",
       expectedBase: parsed.data.expectedBase,
+      expectedHead: parsed.data.expectedHead,
     }))}\n`);
     dependencies.setExitCode(1);
     return;
   }
   let result: BaseMergeResult;
   try {
-    result = await dependencies.merge(cwd, parsed.data.expectedBase);
+    result = await dependencies.merge(cwd, parsed.data.expectedBase, parsed.data.expectedHead);
   } catch (error) {
     result = {
       schemaVersion: 1,
@@ -135,6 +145,7 @@ export async function handleBaseMerge(
       reason: "operational-failure",
       detail: error instanceof Error ? error.message : String(error),
       expectedBase: parsed.data.expectedBase,
+      expectedHead: parsed.data.expectedHead,
     };
   }
   dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(result))}\n`);

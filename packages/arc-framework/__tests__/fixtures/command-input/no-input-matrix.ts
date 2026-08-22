@@ -20,7 +20,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "activate", args: ["activate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "archive", args: ["archive", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "attest", args: ["attest", "matrix", "--json"], expected: { exitCode: 1, outputIncludes: "\"status\":\"rejected\"" } },
-  { commandPath: "base merge", args: ["base", "merge", "--expected-base", "invalid", "--json"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
+  { commandPath: "base merge", args: ["base", "merge", "--expected-base", "invalid", "--expected-head", "invalid", "--json"], expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
   { commandPath: "check commit-msg", args: ["check", "commit-msg", "-", "--json"], stdin: "feat(check): validate stdin\n\nContext: standalone (maintenance)\n", fixture: "arc-project", expected: { exitCode: 0, outputIncludes: "\"verdict\":\"pass\"" } },
   { commandPath: "deactivate", args: ["deactivate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "decompose", args: ["decompose", "origin", "--preflight"], fixture: "arc-project", expected: { exitCode: 1 } },

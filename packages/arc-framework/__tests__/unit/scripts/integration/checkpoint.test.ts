@@ -116,6 +116,7 @@ describe("integration checkpoint", () => {
         nextAction: "reconcile-base",
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
+          candidateHead: oid("c"),
           safety: {
             baseOid: oid("b"),
             integrationEvidenceComplete: true,

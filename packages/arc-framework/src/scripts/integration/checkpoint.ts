@@ -331,6 +331,7 @@ export const IntegrationCheckpointResultSchema = z.union([
     payload: z.strictObject({
       drift: z.custom<BaseDriftResult>(),
       safety: ReconcileSafetyFactsSchema,
+      candidateHead: ObjectIdSchema,
       verification: z.strictObject({
         planId: DeliveryPlanIdSchema,
         deliverableId: DigestSchema,
@@ -345,6 +346,7 @@ export const IntegrationCheckpointResultSchema = z.union([
     payload: z.strictObject({
       drift: z.custom<BaseDriftResult>(),
       safety: ReconcileSafetyFactsSchema,
+      candidateHead: ObjectIdSchema,
     }),
   }),
   IntegrationCheckpointBlockedResultSchema,
@@ -538,6 +540,37 @@ export async function checkpointIntegration(
       ReconcileHostFactSchema.parse(await dependencies.readReconcileHost(request.workUnit, drift)),
     );
     if (safety.safe) {
+      const candidate = await dependencies.readCandidate(request.workUnit);
+      if (candidate === null) {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "candidate-missing",
+          remedy: checkpointRemedy("candidate-missing", request.workUnit),
+          payload: { workUnit: request.workUnit },
+        });
+      }
+      if (candidate.status === "blocked") {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "candidate-unexplained-delta",
+          remedy: checkpointRemedy("candidate-unexplained-delta", request.workUnit),
+          payload: { candidate },
+        });
+      }
+      if (candidate.convergenceVerification === "pending") {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "candidate-convergence-pending",
+          remedy: checkpointRemedy("candidate-convergence-pending", request.workUnit),
+          payload: { candidate },
+        });
+      }
       if (deliveryDrift.status === "verify-member") {
         return IntegrationCheckpointResultSchema.parse({
           ...base,
@@ -546,6 +579,7 @@ export async function checkpointIntegration(
           payload: {
             drift,
             safety,
+            candidateHead: candidate.recognizedRevision,
             verification: {
               planId: deliveryDrift.planId,
               deliverableId: deliveryDrift.deliverableId,
@@ -558,7 +592,7 @@ export async function checkpointIntegration(
         ...base,
         state: "reconcile",
         nextAction: "reconcile-base",
-        payload: { drift, safety },
+        payload: { drift, safety, candidateHead: candidate.recognizedRevision },
       });
     }
     return IntegrationCheckpointResultSchema.parse({

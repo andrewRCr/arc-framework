@@ -340,9 +340,13 @@ the same base-merge arm below with the unchanged `payload.safety`; do not rerun 
 
 `reconcile / reconcile-base` enters the base-merge arm with the checkpoint's validated safety facts.
 
-Invoke `arc base merge --expected-base {payload.safety.baseOid} --json`.
-`base-moved / rerun-checkpoint` restarts this step. `blocked / stop` and `conflict / stop` stop before every later
-fire point. `skipped-clean / continue-reconcile` proceeds without a push. On `merged / run-quality-gates`, run
+Invoke
+`arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json`.
+`base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
+`head-contained-by-base / rerun-checkpoint` restart this step.
+`blocked / stop` and `conflict / stop` stop before every later fire point.
+`skipped-clean / continue-reconcile` proceeds without a push. On
+`merged / run-quality-gates`, run
 Tier 1 gates, recompose the exact target, and make Step 2's disclosed review-applicability judgment. Run the
 resulting targeted, focused, or full review before continuing. Clearance never carries.
 
