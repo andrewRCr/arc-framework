@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "isolate-stale-review-evidence",
+  "claimId": "83cd3fb7d730d8e31e21915830bfdab4",
+  "createdAt": "2026-08-22T20:59:18.584Z",
+  "updatedAt": "2026-08-22T20:59:18.584Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Ignore malformed unrelated disposition residue during Candidate composition while failing closed for Candidate-named evidence.",
+  "branch": "chore/isolate-stale-review-evidence",
+  "origin": "inbox",
+  "originEntry": "Isolate stale review evidence from current Candidate composition",
+  "originEntrySourceDigest": "sha256:4d8b15877de0f38a87324cdde60f7807fb5639d2f52912f8c0b61b216d1d5026",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
