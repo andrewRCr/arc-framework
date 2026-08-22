@@ -8,24 +8,19 @@
 
 _Purpose:_ Land complete new destinations from exact source evidence while preserving the surviving origin.
 
-### `[ ]` **1.1 Admit the surviving origin into preflight**
+### `[x]` **1.1 Admit the surviving origin into preflight**
 
 - _Goal:_ The transform's first command qualifies the origin extraction actually targets — a surviving work unit
   in `Planning` or `Active` state — instead of refusing it.
 
-    - `[ ]` **1.1.a Widen the source gate and machine envelope**
-        - Extend the source qualification with an origin-state arm admitting an `Active`-state origin alongside
-          the started-planning and backlog-stub arms — in both exported gates: the command preflight and the
-          source-facts derivation the exact-ref adapters and the finish leg consume; add the matching source-kind
-          value to the machine envelope so the preflight identity binds it.
-        - Extend profile inference over the admitted origin's design-artifact families — the same `draft`,
-          `single-spec`, and `paired-spec` resolution the existing arms use.
+    - `[x]` **1.1.a Widen the source gate and machine envelope**
+        - Both source gates admit exact-branch `Active` origins as `active-origin`; started Planning and backlog
+          behavior remain distinct, and the shared profile inference covers every admitted design family.
 
-    - `[ ]` **1.1.b Prove admission and the inventory boundary**
-        - Prove an `Active`-state origin and a started-planning origin both qualify — through both qualification
-          gates — and non-qualifying states still refuse with the existing typed reason.
-        - Prove the scanned inventory remains the design artifacts alone — the origin's task list is never a
-          source unit; pruning it after extraction is ordinary work-unit editing outside the transform.
+    - `[x]` **1.1.b Prove admission and the inventory boundary**
+        - Unit coverage proves Active and started-Planning admission through both gates, preserves the typed
+          refusal for other states, validates the widened starter envelope, and excludes task-list bytes from
+          source units.
 
 ### `[ ]` **1.2 Enforce extraction allocation and placement rules**
 

@@ -682,6 +682,10 @@ export async function composeV3RepositoryPlan(
     );
   }
 
+  if (map.machine.source.kind === "active-origin") {
+    return refuse("retirement", "source-kind");
+  }
+
   const predecessorArtifactPaths = originArtifactPaths(
     input.resultBaseTree,
     predecessorMeta.path,

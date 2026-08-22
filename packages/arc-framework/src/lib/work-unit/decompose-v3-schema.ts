@@ -87,7 +87,7 @@ export const V3DecomposeLocatorSchema = z.discriminatedUnion("kind", [
 
 const SourceSchema = z.strictObject({
   origin: DecomposeSlugSchema,
-  kind: z.enum(["started-planning", "backlog-stub"]),
+  kind: z.enum(["started-planning", "active-origin", "backlog-stub"]),
   logicalBranch: NonEmptyStringSchema,
   ref: NonEmptyStringSchema,
   head: NonEmptyStringSchema,

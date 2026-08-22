@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   createV3DecomposePreflight,
+  deriveV3DecomposeSourceFacts,
   revalidateV3DecomposePreflight,
   type V3DecomposePreflightInput,
 } from "../../../src/lib/work-unit/decompose-v3-preflight.js";
+import { parseV3DecomposeStarterMap } from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
 function bytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
@@ -60,6 +62,52 @@ function input(): V3DecomposePreflightInput {
 }
 
 describe("v3 decomposition preflight", () => {
+  it("admits an Active origin through preflight and source-facts derivation", () => {
+    const value = input();
+    const source = value.localBranches[0]!;
+    source.ref = "refs/heads/feat/origin";
+    source.origins[0]!.state = "Active";
+    source.origins[0]!.branch = "feat/origin";
+    source.origins[0]!.design = ["spec-origin.md"];
+    source.origins[0]!.taskList = "tasks-origin.md";
+    source.sourceArtifacts = [
+      {
+        path: ".arc/active/spec-origin.md",
+        objectKind: "blob",
+        mode: "100644",
+        bytes: bytes("# Spec\n\n## One\n"),
+      },
+      {
+        path: ".arc/active/tasks-origin.md",
+        objectKind: "blob",
+        mode: "100644",
+        bytes: bytes("# Tasks\n\n## Work\n"),
+      },
+    ];
+
+    const result = createV3DecomposePreflight(value);
+
+    expect(result).toMatchObject({
+      status: "ready",
+      preflight: {
+        starterMap: {
+          machine: {
+            source: { kind: "active-origin", logicalBranch: "feat/origin" },
+            planningProfile: { kind: "single-spec", sourceDesign: ["spec-origin.md"] },
+          },
+        },
+      },
+    });
+    if (result.status !== "ready") return;
+    expect(parseV3DecomposeStarterMap(result.preflight.starterMap)).not.toBeNull();
+    expect(result.preflight.starterMap.machine.sourceUnits.every(({ sourcePath }) =>
+      sourcePath.endsWith("spec-origin.md"))).toBe(true);
+    expect(deriveV3DecomposeSourceFacts(source, "origin")).toMatchObject({
+      status: "ready",
+      sourceUnits: result.preflight.starterMap.machine.sourceUnits,
+    });
+  });
+
   it("selects a self-authenticating branch tree, scans exact stored bytes, and leaves input unchanged", () => {
     const value = input();
     const before = structuredClone(value);
@@ -84,7 +132,33 @@ describe("v3 decomposition preflight", () => {
       path: ".arc/active/draft-origin.md",
       mode: "100644",
     })]);
+    expect(deriveV3DecomposeSourceFacts(value.localBranches[0]!, "origin")).toMatchObject({
+      status: "ready",
+      sourceUnits: result.preflight.starterMap.machine.sourceUnits,
+    });
     expect(value).toEqual(before);
+  });
+
+  it("retains the source-predecessor refusal for nonqualifying active metadata", () => {
+    const value = input();
+    value.localBranches[0]!.origins[0]!.state = "Completed";
+
+    expect(createV3DecomposePreflight(value)).toMatchObject({
+      status: "ready",
+      preflight: { starterMap: { machine: { source: { kind: "backlog-stub" } } } },
+    });
+    expect(deriveV3DecomposeSourceFacts(value.localBranches[0]!, "origin")).toEqual({
+      status: "rejected",
+      reason: "source-predecessor",
+      locus: ".arc/active/meta-origin.md",
+    });
+
+    value.localBranches = [];
+    value.sourceBase.origins[0]!.state = "Completed";
+    expect(createV3DecomposePreflight(value)).toEqual({
+      status: "rejected",
+      reason: "source-predecessor",
+    });
   });
 
   it("falls back only to the exact configured-base predecessor", () => {
