@@ -31,7 +31,7 @@ import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-p
 import {
   deleteDeliveryRemoteRef,
   observeDeliveryRemoteRef,
-  publishDeliveryRemoteRef,
+  publishDeliveryMemberRef,
   rewriteDeliveryRemoteRef,
 } from "../lib/delivery/git-materialization.js";
 import {
@@ -844,7 +844,7 @@ async function executeDeliveryCommand(
         const refs = {
           observe: async (ref: string) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
           publish: async (ref: string, head: string) => {
-            const outcome = await publishDeliveryRemoteRef({ exec, remote: parsed.remote, ref, head });
+            const outcome = await publishDeliveryMemberRef({ exec, remote: parsed.remote, ref, head });
             return outcome.status === "refused" ? { status: "refused" as const } : outcome;
           },
         };

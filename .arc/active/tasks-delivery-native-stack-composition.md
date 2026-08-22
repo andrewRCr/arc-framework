@@ -377,22 +377,14 @@ contract and orphaning SHA-keyed user notes, so it is excluded by construction. 
 ancestry-merge name and must not be conflated: adoption is content-neutral and keeps the top's tree exactly,
 guarded by a subset check; absorption is the genuine content merge and belongs to the refresh path.
 
-### `[ ]` **4.1 Author filtered member cuts as first-class delivery refs**
+### `[x]` **4.1 Author filtered member cuts as first-class delivery refs**
 
 - _Goal:_ Each planned member is published as a real ref in the delivery namespace, cut below the originating
   branch with lifecycle artifacts excluded, so the chain is made of branches rather than disposable projections.
 
-- _Context:_ Publication pushes a commit directly to the delivery namespace today and creates no local branch, so
-  the shipped remote-only teardown leaves nothing behind locally. First-class member branches make the local side
-  real, which is what gives the reaping work in the retirement member something to reap.
-
-    - Build `test-first` (one behavior at a time):
-        - Each non-terminal member materializes as a ref in the delivery namespace under the work unit
-        - A member cut excludes the owning work unit's lifecycle artifacts per the existing eligibility contract
-        - Member refs are created locally as well as remotely
-        - An ineligible member refuses through the existing eligibility refusal rather than a new one
-        - A local member ref already present at a different head refuses rather than being moved
-        - Authoring candidate refs stay outside the delivery namespace
+- _Outcome:_ Delivery publication now admits an exact local member branch before the existing remote lease and
+  refuses a divergent local head without moving it. Eligibility continues to own lifecycle filtering and now
+  rejects delivery-namespace refs as authoring candidates, while derived published refs retain the planned namespace.
 
 ### `[ ]` **4.2 Adopt the chain by content-neutral ancestry merge under the subset guard**
 

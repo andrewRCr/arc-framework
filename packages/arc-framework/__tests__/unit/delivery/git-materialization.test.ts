@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deleteDeliveryRemoteRef,
   observeDeliveryRemoteRef,
+  publishDeliveryMemberRef,
   publishDeliveryRemoteRef,
   rewriteDeliveryRemoteRef,
 } from "../../../src/lib/delivery/git-materialization.js";
@@ -27,6 +28,21 @@ describe("delivery remote-ref leases", () => {
       .resolves.toEqual({ status: "published" });
     await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head }))
       .resolves.toEqual({ status: "adopted" });
+  });
+
+  it("refuses a divergent local member ref before publishing remotely", async () => {
+    const foreignHead = "b".repeat(40);
+    let remoteMutation = false;
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${foreignHead}\n` };
+      if (args[0] === "ls-remote") return { stdout: "" };
+      remoteMutation = true;
+      return { stdout: "" };
+    };
+
+    await expect(publishDeliveryMemberRef({ exec, remote: "origin", ref, head }))
+      .resolves.toEqual({ status: "refused", reason: "collision" });
+    expect(remoteMutation).toBe(false);
   });
 
   it("refuses a different remote head, malformed evidence, or an unavailable read", async () => {

@@ -95,6 +95,25 @@ describe("prepareDeliveryEligibility", () => {
     expect(result).toMatchObject({ status: "refused", reason });
   });
 
+  it("keeps authoring candidates outside the published delivery namespace", async () => {
+    const plan = deliveryStackPlanFixture();
+    const direct = candidates().map((candidate, index) => index === 0
+      ? { ...candidate, ref: `refs/heads/delivery/${plan.workUnitId}/first` }
+      : candidate);
+
+    await expect(prepareDeliveryEligibility({
+      plan,
+      protectedBaseRef: "main",
+      controlRef: "control",
+      candidates: direct,
+      lifecyclePaths: [],
+    }, dependencies())).resolves.toEqual({
+      status: "refused",
+      reason: "direct-delivery-ref",
+      deliverableId: plan.members[0]!.deliverableId,
+    });
+  });
+
   it("names a candidate whose ancestry or lifecycle facts refuse", async () => {
     const plan = deliveryStackPlanFixture();
     const deps = dependencies();

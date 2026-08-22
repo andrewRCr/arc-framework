@@ -64,6 +64,7 @@ export interface DeliveryEligibilityRefusal {
     | "extra-candidate"
     | "duplicate-candidate"
     | "reordered-candidate"
+    | "direct-delivery-ref"
     | "candidate-unavailable"
     | "wrong-predecessor"
     | "empty-candidate"
@@ -191,6 +192,16 @@ export async function prepareDeliveryEligibility(input: {
   }
   if (input.candidates.some((candidate, index) => candidate.deliverableId !== expectedMembers[index]?.deliverableId)) {
     return { status: "refused", reason: "reordered-candidate" };
+  }
+  const directDeliveryCandidate = input.candidates.find((candidate) => (
+    candidate.ref.startsWith("refs/heads/delivery/")
+  ));
+  if (directDeliveryCandidate !== undefined) {
+    return {
+      status: "refused",
+      reason: "direct-delivery-ref",
+      deliverableId: directDeliveryCandidate.deliverableId,
+    };
   }
 
   const observed = await Promise.all([
