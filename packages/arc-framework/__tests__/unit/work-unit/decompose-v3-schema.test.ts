@@ -89,6 +89,58 @@ function completed(): V3DecomposeCutMap {
   };
 }
 
+function extractionCompleted(sourceKind: "active-origin" | "started-planning" = "active-origin"):
+V3DecomposeCutMap {
+  const value = structuredClone(completed()) as unknown as V3DecomposeCutMap;
+  value.machine.source.kind = sourceKind;
+  value.machine.preflightId = v3PreflightId(machinePreimage(value.machine));
+  value.authoring.shape = "extraction";
+  value.authoring.placement = { kind: "direct-member" };
+  value.authoring.destinations = [value.authoring.destinations[0]!];
+  value.authoring.internalEdges = [];
+  value.authoring.incomingDispositions[0]!.disposition = {
+    kind: "replace",
+    replacementTargets: ["origin"],
+  };
+  value.authoring.outgoingDispositions[0]!.disposition = {
+    kind: "targets",
+    targets: ["member-a"],
+  };
+  return value;
+}
+
+function addRetainedOriginAllocation(value: V3DecomposeCutMap): void {
+  const retainedSource = {
+    sourcePath: ".arc/active/draft-origin.md",
+    sourceLocator: {
+      artifact: "draft-origin.md",
+      kind: "section" as const,
+      level: 2,
+      headingSource: "Retained",
+      ancestry: [],
+      occurrence: 0,
+    },
+  };
+  const retainedUnit = {
+    ...retainedSource,
+    sourceId: v3SourceId(retainedSource),
+    contentDigest: canonicalDigest("retained"),
+  };
+  const existingAllocation = value.authoring.sourceAllocations[0]!;
+  value.machine.sourceUnits.push(retainedUnit);
+  value.machine.sourceUnits.sort((left, right) =>
+    Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
+  value.authoring.sourceAllocations = value.machine.sourceUnits.map(({ sourceId }) =>
+    sourceId === existingAllocation.sourceId
+      ? existingAllocation
+      : {
+          sourceId,
+          ownership: "destination-owned",
+          disposition: { kind: "retained-origin" },
+        });
+  value.machine.preflightId = v3PreflightId(machinePreimage(value.machine));
+}
+
 function comprehensiveMachine(): V3DecomposeMachine {
   const sources = [
     {
@@ -287,14 +339,12 @@ describe("v3 decomposition map schema", () => {
     expect(parseV3DecomposeCutMap(changedIdentity)).toBeNull();
   });
 
-  it("closes the public shape and destination domain", () => {
+  it("admits extraction while keeping the destination domain closed", () => {
     const symmetric = completed();
     symmetric.authoring.destinations = [symmetric.authoring.destinations[0]!];
     expect(parseV3DecomposeCutMap(symmetric)).toBeNull();
 
-    const extraction = structuredClone(completed()) as unknown as Record<string, unknown>;
-    (extraction.authoring as Record<string, unknown>).shape = "extraction";
-    expect(parseV3DecomposeCutMap(extraction)).toBeNull();
+    expect(parseV3DecomposeCutMap(extractionCompleted())).not.toBeNull();
 
     const surviving = structuredClone(completed()) as unknown as Record<string, unknown>;
     (surviving.authoring as { destinations: unknown[] }).destinations.push({
@@ -303,6 +353,95 @@ describe("v3 decomposition map schema", () => {
       slug: "origin",
     });
     expect(parseV3DecomposeCutMap(surviving)).toBeNull();
+  });
+
+  it("cross-validates source kinds, extraction-only retention, and origin dependency targets", () => {
+    const activeRetirement = completed();
+    activeRetirement.machine.source.kind = "active-origin";
+    activeRetirement.machine.preflightId = v3PreflightId(machinePreimage(activeRetirement.machine));
+    expect(decodeV3DecomposeCutMap(activeRetirement)).toMatchObject({
+      status: "rejected",
+      issue: { code: "source-shape", path: "machine.source.kind" },
+    });
+
+    const backlogExtraction = extractionCompleted();
+    backlogExtraction.machine.source.kind = "backlog-stub";
+    backlogExtraction.machine.preflightId = v3PreflightId(machinePreimage(backlogExtraction.machine));
+    expect(decodeV3DecomposeCutMap(backlogExtraction)).toMatchObject({
+      status: "rejected",
+      issue: { code: "source-shape", path: "machine.source.kind" },
+    });
+
+    const backlogRetirement = completed();
+    backlogRetirement.machine.source.kind = "backlog-stub";
+    backlogRetirement.machine.preflightId = v3PreflightId(machinePreimage(backlogRetirement.machine));
+    expect(parseV3DecomposeCutMap(backlogRetirement)).not.toBeNull();
+    expect(parseV3DecomposeCutMap(extractionCompleted("started-planning"))).not.toBeNull();
+
+    const retained = extractionCompleted();
+    addRetainedOriginAllocation(retained);
+    expect(parseV3DecomposeCutMap(retained)).not.toBeNull();
+
+    const retainedIndex = retained.authoring.sourceAllocations.findIndex(({ disposition }) =>
+      disposition.kind === "retained-origin");
+    retained.authoring.sourceAllocations[retainedIndex]!.ownership = "cohort-shared";
+    expect(decodeV3DecomposeCutMap(retained)).toMatchObject({
+      status: "rejected",
+      issue: {
+        code: "source-shape",
+        path: `authoring.sourceAllocations.${retainedIndex}.ownership`,
+      },
+    });
+
+    const retirementRetention = completed();
+    retirementRetention.authoring.sourceAllocations[0]!.disposition = { kind: "retained-origin" };
+    expect(decodeV3DecomposeCutMap(retirementRetention)).toMatchObject({
+      status: "rejected",
+      issue: { code: "source-shape", path: "authoring.sourceAllocations.0.disposition" },
+    });
+  });
+
+  it("requires substantive allocation for every extracted new member", () => {
+    const value = extractionCompleted();
+    value.authoring.placement = { kind: "cohort", cohort: "origin" };
+    value.authoring.destinations.push({
+      kind: "new-member",
+      destinationId: "member-b",
+      slug: "member-b",
+      workClass: "Light",
+    });
+
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+      status: "rejected",
+      issue: { code: "destination-coverage", path: "authoring.destinations.1" },
+    });
+  });
+
+  it("counts the surviving origin only in extraction placement cardinality", () => {
+    const grouped = extractionCompleted();
+    grouped.authoring.placement = { kind: "cohort", cohort: "origin" };
+    expect(parseV3DecomposeCutMap(grouped)).not.toBeNull();
+
+    const direct = extractionCompleted();
+    direct.authoring.destinations.push({
+      kind: "new-member",
+      destinationId: "member-b",
+      slug: "member-b",
+      workClass: "Light",
+    });
+    addRetainedOriginAllocation(direct);
+    const secondAllocation = direct.authoring.sourceAllocations.find(({ disposition }) =>
+      disposition.kind === "retained-origin");
+    if (secondAllocation === undefined) throw new Error("second source allocation must exist");
+    secondAllocation.disposition = {
+      kind: "target",
+      destinationId: "member-b",
+      targetLocator: { artifact: "draft-member-b.md", kind: "preamble" },
+    };
+    expect(decodeV3DecomposeCutMap(direct)).toMatchObject({
+      status: "rejected",
+      issue: { code: "placement-cardinality", path: "authoring.placement" },
+    });
   });
 
   it("binds every placement arm to its exact cohort depth", () => {
@@ -630,7 +769,6 @@ describe("v3 decomposition map schema", () => {
 
     const excludedMutations: Array<(value: LooseCompletedMap) => void> = [
       (value) => { value.machine.source.kind = "provisional"; },
-      (value) => { value.authoring.shape = "extraction"; },
       (value) => { value.authoring.placement = { kind: "unknown" }; },
       (value) => {
         (value.authoring.destinations as unknown[])[0] = {

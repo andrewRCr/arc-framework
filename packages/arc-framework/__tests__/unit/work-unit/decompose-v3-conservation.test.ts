@@ -53,6 +53,20 @@ function rebindCurrentPreflight(input: V3DecomposeConservationInput): void {
   input.currentPreflight.starterMap = starterMap;
 }
 
+function extractionInput(replacementTargets: string[]): V3DecomposeConservationInput {
+  const input = validInput();
+  input.completedMap.machine.source.kind = "active-origin";
+  input.completedMap.authoring.shape = "extraction";
+  input.completedMap.authoring.placement = { kind: "direct-member" };
+  input.completedMap.authoring.destinations = [input.completedMap.authoring.destinations[0]!];
+  input.completedMap.authoring.incomingDispositions[0]!.disposition = {
+    kind: "replace",
+    replacementTargets,
+  };
+  rebindCurrentPreflight(input);
+  return input;
+}
+
 describe("v3 decomposition allocation and dependency conservation", () => {
   it("returns the exact ordered allocation and dependency edits", () => {
     const input = validInput();
@@ -278,6 +292,29 @@ describe("v3 decomposition allocation and dependency conservation", () => {
       reason: "authoring-identity",
       locus: "authoring.incomingDispositions.0.disposition.replacementTargets.0",
     });
+  });
+
+  it("preserves or extends a retained origin dependency under extraction", () => {
+    const retained = validateV3DecomposeConservation(extractionInput(["origin"]));
+    expect(retained).toEqual({
+      status: "validated",
+      allocations: extractionInput(["origin"]).completedMap.authoring.sourceAllocations,
+      dependencyEdits: [],
+    });
+
+    const extendedInput = extractionInput(["member-a", "origin"]);
+    const extended = validateV3DecomposeConservation(extendedInput);
+    expect(extended).toMatchObject({ status: "validated" });
+    if (extended.status !== "validated") return;
+    expect(extended.dependencyEdits).toEqual([{
+      kind: "incoming",
+      edgeId: extendedInput.completedMap.machine.incomingEdges[0]!.edgeId,
+      destinationId: null,
+      dependent: "consumer",
+      writablePath: ".arc/active/meta-consumer.md",
+      beforeTargets: ["origin"],
+      afterTargets: ["member-a", "origin"],
+    }]);
   });
 
   it("projects outgoing prerequisites to their exact recipient slots", () => {

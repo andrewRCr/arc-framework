@@ -22,44 +22,25 @@ _Purpose:_ Land complete new destinations from exact source evidence while prese
           refusal for other states, validates the widened starter envelope, and excludes task-list bytes from
           source units.
 
-### `[ ]` **1.2 Enforce extraction allocation and placement rules**
+### `[x]` **1.2 Enforce extraction allocation and placement rules**
 
 - _Goal:_ Every new member owns real scope, every multi-member fan-out remains origin-addressable, and a
   surviving origin plus exactly one new member stays authorable.
 
-    - `[ ]` **1.2.a Extend the internal topology planner's placement arms**
-        - Make extraction the first caller of the core's internal topology variant: the surviving origin folds
-          into the constituent count for the multi-member gates, and a new direct-member arm keeps a surviving
-          origin plus exactly one new member valid.
-        - Report the anchor's current display path; under `at-cap` the origin persists only as the parent
-          cohort's write-once fan-out provenance note, not as a live grouping node, and is excluded from the
-          rendered fan-out member bullets — it counts for placement cardinality only.
+    - `[x]` **1.2.a Extend the internal topology planner's placement arms**
+        - The internal planner counts the surviving origin for grouped placement while preserving one-new-member
+          direct placement, anchors that direct result on the origin, and excludes the origin from at-cap member
+          bullets while retaining its provenance heading.
 
-    - `[ ]` **1.2.b Add the `extraction` authoring shape to the completed-map contract**
-        - Add the third authoring shape with its own cardinality, counting the surviving origin as a placement
-          constituent: at least one new member; `direct-member` placement valid only with exactly one new member;
-          the cohort placements valid from one new member up (the retirement shapes keep their two-member floor).
-        - Cross-validate the machine envelope's source kind against the authoring shape at decode: an
-          `Active`-origin envelope is valid only under the extraction shape, the retirement shapes accept only
-          the retirement source kinds, and a backlog-stub envelope under the extraction shape is a mismatch —
-          each mismatch a typed issue.
-        - Add the explicit retained-by-origin source disposition, valid only under the extraction shape and
-          carrying `destination-owned` ownership (mirroring drops); retirement-shaped maps reject it at decode
-          with a typed issue, so the retirement transform stays fail-closed against extraction content.
-        - Widen the incoming-edge contract under the extraction shape alone: a `replace` disposition may name the
-          surviving origin among its targets — the origin alone keeps the dependent's edge unchanged, the origin
-          beside a new member keeps and extends it.
+    - `[x]` **1.2.b Add the `extraction` authoring shape to the completed-map contract**
+        - The decoder binds extraction cardinality, source-kind compatibility, retained-origin ownership, and
+          origin-inclusive incoming dependency targets to the structural `extraction` discriminator while the
+          retirement shapes retain their existing closed contract.
 
-    - `[ ]` **1.2.c Prove the decode matrix**
-        - Prove extraction-side acceptance and refusal across the widened shared decoder: a one-new-member cohort
-          placement accepted, a two-new-member `direct-member` refused, an origin-naming `replace` accepted, a
-          coverage-check refusal for a scope-less new member, and each envelope×shape mismatch cell.
-        - Prove retirement-shape non-regression: existing retirement maps decode, validate, and refuse exactly as
-          before the widening.
-        - Add the destination→allocation coverage check (net-new — the core validates the opposite direction
-          only): every extracted new member owns at least one real destination-owned unit; existing-home,
-          cohort-shared, or retained-origin scope cannot stand in.
-        - Keep the core's placeholder rejection, allocation identity mirroring, and canonical-form checks.
+    - `[x]` **1.2.c Prove the decode matrix**
+        - Schema, topology, and conservation coverage proves the widened placement and envelope matrix, substantive
+          destination coverage, retained and extended origin edges, and unchanged retirement decoding alongside
+          the existing identity, ordering, placeholder, and canonical-form checks.
 
 ### `[ ]` **1.3 Compose and land the additive result**
 

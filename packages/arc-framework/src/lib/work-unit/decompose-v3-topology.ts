@@ -256,10 +256,10 @@ function planTopology(input: V3InternalTopologyPlanInput): V3TopologyPlanResult 
     return { status: "refused", refusal: { code: "unexpected-coordination-location" } };
   }
   if (input.placement.kind === "direct-member") {
-    if (constituents.length !== 1) {
+    if (newMembers.length !== 1) {
       return { status: "refused", refusal: { code: "multi-member-cohortless" } };
     }
-    const slug = constituents[0];
+    const slug = input.survivingOrigin ?? newMembers[0];
     if (slug === undefined) return { status: "refused", refusal: { code: "no-new-member" } };
     return {
       status: "planned",
@@ -307,7 +307,7 @@ function planTopology(input: V3InternalTopologyPlanInput): V3TopologyPlanResult 
       parent: input.placement.parent,
       origin: input.origin,
     };
-    const action = planAtCap(input, input.placement.parent, constituents);
+    const action = planAtCap(input, input.placement.parent, newMembers);
     if ("refusal" in action) return { status: "refused", refusal: action.refusal };
     actions.push(action);
   }
