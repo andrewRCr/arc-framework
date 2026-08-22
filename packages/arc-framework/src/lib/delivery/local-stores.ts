@@ -456,13 +456,48 @@ export class RepositoryDeliveryStateStore implements DeliveryStateStore<Delivery
     DeliveryStateMemberResolution<DeliveryStateV1> | null,
     DeliveryStateStoreFailure
   >> {
+    return this.resolveMemberFromEntries(input, await this.publisher.snapshot(STATE_LOCATION));
+  }
+
+  /**
+   * Observe one member binding without acquiring the publication lock or materializing the state namespace.
+   *
+   * @param input - Exact member selector and optional owning-unit assertion
+   * @returns The unique observed binding, absence, or a closed storage refusal
+   */
+  async resolveMemberReadOnly(input: {
+    readonly selector: DeliveryMemberSelector;
+    readonly owningUnit?: DeliveryOwningUnitPointer;
+  }): Promise<DeliveryStoreResult<
+    DeliveryStateMemberResolution<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
+  >> {
+    const listed = await this.publisher.list(STATE_LOCATION);
+    const entries = await Promise.all(listed.map(async (entry) => {
+      if (entry.kind !== "file") return { name: entry.name, kind: "other" as const };
+      const content = await this.publisher.read(STATE_LOCATION, entry.name);
+      return content === null ? { name: entry.name, kind: "other" as const } : {
+        name: entry.name,
+        kind: "file" as const,
+        content,
+      };
+    }));
+    return this.resolveMemberFromEntries(input, entries);
+  }
+
+  private resolveMemberFromEntries(input: {
+    readonly selector: DeliveryMemberSelector;
+    readonly owningUnit?: DeliveryOwningUnitPointer;
+  }, entries: readonly GitCommonStateSnapshotEntry[]): DeliveryStoreResult<
+    DeliveryStateMemberResolution<DeliveryStateV1> | null,
+    DeliveryStateStoreFailure
+  > {
     if (input.owningUnit !== undefined
       && (normalizePlanId(input.owningUnit.planId) === null
         || !SlugSchema.safeParse(input.owningUnit.workUnitId).success)) {
       return { status: "refused", reason: "identity-mismatch" };
     }
 
-    const entries = await this.publisher.snapshot(STATE_LOCATION);
     const matches: DeliveryStateMemberResolution<DeliveryStateV1>[] = [];
     for (const entry of entries) {
       const rawPlanId = entry.name.endsWith(".json")
