@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "make-integration-approval-land-reviewed-changes",
+  "claimId": "dd7bd5e89351574c447a05c7dd988e8a",
+  "createdAt": "2026-08-22T23:46:41.070Z",
+  "updatedAt": "2026-08-22T23:46:41.070Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "make-integration-approval-land-reviewed-changes",
+  "branch": "chore/make-integration-approval-land-reviewed-changes",
+  "origin": "inbox",
+  "originEntry": "Make integration approval land reviewed changes",
+  "originEntrySourceDigest": "sha256:33b5657f267ec5e9e1498888692db7833b18139b70678daa644f8104b68d4950",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
