@@ -10,6 +10,7 @@ import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integrat
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
+const PLAN_ID = "123e4567-e89b-42d3-a456-426614174000";
 
 const CLEAN_DRIFT = {
   mode: "authoritative" as const,
@@ -134,6 +135,7 @@ describe("integration checkpoint", () => {
     deps.classifyDeliveryDrift = async () => ({
       status: "verify-member",
       nextAction: "verify-terminal-member",
+      planId: PLAN_ID,
       deliverableId: digest("d"),
       paths: ["packages/arc-framework/src/terminal.ts"],
     });
@@ -144,16 +146,19 @@ describe("integration checkpoint", () => {
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
-        state: "blocked",
+        state: "reconcile",
         nextAction: "verify-terminal-member",
-        reason: "delivery-terminal-blocked",
         payload: {
-          reason: "residual-overlap",
-          deliverableId: digest("d"),
-          paths: ["packages/arc-framework/src/terminal.ts"],
+          drift: { verdict: "reconcile", baseOid: oid("b") },
+          safety: { safe: true, baseOid: oid("b") },
+          verification: {
+            planId: PLAN_ID,
+            deliverableId: digest("d"),
+            paths: ["packages/arc-framework/src/terminal.ts"],
+          },
         },
       });
-    expect(events).toEqual([]);
+    expect(events).toEqual(["host-read"]);
   });
 
   it("fails closed when delivery drift cannot be classified", async () => {
@@ -366,6 +371,7 @@ describe("integration checkpoint", () => {
       status: "blocked",
       nextAction: "retarget",
       reason: "top-target-mismatch",
+      planId: PLAN_ID,
       remedy: {
         nextAction: "retarget",
         repository: "owner/repo",
@@ -383,7 +389,20 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "retarget",
         reason: "delivery-terminal-blocked",
-        payload: { reason: "top-target-mismatch", remedy: { nextAction: "retarget" } },
+        remedy: {
+          argv: ["arc", "delivery", "top-remedy", "-", "--json"],
+          stdin: {
+            planId: PLAN_ID,
+            action: "retarget",
+            repository: "owner/repo",
+            protectedBaseRef: "main",
+          },
+        },
+        payload: {
+          reason: "top-target-mismatch",
+          planId: PLAN_ID,
+          remedy: { nextAction: "retarget" },
+        },
       });
     expect(events).toEqual([]);
   });

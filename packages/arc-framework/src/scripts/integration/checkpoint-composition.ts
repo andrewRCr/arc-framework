@@ -349,7 +349,7 @@ export function createIntegrationCheckpointDependencies(input: {
         const predecessorPaths = firstCoordinate == null
           ? []
           : await readDiffPaths(input.cwd, firstCoordinate.base, highestCoordinate.head);
-        return classifyDeliveryTerminalDrift({
+        const classified = classifyDeliveryTerminalDrift({
           terminalDeliverableId: terminal.deliverableId,
           driftPaths: [...new Set([
             ...drift.overlap.substantivePaths,
@@ -358,6 +358,9 @@ export function createIntegrationCheckpointDependencies(input: {
           residualPaths,
           predecessorPaths,
         });
+        return classified.status === "verify-member"
+          ? { ...classified, planId: records.plan.planId }
+          : classified;
       } catch (error) {
         return {
           status: "unavailable",

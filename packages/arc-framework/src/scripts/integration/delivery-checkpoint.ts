@@ -33,6 +33,7 @@ export type DeliveryCheckpointArmResult =
       readonly status: "blocked";
       readonly nextAction: "stop" | "retarget" | "reopen-and-retarget" | "verify-terminal-member";
       readonly reason: string;
+      readonly planId?: string;
       readonly detail?: string;
       readonly deliverableId?: string;
       readonly proof?: Extract<DeliveryContributionProofResult, { readonly status: "refused" }>;
@@ -82,6 +83,7 @@ export async function composeDeliveryCheckpointArm(input: {
           status: "blocked",
           nextAction: top.remedy.nextAction,
           reason: top.reason,
+          ...(input.plan === null ? {} : { planId: input.plan.planId }),
           remedy: top.remedy,
         }
       : { status: "blocked", nextAction: "stop", reason: "top-request-mismatch" };

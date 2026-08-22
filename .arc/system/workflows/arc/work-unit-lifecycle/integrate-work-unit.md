@@ -11,6 +11,7 @@ arc:
     - review-response
     - commit-footer
     - quality-gate-commands
+    - validate-criteria
   extensions:
     - pre-pr-open
     - post-pr-open
@@ -326,7 +327,18 @@ arc integrate checkpoint {name} --json
 ```
 
 `blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
-`reconcile / reconcile-base` enters this arm with the checkpoint's validated safety facts.
+
+`blocked` with `retarget` or `reopen-and-retarget` renders the returned reason and remedy, then stops for explicit
+direction to apply that exact remedy. On direction, invoke `remedy.argv` with `remedy.stdin` unchanged.
+`remedied / terminal-checkpoint` restarts this step; every other result stops.
+
+`reconcile` with `verify-terminal-member` resolves the one member scope named by
+`payload.verification.planId` and `payload.verification.deliverableId`: its canonical criteria group, bounded member
+diff including `payload.verification.paths`, and cumulative tree through that member. Invoke
+[`validate-criteria`][validate-criteria] with that exact scope. Any unresolved `[ ]` stops. A resolved report enters
+the same base-merge arm below with the unchanged `payload.safety`; do not rerun the checkpoint first.
+
+`reconcile / reconcile-base` enters the base-merge arm with the checkpoint's validated safety facts.
 
 Invoke `arc base merge --expected-base {payload.safety.baseOid} --json`.
 `base-moved / rerun-checkpoint` restarts this step. `blocked / stop` and `conflict / stop` stop before every later
@@ -482,6 +494,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
+[validate-criteria]: ../../../methods/validate-criteria.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass

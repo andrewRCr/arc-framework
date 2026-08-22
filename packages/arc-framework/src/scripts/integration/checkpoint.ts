@@ -17,6 +17,7 @@ import {
 } from "./interlock-surface.js";
 import type { DeliveryCheckpointArmResult } from "./delivery-checkpoint.js";
 import type { DeliveryTerminalDriftResult } from "../../lib/delivery/terminal-integration.js";
+import { DeliveryPlanIdSchema } from "../../lib/delivery/schema.js";
 import {
   SpineRemedySchema,
   checkpointResumeArgv,
@@ -326,6 +327,20 @@ export const IntegrationCheckpointResultSchema = z.union([
   z.strictObject({
     ...ResultBaseShape,
     state: z.literal("reconcile"),
+    nextAction: z.literal("verify-terminal-member"),
+    payload: z.strictObject({
+      drift: z.custom<BaseDriftResult>(),
+      safety: ReconcileSafetyFactsSchema,
+      verification: z.strictObject({
+        planId: DeliveryPlanIdSchema,
+        deliverableId: DigestSchema,
+        paths: z.array(z.string().min(1)).min(1),
+      }),
+    }),
+  }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("reconcile"),
     nextAction: z.literal("reconcile-base"),
     payload: z.strictObject({
       drift: z.custom<BaseDriftResult>(),
@@ -394,7 +409,10 @@ export interface IntegrationCheckpointDependencies {
   classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<
     | { readonly status: "not-applicable" }
     | { readonly status: "unavailable"; readonly detail: string }
-    | DeliveryTerminalDriftResult
+    | Exclude<DeliveryTerminalDriftResult, { readonly status: "verify-member" }>
+    | (Extract<DeliveryTerminalDriftResult, { readonly status: "verify-member" }> & {
+        readonly planId: string;
+      })
   >;
   readReconcileHost(workUnit: string, drift: BaseDriftResult): Promise<ReconcileHostFact>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
@@ -444,6 +462,27 @@ function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): Recon
   });
 }
 
+function deliveryTerminalRemedy(
+  workUnit: string,
+  delivery: Extract<DeliveryCheckpointArmResult, { readonly status: "blocked" }>,
+): SpineRemedy {
+  if ((delivery.nextAction === "retarget" || delivery.nextAction === "reopen-and-retarget")
+    && delivery.planId !== undefined && delivery.remedy !== undefined) {
+    return spineRemedy(
+      "The terminal delivery request targets the protected base before integration.",
+      "Apply the exact observed failure-only remedy",
+      ["arc", "delivery", "top-remedy", "-", "--json"],
+      {
+        planId: delivery.planId,
+        action: delivery.nextAction,
+        repository: delivery.remedy.repository,
+        protectedBaseRef: delivery.remedy.protectedBaseRef,
+      },
+    );
+  }
+  return checkpointRemedy("delivery-terminal-blocked", workUnit);
+}
+
 /**
  * Reduce the complete pre-approval span to one typed checkpoint verdict.
  *
@@ -479,21 +518,18 @@ export async function checkpointIntegration(
         },
       });
     }
-    if (deliveryDrift.status === "verify-member" || deliveryDrift.status === "refused") {
-      const nextAction = deliveryDrift.status === "verify-member" ? deliveryDrift.nextAction : "stop";
+    if (deliveryDrift.status === "refused") {
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "blocked",
-        nextAction,
+        nextAction: "stop",
         reason: "delivery-terminal-blocked",
         remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
         payload: {
           status: "blocked",
-          nextAction,
-          reason: deliveryDrift.status === "verify-member" ? "residual-overlap" : deliveryDrift.reason,
-          ...(deliveryDrift.status === "verify-member"
-            ? { deliverableId: deliveryDrift.deliverableId, paths: deliveryDrift.paths }
-            : { paths: deliveryDrift.paths }),
+          nextAction: "stop",
+          reason: deliveryDrift.reason,
+          paths: deliveryDrift.paths,
         },
       });
     }
@@ -502,6 +538,22 @@ export async function checkpointIntegration(
       ReconcileHostFactSchema.parse(await dependencies.readReconcileHost(request.workUnit, drift)),
     );
     if (safety.safe) {
+      if (deliveryDrift.status === "verify-member") {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "reconcile",
+          nextAction: "verify-terminal-member",
+          payload: {
+            drift,
+            safety,
+            verification: {
+              planId: deliveryDrift.planId,
+              deliverableId: deliveryDrift.deliverableId,
+              paths: deliveryDrift.paths,
+            },
+          },
+        });
+      }
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "reconcile",
@@ -580,7 +632,7 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: delivery.nextAction,
         reason: "delivery-terminal-blocked",
-        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        remedy: deliveryTerminalRemedy(request.workUnit, delivery),
         payload: delivery,
       });
     }
