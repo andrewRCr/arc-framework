@@ -573,6 +573,205 @@ comparator and trivially accepted.
 - _Goal:_ Member 5's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
+- _Note:_ Design audit found two blockers before the criteria walk: interrupted active operations can lose the
+  selector for their owed continuation, while terminal base reconciliation needs a rerunnable state rebind rather
+  than terminal-only Candidate-lineage machinery. Close both through the approved forward amendment before
+  collecting member evidence.
+
+- _Amendment:_ Proportionality review superseded the blanket operation-owner matrix and the whole-work-unit
+  verification default. Recovery now returns an informative ordinary rerun from minimum reservation state, while
+  terminal base movement reuses D4's structural facts and an exact-bound authority selection only when mechanics
+  cannot settle applicability.
+
+    - `[~]` **5.7.a Make active-operation reservations owner-complete**
+
+        - Superseded by Task 5.7.R.a: the existing operation kind and payload remain authoritative, with narrow mode
+          discriminators only for overloaded `rewrite` and `land` operations and no owner or retry-policy fields.
+
+    - `[~]` **5.7.b Return executable recovery transitions for every operation owner**
+
+        - Superseded by Task 5.7.R.a: interrupted operations return informative, typed ordinary rerun actions after
+          reobservation rather than entering a general per-owner recovery transition framework.
+
+    - `[~]` **5.7.c Preserve highest-member teardown recovery through top observation**
+
+        - Superseded by Task 5.7.R.a, which combines this concrete specialization with the minimum closed recovery
+          contract it consumes so the generic reducer and teardown continuation land coherently.
+
+    - `[~]` **5.7.d Make terminal base reconciliation exact-head and checkpoint-rerunnable**
+
+        - Superseded by Tasks 5.7.R.b–5.7.R.c: exact-head compare-and-set remains, while Candidate applicability is
+          classified structurally and no longer defaults every changed subject digest to whole-work-unit
+          verification.
+
+    - `[~]` **5.7.e Rebind stale terminal coordinates from current observable facts**
+
+        - Superseded by Task 5.7.R.c so terminal rebind consumes the canonical Candidate target and independently
+          settled publication boundary rather than landing ahead of those contracts.
+
+    - `[~]` **5.7.f Re-author the integration workflow and guards around informative reruns**
+
+        - Superseded by Task 5.7.R.d, which routes the structural applicability and authority-selection results
+          instead of hard-coding whole-work-unit verification.
+
+    - `[~]` **5.7.g Run the member 5 criteria walk and record its evidence**
+
+        - Superseded by Task 5.7.R.e so the criteria walk closes the complete forward amendment rather than the
+          earlier recovery design.
+
+    - `[ ]` **5.7.R Apply the proportional recovery and Candidate-applicability amendment**
+
+        - Replace the superseded recovery matrix and whole-work-unit fallback with the D3.10, D8.7, and D9.6 seams.
+
+        - `[ ]` **5.7.R.a Return informative ordinary reruns from minimum operation state**
+
+            - Keep the existing operation kind, ID, affected members, snapshots, plan binding, and host effects.
+              Add a closed mode only to distinguish review-fix from provider-adoption `rewrite`, and sequential from
+              native `land`; add no owner, retry-policy, recovery record, or autonomous replay surface.
+            - Return CLI-precomposed text, a minimal exact selector over fields already authoritative in state
+              (`planId`, operation ID, affected member IDs, narrow mode, and an existing effect identity only when the
+              action consumes it), and exactly one executable rerun action: `delivery-publish` for `materialize` or
+              `publish`, `delivery-rematerialize` for review-fix `rewrite`, `delivery-native-observe` for
+              provider-adoption `rewrite`, `delivery-land-prepare` for sequential `land`,
+              `delivery-native-land-select` for terminal none-landed native `land`, `delivery-teardown` for
+              `teardown`, or `delivery-top-remedy` for `top-remedy`. The selector identifies the reservation subject;
+              it is not a persisted downstream-command request. The ordinary action reobserves and prepares every
+              remaining input, while workflow prose interprets neither guidance strings nor operation fields. Exact
+              not-applied `publish` and `teardown` preserve reservations their ordinary verbs consume and revalidate;
+              the other exact not-applied arms version-clear before returning fresh preparation or invocation, and
+              obtain attended authorization again. Stop results carry no executable action; applied adoption returns
+              its existing domain continuation rather than a rerun action.
+            - Absorb Task 5.7.c's concrete seam: exact teardown reruns consume only the affected-member reservation,
+              and an applied highest-member deletion retains it through fresh top observation. Clear and return only
+              `terminal-checkpoint`, `retarget`, or `reopen-and-retarget`; unavailable or mismatched evidence retains
+              and stops. Exact applied results otherwise clear after their already-owed observation. Ambiguous,
+              unavailable, partial, pending, and persistence-failed facts retain and stop.
+            - Own one canonical strict recovery action/selector/result schema and share it from the reducer through
+              `delivery reconcile`'s strict handler result envelope. The CLI boundary preserves the closed action,
+              selector, and precomposed text without duplicating or widening their union.
+            - Build `test-first` (one behavior at a time):
+                - Every kind and overloaded mode selects its exact preserve-versus-clear transition and one member of
+                  the closed executable rerun union
+                - Matching `publish` and teardown reruns consume only the current reservation and repeat preconditions
+                - Interrupted teardown resumes the exact affected member in stacks of two and at least three members
+                - Applied highest deletion interrupted before top observation retains through each exact top result
+                - Ambiguous, unavailable, partial, pending, and persistence-failed observations retain and stop
+                - Failed cancellation leaves the reservation authoritative, and an exact cleared rerun is idempotent
+                - No reducer result requires guidance-string interpretation or agent memory to identify its command
+                  or reservation subject, and ordinary preparation rederives every non-selector input
+                - Canonical-schema and handler-serialization coverage pins every action/selector arm, preserves its
+                  precomposed text, and rejects malformed action/selector pairings
+                - E2E `delivery reconcile` coverage exercises a preserved reservation, a version-cleared action, an
+                  informative stop with no action, and the highest-teardown domain continuation
+
+        - `[ ]` **5.7.R.b Project exact-head Candidate applicability through D4**
+
+            - Add the checkpoint Candidate head across the complete `arc base merge` contract — input/result schemas,
+              port, handler dependency, command registration, CLI option, composition, and tests — and compare base
+              plus head immediately before mutation. Either movement returns `rerun-checkpoint` without mutation.
+              Classify ancestry before the merge: base already ancestral to head is already clean; head ancestral to
+              base returns `head-contained-by-base / rerun-checkpoint`; only proven divergence invokes
+              `git merge --no-ff --no-edit <exact-base>`. Accept that result only when its parents are the exact prior
+              head and base, so interruption can rederive both endpoints without persisted proof state.
+            - After ordinary new-head checks, one Git-backed producer supplies strict structural facts to Task
+              5.7.R.c's asynchronous effective-target projection; the pure durable-baseline reducer performs no Git
+              I/O. Bind `before.member` to the durable baseline target, `after.member` to the fresh Candidate head,
+              `after.predecessor` to the fresh configured base, and `before.predecessor` to the sole merge base of the
+              baseline head and current base. Missing or multiple merge bases are unavailable evidence. Equal subjects
+              keep the operational-only advance; `tree-equality` or `mechanical-reapply` returns `applicable`; every
+              non-mechanical result with a non-empty bounded path set returns `decision-required` with its
+              clean-divergence or interaction verdict plus canonical projection/residual digests. The classifier
+              never originates `changed` from structural divergence alone.
+            - Exact endpoint movement or transient snapshot invalidation returns `rerun-checkpoint`; Git operational
+              failure or malformed evidence returns `classification-failed / stop`; unsupported D4 capability returns
+              `classification-unsupported / upgrade`; and empty or otherwise unbounded evidence returns
+              `classification-unavailable / stop`. None becomes an authority choice. Define the result from the CLI's
+              canonical schema source rather than duplicating it in workflow prose.
+            - Build `test-first` (one behavior at a time):
+                - Base or Candidate head movement returns `rerun-checkpoint` without mutation
+                - Already-clean and head-contained-by-base ancestry create no merge commit
+                - Only proven divergence uses `--no-ff`, and the resulting parents bind the exact prior head and base
+                - Subject equality and mechanical reapply recognize the exact new head automatically
+                - First and successive base carries derive the sole baseline-to-current merge base, while missing or
+                  multiple merge bases stop as unavailable
+                - Clean divergence and interaction both carry complete exact-bound facts to `decision-required`
+                - Movement, failed or malformed Git, unsupported capability, and unavailable evidence remain distinct
+                  typed outcomes, with only movement rerunning automatically
+                - Unit, handler, command-registration, and E2E coverage pin the complete base-plus-head contract
+
+        - `[ ]` **5.7.R.c Bind only an authorized applicability selection**
+
+            - Extend the strict Candidate schema with one storage-agnostic current applicability binding and write it
+              only through the existing versioned Candidate store. The new
+              `arc candidate applicability resolve <name> <input>` verb rederives the exact projection, checks the
+              expected record version, and atomically replaces
+              Candidate identity, prior/current targets, projection/residual digests, selecting actor, and
+              `covered | targeted-check | changed`. It stores no path, storage mode, rationale, proof transcript,
+              retry state, or decision history.
+            - Own the verb's complete command surface: one canonical strict input/result schema; handler and Git/store
+              composition; the new `candidate applicability resolve` CLI group; operand/interaction declarations and
+              command-input registration; command-surface inventory; and unit, handler, registration, and E2E tests.
+              The input binds the expected record version, prior/current targets, projection/residual digests,
+              selecting actor, choice, and optional completed targeted evidence. The result distinguishes resolved,
+              exact replay, stale-bound-input, version conflict, and typed projection failure without exposing the
+              store path as domain data.
+            - Resolve formal selection through existing Rule Authority. The CLI precomposes the offer and
+              recommendation; the executing agent may recommend and mechanically record an operator's explicit
+              choice but cannot originate its own applicability selection. `targeted-check` writes only with its
+              completed bounded evidence in the same compare-and-set. Any changed head, subject, projection,
+              residual, or record version refuses or invalidates the binding and returns to classification.
+            - Add a canonical pure durable-baseline reduction over the Candidate root, approved responses, and
+              current binding. Above it, add one asynchronous effective-target projection that combines the baseline
+              with current Git and D4 facts. Machine-proved applicability is rederived there and never persisted;
+              `covered` and evidenced `targeted-check` advance the durable baseline, while `changed` preserves the
+              ordinary Candidate-change route. Migrate status, pre-publication, review response/status, lifecycle,
+              lineage-review, and checkpoint consumers away from direct response-tail/current-subject assumptions so
+              they all consume the effective projection.
+            - Applicability does not settle review. Run ordinary review/pre-publication settlement for the recognized
+              current subject and refresh its durable boundary before checkpoint may proceed. Then absorb Task 5.7.e:
+              only a current Candidate, independently settled boundary, coherent plan/state, exact top request, and
+              inactive operation may version-update stale terminal coordinates and return `rerun-checkpoint`.
+            - Build `test-first` (one behavior at a time):
+                - Exact `covered` and evidenced `targeted-check` bindings recognize only their bound current target
+                - `changed` follows ordinary Candidate change handling at the existing policy-selected scope
+                - Stale record revisions or any changed bound input refuse without modifying the Candidate record
+                - Rerunning an exact recorded selection does not ask again or append duplicate state
+                - Interrupted `targeted-check` before binding repeats the same choice with no pending record state
+                - Every Candidate consumer agrees on the durable baseline plus effective recognized target and
+                  stale-binding behavior
+                - First, interrupted, and successive machine-proved carries are rederived from exact Git topology
+                  without a persisted proof, including a rerun after the merge already landed
+                - The strict command refuses stale projections and CAS conflicts, accepts an exact replay, and is
+                  covered through handler, command-registration, and E2E surfaces
+                - Checkpoint refuses until the recognized subject's publication boundary independently settles
+                - Terminal rebind changes only exact stale terminal coordinates and is idempotent across interruption
+                - Active operations, moved requests, incoherent state, or other binding changes refuse the rebind
+
+        - `[ ]` **5.7.R.d Re-author the integration workflow around typed reruns and applicability**
+
+            - Update both shipped workflow copies and their guards to pass the expected head, rerun exact new-head
+              automated checks, dispatch on machine `applicable`, bounded `decision-required`, or an explicitly
+              selected `changed` route, follow the existing terminal state rebind when needed, and rerun checkpoint
+              after each exact correction. Preserve interlocks,
+              ordinary review/verification authority, close-before-teardown ordering, and package/project parity.
+              Deterministic sequencing, selectors, offers, and prompt text come from typed CLI results; workflow
+              prose invokes verbs and presents the bounded judgment leaf without recreating policy, schema, or Git
+              mechanics and introduces no new agent-interpreted markup.
+            - Build `test-first` (one behavior at a time):
+                - Both workflow copies pass base and head compare-and-set inputs
+                - Machine-proved applicability adds no attended step, while `decision-required` presents the exact
+                  authority selection and only an explicit `changed` selection follows ordinary scope selection
+                - Endpoint movement reruns checkpoint, while failed, malformed, unsupported, unavailable, or
+                  unbounded classification stops through its typed CLI result without offering an authority selection
+                - Terminal rebind invokes delivery reconciliation and reruns checkpoint without a recovery operation
+                - Existing checkpoint, integration interlock, merge, and close-before-teardown ordering remains intact
+
+        - `[ ]` **5.7.R.e Run the member 5 criteria walk and record its evidence**
+
+            - Invoke `validate-criteria` over Member 5's canonical group, bounded member diff, and cumulative tree
+              only after every retained and revision subtask plus the coherent-unit gate has passed. Leave Success
+              Criteria markers unchanged and record the returned evidence as this task's completion outcome.
+
 ## **Phase 6:** Provider-delegated refresh and native landing
 
 **Delivery member:** 6 — `refresh-and-native-landing`
@@ -1175,6 +1374,31 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   an open request on the wrong base yields `retarget`, and `closed-unmerged` yields `reopen-and-retarget`. Either
   remedy requires explicit invocation and another observation, and the terminal arm refuses until the top is
   freshly observed open against the protected base. A member-branch base remains valid during the landing window.
+
+- `[ ]` Terminal base reconciliation compares both the protected-base and Candidate heads before mutation, then
+  converges through informative checkpoint reruns over existing durable facts. Changed Candidate content requires
+  ordinary whole-work-unit verification and a new Candidate root; stale terminal coordinates require only an
+  idempotent, version-checked delivery-state rebind. Neither path adds Candidate-lineage authority, a
+  terminal-reconcile reservation, or autonomous replay, and every ambiguous observation stops. **Amended
+  2026-08-22:** the whole-work-unit default is superseded. Ancestry is classified first: contained topology creates
+  no commit, and only proven divergence uses `--no-ff` with the exact prior-head/base parent pair. Exact new-head
+  checks always rerun; D4 mechanical equivalence carries Candidate verification applicability automatically, while
+  every non-mechanical bounded residual requires an exact-bound `covered`, `targeted-check`, or `changed` selection
+  by the applicable authority on the existing Candidate record. Endpoint movement reruns; failed, malformed,
+  unsupported, unavailable, or unbounded evidence stops through its distinct typed class. Every Candidate consumer
+  reads the same pure durable baseline and asynchronous Git-backed effective target, and the publication boundary
+  settles that target independently before checkpoint proceeds.
+
+- `[ ]` Interrupted delivery operations reobserve the existing reservation and return an informative ordinary rerun
+  action with a minimal exact reservation-subject selector and CLI-precomposed text; ordinary preparation rederives
+  every other input. Only overloaded `rewrite` and `land` kinds carry a narrow mode discriminator. Exact not-applied
+  `publish` and `teardown` preserve a reservation their ordinary verbs consume; other kinds/modes version-clear
+  before fresh preparation or invocation through the closed
+  `delivery-publish | delivery-rematerialize | delivery-native-observe | delivery-land-prepare |
+  delivery-native-land-select | delivery-teardown | delivery-top-remedy` rerun union. Exact applied results clear
+  after their already-owed observation, while ambiguous or incomplete results retain and stop. Highest-member
+  teardown stays reserved through fresh top observation across stack cardinalities, with no owner field, retry
+  policy, recovery record, or autonomous replay.
 
 ### Member 6 — `refresh-and-native-landing`
 
