@@ -10,14 +10,18 @@ import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
-import type { CandidateManagedRecordV1 } from "../../lib/work-unit/candidate-attestation.js";
+import {
+  reduceCandidateDurableBaseline,
+  type CandidateManagedRecordV1,
+} from "../../lib/work-unit/candidate-attestation.js";
 import {
   projectEffectiveCandidateCurrentness,
   type CandidateEffectiveCurrentnessProjection,
   type CandidateEffectiveTargetProjection,
 } from "../../lib/work-unit/candidate-effective-target.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateEffectiveTarget } from "../../lib/work-unit/git-candidate-effective-target.js";
+import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
 import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
@@ -61,6 +65,7 @@ import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 
 interface CachedCandidate {
   record: CandidateManagedRecordV1;
+  recordVersion: string;
   effective: CandidateEffectiveTargetProjection;
   currentness: CandidateEffectiveCurrentnessProjection;
 }
@@ -283,8 +288,9 @@ export function createIntegrationCheckpointDependencies(input: {
     let value = candidates.get(workUnit);
     if (value === undefined) {
       value = (async () => {
-        const record = await readCandidateRecord(input.cwd, workUnit);
-        if (record === null) return null;
+        const versioned = await readCandidateRecordVersioned(input.cwd, workUnit);
+        if (versioned.record === null || versioned.version === null) return null;
+        const record = versioned.record;
         const config = await settings();
         const effective = await projectGitCandidateEffectiveTarget({
           cwd: input.cwd,
@@ -294,7 +300,12 @@ export function createIntegrationCheckpointDependencies(input: {
           exec: input.exec,
           rawExec: rawGit,
         });
-        return { record, effective, currentness: projectEffectiveCandidateCurrentness(effective) };
+        return {
+          record,
+          recordVersion: versioned.version,
+          effective,
+          currentness: projectEffectiveCandidateCurrentness(effective),
+        };
       })();
       candidates.set(workUnit, value);
     }
@@ -356,7 +367,6 @@ export function createIntegrationCheckpointDependencies(input: {
           ? []
           : await readDiffPaths(input.cwd, firstCoordinate.base, highestCoordinate.head);
         const classified = classifyDeliveryTerminalDrift({
-          terminalDeliverableId: terminal.deliverableId,
           driftPaths: [...new Set([
             ...drift.overlap.substantivePaths,
             ...drift.overlap.regenerablePaths,
@@ -364,9 +374,7 @@ export function createIntegrationCheckpointDependencies(input: {
           residualPaths,
           predecessorPaths,
         });
-        return classified.status === "verify-member"
-          ? { ...classified, planId: records.plan.planId }
-          : classified;
+        return classified;
       } catch (error) {
         return {
           status: "unavailable",
@@ -389,6 +397,54 @@ export function createIntegrationCheckpointDependencies(input: {
     readCandidate: async (workUnit) => {
       const value = await candidate(workUnit);
       return value?.currentness ?? null;
+    },
+    composeCandidateApplicabilityResolutionSelector: async (workUnit, decision) => {
+      const value = await candidate(workUnit);
+      if (value === null || value.effective.state !== "decision-required") {
+        throw new Error("The Candidate applicability decision is no longer current.");
+      }
+      const config = await settings();
+      const currentTarget = await collectGitCandidateTarget({
+        cwd: input.cwd,
+        name: workUnit,
+        baseBranch: config.settings["branch.base"],
+        exec: input.exec,
+        revision: decision.currentTarget.revision,
+      });
+      const priorTarget = reduceCandidateDurableBaseline(value.record).target;
+      if (priorTarget.revision !== decision.baselineTarget.revision
+        || priorTarget.subject.subjectDigest !== decision.baselineTarget.subjectDigest
+        || currentTarget.subject.subjectDigest !== decision.currentTarget.subjectDigest) {
+        throw new Error("The Candidate applicability selector changed during checkpoint composition.");
+      }
+      return {
+        schemaVersion: 1,
+        expectedRecordVersion: value.recordVersion,
+        candidateId: decision.candidateId,
+        priorTarget,
+        currentTarget,
+        currentBase: decision.currentBase,
+        projectionDigest: decision.projectionDigest,
+        residualDigest: decision.residualDigest,
+      };
+    },
+    readCandidatePublication: async (workUnit) => {
+      const [value, publicationBoundary] = await Promise.all([
+        candidate(workUnit),
+        boundary(workUnit),
+      ]);
+      if (value === null || value.effective.state !== "current") {
+        throw new Error("The current Candidate publication subject is unavailable.");
+      }
+      const publicLocus = publicationBoundary?.locus === "publication-pending"
+        || publicationBoundary?.locus === "hosted-review-pending";
+      return publicationBoundary !== null
+        && publicLocus
+        && publicationBoundary.candidateId === value.effective.candidateId
+        && publicationBoundary.candidateSubjectDigest
+          === value.effective.recognizedTarget.subject.subjectDigest
+        ? { status: "current" }
+        : { status: "refresh-required" };
     },
     composeDelivery: async ({ workUnit, candidate: currentness }) => {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);
@@ -418,6 +474,27 @@ export function createIntegrationCheckpointDependencies(input: {
         || terminal.changeRequest === null || terminal.coordinates === null) {
         throw new Error("The delivery top has no exact retained binding.");
       }
+      const predecessorRef = members.at(-2)?.ref;
+      if (terminal.coordinates.head !== currentness.recognizedRevision) {
+        const currentTop = await resolveChangeRequest({
+          headRef: branchName(terminal.ref),
+          headSha: currentness.recognizedRevision,
+          baseRef: configuredBase,
+          acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+            ? []
+            : [branchName(predecessorRef)],
+        }, changeRequestPort);
+        if (currentTop.state !== "open"
+          || String(currentTop.candidate.number) !== terminal.changeRequest.changeRequestId) {
+          throw new Error("The current delivery top request does not match its retained binding.");
+        }
+        return {
+          status: "terminal-rebind-required",
+          nextAction: "reconcile-delivery-state",
+          planId: records.plan.planId,
+          repository: currentTop.targetRef.repository,
+        };
+      }
       const landings: Array<{ deliverableId: string; head: string }> = [];
       for (const [index, member] of members.slice(0, -1).entries()) {
         if (member.ref === null || member.changeRequest === null || member.coordinates === null) {
@@ -438,7 +515,6 @@ export function createIntegrationCheckpointDependencies(input: {
         }
         landings.push({ deliverableId: member.deliverableId, head: member.coordinates.head });
       }
-      const predecessorRef = members.at(-2)?.ref;
       const topResolution = await resolveChangeRequest({
         headRef: branchName(terminal.ref),
         headSha: terminal.coordinates.head,

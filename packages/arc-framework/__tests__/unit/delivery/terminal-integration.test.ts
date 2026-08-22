@@ -506,23 +506,16 @@ describe("delivery terminal integration", () => {
     });
   });
 
-  it("re-fires only terminal-member verification when drift overlaps residual paths", () => {
+  it("routes residual overlap through the guarded base reconcile", () => {
     expect(classifyDeliveryTerminalDrift({
-      terminalDeliverableId: "terminal-member",
       driftPaths: ["terminal.ts", "outside.ts"],
       residualPaths: ["terminal.ts"],
       predecessorPaths: ["member.ts"],
-    })).toEqual({
-      status: "verify-member",
-      nextAction: "verify-terminal-member",
-      deliverableId: "terminal-member",
-      paths: ["terminal.ts"],
-    });
+    })).toEqual({ status: "reconcile", nextAction: "reconcile-base" });
   });
 
   it("reconciles drift outside the residual without whole-work-unit verification", () => {
     expect(classifyDeliveryTerminalDrift({
-      terminalDeliverableId: "terminal-member",
       driftPaths: ["union-only.ts"],
       residualPaths: ["terminal.ts"],
       predecessorPaths: [],
@@ -531,7 +524,6 @@ describe("delivery terminal integration", () => {
 
   it("refuses predecessor overlap before residual verification", () => {
     expect(classifyDeliveryTerminalDrift({
-      terminalDeliverableId: "terminal-member",
       driftPaths: ["shared.ts"],
       residualPaths: ["shared.ts"],
       predecessorPaths: ["shared.ts"],

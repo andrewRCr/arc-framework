@@ -24,6 +24,12 @@ import {
 export type DeliveryCheckpointArmResult =
   | { readonly status: "not-applicable" }
   | {
+      readonly status: "terminal-rebind-required";
+      readonly nextAction: "reconcile-delivery-state";
+      readonly planId: string;
+      readonly repository: string;
+    }
+  | {
       readonly status: "ready";
       readonly claim: Extract<DeliveryTerminalClaimResult, { readonly status: "composed" }>;
       readonly checks: Extract<DeliveryTerminalCheckResult, { readonly status: "ready" }>;
@@ -31,7 +37,7 @@ export type DeliveryCheckpointArmResult =
     }
   | {
       readonly status: "blocked";
-      readonly nextAction: "stop" | "retarget" | "reopen-and-retarget" | "verify-terminal-member";
+      readonly nextAction: "stop" | "retarget" | "reopen-and-retarget";
       readonly reason: string;
       readonly planId?: string;
       readonly detail?: string;

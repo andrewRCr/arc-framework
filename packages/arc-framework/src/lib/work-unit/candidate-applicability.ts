@@ -78,6 +78,24 @@ const ObservedEndpointsSchema = z.strictObject({
   baseHead: ObjectIdSchema,
 });
 
+export const CandidateApplicabilityDecisionResultSchema = z.strictObject({
+  ...ResultCommon,
+  state: z.literal("decision-required"),
+  nextAction: z.literal("request-authority"),
+  verdict: z.enum(["clean-divergence", "interaction"]),
+  projection: DeliveryContributionEndpointsSchema,
+  paths: BoundedApplicabilityPathsSchema,
+  choices: CandidateApplicabilityChoicesSchema,
+  selectionOfferText: z.string().min(1),
+  recommendedActionText: z.string().min(1),
+  selectionPromptText: z.string().min(1),
+  projectionDigest: DigestSchema,
+  residualDigest: DigestSchema,
+});
+export type CandidateApplicabilityDecisionResult = z.infer<
+  typeof CandidateApplicabilityDecisionResultSchema
+>;
+
 export const CandidateApplicabilityResultSchema = z.union([
   z.strictObject({
     ...ResultCommon,
@@ -88,19 +106,7 @@ export const CandidateApplicabilityResultSchema = z.union([
     projectionDigest: DigestSchema,
     residualDigest: DigestSchema,
   }),
-  z.strictObject({
-    ...ResultCommon,
-    state: z.literal("decision-required"),
-    nextAction: z.literal("request-authority"),
-    verdict: z.enum(["clean-divergence", "interaction"]),
-    projection: DeliveryContributionEndpointsSchema,
-    paths: BoundedApplicabilityPathsSchema,
-    choices: CandidateApplicabilityChoicesSchema,
-    selectionOfferText: z.string().min(1),
-    recommendedActionText: z.string().min(1),
-    projectionDigest: DigestSchema,
-    residualDigest: DigestSchema,
-  }),
+  CandidateApplicabilityDecisionResultSchema,
   z.strictObject({
     ...ResultCommon,
     state: z.literal("rerun-checkpoint"),
@@ -153,7 +159,7 @@ function decisionPresentation(input: {
   paths: readonly string[];
   projectionDigest: string;
   residualDigest: string;
-}): { selectionOfferText: string; recommendedActionText: string } {
+}): { selectionOfferText: string; recommendedActionText: string; selectionPromptText: string } {
   return {
     selectionOfferText: [
       `Candidate applicability is not mechanically decidable for ${input.request.candidateId}.`,
@@ -172,6 +178,7 @@ function decisionPresentation(input: {
       "Recommend `covered` only when existing settled review and verification already cover the bounded residual; "
       + "recommend `targeted-check` when a completed bounded check can settle it; otherwise recommend `changed`. "
       + "Record only the operator's explicit selection.",
+    selectionPromptText: "Select Candidate applicability: covered, targeted-check, or changed?",
   };
 }
 

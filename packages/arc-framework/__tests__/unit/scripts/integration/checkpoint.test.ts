@@ -74,6 +74,10 @@ function dependencies(): IntegrationCheckpointDependencies {
       implementationChanged: false,
       convergenceVerification: "satisfied",
     }),
+    composeCandidateApplicabilityResolutionSelector: async () => {
+      throw new Error("a current Candidate does not require an applicability selector");
+    },
+    readCandidatePublication: async () => ({ status: "current" as const }),
     composeDelivery: async () => ({ status: "not-applicable" }),
     resolveMergeMethod: async () => ({
       schemaVersion: 1,
@@ -142,6 +146,17 @@ describe("integration checkpoint", () => {
     });
     if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
     deps.readCandidate = async () => decision as never;
+    const resolutionSelector = {
+      schemaVersion: 1 as const,
+      expectedRecordVersion: digest("f"),
+      candidateId: request.candidateId,
+      priorTarget: request.baselineTarget,
+      currentTarget: request.currentTarget,
+      currentBase: request.currentBase,
+      projectionDigest: decision.projectionDigest,
+      residualDigest: decision.residualDigest,
+    };
+    deps.composeCandidateApplicabilityResolutionSelector = async () => resolutionSelector;
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
@@ -153,6 +168,8 @@ describe("integration checkpoint", () => {
           residualDigest: decision.residualDigest,
           selectionOfferText: decision.selectionOfferText,
           recommendedActionText: decision.recommendedActionText,
+          selectionPromptText: decision.selectionPromptText,
+          resolutionSelector,
         },
       });
   });
@@ -178,15 +195,12 @@ describe("integration checkpoint", () => {
       });
   });
 
-  it("routes residual drift through terminal-member verification before base reconcile", async () => {
+  it("routes classified terminal residual drift through the guarded base reconcile", async () => {
     const deps = dependencies();
     const events: string[] = [];
     deps.classifyDeliveryDrift = async () => ({
-      status: "verify-member",
-      nextAction: "verify-terminal-member",
-      planId: PLAN_ID,
-      deliverableId: digest("d"),
-      paths: ["packages/arc-framework/src/terminal.ts"],
+      status: "reconcile",
+      nextAction: "reconcile-base",
     });
     deps.readReconcileHost = async () => {
       events.push("host-read");
@@ -196,15 +210,10 @@ describe("integration checkpoint", () => {
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "reconcile",
-        nextAction: "verify-terminal-member",
+        nextAction: "reconcile-base",
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
           safety: { safe: true, baseOid: oid("b") },
-          verification: {
-            planId: PLAN_ID,
-            deliverableId: digest("d"),
-            paths: ["packages/arc-framework/src/terminal.ts"],
-          },
         },
       });
     expect(events).toEqual(["host-read"]);
@@ -454,6 +463,43 @@ describe("integration checkpoint", () => {
         },
       });
     expect(events).toEqual([]);
+  });
+
+  it("returns the exact existing delivery reconcile input for a stale terminal binding", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.composeDelivery = async () => ({
+      status: "terminal-rebind-required",
+      nextAction: "reconcile-delivery-state",
+      planId: PLAN_ID,
+      repository: "owner/repo",
+    }) as never;
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "terminal-rebind-required",
+        nextAction: "reconcile-delivery-state",
+        payload: {
+          reconcileInput: { planId: PLAN_ID, repository: "owner/repo" },
+        },
+      });
+  });
+
+  it("returns the ordinary pre-publication entry when the recognized Candidate boundary is stale", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readCandidatePublication = async () => ({
+      status: "refresh-required",
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "candidate-publication-required",
+        nextAction: "resume-pre-publication",
+        payload: {
+          attestArgv: ["arc", "attest", "example", "--json"],
+        },
+      });
   });
 
   it("keeps the integration interlock after the delivery terminal checks pass", async () => {

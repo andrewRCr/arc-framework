@@ -22,17 +22,59 @@ const WORKFLOWS = [
 ];
 
 describe("integration current-WU reconcile workflow", () => {
+  it.each(WORKFLOWS)("routes Candidate applicability through typed checkpoint results in %s", async (path) => {
+    const content = await readFile(path, "utf8");
+    const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
+    const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
+    const step = content.slice(start, end);
+
+    expect(step).toContain("`candidate-applicability / rerun-checkpoint`");
+    expect(step).toContain("`candidate-applicability / request-authority`");
+    expect(step).toContain("payload.selectionOfferText");
+    expect(step).toContain("payload.recommendedActionText");
+    expect(step).toContain("payload.selectionPromptText");
+    expect(step).toContain("payload.resolutionSelector");
+    expect(step).toContain("arc candidate applicability resolve {name} -");
+    expect(step).toMatch(/machine-proved `applicable`[\s\S]*no attended step/iu);
+    expect(step).toMatch(/explicit `changed`[\s\S]*ordinary scope selection/iu);
+  });
+
+  it.each(WORKFLOWS)("rebinds stale terminal state through ordinary delivery reconciliation in %s", async (path) => {
+    const content = await readFile(path, "utf8");
+    const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
+    const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
+    const step = content.slice(start, end);
+
+    expect(step).toContain("`terminal-rebind-required / reconcile-delivery-state`");
+    expect(step).toContain("payload.reconcileInput");
+    expect(step).toContain("arc delivery reconcile - --json");
+    expect(step).toContain("`rebound / rerun-checkpoint`");
+    expect(step).not.toMatch(/terminal[^\n]*recovery operation/iu);
+  });
+
+  it.each(WORKFLOWS)("resumes ordinary publication settlement for a newly recognized Candidate in %s", async (path) => {
+    const content = await readFile(path, "utf8");
+    const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
+    const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
+    const step = content.slice(start, end);
+
+    expect(step).toContain("`candidate-publication-required / resume-pre-publication`");
+    expect(step).toContain("payload.attestArgv");
+    expect(step).toContain("payload.recommendedActionText");
+    expect(step).toMatch(/ordinary\s+pre-publication/u);
+    expect(step).toContain("arc publish {name} --json");
+    expect(step).toMatch(/already-open Step 2 review[\s\S]*restart this step/iu);
+  });
+
   it.each(WORKFLOWS)("orders typed procedures around the final integration interlock in %s", async (path) => {
     const content = await readFile(path, "utf8");
     const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
     const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
     const step = content.slice(start, end);
     const orderedSurfaces = [
+      "arc wu reconcile {name} --apply --json",
       "arc integrate checkpoint {name} --json",
       "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
-      "arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json",
-      "arc review status --target '{targetRef}' --json",
-      "arc wu reconcile {name} --apply --json",
       "payload.interlockSurface.machineEvidence.text",
       "**Extension report** · `#pre-merge`",
       "`integration-interlock`:",
@@ -48,18 +90,22 @@ describe("integration current-WU reconcile workflow", () => {
       previous = current;
     }
 
-    expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(2);
-    expect(step.match(/`push-interlock` release/gu)).toHaveLength(2);
-    expect(step.match(/`commit-interlock` release/gu)).toHaveLength(1);
-    const skippedClean = step.indexOf("`skipped-clean / continue-reconcile` proceeds without a push");
-    const mergedOnly = step.indexOf("For `merged / run-quality-gates` only");
-    const firstPush = step.indexOf("`push-interlock` release");
-    const postMergePush = step.indexOf("After a head-changing push");
+    expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(3);
+    expect(step.match(/`push-interlock` release/gu)).toHaveLength(3);
+    expect(step.match(/`commit-interlock` release/gu)).toHaveLength(2);
+    const flatStep = step.replace(/\s+/gu, " ");
+    const skippedClean = flatStep.indexOf("`skipped-clean / continue-reconcile` restarts this step without a push");
+    const mergedOnly = flatStep.indexOf("`merged / run-quality-gates`");
+    const exactChecks = flatStep.indexOf("Tier 1 over the exact merged head", mergedOnly);
+    const basePush = flatStep.indexOf("`push-interlock` release", exactChecks);
+    const postMergeRerun = flatStep.indexOf("Restart this step", basePush);
     expect(skippedClean).toBeGreaterThan(-1);
     expect(mergedOnly).toBeGreaterThan(skippedClean);
-    expect(firstPush).toBeGreaterThan(mergedOnly);
-    expect(postMergePush).toBeGreaterThan(firstPush);
-    expect(step).toMatch(/review-applicability\s+judgment/u);
+    expect(exactChecks).toBeGreaterThan(mergedOnly);
+    expect(basePush).toBeGreaterThan(exactChecks);
+    expect(postMergeRerun).toBeGreaterThan(basePush);
+    expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("review-applicability judgment");
+    expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("arc review status");
     expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
 
     for (const invariant of [

@@ -110,7 +110,10 @@ describe("PR-open lifecycle extensions", () => {
       expect(pushExtension).toBeLessThan(pushInterlock);
       expect(pushInterlock).toBeLessThan(push);
       expect(prepare).not.toContain("#pre-push-review");
-      expect(integrate).not.toContain("arc publish {name}");
+      const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
+      const correctionPublish = integrate.indexOf("arc publish {name} --json", reconcileStep);
+      expect(reconcileStep).toBeGreaterThan(-1);
+      expect(correctionPublish).toBeGreaterThan(reconcileStep);
       expect(integrate).toContain("Step 1, from the idempotent **push** action");
     }
   });

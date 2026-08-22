@@ -176,6 +176,8 @@ describe("Candidate applicability", () => {
         "Recommend `covered` only when existing settled review and verification already cover the bounded "
         + "residual; recommend `targeted-check` when a completed bounded check can settle it; otherwise recommend "
         + "`changed`. Record only the operator's explicit selection.",
+      selectionPromptText:
+        "Select Candidate applicability: covered, targeted-check, or changed?",
       ...digests,
     });
   });

@@ -578,24 +578,22 @@ describe("trusted review-gate workflows", () => {
     const baseMerge = gate.indexOf(
       "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
     );
-    const status = gate.indexOf("arc review status --target '{targetRef}' --json");
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
     const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
-    expect(checkpoint).toBeGreaterThan(-1);
+    expect(reconcile).toBeGreaterThan(-1);
+    expect(checkpoint).toBeGreaterThan(reconcile);
     expect(baseMerge).toBeGreaterThan(checkpoint);
-    expect(status).toBeGreaterThan(baseMerge);
-    expect(reconcile).toBeGreaterThan(status);
-    expect(merge).toBeGreaterThan(reconcile);
+    expect(merge).toBeGreaterThan(baseMerge);
+    expect(gate).not.toContain("arc review status --target '{targetRef}' --json");
+    expect(gate).toMatch(/checkpoint now owns Candidate applicability,[\s\S]*review status/u);
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
-    expect(gate).toContain("`checks-pending / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
     expect(gate).toContain("`payload.elapsedMs` discloses the wait already served");
     expect(gate).not.toContain("after `payload.elapsedMs` milliseconds");
     expect(gate).not.toContain("returned deadline");
     expect(gate).not.toContain("otherwise render `None`");
     expect(gate).not.toContain("exact-head mutability action");
-    expect(gate).toContain("review applicability");
-    expect(gate).toMatch(/targeted, focused, or full\s+review/u);
+    expect(gate).toMatch(/no applicability or review\s+judgment before the checkpoint classifies/iu);
     expect(gate).not.toContain("git merge --no-edit");
     expect(gate).not.toContain("gh pr merge");
   });

@@ -651,24 +651,15 @@ comparator and trivially accepted.
             - Existing delivery reconciliation now compare-and-set rebinds only stale terminal coordinates from the
               settled current Candidate and exact top request, then returns `rerun-checkpoint`; ambiguity still stops.
 
-        - `[ ]` **5.7.R.d Re-author the integration workflow around typed reruns and applicability**
+        - `[x]` **5.7.R.d Re-author the integration workflow around typed reruns and applicability**
 
-            - Update both shipped workflow copies and their guards to pass the expected head, rerun exact new-head
-              automated checks, dispatch on machine `applicable`, bounded `decision-required`, or an explicitly
-              selected `changed` route, follow the existing terminal state rebind when needed, and rerun checkpoint
-              after each exact correction. Preserve interlocks,
-              ordinary review/verification authority, close-before-teardown ordering, and package/project parity.
-              Deterministic sequencing, selectors, offers, and prompt text come from typed CLI results; workflow
-              prose invokes verbs and presents the bounded judgment leaf without recreating policy, schema, or Git
-              mechanics and introduces no new agent-interpreted markup.
-            - Build `test-first` (one behavior at a time):
-                - Both workflow copies pass base and head compare-and-set inputs
-                - Machine-proved applicability adds no attended step, while `decision-required` presents the exact
-                  authority selection and only an explicit `changed` selection follows ordinary scope selection
-                - Endpoint movement reruns checkpoint, while failed, malformed, unsupported, unavailable, or
-                  unbounded classification stops through its typed CLI result without offering an authority selection
-                - Terminal rebind invokes delivery reconciliation and reruns checkpoint without a recovery operation
-                - Existing checkpoint, integration interlock, merge, and close-before-teardown ordering remains intact
+            - The checkpoint now emits exact Candidate resolution selectors, CLI-composed authority prompts,
+              publication refresh, and terminal rebind actions; machine applicability stays unattended and only an
+              explicit `changed` selection enters ordinary verification and re-attestation.
+            - Both workflow copies reconcile the WU first, route every typed correction through an exact rerun, and
+              perform guarded base merges with both expected endpoints before fresh automated checks and checkpointing.
+            - The obsolete terminal-member verification arm and stale workflow method declaration are gone, while
+              guards preserve checkpoint/interlock/merge and close-before-teardown ordering with byte-identical copies.
 
         - `[ ]` **5.7.R.e Run the member 5 criteria walk and record its evidence**
 

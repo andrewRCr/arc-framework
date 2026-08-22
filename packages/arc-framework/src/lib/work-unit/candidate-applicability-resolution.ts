@@ -30,17 +30,26 @@ const ResolutionInputCommon = {
   currentBase: ObjectIdSchema,
   projectionDigest: DigestSchema,
   residualDigest: DigestSchema,
+};
+
+export const CandidateApplicabilityResolutionSelectorSchema = z.strictObject(ResolutionInputCommon);
+export type CandidateApplicabilityResolutionSelector = z.infer<
+  typeof CandidateApplicabilityResolutionSelectorSchema
+>;
+
+const ResolutionSelectionCommon = {
+  ...ResolutionInputCommon,
   selectedBy: z.string().trim().min(1),
 };
 
 export const CandidateApplicabilityResolutionInputSchema = z.discriminatedUnion("choice", [
-  z.strictObject({ ...ResolutionInputCommon, choice: z.literal("covered") }),
+  z.strictObject({ ...ResolutionSelectionCommon, choice: z.literal("covered") }),
   z.strictObject({
-    ...ResolutionInputCommon,
+    ...ResolutionSelectionCommon,
     choice: z.literal("targeted-check"),
     targetedEvidenceRef: z.string().trim().min(1),
   }),
-  z.strictObject({ ...ResolutionInputCommon, choice: z.literal("changed") }),
+  z.strictObject({ ...ResolutionSelectionCommon, choice: z.literal("changed") }),
 ]);
 export type CandidateApplicabilityResolutionInput = z.infer<
   typeof CandidateApplicabilityResolutionInputSchema

@@ -189,12 +189,6 @@ export function rebindDeliveryTerminalCoordinates(input: {
 export type DeliveryTerminalDriftResult =
   | { readonly status: "reconcile"; readonly nextAction: "reconcile-base" }
   | {
-      readonly status: "verify-member";
-      readonly nextAction: "verify-terminal-member";
-      readonly deliverableId: string;
-      readonly paths: readonly string[];
-    }
-  | {
       readonly status: "refused";
       readonly reason: "predecessor-overlap";
       readonly paths: readonly string[];
@@ -202,7 +196,6 @@ export type DeliveryTerminalDriftResult =
 
 /** Scope terminal-window drift against the residual rather than the whole Candidate union. */
 export function classifyDeliveryTerminalDrift(input: {
-  readonly terminalDeliverableId: string;
   readonly driftPaths: readonly string[];
   readonly residualPaths: readonly string[];
   readonly predecessorPaths: readonly string[];
@@ -217,12 +210,7 @@ export function classifyDeliveryTerminalDrift(input: {
   }
   const residualOverlap = intersect(input.residualPaths);
   if (residualOverlap.length > 0) {
-    return {
-      status: "verify-member",
-      nextAction: "verify-terminal-member",
-      deliverableId: input.terminalDeliverableId,
-      paths: residualOverlap,
-    };
+    return { status: "reconcile", nextAction: "reconcile-base" };
   }
   return { status: "reconcile", nextAction: "reconcile-base" };
 }
