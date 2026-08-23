@@ -69,7 +69,10 @@ export type DeliveryNativeMergeSubmission =
   | { readonly status: "submitted" | "existing"; readonly effectIdentity: string }
   | { readonly status: "merged" }
   | { readonly status: "enqueued" }
-  | { readonly status: "refused"; readonly reason: "malformed" | "unavailable" | "unsupported" };
+  | {
+      readonly status: "refused";
+      readonly reason: "malformed" | "unavailable" | "unsupported" | "native-stack-required";
+    };
 
 export type DeliveryNativeMergeObservation =
   | { readonly status: "pending" | "merged" | "enqueued" | "failed" }

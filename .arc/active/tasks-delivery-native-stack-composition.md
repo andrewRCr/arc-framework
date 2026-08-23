@@ -757,27 +757,14 @@ structural guarantee rather than operator discipline.
   recovery and a reservation-free external arm; both adopt only stable bindings whose changed members pass the
   existing arbiter, using one final CAS and no new operation kind, protocol, or proof record.
 
-### `[ ]` **6.4 Route a registered stack natively and mint the `native-stack-required` refusal**
+### `[x]` **6.4 Route a registered stack natively and mint the `native-stack-required` refusal**
 
 - _Goal:_ A linked stack reaches the native lifecycle rather than the singleton merge path, and a stacked-member
   rejection surfaces as a typed refusal instead of collapsing into an opaque unavailable reading.
 
-- _Context:_ Native registration is reobserved before the singleton arm is selected. The merge endpoint remains
-  the shipped checkpoint-interlock-merge spine with its exact-head pin, in-verb lock release, bounded checks
-  await, and merge-method revalidation; the native arm extends that spine rather than replacing it, using the
-  asynchronous stack-merge API and returning the complete settled suffix.
-
-- _Note:_ The native merge submission's refusal union widens to carry the new arm beside its existing unsupported
-  reason — the same closed-union work the arbiter's landing port needs. Native linkage stays provider-observed and
-  is never plan authority.
-
-    - Build `test-first` (one behavior at a time):
-        - A registered stack routes through the native lifecycle rather than the singleton arm
-        - An unregistered delivery routes to the complete unlinked path
-        - A stacked-member rejection mints a typed native-stack-required refusal rather than an opaque unavailable
-        - The native arm preserves the exact-head pin and the interlock
-        - Native linkage is never written into the plan record
-        - Every provider-retargeted member reconciles by structural equivalence before its new head is admitted
+- _Outcome:_ Preserved fresh provider-observed registered/unregistered routing through the existing exact-head,
+  lock-release, and asynchronous native lifecycle, and carried a semantic stacked-member `422` as the closed
+  `native-stack-required` refusal while leaving generic validation failures unavailable and plan intent unchanged.
 
 ### `[ ]` **6.5 Scope registration to the non-terminal member set**
 

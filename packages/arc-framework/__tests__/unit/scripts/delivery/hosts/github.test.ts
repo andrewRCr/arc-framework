@@ -277,6 +277,41 @@ describe("GhDeliveryHostPort", () => {
     }
   });
 
+  it("mints native-stack-required only from a semantic stacked-member rejection", async () => {
+    const stacked: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "stacked pull request requires asynchronous merge",
+        "gh: This pull request is part of a stack. Use the merge-async endpoint. (HTTP 422)",
+        1,
+        422,
+      );
+    } };
+    const effect = {
+      providerId: "github",
+      repository,
+      changeRequestId: "401",
+      headSha,
+      baseRef: "main",
+      targetRef: "refs/heads/main",
+      strategy: "merge",
+    } as const;
+
+    await expect(new GhDeliveryHostPort(stacked).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "native-stack-required" });
+    await expect(new GhDeliveryHostPort(stacked).submitNativeMerge({
+      repository,
+      topChangeRequestId: "401",
+      topHeadSha: headSha,
+      mergeAction: "direct_merge",
+      mergeMethod: "merge",
+    })).resolves.toEqual({ status: "refused", reason: "native-stack-required" });
+    const genericValidation: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("validation failed", "gh: Validation Failed (HTTP 422)", 1, 422);
+    } };
+    await expect(new GhDeliveryHostPort(genericValidation).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "unavailable" });
+  });
+
   it("applies each terminal remedy through one exact pull-request PATCH", async () => {
     for (const [action, tail] of [
       ["retarget", []],

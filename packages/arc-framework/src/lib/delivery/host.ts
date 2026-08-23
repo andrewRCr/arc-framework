@@ -36,7 +36,10 @@ export interface DeliveryHostOpenRequest {
 /** Closed mutation outcome; callers must reobserve before accepting host-assigned results. */
 export type DeliveryHostMutationResult =
   | { readonly status: "submitted" }
-  | { readonly status: "refused"; readonly reason: "queued" | "malformed" | "unavailable" };
+  | {
+      readonly status: "refused";
+      readonly reason: "queued" | "malformed" | "unavailable" | "native-stack-required";
+    };
 
 /** Failure-only mutation boundary kept separate from ordinary publication and landing. */
 export interface DeliveryTopRemedyHostPort {

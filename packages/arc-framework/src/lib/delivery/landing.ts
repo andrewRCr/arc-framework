@@ -433,7 +433,7 @@ export async function applyDeliveryLanding(input: {
   readonly observation: DeliveryLandingObservationPort;
 }): Promise<{ readonly status: "landed"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
   readonly status: "refused";
-  readonly reason: "landing-refused";
+  readonly reason: "landing-refused" | "native-stack-required";
 } | DeliveryContributionRefusal> {
   const operation = input.current.value.activeOperation;
   if (operation?.kind !== "land" || operation.mode !== "sequential"
@@ -476,7 +476,12 @@ export async function applyDeliveryLanding(input: {
       changeRequestId: input.approved.changeRequestId,
     })).status === "refused") return landingRefused();
   if (!(await observeReady())) return landingRefused();
-  if ((await input.host.mergeRequest(operation.effect)).status !== "submitted") return landingRefused();
+  const submitted = await input.host.mergeRequest(operation.effect);
+  if (submitted.status !== "submitted") {
+    return submitted.reason === "native-stack-required"
+      ? { status: "refused", reason: "native-stack-required" }
+      : landingRefused();
+  }
   const merged = member.changeRequest === null
     ? { status: "refused" as const }
     : await input.host.readRequest(input.approved.repository, member.changeRequest);

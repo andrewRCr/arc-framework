@@ -44,6 +44,13 @@ function parse(text: string): unknown {
   }
 }
 
+function requiresNativeStackMerge(error: unknown): boolean {
+  if (!(error instanceof HostedProcessError) || error.httpStatus !== 422) return false;
+  const detail = `${error.message}\n${error.stderr}\n${error.stdout}`;
+  return /\bstack(?:ed)?\b/iu.test(detail)
+    && /(?:merge-async|asynchronous merge|stack merge)/iu.test(detail);
+}
+
 function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const request = record(value);
   const head = record(request?.head);
@@ -219,6 +226,9 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
       if (error instanceof HostedProcessError && error.httpStatus === 404) {
         return { status: "refused", reason: "unsupported" };
       }
+      if (requiresNativeStackMerge(error)) {
+        return { status: "refused", reason: "native-stack-required" };
+      }
       return { status: "refused", reason: "unavailable" };
     }
   }
@@ -320,8 +330,11 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
         "--match-head-commit", effect.headSha, strategyFlag,
       ]);
       return { status: "submitted" };
-    } catch {
-      return { status: "refused", reason: "unavailable" };
+    } catch (error) {
+      return {
+        status: "refused",
+        reason: requiresNativeStackMerge(error) ? "native-stack-required" : "unavailable",
+      };
     }
   }
 

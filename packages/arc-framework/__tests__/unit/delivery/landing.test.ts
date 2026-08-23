@@ -258,6 +258,44 @@ describe("delivery landing", () => {
     expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
+  it("surfaces a stacked-member merge rejection as native-stack-required", async () => {
+    const { plan, state } = boundState();
+    const deps = boundaries(state);
+    let current: { revision: number; value: DeliveryStateV1 } | null = null;
+    const prepared = await prepareDeliveryLanding({
+      plan,
+      current: { revision: 7, value: state },
+      facts: facts(state),
+      selectedDeliverableId: state.members[0]!.deliverableId,
+      repository: "andrewRCr/arc-framework",
+      baseRef: "refs/heads/main",
+      targetRef: "refs/heads/main",
+      mergeStrategy: "merge",
+      releaseMergeLock: false,
+      stateStore: { publish: async (_planId, value) => {
+        current = { revision: 8, value };
+        return { status: "ok" as const, value: current };
+      } },
+      host: deps.host,
+      readiness: deps.readiness,
+    });
+    if (prepared.status !== "prepared" || current === null) throw new Error("fixture must prepare");
+
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+      host: {
+        ...deps.host,
+        mergeRequest: async () => ({ status: "refused", reason: "native-stack-required" }),
+      },
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: deps.observation,
+    })).resolves.toEqual({ status: "refused", reason: "native-stack-required" });
+  });
+
   it("refuses mismatched post-merge request, target, or contribution evidence", async () => {
     const { plan, state } = boundState();
     const preparedDeps = boundaries(state);
