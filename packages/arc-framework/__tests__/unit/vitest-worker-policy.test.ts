@@ -17,5 +17,7 @@ describe("Vitest worker policy", () => {
   it("rejects malformed capacity overrides", () => {
     expect(() => resolveVitestMaxWorkers({ CI: "true", VITEST_MAX_WORKERS: "0" }))
       .toThrow(/must be a positive integer or a percentage/u);
+    expect(() => resolveVitestMaxWorkers({ CI: "true", VITEST_MAX_WORKERS: "9007199254740992" }))
+      .toThrow(/must be a positive safe integer or a percentage/u);
   });
 });
