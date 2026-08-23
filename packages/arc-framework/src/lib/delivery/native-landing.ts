@@ -7,7 +7,11 @@ import {
 } from "./operation.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryOperationSnapshotV1, DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
-import type { DeliveryNativeStackMember, DeliveryNativeStackObservation } from "./native-stack.js";
+import {
+  deriveDeliveryNativeTarget,
+  type DeliveryNativeStackMember,
+  type DeliveryNativeStackObservation,
+} from "./native-stack.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryContributionEndpoints, DeliveryContributionProofResult } from "./contribution-proof.js";
@@ -21,7 +25,10 @@ export interface DeliveryNativeLandingMember {
 
 export type DeriveNativeDeliveryMemberChainResult =
   | { readonly status: "derived"; readonly members: readonly DeliveryNativeStackMember[] }
-  | { readonly status: "refused"; readonly reason: "member-unbound" | "member-mismatch" };
+  | {
+      readonly status: "refused";
+      readonly reason: "member-unbound" | "member-mismatch" | "protected-target-mismatch";
+    };
 
 /** Derive the exact host chain from ordered selection plus current bound state. */
 export function deriveNativeDeliveryMemberChain(input: {
@@ -30,6 +37,10 @@ export function deriveNativeDeliveryMemberChain(input: {
   readonly repository: string;
   readonly baseRef: string;
 }): DeriveNativeDeliveryMemberChainResult {
+  const target = deriveDeliveryNativeTarget(input.state);
+  if (target.status !== "resolved" || input.baseRef.replace(/^refs\/heads\//u, "") !== target.baseRef) {
+    return { status: "refused", reason: "protected-target-mismatch" };
+  }
   const members: DeliveryNativeStackMember[] = [];
   const seen = new Set<string>();
   for (const selected of input.selectedMembers) {
@@ -50,7 +61,7 @@ export function deriveNativeDeliveryMemberChain(input: {
       changeRequestId: bound.changeRequest.changeRequestId,
       headRef: bound.ref.replace(/^refs\/heads\//u, ""),
       headSha: bound.coordinates.head,
-      baseRef: members.at(-1)?.headRef ?? input.baseRef.replace(/^refs\/heads\//u, ""),
+      baseRef: members.at(-1)?.headRef ?? target.baseRef,
       headRepository: input.repository,
     });
   }
@@ -236,6 +247,15 @@ export async function reserveNativeDeliveryLanding(input: {
   if (input.selection.arm === "unlinked") {
     return { status: "blocked", reason: "unlinked-arm", recommendedActionText: "Use the complete ordinary sequential landing service." };
   }
+  const target = deriveDeliveryNativeTarget(input.current.value);
+  if (target.status !== "resolved" || input.targetRef !== target.targetRef
+    || input.baseRef !== target.baseRef) {
+    return {
+      status: "blocked",
+      reason: "protected-target-mismatch",
+      recommendedActionText: "Use the exact protected target bound in current delivery state.",
+    };
+  }
   const position = deriveDeliveryPosition(input.plan, input.current.value, input.facts);
   if (position.status !== "derived" || position.position.firstUnlanded === null) {
     return { status: "blocked", reason: "position-mismatch", recommendedActionText: "Refresh delivery position before reserving a native effect." };
@@ -318,6 +338,11 @@ export async function submitReservedNativeDeliveryMerge(input: {
     || operation.effect.changeRequestId !== input.request.topChangeRequestId
     || operation.effect.headSha !== input.request.topHeadSha || operation.effect.strategy !== "merge") {
     return { status: "blocked", reason: "reservation-mismatch", recommendedActionText: "Refresh the exact reserved member set before submission." };
+  }
+  const target = deriveDeliveryNativeTarget(input.current.value);
+  if (target.status !== "resolved" || operation.effect.targetRef !== target.targetRef
+    || operation.effect.baseRef !== target.baseRef) {
+    return { status: "blocked", reason: "protected-target-mismatch", recommendedActionText: "Restore the exact protected target binding before submission." };
   }
   if (operation.effectIdentity !== null) {
     return { status: "pending", effectIdentity: operation.effectIdentity.effectId, state: input.current };
@@ -441,6 +466,11 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
     || operation.effect.headSha !== input.request.topHeadSha
     || operation.effect.strategy !== input.request.mergeMethod) {
     return { status: "blocked", reason: "reservation-mismatch", recommendedActionText: "Poll only the exact effect bound to the active reservation." };
+  }
+  const target = deriveDeliveryNativeTarget(input.current.value);
+  if (target.status !== "resolved" || operation.effect.targetRef !== target.targetRef
+    || operation.effect.baseRef !== target.baseRef) {
+    return { status: "blocked", reason: "protected-target-mismatch", recommendedActionText: "Restore the exact protected target binding before reconciliation." };
   }
   let classification: DeliveryNativeEffectClassification;
   if (operation.effectIdentity === null) {

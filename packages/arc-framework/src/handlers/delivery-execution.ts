@@ -93,6 +93,7 @@ import {
 import {
   composeDeliveryNativeStackLinkDecision,
   degradeNativeDeliveryStack,
+  deriveDeliveryNativeTarget,
   linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
 } from "../lib/delivery/native-stack.js";
@@ -919,6 +920,14 @@ async function executeDeliveryCommand(
     const position = deriveDeliveryPosition(planRead.value, stateRead.value.value, parsed.facts);
     if (position.status !== "derived") {
       return { status: "blocked", reason: position.reason, recommendedActionText: "Refresh exact delivery position before selecting a landing arm." };
+    }
+    const target = deriveDeliveryNativeTarget(stateRead.value.value);
+    if (target.status !== "resolved" || parsed.members[0]?.baseRef !== target.baseRef) {
+      return {
+        status: "blocked",
+        reason: "protected-target-mismatch",
+        recommendedActionText: "Use the exact protected target bound in current delivery state.",
+      };
     }
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const observation = await observeDeliveryNativeStack({ repository: parsed.repository, members: parsed.members }, host);

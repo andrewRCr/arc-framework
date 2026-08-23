@@ -48,11 +48,11 @@ describe("native delivery landing", () => {
       state: bound,
       selectedMembers,
       repository: "owner/repo",
-      baseRef: "refs/heads/main",
+      baseRef: "refs/heads/delivery-target",
     })).toMatchObject({
       status: "derived",
       members: [
-        { headRef: "member-1", baseRef: "main" },
+        { headRef: "member-1", baseRef: "delivery-target" },
         { headRef: "member-2", baseRef: "member-1" },
         { headRef: "member-3", baseRef: "member-2" },
       ],
@@ -82,7 +82,7 @@ describe("native delivery landing", () => {
         state: bound,
         selectedMembers,
         repository: "owner/repo",
-        baseRef: "main",
+        baseRef: "delivery-target",
       })).toMatchObject({ status: "refused", reason: "member-mismatch" });
     }
   });
@@ -118,11 +118,11 @@ describe("native delivery landing", () => {
       state: bound,
       firstDeliverableId: bound.members[0]!.deliverableId,
       repository: "owner/repo",
-      baseRef: "main",
+      baseRef: "delivery-target",
     })).toMatchObject({
       status: "derived",
       members: [
-        { deliverableId: bound.members[0]!.deliverableId, baseRef: "main" },
+        { deliverableId: bound.members[0]!.deliverableId, baseRef: "delivery-target" },
         { deliverableId: bound.members[1]!.deliverableId, baseRef: "member-1" },
         { deliverableId: bound.members[2]!.deliverableId, baseRef: "member-2" },
       ],
@@ -132,11 +132,11 @@ describe("native delivery landing", () => {
       state: bound,
       firstDeliverableId: bound.members[1]!.deliverableId,
       repository: "owner/repo",
-      baseRef: "main",
+      baseRef: "delivery-target",
     })).toMatchObject({
       status: "derived",
       members: [
-        { deliverableId: bound.members[1]!.deliverableId, baseRef: "main" },
+        { deliverableId: bound.members[1]!.deliverableId, baseRef: "delivery-target" },
         { deliverableId: bound.members[2]!.deliverableId, baseRef: "member-2" },
       ],
     });
@@ -200,13 +200,63 @@ describe("native delivery landing", () => {
       selection: { status: "selected", arm: "linked-single", members: [heads[1]!], recommendedActionText: "prepare" },
       facts,
       repository: "o/r",
-      baseRef: "main",
-      targetRef: "refs/heads/main",
+      baseRef: "delivery-target",
+      targetRef: state.target!.ref,
     }, { readiness: vi.fn(), stateStore })).resolves.toMatchObject({
       status: "blocked",
       reason: "member-set-mismatch",
     });
     expect(stateStore.publish).not.toHaveBeenCalled();
+  });
+
+  it("refuses caller-selected native landing refs before readiness or reservation", async () => {
+    const chainPlan = deliveryFourMemberStackPlanFixture();
+    const state = deliveryStateFixture(chainPlan);
+    const bound = {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const selection = {
+      status: "selected" as const,
+      arm: "linked-single" as const,
+      members: [{
+        deliverableId: bound.members[0]!.deliverableId,
+        changeRequestId: bound.members[0]!.changeRequest!.changeRequestId,
+        headSha: bound.members[0]!.coordinates!.head,
+      }],
+      recommendedActionText: "prepare",
+    };
+    const facts = {
+      target: bound.target,
+      members: bound.members.map(({ deliverableId, ref, changeRequest, coordinates }) => ({
+        deliverableId, ref, changeRequest, coordinates,
+      })),
+      landedDeliverableIds: [],
+    };
+    for (const refs of [
+      { baseRef: "main", targetRef: bound.target!.ref },
+      { baseRef: "delivery-target", targetRef: "refs/heads/main" },
+    ]) {
+      const readiness = vi.fn().mockResolvedValue({ status: "ready" });
+      const stateStore = { publish: vi.fn() };
+      await expect(reserveNativeDeliveryLanding({
+        plan: chainPlan,
+        current: { revision: 1, value: bound },
+        operationId: "operation-1",
+        selection,
+        facts,
+        repository: "owner/repo",
+        ...refs,
+      }, { readiness, stateStore })).resolves.toMatchObject({
+        status: "blocked",
+        reason: "protected-target-mismatch",
+      });
+      expect(readiness).not.toHaveBeenCalled();
+      expect(stateStore.publish).not.toHaveBeenCalled();
+    }
   });
 
   it("reserves a valid three-member atomic chain and refuses reordered selection", async () => {
@@ -241,8 +291,8 @@ describe("native delivery landing", () => {
       operationId: "operation-1",
       facts,
       repository: "owner/repo",
-      baseRef: "main",
-      targetRef: "refs/heads/main",
+      baseRef: "delivery-target",
+      targetRef: bound.target!.ref,
     };
 
     await expect(reserveNativeDeliveryLanding({
@@ -279,7 +329,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members: state.members.slice(0, -1) };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
@@ -328,7 +378,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members: [member] };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "41", headSha: member.coordinates!.head,
-      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "sequential",
@@ -359,13 +409,59 @@ describe("native delivery landing", () => {
     expect(host.submitNativeMerge).not.toHaveBeenCalled();
   });
 
+  it("refuses a legacy native reservation rooted at a different target before host access", async () => {
+    const state = deliveryStateFixture(plan);
+    const members = state.members.slice(0, -1);
+    const snapshot = { target: state.target, members };
+    const effect = {
+      providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
+      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+    } as const;
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "operation-1", kind: "land", mode: "native",
+      affectedDeliverableIds: members.map((member) => member.deliverableId),
+      expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const current = { revision: 2, value: reserved.state };
+    const request = {
+      repository: "o/r", topChangeRequestId: "42", topHeadSha: "b".repeat(40),
+      mergeAction: "direct_merge" as const, mergeMethod: "merge" as const,
+    };
+    const host = {
+      submitNativeMerge: vi.fn(),
+      observeNativeMerge: vi.fn(),
+    };
+    const reobserveSelection = vi.fn();
+    const revalidate = vi.fn();
+    const releaseLock = vi.fn();
+    const observeEffect = vi.fn();
+
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId, current, operationId: "operation-1", request,
+    }, {
+      host, stateStore: { publish: vi.fn() }, reobserveSelection, revalidate, releaseLock, observeEffect,
+    })).resolves.toMatchObject({ status: "blocked", reason: "protected-target-mismatch" });
+    await expect(reconcileReservedNativeDeliveryMerge({
+      planId: plan.planId, current, request,
+    }, {
+      host, stateStore: { publish: vi.fn() }, observeEffect,
+    })).resolves.toMatchObject({ status: "blocked", reason: "protected-target-mismatch" });
+    expect(host.submitNativeMerge).not.toHaveBeenCalled();
+    expect(host.observeNativeMerge).not.toHaveBeenCalled();
+    expect(reobserveSelection).not.toHaveBeenCalled();
+    expect(revalidate).not.toHaveBeenCalled();
+    expect(releaseLock).not.toHaveBeenCalled();
+    expect(observeEffect).not.toHaveBeenCalled();
+  });
+
   it("retains pending, contradictory, partial, and unavailable native effects", async () => {
     const state = deliveryStateFixture(plan);
     const ids = state.members.slice(0, -1).map((member) => member.deliverableId);
     const snapshot = { target: state.target, members: state.members.slice(0, -1) };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
@@ -425,7 +521,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members: state.members.slice(0, -1) };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
@@ -480,7 +576,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native",
@@ -539,8 +635,8 @@ describe("native delivery landing", () => {
         repository: "o/r",
         changeRequestId: "42",
         headSha: members.at(-1)!.coordinates!.head,
-        baseRef: "main",
-        targetRef: "refs/heads/main",
+        baseRef: "delivery-target",
+        targetRef: "refs/heads/delivery-target",
         strategy: "merge",
       },
     });
@@ -555,7 +651,7 @@ describe("native delivery landing", () => {
       before: { revision: 2, value: reserved.state },
       landed: { revision: 2, value: projected },
       repository: "o/r",
-      protectedTargetRef: "refs/heads/main",
+      protectedTargetRef: "refs/heads/delivery-target",
     }, {
       observeRequest: vi.fn(),
       observeRef: vi.fn(),
@@ -593,8 +689,8 @@ describe("native delivery landing", () => {
         repository: request.repository,
         changeRequestId: request.topChangeRequestId,
         headSha: request.topHeadSha,
-        baseRef: "main",
-        targetRef: "refs/heads/main",
+        baseRef: "delivery-target",
+        targetRef: "refs/heads/delivery-target",
         strategy: "merge",
       },
     });

@@ -31,7 +31,7 @@ describe("native delivery stack", () => {
       plan,
       state,
       repository: "o/r",
-      baseRef: "refs/heads/main",
+      baseRef: state.target!.ref,
     });
 
     expect(result).toMatchObject({ status: "derived" });
@@ -40,7 +40,7 @@ describe("native delivery stack", () => {
       .toEqual(plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId));
     expect(result.input.members).toHaveLength(plan.members.length - 1);
     expect(result.input.members.map(({ baseRef }) => baseRef))
-      .toEqual(["main", "member-1", "member-2"]);
+      .toEqual(["delivery-target", "member-1", "member-2"]);
     expect(result.input.members.some(({ deliverableId }) => (
       deliverableId === plan.members.at(-1)?.deliverableId
     ))).toBe(false);
@@ -60,7 +60,7 @@ describe("native delivery stack", () => {
       plan,
       state,
       repository: "o/r",
-      baseRef: "refs/heads/main",
+      baseRef: state.target!.ref,
     });
     expect(derived.status).toBe("derived");
     if (derived.status !== "derived") return;
@@ -83,7 +83,7 @@ describe("native delivery stack", () => {
       plan,
       state,
       repository: "o/r",
-      baseRef: "refs/heads/main",
+      baseRef: state.target!.ref,
       members: derived.input.members,
       optIn: true,
     }, port)).resolves.toMatchObject({ status: "linked", stackNumber: 9 });
@@ -100,7 +100,7 @@ describe("native delivery stack", () => {
       plan,
       state,
       repository: "o/r",
-      baseRef: "refs/heads/main",
+      baseRef: state.target!.ref,
       members: [...derived.input.members, {
         deliverableId: topPlan.deliverableId,
         changeRequestId: topState.changeRequest.changeRequestId,
@@ -117,6 +117,37 @@ describe("native delivery stack", () => {
       status: "refused",
       reason: "registration-scope-mismatch",
     });
+  });
+
+  it("refuses a caller-selected registration base before provider access", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const derived = deriveDeliveryNativeRegistrationInput({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: state.target!.ref,
+    });
+    if (derived.status !== "derived") throw new Error("fixture registration subject must derive");
+
+    await expect(linkPlannedDeliveryNativeStack({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: "refs/heads/main",
+      members: derived.input.members,
+      optIn: true,
+    }, {
+      observe: async () => { throw new Error("mismatched target reached provider observation"); },
+      link: async () => { throw new Error("mismatched target reached provider mutation"); },
+    })).resolves.toMatchObject({ status: "refused", reason: "protected-target-mismatch" });
   });
 
   it("keeps every observation arm closed and names partial members", async () => {

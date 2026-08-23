@@ -17,9 +17,26 @@ export interface DeliveryNativeStackInput {
   readonly members: readonly DeliveryNativeStackMember[];
 }
 
+export type DeliveryNativeTargetResult =
+  | { readonly status: "resolved"; readonly targetRef: string; readonly baseRef: string }
+  | { readonly status: "refused"; readonly reason: "protected-target-unbound" | "protected-target-malformed" };
+
+/** Derive the native host target exclusively from current persisted delivery state. */
+export function deriveDeliveryNativeTarget(state: DeliveryStateV1): DeliveryNativeTargetResult {
+  const targetRef = state.target?.ref;
+  if (targetRef === undefined) return { status: "refused", reason: "protected-target-unbound" };
+  if (!targetRef.startsWith("refs/heads/") || targetRef.length === "refs/heads/".length) {
+    return { status: "refused", reason: "protected-target-malformed" };
+  }
+  return { status: "resolved", targetRef, baseRef: targetRef.slice("refs/heads/".length) };
+}
+
 export type DeriveDeliveryNativeRegistrationInputResult =
   | { readonly status: "derived"; readonly input: DeliveryNativeStackInput }
-  | { readonly status: "refused"; readonly reason: "invalid-input" | "state-mismatch" | "member-unbound" };
+  | {
+      readonly status: "refused";
+      readonly reason: "invalid-input" | "state-mismatch" | "protected-target-mismatch" | "member-unbound";
+    };
 
 /**
  * Derive the provider registration subject from the exact planned non-terminal member set.
@@ -40,6 +57,10 @@ export function deriveDeliveryNativeRegistrationInput(input: {
   if (coherence.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
     return { status: "refused", reason: "state-mismatch" };
   }
+  const target = deriveDeliveryNativeTarget(coherence.state);
+  if (target.status !== "resolved" || target.targetRef !== input.baseRef) {
+    return { status: "refused", reason: "protected-target-mismatch" };
+  }
 
   const registeredStateMembers = coherence.state.members.slice(0, -1);
   const members: DeliveryNativeStackMember[] = [];
@@ -49,7 +70,7 @@ export function deriveDeliveryNativeRegistrationInput(input: {
       return { status: "refused", reason: "member-unbound" };
     }
     const predecessor = registeredStateMembers[index - 1];
-    const baseRef = index === 0 ? input.baseRef : predecessor?.ref;
+    const baseRef = index === 0 ? target.targetRef : predecessor?.ref;
     if (baseRef === undefined || baseRef === null || !baseRef.startsWith("refs/heads/")) {
       return { status: "refused", reason: "member-unbound" };
     }
