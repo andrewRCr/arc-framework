@@ -568,20 +568,10 @@ comparator and trivially accepted.
   remedy routing, one checkpoint/interlock/merge sequence, merged-resume convergence, and close-before-teardown
   ordering. The obsolete terminal-command subjects are asserted absent rather than used as ordering anchors.
 
-### `[ ]` **5.7 Close delivery member 5** — validate criteria at member scope
+### `[x]` **5.7 Close delivery member 5** — validate criteria at member scope
 
 - _Goal:_ Member 5's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
-
-- _Note:_ Design audit found two blockers before the criteria walk: interrupted active operations can lose the
-  selector for their owed continuation, while terminal base reconciliation needs a rerunnable state rebind rather
-  than terminal-only Candidate-lineage machinery. Close both through the approved forward amendment before
-  collecting member evidence.
-
-- _Amendment:_ Proportionality review superseded the blanket operation-owner matrix and the whole-work-unit
-  verification default. Recovery now returns an informative ordinary rerun from minimum reservation state, while
-  terminal base movement reuses D4's structural facts and an exact-bound authority selection only when mechanics
-  cannot settle applicability.
 
     - `[~]` **5.7.a Make active-operation reservations owner-complete**
 
@@ -619,9 +609,10 @@ comparator and trivially accepted.
         - Superseded by Task 5.7.R.e so the criteria walk closes the complete forward amendment rather than the
           earlier recovery design.
 
-    - `[ ]` **5.7.R Apply the proportional recovery and Candidate-applicability amendment**
+    - `[x]` **5.7.R Apply the proportional recovery and Candidate-applicability amendment**
 
-        - Replace the superseded recovery matrix and whole-work-unit fallback with the D3.10, D8.7, and D9.6 seams.
+        - The final amendment replaces the superseded recovery matrix and whole-work-unit fallback through the
+          D3.10, D8.7, and D9.6 seams without adding durable recovery machinery or autonomous replay.
 
         - `[x]` **5.7.R.a Return informative ordinary reruns from minimum operation state**
 
@@ -661,14 +652,11 @@ comparator and trivially accepted.
             - The obsolete terminal-member verification arm and stale workflow method declaration are gone, while
               guards preserve checkpoint/interlock/merge and close-before-teardown ordering with byte-identical copies.
 
-        - `[ ]` **5.7.R.e Run the member 5 criteria walk and record its evidence**
+        - `[x]` **5.7.R.e Run the member 5 criteria walk and record its evidence**
 
-            - Invoke `validate-criteria` over Member 5's canonical group, bounded member diff, and cumulative tree
-              only after every retained and revision subtask plus the coherent-unit gate has passed. Leave Success
-              Criteria markers unchanged and record the returned evidence as this task's completion outcome.
-
-            - _Amendment:_ The fresh companion found three source-confirmed composition gaps. Resolve them inside
-              the existing D3.8-D3.10 and D9.6 contracts, then rerun the complete member walk.
+            - The complete member walk resolves all four immutable criteria over the bounded implementation union
+              and cumulative tree after the source-confirmed composition gaps and final workflow-dispatch gap were
+              corrected inside the existing D3.8-D3.10 and D9.6 contracts.
 
             - `[x]` **5.7.R.e.1 Preserve conditional safety for exact residual overlap**
 
@@ -692,16 +680,11 @@ comparator and trivially accepted.
                 - Exact request observation and built-CLI recovery coverage pin submission-before-persist, safe
                   terminal retry, and mismatched-request retention; restart prose routes through general reconcile.
 
-            - `[ ]` **5.7.R.e.4 Rerun the Member 5 criteria walk**
+            - `[x]` **5.7.R.e.4 Rerun the Member 5 criteria walk**
 
-                - Re-run coherent-unit gates and a fresh full-rubric adversarial pass over the amended bounded diff
-                  and cumulative tree, then record the resolved report without changing Success Criteria markers.
-
-                - The primary walk resolved criteria 1, 2, and 4, but criterion 3 remains `[ ]` over the exact
-                  31-commit Member 5 union through `8e0dfde99`. Heavy pass 2 and source verification confirmed that
-                  applicability selections are not staged or committed before checkpoint rerun, and terminal claim
-                  composition plus coordinate rebind still derive against a potentially stale local base instead of
-                  one exact authoritative base coordinate.
+                - The rerun resolved the applicability-durability and authoritative-base gaps, then used one final
+                  fresh full-rubric pass to isolate the remaining recovery-workflow dispatch mismatch for bounded
+                  correction and primary source recheck.
 
                 - `[x]` **5.7.R.e.4.1 Persist attended applicability selections before checkpoint rerun**
 
@@ -719,15 +702,18 @@ comparator and trivially accepted.
                       remote-preferred base OID, and reuses it for effective-target and coordinate derivation; built
                       CLI coverage pins the stale-local-versus-remote boundary.
 
-                - `[ ]` **5.7.R.e.4.3 Rerun the Member 5 criteria walk**
+                - `[x]` **5.7.R.e.4.3 Rerun the Member 5 criteria walk**
 
-                    - The fresh final pass and primary source verification resolve criteria 1–3 over the exact
-                      36-commit Member 5 union through `90ae538df`, but criterion 4 remains `[ ]`: both shipped
-                      `deliver-stack` workflow copies route an impossible `retryable / read-position` result and
-                      leave the actual closed recovery actions and exact selectors to prose guidance.
-                    - The workflow guard positively pins that obsolete shape. Correction is bounded to exhaustive
-                      action/transition routing in both workflow copies plus guard coverage for every closed arm; the
-                      recovery reducer, strict result schema, handler, and preserve/clear semantics already withstand.
+                    - The final fresh pass resolved criteria 1–3 and isolated criterion 4's stale workflow dispatch;
+                      both shipped copies and their guard now consume every strict action/transition/selector arm, and
+                      the primary recheck resolves criterion 4 without another adversarial cycle.
+
+- _Outcome:_ `[x]` All four immutable Member 5 criteria resolve over the bounded implementation union through
+  `f2efb6c5d` and its cumulative tree. The ordinary checkpoint/interlock/merge spine binds the exact terminal claim;
+  retained member bindings and explicit top remedies protect the landing window; authoritative-base Candidate
+  applicability and versioned terminal rebind converge through informative reruns; and the proportional recovery
+  contract now matches across reducer, schema, handler, both workflows, and their exhaustive guard. Success Criteria
+  markers remain unchanged for terminal verification.
 
 ## **Phase 6:** Provider-delegated refresh and native landing
 
