@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks Pass 3 — all eight phases audited and folded; suite coherence settled
-- **Next Task:** Task 1.1 — Extract the criteria walk into a validate-criteria method (line 82 in tasks-delivery-native-stack-composition.md)
+- **Last Completed:** Task 5.7 — Close delivery member 5 (Phase 5 complete)
+- **Next Task:** Task 6.1 — Detect drift, state consequences, and delegate the registered suffix (line 733 in tasks-delivery-native-stack-composition.md)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Extract the criteria walk into a validate-criteria method
+- **Next Action:** Begin Task 6.1 — Detect drift, state consequences, and delegate the registered suffix
 
 - **PR URL:** [none]
 - **Completed:** [none]
