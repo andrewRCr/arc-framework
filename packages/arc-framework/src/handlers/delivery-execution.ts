@@ -259,7 +259,7 @@ const NativeObserveSchema = z.strictObject({
 const NativeLinkSchema = NativeObserveSchema.extend({
   planId: DeliveryPlanIdSchema,
   protectedBaseRef: RefSchema,
-  members: z.array(NativeMemberSchema).min(2),
+  members: z.array(NativeMemberSchema).min(1),
   optIn: z.boolean(),
 });
 const NativeLandingMemberSchema = z.strictObject({

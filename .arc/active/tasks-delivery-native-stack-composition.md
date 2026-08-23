@@ -784,25 +784,14 @@ structural guarantee rather than operator discipline.
   registered head before cardinality and positional comparison, regardless of listing position, while preserving
   genuine member mismatches, empty-listing degradation, and ambiguous multi-stack classification.
 
-### `[ ]` **6.7 Degrade both sub-two-member floors to the unlinked route**
+### `[x]` **6.7 Degrade both sub-two-member floors to the unlinked route**
 
 - _Goal:_ A delivery of two total members routes unlinked whether or not the operator opted in, instead of hitting
   a hard stop.
 
-- _Context:_ Native registration needs at least two registered members, so it applies at three or more total. A
-  two-member delivery has one non-terminal member. There are two floors, not one: the request schema rejects a
-  sub-two member array at parse time so the CLI refuses before the service guard is reached, and the service guard
-  then refuses independently. Reclassifying only the service guard leaves the operator's stop exactly where it is.
-
-- _Note:_ The floor's refusal must be distinguishable from the malformed-member refusal that shares its reason
-  code today.
-
-    - Build `test-first` (one behavior at a time):
-        - A two-member delivery with opt-in declined routes unlinked
-        - A two-member delivery with opt-in accepted routes unlinked rather than stopping
-        - The schema-level floor degrades rather than refusing at parse
-        - The service-level floor degrades rather than refusing
-        - A genuinely malformed member array still refuses, distinguishably from the floor
+- _Outcome:_ Lowered the plan-bound link request floor to one registered member and reclassified a valid singleton
+  service subject as unlinked for either opt-in choice, without any host call; input validation now precedes the
+  opt-in branch so malformed singleton and empty subjects remain explicit refusals rather than floor degradation.
 
 ### `[ ]` **6.8 Reconcile the full rewritten suffix on native landing**
 

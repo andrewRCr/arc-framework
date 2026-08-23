@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
-import {
-  deliveryFourMemberStackPlanFixture,
-  deliveryStackPlanFixture,
-} from "../../fixtures/delivery-plan.js";
+import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
@@ -182,7 +179,7 @@ describe("delivery execution handler", () => {
   });
 
   it("accepts a plan-bound native registration request", async () => {
-    const plan = deliveryFourMemberStackPlanFixture();
+    const plan = deliveryStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
     const exactMembers = fixture.members.slice(0, -1).map((member, index) => ({
       deliverableId: member.deliverableId,

@@ -127,19 +127,39 @@ describe("native delivery stack", () => {
       .resolves.toEqual({ status: "partial", affectedDeliverableIds: [members[1].deliverableId] });
   });
 
-  it("observes a singleton remainder but keeps singleton registration out of the host", async () => {
+  it("observes a singleton remainder and degrades an accepted opt-in without host calls", async () => {
     const observe = vi.fn().mockResolvedValue({ status: "unregistered" });
     await expect(observeDeliveryNativeStack({ repository: "o/r", members: [members[0]] }, { observe }))
       .resolves.toEqual({ status: "unregistered" });
     expect(observe).toHaveBeenCalledOnce();
 
-    observe.mockReset();
-    const link = vi.fn();
     await expect(linkDeliveryNativeStack({
       repository: "o/r", members: [members[0]], optIn: true,
-    }, { observe, link })).resolves.toMatchObject({ status: "refused", reason: "invalid-input" });
-    expect(observe).not.toHaveBeenCalled();
-    expect(link).not.toHaveBeenCalled();
+    }, {
+      observe: async () => { throw new Error("singleton registration reached the provider"); },
+      link: async () => { throw new Error("singleton registration reached the provider"); },
+    })).resolves.toMatchObject({ status: "unlinked" });
+    await expect(linkDeliveryNativeStack({
+      repository: "o/r", members: [members[0]], optIn: false,
+    }, {
+      observe: async () => { throw new Error("declined singleton reached the provider"); },
+      link: async () => { throw new Error("declined singleton reached the provider"); },
+    })).resolves.toMatchObject({ status: "unlinked" });
+  });
+
+  it("refuses a malformed singleton distinctly from the registration floor", async () => {
+    const malformed = [{ ...members[0], changeRequestId: "" }];
+    const port = {
+      observe: async () => { throw new Error("malformed singleton reached the provider"); },
+      link: async () => { throw new Error("malformed singleton reached the provider"); },
+    };
+
+    await expect(linkDeliveryNativeStack({
+      repository: "o/r", members: malformed, optIn: true,
+    }, port)).resolves.toMatchObject({ status: "refused", reason: "invalid-input" });
+    await expect(linkDeliveryNativeStack({
+      repository: "o/r", members: malformed, optIn: false,
+    }, port)).resolves.toMatchObject({ status: "refused", reason: "invalid-input" });
   });
 
   it("refuses cross-repository and non-chain input before the host", async () => {

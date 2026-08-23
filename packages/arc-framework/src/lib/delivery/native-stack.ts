@@ -89,7 +89,9 @@ export interface DeliveryNativeStackUnlinkPort {
 export type DeliveryNativeStackReadResult = DeliveryNativeStackObservation
   | { readonly status: "refused"; readonly reason: "foreign-repository" | "non-chain" | "invalid-input" };
 
-function validateInput(input: DeliveryNativeStackInput): DeliveryNativeStackReadResult | null {
+type DeliveryNativeStackInputRefusal = Extract<DeliveryNativeStackReadResult, { readonly status: "refused" }>;
+
+function validateInput(input: DeliveryNativeStackInput): DeliveryNativeStackInputRefusal | null {
   if (input.repository === "" || input.members.length === 0) return { status: "refused", reason: "invalid-input" };
   const ids = new Set<string>();
   for (const [index, member] of input.members.entries()) {
@@ -184,14 +186,21 @@ export async function linkDeliveryNativeStack(
   input: DeliveryNativeStackInput & { readonly optIn: boolean },
   port: DeliveryNativeStackPort,
 ): Promise<DeliveryNativeStackLinkResult> {
+  const invalid = validateInput(input);
+  if (invalid !== null) {
+    return {
+      status: "refused",
+      reason: invalid.reason,
+      recommendedActionText: "Correct the exact chain before linking.",
+    };
+  }
   if (!input.optIn) {
     return { status: "unlinked", recommendedActionText: "Continue through the complete unlinked executor." };
   }
   if (input.members.length < 2) {
     return {
-      status: "refused",
-      reason: "invalid-input",
-      recommendedActionText: "Native stack registration requires at least two exact members.",
+      status: "unlinked",
+      recommendedActionText: "Native registration needs at least two members; continue through the unlinked executor.",
     };
   }
   const subject: DeliveryNativeStackInput = { repository: input.repository, members: input.members };
