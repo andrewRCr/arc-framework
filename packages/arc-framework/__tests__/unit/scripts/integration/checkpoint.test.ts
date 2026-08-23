@@ -198,9 +198,19 @@ describe("integration checkpoint", () => {
   it("routes classified terminal residual drift through the guarded base reconcile", async () => {
     const deps = dependencies();
     const events: string[] = [];
+    const readDrift = deps.readDrift;
+    deps.readDrift = async (workUnit) => ({
+      ...await readDrift(workUnit),
+      overlap: {
+        status: "available",
+        substantivePaths: ["terminal.ts"],
+        regenerablePaths: [],
+      },
+    });
     deps.classifyDeliveryDrift = async () => ({
       status: "reconcile",
       nextAction: "reconcile-base",
+      safetyClass: "residual-contained",
     });
     deps.readReconcileHost = async () => {
       events.push("host-read");
@@ -213,10 +223,36 @@ describe("integration checkpoint", () => {
         nextAction: "reconcile-base",
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
-          safety: { safe: true, baseOid: oid("b") },
+          safety: { safe: true, baseOid: oid("b"), substantivePaths: ["terminal.ts"] },
         },
       });
     expect(events).toEqual(["host-read"]);
+  });
+
+  it("keeps substantive paths outside the terminal residual unsafe", async () => {
+    const deps = dependencies();
+    const readDrift = deps.readDrift;
+    deps.readDrift = async (workUnit) => ({
+      ...await readDrift(workUnit),
+      overlap: {
+        status: "available",
+        substantivePaths: ["union-only.ts"],
+        regenerablePaths: [],
+      },
+    });
+    deps.classifyDeliveryDrift = async () => ({
+      status: "reconcile",
+      nextAction: "reconcile-base",
+      safetyClass: "generic",
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "unsafe-reconcile",
+        payload: { safety: { safe: false, substantivePaths: ["union-only.ts"] } },
+      });
   });
 
   it("fails closed when delivery drift cannot be classified", async () => {

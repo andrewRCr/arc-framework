@@ -367,10 +367,8 @@ export function createIntegrationCheckpointDependencies(input: {
           ? []
           : await readDiffPaths(input.cwd, firstCoordinate.base, highestCoordinate.head);
         const classified = classifyDeliveryTerminalDrift({
-          driftPaths: [...new Set([
-            ...drift.overlap.substantivePaths,
-            ...drift.overlap.regenerablePaths,
-          ])],
+          substantivePaths: drift.overlap.substantivePaths,
+          regenerablePaths: drift.overlap.regenerablePaths,
           residualPaths,
           predecessorPaths,
         });

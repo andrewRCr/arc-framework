@@ -508,23 +508,39 @@ describe("delivery terminal integration", () => {
 
   it("routes residual overlap through the guarded base reconcile", () => {
     expect(classifyDeliveryTerminalDrift({
-      driftPaths: ["terminal.ts", "outside.ts"],
+      substantivePaths: ["terminal.ts"],
+      regenerablePaths: ["ROADMAP.md"],
       residualPaths: ["terminal.ts"],
       predecessorPaths: ["member.ts"],
-    })).toEqual({ status: "reconcile", nextAction: "reconcile-base" });
+    })).toEqual({
+      status: "reconcile",
+      nextAction: "reconcile-base",
+      safetyClass: "residual-contained",
+    });
   });
 
   it("reconciles drift outside the residual without whole-work-unit verification", () => {
     expect(classifyDeliveryTerminalDrift({
-      driftPaths: ["union-only.ts"],
+      substantivePaths: [],
+      regenerablePaths: ["ROADMAP.md"],
       residualPaths: ["terminal.ts"],
       predecessorPaths: [],
-    })).toEqual({ status: "reconcile", nextAction: "reconcile-base" });
+    })).toEqual({ status: "reconcile", nextAction: "reconcile-base", safetyClass: "generic" });
+  });
+
+  it("keeps substantive paths outside the residual under generic reconcile safety", () => {
+    expect(classifyDeliveryTerminalDrift({
+      substantivePaths: ["terminal.ts", "union-only.ts"],
+      regenerablePaths: [],
+      residualPaths: ["terminal.ts"],
+      predecessorPaths: [],
+    })).toEqual({ status: "reconcile", nextAction: "reconcile-base", safetyClass: "generic" });
   });
 
   it("refuses predecessor overlap before residual verification", () => {
     expect(classifyDeliveryTerminalDrift({
-      driftPaths: ["shared.ts"],
+      substantivePaths: ["shared.ts"],
+      regenerablePaths: [],
       residualPaths: ["shared.ts"],
       predecessorPaths: ["shared.ts"],
     })).toEqual({ status: "refused", reason: "predecessor-overlap", paths: ["shared.ts"] });

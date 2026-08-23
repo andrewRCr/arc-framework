@@ -528,7 +528,11 @@ async function candidateApplicabilityResult(
   });
 }
 
-function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): ReconcileSafetyFacts {
+function reconcileSafety(
+  drift: BaseDriftResult,
+  host: ReconcileHostFact,
+  safetyClass: "generic" | "residual-contained",
+): ReconcileSafetyFacts {
   const integrationEvidenceComplete = drift.integrationEvidence?.coverage === "complete";
   const overlapAvailable = drift.overlap?.status === "available";
   const substantivePaths = drift.overlap?.status === "available" ? drift.overlap.substantivePaths : [];
@@ -536,7 +540,7 @@ function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): Recon
   const analyzerSafe = drift.baseOid !== null
     && integrationEvidenceComplete
     && overlapAvailable
-    && substantivePaths.length === 0;
+    && (substantivePaths.length === 0 || safetyClass === "residual-contained");
   // Host mergeability is the whole host signal: the host reports that the merge conflicts, never
   // which paths conflict, so nothing here can be measured against the regenerable set.
   const hostSafe = host.state === "mergeable";
@@ -625,6 +629,7 @@ export async function checkpointIntegration(
     const safety = reconcileSafety(
       drift,
       ReconcileHostFactSchema.parse(await dependencies.readReconcileHost(request.workUnit, drift)),
+      deliveryDrift.status === "reconcile" ? deliveryDrift.safetyClass : "generic",
     );
     if (safety.safe) {
       const candidate = await dependencies.readCandidate(request.workUnit);

@@ -667,6 +667,34 @@ comparator and trivially accepted.
               only after every retained and revision subtask plus the coherent-unit gate has passed. Leave Success
               Criteria markers unchanged and record the returned evidence as this task's completion outcome.
 
+            - _Amendment:_ The fresh companion found three source-confirmed composition gaps. Resolve them inside
+              the existing D3.8-D3.10 and D9.6 contracts, then rerun the complete member walk.
+
+            - `[x]` **5.7.R.e.1 Preserve conditional safety for exact residual overlap**
+
+                - Terminal drift now carries a residual-contained safety class into checkpoint reconciliation;
+                  predecessor overlap and mixed or outside substantive drift remain under generic refusal.
+                - Classifier and composed checkpoint coverage pin substantive residual acceptance, regenerable-only
+                  generic safety, and the mixed residual-plus-outside boundary.
+
+            - `[ ]` **5.7.R.e.2 Project the Candidate against the authoritative fetched base**
+
+                - Give every effective-target and applicability consumer the same freshly observed protected-base
+                  coordinate used by guarded reconciliation, including a stale local configured branch after fetch.
+                - Cover checkpoint rerun and exact selection resolution against that stale-local-base topology.
+
+            - `[ ]` **5.7.R.e.3 Retain unresolved native landing effects**
+
+                - An identity-less, pending, partial, or ambiguous native effect retains its reservation and stops.
+                  Clear and return `delivery-native-land-select` only after a persisted provider effect is
+                  authoritatively terminal and exactly none of its selected members landed.
+                - Cover submission-before-persist and the identity-bound terminal result through production recovery.
+
+            - `[ ]` **5.7.R.e.4 Rerun the Member 5 criteria walk**
+
+                - Re-run coherent-unit gates and a fresh full-rubric adversarial pass over the amended bounded diff
+                  and cumulative tree, then record the resolved report without changing Success Criteria markers.
+
 ## **Phase 6:** Provider-delegated refresh and native landing
 
 **Delivery member:** 6 — `refresh-and-native-landing`

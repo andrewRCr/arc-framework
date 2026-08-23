@@ -187,7 +187,11 @@ export function rebindDeliveryTerminalCoordinates(input: {
 }
 
 export type DeliveryTerminalDriftResult =
-  | { readonly status: "reconcile"; readonly nextAction: "reconcile-base" }
+  | {
+      readonly status: "reconcile";
+      readonly nextAction: "reconcile-base";
+      readonly safetyClass: "generic" | "residual-contained";
+    }
   | {
       readonly status: "refused";
       readonly reason: "predecessor-overlap";
@@ -196,23 +200,28 @@ export type DeliveryTerminalDriftResult =
 
 /** Scope terminal-window drift against the residual rather than the whole Candidate union. */
 export function classifyDeliveryTerminalDrift(input: {
-  readonly driftPaths: readonly string[];
+  readonly substantivePaths: readonly string[];
+  readonly regenerablePaths: readonly string[];
   readonly residualPaths: readonly string[];
   readonly predecessorPaths: readonly string[];
 }): DeliveryTerminalDriftResult {
-  const intersect = (paths: readonly string[]): string[] => {
+  const driftPaths = [...new Set([...input.substantivePaths, ...input.regenerablePaths])];
+  const intersect = (source: readonly string[], paths: readonly string[]): string[] => {
     const candidates = new Set(paths);
-    return [...new Set(input.driftPaths.filter((path) => candidates.has(path)))].sort();
+    return [...new Set(source.filter((path) => candidates.has(path)))].sort();
   };
-  const predecessorOverlap = intersect(input.predecessorPaths);
+  const predecessorOverlap = intersect(driftPaths, input.predecessorPaths);
   if (predecessorOverlap.length > 0) {
     return { status: "refused", reason: "predecessor-overlap", paths: predecessorOverlap };
   }
-  const residualOverlap = intersect(input.residualPaths);
-  if (residualOverlap.length > 0) {
-    return { status: "reconcile", nextAction: "reconcile-base" };
-  }
-  return { status: "reconcile", nextAction: "reconcile-base" };
+  const residualSubstantive = intersect(input.substantivePaths, input.residualPaths);
+  const residualContained = input.substantivePaths.length > 0
+    && residualSubstantive.length === new Set(input.substantivePaths).size;
+  return {
+    status: "reconcile",
+    nextAction: "reconcile-base",
+    safetyClass: residualContained ? "residual-contained" : "generic",
+  };
 }
 
 /** Require the protected base only at the freshly observed terminal instant. */
