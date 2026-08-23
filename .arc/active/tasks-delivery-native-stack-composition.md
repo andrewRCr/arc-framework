@@ -703,7 +703,7 @@ comparator and trivially accepted.
                   composition plus coordinate rebind still derive against a potentially stale local base instead of
                   one exact authoritative base coordinate.
 
-                - [x] **5.7.R.e.4.1 Persist attended applicability selections before checkpoint rerun**
+                - `[x]` **5.7.R.e.4.1 Persist attended applicability selections before checkpoint rerun**
 
                     - Fresh and interrupted `covered` or `targeted-check` resolutions now stage the existing
                       Candidate record and return a typed commit action; already-committed operational-only replay
@@ -711,7 +711,7 @@ comparator and trivially accepted.
                     - Both integration workflow copies route the commit and push before checkpoint rerun, with E2E
                       coverage over fresh, interrupted, and already-committed replay.
 
-                - [x] **5.7.R.e.4.2 Bind terminal composition and rebind to one authoritative base coordinate**
+                - `[x]` **5.7.R.e.4.2 Bind terminal composition and rebind to one authoritative base coordinate**
 
                     - Checkpoint now threads its exact fetched base OID through Candidate and terminal-delta
                       composition, refusing a nominally clean checkpoint without that coordinate.
@@ -719,7 +719,7 @@ comparator and trivially accepted.
                       remote-preferred base OID, and reuses it for effective-target and coordinate derivation; built
                       CLI coverage pins the stale-local-versus-remote boundary.
 
-                - [ ] **5.7.R.e.4.3 Rerun the Member 5 criteria walk**
+                - `[ ]` **5.7.R.e.4.3 Rerun the Member 5 criteria walk**
 
 ## **Phase 6:** Provider-delegated refresh and native landing
 
