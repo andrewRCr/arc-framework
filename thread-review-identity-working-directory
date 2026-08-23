@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "thread-review-identity-working-directory",
+  "claimId": "d980c325f1d2b226b20e5cd8ea57dcf3",
+  "createdAt": "2026-08-23T19:54:07.781Z",
+  "updatedAt": "2026-08-23T19:54:07.781Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "thread-review-identity-working-directory",
+  "branch": "chore/thread-review-identity-working-directory",
+  "origin": "inbox",
+  "originEntry": "Thread an explicit working directory into the review lanes' identity read",
+  "originEntrySourceDigest": "sha256:773bb73e711f320710540384d8a0da495abcab2ee983958f579fb4ffdd4feb54",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
