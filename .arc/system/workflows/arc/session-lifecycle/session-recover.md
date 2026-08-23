@@ -20,11 +20,15 @@ clean path.
 
 ## 1. Run The Deterministic Recovery Audit
 
-Run the recovery audit:
+Run the exact recovery audit supplied by the recovery injection. When no explicit seed path is supplied, run:
 
 ```bash
 arc recover audit --json
 ```
+
+When the supplied command carries `--seed-path <path>`, preserve that exact operand. It is an adapter-owned locus
+handoff; the audit validates that the path belongs to exactly one registered checkout and binds fresh recovery
+probes to that checkout.
 
 Require `mode: "recover-audit"`. If the command fails or the report is malformed, stop,
 surface that recovery cannot establish live state, and ask for direction.
@@ -34,6 +38,8 @@ The report's required `recover.derivedLocusState` is the sole topology/frame rea
 `recover.loadSet`, and `recover.taskCursor` are reader-owned projections from that same value; consume them rather
 than resolving worktrees, branches, metas, identities, or parent edges again. `recover.locusGuidance` carries
 CLI-composed recovery/refusal narration.
+
+The seed locus selects where the fresh recovery probes run; the command's invocation directory does not override it.
 
 Treat active-meta progress fields as soft orientation after compaction, not recovery authority:
 `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may be stale.
@@ -46,6 +52,9 @@ checked seed presence/schema, identity, the fresh entering-checkout frame, load-
 and non-planning task-cursor drift when a cursor exists. For an unresolved entering checkout or identity-basis
 failure, also render the matching `report.recover.locusGuidance` text verbatim. Do not choose another row or repair
 the graph in workflow prose.
+
+A `seed-locus-unresolved` stop means the selected seed path and registered checkout topology did not select one exact
+recovery checkout. Surface its typed message; do not retry from another directory or degrade it to `seed-missing`.
 
 If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` attests that the load set is
 trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property
@@ -81,6 +90,10 @@ supports parallel reads. Never wait on one document before issuing the next unle
 slice genuinely depends on the earlier read. Never load from the seed's paths. The harness
 summary is authoritative for the volatile work in progress, but not for ARC operating
 context; verify it against the recovered files when it names a task.
+
+Run checkout-relative reads and every resumed project command from the resolved
+`report.recover.recoveryFrame.value.checkoutPath`. A recovery audit invoked from primary may have selected a
+spawned transient checkout; the invocation directory is not the resumed work locus.
 
 The recovery load set is ARC-owned context only. Repository-root harness instruction files
 (such as `AGENTS.md` for Codex CLI and `CLAUDE.md` for Claude Code) are expected to come from

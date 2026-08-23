@@ -1,14 +1,18 @@
 import { spawnSync } from "node:child_process";
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readdirSync,
+  readSync,
   readFileSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const markerFileBaseName = "codex-compaction-recovery-pending";
 const legacySeedHandoffBaseName = "codex-compaction-recovery-seed";
@@ -16,6 +20,7 @@ const seedFileName = "compaction-seed.json";
 const recoveryPayloadSchemaVersion = 3;
 const sessionlessScopeId = "sessionless";
 const recoveryArtifactMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
+const transcriptTailMaxBytes = 8 * 1024 * 1024;
 
 const posixClearScriptPath = ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs";
 const windowsClearScriptPath = ".arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs";
@@ -57,27 +62,136 @@ export function readHookInput() {
   return { sessionId, raw };
 }
 
+/**
+ * Recover the most recent registered transient checkout from Codex's session
+ * transcript. Codex anchors hook `cwd` to the session root even when a tool
+ * command ran in a directed checkout, while the transcript retains the
+ * command's actual cwd. The candidate remains only a hint: the seed command's
+ * normal locus reader revalidates the exact marker + identity generation.
+ */
+export function resolveCodexExecutionCheckout(raw) {
+  const transcriptPath = hookTranscriptPath(raw);
+  if (transcriptPath === null) return null;
+
+  const executionCwd = latestCommandExecutionCwd(transcriptPath);
+  if (executionCwd === null) return null;
+  const candidateRoot = gitValue(executionCwd, ["rev-parse", "--show-toplevel"]);
+  if (candidateRoot === null) return null;
+
+  const registered = registeredWorktreeRoots(candidateRoot);
+  const candidateIndex = registered.findIndex((path) => resolve(path) === resolve(candidateRoot));
+  if (candidateIndex === -1) return null;
+  if (!isReadyTransient(candidateRoot, candidateIndex === 0)) return null;
+  return candidateRoot;
+}
+
+function hookTranscriptPath(raw) {
+  try {
+    const payload = JSON.parse(raw);
+    const value = typeof payload?.transcript_path === "string" ? payload.transcript_path.trim() : "";
+    return value.length > 0 && isAbsolute(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function latestCommandExecutionCwd(transcriptPath) {
+  let fd;
+  try {
+    fd = openSync(transcriptPath, "r");
+    const size = statSync(transcriptPath).size;
+    const length = Math.min(size, transcriptTailMaxBytes);
+    const buffer = Buffer.alloc(length);
+    readSync(fd, buffer, 0, length, size - length);
+    let content = buffer.toString("utf8");
+    if (size > length) {
+      const firstNewline = content.indexOf("\n");
+      content = firstNewline === -1 ? "" : content.slice(firstNewline + 1);
+    }
+
+    const lines = content.split(/\r?\n/u);
+    for (let index = lines.length - 1; index >= 0; index--) {
+      const line = lines[index]?.trim();
+      if (!line) continue;
+      try {
+        const item = JSON.parse(line)?.payload?.item;
+        if (item?.type !== "CommandExecution" || typeof item.cwd !== "string") continue;
+        return commandExecutionPath(item.cwd);
+      } catch {
+        // Ignore unrelated or malformed transcript rows and continue backwards.
+      }
+    }
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+  return null;
+}
+
+function commandExecutionPath(value) {
+  try {
+    if (value.startsWith("file:")) return fileURLToPath(value);
+    return isAbsolute(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function isReadyTransient(root, primary) {
+  try {
+    const marker = JSON.parse(readFileSync(
+      join(root, ".arc", "system", ".internal", "worktree-marker.json"),
+      "utf8",
+    ));
+    const subject = marker?.createdFor;
+    return marker?.spawnedByArc === !primary
+      && marker?.provisioning === "ready"
+      && (subject?.kind === "errand" || subject?.kind === "groom")
+      && typeof subject?.slug === "string"
+      && subject.slug.length > 0
+      && typeof subject?.claimId === "string"
+      && subject.claimId.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function resolveRepoRoot() {
   const cwd = hookProjectDir();
-  const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
-    cwd,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-
-  if (result.status === 0) {
-    const stdout = result.stdout.trim();
-    if (stdout.length > 0) {
-      return stdout;
-    }
-  }
-
-  return cwd;
+  const currentRoot = gitValue(cwd, ["rev-parse", "--show-toplevel"]);
+  if (currentRoot === null) return cwd;
+  return registeredWorktreeRoots(currentRoot)[0] ?? currentRoot;
 }
 
 function hookProjectDir() {
   const projectDir = process.env.CLAUDE_PROJECT_DIR?.trim();
   return projectDir && projectDir.length > 0 ? projectDir : process.cwd();
+}
+
+function gitValue(cwd, args) {
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0 || typeof result.stdout !== "string") return null;
+  const value = result.stdout.trim();
+  return value.length > 0 ? value : null;
+}
+
+function registeredWorktreeRoots(cwd) {
+  const result = spawnSync("git", ["worktree", "list", "--porcelain", "-z"], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0 || typeof result.stdout !== "string") return [];
+  return result.stdout
+    .split("\0")
+    .filter((field) => field.startsWith("worktree "))
+    .map((field) => field.slice("worktree ".length))
+    .filter((path) => path.length > 0);
 }
 
 function internalDirs(root) {
@@ -139,25 +253,32 @@ function markerFileName(scope) {
 }
 
 function normalizeSeedPath(root, seedPath) {
-  const relativeSeedPath = isAbsolute(seedPath) ? relative(root, seedPath) : seedPath;
-  const normalized = relativeSeedPath.replaceAll("\\", "/");
+  const absoluteSeedPath = resolve(root, seedPath);
   const seedPathPattern = new RegExp(
     `^\\.arc/user/(?<identity>[^/]+)/\\.internal/${seedFileName.replaceAll(".", "\\.")}$`,
     "u",
   );
-  const match = seedPathPattern.exec(normalized);
-  const identity = match?.groups?.identity;
-  if (
-    identity === undefined
-    || isReservedIdentitySegment(identity)
-    || normalized.startsWith("../")
-    || normalized === ".."
-    || normalized.includes("/../")
-    || normalized.startsWith("/")
-  ) {
-    throw new Error(`Invalid ARC compaction seed path: ${seedPath}`);
+  const worktreeRoots = registeredWorktreeRoots(root);
+  if (worktreeRoots.length === 0) worktreeRoots.push(root);
+
+  for (const worktreeRoot of worktreeRoots) {
+    const normalized = relative(worktreeRoot, absoluteSeedPath).replaceAll("\\", "/");
+    const identity = seedPathPattern.exec(normalized)?.groups?.identity;
+    if (
+      identity !== undefined
+      && !isReservedIdentitySegment(identity)
+      && !normalized.startsWith("../")
+      && normalized !== ".."
+      && !normalized.includes("/../")
+      && !normalized.startsWith("/")
+    ) {
+      return {
+        identity,
+        seedPath: resolve(worktreeRoot) === resolve(root) ? normalized : absoluteSeedPath,
+      };
+    }
   }
-  return normalized;
+  throw new Error(`Invalid ARC compaction seed path: ${seedPath}`);
 }
 
 function isReservedIdentitySegment(identity) {
@@ -175,8 +296,8 @@ function hasControlCharacter(value) {
 export function writePendingMarker(seedPath, sessionId) {
   const root = resolveRepoRoot();
   const scope = resolveScope(sessionId);
-  const normalizedSeedPath = normalizeSeedPath(root, seedPath);
-  const markerDir = join(root, dirname(normalizedSeedPath));
+  const normalizedSeed = normalizeSeedPath(root, seedPath);
+  const markerDir = join(root, ".arc", "user", normalizedSeed.identity, ".internal");
   const markerPath = join(markerDir, markerFileName(scope));
 
   mkdirSync(markerDir, { recursive: true });
@@ -191,7 +312,7 @@ export function writePendingMarker(seedPath, sessionId) {
     emittedAt: new Date().toISOString(),
     fallback: false,
     reason: null,
-    seedPath: normalizedSeedPath,
+    seedPath: normalizedSeed.seedPath,
   }, null, 2)}\n`);
   // Drop any stale claim so a marker rewritten by a later compaction re-arms.
   rmSync(claimPath(markerPath), { force: true });
@@ -394,19 +515,27 @@ function isRecoveryArtifactFileName(fileName) {
     || fileName.startsWith(`${legacySeedHandoffBaseName}-`);
 }
 
-export function buildRecoveryInstructions({ markers, arcCommand }) {
+export function buildRecoveryInstructions({ root, markers, arcCommand }) {
   const clearCommands = markers.map(({ markerPath }) =>
-    `   ${markerClearCommand(` --marker ${quoteMarkerPath(markerPath)}`)}`,
+    `   ${markerClearCommand(` --marker ${quoteCommandArgument(markerPath)}`)}`,
   );
   const seedIssueMarkers = markers.filter((marker) => marker.seedPath === null || marker.fallback === true);
-  const seedIssueLines = seedIssueMarkers.length === 0
+  const seedPaths = new Set(markers.flatMap((marker) =>
+    marker.seedPath === null || marker.fallback === true ? [] : [resolve(root, marker.seedPath)],
+  ));
+  const seedPath = seedIssueMarkers.length === 0 && seedPaths.size === 1
+    ? [...seedPaths][0]
+    : undefined;
+  const seedIssueLines = seedPath !== undefined
     ? []
     : [
       "Seed issue marker(s):",
-      ...seedIssueMarkers.map((marker) => `- ${marker.markerPath}: ${seedIssueReason(marker)}`),
+      ...(seedIssueMarkers.length > 0
+        ? seedIssueMarkers.map((marker) => `- ${marker.markerPath}: ${seedIssueReason(marker)}`)
+        : ["- pending markers selected different compaction seed paths"]),
     ];
-  const auditInstruction = seedIssueMarkers.length === 0
-    ? `2. Audit command: ${arcCommand} recover audit --json.`
+  const auditInstruction = seedPath !== undefined
+    ? `2. Audit command: ${arcCommand} recover audit --seed-path ${quoteCommandArgument(seedPath)} --json.`
     : `2. Seed issue detected: if the current worktree is the intended compacted state, first run ${arcCommand} status --session-init --write-compaction-seed --json, then run ${arcCommand} recover audit --json.`;
 
   return [
@@ -431,7 +560,7 @@ function shellQuote(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-function quoteMarkerPath(value) {
+function quoteCommandArgument(value) {
   return process.platform === "win32" ? windowsQuote(value) : shellQuote(value);
 }
 

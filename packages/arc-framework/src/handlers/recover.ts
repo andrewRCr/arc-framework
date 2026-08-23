@@ -14,8 +14,11 @@ import {
 } from "../lib/compaction-seed/schema.js";
 import {
   parseUncommittedFiles,
-  resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
+import {
+  resolveRecoverySeedCheckout,
+  resolveRecoverySeedPath,
+} from "../lib/compaction-seed/recovery-path.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
 import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
@@ -38,23 +41,35 @@ import { requireArcProjectRoot } from "./shared.js";
 
 export interface RecoverAuditOptions {
   json?: boolean;
+  seedPath?: string;
 }
 
 /** Machine-output policy owned by the recovery-audit adapter. */
 export const recoverCommandInputPolicyDeclarations = [{
-  commandPath: "recover audit", aliases: [], sites: [declareCliOptionSite("json", {
-    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
-    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-    mutationBoundary: "output selection", subprocess: "none",
-  })],
+  commandPath: "recover audit", aliases: [], sites: [
+    declareCliOptionSite("seed-path", {
+      acquisition: "optional", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: {
+        noInput: "preserve-absent",
+        flags: ["--seed-path"],
+        acceptedSyntax: ["--seed-path <path>"],
+      },
+      mutationBoundary: "recovery locus validation", subprocess: "none",
+    }),
+    declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    }),
+  ],
 }] satisfies readonly CommandInputDeclaration[];
 
 /** Handle `arc recover audit`. */
 export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?: InteractionContext): Promise<void> {
   const io = createUserIOContext(interaction?.subprocess);
   const gitExec = io.exec;
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  const invocationCwd = requireArcProjectRoot();
+  if (!invocationCwd) return;
 
   const { identity, role } = await readIdentityPointers(gitExec);
   if (identity === null) {
@@ -67,13 +82,26 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     }), Boolean(opts.json));
     return;
   }
+  const parsedIdentity = SlugSchema.parse(identity);
 
-  const workingMemoryPath = (await resolveUserSurfaceResolver({
-    cwd,
-    identity: SlugSchema.parse(identity),
+  const seedPathResolution = await resolveRecoverySeedPath({
+    cwd: invocationCwd,
+    identity: parsedIdentity,
     exec: gitExec,
-  })).workingMemoryPath;
-  const seedPath = resolveCompactionSeedPath({ cwd, identity });
+    requestedPath: opts.seedPath,
+  });
+  if (!seedPathResolution.ok) {
+    writeReport(stopReport({
+      seedPath: null,
+      reason: {
+        kind: "seed-locus-unresolved",
+        message: seedPathResolution.message,
+        detail: seedPathResolution.detail,
+      },
+    }), Boolean(opts.json));
+    return;
+  }
+  const seedPath = seedPathResolution.path;
   let seedContent: string;
   try {
     seedContent = await readFile(seedPath, "utf8");
@@ -94,9 +122,35 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     return;
   }
 
+  const checkoutResolution = await resolveRecoverySeedCheckout({
+    seedPath,
+    seed: parsedSeed.seed,
+    identity: parsedIdentity,
+    exec: gitExec,
+  });
+  if (!checkoutResolution.ok) {
+    writeReport(stopReport({
+      seedPath,
+      reason: {
+        kind: "seed-locus-unresolved",
+        message: checkoutResolution.message,
+        detail: checkoutResolution.detail,
+      },
+    }), Boolean(opts.json));
+    return;
+  }
+  const cwd = checkoutResolution.checkoutPath;
+  const recoveryGitExec = bindGitExec(gitExec, cwd);
+  const recoveryGitExecInput = bindGitExecInput(requireGitExecInput(io.execInput), cwd);
+  const workingMemoryPath = (await resolveUserSurfaceResolver({
+    cwd,
+    identity: parsedIdentity,
+    exec: recoveryGitExec,
+  })).workingMemoryPath;
+
   let gitStatusOutputP: Promise<string> | undefined;
   const getGitStatusOutput = (): Promise<string> => {
-    gitStatusOutputP ??= gitExec("git", ["status", "--porcelain=v1", "-z"])
+    gitStatusOutputP ??= recoveryGitExec("git", ["status", "--porcelain=v1", "-z"])
       .then(({ stdout }) => stdout);
     return gitStatusOutputP;
   };
@@ -105,8 +159,8 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     dirty: async () => dirtyStateFromUncommittedFiles(
       parseUncommittedFiles(await getGitStatusOutput()),
     ),
-    exec: gitExec,
-    execInput: requireGitExecInput(io.execInput),
+    exec: recoveryGitExec,
+    execInput: recoveryGitExecInput,
     readFile: io.readFile,
   });
   const recover = await runRecoverStatus({
@@ -134,8 +188,8 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
   }
 
   const [freshBranch, freshHead] = await Promise.all([
-    readGitValue(gitExec, ["rev-parse", "--abbrev-ref", "HEAD"]),
-    readGitValue(gitExec, ["rev-parse", "--verify", "HEAD^{commit}"]),
+    readGitValue(recoveryGitExec, ["rev-parse", "--abbrev-ref", "HEAD"]),
+    readGitValue(recoveryGitExec, ["rev-parse", "--verify", "HEAD^{commit}"]),
   ]);
 
   const verdict = await auditRecoveryState({
@@ -160,6 +214,20 @@ function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput 
     throw new Error("Recovery audit requires stdin-capable Git I/O.");
   }
   return execInput;
+}
+
+function bindGitExec(exec: GitExec, cwd: string): GitExec {
+  return (command, args, options) => exec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
+}
+
+function bindGitExecInput(execInput: GitExecInput, cwd: string): GitExecInput {
+  return (args, input, options) => execInput(args, input, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
 }
 
 async function readGitValue(gitExec: GitExec, args: string[]): Promise<string | null> {

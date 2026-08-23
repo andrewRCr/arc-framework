@@ -5,7 +5,7 @@ import {
 } from "./codex-recovery-marker.mjs";
 
 const { sessionId } = readHookInput();
-const { claimed } = claimPendingInjection(sessionId);
+const { root, claimed } = claimPendingInjection(sessionId);
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 
 // Inject once, at the first tool boundary after compaction. The atomic claim in
@@ -16,7 +16,7 @@ if (claimed.length === 0) {
   process.exit(0);
 }
 
-const additionalContext = buildRecoveryInstructions({ markers: claimed, arcCommand });
+const additionalContext = buildRecoveryInstructions({ root, markers: claimed, arcCommand });
 
 // No suppressOutput here: Codex (v0.142.5) rejects it on PostToolUse output
 // despite the published schema, failing the hook and dropping the injection.

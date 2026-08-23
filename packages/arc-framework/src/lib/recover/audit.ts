@@ -56,6 +56,7 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "locus-hint-mismatch",
   "repo-root-mismatch",
   "seed-invalid",
+  "seed-locus-unresolved",
   "seed-missing",
   "seed-unreadable",
   "dirty-path-drift",
