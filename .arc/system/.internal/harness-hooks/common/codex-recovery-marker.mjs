@@ -147,7 +147,7 @@ function isReadyTransient(root, primary) {
     const subject = marker?.createdFor;
     return marker?.spawnedByArc === !primary
       && marker?.provisioning === "ready"
-      && (subject?.kind === "errand" || subject?.kind === "groom")
+      && (subject?.kind === "errand" || subject?.kind === "groom" || subject?.kind === "housekeep")
       && typeof subject?.slug === "string"
       && subject.slug.length > 0
       && typeof subject?.claimId === "string"

@@ -238,6 +238,15 @@ function withTempArcProject<T>(fn: (root: string) => T): T {
   }
 }
 
+function resolveTranscriptCheckout(root: string, raw: string): string {
+  return execFileSync(process.execPath, [
+    "--input-type=module",
+    "-e",
+    `import { resolveCodexExecutionCheckout } from ${JSON.stringify(pathToFileURL(markerScriptPath).href)};\n`
+      + `process.stdout.write(resolveCodexExecutionCheckout(${JSON.stringify(raw)}) ?? "");`,
+  ], { cwd: root, encoding: "utf8" });
+}
+
 describe("Codex CLI compaction recovery hook recipe", () => {
   it("recognizes a ready primary transient from Codex transcript evidence", () => {
     withTempArcProject((root) => {
@@ -259,14 +268,49 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         },
       })}\n`);
       const raw = JSON.stringify({ transcript_path: transcriptPath });
-      const result = execFileSync(process.execPath, [
-        "--input-type=module",
-        "-e",
-        `import { resolveCodexExecutionCheckout } from ${JSON.stringify(pathToFileURL(markerScriptPath).href)};\n`
-          + `process.stdout.write(resolveCodexExecutionCheckout(${JSON.stringify(raw)}) ?? "");`,
-      ], { cwd: root, encoding: "utf8" });
+      const result = resolveTranscriptCheckout(root, raw);
 
       expect(result).toBe(realpathSync(root));
+    });
+  });
+
+  it("recognizes a ready spawned housekeeping transient when Codex stays anchored to primary", () => {
+    withTempArcProject((root) => {
+      const spawned = `${root}-housekeep`;
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: root });
+      execFileSync("git", ["add", "."], { cwd: root });
+      execFileSync("git", ["commit", "-m", "seed"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["worktree", "add", "-b", "chore/housekeep", spawned], {
+        cwd: root,
+        stdio: "ignore",
+      });
+
+      try {
+        const markerPath = join(spawned, ".arc", "system", ".internal", "worktree-marker.json");
+        mkdirSync(dirname(markerPath), { recursive: true });
+        writeFileSync(markerPath, `${JSON.stringify({
+          spawnedByArc: true,
+          provisioning: "ready",
+          createdFor: { kind: "housekeep", slug: "inbox-drain", claimId: "claim-housekeep" },
+        })}\n`);
+        const transcriptPath = join(root, "transcript.jsonl");
+        writeFileSync(transcriptPath, `${JSON.stringify({
+          payload: {
+            item: {
+              type: "CommandExecution",
+              cwd: pathToFileURL(spawned).href,
+            },
+          },
+        })}\n`);
+        const raw = JSON.stringify({ transcript_path: transcriptPath });
+
+        expect(resolveTranscriptCheckout(root, raw)).toBe(realpathSync(spawned));
+      } finally {
+        execFileSync("git", ["worktree", "remove", "--force", spawned], { cwd: root });
+        rmSync(spawned, { recursive: true, force: true });
+      }
     });
   });
 
