@@ -739,24 +739,14 @@ structural guarantee rather than operator discipline.
   suffix and precomposed safety/review consequences for refused or operator-requested refresh, and refuses ambiguous
   provider movement or target rewrites.
 
-### `[ ]` **6.2 Absorb predecessor movement into the top by content merge**
+### `[x]` **6.2 Absorb predecessor movement into the top by content merge**
 
 - _Goal:_ The top takes on a restacked chain's content by an append-only merge, so a refreshed suffix does not
   strand the top behind it.
 
-- _Rationale:_ This is the absorption form, not the adoption form, and the distinction is load-bearing: a
-  restacked chain carries base content the top lacks, so the content-neutral form would silently drop it and fail
-  late at the residual check instead of early at the merge. Conflicts stay attended by design.
-
-- _Note:_ The top is never provider-restacked. Absorption by merge is the same base-merge doctrine pushed
-  branches already follow, and it is what keeps the top's reviewed heads ancestors and therefore in span.
-
-    - Build `test-first` (one behavior at a time):
-        - Absorption merges the refreshed chain's content into the top rather than recording ancestry alone
-        - A conflict during absorption surfaces for attended resolution rather than auto-resolving
-        - The top's previously reviewed heads remain ancestors after absorption
-        - The content-neutral adoption form is never selected on this path
-        - Execution-time base movement before materialization stays ordinary base-merge territory
+- _Outcome:_ Added a checked-out-top absorption primitive that performs a genuine append-only content merge,
+  preserves prior reviewed ancestry, and reports exact conflict paths after restoring the pinned clean top; the
+  distinct no-refresh base-movement route remains ordinary pre-materialization base-merge territory.
 
 ### `[ ]` **6.3 Separate reserved ARC mutations from external refresh adoption**
 
