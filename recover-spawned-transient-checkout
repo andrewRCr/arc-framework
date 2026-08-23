@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "recover-spawned-transient-checkout",
+  "claimId": "7241379a60d2a352810a2aa492608dc3",
+  "createdAt": "2026-08-23T01:46:45.426Z",
+  "updatedAt": "2026-08-23T01:46:45.426Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "recover-spawned-transient-checkout",
+  "branch": "chore/recover-spawned-transient-checkout",
+  "origin": "inbox",
+  "originEntry": "Recover automatically into a spawned transient checkout",
+  "originEntrySourceDigest": "sha256:59dc2fa66356b108d26a4ea787a43faf9082e82c78ebb9139a6e99c3e7323020",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
