@@ -51,6 +51,7 @@ import {
   DeliveryPositionFactsV1Schema,
   deriveDeliveryPosition,
   resolveDeliveryPredecessorHead,
+  routeDeliveryPosition,
 } from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import {
@@ -388,6 +389,8 @@ const ResultSchema = z.union([
     position: z.unknown(),
     nextAction: z.string().min(1),
     selectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+    plannedSuffix: z.array(DeliveryCanonicalDigestSchema).optional(),
+    recommendedActionText: z.string().min(1).optional(),
   }),
   z.strictObject({
     status: z.literal("applied"),
@@ -1201,28 +1204,7 @@ async function executeDeliveryCommand(
     if (plan.status !== "ok" || plan.value === null || state.status !== "ok" || state.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
-    const position = deriveDeliveryPosition(plan.value, state.value.value, parsed.facts);
-    if (position.status !== "derived") return { status: "refused", reason: position.reason };
-    const terminal = plan.value.members.at(-1);
-    if (position.position.firstUnlanded === null || plan.value.members.length === 1) {
-      return { status: "position", position: position.position, nextAction: "terminal-handoff" };
-    }
-    if (position.position.firstUnlanded === terminal?.deliverableId) {
-      const highest = plan.value.members.at(-2);
-      if (highest === undefined) return { status: "refused", reason: "position-mismatch" };
-      return {
-        status: "position",
-        position: position.position,
-        nextAction: "teardown-member",
-        selectedDeliverableId: highest.deliverableId,
-      };
-    }
-    return {
-      status: "position",
-      position: position.position,
-      nextAction: "review-member",
-      selectedDeliverableId: position.position.firstUnlanded,
-    };
+    return routeDeliveryPosition(plan.value, state.value.value, parsed.facts);
   }
   if (command === "land-prepare" || command === "land-apply") {
     const parsed = (command === "land-prepare" ? LandPrepareSchema : LandApplySchema).parse(request);

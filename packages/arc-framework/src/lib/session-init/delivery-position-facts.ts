@@ -20,6 +20,7 @@ import {
   matchesDeliveryTopRemedyTrigger,
 } from "../delivery/top-remedy.js";
 import { matchesDeliveryTeardownRequest } from "../delivery/teardown.js";
+import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
 
 interface DeliveryPositionFactsDependencies {
   readonly exec: GitExec;
@@ -55,12 +56,20 @@ async function retainedCommitIsAvailable(
 async function observeTarget(
   target: DeliveryOperationSnapshotV1["target"],
   dependencies: DeliveryPositionFactsDependencies,
-): Promise<boolean> {
-  if (target === null) return true;
-  if (target.coordinates === null) return false;
+): Promise<"exact" | "append-only" | null> {
+  if (target === null) return "exact";
+  if (target.coordinates === null) return null;
   const observed = await dependencies.host.observeTarget(dependencies.repository, target.ref);
-  return observed.status === "observed"
-    && canonicalize(observed.coordinates) === canonicalize(target.coordinates);
+  if (observed.status !== "observed") return null;
+  if (canonicalize(observed.coordinates) === canonicalize(target.coordinates)) return "exact";
+  const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+    ...options,
+    cwd: dependencies.cwd,
+    objectAccess: "local-only",
+  });
+  return await readAncestry(localOnlyExec, target.coordinates.head, observed.coordinates.head) === "ancestor"
+    ? "append-only"
+    : null;
 }
 
 async function observeMember(
@@ -122,7 +131,7 @@ async function snapshotIsCurrent(
   snapshot: DeliveryOperationSnapshotV1,
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<boolean> {
-  if (!(await observeTarget(snapshot.target, dependencies))) return false;
+  if (await observeTarget(snapshot.target, dependencies) !== "exact") return false;
   const observed = await Promise.all(snapshot.members.map((member) => (
     observeMember(member, dependencies)
   )));
@@ -248,7 +257,8 @@ async function observeFacts(
   state: DeliveryStateV1,
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<DeliveryPositionFactsV1 | null> {
-  if (!(await observeTarget(state.target, dependencies))) return null;
+  const targetMovement = await observeTarget(state.target, dependencies);
+  if (targetMovement === null) return null;
   const members = await Promise.all(state.members.map((member) => observeMember(member, dependencies)));
   if (members.some((member) => !member.exact)) return null;
 
@@ -276,6 +286,7 @@ async function observeFacts(
     target: state.target,
     members: state.members,
     landedDeliverableIds,
+    ...(targetMovement === "append-only" ? { targetMovement } : {}),
   };
 }
 

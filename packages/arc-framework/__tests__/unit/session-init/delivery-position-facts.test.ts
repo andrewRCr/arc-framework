@@ -25,6 +25,9 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
       return { stdout: `${args[2].slice(0, -"^{commit}".length)}\n`, stderr: "" };
     }
     if (args[0] === "rev-list") return { stdout: `${args.at(-1)}\n`, stderr: "" };
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+      return { stdout: "", stderr: "" };
+    }
     if (args[0] === "rev-parse" && args[1]?.endsWith("^{tree}")) {
       return { stdout: `${trees.get(args[1].slice(0, -"^{tree}".length)) ?? ""}\n`, stderr: "" };
     }
@@ -71,6 +74,27 @@ describe("session-init delivery position facts", () => {
     });
     expect(dependencies.exec).toHaveBeenCalled();
     expect(dependencies.exec.mock.calls.some(([, args]) => args[0] === "ls-remote")).toBe(false);
+  });
+
+  it("keeps append-only protected-target movement readable without rebasing stored member facts", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const dependencies = exactDependencies(state);
+    dependencies.host.observeTarget.mockResolvedValue({
+      status: "observed",
+      coordinates: { head: "f".repeat(40), tree: "e".repeat(40) },
+    });
+
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
+      .resolves.toMatchObject({
+        status: "observed",
+        facts: {
+          target: state.target,
+          members: state.members,
+          landedDeliverableIds: [],
+          targetMovement: "append-only",
+        },
+      });
   });
 
   it("fails closed when a remote member head is unavailable", async () => {
