@@ -205,17 +205,21 @@ arc delivery native land-status - --json
 ```
 
 For ordinary polling after submission, use `land-status`. `pending` retains the reservation and polls the same
-persisted effect identity again. After a restart or interruption, invoke the general recovery verb instead:
+persisted effect identity again. After a restart or interruption, invoke `land-status` with the same exact request;
+it also recovers a synchronous merged result whose effect identity was never assigned. The general recovery verb
+delegates an active native reservation to that same status-and-settlement path:
 
 ```bash
 arc delivery reconcile - --json
 ```
 
 Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
-effect and exact `none-landed` observation, returns to preparation and a new interlock. A missing identity, `pending`,
-`partial-landed`, unavailable, expired, contradictory, or ambiguous result stops with the reservation intact. An
-applied `linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof,
-before new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
+effect and exact `none-landed` observation, returns to preparation and a new interlock. `pending`, `partial-landed`,
+unavailable, expired, contradictory, or ambiguous results stop with the reservation intact. A suffix reconciliation
+refusal likewise retains that reservation; rerun `land-status` to reobserve and settle it without resubmitting. An
+`applied` result is returned only after a `linked-single` result settles the complete recognized suffix-retarget path,
+including contribution proof before new-head review admission, or a `linked-atomic` result performs its final
+no-suffix state write.
 
 ## Review and land the current member
 

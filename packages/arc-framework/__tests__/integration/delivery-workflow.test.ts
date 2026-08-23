@@ -136,7 +136,8 @@ describe("packaged delivery workflow", () => {
     expect(nativeSubmit).toBeLessThan(nativeStatus);
     expect(nativeSection).toMatch(/exact member\/head set[\s\S]*residual race/iu);
     expect(nativeSection).toMatch(/ordinary polling[\s\S]*land-status/iu);
-    expect(nativeSection).toMatch(/restart or interruption[\s\S]*arc delivery reconcile/iu);
+    expect(nativeSection).toMatch(/restart or interruption[\s\S]*land-status/iu);
+    expect(nativeSection).toMatch(/suffix reconciliation[\s\S]*reservation[\s\S]*land-status/iu);
     expect(nativeSection).toMatch(/terminal `failed`[\s\S]*exact `none-landed`[\s\S]*new\s+interlock/iu);
     expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);
     expect(nativeSection).toMatch(/linked-single[\s\S]*contribution proof[\s\S]*new-head review/iu);

@@ -57,6 +57,47 @@ export function deriveNativeDeliveryMemberChain(input: {
   return { status: "derived", members };
 }
 
+/**
+ * Rebuild the provider observation subject beginning at one reserved landing member.
+ *
+ * @param input - Current plan/state bindings, the first reserved member, and host repository coordinates
+ * @returns The registered remainder in provider chain form or a closed binding refusal
+ */
+export function deriveNativeDeliveryRegisteredRemainder(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+  readonly firstDeliverableId: string;
+  readonly repository: string;
+  readonly baseRef: string;
+}): DeriveNativeDeliveryMemberChainResult {
+  const start = input.plan.members.findIndex(
+    (candidate) => candidate.deliverableId === input.firstDeliverableId,
+  );
+  if (start < 0 || start >= input.plan.members.length - 1) {
+    return { status: "refused", reason: "member-mismatch" };
+  }
+  const selectedMembers: DeliveryNativeLandingMember[] = [];
+  for (const planned of input.plan.members.slice(start, -1)) {
+    const member = input.state.members.find(
+      (candidate) => candidate.deliverableId === planned.deliverableId,
+    );
+    if (member?.changeRequest === null || member?.changeRequest === undefined || member.coordinates === null) {
+      return { status: "refused", reason: "member-unbound" };
+    }
+    selectedMembers.push({
+      deliverableId: member.deliverableId,
+      changeRequestId: member.changeRequest.changeRequestId,
+      headSha: member.coordinates.head,
+    });
+  }
+  return deriveNativeDeliveryMemberChain({
+    state: input.state,
+    selectedMembers,
+    repository: input.repository,
+    baseRef: input.baseRef,
+  });
+}
+
 export interface DeliveryNativeMergeRequest {
   readonly repository: string;
   readonly topChangeRequestId: string;
@@ -253,10 +294,10 @@ export async function reserveNativeDeliveryLanding(input: {
 
 export type SubmitReservedNativeDeliveryMergeResult =
   | { readonly status: "pending"; readonly effectIdentity: string; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | { readonly status: "applied"; readonly projected: DeliveryStateV1 }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
-/** Submit one already-reserved native effect and immediately CAS-attach the host identity. */
+/** Submit one reserved native effect, persisting only an async identity until final landing settlement. */
 export async function submitReservedNativeDeliveryMerge(input: {
   readonly planId: string;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -311,10 +352,7 @@ export async function submitReservedNativeDeliveryMerge(input: {
     if (reconciled.status !== "adopt") {
       return { status: "blocked", reason: "ambiguous-result", recommendedActionText: "Keep the reservation and reconcile the immediate host result explicitly." };
     }
-    const published = await dependencies.stateStore.publish(input.planId, reconciled.state, input.current.revision);
-    return published.status === "ok"
-      ? { status: "applied", state: published.value }
-      : { status: "blocked", reason: "state-conflict", recommendedActionText: "Re-read state before adopting the immediate host result." };
+    return { status: "applied", projected: reconciled.state };
   }
   if (submitted.status === "refused") {
     return { status: "blocked", reason: submitted.reason, recommendedActionText: "Keep the reservation and reobserve before any retry." };
@@ -368,7 +406,7 @@ export function classifyDeliveryNativeEffect(
 
 export type ReconcileReservedNativeDeliveryMergeResult =
   | { readonly status: "pending"; readonly recommendedActionText: string }
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | { readonly status: "applied"; readonly projected: DeliveryStateV1 }
   | {
       readonly status: "retryable";
       readonly transition: "cleared";
@@ -384,7 +422,7 @@ export type ReconcileReservedNativeDeliveryMergeResult =
     }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
-/** Poll one persisted identity and reconcile only a complete exact authoritative result. */
+/** Reobserve one reserved native effect and project only a complete exact authoritative result. */
 export async function reconcileReservedNativeDeliveryMerge(input: {
   readonly planId: string;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -395,8 +433,7 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<ReconcileReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
-  if (operation === null || operation.kind !== "land" || operation.mode !== "native"
-    || operation.effectIdentity === null) {
+  if (operation === null || operation.kind !== "land" || operation.mode !== "native") {
     return { status: "blocked", reason: "effect-identity-missing", recommendedActionText: "Resolve submission-before-persist from fresh host facts; do not submit again." };
   }
   if (operation.effect.repository !== input.request.repository
@@ -405,17 +442,36 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
     || operation.effect.strategy !== input.request.mergeMethod) {
     return { status: "blocked", reason: "reservation-mismatch", recommendedActionText: "Poll only the exact effect bound to the active reservation." };
   }
-  const polled = await dependencies.host.observeNativeMerge({
-    ...input.request, effectIdentity: operation.effectIdentity.effectId,
-  });
-  if (polled.status === "pending") {
-    return { status: "pending", recommendedActionText: "Keep the reservation and poll the persisted asynchronous effect identity." };
+  let classification: DeliveryNativeEffectClassification;
+  if (operation.effectIdentity === null) {
+    const facts = await dependencies.observeEffect();
+    if (facts.outcome === "all-landed") {
+      classification = { status: "applied", snapshot: facts.snapshot };
+    } else if (facts.outcome === "partial-landed") {
+      classification = {
+        status: "partial-landed",
+        affectedDeliverableIds: facts.affectedDeliverableIds,
+      };
+    } else {
+      return {
+        status: "blocked",
+        reason: facts.outcome === "none-landed" ? "submission-before-persist-unresolved" : "ambiguous-result",
+        recommendedActionText:
+          "Keep the reservation and resolve the synchronous native effect from fresh facts; do not submit again.",
+      };
+    }
+  } else {
+    const polled = await dependencies.host.observeNativeMerge({
+      ...input.request, effectIdentity: operation.effectIdentity.effectId,
+    });
+    if (polled.status === "pending") {
+      return { status: "pending", recommendedActionText: "Keep the reservation and poll the persisted asynchronous effect identity." };
+    }
+    if (polled.status !== "merged" && polled.status !== "failed") {
+      return { status: "blocked", reason: polled.status === "refused" ? polled.reason : polled.status, recommendedActionText: "Keep the reservation and resolve the native effect before further landing." };
+    }
+    classification = classifyDeliveryNativeEffect(polled, await dependencies.observeEffect());
   }
-  if (polled.status !== "merged" && polled.status !== "failed") {
-    return { status: "blocked", reason: polled.status === "refused" ? polled.reason : polled.status, recommendedActionText: "Keep the reservation and resolve the native effect before further landing." };
-  }
-  const facts = await dependencies.observeEffect();
-  const classification = classifyDeliveryNativeEffect(polled, facts);
   if (classification.status === "not-applied") {
     const reconciled = reconcileDeliveryOperation(input.current, { outcome: "not-applied" });
     if (reconciled.status !== "retry") {
@@ -464,10 +520,7 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
       recommendedActionText: "The observed result does not equal the exact authorized member set.",
     };
   }
-  const published = await dependencies.stateStore.publish(input.planId, reconciled.state, input.current.revision);
-  return published.status === "ok"
-    ? { status: "applied", state: published.value }
-    : { status: "blocked", reason: "state-conflict", recommendedActionText: "Re-read state; never overwrite a competing reconciliation." };
+  return { status: "applied", projected: reconciled.state };
 }
 
 export type ReconcileLinkedNativeDeliverySuffixResult =
@@ -483,7 +536,7 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
 /**
  * Reconcile the complete remaining registered suffix through the contribution-proven rewrite path.
  *
- * @param input - Exact pre-landing reservation, adopted landing state, repository, and protected target.
+ * @param input - Exact pre-landing reservation, unpersisted landing projection, repository, and protected target.
  * @param dependencies - Fresh request/ref observers, contribution arbiter, and version-checked state writer.
  * @returns The once-persisted reconciled suffix or a closed refusal preserving path evidence when available.
  */
@@ -510,11 +563,22 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     return {
       status: "blocked",
       reason: "suffix-position-unavailable",
-      recommendedActionText: "Keep the landed state and restore the exact native landing subject.",
+      recommendedActionText: "Keep the reservation and restore the exact native landing subject.",
     };
   }
   if (landedIndex >= input.plan.members.length - 2) {
-    return { status: "applied", state: input.landed };
+    const published = await dependencies.stateStore.publish(
+      input.plan.planId,
+      input.landed.value,
+      input.landed.revision,
+    );
+    return published.status === "ok"
+      ? { status: "applied", state: published.value }
+      : {
+          status: "blocked",
+          reason: "state-conflict",
+          recommendedActionText: "Re-read state; never overwrite a competing native landing settlement.",
+        };
   }
   const suffixStart = landedIndex + 1;
   const plannedSuffix = input.plan.members.slice(suffixStart, -1);
@@ -528,7 +592,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     return {
       status: "blocked",
       reason: "suffix-position-unavailable",
-      recommendedActionText: "Keep the landed state and restore the complete remaining suffix.",
+      recommendedActionText: "Keep the reservation and restore the complete remaining suffix.",
     };
   }
   const observations = await Promise.all(landedSuffix.map(async (member, index) => {
@@ -555,7 +619,8 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     return {
       status: "blocked",
       reason: "suffix-request-mismatch",
-      recommendedActionText: "Keep the landed state and reobserve the complete remaining suffix before review.",
+      recommendedActionText:
+        "Keep the reservation and rerun `arc delivery native land-status` to reobserve the complete suffix.",
     };
   }
   const observedMembers = landedSuffix.flatMap((member, index) => {
@@ -574,7 +639,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     return {
       status: "blocked",
       reason: "suffix-position-unavailable",
-      recommendedActionText: "Keep the landed state and restore complete observed suffix coordinates.",
+      recommendedActionText: "Keep the reservation and restore complete observed suffix coordinates.",
     };
   }
   const affectedDeliverableIds = plannedSuffix.map((member) => member.deliverableId);
@@ -611,12 +676,14 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       status: "blocked",
       reason: settled.reason,
       paths: settled.paths,
-      guidance: "Settle the recognized suffix retarget before new-head review.",
+      guidance:
+        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
     };
   }
   return {
     status: "blocked",
     reason: settled.reason,
-    recommendedActionText: "Settle the recognized suffix retarget before new-head review.",
+    recommendedActionText:
+      "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
   };
 }

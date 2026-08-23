@@ -651,7 +651,7 @@ describe("delivery terminal recovery", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery reconcile",
       status: "blocked",
-      reason: "native-effect-ambiguous",
+      reason: "submission-before-persist-unresolved",
     });
     const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       value: DeliveryStateV1;
@@ -707,7 +707,7 @@ describe("delivery terminal recovery", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery reconcile",
       status: "blocked",
-      reason: "native-effect-ambiguous",
+      reason: "ambiguous-result",
     });
     const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       value: DeliveryStateV1;
