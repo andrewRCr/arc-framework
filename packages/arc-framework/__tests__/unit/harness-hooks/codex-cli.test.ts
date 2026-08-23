@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -258,7 +266,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
           + `process.stdout.write(resolveCodexExecutionCheckout(${JSON.stringify(raw)}) ?? "");`,
       ], { cwd: root, encoding: "utf8" });
 
-      expect(result).toBe(root);
+      expect(result).toBe(realpathSync(root));
     });
   });
 
