@@ -498,20 +498,43 @@ describe("trusted review-gate workflows", () => {
     expect(prResolution).toContain("`closed-unmerged / reopen-change-request`");
 
     const lanes = sectionBetween(packaged, "6. Land per lane:", "7. **Leave");
-    expect(lanes).toMatch(/Auto-merge-lane[\s\S]*--auto <merge-flag>[\s\S]*--match-head-commit/iu);
-    expect(lanes).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
-    expect(lanes).toMatch(/only literal `planning`[\s\S]*preserves this lane/iu);
-    expect(lanes).toMatch(/Reviewed-lane[\s\S]*arm[\s\S]*exact-head[\s\S]*auto-merge/iu);
-    expect(lanes).toMatch(/release-only[\s\S]*explicit/iu);
-    expect(lanes).not.toMatch(/reviewed lane stays open for owner review/iu);
-    const method = lanes.indexOf("arc review merge-method resolve --json");
-    const release = lanes.indexOf("arc merge lock release -", method);
-    const arm = lanes.indexOf("gh pr merge <pr-number> --auto", release);
-    expect(method).toBeGreaterThan(-1);
-    expect(release).toBeGreaterThan(method);
-    expect(arm).toBeGreaterThan(release);
+    const autoLane = sectionBetween(lanes, "**Auto-merge-lane**", "**Reviewed-lane**");
+    expect(autoLane).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
+    expect(autoLane).toMatch(/only literal `planning`[\s\S]*preserves this lane/iu);
+    const autoMethod = autoLane.indexOf("arc review merge-method resolve --json");
+    const autoRelease = autoLane.indexOf("arc merge lock release -", autoMethod);
+    const autoArm = autoLane.indexOf(
+      "gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}",
+      autoRelease,
+    );
+    expect(autoMethod).toBeGreaterThan(-1);
+    expect(autoRelease).toBeGreaterThan(autoMethod);
+    expect(autoArm).toBeGreaterThan(autoRelease);
+    expect(autoLane).toMatch(/arming-time head validation/iu);
+    expect(autoLane).not.toContain("arc review checks await");
+
+    const reviewedLane = sectionBetween(lanes, "**Reviewed-lane**", "**Release-only redirect**");
+    const wait = reviewedLane.indexOf("arc review checks await");
+    const reviewedMethod = reviewedLane.indexOf("arc review merge-method resolve --json", wait);
+    const reviewedRelease = reviewedLane.indexOf("arc merge lock release -", reviewedMethod);
+    const merge = reviewedLane.indexOf(
+      "gh pr merge <pr-number> <merge-flag> --match-head-commit {approved-head-sha}",
+      reviewedRelease,
+    );
+    expect(wait).toBeGreaterThan(-1);
+    expect(reviewedMethod).toBeGreaterThan(wait);
+    expect(reviewedRelease).toBeGreaterThan(reviewedMethod);
+    expect(merge).toBeGreaterThan(reviewedRelease);
+    expect(reviewedLane).not.toContain("--auto");
+    expect(reviewedLane).toMatch(/pending \/ await[\s\S]*same exact\s+head[\s\S]*no second ARC approval/iu);
+
+    const releaseOnly = sectionBetween(lanes, "**Release-only redirect** —", "Once a lane releases");
+    expect(releaseOnly).toMatch(/arc merge lock release -[\s\S]*stop/iu);
+    expect(releaseOnly).not.toContain("gh pr merge");
+    expect(lanes).toMatch(
+      /failed or refused auto-merge arm or direct merge[\s\S]*arc merge lock hold -/iu,
+    );
     expect(lanes.match(/arc merge lock hold -/gu)).toHaveLength(1);
-    expect(lanes).not.toContain("arc review checks await");
 
     const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(
