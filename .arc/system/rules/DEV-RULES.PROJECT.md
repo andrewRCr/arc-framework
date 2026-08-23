@@ -69,6 +69,12 @@ unpublished project-owned contracts and development-only persisted state may cha
 backward-compatibility aliases, migration readers, or data migrations for them; clear or regenerate development state
 instead.
 
+**External-seam enforcement test:** At a host or provider seam, claimed or demanded external authority must match the
+enforcement the platform actually offers. Keep stronger exactness in ARC-controlled validation — derive the authorized
+expectation, observe fresh external state, refuse mismatches, and disclose any residual race — and do not disable a
+capability merely because the platform cannot enforce a guarantee ARC does not require at comparable seams. This does
+not relax distrust of agent self-attestation or exactness over ARC-owned single-writer records.
+
 **TypeScript standards:**
 
 - Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries
