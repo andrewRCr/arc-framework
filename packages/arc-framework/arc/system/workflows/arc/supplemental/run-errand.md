@@ -393,7 +393,10 @@ action.
    a later retry invokes the same command with no second ARC approval while the head remains unchanged. `failed /
    stop`, `stale-target / stop`, `target-mismatch / stop`, and `blocked / stop` stop with the lock held.
 
-   Once checks permit merge, validate the method, release the exact target, and invoke the direct head-matched merge:
+   After checks permit merge, invoke `arc base drift --json` again while the lock remains held. Only authoritative
+   `clean` continues; `reconcile` returns to Step 5, while unavailable or malformed output stops.
+
+   Then validate the method, release the exact target, and invoke the direct head-matched merge:
 
    ```bash
    arc review merge-method resolve --json

@@ -515,18 +515,27 @@ describe("trusted review-gate workflows", () => {
 
     const reviewedLane = sectionBetween(lanes, "**Reviewed-lane**", "**Release-only redirect**");
     const wait = reviewedLane.indexOf("arc review checks await");
-    const reviewedMethod = reviewedLane.indexOf("arc review merge-method resolve --json", wait);
+    const postWaitDrift = reviewedLane.indexOf("arc base drift --json", wait);
+    const reviewedMethod = reviewedLane.indexOf("arc review merge-method resolve --json", postWaitDrift);
     const reviewedRelease = reviewedLane.indexOf("arc merge lock release -", reviewedMethod);
     const merge = reviewedLane.indexOf(
       "gh pr merge <pr-number> <merge-flag> --match-head-commit {approved-head-sha}",
       reviewedRelease,
     );
     expect(wait).toBeGreaterThan(-1);
-    expect(reviewedMethod).toBeGreaterThan(wait);
+    expect(postWaitDrift).toBeGreaterThan(wait);
+    expect(reviewedMethod).toBeGreaterThan(postWaitDrift);
     expect(reviewedRelease).toBeGreaterThan(reviewedMethod);
     expect(merge).toBeGreaterThan(reviewedRelease);
     expect(reviewedLane).not.toContain("--auto");
     expect(reviewedLane).toMatch(/pending \/ await[\s\S]*same exact\s+head[\s\S]*no second ARC approval/iu);
+    expect(reviewedLane).toMatch(/`green \/ complete` and `not-required \/ complete` proceed/iu);
+    expect(reviewedLane).toMatch(
+      /`failed \/\s+stop`, `stale-target \/ stop`, `target-mismatch \/ stop`, and `blocked \/ stop` stop with the lock held/iu,
+    );
+    expect(reviewedLane).toMatch(
+      /arc base drift --json[\s\S]*Only authoritative\s+`clean` continues; `reconcile` returns to Step 5[\s\S]*unavailable or malformed output stops/iu,
+    );
 
     const releaseOnly = sectionBetween(lanes, "**Release-only redirect** —", "Once a lane releases");
     expect(releaseOnly).toMatch(/arc merge lock release -[\s\S]*stop/iu);
