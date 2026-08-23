@@ -134,7 +134,10 @@ describe("arc candidate applicability resolve", () => {
       `${JSON.stringify(request)}\n`,
     );
     expect(first.exitCode, first.stderr || first.stdout).toBe(0);
-    expect(JSON.parse(first.stdout)).toMatchObject({ state: "resolved", nextAction: "continue" });
+    expect(JSON.parse(first.stdout)).toMatchObject({ state: "resolved", nextAction: "commit-selection" });
+    expect(await git(root, ["diff", "--cached", "--name-only"])).toBe(
+      ".arc/system/.internal/candidates/example.json",
+    );
 
     const replay = await runArcWithStdin(
       ["candidate", "applicability", "resolve", "example", "-"],
@@ -142,7 +145,20 @@ describe("arc candidate applicability resolve", () => {
       `${JSON.stringify(request)}\n`,
     );
     expect(replay.exitCode, replay.stderr || replay.stdout).toBe(0);
-    expect(JSON.parse(replay.stdout)).toMatchObject({ state: "exact-replay", nextAction: "continue" });
+    expect(JSON.parse(replay.stdout)).toMatchObject({ state: "exact-replay", nextAction: "commit-selection" });
     expect((await readCandidateRecordVersioned(root, "example")).record?.transitions).toHaveLength(1);
+    expect(await git(root, ["diff", "--cached", "--name-only"])).toBe(
+      ".arc/system/.internal/candidates/example.json",
+    );
+
+    await git(root, ["commit", "-m", "record applicability selection"]);
+    const committedReplay = await runArcWithStdin(
+      ["candidate", "applicability", "resolve", "example", "-"],
+      root,
+      `${JSON.stringify(request)}\n`,
+    );
+    expect(committedReplay.exitCode, committedReplay.stderr || committedReplay.stdout).toBe(0);
+    expect(JSON.parse(committedReplay.stdout)).toMatchObject({ state: "exact-replay", nextAction: "continue" });
+    expect(await git(root, ["diff", "--cached", "--name-only"])).toBe("");
   }, 60_000);
 });

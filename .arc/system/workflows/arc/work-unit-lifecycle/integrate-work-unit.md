@@ -364,11 +364,29 @@ surfaced Candidate-applicability action exactly:
 After an explicit `covered`, `targeted-check`, or `changed` choice, compose the strict input from
 `payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, first complete the bounded
 check and add its evidence reference. Then invoke `arc candidate applicability resolve {name} -` with that input.
-`resolved / continue` and `exact-replay / continue` restart this step. Only `resolved / establish-new-root` or
-`exact-replay / establish-new-root` — produced by an explicit `changed` choice — follows ordinary scope selection,
-completed verification, `arc attest {name} --new-root --json`, and the ordinary attestation commit and push
-contracts before a checkpoint rerun. Every stale, conflicting, invalid, or unavailable resolution follows its typed
-next action without substituting a selection in prose.
+For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
+Candidate selection staged. Run Tier 1 over that correction, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): record Candidate applicability for {name}
+
+Context: meta-{name}.md (integration)
+```
+
+Repeat the Step 1 push extension contract.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. `resolved / continue` and `exact-replay / continue` mean that selection is already durable and
+restart without a redundant commit. Only `resolved / establish-new-root` or `exact-replay / establish-new-root` —
+produced by an explicit `changed` choice — follows ordinary scope selection, completed verification,
+`arc attest {name} --new-root --json`, and the ordinary attestation commit and push contracts before a checkpoint
+rerun. Every stale, conflicting, invalid, or unavailable resolution follows its typed next action without
+substituting a selection in prose.
 
 `candidate-publication-required / resume-pre-publication` renders `payload.recommendedActionText` verbatim and
 invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary

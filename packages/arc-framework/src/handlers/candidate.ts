@@ -24,6 +24,7 @@ import {
 import {
   CandidateRecordVersionConflictError,
   readCandidateRecordVersioned,
+  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../lib/work-unit/git-candidate-applicability.js";
@@ -119,7 +120,7 @@ async function executeCandidateApplicabilityResolution(
     revision: await readObjectId("HEAD^{commit}"),
   });
 
-  return resolveCandidateApplicability({
+  const resolution = await resolveCandidateApplicability({
     readRecord: () => readCandidateRecordVersioned(root, name),
     currentTarget,
     currentBase,
@@ -144,6 +145,17 @@ async function executeCandidateApplicabilityResolution(
       }
     },
   }, input);
+  if ((resolution.state !== "resolved" && resolution.state !== "exact-replay")
+    || resolution.nextAction !== "continue") {
+    return resolution;
+  }
+  const recordPath = resolveCandidateRecordRelativePath(name);
+  await git("git", ["add", "--", recordPath], { cwd: root });
+  const staged = (await git("git", ["diff", "--cached", "--name-only", "--", recordPath], {
+    cwd: root,
+    objectAccess: "local-only",
+  })).stdout.trim();
+  return staged === "" ? resolution : { ...resolution, nextAction: "commit-selection" };
 }
 
 export interface CandidateApplicabilityResolveHandlerDependencies {

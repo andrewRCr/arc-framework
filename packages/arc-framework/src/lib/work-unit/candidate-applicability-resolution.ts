@@ -12,6 +12,7 @@ import {
   CandidateApplicabilitySelectionV1Schema,
   CandidateLineageTargetSchema,
   CandidateManagedRecordV1Schema,
+  projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
   type CandidateApplicabilitySelectionV1,
   type CandidateLineageTarget,
@@ -63,13 +64,15 @@ export const CandidateApplicabilityResolutionResultSchema = z.union([
   z.strictObject({
     ...ResolutionResultCommon,
     state: z.enum(["resolved", "exact-replay"]),
-    nextAction: z.enum(["continue", "establish-new-root"]),
+    nextAction: z.enum(["commit-selection", "continue", "establish-new-root"]),
     candidateId: DigestSchema,
     choice: z.enum(["covered", "targeted-check", "changed"]),
   }).superRefine((value, context) => {
-    const expected = value.choice === "changed" ? "establish-new-root" : "continue";
-    if (value.nextAction !== expected) {
-      context.addIssue({ code: "custom", path: ["nextAction"], message: `must be ${expected}` });
+    const expected = value.choice === "changed"
+      ? ["establish-new-root"]
+      : ["commit-selection", "continue"];
+    if (!expected.includes(value.nextAction)) {
+      context.addIssue({ code: "custom", path: ["nextAction"], message: `must be ${expected.join(" or ")}` });
     }
   }),
   z.strictObject({
@@ -237,6 +240,33 @@ export async function resolveCandidateApplicability(
     : versioned.record;
   if (!exactReplay && versioned.version !== input.expectedRecordVersion) {
     return result({ state: "version-conflict", nextAction: "rerun" });
+  }
+  if (exactReplay && input.choice !== "changed") {
+    let current: CandidateLineageTarget;
+    let currentBase: string;
+    try {
+      currentBase = ObjectIdSchema.parse(await context.currentBase());
+      current = CandidateLineageTargetSchema.parse(await context.currentTarget(currentBase));
+    } catch {
+      return result({
+        state: "projection-failed",
+        nextAction: "return-to-projection",
+        reason: "execution-unavailable",
+        projection: null,
+      });
+    }
+    if (currentBase !== input.currentBase) {
+      return result({ state: "stale-bound-input", nextAction: "reclassify", reason: "current-base-changed" });
+    }
+    if (projectCandidateCurrentness({ record: versioned.record, current }).status !== "current") {
+      return result({ state: "stale-bound-input", nextAction: "reclassify", reason: "current-target-changed" });
+    }
+    return result({
+      state: "exact-replay",
+      nextAction: "continue",
+      candidateId: input.candidateId,
+      choice: input.choice,
+    });
   }
   const projection = await rederive(context, input, baselineRecord);
   if ("mode" in projection && projection.mode === "candidate-applicability-resolve") return projection;

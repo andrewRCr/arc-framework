@@ -35,6 +35,10 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toContain("payload.selectionPromptText");
     expect(step).toContain("payload.resolutionSelector");
     expect(step).toContain("arc candidate applicability resolve {name} -");
+    expect(step).toContain("`resolved / commit-selection`");
+    expect(step).toContain("`exact-replay / commit-selection`");
+    expect(step).toMatch(/commit-selection[\s\S]*`commit-interlock` release[\s\S]*`push-interlock` release/iu);
+    expect(step).toMatch(/exact-replay \/ continue[\s\S]*already durable[\s\S]*restart/iu);
     expect(step).toMatch(/machine-proved `applicable`[\s\S]*no attended step/iu);
     expect(step).toMatch(/explicit `changed`[\s\S]*ordinary scope selection/iu);
   });
@@ -90,9 +94,9 @@ describe("integration current-WU reconcile workflow", () => {
       previous = current;
     }
 
-    expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(3);
-    expect(step.match(/`push-interlock` release/gu)).toHaveLength(3);
-    expect(step.match(/`commit-interlock` release/gu)).toHaveLength(2);
+    expect(step.match(/repeat the Step 1 push extension contract/giu)).toHaveLength(4);
+    expect(step.match(/`push-interlock` release/gu)).toHaveLength(4);
+    expect(step.match(/`commit-interlock` release/gu)).toHaveLength(3);
     const flatStep = step.replace(/\s+/gu, " ");
     const skippedClean = flatStep.indexOf("`skipped-clean / continue-reconcile` restarts this step without a push");
     const mergedOnly = flatStep.indexOf("`merged / run-quality-gates`");

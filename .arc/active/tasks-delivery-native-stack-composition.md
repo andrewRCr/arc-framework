@@ -703,6 +703,18 @@ comparator and trivially accepted.
                   composition plus coordinate rebind still derive against a potentially stale local base instead of
                   one exact authoritative base coordinate.
 
+                - [x] **5.7.R.e.4.1 Persist attended applicability selections before checkpoint rerun**
+
+                    - Fresh and interrupted `covered` or `targeted-check` resolutions now stage the existing
+                      Candidate record and return a typed commit action; already-committed operational-only replay
+                      skips redundant durability, while `changed` still proceeds through the new-root contract.
+                    - Both integration workflow copies route the commit and push before checkpoint rerun, with E2E
+                      coverage over fresh, interrupted, and already-committed replay.
+
+                - [ ] **5.7.R.e.4.2 Bind terminal composition and rebind to one authoritative base coordinate**
+
+                - [ ] **5.7.R.e.4.3 Rerun the Member 5 criteria walk**
+
 ## **Phase 6:** Provider-delegated refresh and native landing
 
 **Delivery member:** 6 — `refresh-and-native-landing`
