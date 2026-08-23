@@ -1258,6 +1258,7 @@ const recoverCmd = program
 recoverCmd
   .command("audit")
   .description("Audit the latest compaction seed against fresh recovery state")
+  .option("--seed-path <path>", "Use an exact adapter-supplied compaction seed path")
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

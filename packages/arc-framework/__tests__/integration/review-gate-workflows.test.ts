@@ -567,7 +567,12 @@ describe("trusted review-gate workflows", () => {
     expect(packaged.match(/arc errand leave <slug>/gu)).toHaveLength(1);
     expect(lanes).not.toContain("arc errand leave <slug>");
     expect(leave).toMatch(/session is ending[\s\S]*moving machines/iu);
-    expect(leave).toMatch(/Do not leave[\s\S]*change request is open[\s\S]*start the next Errand/iu);
+    expect(leave).toMatch(
+      /Do not leave[\s\S]*change request is open[\s\S]*ordinary next-Errand queue advancement/iu,
+    );
+    expect(leave).toMatch(
+      /another Errand must land before the current one can complete[\s\S]*restoration checkout[\s\S]*Never open a different Errand from an active transient/iu,
+    );
   });
 
   it("keeps auto-merge arming on canonical classification", async () => {
