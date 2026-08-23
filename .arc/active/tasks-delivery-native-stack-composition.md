@@ -697,6 +697,12 @@ comparator and trivially accepted.
                 - Re-run coherent-unit gates and a fresh full-rubric adversarial pass over the amended bounded diff
                   and cumulative tree, then record the resolved report without changing Success Criteria markers.
 
+                - The primary walk resolved criteria 1, 2, and 4, but criterion 3 remains `[ ]` over the exact
+                  31-commit Member 5 union through `8e0dfde99`. Heavy pass 2 and source verification confirmed that
+                  applicability selections are not staged or committed before checkpoint rerun, and terminal claim
+                  composition plus coordinate rebind still derive against a potentially stale local base instead of
+                  one exact authoritative base coordinate.
+
 ## **Phase 6:** Provider-delegated refresh and native landing
 
 **Delivery member:** 6 — `refresh-and-native-landing`
