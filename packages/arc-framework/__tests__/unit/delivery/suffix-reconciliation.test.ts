@@ -82,13 +82,13 @@ describe("delivery suffix reconciliation", () => {
       plan,
       current: { revision: 7, value: state },
       affectedDeliverableIds: affected,
-      observeBefore: async () => before,
+      observeBefore: async () => ({ snapshot: before, targetMovement: "exact" }),
       refreshProvider: async () => {
         const operation = writes.at(-1)?.activeOperation;
         mutationSawReservation = operation?.kind === "rewrite" && operation.mode === "provider-adoption";
         return { status: "accepted" };
       },
-      observeResult: async () => observed,
+      observeResult: async () => ({ snapshot: observed, targetMovement: "exact" }),
       proveContribution: async ({ deliverableId }) => {
         proved.push(deliverableId);
         return { status: "accepted", proof: "mechanical-reapply" };
@@ -111,7 +111,7 @@ describe("delivery suffix reconciliation", () => {
       plan,
       current: { revision: 7, value: state },
       affectedDeliverableIds: affected,
-      observeBefore: async () => before,
+      observeBefore: async () => ({ snapshot: before, targetMovement: "exact" }),
       refreshProvider: async () => ({ status: "accepted" }),
       observeResult: async () => { throw new Error("session interrupted"); },
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
@@ -131,7 +131,7 @@ describe("delivery suffix reconciliation", () => {
     const result = await reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: reserved,
-      observed: partial,
+      observed: { snapshot: partial, targetMovement: "exact" },
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async (_planId, value, revision) => ({
         status: "ok", value: { revision: revision + 1, value },
@@ -155,7 +155,7 @@ describe("delivery suffix reconciliation", () => {
       affectedDeliverableIds: affected,
       observeResult: async () => {
         observedResult = true;
-        return observed;
+        return { snapshot: observed, targetMovement: "exact" };
       },
       proveContribution: async ({ deliverableId }) => {
         proved.push(deliverableId);
@@ -180,6 +180,32 @@ describe("delivery suffix reconciliation", () => {
     ]);
   });
 
+  it("adopts an observer-proven append-only target with the refreshed suffix", async () => {
+    const { plan, state, affected, observed } = providerRefreshFixture();
+    const advancedTarget = {
+      ref: state.target!.ref,
+      coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+    };
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds: affected,
+      observeResult: async () => ({
+        snapshot: { ...observed, target: advancedTarget },
+        targetMovement: "append-only",
+      }),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      stateStore: { publish: async (_planId, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+
+    expect(result).toMatchObject({
+      status: "applied",
+      state: { value: { target: advancedTarget, activeOperation: null } },
+    });
+  });
+
   it("keeps a provider reservation retryable and blocks ambiguous or unproved recovery", async () => {
     const { plan, reserved, before, observed } = reservedProviderRefreshFixture();
     const wrongMode = {
@@ -196,21 +222,21 @@ describe("delivery suffix reconciliation", () => {
     await expect(reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: wrongMode,
-      observed: before,
+      observed: { snapshot: before, targetMovement: "exact" },
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async (_id, value) => ({ status: "ok", value: { revision: 9, value } }) },
     })).resolves.toEqual({ status: "blocked", reason: "ambiguous" });
     await expect(reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: reserved,
-      observed,
+      observed: { snapshot: observed, targetMovement: "exact" },
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async () => ({ status: "refused", reason: "version-conflict" }) },
     })).resolves.toEqual({ status: "blocked", reason: "state-conflict" });
     await expect(reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: reserved,
-      observed,
+      observed: { snapshot: observed, targetMovement: "exact" },
       proveContribution: async () => ({
         status: "refused",
         reason: "contribution-diverged",
@@ -228,7 +254,7 @@ describe("delivery suffix reconciliation", () => {
     await expect(reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: reserved,
-      observed: reserved.value.activeOperation!.before,
+      observed: { snapshot: reserved.value.activeOperation!.before, targetMovement: "exact" },
       proveContribution: proveRetry,
       stateStore: { publish: vi.fn() },
     })).resolves.toEqual({ status: "retryable" });
@@ -242,9 +268,9 @@ describe("delivery suffix reconciliation", () => {
       plan,
       current: reserved,
       affectedDeliverableIds: affected,
-      observeBefore: async () => before,
+      observeBefore: async () => ({ snapshot: before, targetMovement: "exact" }),
       refreshProvider,
-      observeResult: async () => observed,
+      observeResult: async () => ({ snapshot: observed, targetMovement: "exact" }),
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: vi.fn() },
     })).resolves.toEqual({ status: "refused", reason: "reservation-refused" });

@@ -597,8 +597,8 @@ describe("delivery landing", () => {
         text: "Rerun `arc delivery rematerialize` for the exact review-fix reservation subject.",
       },
       {
-        kind: "rewrite", mode: "provider-adoption", action: "delivery-native-observe", transition: "cleared",
-        text: "Rerun `arc delivery native observe` for the exact provider-adoption reservation subject.",
+        kind: "rewrite", mode: "provider-adoption", action: "delivery-refresh-adopt", transition: "preserved",
+        text: "Rerun `arc delivery refresh adopt` for the exact provider-adoption reservation subject.",
       },
       {
         kind: "land", mode: "sequential", action: "delivery-land-prepare", transition: "cleared",

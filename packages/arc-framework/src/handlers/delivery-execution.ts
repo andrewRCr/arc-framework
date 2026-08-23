@@ -75,8 +75,17 @@ import {
   reconcileDeliveryExecution,
 } from "../lib/delivery/landing.js";
 import {
+  adoptExternalDeliverySuffixRefresh,
   executeDeliverySuffixRewrite,
+  reconcileReservedSuffixRetarget,
+  type DeliveryProviderRefreshMovement,
 } from "../lib/delivery/suffix-reconciliation.js";
+import {
+  deriveDeliveryProviderRefreshSubject,
+  observeDeliveryProviderRefresh,
+  type DeliveryProviderRefreshSubject,
+} from "../lib/delivery/provider-refresh-observation.js";
+import { planDeliverySuffixRefresh } from "../lib/delivery/refresh.js";
 import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
@@ -308,6 +317,25 @@ const NativeStatusSchema = z.strictObject({
   request: NativeMergeRequestSchema,
   remote: z.string().min(1).default("origin"),
 });
+const RefreshTriggerSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("landing-refused"),
+    reason: z.enum(["conflict", "native-stale-suffix", "host-up-to-date"]),
+  }),
+  z.strictObject({ kind: z.literal("operator-choice") }),
+]);
+const RefreshPlanSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  trigger: RefreshTriggerSchema,
+  remote: z.string().min(1).default("origin"),
+});
+const RefreshAdoptSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  operationId: z.string().min(1).optional(),
+});
 
 const RequestSchemas = {
   "eligibility-prepare": PrepareSchema,
@@ -328,6 +356,8 @@ const RequestSchemas = {
   "native-land-prepare": NativePrepareSchema,
   "native-land-submit": NativeSubmitSchema,
   "native-land-status": NativeStatusSchema,
+  "refresh-plan": RefreshPlanSchema,
+  "refresh-adopt": RefreshAdoptSchema,
 } as const;
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
@@ -420,6 +450,17 @@ const ResultSchema = z.union([
     nextAction: z.literal("read-position").optional(),
   }),
   z.strictObject({ status: z.literal("retryable"), recommendedActionText: z.string().min(1) }),
+  z.strictObject({
+    status: z.literal("disclosed"),
+    plannedSuffix: z.array(DeliveryCanonicalDigestSchema),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("refresh-required"),
+    mechanics: z.literal("operator-initiated"),
+    plannedSuffix: z.array(DeliveryCanonicalDigestSchema).min(1),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   BlockedContributionRefusalSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
@@ -528,6 +569,7 @@ function executionPath(command: DeliveryExecutionCommand): string {
   if (command.startsWith("eligibility-")) return `delivery eligibility ${command.slice("eligibility-".length)}`;
   if (command.startsWith("land-")) return `delivery land ${command.slice("land-".length)}`;
   if (command.startsWith("native-")) return `delivery native ${command.slice("native-".length)}`;
+  if (command.startsWith("refresh-")) return `delivery refresh ${command.slice("refresh-".length)}`;
   return `delivery ${command}`;
 }
 
@@ -924,6 +966,231 @@ async function executeDeliveryCommand(
     }
     return observed;
   };
+
+  const localOnlyExec: GitExec = (commandName, args, options) => exec(commandName, args, {
+    ...options,
+    cwd,
+    objectAccess: "local-only",
+  });
+  const observeRefreshCoordinates = async (head: string) => {
+    const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, head);
+    return coordinates?.head === head ? coordinates : null;
+  };
+  const observeProviderRefresh = async (
+    subject: DeliveryProviderRefreshSubject,
+    repository: string,
+    remote: string,
+  ) => {
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    return observeDeliveryProviderRefresh({ subject, repository }, {
+      observeRequest: (observedRepository, binding) => host.readRequest(observedRepository, binding),
+      observeTarget: async (observedRepository, ref) => {
+        const observed = await host.observeTarget(observedRepository, ref);
+        if (observed.status !== "observed") return { status: "refused" as const };
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", remote, observed.coordinates.head]);
+        } catch {
+          return { status: "refused" as const };
+        }
+        const coordinates = await observeRefreshCoordinates(observed.coordinates.head);
+        return coordinates !== null && canonicalize(coordinates) === canonicalize(observed.coordinates)
+          ? { status: "observed" as const, coordinates }
+          : { status: "refused" as const };
+      },
+      observeRef: async (ref) => {
+        const observed = await observeDeliveryRemoteRef(exec, remote, ref);
+        if (observed.status !== "observed") return null;
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", remote, observed.head]);
+        } catch {
+          return null;
+        }
+        return observeRefreshCoordinates(observed.head);
+      },
+      readAncestry: async (ancestor, descendant) => {
+        const result = await readAncestry(localOnlyExec, ancestor, descendant);
+        return result === "ancestor" || result === "not-ancestor" ? result : null;
+      },
+    });
+  };
+  const proveProviderRefreshMovement = async (movement: DeliveryProviderRefreshMovement) => {
+    const beforeMember = movement.before.coordinates;
+    const afterMember = movement.after.coordinates;
+    if (beforeMember === null || afterMember === null) {
+      return { status: "refused" as const, reason: "contribution-endpoints-unverified" as const };
+    }
+    const [beforePredecessor, afterPredecessor] = await Promise.all([
+      observeRefreshCoordinates(beforeMember.base),
+      observeRefreshCoordinates(afterMember.base),
+    ]);
+    if (beforePredecessor === null || afterPredecessor === null) {
+      return { status: "refused" as const, reason: "contribution-endpoints-unverified" as const };
+    }
+    return proveGitDeliveryContribution({
+      exec: createRawGitExec(cwd),
+      before: { predecessor: beforePredecessor, member: beforeMember },
+      after: { predecessor: afterPredecessor, member: afterMember },
+    });
+  };
+  const reservedRefreshSubject = (
+    plan: z.infer<typeof DeliveryPlanV1Schema>,
+    state: z.infer<typeof DeliveryStateV1Schema>,
+  ): DeliveryProviderRefreshSubject | null => {
+    const operation = state.activeOperation;
+    if (operation?.kind !== "rewrite" || operation.mode !== "provider-adoption") return null;
+    const start = plan.members.findIndex(
+      ({ deliverableId }) => deliverableId === operation.affectedDeliverableIds[0],
+    );
+    const plannedSuffix = start < 0
+      ? []
+      : plan.members.slice(start, -1).map(({ deliverableId }) => deliverableId);
+    const beforeIds = operation.before.members.map(({ deliverableId }) => deliverableId);
+    if (canonicalize(plannedSuffix) !== canonicalize(operation.affectedDeliverableIds)
+      || canonicalize(beforeIds) !== canonicalize(operation.affectedDeliverableIds)) return null;
+    return {
+      landedPrefix: plan.members.slice(0, start).map(({ deliverableId }) => deliverableId),
+      affectedDeliverableIds: operation.affectedDeliverableIds,
+      before: operation.before,
+    };
+  };
+
+  if (command === "refresh-plan" || command === "refresh-adopt") {
+    const parsed = (command === "refresh-plan" ? RefreshPlanSchema : RefreshAdoptSchema).parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return {
+        status: "refused",
+        reason: "delivery-unavailable",
+        recommendedActionText: "Restore canonical delivery plan and state before refreshing.",
+      };
+    }
+    const plan = planRead.value;
+    const current = stateRead.value;
+    if (command === "refresh-plan") {
+      const planRequest = RefreshPlanSchema.parse(parsed);
+      const derived = deriveDeliveryProviderRefreshSubject({ plan, state: current.value });
+      if (derived.status === "refused") {
+        return {
+          ...derived,
+          recommendedActionText: "Restore one exact bound non-terminal suffix before planning refresh.",
+        };
+      }
+      const observed = await observeProviderRefresh(derived.subject, planRequest.repository, planRequest.remote);
+      if (observed.status === "refused") {
+        return planDeliverySuffixRefresh({
+          plan,
+          landedPrefix: derived.subject.landedPrefix,
+          trigger: { ...planRequest.trigger, mechanics: "operator-initiated" },
+          providerMovement: observed.reason === "target-rewritten" ? "target-rewritten" : "ambiguous",
+        });
+      }
+      const stable = derived.subject.before.members.every((member, index) => {
+        const after = observed.observation.snapshot.members[index];
+        return after !== undefined && after.deliverableId === member.deliverableId
+          && after.coordinates?.head === member.coordinates?.head
+          && after.coordinates?.tree === member.coordinates?.tree;
+      });
+      return planDeliverySuffixRefresh({
+        plan,
+        landedPrefix: derived.subject.landedPrefix,
+        trigger: { ...planRequest.trigger, mechanics: "operator-initiated" },
+        providerMovement: stable ? "stable" : "ambiguous",
+      });
+    }
+
+    const adopt = RefreshAdoptSchema.parse(parsed);
+    const active = current.value.activeOperation;
+    if (active !== null) {
+      if (active.kind !== "rewrite" || active.mode !== "provider-adoption"
+        || adopt.operationId !== active.operationId) {
+        return {
+          status: "refused",
+          reason: "operation-mismatch",
+          recommendedActionText: "Use the exact provider-adoption recovery selector from delivery reconcile.",
+        };
+      }
+      const subject = reservedRefreshSubject(plan, current.value);
+      if (subject === null) {
+        return {
+          status: "refused",
+          reason: "position-mismatch",
+          recommendedActionText: "Restore the reserved suffix subject before provider adoption.",
+        };
+      }
+      const observed = await observeProviderRefresh(subject, adopt.repository, adopt.remote);
+      if (observed.status === "refused") {
+        return {
+          status: "refused",
+          reason: observed.reason,
+          recommendedActionText: "Stop and restore an exact provider suffix observation before adoption.",
+        };
+      }
+      const reconciled = await reconcileReservedSuffixRetarget({
+        planId: plan.planId,
+        current,
+        observed: observed.observation,
+        proveContribution: proveProviderRefreshMovement,
+        stateStore,
+      });
+      if (reconciled.status === "retryable") {
+        const cleared = await stateStore.publish(
+          plan.planId,
+          { ...current.value, activeOperation: null },
+          current.revision,
+        );
+        return cleared.status === "ok"
+          ? {
+              status: "retryable",
+              recommendedActionText: "No provider rewrite was observed; plan again from current delivery state.",
+            }
+          : {
+              status: "blocked",
+              reason: "state-conflict",
+              guidance: "Rerun delivery reconcile before clearing the stale reservation.",
+            };
+      }
+      if (reconciled.status === "blocked") {
+        return "paths" in reconciled
+          ? { ...reconciled, guidance: "Resolve the contribution refusal before adopting provider movement." }
+          : { ...reconciled, guidance: "Restore exact provider state and rerun refresh adoption." };
+      }
+      return reconciled;
+    }
+    if (adopt.operationId !== undefined) {
+      return {
+        status: "refused",
+        reason: "operation-mismatch",
+        recommendedActionText: "Omit operationId when adopting an externally initiated refresh.",
+      };
+    }
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state: current.value });
+    if (derived.status === "refused") {
+      return {
+        ...derived,
+        recommendedActionText: "Restore one exact bound non-terminal suffix before refresh adoption.",
+      };
+    }
+    const observed = await observeProviderRefresh(derived.subject, adopt.repository, adopt.remote);
+    if (observed.status === "refused") {
+      return {
+        status: "refused",
+        reason: observed.reason,
+        recommendedActionText: "Stop and restore an exact provider suffix observation before adoption.",
+      };
+    }
+    return adoptExternalDeliverySuffixRefresh({
+      plan,
+      current,
+      affectedDeliverableIds: derived.subject.affectedDeliverableIds,
+      observeResult: () => Promise.resolve(observed.observation),
+      proveContribution: proveProviderRefreshMovement,
+      stateStore,
+    });
+  }
 
   if (command === "native-observe" || command === "native-unlink") {
     const host = new GhDeliveryHostPort(hostedGhRunner);
@@ -1565,6 +1832,22 @@ async function executeDeliveryCommand(
       }
     }
     const activeOperation = currentState.value.activeOperation;
+    if (activeOperation.kind === "rewrite" && activeOperation.mode === "provider-adoption") {
+      return {
+        status: "retryable",
+        transition: "preserved",
+        action: "delivery-refresh-adopt",
+        selector: {
+          planId: parsed.planId,
+          operationId: activeOperation.operationId,
+          affectedDeliverableIds: activeOperation.affectedDeliverableIds,
+          operationKind: "rewrite",
+          mode: "provider-adoption",
+        },
+        recommendedActionText:
+          "Rerun `arc delivery refresh adopt` with the exact provider-adoption reservation selector.",
+      };
+    }
     if (activeOperation.kind === "land" && activeOperation.mode === "native") {
       const host = new GhDeliveryHostPort(hostedGhRunner);
       const nativeRequest = {

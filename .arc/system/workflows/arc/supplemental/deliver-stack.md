@@ -124,8 +124,9 @@ follows its returned `nextAction`. A `retryable` result dispatches only one of t
   `arc delivery publish` against the retained reservation.
 - `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
   `arc delivery rematerialize`.
-- `retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and
-  `mode: provider-adoption` reruns `arc delivery native observe`.
+- `retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and
+  `mode: provider-adoption` reruns `arc delivery refresh adopt` with the exact `operationId`; the CLI derives the
+  reserved suffix rather than accepting the selector's affected IDs as request authority.
 - `retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential` reruns
   `arc delivery land prepare` and requires a new integration interlock before apply.
 - `retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native` reruns
@@ -265,6 +266,27 @@ typed reconcile route and stops when that route does not settle:
 ```bash
 arc delivery reconcile - --json
 ```
+
+When landing refuses for a genuine conflict, native stale-suffix requirement, or host up-to-date policy — or when
+the operator explicitly chooses a refresh — plan from current canonical state:
+
+```bash
+arc delivery refresh plan - --json
+```
+
+The request carries only the plan and repository locators plus that exact trigger. Only `refresh-required`
+continues. Render its exact `plannedSuffix`, mechanics, and `recommendedActionText` before the operator refreshes
+that registered set through the provider UI or porcelain. The terminal top remains outside the provider operation.
+After the external operation settles, adopt only a fresh complete observation:
+
+```bash
+arc delivery refresh adopt - --json
+```
+
+The external-adoption request carries only the plan and repository locators; the CLI derives the remaining suffix,
+reobserves every request and ref, proves every changed contribution, and writes the new coordinates atomically.
+`applied` returns to `arc delivery position`. A retryable recovery result follows its precomposed action; every
+refused or blocked result stops without adopting ambiguous movement. Base movement alone never invokes this arm.
 
 Apply review fixes to the freshly authored suffix, run the ordinary project gates for every candidate, then invoke
 the composed rematerialization service with only the exact selected-member IDs and raw candidate locators:

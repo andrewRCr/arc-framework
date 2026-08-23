@@ -30,6 +30,12 @@ export interface DeliveryProviderRefreshMovement {
   readonly after: DeliveryOperationSnapshotV1["members"][number];
 }
 
+/** One provider observation whose target movement has been established outside caller-authored input. */
+export interface DeliveryProviderRefreshObservation {
+  readonly snapshot: DeliveryOperationSnapshotV1;
+  readonly targetMovement: "exact" | "append-only";
+}
+
 function snapshotFor(
   state: DeliveryStateV1,
   affectedDeliverableIds: readonly string[],
@@ -72,12 +78,14 @@ function isPlannedNonterminalRange(
 
 function observationMatchesSubject(
   before: DeliveryOperationSnapshotV1,
-  observed: DeliveryOperationSnapshotV1,
+  observed: DeliveryProviderRefreshObservation,
 ): boolean {
-  if (canonicalize(observed.target) !== canonicalize(before.target)
-    || observed.members.length !== before.members.length) return false;
+  const targetMatches = observed.snapshot.target?.ref === before.target?.ref
+    && (observed.targetMovement === "append-only"
+      || canonicalize(observed.snapshot.target) === canonicalize(before.target));
+  if (!targetMatches || observed.snapshot.members.length !== before.members.length) return false;
   return before.members.every((member, index) => {
-    const result = observed.members[index];
+    const result = observed.snapshot.members[index];
     return result !== undefined && result.deliverableId === member.deliverableId
       && result.ref === member.ref
       && canonicalize(result.changeRequest) === canonicalize(member.changeRequest)
@@ -87,11 +95,11 @@ function observationMatchesSubject(
 
 function changedProviderMovements(
   before: DeliveryOperationSnapshotV1,
-  observed: DeliveryOperationSnapshotV1,
+  observed: DeliveryProviderRefreshObservation,
 ): DeliveryProviderRefreshMovement[] | null {
   if (!observationMatchesSubject(before, observed)) return null;
   return before.members.flatMap((member, index) => {
-    const result = observed.members[index];
+    const result = observed.snapshot.members[index];
     if (result === undefined || canonicalize(result.coordinates) === canonicalize(member.coordinates)) return [];
     return [{ deliverableId: member.deliverableId, before: member, after: result }];
   });
@@ -112,11 +120,12 @@ async function proveProviderMovements(
 
 function applyProviderObservation(
   state: DeliveryStateV1,
-  observed: DeliveryOperationSnapshotV1,
+  observed: DeliveryProviderRefreshObservation,
 ): DeliveryStateV1 | null {
-  const byId = new Map(observed.members.map((member) => [member.deliverableId, member]));
+  const byId = new Map(observed.snapshot.members.map((member) => [member.deliverableId, member]));
   const parsed = DeliveryStateV1Schema.safeParse({
     ...state,
+    target: observed.snapshot.target,
     members: state.members.map((member) => {
       const result = byId.get(member.deliverableId);
       return result === undefined ? member : {
@@ -141,7 +150,7 @@ type BlockedContributionRefusal = DeliveryContributionRefusal extends infer Refu
 export async function reconcileReservedSuffixRetarget(input: {
   readonly planId: string;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
-  readonly observed: unknown;
+  readonly observed: DeliveryProviderRefreshObservation;
   readonly proveContribution: (
     movement: DeliveryProviderRefreshMovement,
   ) => Promise<DeliveryContributionProofResult>;
@@ -157,18 +166,19 @@ export async function reconcileReservedSuffixRetarget(input: {
     || active.operation.mode !== "provider-adoption") {
     return { status: "blocked", reason: "ambiguous" };
   }
-  const observed = DeliveryOperationSnapshotV1Schema.safeParse(input.observed);
+  const observed = DeliveryOperationSnapshotV1Schema.safeParse(input.observed.snapshot);
   if (!observed.success) return { status: "blocked", reason: "ambiguous" };
-  if (canonicalize(observed.data) === canonicalize(active.operation.before)) {
+  const observation = { ...input.observed, snapshot: observed.data };
+  if (canonicalize(observation.snapshot) === canonicalize(active.operation.before)) {
     return { status: "retryable" };
   }
-  const movements = changedProviderMovements(active.operation.before, observed.data);
+  const movements = changedProviderMovements(active.operation.before, observation);
   if (movements === null || movements.length === 0) {
     return { status: "blocked", reason: "ambiguous" };
   }
   const refusal = await proveProviderMovements(movements, input.proveContribution);
   if (refusal !== null) return { ...refusal, status: "blocked" };
-  const applied = applyProviderObservation(active.state, observed.data);
+  const applied = applyProviderObservation(active.state, observation);
   if (applied === null) return { status: "blocked", reason: "ambiguous" };
   const persisted = await input.stateStore.publish(input.planId, applied, input.current.revision);
   return persisted.status === "ok"
@@ -276,9 +286,9 @@ export async function executeDeliveryProviderRefresh(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly affectedDeliverableIds: readonly string[];
-  readonly observeBefore: () => Promise<DeliveryOperationSnapshotV1>;
+  readonly observeBefore: () => Promise<DeliveryProviderRefreshObservation>;
   readonly refreshProvider: () => Promise<{ readonly status: "accepted" | "refused" }>;
-  readonly observeResult: () => Promise<DeliveryOperationSnapshotV1>;
+  readonly observeResult: () => Promise<DeliveryProviderRefreshObservation>;
   readonly proveContribution: (
     movement: DeliveryProviderRefreshMovement,
   ) => Promise<DeliveryContributionProofResult>;
@@ -316,7 +326,7 @@ export async function executeDeliveryProviderRefresh(input: {
   );
   if (persistedReservation.status !== "ok") return { status: "refused", reason: "state-conflict" };
   const observedBefore = await input.observeBefore();
-  if (checkDeliveryOperationPrecondition(persistedReservation.value, observedBefore).status !== "ready") {
+  if (checkDeliveryOperationPrecondition(persistedReservation.value, observedBefore.snapshot).status !== "ready") {
     return { status: "refused", reason: "precondition-mismatch" };
   }
   if ((await input.refreshProvider()).status !== "accepted") {
@@ -349,7 +359,7 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly affectedDeliverableIds: readonly string[];
-  readonly observeResult: () => Promise<DeliveryOperationSnapshotV1>;
+  readonly observeResult: () => Promise<DeliveryProviderRefreshObservation>;
   readonly proveContribution: (
     movement: DeliveryProviderRefreshMovement,
   ) => Promise<DeliveryContributionProofResult>;

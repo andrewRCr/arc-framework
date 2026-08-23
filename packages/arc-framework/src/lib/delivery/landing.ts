@@ -77,8 +77,8 @@ export const DeliveryRecoveryRerunV1Schema = z.union([
   }),
   z.strictObject({
     ...DeliveryRecoveryRerunCommonV1Shape,
-    transition: z.literal("cleared"),
-    action: z.literal("delivery-native-observe"),
+    transition: z.literal("preserved"),
+    action: z.literal("delivery-refresh-adopt"),
     selector: z.strictObject({
       ...DeliveryRecoverySelectorCommonV1Shape,
       operationKind: z.literal("rewrite"),
@@ -574,11 +574,11 @@ function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
           }
         : {
             status: "retryable",
-            transition: "cleared",
-            action: "delivery-native-observe",
+            transition: "preserved",
+            action: "delivery-refresh-adopt",
             selector: { ...selector, operationKind: "rewrite", mode: "provider-adoption" },
             recommendedActionText:
-              "Rerun `arc delivery native observe` for the exact provider-adoption reservation subject.",
+              "Rerun `arc delivery refresh adopt` for the exact provider-adoption reservation subject.",
           };
     case "teardown":
       return {

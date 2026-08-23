@@ -147,6 +147,91 @@ describe("delivery execution handler", () => {
     expect(executeExit).toHaveBeenCalledWith(1);
   });
 
+  it("preserves an operator refresh plan through its strict command envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const plannedSuffix = plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId);
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-plan", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        trigger: { kind: "landing-refused", reason: "host-up-to-date" },
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "refresh-required",
+        mechanics: "operator-initiated",
+        plannedSuffix,
+        recommendedActionText: "Refresh the exact registered suffix, then adopt its observed result.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery refresh plan",
+      status: "refresh-required",
+      mechanics: "operator-initiated",
+      plannedSuffix,
+    });
+  });
+
+  it("preserves refresh adoption while deriving the suffix behind the strict request boundary", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const execute = vi.fn().mockResolvedValue({
+      status: "applied",
+      state: { revision: 3, value: state },
+    });
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh adopt",
+      status: "applied",
+      state: { revision: 3, value: state },
+    });
+  });
+
+  it("rejects caller-authored refresh member identity and observations", async () => {
+    const plan = deliveryStackPlanFixture();
+    const execute = vi.fn();
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        affectedDeliverableIds: plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId),
+        observation: { target: null, members: [] },
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery refresh adopt",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
   it("preserves the native none-landed retry envelope", async () => {
     const recommendedActionText = "Return to prepare and obtain a new interlock before retrying.";
     const write = vi.fn();
@@ -509,8 +594,8 @@ describe("delivery execution handler", () => {
         action: "delivery-rematerialize",
       },
       {
-        operationKind: "rewrite", mode: "provider-adoption", transition: "cleared",
-        action: "delivery-native-observe",
+        operationKind: "rewrite", mode: "provider-adoption", transition: "preserved",
+        action: "delivery-refresh-adopt",
       },
       { operationKind: "land", mode: "sequential", transition: "cleared", action: "delivery-land-prepare" },
       {

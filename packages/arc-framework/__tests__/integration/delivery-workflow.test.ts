@@ -44,6 +44,8 @@ describe("packaged delivery workflow", () => {
     expect(packaged).toContain("arc delivery native land-prepare");
     expect(packaged).toContain("arc delivery native land-submit");
     expect(packaged).toContain("arc delivery native land-status");
+    expect(packaged).toContain("arc delivery refresh plan");
+    expect(packaged).toContain("arc delivery refresh adopt");
     expect(packaged).toContain("opt-out `unlinked` result makes zero native host calls");
     const materializeSection = section(packaged, "Validate and publish");
     const nativeSection = section(packaged, "Select and execute the native landing arm");
@@ -104,7 +106,7 @@ describe("packaged delivery workflow", () => {
       "retryable / cleared / delivery-publish` with `operationKind: materialize",
       "retryable / preserved / delivery-publish` with `operationKind: publish",
       "retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix",
-      "retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and",
+      "retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and",
       "retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential",
       "retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native",
       "retryable / preserved / delivery-teardown` with `operationKind: teardown",
@@ -112,7 +114,7 @@ describe("packaged delivery workflow", () => {
     ]) {
       expect(recoverySection).toContain(arm);
     }
-    expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery native observe/iu);
+    expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery refresh adopt/iu);
     expect(recoverySection).toMatch(
       /planId[\s\S]*operationId[\s\S]*affectedDeliverableIds[\s\S]*operationKind[\s\S]*narrow `mode`/u,
     );
