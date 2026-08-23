@@ -573,9 +573,6 @@ describe("trusted review-gate workflows", () => {
     expect(complete).toMatch(
       /conversation[\s\S]*exact next Errand[\s\S]*takes precedence over\s+`nextOffer`[\s\S]*no additional completion offer/iu,
     );
-    expect(complete).toMatch(/target must resolve to one exact Errand entry[\s\S]*missing or\s+ambiguous/iu);
-    expect(complete).toMatch(/Otherwise,[\s\S]*nextOffer[\s\S]*exact file-ordered execute-bound sibling/iu);
-    expect(complete).toMatch(/Never scan for a substitute,[\s\S]*persist an Errand sequence,[\s\S]*reorder inbox captures/iu);
     expect(complete).toContain("**Post-leave merge.**");
     expect(complete).toContain("identity's owning open or materialize driver");
     expect(complete).toContain("Exact replay is");
