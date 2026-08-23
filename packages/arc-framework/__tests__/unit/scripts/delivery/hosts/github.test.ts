@@ -76,6 +76,74 @@ describe("GhDeliveryHostPort", () => {
     expect(calls.flat()).not.toContain("stack");
   });
 
+  it("excludes a chained dependent request from the registered-member predicate", async () => {
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+        {
+          number: 403,
+          head: { ref: "delivery/example/top", sha: "c".repeat(40) },
+          base: { ref: "delivery/example/second" },
+        },
+        {
+          number: 402,
+          head: { ref: "delivery/example/second", sha: "b".repeat(40) },
+          base: { ref: "delivery/example/first" },
+        },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
+  it("still reports a genuinely mismatched requested member after dependent filtering", async () => {
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+        {
+          number: 403,
+          head: { ref: "delivery/example/top", sha: "c".repeat(40) },
+          base: { ref: "delivery/example/second" },
+        },
+        {
+          number: 402,
+          head: { ref: "delivery/example/second", sha: "d".repeat(40) },
+          base: { ref: "delivery/example/first" },
+        },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput)).resolves.toEqual({
+      status: "partial",
+      affectedDeliverableIds: [nativeInput.members[1]?.deliverableId],
+    });
+  });
+
+  it("reads an empty stack listing as unregistered", async () => {
+    await expect(new GhDeliveryHostPort(runner([])).observe(nativeInput))
+      .resolves.toEqual({ status: "unregistered" });
+  });
+
+  it("keeps multiple exact stack matches ambiguous", async () => {
+    const pullRequests = [
+      { number: 401, head: { ref: "delivery/example/first", sha: headSha }, base: { ref: "main" } },
+      {
+        number: 402,
+        head: { ref: "delivery/example/second", sha: "b".repeat(40) },
+        base: { ref: "delivery/example/first" },
+      },
+    ];
+    const response = [9, 10].map((number) => ({ number, base: { ref: "main" }, pull_requests: pullRequests }));
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput))
+      .resolves.toEqual({ status: "ambiguous" });
+  });
+
   it("classifies rejected native stack payloads as malformed", async () => {
     const rejected: HostedProcessRunner = { run: async () => {
       throw new HostedProcessError("validation failed", "", 1, 422);

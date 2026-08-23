@@ -775,31 +775,14 @@ structural guarantee rather than operator discipline.
   scope mismatch before host observation or mutation; the raw REST adapter and reservation-free reobserved external
   refresh path remain the only provider seams, so the terminal branch cannot enter provider rewrite authority.
 
-### `[ ]` **6.6 Exclude the dependent unregistered request from the registration predicate**
+### `[x]` **6.6 Exclude the dependent unregistered request from the registration predicate**
 
 - _Goal:_ With the top chained onto the registered set, ARC's own observation reads that set as registered rather
   than falling through to unregistered.
 
-- _Rationale:_ The predicate counts a stack as registered only when the provider returns exactly as many pull
-  requests as the requested member set, positionally matched. With the chained top present, every requested member
-  still matches at its index and only the cardinality check fails — so the affected set stays empty and the result
-  falls through to unregistered, which drives a fresh registration attempt and routes landing to the unlinked arm
-  with no downgrade surfacing anywhere. Left unfixed, the delivery is permanently and silently downgraded.
-
-- _Note:_ Widening registration scope is not an available remedy — the only scope that removes the dependent
-  request from the listing is registering the top, which the append-only contract excludes by construction. If the
-  filter is not achievable against the provider's actual response shape, the single fallback is the complete
-  unlinked path, which stays correct: a degrade target, not a failure.
-
-- _Note:_ The cardinality and base-ref test is one expression, so exclusion must identify the dependent request
-  rather than assume its position; the affected set is loop-external and accumulates across multiple stacks.
-
-    - Build `test-first` (one behavior at a time):
-        - A listing containing exactly the registered members reads as registered
-        - A listing containing the registered members plus the chained dependent top reads as registered
-        - A listing where a requested member genuinely mismatches still reads as partial with that member affected
-        - A listing with no matching stack still reads as unregistered
-        - An ambiguous multi-stack match is unchanged
+- _Outcome:_ GitHub observation now removes one validated unrequested pull request whose base is the highest
+  registered head before cardinality and positional comparison, regardless of listing position, while preserving
+  genuine member mismatches, empty-listing degradation, and ambiguous multi-stack classification.
 
 ### `[ ]` **6.7 Degrade both sub-two-member floors to the unlinked route**
 
