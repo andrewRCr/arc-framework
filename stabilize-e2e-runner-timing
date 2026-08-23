@@ -3,7 +3,7 @@
   "slug": "stabilize-e2e-runner-timing",
   "claimId": "a9e16689004424643ea273a1940de472",
   "createdAt": "2026-08-23T18:11:49.736Z",
-  "updatedAt": "2026-08-23T18:11:49.736Z",
+  "updatedAt": "2026-08-23T19:50:46.527Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make Vitest concurrency environment-selectable so local runs stay capped, ordinary hosted CI runs uncapped, and constrained self-hosted CI can opt into a tighter worker limit; correct only demonstrably incoherent subprocess-heavy test budgets.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stabilize subprocess-heavy E2E timing on constrained self-hosted runners",
   "originEntrySourceDigest": "sha256:b310b243986e0c858bfae1b29787593106b85029c19153f0b1c07e23b3718f38",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/stabilize-e2e-runner-timing",
+    "headSha": "e33dc879213dd17121055cede040abc066840985"
+  }
 }
