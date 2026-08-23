@@ -472,9 +472,21 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
 
 export type ReconcileLinkedNativeDeliverySuffixResult =
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | {
+      readonly status: "blocked";
+      readonly reason: "contribution-conflicted" | "contribution-diverged";
+      readonly paths: readonly string[];
+      readonly guidance: string;
+    }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
-/** Reconcile the single next-member retarget through the existing contribution-proven rewrite path. */
+/**
+ * Reconcile the complete remaining registered suffix through the contribution-proven rewrite path.
+ *
+ * @param input - Exact pre-landing reservation, adopted landing state, repository, and protected target.
+ * @param dependencies - Fresh request/ref observers, contribution arbiter, and version-checked state writer.
+ * @returns The once-persisted reconciled suffix or a closed refusal preserving path evidence when available.
+ */
 export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly plan: DeliveryPlanV1;
   readonly before: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -489,64 +501,122 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
 }): Promise<ReconcileLinkedNativeDeliverySuffixResult> {
   const operation = input.before.value.activeOperation;
   const landedId = operation?.kind === "land" && operation.mode === "native"
-    && operation.affectedDeliverableIds.length === 1
-    ? operation.affectedDeliverableIds[0]
+    ? operation.affectedDeliverableIds.at(-1)
     : undefined;
   const landedIndex = landedId === undefined
     ? -1
     : input.plan.members.findIndex((member) => member.deliverableId === landedId);
-  if (landedIndex < 0 || landedIndex >= input.plan.members.length - 2) {
+  if (landedIndex < 0) {
+    return {
+      status: "blocked",
+      reason: "suffix-position-unavailable",
+      recommendedActionText: "Keep the landed state and restore the exact native landing subject.",
+    };
+  }
+  if (landedIndex >= input.plan.members.length - 2) {
     return { status: "applied", state: input.landed };
   }
-  const next = input.landed.value.members[landedIndex + 1];
-  const oldNext = input.before.value.members[landedIndex + 1];
-  const oldPredecessor = operation?.kind === "land" && operation.mode === "native"
-    ? operation.before.members[0]?.coordinates
-    : null;
+  const suffixStart = landedIndex + 1;
+  const plannedSuffix = input.plan.members.slice(suffixStart, -1);
+  const landedSuffix = input.landed.value.members.slice(suffixStart, -1);
+  const beforeSuffix = input.before.value.members.slice(suffixStart, -1);
   const target = input.landed.value.target;
-  if (next?.ref === null || next?.ref === undefined || next.changeRequest === null || oldNext?.coordinates === null
-    || oldNext?.coordinates === undefined || oldPredecessor === null || oldPredecessor === undefined
-    || target === null || target.coordinates === null) {
-    return { status: "blocked", reason: "suffix-position-unavailable", recommendedActionText: "Keep the landed state and reconcile the first remaining member explicitly." };
+  if (target === null || target.coordinates === null || plannedSuffix.length === 0
+    || landedSuffix.length !== plannedSuffix.length || beforeSuffix.length !== plannedSuffix.length
+    || landedSuffix.some((member, index) => member.deliverableId !== plannedSuffix[index]?.deliverableId)
+    || beforeSuffix.some((member, index) => member.deliverableId !== plannedSuffix[index]?.deliverableId)) {
+    return {
+      status: "blocked",
+      reason: "suffix-position-unavailable",
+      recommendedActionText: "Keep the landed state and restore the complete remaining suffix.",
+    };
   }
-  const [observedRequest, observedRef] = await Promise.all([
-    dependencies.observeRequest(next.changeRequest),
-    dependencies.observeRef(next.ref),
-  ]);
-  if (observedRequest.status !== "observed" || observedRef === null
-    || observedRequest.request.state !== "open"
-    || observedRequest.request.repository !== input.repository
-    || observedRequest.request.headRepository !== input.repository
-    || observedRequest.request.headRef !== next.ref.replace(/^refs\/heads\//u, "")
-    || observedRequest.request.headSha !== observedRef.head
-    || observedRequest.request.baseRef !== input.protectedTargetRef.replace(/^refs\/heads\//u, "")) {
-    return { status: "blocked", reason: "suffix-request-mismatch", recommendedActionText: "Keep the landed state and reobserve the first remaining request before review." };
+  const observations = await Promise.all(landedSuffix.map(async (member, index) => {
+    const predecessor = index === 0 ? null : landedSuffix[index - 1];
+    if (member.ref === null || member.changeRequest === null || member.coordinates === null
+      || beforeSuffix[index]?.coordinates === null || beforeSuffix[index]?.coordinates === undefined
+      || (index > 0 && predecessor?.ref === null)) return null;
+    const [request, ref] = await Promise.all([
+      dependencies.observeRequest(member.changeRequest),
+      dependencies.observeRef(member.ref),
+    ]);
+    const expectedBaseRef = (index === 0 ? input.protectedTargetRef : predecessor?.ref)
+      ?.replace(/^refs\/heads\//u, "");
+    if (request.status !== "observed" || ref === null || expectedBaseRef === undefined
+      || request.request.state !== "open"
+      || request.request.repository !== input.repository
+      || request.request.headRepository !== input.repository
+      || request.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
+      || request.request.headSha !== ref.head
+      || request.request.baseRef !== expectedBaseRef) return null;
+    return { request: request.request, ref };
+  }));
+  if (observations.some((observation) => observation === null)) {
+    return {
+      status: "blocked",
+      reason: "suffix-request-mismatch",
+      recommendedActionText: "Keep the landed state and reobserve the complete remaining suffix before review.",
+    };
   }
-  const moved = {
-    deliverableId: next.deliverableId,
-    ref: next.ref,
-    changeRequest: next.changeRequest,
-    coordinates: { base: target.coordinates.head, head: observedRef.head, tree: observedRef.tree },
-  };
-  const contribution: DeliveryContributionEndpoints = {
-    before: {
-      predecessor: { head: oldPredecessor.head, tree: oldPredecessor.tree },
-      member: { head: oldNext.coordinates.head, tree: oldNext.coordinates.tree },
-    },
-    after: {
-      predecessor: { head: target.coordinates.head, tree: target.coordinates.tree },
-      member: { head: observedRef.head, tree: observedRef.tree },
-    },
-  };
+  const observedMembers = landedSuffix.flatMap((member, index) => {
+    const observation = observations[index];
+    const predecessor = index === 0 ? target.coordinates : observations[index - 1]?.ref;
+    return observation === null || observation === undefined || predecessor === null || predecessor === undefined
+      ? []
+      : [{
+          deliverableId: member.deliverableId,
+          ref: member.ref,
+          changeRequest: member.changeRequest,
+          coordinates: { base: predecessor.head, head: observation.ref.head, tree: observation.ref.tree },
+        }];
+  });
+  if (observedMembers.length !== landedSuffix.length) {
+    return {
+      status: "blocked",
+      reason: "suffix-position-unavailable",
+      recommendedActionText: "Keep the landed state and restore complete observed suffix coordinates.",
+    };
+  }
+  const affectedDeliverableIds = plannedSuffix.map((member) => member.deliverableId);
   const settled = await adoptExternalDeliverySuffixRefresh({
     plan: input.plan,
     current: input.landed,
-    affectedDeliverableIds: [next.deliverableId],
-    observeResult: () => Promise.resolve({ target, members: [moved] }),
-    proveContribution: () => dependencies.proveContribution(contribution),
+    affectedDeliverableIds,
+    observeResult: () => Promise.resolve({ target, members: observedMembers }),
+    proveContribution: (movement) => {
+      const index = affectedDeliverableIds.indexOf(movement.deliverableId);
+      const beforePredecessor = input.before.value.members[suffixStart + index - 1]?.coordinates;
+      const afterPredecessor = index === 0 ? target.coordinates : observedMembers[index - 1]?.coordinates;
+      if (index < 0 || movement.before.coordinates === null || movement.after.coordinates === null
+        || beforePredecessor === null || beforePredecessor === undefined
+        || afterPredecessor === null || afterPredecessor === undefined) {
+        return Promise.resolve({ status: "refused", reason: "contribution-endpoints-unverified" });
+      }
+      return dependencies.proveContribution({
+        before: {
+          predecessor: { head: beforePredecessor.head, tree: beforePredecessor.tree },
+          member: { head: movement.before.coordinates.head, tree: movement.before.coordinates.tree },
+        },
+        after: {
+          predecessor: { head: afterPredecessor.head, tree: afterPredecessor.tree },
+          member: { head: movement.after.coordinates.head, tree: movement.after.coordinates.tree },
+        },
+      });
+    },
     stateStore: dependencies.stateStore,
   });
-  return settled.status === "applied"
-    ? { status: "applied", state: settled.state }
-    : { status: "blocked", reason: settled.reason, recommendedActionText: "Settle the recognized suffix retarget before new-head review." };
+  if (settled.status === "applied") return { status: "applied", state: settled.state };
+  if ("paths" in settled) {
+    return {
+      status: "blocked",
+      reason: settled.reason,
+      paths: settled.paths,
+      guidance: "Settle the recognized suffix retarget before new-head review.",
+    };
+  }
+  return {
+    status: "blocked",
+    reason: settled.reason,
+    recommendedActionText: "Settle the recognized suffix retarget before new-head review.",
+  };
 }

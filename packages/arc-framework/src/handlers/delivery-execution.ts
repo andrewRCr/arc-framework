@@ -293,7 +293,7 @@ const NativeMergeRequestSchema = z.strictObject({
 });
 const NativeSubmitSchema = z.strictObject({
   planId: DeliveryPlanIdSchema, operationId: z.string().min(1), request: NativeMergeRequestSchema,
-  treeRoot: z.string().min(1),
+  treeRoot: z.string().min(1), remote: z.string().min(1).default("origin"),
 });
 const NativeStatusSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -840,6 +840,37 @@ async function executeDeliveryCommand(
     const plan = planRead.value;
     const current = stateRead.value;
     const host = new GhDeliveryHostPort(hostedGhRunner);
+    const reconcileAppliedSuffix = (
+      before: typeof current,
+      landed: typeof current,
+      repository: string,
+      protectedTargetRef: string,
+      remote: string,
+    ) => {
+      const rawExec = createRawGitExec(cwd);
+      return reconcileLinkedNativeDeliverySuffix({
+        plan,
+        before,
+        landed,
+        repository,
+        protectedTargetRef,
+      }, {
+        observeRequest: (binding) => host.readRequest(repository, binding),
+        observeRef: async (ref) => {
+          const remoteRef = await observeDeliveryRemoteRef(exec, remote, ref);
+          if (remoteRef.status !== "observed") return null;
+          try {
+            await exec("git", ["fetch", "--no-write-fetch-head", remote, remoteRef.head]);
+          } catch {
+            return null;
+          }
+          const observed = await observeDeliveryEligibilityRef(exec, remoteRef.head);
+          return observed?.head === remoteRef.head ? observed : null;
+        },
+        proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
+        stateStore,
+      });
+    };
     if (command === "native-land-prepare") {
       const prepare = NativePrepareSchema.parse(parsed);
       const expectedChain = deriveNativeDeliveryMemberChain({
@@ -888,7 +919,7 @@ async function executeDeliveryCommand(
     if (command === "native-land-submit") {
       const submit = NativeSubmitSchema.parse(parsed);
       const operation = current.value.activeOperation;
-      return submitReservedNativeDeliveryMerge({
+      const nativeResult = await submitReservedNativeDeliveryMerge({
         planId: submit.planId, current, operationId: submit.operationId, request: submit.request,
       }, {
         host, stateStore,
@@ -950,6 +981,21 @@ async function executeDeliveryCommand(
           ? observeNativeDeliveryEffect(host, current.value, submit.request.repository, operation)
           : { outcome: "ambiguous" as const },
       });
+      if (nativeResult.status !== "applied") return nativeResult;
+      if (operation === null || operation.kind !== "land" || operation.mode !== "native") {
+        return {
+          status: "blocked",
+          reason: "reservation-mismatch",
+          recommendedActionText: "Restore the exact native landing reservation before suffix reconciliation.",
+        };
+      }
+      return reconcileAppliedSuffix(
+        current,
+        nativeResult.state,
+        submit.request.repository,
+        operation.effect.targetRef,
+        submit.remote,
+      );
     }
     const status = NativeStatusSchema.parse(parsed);
     const operation = current.value.activeOperation;
@@ -961,29 +1007,13 @@ async function executeDeliveryCommand(
       observeEffect: () => observeNativeDeliveryEffect(host, current.value, status.request.repository, operation),
     });
     if (nativeResult.status !== "applied") return nativeResult;
-    const rawExec = createRawGitExec(cwd);
-    return reconcileLinkedNativeDeliverySuffix({
-      plan,
-      before: current,
-      landed: nativeResult.state,
-      repository: status.request.repository,
-      protectedTargetRef: operation.effect.targetRef,
-    }, {
-      observeRequest: (binding) => host.readRequest(status.request.repository, binding),
-      observeRef: async (ref) => {
-        const remoteRef = await observeDeliveryRemoteRef(exec, status.remote, ref);
-        if (remoteRef.status !== "observed") return null;
-        try {
-          await exec("git", ["fetch", "--no-write-fetch-head", status.remote, remoteRef.head]);
-        } catch {
-          return null;
-        }
-        const observed = await observeDeliveryEligibilityRef(exec, remoteRef.head);
-        return observed?.head === remoteRef.head ? observed : null;
-      },
-      proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
-      stateStore,
-    });
+    return reconcileAppliedSuffix(
+      current,
+      nativeResult.state,
+      status.request.repository,
+      operation.effect.targetRef,
+      status.remote,
+    );
   }
 
   if (command === "eligibility-prepare") {

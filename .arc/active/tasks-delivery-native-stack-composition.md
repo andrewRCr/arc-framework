@@ -793,21 +793,14 @@ structural guarantee rather than operator discipline.
   service subject as unlinked for either opt-in choice, without any host call; input validation now precedes the
   opt-in branch so malformed singleton and empty subjects remain explicit refusals rather than floor degradation.
 
-### `[ ]` **6.8 Reconcile the full rewritten suffix on native landing**
+### `[x]` **6.8 Reconcile the full rewritten suffix on native landing**
 
 - _Goal:_ A native landing that rewrites the entire remaining suffix reconciles every rewritten member by
   structural equivalence before admitting its new head to review.
 
-- _Context:_ The native reconciler models only the single next-member retarget today, which is the shape a
-  sequential unlinked landing produces. Native landing rewrites the whole remaining suffix, so full-suffix
-  observation and structural reconciliation become part of the landing result.
-
-    - Build `test-first` (one behavior at a time):
-        - Landing observes the complete remaining suffix rather than the next member alone
-        - Every rewritten member is reconciled by the arbiter before its new head is admitted
-        - A member that fails reconciliation blocks admission and names its paths
-        - A suffix whose moved members are all mechanically equivalent reconciles each through reapply
-        - The single-next-member case still reconciles correctly
+- _Outcome:_ Native post-landing reconciliation now observes the complete plan-ordered registered remainder,
+  validates its request/ref chain, proves every changed member against its before/after predecessor, and admits all
+  coordinates in one CAS; conflicts retain exact paths, while the single-next-member and no-remainder arms remain.
 
 ### `[ ]` **6.9 Make merge-method validation stack-aware**
 

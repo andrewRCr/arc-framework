@@ -528,4 +528,136 @@ describe("native delivery landing", () => {
     expect(proof).toHaveBeenCalledOnce();
     expect(stateStore.publish).toHaveBeenCalledOnce();
   });
+
+  it("observes and reconciles every member in the rewritten remaining suffix", async () => {
+    const suffixPlan = deliveryFourMemberStackPlanFixture();
+    const initial = deliveryStateFixture(suffixPlan);
+    const bound = {
+      ...initial,
+      members: initial.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const first = bound.members[0]!;
+    const beforeSnapshot = { target: bound.target, members: [first] };
+    const reserved = reserveDeliveryOperation({ revision: 1, value: bound }, suffixPlan, {
+      operationId: "operation-1",
+      kind: "land",
+      mode: "native",
+      affectedDeliverableIds: [first.deliverableId],
+      expectedStateRevision: 1,
+      before: beforeSnapshot,
+      requested: beforeSnapshot,
+      effect: {
+        providerId: "github",
+        repository: "o/r",
+        changeRequestId: "41",
+        headSha: first.coordinates!.head,
+        baseRef: "delivery-target",
+        targetRef: "refs/heads/delivery-target",
+        strategy: "merge",
+      },
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const newTarget = { head: "d".repeat(40), tree: "e".repeat(40) };
+    const landed = {
+      ...bound,
+      target: { ref: "refs/heads/delivery-target", coordinates: newTarget },
+      members: bound.members.map((member, index) => index === 0 ? ({
+        ...member,
+        coordinates: { base: member.coordinates!.base, head: newTarget.head, tree: newTarget.tree },
+      }) : member),
+      activeOperation: null,
+    };
+    const movedByRef = new Map([
+      ["refs/heads/member-2", { head: "a".repeat(40), tree: "b".repeat(40) }],
+      ["refs/heads/member-3", { head: "c".repeat(40), tree: "f".repeat(40) }],
+    ]);
+    const reconcileInput = {
+      plan: suffixPlan,
+      before: { revision: 2, value: reserved.state },
+      landed: { revision: 3, value: landed },
+      repository: "o/r",
+      protectedTargetRef: "refs/heads/delivery-target",
+    };
+    const observeRequest = async (binding: NonNullable<typeof bound.members[number]["changeRequest"]>) => {
+      const index = Number(binding.changeRequestId) - 41;
+      const moved = movedByRef.get(`refs/heads/member-${index + 1}`);
+      return moved === undefined ? { status: "absent" as const } : {
+        status: "observed" as const,
+        request: {
+          binding,
+          repository: "o/r",
+          headRepository: "o/r",
+          headRef: `member-${index + 1}`,
+          headSha: moved.head,
+          baseRef: index === 1 ? "delivery-target" : `member-${index}`,
+          state: "open" as const,
+          draft: false,
+        },
+      };
+    };
+    const observeRef = async (ref: string) => movedByRef.get(ref) ?? null;
+    const provedHeads = new Set<string>();
+    let publishCount = 0;
+
+    const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async (endpoints) => {
+        const valid = endpoints.after.member.head === "a".repeat(40)
+          ? endpoints.after.predecessor.head === newTarget.head
+          : endpoints.after.member.head === "c".repeat(40)
+            && endpoints.after.predecessor.head === "a".repeat(40);
+        if (valid) provedHeads.add(endpoints.after.member.head);
+        return valid
+          ? { status: "accepted" as const, proof: "mechanical-reapply" as const }
+          : { status: "refused" as const, reason: "contribution-diverged" as const, paths: ["unexpected"] };
+      },
+      stateStore: { publish: async (_id, value) => {
+        publishCount += 1;
+        if (publishCount > 1 || provedHeads.size !== 2) {
+          return { status: "refused" as const, reason: "version-conflict" as const };
+        }
+        return { status: "ok" as const, value: { revision: 4, value } };
+      } },
+    });
+
+    expect(result).toMatchObject({
+      status: "applied",
+      state: {
+        revision: 4,
+        value: {
+          members: [
+            {},
+            { coordinates: { base: newTarget.head, head: "a".repeat(40), tree: "b".repeat(40) } },
+            { coordinates: { base: "a".repeat(40), head: "c".repeat(40), tree: "f".repeat(40) } },
+            {},
+          ],
+        },
+      },
+    });
+    expect(publishCount).toBe(1);
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async (endpoints) => endpoints.after.member.head === "c".repeat(40)
+        ? {
+            status: "refused",
+            reason: "contribution-conflicted",
+            paths: ["src/conflict.ts"],
+          }
+        : { status: "accepted", proof: "mechanical-reapply" },
+      stateStore: {
+        publish: async () => { throw new Error("rejected suffix reached state publication"); },
+      },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["src/conflict.ts"],
+      guidance: "Settle the recognized suffix retarget before new-head review.",
+    });
+  });
 });
