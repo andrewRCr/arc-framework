@@ -80,6 +80,18 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("sizes Vitest for the selected Linux runner capacity", async () => {
+    const workflow = await read("ci.yml");
+    const parsed = load(workflow) as {
+      env?: Record<string, unknown>;
+      jobs?: Record<string, { env?: Record<string, unknown> }>;
+    };
+    expect(parsed.env?.VITEST_MAX_WORKERS).toBe(
+      "${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}",
+    );
+    expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
+  });
+
   it("provisions Node before the classifier hashes the code tree", async () => {
     const workflow = await read("ci.yml");
     const classifySteps = jobValue(workflow, "classify").steps;
