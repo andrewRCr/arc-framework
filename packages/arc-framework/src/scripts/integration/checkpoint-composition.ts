@@ -20,7 +20,10 @@ import {
   type CandidateEffectiveTargetProjection,
 } from "../../lib/work-unit/candidate-effective-target.js";
 import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
-import { projectGitCandidateEffectiveTarget } from "../../lib/work-unit/git-candidate-effective-target.js";
+import {
+  projectGitCandidateEffectiveTarget,
+  resolveGitCandidateTargetBase,
+} from "../../lib/work-unit/git-candidate-effective-target.js";
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
 import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
@@ -456,12 +459,12 @@ export function createIntegrationCheckpointDependencies(input: {
         ? { status: "current" }
         : { status: "refresh-required" };
     },
-    composeDelivery: async ({ workUnit, candidate: currentness }) => {
+    composeDelivery: async ({ workUnit, candidate: currentness, baseRevision }) => {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);
       if (records.status === "unbound") return { status: "not-applicable" };
       if (records.status === "unavailable") throw new Error("The delivery terminal records are unavailable.");
       const [value, publicationBoundary, config] = await Promise.all([
-        candidate(workUnit),
+        candidate(workUnit, baseRevision),
         boundary(workUnit),
         settings(),
       ]);
@@ -591,9 +594,13 @@ export function createIntegrationCheckpointDependencies(input: {
         })
       )));
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
-      const mergeBase = (await input.exec("git", [
-        "merge-base", currentness.recognizedRevision, configuredBase,
-      ], { cwd: input.cwd, objectAccess: "local-only" })).stdout.trim();
+      const mergeBase = await resolveGitCandidateTargetBase({
+        cwd: input.cwd,
+        revision: currentness.recognizedRevision,
+        baseBranch: configuredBase,
+        baseRevision,
+        exec: input.exec,
+      });
       const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase);
       if (candidateCoordinate === null || predecessorCoordinate === null) {
         throw new Error("The delivery terminal delta coordinates are unavailable.");

@@ -112,6 +112,7 @@ import {
   projectGitCandidateEffectiveTarget,
   resolveGitCandidateTargetBase,
 } from "../lib/work-unit/git-candidate-effective-target.js";
+import { resolveGitCandidateBaseRevision } from "../lib/work-unit/git-candidate-subject.js";
 import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
@@ -1277,9 +1278,12 @@ async function executeDeliveryCommand(
     if (currentState.value.activeOperation === null) {
       const terminal = currentState.value.members.at(-1);
       const targetRef = currentState.value.target?.ref;
+      const baseBranch = targetRef?.startsWith("refs/heads/") === true
+        ? targetRef.slice("refs/heads/".length)
+        : null;
       if (terminal?.ref === null || terminal?.ref === undefined
         || terminal.changeRequest === null || terminal.coordinates === null
-        || targetRef === undefined) {
+        || baseBranch === null || baseBranch === "") {
         return { status: "refused", reason: "terminal-binding-missing" };
       }
       try {
@@ -1300,10 +1304,12 @@ async function executeDeliveryCommand(
             },
           });
         }
+        const baseRevision = await resolveGitCandidateBaseRevision({ cwd, baseBranch, exec });
         const effective = await projectGitCandidateEffectiveTarget({
           cwd,
           name: currentPlan.workUnitId,
-          baseBranch: targetRef,
+          baseBranch,
+          baseRevision,
           record,
           exec,
           rawExec: createRawGitExec(cwd),
@@ -1320,7 +1326,8 @@ async function executeDeliveryCommand(
           resolveGitCandidateTargetBase({
             cwd,
             revision: effective.recognizedTarget.revision,
-            baseBranch: targetRef,
+            baseBranch,
+            baseRevision,
             exec,
           }),
           observeDeliveryEligibilityRef(localExec, effective.recognizedTarget.revision),

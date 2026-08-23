@@ -711,7 +711,13 @@ comparator and trivially accepted.
                     - Both integration workflow copies route the commit and push before checkpoint rerun, with E2E
                       coverage over fresh, interrupted, and already-committed replay.
 
-                - [ ] **5.7.R.e.4.2 Bind terminal composition and rebind to one authoritative base coordinate**
+                - [x] **5.7.R.e.4.2 Bind terminal composition and rebind to one authoritative base coordinate**
+
+                    - Checkpoint now threads its exact fetched base OID through Candidate and terminal-delta
+                      composition, refusing a nominally clean checkpoint without that coordinate.
+                    - Terminal rebind normalizes the protected target branch, resolves one materialized
+                      remote-preferred base OID, and reuses it for effective-target and coordinate derivation; built
+                      CLI coverage pins the stale-local-versus-remote boundary.
 
                 - [ ] **5.7.R.e.4.3 Rerun the Member 5 criteria walk**
 

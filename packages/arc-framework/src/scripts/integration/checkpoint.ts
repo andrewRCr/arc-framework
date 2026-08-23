@@ -487,6 +487,7 @@ export interface IntegrationCheckpointDependencies {
   composeDelivery(input: {
     workUnit: string;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
+    baseRevision: string;
   }): Promise<DeliveryCheckpointArmResult>;
   resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
   composeReady(input: {
@@ -690,6 +691,16 @@ export async function checkpointIntegration(
       payload: { drift },
     });
   }
+  if (drift.baseOid === null) {
+    return IntegrationCheckpointResultSchema.parse({
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "drift-unavailable",
+      remedy: checkpointRemedy("drift-unavailable", request.workUnit),
+      payload: { drift },
+    });
+  }
   const lifecycle = IntegrationLifecycleSummarySchema.parse(
     await dependencies.readLifecycle(request.workUnit),
   );
@@ -703,7 +714,7 @@ export async function checkpointIntegration(
       payload: { lifecycle },
     });
   }
-  const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid ?? undefined);
+  const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
   if (candidate === null) {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
@@ -735,7 +746,7 @@ export async function checkpointIntegration(
       payload: { candidate },
     });
   }
-  const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid ?? undefined);
+  const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid);
   if (publication.status === "refresh-required") {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
@@ -749,7 +760,11 @@ export async function checkpointIntegration(
     });
   }
   try {
-    const delivery = await dependencies.composeDelivery({ workUnit: request.workUnit, candidate });
+    const delivery = await dependencies.composeDelivery({
+      workUnit: request.workUnit,
+      candidate,
+      baseRevision: drift.baseOid,
+    });
     if (delivery.status === "terminal-rebind-required") {
       return IntegrationCheckpointResultSchema.parse({
         ...base,

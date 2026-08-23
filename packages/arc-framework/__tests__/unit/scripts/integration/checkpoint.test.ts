@@ -564,7 +564,7 @@ describe("integration checkpoint", () => {
         member: { head: oid("c"), tree: oid("d") },
       },
     };
-    deps.composeDelivery = async () => ({
+    deps.composeDelivery = async ({ baseRevision }) => baseRevision === CLEAN_DRIFT.baseOid ? ({
       status: "ready",
       claim: {
         status: "composed",
@@ -583,6 +583,17 @@ describe("integration checkpoint", () => {
           baseRef: "main",
           state: "open",
         },
+      },
+    }) : ({
+      status: "blocked",
+      nextAction: "retarget",
+      reason: "top-target-mismatch",
+      planId: PLAN_ID,
+      remedy: {
+        nextAction: "retarget",
+        repository: "owner/repo",
+        changeRequestId: "42",
+        protectedBaseRef: "main",
       },
     });
 

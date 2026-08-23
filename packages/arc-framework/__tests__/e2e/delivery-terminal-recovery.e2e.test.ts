@@ -468,7 +468,10 @@ describe("delivery terminal recovery", () => {
     const terminal = envelope.value.members.at(-1)!;
     const currentHead = await git(repository, ["rev-parse", "HEAD"]);
     const currentTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-    const currentBase = await git(repository, ["merge-base", currentHead, "refs/heads/main"]);
+    const localBase = await git(repository, ["rev-parse", "refs/heads/main"]);
+    const authoritativeBase = await git(repository, ["rev-parse", "refs/remotes/origin/main"]);
+    expect(localBase).not.toBe(authoritativeBase);
+    const currentBase = await git(repository, ["merge-base", currentHead, authoritativeBase]);
     const subject = createCandidateSubjectSnapshot([]);
     const attestation = createCandidateAttestation({
       workUnit: plan.workUnitId,
