@@ -490,6 +490,31 @@ describe("arc errand open", () => {
     expect(result.stdout).not.toContain("--type");
   });
 
+  it("redirects a nested Errand open through the active Errand's leave boundary", async () => {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "nested-open-remote");
+    try {
+      const opened = await runArc(["errand", "open", "first-errand", "--json"], tmpDir);
+      expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
+
+      const refused = await runArc(["errand", "open", "blocking-errand", "--json"], tmpDir);
+
+      expect(refused.exitCode).toBe(1);
+      expect(JSON.parse(refused.stdout.trim())).toMatchObject({
+        outcome: "refused",
+        operation: "errand-open",
+        reason: "role-conflict",
+        recommendedPromptText: expect.stringMatching(
+          /arc errand leave first-errand --state (?:paused|awaiting-merge) --json/u,
+        ),
+      });
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
   it.each([
     { operation: "errand-open", args: ["errand", "open", "bad slug", "--json"] },
     {

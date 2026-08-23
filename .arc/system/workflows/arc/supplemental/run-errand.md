@@ -426,10 +426,16 @@ action.
    re-entry, invokes `arc merge lock hold -` for the exact target. Dispatch on its typed action, then surface the
    originating exit rather than the hold in its place.
 
-7. **Leave only at a terminal session exit.** When the session is ending with the merge tail unresolved, or work is
-   moving machines, invoke `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the
-   change request is open, checks or owner review are pending, or to start the next Errand. Otherwise retain the
-   owning session and continue to Complete when the host reports the merge.
+7. **Leave at a terminal session exit or before a genuine blocking-Errand detour.** When the session is ending with
+   the merge tail unresolved, or work is moving machines, invoke
+   `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the change request is open,
+   checks or owner review are pending, or for ordinary next-Errand queue advancement. Otherwise retain the owning
+   session and continue to Complete when the host reports the merge.
+
+   When another Errand must land before the current one can complete, first checkpoint a clean pushed head. Leave
+   the current Errand as `awaiting-merge` when its PR exists, or as `paused` before PR creation; consume the returned
+   restoration checkout, then open the blocker there. Never open a different Errand from an active transient. After
+   the blocker lands, resume only the original exact identity through its owning open or materialize driver.
 
    If the session is ending before PR creation, commit and push the checkpoint first, then use `--state paused`.
    Partial mode and unpushed or unproven heads refuse. Post-leave work resumes only through the identity's owning

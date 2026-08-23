@@ -115,7 +115,7 @@ export async function openOrdinaryErrand(
     return openError("locus.errand-open.state", error instanceof Error ? error.message : String(error));
   }
   const parent = warmWorkUnitParent(frame);
-  if (parent.kind === "refused") return openRefusal(parent.reason, `Errand open refused: ${parent.reason}.`);
+  if (parent.kind === "refused") return openRefusal(parent.reason, parent.message);
 
   const branch = options.protection === "full" ? `chore/${slug}` : null;
   let record: OrdinaryErrandRecord | null = null;
@@ -331,13 +331,35 @@ export async function openOrdinaryErrandWithDisposition(
 
 function warmWorkUnitParent(frame: DerivedLocusFrame):
   | { kind: "ready"; checkoutPath: string | null }
-  | { kind: "refused"; reason: "role-conflict" } {
-  if (frame.entering.kind !== "selected") return { kind: "refused", reason: "role-conflict" };
+  | { kind: "refused"; reason: "role-conflict"; message: string } {
+  if (frame.entering.kind !== "selected") {
+    return {
+      kind: "refused",
+      reason: "role-conflict",
+      message: "Errand open refused: the current session locus is unresolved.",
+    };
+  }
   const row = frame.entering.row;
   if (row.kind === "free-primary") return { kind: "ready", checkoutPath: null };
-  return row.kind === "work-unit" && row.subject.kind === "work-unit"
-    ? { kind: "ready", checkoutPath: row.checkout.path }
-    : { kind: "refused", reason: "role-conflict" };
+  if (row.kind === "work-unit" && row.subject.kind === "work-unit") {
+    return { kind: "ready", checkoutPath: row.checkout.path };
+  }
+  if (row.kind === "transient" && row.subject.kind === "errand") {
+    const slug = row.subject.key;
+    return {
+      kind: "refused",
+      reason: "role-conflict",
+      message: `Errand '${slug}' is already active. Checkpoint and push it, then run `
+        + `arc errand leave ${slug} --state awaiting-merge --json when its PR is open, or `
+        + `arc errand leave ${slug} --state paused --json before PR creation. `
+        + "Retry this Errand open from the checkout returned by leave.",
+    };
+  }
+  return {
+    kind: "refused",
+    reason: "role-conflict",
+    message: "Errand open refused: settle or leave the active transient before opening another Errand.",
+  };
 }
 
 function resumeHead(record: OrdinaryErrandRecord): string {
