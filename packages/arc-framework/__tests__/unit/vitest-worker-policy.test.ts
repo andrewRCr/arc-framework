@@ -6,6 +6,10 @@ describe("Vitest worker policy", () => {
   it("caps local runs while leaving ordinary CI on native sizing", () => {
     expect(resolveVitestMaxWorkers({})).toBe("50%");
     expect(resolveVitestMaxWorkers({ CI: "true" })).toBeUndefined();
+    expect(resolveVitestMaxWorkers({ CI: " TRUE " })).toBeUndefined();
+    expect(resolveVitestMaxWorkers({ CI: "1" })).toBeUndefined();
+    expect(resolveVitestMaxWorkers({ CI: "false" })).toBe("50%");
+    expect(resolveVitestMaxWorkers({ CI: "0" })).toBe("50%");
     expect(resolveVitestMaxWorkers({ CI: "true", VITEST_MAX_WORKERS: "" })).toBeUndefined();
   });
 
