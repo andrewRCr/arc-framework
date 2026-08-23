@@ -77,8 +77,10 @@ export function resolveCodexExecutionCheckout(raw) {
   if (executionCwd === null) return null;
   const candidateRoot = gitValue(executionCwd, ["rev-parse", "--show-toplevel"]);
   if (candidateRoot === null) return null;
+  const hookRoot = gitValue(hookProjectDir(), ["rev-parse", "--show-toplevel"]);
+  if (hookRoot === null) return null;
 
-  const registered = registeredWorktreeRoots(candidateRoot);
+  const registered = registeredWorktreeRoots(hookRoot);
   const candidateIndex = registered.findIndex((path) => resolve(path) === resolve(candidateRoot));
   if (candidateIndex === -1) return null;
   if (!isReadyTransient(candidateRoot, candidateIndex === 0)) return null;

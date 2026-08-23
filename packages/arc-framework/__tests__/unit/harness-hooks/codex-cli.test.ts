@@ -314,6 +314,38 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
+  it("rejects a transient checkout registered only to another repository", () => {
+    withTempArcProject((root) => {
+      const foreign = mkdtempSync(join(tmpdir(), "arc-codex-foreign-repo-"));
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: foreign, stdio: "ignore" });
+
+      try {
+        const markerPath = join(foreign, ".arc", "system", ".internal", "worktree-marker.json");
+        mkdirSync(dirname(markerPath), { recursive: true });
+        writeFileSync(markerPath, `${JSON.stringify({
+          spawnedByArc: false,
+          provisioning: "ready",
+          createdFor: { kind: "errand", slug: "foreign-probe", claimId: "claim-foreign" },
+        })}\n`);
+        const transcriptPath = join(root, "transcript.jsonl");
+        writeFileSync(transcriptPath, `${JSON.stringify({
+          payload: {
+            item: {
+              type: "CommandExecution",
+              cwd: pathToFileURL(foreign).href,
+            },
+          },
+        })}\n`);
+        const raw = JSON.stringify({ transcript_path: transcriptPath });
+
+        expect(resolveTranscriptCheckout(root, raw)).toBe("");
+      } finally {
+        rmSync(foreign, { recursive: true, force: true });
+      }
+    });
+  });
+
   it("ships hooks.json, an opt-in feature fragment, and shared hook scripts", () => {
     const recipe = readJson<Recipe>(resolve(packageRoot, "init-recipe.json"));
 
