@@ -812,36 +812,29 @@ structural guarantee rather than operator discipline.
   position-bound fingerprint and merge-instant revalidation reuses that exact position; typed CLI refusals and
   remedies retain the same position rather than changing the policy question on retry.
 
-### `[ ]` **6.10 Disclose the registration consequence at the opt-in decision point**
+### `[x]` **6.10 Disclose the registration consequence at the opt-in decision point**
 
 - _Goal:_ An operator choosing native registration sees what it costs and what it buys before choosing, and
   declining makes no host calls at all.
 
-- _Rationale:_ The native arms rewrite the remaining suffix while the unlinked path only retargets, so the
-  registration decision is where review-invalidation cost is incurred — the same posture the refresh arm already
-  takes for drift decisions, applied at one more point rather than as new mechanism. There is no capability gate:
-  registration is blocked on nothing.
+    - `[x]` **6.10.a Precompose the disclosure on the native-link surface**
 
-- _Shape:_ The opt-in is a field on the native-link request — no flag or config key exists — so the disclosure
-  lands at the decision point in the workflow prose that composes that request, with the text itself precomposed
-  on the native-link surface and rendered by prose rather than templated into it.
+        - Added a read-only `decision-required` native-link arm with precomposed opt-in, opt-out, and continuation
+          text before project, state, or provider resolution.
 
-- _Note:_ What native buys is narrower than it looks once the arbiter automates the manual equivalent-tree
-  adoption: a single landing decision for the whole remaining set, plus the reviewer-facing stack UI. Unlinked
-  remains the zero-churn default, with one limit named — it is immune to provider-initiated rewrite, not to
-  rewrite generally, so under strict up-to-date branch protection forced refreshes rewrite heads on either arm.
+    - `[x]` **6.10.b Render it at the decision point in workflow prose**
 
-    - `[ ]` **6.10.a Precompose the disclosure on the native-link surface**
+        - The delivery workflow first invokes native link without `optIn`, renders both returned choice texts
+          verbatim, and only then resubmits the otherwise exact request with the chosen boolean.
 
-        - Recommended-text shape, consistent with the other precomposed operator-facing texts
+    - `[x]` **6.10.c Confirm declining makes no host calls**
 
-    - `[ ]` **6.10.b Render it at the decision point in workflow prose**
+        - The declined arm still returns `unlinked` before either provider observation or registration, preserving
+          the complete sequential executor as the zero-native-call route.
 
-        - Prose renders the precomposed text and never templates its own
-
-    - `[ ]` **6.10.c Confirm declining makes no host calls**
-
-        - A declined opt-in issues zero provider requests
+- _Outcome:_ Native registration now presents its exact atomic-landing and stack-UI benefit, suffix-rewrite review
+  cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
+  declining performs no native host read or mutation.
 
 ### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
 

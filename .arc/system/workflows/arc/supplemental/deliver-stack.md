@@ -141,17 +141,24 @@ let the named ordinary verb reobserve and prepare every other input; workflow pr
 recovery policy. Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous
 result, stops with its reason rendered.
 
-Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
+Only after every request ID exists, compose the exact non-terminal native-link request without `optIn` and invoke:
 
 ```bash
 arc delivery native link - --json
 ```
 
-The CLI receives the explicit opt-in and exact plan/state-derived non-terminal member set; the terminal is never
-registered. A one-member delivery has no registration set and skips this verb. `linked` continues only after a fresh
-exact host observation. An opt-out `unlinked` result makes zero native host calls and enters the ordinary singleton
-path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the explicit unlink verb; `refused`
-stops. On the linked path, refresh presentation facts before every landing:
+Only `decision-required` continues. Render both texts verbatim — `recommendedOptInText` and
+`recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
+After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
+
+```bash
+arc delivery native link - --json
+```
+
+The terminal is never registered. A one-member delivery has no registration set and skips both invocations. `linked`
+continues only after a fresh exact host observation. An opt-out `unlinked` result makes zero native host calls and
+enters the ordinary singleton path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the
+explicit unlink verb; `refused` stops. On the linked path, refresh presentation facts before every landing:
 
 ```bash
 arc delivery native observe - --json

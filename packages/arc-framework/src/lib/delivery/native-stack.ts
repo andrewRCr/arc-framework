@@ -125,10 +125,41 @@ export async function observeDeliveryNativeStack(
 }
 
 export type DeliveryNativeStackLinkResult =
+  | {
+      readonly status: "decision-required";
+      readonly recommendedOptInText: string;
+      readonly recommendedOptOutText: string;
+      readonly recommendedActionText: string;
+    }
   | { readonly status: "linked"; readonly stackNumber: number; readonly recommendedActionText: string }
   | { readonly status: "unlinked"; readonly recommendedActionText: string }
   | { readonly status: "downgrade-required"; readonly reason: string; readonly recommendedActionText: string }
   | { readonly status: "refused"; readonly reason: string; readonly recommendedActionText: string };
+
+/**
+ * Compose the operator-facing native registration choice before any provider read or mutation.
+ *
+ * @returns The precomposed costs, benefits, and exact continuation for the opt-in field.
+ */
+export function composeDeliveryNativeStackLinkDecision(): Extract<
+  DeliveryNativeStackLinkResult,
+  { readonly status: "decision-required" }
+> {
+  return {
+    status: "decision-required",
+    recommendedOptInText:
+      "Opt in for one attended atomic landing decision over the complete remaining non-terminal set and "
+      + "reviewer-facing stack UI for that set. Provider refreshes may rewrite registered heads, so review "
+      + "applicability must be re-evaluated before exact-head review can carry; the top remains outside that "
+      + "UI and native retarget machinery.",
+    recommendedOptOutText:
+      "Decline for zero native-registration host calls and the complete sequential unlinked executor. This "
+      + "avoids provider-initiated rewrites, but strict up-to-date protection may still require head-rewriting "
+      + "refreshes on either route.",
+    recommendedActionText:
+      "Choose native registration or unlinked delivery, then resubmit this exact request with optIn true or false.",
+  };
+}
 
 function matchesRegistrationSubject(
   requested: DeliveryNativeStackInput,

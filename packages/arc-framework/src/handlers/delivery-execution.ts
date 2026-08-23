@@ -89,6 +89,7 @@ import {
   rebindDeliveryTerminalCoordinates,
 } from "../lib/delivery/terminal-integration.js";
 import {
+  composeDeliveryNativeStackLinkDecision,
   degradeNativeDeliveryStack,
   linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
@@ -260,7 +261,7 @@ const NativeLinkSchema = NativeObserveSchema.extend({
   planId: DeliveryPlanIdSchema,
   protectedBaseRef: RefSchema,
   members: z.array(NativeMemberSchema).min(1),
-  optIn: z.boolean(),
+  optIn: z.boolean().optional(),
 });
 const NativeLandingMemberSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
@@ -441,6 +442,12 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("unregistered") }),
   z.strictObject({ status: z.enum(["partial", "incoherent"]), affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema) }),
   z.strictObject({ status: z.enum(["unsupported", "unavailable", "malformed", "ambiguous"]) }),
+  z.strictObject({
+    status: z.literal("decision-required"),
+    recommendedOptInText: z.string().min(1),
+    recommendedOptOutText: z.string().min(1),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("linked"), stackNumber: z.number().int().positive(), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("unlinked"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("downgrade-required"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
@@ -668,6 +675,11 @@ async function executeDeliveryCommand(
   request: unknown,
   interaction?: InteractionContext,
 ): Promise<unknown> {
+  let nativeLinkRequest: z.infer<typeof NativeLinkSchema> | null = null;
+  if (command === "native-link") {
+    nativeLinkRequest = NativeLinkSchema.parse(request);
+    if (nativeLinkRequest.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
+  }
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
   const exec = createGitExec(interaction?.subprocess);
@@ -783,7 +795,8 @@ async function executeDeliveryCommand(
       : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
   }
   if (command === "native-link") {
-    const parsed = NativeLinkSchema.parse(request);
+    const parsed = nativeLinkRequest ?? NativeLinkSchema.parse(request);
+    if (parsed.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
     const [planRead, stateRead] = await Promise.all([
       planStore.readCurrent(parsed.planId),
       stateStore.read(parsed.planId),

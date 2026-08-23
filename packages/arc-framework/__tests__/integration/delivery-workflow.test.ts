@@ -62,6 +62,15 @@ describe("packaged delivery workflow", () => {
     expect(materializeSection.indexOf("arc delivery publish")).toBeLessThan(
       materializeSection.indexOf("arc delivery native link"),
     );
+    const disclosureRead = materializeSection.indexOf("arc delivery native link");
+    const disclosure = materializeSection.indexOf("`decision-required`", disclosureRead);
+    const optedRequest = materializeSection.indexOf("arc delivery native link", disclosureRead + 1);
+    expect(disclosureRead).toBeLessThan(disclosure);
+    expect(disclosure).toBeLessThan(optedRequest);
+    expect(materializeSection).toContain("`recommendedOptInText`");
+    expect(materializeSection).toContain("`recommendedOptOutText`");
+    expect(materializeSection).toMatch(/render both texts verbatim[\s\S]*set `optIn`/iu);
+    expect(materializeSection).not.toContain("review applicability must be re-evaluated");
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
     expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
     expect(nativeSection).not.toContain("only the plan, request, and remote locators");
