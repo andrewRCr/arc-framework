@@ -3,7 +3,11 @@
 import { readFile } from "node:fs/promises";
 import { z, ZodError, type ZodType } from "zod";
 
-import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -368,6 +372,17 @@ const reviewStatusInputRegistration: CommandInputRegistration = {
   schemaFields: { "option.target": "target" },
 };
 
+/** Syntax-owned stack position for merge-method resolution. */
+export const ReviewMergeMethodResolveInputSchema = z.strictObject({
+  stackPosition: MergeMethodStackPositionSchema.default("non-delivery"),
+});
+
+const reviewMergeMethodResolveInputRegistration: CommandInputRegistration = {
+  commandPath: "review merge-method resolve",
+  schema: ReviewMergeMethodResolveInputSchema,
+  schemaFields: { "option.stack-position": "stackPosition" },
+};
+
 /** Registry contributions owned by the review and merge-lock command adapters. */
 export const reviewCommandInputRegistrations = [
   ...[...REVIEW_JSON_COMMAND_PATHS, ...MERGE_LOCK_JSON_COMMAND_PATHS].map((commandPath) => ({
@@ -379,6 +394,7 @@ export const reviewCommandInputRegistrations = [
   reviewChangeRequestInputRegistration,
   reviewChecksAwaitInputRegistration,
   reviewStatusInputRegistration,
+  reviewMergeMethodResolveInputRegistration,
   reviewPrePublicationInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
 
@@ -434,7 +450,7 @@ export async function handleReviewChangeRequestResolve(
       targetRef: null,
       state: "blocked",
       nextAction: "stop",
-      reason: "policy-unreadable",
+      reason: "invalid-input",
       detail: parsed.error.issues.map((issue) => issue.message).join("; "),
       remedy: spineRemedy(
         "Change-request resolution requires an exact branch and head.",
@@ -772,6 +788,24 @@ export async function handleReviewChecksAwait(
 
 /** Input and interaction policies owned by the review command adapters. */
 export const reviewCommandInputPolicyDeclarations = [
+  {
+    commandPath: "review merge-method resolve",
+    aliases: [],
+    sites: [declareCliOptionSite("stack-position", {
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "stackPosition",
+      defaultSource: JSON.stringify("non-delivery"),
+      cancellation: "not-applicable",
+      automation: {
+        noInput: "same",
+        flags: ["--stack-position <position>"],
+        acceptedSyntax: ["--stack-position <position>"],
+      },
+      mutationBoundary: "merge-method policy resolution",
+      subprocess: "none",
+    })],
+  },
   {
     commandPath: "review", aliases: [], sites: [
       declareInteractionSite(
