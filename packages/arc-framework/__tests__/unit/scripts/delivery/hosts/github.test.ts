@@ -258,6 +258,7 @@ describe("GhDeliveryHostPort", () => {
         baseRef: "main",
         state: "open",
         draft: true,
+        mergeCommitSha: null,
       },
     });
     await expect(new GhDeliveryHostPort(runner([])).observeRequest(effect())).resolves.toEqual({ status: "absent" });

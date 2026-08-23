@@ -10,11 +10,17 @@ import {
 } from "../delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../delivery/position.js";
 import type {
+  DeliveryMemberCoordinatesV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
   DeliveryStateV1,
   DeliveryTargetCoordinatesV1,
 } from "../delivery/schema.js";
+import type {
+  DeliveryContributionEndpoints,
+  DeliveryContributionProofResult,
+} from "../delivery/contribution-proof.js";
+import type { DeliveryLandingResultCoordinates } from "../delivery/git-landing-result.js";
 import type { DeliveryPositionObservation } from "./delivery-position.js";
 import {
   classifyDeliveryTopRemedyObservation,
@@ -31,6 +37,12 @@ interface DeliveryPositionFactsDependencies {
   readonly remoteHeads: Readonly<Record<string, string>>;
   readonly localCommits: Readonly<Record<string, boolean>>;
   readonly materializeTarget: (coordinates: DeliveryTargetCoordinatesV1) => Promise<boolean>;
+  readonly observeLandedResult: (input: {
+    readonly mergeCommitSha: string;
+    readonly strategy: "merge" | "rebase" | "squash";
+    readonly beforeMember: DeliveryMemberCoordinatesV1;
+  }) => Promise<DeliveryLandingResultCoordinates | null>;
+  readonly proveContribution: (endpoints: DeliveryContributionEndpoints) => Promise<DeliveryContributionProofResult>;
 }
 
 type RequestState = "open" | "merged" | "closed" | null;
@@ -183,8 +195,20 @@ async function observeOperation(
     if (request.request.state === "open") {
       observation = { outcome: "not-applied" };
     } else if (request.request.state === "merged") {
-      const target = await dependencies.host.observeTarget(dependencies.repository, operation.effect.targetRef);
-      if (target.status !== "observed") return null;
+      const beforeMember = operation.before.members[0]?.coordinates;
+      const beforeTarget = operation.before.target?.coordinates;
+      const mergeCommitSha = request.request.mergeCommitSha;
+      if (beforeMember === null || beforeMember === undefined || beforeTarget === null
+        || beforeTarget === undefined || mergeCommitSha === null || mergeCommitSha === undefined) return null;
+      const landed = await dependencies.observeLandedResult({
+        mergeCommitSha,
+        strategy: operation.effect.strategy,
+        beforeMember,
+      });
+      if (landed === null || (await dependencies.proveContribution({
+        before: { predecessor: beforeTarget, member: beforeMember },
+        after: landed,
+      })).status !== "accepted") return null;
       observation = {
         outcome: "applied",
         observation: {
@@ -192,7 +216,7 @@ async function observeOperation(
           effect: operation.effect,
           outcome: "applied",
           snapshot: {
-            target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
+            target: { ref: operation.effect.targetRef, coordinates: landed.member },
             members: operation.before.members,
           },
         },

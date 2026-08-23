@@ -18,6 +18,7 @@ export interface DeliveryHostChangeRequest {
   readonly baseRef: string;
   readonly state: "open" | "merged" | "closed";
   readonly draft: boolean;
+  readonly mergeCommitSha?: string | null;
 }
 
 /** Closed observation result; non-unique and unavailable evidence never guesses. */

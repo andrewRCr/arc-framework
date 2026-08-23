@@ -51,6 +51,8 @@ describe("delivery terminal recovery", () => {
   }): Promise<{
     readonly planId: string;
     readonly triggerHead: string;
+    readonly nativeMergeHead: string;
+    readonly externalTargetHead: string;
     readonly statePath: string;
     readonly env: Record<string, string>;
   }> {
@@ -61,9 +63,17 @@ describe("delivery terminal recovery", () => {
     const triggerHead = await git(repository, ["rev-parse", "HEAD"]);
     await git(repository, ["commit", "--allow-empty", "-m", "member 2"]);
     const terminalHead = await git(repository, ["rev-parse", "HEAD"]);
+    const nativeMergeHead = await git(repository, [
+      "commit-tree", tree, "-p", targetHead, "-p", triggerHead, "-m", "native merge",
+    ]);
+    const externalTargetHead = await git(repository, [
+      "commit-tree", tree, "-p", nativeMergeHead, "-m", "external landing",
+    ]);
     const branchPushes = [
       `${targetHead}:refs/heads/main`,
       `${terminalHead}:refs/heads/member-2`,
+      `${nativeMergeHead}:refs/heads/native-merge-result`,
+      `${externalTargetHead}:refs/heads/external-target`,
     ];
     if (input.triggerPresent) branchPushes.push(`${triggerHead}:refs/heads/member-1`);
     await git(repository, ["push", "origin", ...branchPushes]);
@@ -130,6 +140,7 @@ describe("delivery terminal recovery", () => {
       requestHead: string,
       stateValue: "open" | "closed",
       base: string,
+      mergeCommitSha?: string,
     ) => JSON.stringify({
       number,
       state: stateValue,
@@ -137,6 +148,7 @@ describe("delivery terminal recovery", () => {
       draft: stateValue === "open",
       head: { ref: `member-${member}`, sha: requestHead, repo: { full_name: "owner/repo" } },
       base: { ref: base, repo: { full_name: "owner/repo" } },
+      merge_commit_sha: stateValue === "closed" ? mergeCommitSha ?? nativeMergeHead : null,
     });
     await mkdir(fakeBin);
     await writeFile(fakeGh, [
@@ -155,9 +167,12 @@ describe("delivery terminal recovery", () => {
       "    esac",
       "    ;;",
       "  repos/owner/repo/git/ref/heads/main)",
-      `    printf '%s\\n' '${JSON.stringify({ object: { sha: targetHead } })}'`,
+      `    if [ "\${ARC_FAKE_TARGET_ADVANCED:-0}" = "1" ]; then printf '%s\\n' '${JSON.stringify({ object: { sha: externalTargetHead } })}'; else printf '%s\\n' '${JSON.stringify({ object: { sha: targetHead } })}'; fi`,
       "    ;;",
       `  repos/owner/repo/git/commits/${targetHead})`,
+      `    printf '%s\\n' '${JSON.stringify({ tree: { sha: tree } })}'`,
+      "    ;;",
+      `  repos/owner/repo/git/commits/${externalTargetHead})`,
       `    printf '%s\\n' '${JSON.stringify({ tree: { sha: tree } })}'`,
       "    ;;",
       "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
@@ -168,6 +183,8 @@ describe("delivery terminal recovery", () => {
     return {
       planId: plan.planId,
       triggerHead,
+      nativeMergeHead,
+      externalTargetHead,
       statePath,
       env: {
         PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
@@ -716,6 +733,28 @@ describe("delivery terminal recovery", () => {
       operationId: "native-landing-recovery",
       effectIdentity: { providerId: "github", effectId: "native-effect-1" },
     });
+  });
+
+  it("settles a native landing at its merge result when the protected target advances afterward", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    await reserveInterruptedNativeLanding(fixture, true);
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: {
+        ...fixture.env,
+        ARC_FAKE_NATIVE_MERGED: "1",
+        ARC_FAKE_TARGET_ADVANCED: "1",
+      } },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    const settled = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    expect(settled.value.target?.coordinates?.head).toBe(fixture.nativeMergeHead);
+    expect(settled.value.target?.coordinates?.head).not.toBe(fixture.externalTargetHead);
   });
 
   it("retains an interrupted teardown reservation when the request head moved", async () => {

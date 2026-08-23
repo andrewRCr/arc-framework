@@ -28,6 +28,7 @@ import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lif
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import {
   deleteDeliveryRemoteRef,
   observeDeliveryRemoteRef,
@@ -355,6 +356,7 @@ const DeliveryHostRequestSchema = z.strictObject({
   headSha: GitObjectIdSchema,
   baseRef: z.string().min(1),
   state: z.enum(["open", "merged", "closed"]),
+  mergeCommitSha: GitObjectIdSchema.nullable().optional(),
 });
 const DeliveryTopReadySchema = z.strictObject({
   status: z.literal("ready"),
@@ -618,10 +620,12 @@ async function observeNativeDeliveryEffect(
   state: DeliveryStateV1,
   repository: string,
   operation: Extract<NonNullable<DeliveryStateV1["activeOperation"]>, { kind: "land" }>,
+  exec: GitExec,
+  cwd: string,
+  remote: string,
 ): Promise<DeliveryNativeEffectFacts> {
-  const target = await host.observeTarget(repository, operation.effect.targetRef);
-  if (target.status !== "observed") return { outcome: "ambiguous" };
   const merged: string[] = [];
+  const landedResults: Array<NonNullable<Awaited<ReturnType<typeof observeGitDeliveryLandingResult>>>> = [];
   for (const [index, entry] of operation.before.members.entries()) {
     const member = state.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
     const prior = operation.before.members[index - 1];
@@ -650,25 +654,49 @@ async function observeNativeDeliveryEffect(
       return { outcome: "ambiguous" };
     }
     if (observed.request.state === "merged") {
+      if (observed.request.mergeCommitSha === null || observed.request.mergeCommitSha === undefined) {
+        return { outcome: "ambiguous" };
+      }
+      const landedResult = await observeGitDeliveryLandingResult({
+        exec,
+        cwd,
+        remote,
+        resultHead: observed.request.mergeCommitSha,
+        strategy: "merge",
+        beforeMember: entry.coordinates,
+      });
+      if (landedResult === null) return { outcome: "ambiguous" };
+      const previous = landedResults.at(-1);
+      if (previous !== undefined && landedResult.predecessor.head !== previous.member.head) {
+        return { outcome: "ambiguous" };
+      }
       merged.push(entry.deliverableId);
+      landedResults.push(landedResult);
     }
   }
   if (merged.length === 0) return { outcome: "none-landed" };
   if (merged.length !== operation.before.members.length) {
     return { outcome: "partial-landed", affectedDeliverableIds: merged };
   }
+  const targetBefore = operation.before.target?.coordinates;
+  const firstResult = landedResults[0];
+  const finalResult = landedResults.at(-1);
+  if (targetBefore === null || targetBefore === undefined || firstResult === undefined || finalResult === undefined) {
+    return { outcome: "ambiguous" };
+  }
+  const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+    ...options,
+    cwd,
+    objectAccess: "local-only",
+  });
+  if (await readAncestry(localOnlyExec, targetBefore.head, firstResult.predecessor.head) !== "ancestor") {
+    return { outcome: "ambiguous" };
+  }
   return {
     outcome: "all-landed",
     snapshot: {
-      target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
-      members: operation.before.members.map((entry) => ({
-        ...entry,
-        coordinates: {
-          base: entry.coordinates?.base ?? target.coordinates.head,
-          head: target.coordinates.head,
-          tree: target.coordinates.tree,
-        },
-      })),
+      target: { ref: operation.effect.targetRef, coordinates: finalResult.member },
+      members: operation.before.members,
     },
   };
 }
@@ -831,6 +859,15 @@ async function executeDeliveryCommand(
         const local = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
         return local?.head === coordinates.head && local.tree === coordinates.tree;
       },
+      observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
+        observeGitDeliveryLandingResult({
+          exec, cwd, remote, resultHead: mergeCommitSha, strategy, beforeMember,
+        })
+      ),
+      proveContribution: (endpoints) => proveGitDeliveryContribution({
+        exec: createRawGitExec(cwd),
+        ...endpoints,
+      }),
     });
     if (observed.status !== "observed") return observed;
     for (const deliverableId of operation?.affectedDeliverableIds ?? []) {
@@ -1009,7 +1046,9 @@ async function executeDeliveryCommand(
           return { status: released.state === "blocked" ? "refused" as const : released.state === "released" ? "released" as const : "not-configured" as const };
         },
         observeEffect: async () => operation?.kind === "land" && operation.mode === "native"
-          ? observeNativeDeliveryEffect(host, current.value, submit.request.repository, operation)
+          ? observeNativeDeliveryEffect(
+              host, current.value, submit.request.repository, operation, exec, cwd, submit.remote,
+            )
           : { outcome: "ambiguous" as const },
       });
       if (nativeResult.status !== "applied") return nativeResult;
@@ -1036,7 +1075,9 @@ async function executeDeliveryCommand(
     }
     const nativeResult = await reconcileReservedNativeDeliveryMerge({ planId: status.planId, current, request: status.request }, {
       host, stateStore,
-      observeEffect: () => observeNativeDeliveryEffect(host, current.value, status.request.repository, operation),
+      observeEffect: () => observeNativeDeliveryEffect(
+        host, current.value, status.request.repository, operation, exec, cwd, status.remote,
+      ),
     });
     if (nativeResult.status !== "applied") return nativeResult;
     return settleAppliedNativeLanding(
@@ -1329,10 +1370,14 @@ async function executeDeliveryCommand(
             } }
             : { status: "refused" as const };
         },
-        proveLandedContribution: (coordinates) => proveGitDeliveryContribution({
+        observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
+          observeGitDeliveryLandingResult({
+            exec, cwd, remote: apply.remote, resultHead: mergeCommitSha, strategy, beforeMember,
+          })
+        ),
+        proveLandedContribution: (endpoints) => proveGitDeliveryContribution({
           exec: createRawGitExec(cwd),
-          before: { predecessor: coordinates.beforeTarget, member: coordinates.beforeMember },
-          after: { predecessor: coordinates.beforeTarget, member: coordinates.afterTarget },
+          ...endpoints,
         }),
       },
     });
@@ -1464,6 +1509,9 @@ async function executeDeliveryCommand(
           currentState.value,
           parsed.repository,
           activeOperation,
+          exec,
+          cwd,
+          parsed.remote,
         ),
       });
       if (nativeResult.status !== "applied") return nativeResult;
@@ -1622,20 +1670,27 @@ async function executeDeliveryCommand(
             if (request.request.state !== "merged") {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            const target = await host.observeTarget(parsed.repository, operation.effect.targetRef);
             const beforeTarget = operation.before.target?.coordinates;
-            if (target.status !== "observed" || beforeTarget === null || beforeTarget === undefined) {
+            const mergeCommitSha = request.request.mergeCommitSha;
+            if (beforeTarget === null || beforeTarget === undefined || mergeCommitSha === null
+              || mergeCommitSha === undefined) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            try {
-              await exec("git", ["fetch", "--no-write-fetch-head", parsed.remote, target.coordinates.head]);
-            } catch {
+            const landed = await observeGitDeliveryLandingResult({
+              exec,
+              cwd,
+              remote: parsed.remote,
+              resultHead: mergeCommitSha,
+              strategy: operation.effect.strategy,
+              beforeMember: beforeMember.coordinates,
+            });
+            if (landed === null) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
             const proof = await proveGitDeliveryContribution({
               exec: createRawGitExec(cwd),
               before: { predecessor: beforeTarget, member: beforeMember.coordinates },
-              after: { predecessor: beforeTarget, member: target.coordinates },
+              after: landed,
             });
             if (proof.status !== "accepted") return proof;
             return {
@@ -1647,15 +1702,8 @@ async function executeDeliveryCommand(
                   effect: operation.effect,
                   outcome: "applied",
                   snapshot: {
-                    target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
-                    members: operation.before.members.map((member) => ({
-                      ...member,
-                      coordinates: member.coordinates === null ? null : {
-                        base: member.coordinates.base,
-                        head: target.coordinates.head,
-                        tree: target.coordinates.tree,
-                      },
-                    })),
+                    target: { ref: operation.effect.targetRef, coordinates: landed.member },
+                    members: operation.before.members,
                   },
                 },
               },

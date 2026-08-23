@@ -49,6 +49,7 @@ function facts(state: DeliveryStateV1): DeliveryPositionFactsV1 {
 
 function boundaries(state: DeliveryStateV1) {
   const member = state.members[0]!;
+  const mergeResult = { head: "d".repeat(40), tree: "e".repeat(40) };
   let merged = false;
   const observeRequest = vi.fn(async () => ({
     status: "observed" as const,
@@ -61,6 +62,7 @@ function boundaries(state: DeliveryStateV1) {
       baseRef: "main",
       state: merged ? "merged" as const : "open" as const,
       draft: true,
+      mergeCommitSha: merged ? mergeResult.head : null,
     },
   }));
   const mergeRequest = vi.fn(async () => {
@@ -74,7 +76,7 @@ function boundaries(state: DeliveryStateV1) {
     mergeRequest,
     observeTarget: vi.fn(async () => ({
       status: "observed" as const,
-      coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+      coordinates: { head: "f".repeat(40), tree: "a".repeat(40) },
     })),
   };
   return {
@@ -95,6 +97,10 @@ function boundaries(state: DeliveryStateV1) {
             coordinates: member.coordinates,
           }],
         },
+      })),
+      observeLandedResult: vi.fn(async () => ({
+        predecessor: state.target!.coordinates!,
+        member: mergeResult,
       })),
       proveLandedContribution: vi.fn(async () => ({ status: "accepted" as const, proof: "tree-equality" as const })),
     },
@@ -162,7 +168,7 @@ describe("delivery landing", () => {
     expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
-  it("reobserves after approval, performs one head-matched merge, and records the actual target", async () => {
+  it("records the exact merge result when the protected target advances after landing", async () => {
     const { plan, state } = boundState();
     const deps = boundaries(state);
     let reservedRecord: { revision: number; value: DeliveryStateV1 } | null = null;
@@ -296,7 +302,7 @@ describe("delivery landing", () => {
     })).resolves.toEqual({ status: "refused", reason: "native-stack-required" });
   });
 
-  it("refuses mismatched post-merge request, target, or contribution evidence", async () => {
+  it("refuses mismatched post-merge request, merge result, or contribution evidence", async () => {
     const { plan, state } = boundState();
     const preparedDeps = boundaries(state);
     let current: { revision: number; value: DeliveryStateV1 } | null = null;
@@ -339,19 +345,16 @@ describe("delivery landing", () => {
       observation: changedRequest.observation,
     })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
 
-    const missingTarget = boundaries(state);
+    const missingResult = boundaries(state);
     await expect(applyDeliveryLanding({
       plan,
       current,
       approved: prepared.presentation,
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
-      host: {
-        ...missingTarget.host,
-        observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
-      },
-      readiness: missingTarget.readiness,
-      lock: missingTarget.lock,
-      observation: missingTarget.observation,
+      host: missingResult.host,
+      readiness: missingResult.readiness,
+      lock: missingResult.lock,
+      observation: { ...missingResult.observation, observeLandedResult: async () => null },
     })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
 
     const refusedContribution = boundaries(state);

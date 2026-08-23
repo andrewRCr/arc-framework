@@ -76,10 +76,13 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const state = request?.state;
   const merged = request?.merged;
   const mergedAt = request?.merged_at;
+  const mergeCommitSha = request?.merge_commit_sha;
   if (request === null || !Number.isSafeInteger(number) || (number as number) <= 0
     || (state !== "open" && state !== "closed")
     || (merged !== undefined && typeof merged !== "boolean")
     || (mergedAt !== undefined && mergedAt !== null && (typeof mergedAt !== "string" || mergedAt === ""))
+    || (mergeCommitSha !== undefined && mergeCommitSha !== null
+      && (typeof mergeCommitSha !== "string" || !objectId.test(mergeCommitSha)))
     || typeof request.draft !== "boolean"
     || typeof head?.ref !== "string" || head.ref === ""
     || typeof head.sha !== "string" || !objectId.test(head.sha)
@@ -95,6 +98,7 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
     baseRef: base.ref,
     state: merged === true || typeof mergedAt === "string" ? "merged" : state,
     draft: request.draft,
+    mergeCommitSha: typeof mergeCommitSha === "string" ? mergeCommitSha : null,
   };
 }
 

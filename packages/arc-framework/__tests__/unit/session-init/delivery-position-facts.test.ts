@@ -54,6 +54,14 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
       availableCommits.add(coordinates.head);
       return true;
     }),
+    observeLandedResult: vi.fn(async ({ mergeCommitSha }: { mergeCommitSha: string }) => ({
+      predecessor: targetCoordinates,
+      member: { head: mergeCommitSha, tree: trees.get(mergeCommitSha) ?? targetCoordinates.tree },
+    })),
+    proveContribution: vi.fn(async () => ({
+      status: "accepted" as const,
+      proof: "mechanical-reapply" as const,
+    })),
     remoteHeads: Object.fromEntries(state.members.flatMap((member) => (
       member.ref === null || member.coordinates === null
         ? []
@@ -372,7 +380,12 @@ describe("session-init delivery position facts", () => {
         baseRef: "main",
         state: "merged",
         draft: true,
+        mergeCommitSha: mergedCoordinates.head,
       },
+    });
+    mergedDeps.observeLandedResult.mockResolvedValue({
+      predecessor: publishedState.target!.coordinates!,
+      member: mergedCoordinates,
     });
     await expect(observeRepositoryDeliveryPosition(plan, land.state, 6, mergedDeps))
       .resolves.toMatchObject({

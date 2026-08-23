@@ -15,6 +15,7 @@ import {
 } from "./position.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type {
+  DeliveryContributionEndpoints,
   DeliveryContributionProofResult,
   DeliveryContributionRefusal,
 } from "./contribution-proof.js";
@@ -259,11 +260,15 @@ export interface DeliveryLandingObservationPort {
       }
     | { readonly status: "refused" }
   >;
-  proveLandedContribution(input: {
-    readonly beforeTarget: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+  observeLandedResult(input: {
+    readonly mergeCommitSha: string;
+    readonly strategy: "merge" | "rebase" | "squash";
     readonly beforeMember: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>;
-    readonly afterTarget: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
-  }): Promise<DeliveryContributionProofResult>;
+  }): Promise<{
+    readonly predecessor: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+    readonly member: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+  } | null>;
+  proveLandedContribution(input: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
 }
 
 type DeliveryLandingRefusal =
@@ -492,19 +497,24 @@ export async function applyDeliveryLanding(input: {
     || member.ref === null || merged.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
     || merged.request.headSha !== operation.effect.headSha
     || merged.request.baseRef !== operation.effect.baseRef) return landingRefused();
-  const target = await input.host.observeTarget(input.approved.repository, operation.effect.targetRef);
-  if (target.status !== "observed") return landingRefused();
   const memberCoordinates = member.coordinates;
   const beforeTarget = operation.before.target?.coordinates;
-  if (beforeTarget === null || beforeTarget === undefined) return landingRefused();
-  const proof = await input.observation.proveLandedContribution({
-    beforeTarget,
+  const mergeCommitSha = merged.request.mergeCommitSha;
+  if (beforeTarget === null || beforeTarget === undefined || mergeCommitSha === null
+    || mergeCommitSha === undefined) return landingRefused();
+  const landed = await input.observation.observeLandedResult({
+    mergeCommitSha,
+    strategy: operation.effect.strategy,
     beforeMember: memberCoordinates,
-    afterTarget: target.coordinates,
+  });
+  if (landed === null) return landingRefused();
+  const proof = await input.observation.proveLandedContribution({
+    before: { predecessor: beforeTarget, member: memberCoordinates },
+    after: landed,
   });
   if (proof.status !== "accepted") return proof;
   const observed: DeliveryOperationSnapshotV1 = {
-    target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
+    target: { ref: operation.effect.targetRef, coordinates: landed.member },
     members: operation.before.members,
   };
   const accepted = acceptDeliveryOperationResult(input.current, {
