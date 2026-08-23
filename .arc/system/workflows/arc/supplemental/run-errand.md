@@ -396,6 +396,15 @@ action.
    After checks permit merge, invoke `arc base drift --json` again while the lock remains held. Only authoritative
    `clean` continues; `reconcile` returns to Step 5, while unavailable or malformed output stops.
 
+   Then rerun the exact-head change-request resolver:
+
+   ```bash
+   arc review change-request resolve --head-ref <branch> --head-sha {approved-head-sha} --json
+   ```
+
+   Continue only from `open / reuse-change-request` for the same `<pr-number>`; that result proves the configured
+   base and exact approved head. Any other state, action, or candidate stops with the lock held.
+
    Then validate the method, release the exact target, and invoke the direct head-matched merge:
 
    ```bash

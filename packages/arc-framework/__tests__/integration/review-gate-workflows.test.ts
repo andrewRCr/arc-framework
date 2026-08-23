@@ -516,7 +516,11 @@ describe("trusted review-gate workflows", () => {
     const reviewedLane = sectionBetween(lanes, "**Reviewed-lane**", "**Release-only redirect**");
     const wait = reviewedLane.indexOf("arc review checks await");
     const postWaitDrift = reviewedLane.indexOf("arc base drift --json", wait);
-    const reviewedMethod = reviewedLane.indexOf("arc review merge-method resolve --json", postWaitDrift);
+    const postWaitTarget = reviewedLane.indexOf(
+      "arc review change-request resolve --head-ref <branch> --head-sha {approved-head-sha} --json",
+      postWaitDrift,
+    );
+    const reviewedMethod = reviewedLane.indexOf("arc review merge-method resolve --json", postWaitTarget);
     const reviewedRelease = reviewedLane.indexOf("arc merge lock release -", reviewedMethod);
     const merge = reviewedLane.indexOf(
       "gh pr merge <pr-number> <merge-flag> --match-head-commit {approved-head-sha}",
@@ -524,7 +528,8 @@ describe("trusted review-gate workflows", () => {
     );
     expect(wait).toBeGreaterThan(-1);
     expect(postWaitDrift).toBeGreaterThan(wait);
-    expect(reviewedMethod).toBeGreaterThan(postWaitDrift);
+    expect(postWaitTarget).toBeGreaterThan(postWaitDrift);
+    expect(reviewedMethod).toBeGreaterThan(postWaitTarget);
     expect(reviewedRelease).toBeGreaterThan(reviewedMethod);
     expect(merge).toBeGreaterThan(reviewedRelease);
     expect(reviewedLane).not.toContain("--auto");
@@ -536,6 +541,10 @@ describe("trusted review-gate workflows", () => {
     expect(reviewedLane).toMatch(
       /arc base drift --json[\s\S]*Only authoritative\s+`clean` continues; `reconcile` returns to Step 5[\s\S]*unavailable or malformed output stops/iu,
     );
+    expect(reviewedLane).toMatch(
+      /`open \/ reuse-change-request`[\s\S]*same `<pr-number>`[\s\S]*configured\s+base[\s\S]*exact approved head/iu,
+    );
+    expect(reviewedLane).toMatch(/Any other state, action, or candidate stops with the lock held/iu);
 
     const releaseOnly = sectionBetween(lanes, "**Release-only redirect** —", "Once a lane releases");
     expect(releaseOnly).toMatch(/arc merge lock release -[\s\S]*stop/iu);
