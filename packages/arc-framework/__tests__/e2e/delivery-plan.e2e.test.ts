@@ -248,6 +248,7 @@ describe("arc delivery", () => {
     const initial = deliveryStateFixture(plan);
     const state = {
       ...initial,
+      target: { ...initial.target!, ref: "refs/heads/main" },
       members: initial.members.map((member, index) => ({
         ...member,
         changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
