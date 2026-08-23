@@ -1495,6 +1495,11 @@ reviewCmd
   .description("Configured merge-method operations")
   .command("resolve")
   .description("Validate the configured method against live repository policy")
+  .option(
+    "--stack-position <position>",
+    "Merge-method stack position (non-delivery, intermediate, or top)",
+    "non-delivery",
+  )
   .requiredOption("--json", "Emit a typed JSON result")
   .action((options: ReviewMergeMethodResolveOptions) => handleReviewMergeMethodResolve(options));
 

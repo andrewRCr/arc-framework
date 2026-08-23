@@ -802,28 +802,15 @@ structural guarantee rather than operator discipline.
   validates its request/ref chain, proves every changed member against its before/after predecessor, and admits all
   coordinates in one CAS; conflicts retain exact paths, while the single-next-member and no-remainder arms remain.
 
-### `[ ]` **6.9 Make merge-method validation stack-aware**
+### `[x]` **6.9 Make merge-method validation stack-aware**
 
 - _Goal:_ Merge-method resolution accounts for intermediate members being held to merge commits while only the
   top is free.
 
-- _Context:_ Resolution reads repository-level allowances, while the platform holds intermediate stack members to
-  merge commits. This is a confirmed platform fact and compatible with the merge-commit default; it bounds any
-  title-or-commit-promotion policy to the top member.
-
-- _Shape:_ Resolution takes the member's stack position as an input, which it has none of today, and the validated
-  result's policy fingerprint binds that position — so revalidation at the merge instant cannot accept a
-  top-resolved method for an intermediate member.
-
-- _Note:_ The disclosed host-evidence residuals — branch-scoped rules unread, absent versus unconfigured required
-  checks — are external couplings and stay out of scope here.
-
-    - Build `test-first` (one behavior at a time):
-        - An intermediate member resolves to a merge commit regardless of repository squash allowances
-        - The top member resolves against repository allowances as before
-        - A non-delivery work unit resolves exactly as before
-        - Revalidation at the merge instant applies the same stack-aware reading
-        - A fingerprint resolved for the top does not validate an intermediate member
+- _Outcome:_ Merge-method resolution now accepts a validated stack position, forces intermediate members to merge
+  commits, and preserves repository-policy selection for the top and non-delivery work. Checkpoints persist the
+  position-bound fingerprint and merge-instant revalidation reuses that exact position; typed CLI refusals and
+  remedies retain the same position rather than changing the policy question on retry.
 
 ### `[ ]` **6.10 Disclose the registration consequence at the opt-in decision point**
 

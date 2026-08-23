@@ -222,9 +222,11 @@ import {
 } from "../scripts/review-gate/hosts/local/repository-target.js";
 import {
   MergeMethodSchema,
+  MergeMethodStackPositionSchema,
   MergeMethodResolveResultSchema,
   resolveMergeMethod,
   type MergeMethodResolveResult,
+  type MergeMethodStackPosition,
 } from "../scripts/review-gate/merge-method.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import {
@@ -432,7 +434,7 @@ export async function handleReviewChangeRequestResolve(
       targetRef: null,
       state: "blocked",
       nextAction: "stop",
-      reason: "invalid-input",
+      reason: "policy-unreadable",
       detail: parsed.error.issues.map((issue) => issue.message).join("; "),
       remedy: spineRemedy(
         "Change-request resolution requires an exact branch and head.",
@@ -479,19 +481,23 @@ export async function handleReviewChangeRequestResolve(
 
 export interface ReviewMergeMethodResolveOptions {
   json?: boolean;
+  stackPosition?: string;
 }
 
 export interface ReviewMergeMethodResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readConfiguredMethod(cwd: string): Promise<"merge" | "rebase" | "squash">;
-  resolve(method: "merge" | "rebase" | "squash"): Promise<MergeMethodResolveResult>;
+  resolve(
+    method: "merge" | "rebase" | "squash",
+    stackPosition: MergeMethodStackPosition,
+  ): Promise<MergeMethodResolveResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
 /** Validate the configured merge method against live repository policy. */
 export async function handleReviewMergeMethodResolve(
-  _options: ReviewMergeMethodResolveOptions,
+  options: ReviewMergeMethodResolveOptions,
   overrides: Partial<ReviewMergeMethodResolveHandlerDependencies> = {},
 ): Promise<void> {
   const port = createGhMergeMethodPolicyPort(hostedGhRunner);
@@ -502,23 +508,47 @@ export async function handleReviewMergeMethodResolve(
       if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
       return MergeMethodSchema.parse(config.settings["merge.strategy"]);
     },
-    resolve: (method) => resolveMergeMethod(method, port),
+    resolve: (method, stackPosition) => resolveMergeMethod(method, port, undefined, stackPosition),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
+  const parsedStackPosition = MergeMethodStackPositionSchema.safeParse(options.stackPosition ?? "non-delivery");
+  const stackPosition = parsedStackPosition.success ? parsedStackPosition.data : "non-delivery";
+  if (!parsedStackPosition.success) {
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-merge-method-resolve",
+      repository: null,
+      stackPosition,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      configuredMethod: null,
+      allowedMethods: [],
+      detail: "Stack position must be non-delivery, intermediate, or top.",
+      remedy: spineRemedy(
+        "Merge-method resolution requires a known stack position.",
+        "Review command usage",
+        ["arc", "review", "merge-method", "resolve", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
   try {
     const root = dependencies.resolveRoot(process.cwd());
     if (root === null) throw new Error("Merge-method resolution must run inside an ARC project.");
     const configuredMethod = await dependencies.readConfiguredMethod(root);
     dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse(
-      await dependencies.resolve(configuredMethod),
+      await dependencies.resolve(configuredMethod, stackPosition),
     ))}\n`);
   } catch (error) {
     dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
       repository: null,
+      stackPosition,
       state: "blocked",
       nextAction: "stop",
       reason: "policy-unreadable",
@@ -528,7 +558,17 @@ export async function handleReviewMergeMethodResolve(
       remedy: spineRemedy(
         "The configured merge method must come from readable project and repository policy.",
         "Run from the target ARC project after repairing its configuration, then re-run",
-        ["arc", "review", "merge-method", "resolve", "--json"],
+        stackPosition === "non-delivery"
+          ? ["arc", "review", "merge-method", "resolve", "--json"]
+          : [
+              "arc",
+              "review",
+              "merge-method",
+              "resolve",
+              "--stack-position",
+              stackPosition,
+              "--json",
+            ],
       ),
     }))}\n`);
     dependencies.setExitCode(1);
