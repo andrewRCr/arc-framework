@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   degradeNativeDeliveryStack,
+  deriveDeliveryNativeRegistrationInput,
   linkDeliveryNativeStack,
+  linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
 } from "../../../src/lib/delivery/native-stack.js";
+import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const members = [
   { deliverableId: `sha256:${"a".repeat(64)}`, changeRequestId: "41", headRef: "delivery/wu/one", headSha: "a".repeat(40), baseRef: "main" },
@@ -12,6 +16,109 @@ const members = [
 ] as const;
 
 describe("native delivery stack", () => {
+  it("derives registration from exactly the planned non-terminal members and excludes the top", () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+
+    const result = deriveDeliveryNativeRegistrationInput({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: "refs/heads/main",
+    });
+
+    expect(result).toMatchObject({ status: "derived" });
+    if (result.status !== "derived") return;
+    expect(result.input.members.map(({ deliverableId }) => deliverableId))
+      .toEqual(plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId));
+    expect(result.input.members).toHaveLength(plan.members.length - 1);
+    expect(result.input.members.map(({ baseRef }) => baseRef))
+      .toEqual(["main", "member-1", "member-2"]);
+    expect(result.input.members.some(({ deliverableId }) => (
+      deliverableId === plan.members.at(-1)?.deliverableId
+    ))).toBe(false);
+  });
+
+  it("submits only the exact plan-derived registration subject", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const derived = deriveDeliveryNativeRegistrationInput({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: "refs/heads/main",
+    });
+    expect(derived.status).toBe("derived");
+    if (derived.status !== "derived") return;
+    let observationCount = 0;
+    const exactSubject = JSON.stringify(derived.input);
+    const port = {
+      observe: async (input: typeof derived.input) => {
+        if (JSON.stringify(input) !== exactSubject) return { status: "malformed" as const };
+        observationCount += 1;
+        return observationCount === 1
+          ? { status: "unregistered" as const }
+          : { status: "registered" as const, stackNumber: 9 };
+      },
+      link: async (input: typeof derived.input) => JSON.stringify(input) === exactSubject
+        ? { status: "submitted" as const }
+        : { status: "refused" as const, reason: "malformed" as const },
+    };
+
+    await expect(linkPlannedDeliveryNativeStack({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: "refs/heads/main",
+      members: derived.input.members,
+      optIn: true,
+    }, port)).resolves.toMatchObject({ status: "linked", stackNumber: 9 });
+
+    const topState = state.members.at(-1);
+    const topPlan = plan.members.at(-1);
+    expect(topState?.changeRequest).not.toBeNull();
+    expect(topState?.coordinates).not.toBeNull();
+    expect(topState?.ref).not.toBeNull();
+    expect(topPlan).toBeDefined();
+    if (topState === undefined || topState.changeRequest === null || topState.coordinates === null
+      || topState.ref === null || topPlan === undefined) return;
+    await expect(linkPlannedDeliveryNativeStack({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: "refs/heads/main",
+      members: [...derived.input.members, {
+        deliverableId: topPlan.deliverableId,
+        changeRequestId: topState.changeRequest.changeRequestId,
+        headRef: topState.ref.replace(/^refs\/heads\//u, ""),
+        headSha: topState.coordinates.head,
+        baseRef: derived.input.members.at(-1)?.headRef ?? "",
+        headRepository: "o/r",
+      }],
+      optIn: true,
+    }, {
+      observe: async () => { throw new Error("terminal registration reached the provider"); },
+      link: async () => { throw new Error("terminal registration reached the provider"); },
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "registration-scope-mismatch",
+    });
+  });
+
   it("keeps every observation arm closed and names partial members", async () => {
     const observe = vi.fn().mockResolvedValue({
       status: "partial", affectedDeliverableIds: [members[1].deliverableId],

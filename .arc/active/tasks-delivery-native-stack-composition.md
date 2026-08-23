@@ -766,26 +766,14 @@ structural guarantee rather than operator discipline.
   lock-release, and asynchronous native lifecycle, and carried a semantic stacked-member `422` as the closed
   `native-stack-required` refusal while leaving generic validation failures unavailable and plan intent unchanged.
 
-### `[ ]` **6.5 Scope registration to the non-terminal member set**
+### `[x]` **6.5 Scope registration to the non-terminal member set**
 
 - _Goal:_ Registration covers exactly the non-terminal members, so no provider-side stack operation can touch the
   session branch.
 
-- _Rationale:_ The top chains natively as an ordinary pull request based on the highest member's branch —
-  connected, presenting the residual delta — but stays outside the registered stack. Excluding it makes immunity
-  from provider rewrite structural rather than a matter of operator discipline; the host UI rebase, CLI stack
-  rebase, and native suffix rewrites stay fully usable over the registered set.
-
-- _Note:_ The tax is named and bounded: the top forfeits stack-UI membership and native retarget machinery,
-  relying on the guarded retarget at the final landing. It retires at convergence. The porcelain stays excluded —
-  it pushes branch arguments, creates missing pull requests, and auto-corrects mismatched bases, which is silent
-  repair of exactly the topology mismatch ARC must surface; the raw endpoint is what the adapter already calls.
-
-    - Build `test-first` (one behavior at a time):
-        - Registration requests exactly the non-terminal member set
-        - The top is never included in a registration request
-        - The porcelain is never invoked for registration
-        - Operator-side refresh over the registered set is adopted through reobservation, not treated as authority
+- _Outcome:_ Bound native registration to the coherent plan/state-derived non-terminal chain and refused any claimed
+  scope mismatch before host observation or mutation; the raw REST adapter and reservation-free reobserved external
+  refresh path remain the only provider seams, so the terminal branch cannot enter provider rewrite authority.
 
 ### `[ ]` **6.6 Exclude the dependent unregistered request from the registration predicate**
 

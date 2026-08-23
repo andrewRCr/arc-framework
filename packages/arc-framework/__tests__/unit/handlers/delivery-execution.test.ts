@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
-import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliveryStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
@@ -176,6 +179,54 @@ describe("delivery execution handler", () => {
       recommendedActionText,
     });
     expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("accepts a plan-bound native registration request", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const exactMembers = fixture.members.slice(0, -1).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: String(41 + index),
+      headRef: `member-${index + 1}`,
+      headSha: member.coordinates?.head,
+      baseRef: index === 0 ? "main" : `member-${index}`,
+      headRepository: "owner/repo",
+    }));
+    let output = "";
+
+    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        repository: "owner/repo",
+        members: exactMembers,
+        optIn: true,
+      })),
+      execute: async (command, request) => {
+        const candidate = request as {
+          readonly planId?: unknown;
+          readonly protectedBaseRef?: unknown;
+          readonly repository?: unknown;
+          readonly members?: unknown;
+          readonly optIn?: unknown;
+        };
+        return command === "native-link"
+          && candidate.planId === plan.planId
+          && candidate.protectedBaseRef === "refs/heads/main"
+          && candidate.repository === "owner/repo"
+          && JSON.stringify(candidate.members) === JSON.stringify(exactMembers)
+          && candidate.optIn === true
+          ? {
+            status: "unlinked",
+            recommendedActionText: "Continue through the complete unlinked executor.",
+          }
+          : { status: "refused", reason: "unexpected-request" };
+      },
+      write: (text) => { output = text; },
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(output)).toMatchObject({ status: "unlinked" });
   });
 
   it("exposes the explicit terminal remedy as a strict typed command", async () => {

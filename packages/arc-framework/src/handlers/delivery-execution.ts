@@ -90,7 +90,7 @@ import {
 } from "../lib/delivery/terminal-integration.js";
 import {
   degradeNativeDeliveryStack,
-  linkDeliveryNativeStack,
+  linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
 } from "../lib/delivery/native-stack.js";
 import {
@@ -257,6 +257,8 @@ const NativeObserveSchema = z.strictObject({
   members: z.array(NativeMemberSchema).min(1),
 });
 const NativeLinkSchema = NativeObserveSchema.extend({
+  planId: DeliveryPlanIdSchema,
+  protectedBaseRef: RefSchema,
   members: z.array(NativeMemberSchema).min(2),
   optIn: z.boolean(),
 });
@@ -449,6 +451,11 @@ const ResultSchema = z.union([
   ContributionRefusalSchema,
   ContainmentRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.string().min(1),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
 ]);
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
@@ -769,13 +776,34 @@ async function executeDeliveryCommand(
     return observed;
   };
 
-  if (command === "native-observe" || command === "native-link" || command === "native-unlink") {
+  if (command === "native-observe" || command === "native-unlink") {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     return command === "native-observe"
       ? observeDeliveryNativeStack(NativeObserveSchema.parse(request), host)
-      : command === "native-link"
-        ? linkDeliveryNativeStack(NativeLinkSchema.parse(request), host)
-        : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
+      : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
+  }
+  if (command === "native-link") {
+    const parsed = NativeLinkSchema.parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return {
+        status: "refused",
+        reason: "delivery-unavailable",
+        recommendedActionText: "Restore canonical delivery state before native registration.",
+      };
+    }
+    return linkPlannedDeliveryNativeStack({
+      plan: planRead.value,
+      state: stateRead.value.value,
+      repository: parsed.repository,
+      baseRef: parsed.protectedBaseRef,
+      members: parsed.members,
+      optIn: parsed.optIn,
+    }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-land-select") {
     const parsed = NativeSelectSchema.parse(request);
