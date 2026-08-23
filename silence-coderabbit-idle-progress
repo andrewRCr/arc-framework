@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "silence-coderabbit-idle-progress",
+  "claimId": "262862a871a41624f6cc945899eb1b5c",
+  "createdAt": "2026-08-23T20:45:05.244Z",
+  "updatedAt": "2026-08-23T20:45:05.244Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Suppress unsolicited CodeRabbit approval and status messaging while preserving manual hosted review and native review outcomes",
+  "branch": "chore/silence-coderabbit-idle-progress",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
