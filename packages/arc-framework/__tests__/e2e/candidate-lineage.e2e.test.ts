@@ -21,7 +21,10 @@ import {
   candidateReviewResponses,
   reduceCandidateDurableBaseline,
 } from "../../src/lib/work-unit/candidate-attestation.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import {
+  collectGitCandidateTarget,
+  resolveGitCandidateBaseRevision,
+} from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
   resolveSubmissionBoundaryPath,
@@ -282,7 +285,11 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
   const shipped = cadence === "with-integration";
   const dependencies: IntegrationCheckpointDependencies = {
     ...production,
-    readDrift: async (workUnit) => ({ ...await production.readDrift(workUnit), verdict: "clean" }),
+    readDrift: async (workUnit) => ({
+      ...await production.readDrift(workUnit),
+      verdict: "clean",
+      baseOid: await resolveGitCandidateBaseRevision({ cwd: root, baseBranch: "main", exec: gitExec }),
+    }),
     readLifecycle: async (workUnit) => ({
       workUnit,
       storageVersion: await git(root, ["rev-parse", "HEAD"]),
