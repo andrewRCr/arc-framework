@@ -472,7 +472,7 @@ describe("native delivery landing", () => {
     expect(stateStore.publish).not.toHaveBeenCalled();
   });
 
-  it("routes one linked singleton retarget through contribution-proven suffix reconciliation", async () => {
+  it("adopts one externally retargeted singleton through proof and a direct CAS", async () => {
     const initial = deliveryStateFixture(plan);
     const bound = {
       ...initial,
@@ -525,7 +525,7 @@ describe("native delivery landing", () => {
       proveContribution: proof,
       stateStore,
     })).resolves.toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
-    expect(proof).toHaveBeenCalledTimes(2);
-    expect(stateStore.publish).toHaveBeenCalledTimes(2);
+    expect(proof).toHaveBeenCalledOnce();
+    expect(stateStore.publish).toHaveBeenCalledOnce();
   });
 });

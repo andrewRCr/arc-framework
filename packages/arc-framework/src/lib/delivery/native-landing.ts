@@ -11,10 +11,7 @@ import type { DeliveryNativeStackMember, DeliveryNativeStackObservation } from "
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryContributionEndpoints, DeliveryContributionProofResult } from "./contribution-proof.js";
-import {
-  reconcileReservedSuffixRetarget,
-  reserveObservedSuffixRetarget,
-} from "./suffix-reconciliation.js";
+import { adoptExternalDeliverySuffixRefresh } from "./suffix-reconciliation.js";
 
 export interface DeliveryNativeLandingMember {
   readonly deliverableId: string;
@@ -528,16 +525,6 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     changeRequest: next.changeRequest,
     coordinates: { base: target.coordinates.head, head: observedRef.head, tree: observedRef.tree },
   };
-  const facts: DeliveryPositionFactsV1 = {
-    target,
-    members: input.landed.value.members.map((member, index) => index === landedIndex + 1 ? moved : ({
-      deliverableId: member.deliverableId,
-      ref: member.ref,
-      changeRequest: member.changeRequest,
-      coordinates: member.coordinates,
-    })),
-    landedDeliverableIds: input.plan.members.slice(0, landedIndex + 1).map((member) => member.deliverableId),
-  };
   const contribution: DeliveryContributionEndpoints = {
     before: {
       predecessor: { head: oldPredecessor.head, tree: oldPredecessor.tree },
@@ -548,27 +535,15 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       member: { head: observedRef.head, tree: observedRef.tree },
     },
   };
-  const reserved = await reserveObservedSuffixRetarget({
+  const settled = await adoptExternalDeliverySuffixRefresh({
     plan: input.plan,
     current: input.landed,
-    facts,
-    repository: input.repository,
-    protectedTargetRef: input.protectedTargetRef,
-    host: { readRequest: (_repository, binding) => dependencies.observeRequest(binding) },
-    proveContribution: () => dependencies.proveContribution(contribution),
-    stateStore: dependencies.stateStore,
-  });
-  if (reserved.status !== "reserved") {
-    return { status: "blocked", reason: reserved.reason, recommendedActionText: "Keep the landed state and resolve the recognized suffix retarget before review." };
-  }
-  const settled = await reconcileReservedSuffixRetarget({
-    planId: input.plan.planId,
-    current: reserved.state,
-    observed: reserved.state.value.activeOperation?.requested,
+    affectedDeliverableIds: [next.deliverableId],
+    observeResult: () => Promise.resolve({ target, members: [moved] }),
     proveContribution: () => dependencies.proveContribution(contribution),
     stateStore: dependencies.stateStore,
   });
   return settled.status === "applied"
     ? { status: "applied", state: settled.state }
-    : { status: "blocked", reason: settled.status === "blocked" ? settled.reason : "suffix-retry", recommendedActionText: "Settle the recognized suffix retarget before new-head review." };
+    : { status: "blocked", reason: settled.reason, recommendedActionText: "Settle the recognized suffix retarget before new-head review." };
 }

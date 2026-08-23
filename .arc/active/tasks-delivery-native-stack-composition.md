@@ -748,25 +748,14 @@ structural guarantee rather than operator discipline.
   preserves prior reviewed ancestry, and reports exact conflict paths after restoring the pinned clean top; the
   distinct no-refresh base-movement route remains ordinary pre-materialization base-merge territory.
 
-### `[ ]` **6.3 Separate reserved ARC mutations from external refresh adoption**
+### `[x]` **6.3 Separate reserved ARC mutations from external refresh adoption**
 
 - _Goal:_ ARC-issued refresh mutations remain resumable through the existing operation reservation, while an
   operator/provider refresh with unknowable result heads is adopted only after bounded observation and proof.
 
-- _Shape:_ An ARC-issued provider mutation reserves the existing rewrite operation before the call, reobserves,
-  mutates, reobserves, and reconciles under that reservation; the existing suffix-retarget reconcile remains its
-  interruption-recovery arm. An externally initiated provider/operator refresh cannot pre-reserve unknown heads:
-  ARC performs bounded post-mutation observation, proves each adopted head through the arbiter, and writes current
-  coordinates with the existing version check. Neither path adds an operation kind, protocol, or record.
-
-    - Build `test-first` (one behavior at a time):
-        - An ARC-issued refresh reserves the single active operation before its provider mutation
-        - An interrupted ARC-issued refresh resumes to exact partial adoption from state
-        - A second ARC-issued mutation refuses while an operation is reserved
-        - An external refresh creates no fictitious pre-mutation reservation for heads ARC cannot know
-        - External results are observed, proved member by member, and adopted through a version-checked write
-        - Reconciliation records only resulting current coordinates, never a durable proof record
-        - The operation union gains no new kind
+- _Outcome:_ Split refresh execution into a pre-reserved `rewrite/provider-adoption` arm with exact partial-result
+  recovery and a reservation-free external arm; both adopt only stable bindings whose changed members pass the
+  existing arbiter, using one final CAS and no new operation kind, protocol, or proof record.
 
 ### `[ ]` **6.4 Route a registered stack natively and mint the `native-stack-required` refusal**
 

@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  adoptExternalDeliverySuffixRefresh,
+  executeDeliveryProviderRefresh,
   executeDeliverySuffixRewrite,
   reconcileReservedSuffixRetarget,
-  reserveObservedSuffixRetarget,
 } from "../../../src/lib/delivery/suffix-reconciliation.js";
-import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
+import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
-import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliveryPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 function movedFixture() {
@@ -21,114 +25,163 @@ function movedFixture() {
     changeRequest: { providerId: "github", changeRequestId: "402" },
   };
   const bound = { ...state, members: [first, second] };
-  const moved = {
-    ...second,
-    coordinates: { base: targetHead, head: "e".repeat(40), tree: "f".repeat(40) },
-  };
-  const facts: DeliveryPositionFactsV1 = {
-    target: bound.target,
-    members: [first, moved].map((member) => ({
-      deliverableId: member.deliverableId,
-      ref: member.ref,
-      changeRequest: member.changeRequest,
-      coordinates: member.coordinates,
+  return { plan, state: bound };
+}
+
+function providerRefreshFixture() {
+  const plan = deliveryFourMemberStackPlanFixture();
+  const fixture = deliveryStateFixture(plan);
+  const state = {
+    ...fixture,
+    members: fixture.members.map((member, index) => ({
+      ...member,
+      changeRequest: { providerId: "github", changeRequestId: String(500 + index) },
     })),
-    landedDeliverableIds: [first.deliverableId],
   };
-  return { plan, state: bound, moved, facts };
+  const affected = plan.members.slice(1, -1).map(({ deliverableId }) => deliverableId);
+  const before = {
+    target: state.target,
+    members: state.members.slice(1, -1).map((member) => ({ ...member })),
+  };
+  const observed = {
+    ...before,
+    members: before.members.map((member, index) => ({
+      ...member,
+      coordinates: {
+        ...member.coordinates!,
+        head: String(index + 8).repeat(40),
+        tree: String(index + 6).repeat(40),
+      },
+    })),
+  };
+  return { plan, state, affected, before, observed };
+}
+
+function reservedProviderRefreshFixture() {
+  const fixture = providerRefreshFixture();
+  const reserved = reserveDeliveryOperation({ revision: 7, value: fixture.state }, fixture.plan, {
+    operationId: "refresh-operation",
+    kind: "rewrite",
+    mode: "provider-adoption",
+    affectedDeliverableIds: fixture.affected,
+    expectedStateRevision: 7,
+    before: fixture.before,
+    requested: fixture.before,
+  });
+  if (reserved.status !== "reserved") throw new Error("provider refresh fixture must reserve");
+  return { ...fixture, reserved: { revision: 8, value: reserved.state } };
 }
 
 describe("delivery suffix reconciliation", () => {
-  it("post-reserves one uniquely observed equivalent retarget and preserves its request handle", async () => {
-    const { plan, state, moved, facts } = movedFixture();
-    const result = await reserveObservedSuffixRetarget({
+  it("persists the rewrite reservation before invoking an ARC-issued provider refresh", async () => {
+    const { plan, state, affected, before, observed } = providerRefreshFixture();
+    const writes: DeliveryStateV1[] = [];
+    const proved: string[] = [];
+    let mutationSawReservation = false;
+    const result = await executeDeliveryProviderRefresh({
       plan,
       current: { revision: 7, value: state },
-      facts,
-      repository: "andrewRCr/arc-framework",
-      protectedTargetRef: "refs/heads/main",
-      host: { readRequest: async () => ({
-        status: "observed",
-        request: {
-          binding: moved.changeRequest!, repository: "andrewRCr/arc-framework",
-          headRepository: "andrewRCr/arc-framework", headRef: moved.ref!.replace("refs/heads/", ""),
-          headSha: moved.coordinates!.head, baseRef: "main", state: "open", draft: true,
-        },
-      }) },
+      affectedDeliverableIds: affected,
+      observeBefore: async () => before,
+      refreshProvider: async () => {
+        const operation = writes.at(-1)?.activeOperation;
+        mutationSawReservation = operation?.kind === "rewrite" && operation.mode === "provider-adoption";
+        return { status: "accepted" };
+      },
+      observeResult: async () => observed,
+      proveContribution: async ({ deliverableId }) => {
+        proved.push(deliverableId);
+        return { status: "accepted", proof: "mechanical-reapply" };
+      },
+      stateStore: { publish: async (_planId, value, revision) => {
+        writes.push(value);
+        return { status: "ok", value: { revision: revision + 1, value } };
+      } },
+    });
+
+    expect(result).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
+    expect(mutationSawReservation).toBe(true);
+    expect(proved).toEqual(affected);
+  });
+
+  it("resumes an interrupted provider refresh by adopting its exact partial result", async () => {
+    const { plan, state, affected, before, observed } = providerRefreshFixture();
+    const writes: Array<{ revision: number; value: DeliveryStateV1 }> = [];
+    await expect(executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds: affected,
+      observeBefore: async () => before,
+      refreshProvider: async () => ({ status: "accepted" }),
+      observeResult: async () => { throw new Error("session interrupted"); },
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      stateStore: { publish: async (_planId, value) => {
-        return { status: "ok", value: { revision: 8, value } };
+      stateStore: { publish: async (_planId, value, revision) => {
+        const record = { revision: revision + 1, value };
+        writes.push(record);
+        return { status: "ok", value: record };
       } },
+    })).rejects.toThrow("session interrupted");
+    const reserved = writes[0];
+    if (reserved === undefined) throw new Error("reservation must persist before interruption");
+    const partial = {
+      ...before,
+      members: [observed.members[0]!, before.members[1]!],
+    };
+
+    const result = await reconcileReservedSuffixRetarget({
+      planId: plan.planId,
+      current: reserved,
+      observed: partial,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      stateStore: { publish: async (_planId, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
     });
-    if (result.status !== "reserved") throw new Error("fixture must reserve");
-    expect(result.state.value.activeOperation?.kind).toBe("rewrite");
-    expect(result.state.value.activeOperation?.requested.members[0]?.changeRequest).toEqual(moved.changeRequest);
+
+    expect(result).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
+    if (result.status !== "applied") return;
+    expect(result.state.value.members[1]?.coordinates).toEqual(partial.members[0]!.coordinates);
+    expect(result.state.value.members[2]?.coordinates).toEqual(partial.members[1]!.coordinates);
   });
 
-  it("refuses request/base disagreement or failed contribution proof before persistence", async () => {
-    const { plan, state, moved, facts } = movedFixture();
-    const publish = vi.fn();
-    const common = {
+  it("observes and proves external refresh results member by member before one direct CAS adoption", async () => {
+    const { plan, state, affected, observed } = providerRefreshFixture();
+    const proved: string[] = [];
+    let observedResult = false;
+    let prematureWrite = false;
+    const result = await adoptExternalDeliverySuffixRefresh({
       plan,
       current: { revision: 7, value: state },
-      facts,
-      repository: "andrewRCr/arc-framework",
-      protectedTargetRef: "refs/heads/main",
-      stateStore: { publish },
-    };
-    await expect(reserveObservedSuffixRetarget({
-      ...common,
-      host: { readRequest: async () => ({
-        status: "observed" as const,
-        request: {
-          binding: moved.changeRequest!, repository: "andrewRCr/arc-framework",
-          headRepository: "andrewRCr/arc-framework", headRef: moved.ref!.replace("refs/heads/", ""),
-          headSha: moved.coordinates!.head, baseRef: "wrong", state: "open" as const, draft: true,
-        },
-      }) },
-      proveContribution: async () => ({ status: "accepted" as const, proof: "tree-equality" as const }),
-    })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
-    await expect(reserveObservedSuffixRetarget({
-      ...common,
-      host: { readRequest: async () => ({
-        status: "observed" as const,
-        request: {
-          binding: moved.changeRequest!, repository: "andrewRCr/arc-framework",
-          headRepository: "andrewRCr/arc-framework", headRef: moved.ref!.replace("refs/heads/", ""),
-          headSha: moved.coordinates!.head, baseRef: "main", state: "open" as const, draft: true,
-        },
-      }) },
-      proveContribution: async () => ({
-        status: "refused" as const,
-        reason: "contribution-conflicted" as const,
-        paths: ["shared.txt"],
-      }),
-    })).resolves.toEqual({
-      status: "refused",
-      reason: "contribution-conflicted",
-      paths: ["shared.txt"],
-    });
-    expect(publish).not.toHaveBeenCalled();
-  });
-
-  it("adopts one exact reobservation with CAS and leaves a reservation on conflict or ambiguity", async () => {
-    const { plan, state, moved, facts } = movedFixture();
-    const reservation = await reserveObservedSuffixRetarget({
-      plan, current: { revision: 7, value: state }, facts,
-      repository: "andrewRCr/arc-framework", protectedTargetRef: "refs/heads/main",
-      host: { readRequest: async () => ({ status: "observed", request: {
-        binding: moved.changeRequest!, repository: "andrewRCr/arc-framework",
-        headRepository: "andrewRCr/arc-framework", headRef: moved.ref!.replace("refs/heads/", ""),
-        headSha: moved.coordinates!.head, baseRef: "main", state: "open", draft: false,
-      } }) },
-      proveContribution: async () => ({ status: "accepted", proof: "tree-equality" }),
-      stateStore: { publish: async (_id, value) => {
-        return { status: "ok", value: { revision: 8, value } };
+      affectedDeliverableIds: affected,
+      observeResult: async () => {
+        observedResult = true;
+        return observed;
+      },
+      proveContribution: async ({ deliverableId }) => {
+        proved.push(deliverableId);
+        return { status: "accepted", proof: "mechanical-reapply" };
+      },
+      stateStore: { publish: async (_planId, value, revision) => {
+        prematureWrite = !observedResult || proved.length !== affected.length
+          || value.activeOperation !== null;
+        return { status: "ok", value: { revision: revision + 1, value } };
       } },
     });
-    if (reservation.status !== "reserved") throw new Error("fixture must reserve");
-    const reserved = reservation.state;
-    const observed = reserved.value.activeOperation!.requested;
+
+    expect(result).toMatchObject({ status: "applied", state: { revision: 8 } });
+    expect(proved).toEqual(affected);
+    expect(prematureWrite).toBe(false);
+    if (result.status !== "applied") return;
+    expect(result.state.value.members.slice(1, -1).map(({ coordinates }) => coordinates))
+      .toEqual(observed.members.map(({ coordinates }) => coordinates));
+    expect(Object.keys(result.state.value).sort()).toEqual([
+      "activeOperation", "boundPlan", "members", "planId", "schemaVersion", "semanticsVersion", "target",
+      "workUnitId",
+    ]);
+  });
+
+  it("keeps a provider reservation retryable and blocks ambiguous or unproved recovery", async () => {
+    const { plan, reserved, before, observed } = reservedProviderRefreshFixture();
     const wrongMode = {
       ...reserved,
       value: {
@@ -143,18 +196,10 @@ describe("delivery suffix reconciliation", () => {
     await expect(reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: wrongMode,
-      observed,
+      observed: before,
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async (_id, value) => ({ status: "ok", value: { revision: 9, value } }) },
     })).resolves.toEqual({ status: "blocked", reason: "ambiguous" });
-    const applied = await reconcileReservedSuffixRetarget({
-      planId: plan.planId,
-      current: reserved,
-      observed,
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      stateStore: { publish: async (_id, value) => ({ status: "ok", value: { revision: 9, value } }) },
-    });
-    expect(applied).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     await expect(reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: reserved,
@@ -177,8 +222,6 @@ describe("delivery suffix reconciliation", () => {
       reason: "contribution-diverged",
       paths: ["feature.txt"],
     });
-    expect(reserved.value.activeOperation).not.toBeNull();
-
     const proveRetry = vi.fn(async () => ({
       status: "refused" as const, reason: "git-failure" as const,
     }));
@@ -190,6 +233,22 @@ describe("delivery suffix reconciliation", () => {
       stateStore: { publish: vi.fn() },
     })).resolves.toEqual({ status: "retryable" });
     expect(proveRetry).not.toHaveBeenCalled();
+  });
+
+  it("refuses a second ARC-issued refresh while the provider reservation is active", async () => {
+    const { plan, reserved, affected, before, observed } = reservedProviderRefreshFixture();
+    const refreshProvider = vi.fn(async () => ({ status: "accepted" as const }));
+    await expect(executeDeliveryProviderRefresh({
+      plan,
+      current: reserved,
+      affectedDeliverableIds: affected,
+      observeBefore: async () => before,
+      refreshProvider,
+      observeResult: async () => observed,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      stateStore: { publish: vi.fn() },
+    })).resolves.toEqual({ status: "refused", reason: "reservation-refused" });
+    expect(refreshProvider).not.toHaveBeenCalled();
   });
 
   it("revalidates lifecycle paths before reserving and rewriting an explicit suffix head", async () => {
