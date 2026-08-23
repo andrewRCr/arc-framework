@@ -21,6 +21,7 @@ import type {
 } from "./contribution-proof.js";
 import type {
   DeliveryLandEffectV1,
+  DeliveryMergePolicyBindingV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
   DeliveryStateV1,
@@ -252,6 +253,9 @@ export interface DeliveryLandingLockPort {
 
 /** Repository-derived facts acquired at each landing mutation boundary. */
 export interface DeliveryLandingObservationPort {
+  revalidateMergePolicy(binding: DeliveryMergePolicyBindingV1): Promise<
+    { readonly status: "exact" | "refused" }
+  >;
   observeSelection(): Promise<
     | {
         readonly status: "observed";
@@ -347,7 +351,7 @@ export async function prepareDeliveryLanding(input: {
   readonly repository: string;
   readonly baseRef: string;
   readonly targetRef: string;
-  readonly mergeStrategy: "merge" | "rebase" | "squash";
+  readonly mergePolicy: DeliveryMergePolicyBindingV1;
   readonly releaseMergeLock: boolean;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
   readonly host: DeliveryHostPort;
@@ -389,7 +393,8 @@ export async function prepareDeliveryLanding(input: {
     headSha: member.coordinates.head,
     baseRef: input.baseRef.replace(/^refs\/heads\//u, ""),
     targetRef: input.targetRef,
-    strategy: input.mergeStrategy,
+    strategy: input.mergePolicy.method,
+    mergePolicy: input.mergePolicy,
   };
   const operationId = crypto.randomUUID();
   const requested = {
@@ -418,7 +423,7 @@ export async function prepareDeliveryLanding(input: {
       head: member.coordinates.head,
       repository: input.repository,
       changeRequestId: request.changeRequestId,
-      mergeStrategy: input.mergeStrategy,
+      mergeStrategy: input.mergePolicy.method,
       settledReviewState: readiness.settledReviewState,
       consequence: `Merge delivery member ${member.deliverableId} at exact head ${member.coordinates.head}.`,
       releaseMergeLock: input.releaseMergeLock,
@@ -481,6 +486,9 @@ export async function applyDeliveryLanding(input: {
       changeRequestId: input.approved.changeRequestId,
     })).status === "refused") return landingRefused();
   if (!(await observeReady())) return landingRefused();
+  if ((await input.observation.revalidateMergePolicy(operation.effect.mergePolicy)).status !== "exact") {
+    return landingRefused();
+  }
   const submitted = await input.host.mergeRequest(operation.effect);
   if (submitted.status !== "submitted") {
     return submitted.reason === "native-stack-required"

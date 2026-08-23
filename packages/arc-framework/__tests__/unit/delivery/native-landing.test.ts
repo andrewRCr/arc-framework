@@ -26,6 +26,13 @@ const heads = plan.members.slice(0, -1).map((member, index) => ({
   changeRequestId: String(41 + index),
   headSha: String(index + 1).repeat(40),
 }));
+const mergePolicy = (repository: string) => ({
+  repository,
+  stackPosition: "intermediate" as const,
+  method: "merge" as const,
+  allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
+  policyFingerprint: `sha256:${"a".repeat(64)}` as const,
+});
 
 describe("native delivery landing", () => {
   it("derives every selected member base from its exact predecessor", () => {
@@ -202,6 +209,7 @@ describe("native delivery landing", () => {
       repository: "o/r",
       baseRef: "delivery-target",
       targetRef: state.target!.ref,
+      mergePolicy: mergePolicy("o/r"),
     }, { readiness: vi.fn(), stateStore })).resolves.toMatchObject({
       status: "blocked",
       reason: "member-set-mismatch",
@@ -249,6 +257,7 @@ describe("native delivery landing", () => {
         selection,
         facts,
         repository: "owner/repo",
+        mergePolicy: mergePolicy("owner/repo"),
         ...refs,
       }, { readiness, stateStore })).resolves.toMatchObject({
         status: "blocked",
@@ -293,6 +302,7 @@ describe("native delivery landing", () => {
       repository: "owner/repo",
       baseRef: "delivery-target",
       targetRef: bound.target!.ref,
+      mergePolicy: mergePolicy("owner/repo"),
     };
 
     await expect(reserveNativeDeliveryLanding({
@@ -306,7 +316,11 @@ describe("native delivery landing", () => {
     }, {
       readiness: vi.fn().mockResolvedValue({ status: "ready" }),
       stateStore,
-    })).resolves.toMatchObject({ status: "prepared", members: selectedMembers });
+    })).resolves.toMatchObject({
+      status: "prepared",
+      members: selectedMembers,
+      state: { value: { activeOperation: { effect: { mergePolicy: mergePolicy("owner/repo") } } } },
+    });
 
     await expect(reserveNativeDeliveryLanding({
       ...baseInput,
@@ -329,7 +343,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members: state.members.slice(0, -1) };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
@@ -349,11 +363,29 @@ describe("native delivery landing", () => {
       repository: "o/r", topChangeRequestId: "42", topHeadSha: "b".repeat(40),
       mergeAction: "direct_merge" as const, mergeMethod: "merge" as const,
     };
+    const policyMovedHost = {
+      submitNativeMerge: vi.fn().mockResolvedValue({ status: "refused", reason: "unavailable" }),
+      observeNativeMerge: vi.fn(),
+    };
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId, current: record, operationId: "operation-1", request,
+    }, {
+      host: policyMovedHost,
+      stateStore,
+      reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
+      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
+      revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "refused" }),
+      observeEffect: vi.fn(),
+    })).resolves.toMatchObject({ status: "blocked", reason: "merge-policy-moved" });
+    expect(policyMovedHost.submitNativeMerge).not.toHaveBeenCalled();
+
     const submitted = await submitReservedNativeDeliveryMerge({ planId: plan.planId, current: record, operationId: "operation-1", request }, {
       host, stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
       revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
+      revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn(),
     });
     expect(submitted).toMatchObject({ status: "pending", effectIdentity: "uuid-1" });
@@ -378,7 +410,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members: [member] };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "41", headSha: member.coordinates!.head,
-      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "sequential",
@@ -404,6 +436,7 @@ describe("native delivery landing", () => {
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
       revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
+      revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn(),
     })).resolves.toMatchObject({ status: "blocked", reason: "reservation-mismatch" });
     expect(host.submitNativeMerge).not.toHaveBeenCalled();
@@ -415,7 +448,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native",
@@ -435,12 +468,14 @@ describe("native delivery landing", () => {
     const reobserveSelection = vi.fn();
     const revalidate = vi.fn();
     const releaseLock = vi.fn();
+    const revalidateMergePolicy = vi.fn();
     const observeEffect = vi.fn();
 
     await expect(submitReservedNativeDeliveryMerge({
       planId: plan.planId, current, operationId: "operation-1", request,
     }, {
-      host, stateStore: { publish: vi.fn() }, reobserveSelection, revalidate, releaseLock, observeEffect,
+      host, stateStore: { publish: vi.fn() }, reobserveSelection, revalidate, releaseLock,
+      revalidateMergePolicy, observeEffect,
     })).resolves.toMatchObject({ status: "blocked", reason: "protected-target-mismatch" });
     await expect(reconcileReservedNativeDeliveryMerge({
       planId: plan.planId, current, request,
@@ -452,6 +487,7 @@ describe("native delivery landing", () => {
     expect(reobserveSelection).not.toHaveBeenCalled();
     expect(revalidate).not.toHaveBeenCalled();
     expect(releaseLock).not.toHaveBeenCalled();
+    expect(revalidateMergePolicy).not.toHaveBeenCalled();
     expect(observeEffect).not.toHaveBeenCalled();
   });
 
@@ -461,7 +497,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members: state.members.slice(0, -1) };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
@@ -521,7 +557,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members: state.members.slice(0, -1) };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
@@ -576,7 +612,7 @@ describe("native delivery landing", () => {
     const snapshot = { target: state.target, members };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
-      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "operation-1", kind: "land", mode: "native",
@@ -601,6 +637,7 @@ describe("native delivery landing", () => {
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
       revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
+      revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot }),
     };
     await expect(submitReservedNativeDeliveryMerge({
@@ -637,7 +674,7 @@ describe("native delivery landing", () => {
         headSha: members.at(-1)!.coordinates!.head,
         baseRef: "delivery-target",
         targetRef: "refs/heads/delivery-target",
-        strategy: "merge",
+        strategy: "merge", mergePolicy: mergePolicy("o/r"),
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -693,7 +730,7 @@ describe("native delivery landing", () => {
         headSha: request.topHeadSha,
         baseRef: "delivery-target",
         targetRef: "refs/heads/delivery-target",
-        strategy: "merge",
+        strategy: "merge", mergePolicy: mergePolicy("o/r"),
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -736,7 +773,7 @@ describe("native delivery landing", () => {
     const beforeSnapshot = { target: bound.target, members: [first] };
     const effect = {
       providerId: "github", repository: "o/r", changeRequestId: "41", headSha: first.coordinates!.head,
-      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: bound }, plan, {
       operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: [first.deliverableId],
@@ -818,7 +855,7 @@ describe("native delivery landing", () => {
         headSha: first.coordinates!.head,
         baseRef: "delivery-target",
         targetRef: "refs/heads/delivery-target",
-        strategy: "merge",
+        strategy: "merge", mergePolicy: mergePolicy("o/r"),
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");

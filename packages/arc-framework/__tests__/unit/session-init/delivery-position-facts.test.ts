@@ -339,6 +339,13 @@ describe("session-init delivery position facts", () => {
         baseRef: "main",
         targetRef: state.target!.ref,
         strategy: "merge",
+        mergePolicy: {
+          repository: "owner/repository",
+          stackPosition: "intermediate",
+          method: "merge",
+          allowedMethods: ["merge"],
+          policyFingerprint: `sha256:${"a".repeat(64)}`,
+        },
       },
     });
     expect(land.status).toBe("reserved");

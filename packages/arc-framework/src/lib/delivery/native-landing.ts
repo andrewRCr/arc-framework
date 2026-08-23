@@ -6,7 +6,12 @@ import {
   reserveDeliveryOperation,
 } from "./operation.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
-import type { DeliveryOperationSnapshotV1, DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
+import type {
+  DeliveryMergePolicyBindingV1,
+  DeliveryOperationSnapshotV1,
+  DeliveryPlanV1,
+  DeliveryStateV1,
+} from "./schema.js";
 import {
   deriveDeliveryNativeTarget,
   type DeliveryNativeStackMember,
@@ -240,6 +245,7 @@ export async function reserveNativeDeliveryLanding(input: {
   readonly repository: string;
   readonly baseRef: string;
   readonly targetRef: string;
+  readonly mergePolicy: DeliveryMergePolicyBindingV1;
 }, dependencies: {
   readonly readiness: (member: DeliveryNativeLandingMember) => Promise<{ readonly status: "ready" | "refused" }>;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
@@ -301,6 +307,7 @@ export async function reserveNativeDeliveryLanding(input: {
       providerId: "github", repository: input.repository,
       changeRequestId: top.changeRequestId, headSha: top.headSha,
       baseRef: input.baseRef, targetRef: input.targetRef, strategy: "merge",
+      mergePolicy: input.mergePolicy,
     },
   });
   if (reserved.status === "refused") {
@@ -329,6 +336,9 @@ export async function submitReservedNativeDeliveryMerge(input: {
   readonly reobserveSelection: () => Promise<{ readonly status: "exact" | "refused" }>;
   readonly revalidate: (deliverableId: string, headSha: string) => Promise<{ readonly status: "ready" | "refused" }>;
   readonly releaseLock: (deliverableId: string) => Promise<{ readonly status: "released" | "not-configured" | "refused" }>;
+  readonly revalidateMergePolicy: (
+    binding: DeliveryMergePolicyBindingV1,
+  ) => Promise<{ readonly status: "exact" | "refused" }>;
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<SubmitReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
@@ -336,7 +346,7 @@ export async function submitReservedNativeDeliveryMerge(input: {
     || operation.operationId !== input.operationId
     || operation.effect.repository !== input.request.repository
     || operation.effect.changeRequestId !== input.request.topChangeRequestId
-    || operation.effect.headSha !== input.request.topHeadSha || operation.effect.strategy !== "merge") {
+    || operation.effect.headSha !== input.request.topHeadSha) {
     return { status: "blocked", reason: "reservation-mismatch", recommendedActionText: "Refresh the exact reserved member set before submission." };
   }
   const target = deriveDeliveryNativeTarget(input.current.value);
@@ -356,6 +366,13 @@ export async function submitReservedNativeDeliveryMerge(input: {
       || (await dependencies.releaseLock(member.deliverableId)).status === "refused") {
       return { status: "blocked", reason: "fresh-set-refused", recommendedActionText: "Re-hold any released locks and return to prepare; the approval cannot be reused." };
     }
+  }
+  if ((await dependencies.revalidateMergePolicy(operation.effect.mergePolicy)).status !== "exact") {
+    return {
+      status: "blocked",
+      reason: "merge-policy-moved",
+      recommendedActionText: "Re-hold released locks and return to prepare under current repository merge policy.",
+    };
   }
   const submitted = await dependencies.host.submitNativeMerge(input.request);
   if (submitted.status === "enqueued") {
@@ -463,8 +480,7 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   }
   if (operation.effect.repository !== input.request.repository
     || operation.effect.changeRequestId !== input.request.topChangeRequestId
-    || operation.effect.headSha !== input.request.topHeadSha
-    || operation.effect.strategy !== input.request.mergeMethod) {
+    || operation.effect.headSha !== input.request.topHeadSha) {
     return { status: "blocked", reason: "reservation-mismatch", recommendedActionText: "Poll only the exact effect bound to the active reservation." };
   }
   const target = deriveDeliveryNativeTarget(input.current.value);

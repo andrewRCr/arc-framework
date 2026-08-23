@@ -270,6 +270,13 @@ describe("delivery terminal recovery", () => {
         baseRef: "main",
         targetRef: "refs/heads/main",
         strategy: "merge",
+        mergePolicy: {
+          repository: "owner/repo",
+          stackPosition: "intermediate",
+          method: "merge",
+          allowedMethods: ["merge"],
+          policyFingerprint: `sha256:${"a".repeat(64)}`,
+        },
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture native reservation refused");

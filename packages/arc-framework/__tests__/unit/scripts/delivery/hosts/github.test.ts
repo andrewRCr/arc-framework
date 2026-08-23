@@ -7,6 +7,13 @@ import type { HostedProcessRunner } from "../../../../../src/scripts/review-gate
 
 const repository = "andrewRCr/arc-framework";
 const headSha = "a".repeat(40);
+const mergePolicy = {
+  repository,
+  stackPosition: "intermediate" as const,
+  method: "merge" as const,
+  allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
+  policyFingerprint: `sha256:${"a".repeat(64)}`,
+};
 
 function pull(overrides: Record<string, unknown> = {}) {
   return {
@@ -322,28 +329,27 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "refused", reason: "foreign" });
   });
 
-  it("maps each configured merge strategy to one exact head-matched mutation", async () => {
-    for (const [strategy, flag] of [["merge", "--merge"], ["rebase", "--rebase"], ["squash", "--squash"]] as const) {
-      const exactRunner: HostedProcessRunner = {
-        run: async (args) => {
-          const expected = [
-            "pr", "merge", "401", "--repo", repository,
-            "--match-head-commit", headSha, flag,
-          ];
-          if (JSON.stringify(args) !== JSON.stringify(expected)) throw new Error("unexpected host mutation");
-          return { stdout: "", stderr: "" };
-        },
-      };
-      await expect(new GhDeliveryHostPort(exactRunner).mergeRequest({
-        providerId: "github",
-        repository,
-        changeRequestId: "401",
-        headSha,
-        baseRef: "main",
-        targetRef: "refs/heads/main",
-        strategy,
-      })).resolves.toEqual({ status: "submitted" });
-    }
+  it("submits the bound intermediate merge at one exact head", async () => {
+    const exactRunner: HostedProcessRunner = {
+      run: async (args) => {
+        const expected = [
+          "pr", "merge", "401", "--repo", repository,
+          "--match-head-commit", headSha, "--merge",
+        ];
+        if (JSON.stringify(args) !== JSON.stringify(expected)) throw new Error("unexpected host mutation");
+        return { stdout: "", stderr: "" };
+      },
+    };
+    await expect(new GhDeliveryHostPort(exactRunner).mergeRequest({
+      providerId: "github",
+      repository,
+      changeRequestId: "401",
+      headSha,
+      baseRef: "main",
+      targetRef: "refs/heads/main",
+      strategy: "merge",
+      mergePolicy,
+    })).resolves.toEqual({ status: "submitted" });
   });
 
   it("mints native-stack-required only from a semantic stacked-member rejection", async () => {
@@ -363,6 +369,7 @@ describe("GhDeliveryHostPort", () => {
       baseRef: "main",
       targetRef: "refs/heads/main",
       strategy: "merge",
+      mergePolicy,
     } as const;
 
     await expect(new GhDeliveryHostPort(stacked).mergeRequest(effect))
@@ -458,6 +465,7 @@ describe("GhDeliveryHostPort", () => {
       baseRef: "main",
       targetRef: "refs/heads/main",
       strategy: "merge",
+      mergePolicy,
     })).resolves.toEqual({ status: "refused", reason: "unavailable" });
   });
 });

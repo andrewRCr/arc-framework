@@ -13,6 +13,7 @@ import {
 } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   closeDeliveryEligibility,
   executeWithFreshDeliveryEligibility,
@@ -59,10 +60,12 @@ import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../li
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
+  DeliveryMergePolicyBindingV1Schema,
   DeliveryOperationSnapshotV1Schema,
   DeliveryPlanIdSchema,
   DeliveryPlanV1Schema,
   DeliveryStateV1Schema,
+  type DeliveryMergePolicyBindingV1,
   type DeliveryStateV1,
 } from "../lib/delivery/schema.js";
 import {
@@ -109,7 +112,7 @@ import {
   type DeliveryNativeEffectFacts,
 } from "../lib/delivery/native-landing.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { validateManagedPath } from "../lib/kernel/index.js";
+import { canonicalize, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
@@ -125,6 +128,8 @@ import type { GitExec } from "../lib/git/exec.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { releaseMergeLock } from "../scripts/review-gate/merge-lock.js";
 import { evaluateReviewReadiness } from "../scripts/review-gate/readiness.js";
+import { MergeMethodSchema, resolveMergeMethod } from "../scripts/review-gate/merge-method.js";
+import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import { defaultMergeLockPort } from "./review.js";
@@ -204,7 +209,6 @@ const LandPrepareSchema = z.strictObject({
   repository: z.string().min(1),
   baseRef: RefSchema,
   targetRef: RefSchema,
-  mergeStrategy: z.enum(["merge", "rebase", "squash"]),
   releaseMergeLock: z.boolean(),
   treeRoot: z.string().min(1),
 });
@@ -276,7 +280,6 @@ const NativeSelectSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   facts: DeliveryPositionFactsV1Schema,
   repository: z.string().min(1),
-  mergeStrategy: z.enum(["merge", "rebase", "squash"]),
   mergeAction: z.enum(["direct", "queue"]),
   explicitAtomic: z.boolean(),
   members: z.array(NativeMemberSchema).min(1),
@@ -703,6 +706,44 @@ async function observeNativeDeliveryEffect(
   };
 }
 
+async function resolveIntermediateDeliveryMergePolicy(
+  cwd: string,
+  repository: string,
+): Promise<DeliveryMergePolicyBindingV1 | null> {
+  try {
+    const config = await readConfigSettings(cwd);
+    const configured = MergeMethodSchema.safeParse(config.settings["merge.strategy"]);
+    if (config.warnings.length > 0 || !configured.success) return null;
+    const resolved = await resolveMergeMethod(
+      configured.data,
+      createGhMergeMethodPolicyPort(hostedGhRunner),
+      repository,
+      "intermediate",
+    );
+    if (resolved.state !== "validated") return null;
+    const binding = DeliveryMergePolicyBindingV1Schema.safeParse({
+      repository: resolved.repository,
+      stackPosition: resolved.stackPosition,
+      method: resolved.method,
+      allowedMethods: resolved.allowedMethods,
+      policyFingerprint: resolved.policyFingerprint,
+    });
+    return binding.success ? binding.data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function revalidateIntermediateDeliveryMergePolicy(
+  cwd: string,
+  binding: DeliveryMergePolicyBindingV1,
+): Promise<{ readonly status: "exact" | "refused" }> {
+  const current = await resolveIntermediateDeliveryMergePolicy(cwd, binding.repository);
+  return current !== null && canonicalize(current) === canonicalize(binding)
+    ? { status: "exact" }
+    : { status: "refused" };
+}
+
 async function executeDeliveryCommand(
   command: DeliveryExecutionCommand,
   request: unknown,
@@ -937,11 +978,21 @@ async function executeDeliveryCommand(
     if (observation.status === "refused") {
       return { status: "blocked", reason: observation.reason, recommendedActionText: "Repair the exact native-stack input before selecting a landing arm." };
     }
+    const mergePolicy = observation.status === "registered"
+      ? await resolveIntermediateDeliveryMergePolicy(cwd, parsed.repository)
+      : null;
+    if (observation.status === "registered" && mergePolicy === null) {
+      return {
+        status: "blocked",
+        reason: "merge-policy-unavailable",
+        recommendedActionText: "Restore readable repository merge policy before selecting a native landing arm.",
+      };
+    }
     return selectNativeDeliveryLandingArm({
       plan: planRead.value,
       landedPrefix: position.position.landedPrefix,
       observation,
-      mergeStrategy: parsed.mergeStrategy,
+      mergeStrategy: mergePolicy?.method ?? "merge",
       mergeAction: parsed.mergeAction,
       explicitAtomic: parsed.explicitAtomic,
       members: parsed.members.map(({ deliverableId, changeRequestId, headSha }) => ({ deliverableId, changeRequestId, headSha })),
@@ -972,10 +1023,18 @@ async function executeDeliveryCommand(
           recommendedActionText: "Refresh the exact plan-ordered member bindings before preparing again.",
         };
       }
+      const mergePolicy = await resolveIntermediateDeliveryMergePolicy(cwd, prepare.repository);
+      if (mergePolicy === null) {
+        return {
+          status: "blocked",
+          reason: "merge-policy-unavailable",
+          recommendedActionText: "Restore readable repository merge policy before preparing a native landing.",
+        };
+      }
       return reserveNativeDeliveryLanding({
         plan, current, operationId: prepare.operationId, facts: prepare.facts,
         selection: prepare.selection, repository: prepare.repository, baseRef: prepare.baseRef,
-        targetRef: prepare.targetRef,
+        targetRef: prepare.targetRef, mergePolicy,
       }, {
         readiness: async (member) => {
           const bound = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
@@ -1057,6 +1116,7 @@ async function executeDeliveryCommand(
           }, defaultMergeLockPort(cwd));
           return { status: released.state === "blocked" ? "refused" as const : released.state === "released" ? "released" as const : "not-configured" as const };
         },
+        revalidateMergePolicy: (binding) => revalidateIntermediateDeliveryMergePolicy(cwd, binding),
         observeEffect: async () => operation?.kind === "land" && operation.mode === "native"
           ? observeNativeDeliveryEffect(
               host, current.value, submit.request.repository, operation, exec, cwd, submit.remote,
@@ -1324,6 +1384,10 @@ async function executeDeliveryCommand(
     };
     if (command === "land-prepare") {
       const prepare = LandPrepareSchema.parse(parsed);
+      const mergePolicy = await resolveIntermediateDeliveryMergePolicy(cwd, prepare.repository);
+      if (mergePolicy === null) {
+        return { status: "refused", reason: "merge-policy-unavailable" };
+      }
       return prepareDeliveryLanding({
         plan,
         current: stateRead.value,
@@ -1332,7 +1396,7 @@ async function executeDeliveryCommand(
         repository: prepare.repository,
         baseRef: prepare.baseRef,
         targetRef: prepare.targetRef,
-        mergeStrategy: prepare.mergeStrategy,
+        mergePolicy,
         releaseMergeLock: prepare.releaseMergeLock,
         stateStore,
         host,
@@ -1370,6 +1434,7 @@ async function executeDeliveryCommand(
       readiness,
       lock,
       observation: {
+        revalidateMergePolicy: (binding) => revalidateIntermediateDeliveryMergePolicy(cwd, binding),
         observeSelection: async () => {
           const observed = await observePosition(plan, current, apply.approved.repository, apply.remote);
           const member = observed.status === "observed"
