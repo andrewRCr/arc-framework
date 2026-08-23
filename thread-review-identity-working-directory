@@ -3,7 +3,7 @@
   "slug": "thread-review-identity-working-directory",
   "claimId": "d980c325f1d2b226b20e5cd8ea57dcf3",
   "createdAt": "2026-08-23T19:54:07.781Z",
-  "updatedAt": "2026-08-23T19:54:07.781Z",
+  "updatedAt": "2026-08-23T20:31:01.968Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "thread-review-identity-working-directory",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Thread an explicit working directory into the review lanes' identity read",
   "originEntrySourceDigest": "sha256:773bb73e711f320710540384d8a0da495abcab2ee983958f579fb4ffdd4feb54",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/thread-review-identity-working-directory",
+    "headSha": "4622da4c4a04e94adc64577cc14f2b6d8c72bede"
+  }
 }
