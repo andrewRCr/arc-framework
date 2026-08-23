@@ -30,6 +30,16 @@ function parseRecord(raw: string): ApprovedDispositionRecord {
   }
 }
 
+function parseEnumeratedRecord(raw: string): ApprovedDispositionRecord | null {
+  try {
+    return parseRecord(raw);
+  } catch (error) {
+    if (error instanceof LocalReviewRecordStoreError
+      && error.reason === "malformed-local-disposition") return null;
+    throw error;
+  }
+}
+
 function isErrandFixAdvance(
   existing: ApprovedDispositionRecord,
   next: ApprovedDispositionRecord,
@@ -46,11 +56,13 @@ implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
 
   async listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]> {
     const entries = await this.publisher.snapshot({ root: "review-gate", namespace: "evidence" });
-    return entries.flatMap((entry) => (
-      entry.kind === "file" && entry.name.startsWith(RECORD_PREFIX) && entry.name.endsWith(".json")
-        ? [parseRecord(entry.content)]
-        : []
-    ));
+    return entries.flatMap((entry) => {
+      if (entry.kind !== "file" || !entry.name.startsWith(RECORD_PREFIX) || !entry.name.endsWith(".json")) {
+        return [];
+      }
+      const record = parseEnumeratedRecord(entry.content);
+      return record === null ? [] : [record];
+    });
   }
 
   async readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null> {

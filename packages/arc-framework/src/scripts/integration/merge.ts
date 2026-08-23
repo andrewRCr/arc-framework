@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
-import type { ChecksAwaitResult } from "../review-gate/checks-await.js";
+import { RequiredCheckSchema, type ChecksAwaitResult } from "../review-gate/checks-await.js";
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
 import {
   MergeLockTransitionRequestSchema,
@@ -172,6 +172,8 @@ export const IntegrationMergeResultSchema = z.union([
       approvedHead: ObjectIdSchema,
       pullRequest: z.number().int().positive(),
       elapsedMs: z.number().int().nonnegative(),
+      checks: z.array(RequiredCheckSchema),
+      diagnosticFailures: z.array(RequiredCheckSchema),
     }),
   }),
   z.strictObject({
@@ -368,11 +370,6 @@ export async function mergeIntegration(
       }, dependencies, target);
     }
 
-    const release = await dependencies.releaseLock(target);
-    if (release.state !== "released" && release.state !== "no-lock") {
-      return await invalidated(base, "release-blocked", { release }, dependencies, target);
-    }
-
     const checks = await dependencies.awaitChecks(target);
     if (checks.state === "pending") {
       return IntegrationMergeResultSchema.parse({
@@ -383,6 +380,8 @@ export async function mergeIntegration(
           approvedHead: checkpoint.approvedHead,
           pullRequest: target.pullRequest,
           elapsedMs: checks.elapsedMs,
+          checks: checks.checks,
+          diagnosticFailures: checks.diagnosticFailures,
         },
       });
     }
@@ -399,6 +398,22 @@ export async function mergeIntegration(
       return await invalidated(base, "head-mismatch", {
         approvedRepository: target.repository,
         actualRepository: checks.actualRepository,
+      }, dependencies, target);
+    }
+
+    const postChecksTarget = IntegrationMergeTargetSchema.parse(await dependencies.refreshTarget(target));
+    if (
+      postChecksTarget.repository !== target.repository
+      || postChecksTarget.pullRequest !== target.pullRequest
+      || postChecksTarget.baseRef !== target.baseRef
+      || postChecksTarget.headRef !== target.headRef
+      || postChecksTarget.headSha !== target.headSha
+    ) {
+      return await invalidated(base, "head-mismatch", {
+        approvedHead: target.headSha,
+        actualHead: postChecksTarget.headSha,
+        checkpointTarget: target,
+        liveTarget: postChecksTarget,
       }, dependencies, target);
     }
 
@@ -422,6 +437,11 @@ export async function mergeIntegration(
         configuredBase: configuredBaseBeforeMerge,
         targetBase: target.baseRef,
       }, dependencies, target);
+    }
+
+    const release = await dependencies.releaseLock(target);
+    if (release.state !== "released" && release.state !== "no-lock") {
+      return await invalidated(base, "release-blocked", { release }, dependencies, target);
     }
 
     const merged = await dependencies.mergePinned(target, mergeMethod.method);

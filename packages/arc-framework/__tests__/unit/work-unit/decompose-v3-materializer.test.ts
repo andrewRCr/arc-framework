@@ -113,6 +113,7 @@ function harness(
       applyAndStageFinal: async (path, state, bytes) => {
         applications.push({ path, state, bytes });
         states.set(path, state);
+        return { status: "applied" };
       },
     },
   };
@@ -299,7 +300,7 @@ describe("materializeV3DecomposePlan", () => {
       if (path === ".arc/backlog/ROADMAP.md") {
         throw new Error("apply failed");
       }
-      await applyAndStageFinal(path, state, bytes);
+      return await applyAndStageFinal(path, state, bytes);
     };
 
     expect(await materializeV3DecomposePlan(plan(), h.io)).toEqual({
@@ -309,6 +310,7 @@ describe("materializeV3DecomposePlan", () => {
       appliedPaths: [
         ".arc/active/meta-member.md",
         ".arc/backlog/planned/member/draft-member.md",
+        ".arc/backlog/ROADMAP.md",
       ],
     });
     expect(h.applications.map(({ path }) => path)).toEqual([

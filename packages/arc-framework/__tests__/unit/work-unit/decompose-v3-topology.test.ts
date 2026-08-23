@@ -215,6 +215,57 @@ describe("v3 decomposition topology planning", () => {
     expect(internal.plan.constituents).toEqual(["alpha", "origin"]);
   });
 
+  it("keeps a one-member extraction direct while anchoring on the surviving origin", () => {
+    expect(planInternalV3DecomposeTopology({
+      ...input({
+        placement: { kind: "direct-member" },
+        destinations: [newMember("alpha")],
+      }),
+      survivingOrigin: "origin",
+    })).toEqual({
+      status: "planned",
+      plan: {
+        logicalAnchor: { kind: "direct-member", slug: "origin" },
+        constituents: ["alpha", "origin"],
+        actions: [{ kind: "none" }],
+      },
+    });
+
+    expect(planInternalV3DecomposeTopology({
+      ...input({
+        placement: { kind: "direct-member" },
+        destinations: [newMember("alpha"), newMember("beta")],
+      }),
+      survivingOrigin: "origin",
+    })).toEqual({
+      status: "refused",
+      refusal: { code: "multi-member-cohortless" },
+    });
+  });
+
+  it("counts but does not render the surviving origin in at-cap fan-out members", () => {
+    const parentPath = ".arc/backlog/planned/group/nested/cohort-nested.md";
+    const result = planInternalV3DecomposeTopology({
+      ...input({
+        placement: { kind: "at-cap", parent: "group/nested" },
+        destinations: [newMember("alpha")],
+        baseTree: { [parentPath]: file(cohortBytes("group/nested")) },
+      }),
+      survivingOrigin: "origin",
+    });
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const action = result.plan.actions[0];
+    if (action === undefined || !("after" in action) || action.after.kind !== "object") {
+      throw new Error("at-cap extraction must append a regular cohort update");
+    }
+    const rendered = decoder.decode(action.after.bytes);
+    expect(rendered).toContain("### `origin` decomposition fan-out");
+    expect(rendered).toContain("- `alpha`");
+    expect(rendered).not.toContain("- `origin`");
+  });
+
   it("refuses nonregular topology paths, wrong identity, and misplaced coordination", () => {
     const path = ".arc/backlog/planned/origin/cohort-origin.md";
     expect(planV3DecomposeTopology(input({

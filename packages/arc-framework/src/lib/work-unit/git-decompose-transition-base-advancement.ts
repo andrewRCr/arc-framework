@@ -350,6 +350,9 @@ export async function advanceGitDecomposeTransitionBase(
   const decoded = decodeV3DecomposeCutMap(input.completedMap);
   if (decoded.status === "rejected") return { status: "refused", reason: `map:${decoded.issue.code}` };
   const map = decoded.value;
+  if (map.authoring.shape === "extraction") {
+    return { status: "refused", reason: "map:authoring-shape" };
+  }
   const candidateBranch = decomposeCandidateBranch(map.machine.source.origin);
   const scan = await (dependencies.scanWorktrees ?? (() => scanRegisteredWorktrees(
     async (command, args, options) => await dependencies.exec(command, args, {

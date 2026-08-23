@@ -26,6 +26,7 @@ export interface RequiredChecksPort {
   resolveRepository(): Promise<string>;
   readHead(repository: string, pullRequest: number, signal: AbortSignal): Promise<string>;
   readRequiredChecks(repository: string, pullRequest: number, signal: AbortSignal): Promise<RequiredCheck[]>;
+  readObservedChecks(repository: string, pullRequest: number, signal: AbortSignal): Promise<RequiredCheck[]>;
 }
 
 /** The status a required-check set reduces to. */
@@ -58,7 +59,14 @@ export const ChecksAwaitResultSchema = z.union([
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("not-required"), nextAction: z.literal("complete"), checks: z.tuple([]) }),
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("green"), nextAction: z.literal("complete"), checks: z.array(RequiredCheckSchema) }),
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("failed"), nextAction: z.literal("stop"), checks: z.array(RequiredCheckSchema) }),
-  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("pending"), nextAction: z.literal("await"), checks: z.array(RequiredCheckSchema), elapsedMs: z.number().nonnegative() }),
+  z.strictObject({
+    ...ChecksResultBaseShape,
+    state: z.literal("pending"),
+    nextAction: z.literal("await"),
+    checks: z.array(RequiredCheckSchema),
+    diagnosticFailures: z.array(RequiredCheckSchema),
+    elapsedMs: z.number().nonnegative(),
+  }),
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("stale-target"), nextAction: z.literal("stop"), actualHeadSha: GitObjectIdSchema }),
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("target-mismatch"), nextAction: z.literal("stop"), actualRepository: z.string().trim().min(1) }),
 ]);
@@ -97,6 +105,7 @@ export async function awaitRequiredChecks(
     return { ...base, state: "target-mismatch", nextAction: "stop", actualRepository: repository };
   }
   let latestChecks: RequiredCheck[] = [];
+  let latestDiagnosticFailures: RequiredCheck[] = [];
   return boundedWait<ChecksAwaitResult>({
     timeoutMs: input.timeoutMs,
     pollIntervalMs: input.pollIntervalMs,
@@ -108,10 +117,17 @@ export async function awaitRequiredChecks(
         AbortSignal.timeout(input.pollIntervalMs),
       );
       return actualHeadSha === input.headSha
-        ? { ...base, state: "pending", nextAction: "await", checks: latestChecks, elapsedMs }
+        ? {
+            ...base,
+            state: "pending",
+            nextAction: "await",
+            checks: latestChecks,
+            diagnosticFailures: latestDiagnosticFailures,
+            elapsedMs,
+          }
         : { ...base, state: "stale-target", nextAction: "stop", actualHeadSha };
     },
-    attempt: async ({ signal }) => {
+    attempt: async ({ signal, elapsedMs }) => {
       const actualHeadSha = await dependencies.port.readHead(repository, input.pullRequest, signal);
       if (actualHeadSha !== input.headSha) {
         return { kind: "return", value: {
@@ -129,8 +145,24 @@ export async function awaitRequiredChecks(
           return { kind: "return", value: { ...base, state: "failed", nextAction: "stop", checks: latestChecks } };
         case "green":
           return { kind: "return", value: { ...base, state: "green", nextAction: "complete", checks: latestChecks } };
-        default:
+        default: {
+          latestDiagnosticFailures = (await dependencies.port.readObservedChecks(
+            repository,
+            input.pullRequest,
+            signal,
+          )).filter(({ state }) => state === "failed");
+          if (latestDiagnosticFailures.length > 0) {
+            return { kind: "return", value: {
+              ...base,
+              state: "pending",
+              nextAction: "await",
+              checks: latestChecks,
+              diagnosticFailures: latestDiagnosticFailures,
+              elapsedMs,
+            } };
+          }
           return { kind: "continue" };
+        }
       }
     },
   });

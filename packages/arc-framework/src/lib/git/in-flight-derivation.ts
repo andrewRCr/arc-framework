@@ -467,6 +467,10 @@ async function deriveFromResolvedInputs(
     reachable: branchSet.reachable,
     strictLocalFailures,
   });
+  const decompositionCandidateBranches = await deriveOwnedDecompositionCandidateBranches(
+    worktreePaths,
+    options.readMarker ?? readWorktreeMarker,
+  );
   const candidateEntries = [
     ...dedupeErrandCandidates(
       classified
@@ -476,14 +480,11 @@ async function deriveFromResolvedInputs(
     ...deduped.entries,
   ]
     .sort((a, b) => a.index - b.index)
-    .map(({ entry }) => entry);
+    .map(({ entry }) => entry)
+    .filter((entry) => !decompositionCandidateBranches.has(entry.branch));
   const remoteReadDegraded = internallyAcquired
     && !("localOnly" in options && (options.localOnly ?? false))
     && !branchSet.reachable;
-  const decompositionCandidateBranches = await deriveOwnedDecompositionCandidateBranches(
-    worktreePaths,
-    options.readMarker ?? readWorktreeMarker,
-  );
   const classifiedResidue = dedupeResidue(
     classified
       .map((classification) => classification.residue)
@@ -527,6 +528,8 @@ async function deriveFromResolvedInputs(
   }
   warnings.unshift(...input.warnings);
   if (!errandRecordsComplete) warnings.unshift(errandRecordReadFailedWarning());
+  const visibleWarnings = warnings.filter((warning) =>
+    warning.branch === undefined || !decompositionCandidateBranches.has(warning.branch));
   const entriesWithWorktreeMarks = worktreeResult.ok ? candidateEntries : candidateEntries.map(markEntryDegraded);
   const entriesForIdentity = entriesWithWorktreeMarks
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
@@ -541,7 +544,7 @@ async function deriveFromResolvedInputs(
   return {
     entries,
     residue,
-    warnings,
+    warnings: visibleWarnings,
     ...(resultMarks.length > 0 ? { marks: resultMarks } : {}),
     snapshot: input.snapshot,
     liveRefs: branchSet.liveRefs,

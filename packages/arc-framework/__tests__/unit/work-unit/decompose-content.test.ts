@@ -188,6 +188,23 @@ describe("scanV3DecomposeContent", () => {
       .toEqual(Buffer.from(original));
   });
 
+  it("records exact half-open UTF-8 byte ranges for every emitted unit", () => {
+    const source = "\uFEFFpré\r\n## A\r\n😀\r\n### B\r\nx\r\n## C\r\n";
+    const result = scanV3DecomposeContent("draft-sample.md", bytes(source));
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.map(({ byteRange }) => byteRange)).toEqual([
+      { start: 0, end: 9 },
+      { start: 9, end: 21 },
+      { start: 21, end: 31 },
+      { start: 31, end: 37 },
+    ]);
+    for (const unit of result.units) {
+      expect(unit.bytes).toEqual(bytes(source).slice(unit.byteRange.start, unit.byteRange.end));
+    }
+  });
+
   it("uses exact preamble and whole-file units when no H2-H6 boundary exists", () => {
     const markdown = bytes("# Root\ntext 😀\r\n");
     const binary = new Uint8Array([0xff, 0x00, 0x7f]);
@@ -197,6 +214,7 @@ describe("scanV3DecomposeContent", () => {
         locator: { artifact: "notes-sample.md", kind: "preamble" },
         content: "# Root\ntext 😀\r\n",
         bytes: markdown,
+        byteRange: { start: 0, end: markdown.length },
       }],
     });
     expect(scanV3DecomposeContent("payload.bin", binary)).toEqual({
@@ -205,6 +223,16 @@ describe("scanV3DecomposeContent", () => {
         locator: { artifact: "payload.bin", kind: "whole-file" },
         content: "\uFFFD\u0000\u007F",
         bytes: binary,
+        byteRange: { start: 0, end: binary.length },
+      }],
+    });
+    expect(scanV3DecomposeContent("empty.md", new Uint8Array())).toEqual({
+      status: "scanned",
+      units: [{
+        locator: { artifact: "empty.md", kind: "preamble" },
+        content: "",
+        bytes: new Uint8Array(),
+        byteRange: { start: 0, end: 0 },
       }],
     });
   });

@@ -1,4 +1,4 @@
-# Metadata: integration-lane
+# Metadata: ruleset-required-workflow-readiness
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -8,8 +8,9 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-ruleset-required-workflow-readiness.md`
 - **Task List:** [none]
+- **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
 - **Last Completed:** [none]

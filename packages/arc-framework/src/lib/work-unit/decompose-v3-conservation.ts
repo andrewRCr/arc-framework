@@ -131,6 +131,7 @@ export function validateV3DecomposeConservation(
   if (binding.status === "stale") {
     return refuse("machine-binding", binding.reason, binding.locus);
   }
+  const extraction = decoded.value.authoring.shape === "extraction";
 
   const workUnits = new Map<string, V3DecomposeLiveWorkUnit>();
   for (const [index, record] of input.workUnits.entries()) {
@@ -291,10 +292,10 @@ export function validateV3DecomposeConservation(
       : [];
     for (const [targetIndex, target] of replacements.entries()) {
       const locus = `authoring.incomingDispositions.${index}.disposition.replacementTargets.${targetIndex}`;
-      if (target === decoded.value.machine.source.origin) {
+      if (target === decoded.value.machine.source.origin && !extraction) {
         return refuse("dependency-projection", "origin-reference-remains", locus);
       }
-      if (!permittedRecipients.has(target)) {
+      if (target !== decoded.value.machine.source.origin && !permittedRecipients.has(target)) {
         return refuse("dependency-projection", "unknown-dependency-recipient", locus);
       }
     }
@@ -388,6 +389,7 @@ export function validateV3DecomposeConservation(
       afterTargets = [...beforeTargets, contribution.prerequisite];
     }
     if (sameTargets(beforeTargets, afterTargets)) {
+      if (extraction && contribution.kind === "incoming") continue;
       return refuse(
         "dependency-projection",
         "unchanged-dependency-slot",
@@ -407,7 +409,8 @@ export function validateV3DecomposeConservation(
     });
   }
   for (const [dependent, locus] of touchedDependents) {
-    if (projectedTargets.get(dependent)?.targets.includes(decoded.value.machine.source.origin) === true) {
+    if (!extraction
+      && projectedTargets.get(dependent)?.targets.includes(decoded.value.machine.source.origin) === true) {
       return refuse("dependency-projection", "origin-reference-remains", locus);
     }
   }

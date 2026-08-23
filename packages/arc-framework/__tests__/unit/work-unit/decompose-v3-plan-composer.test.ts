@@ -62,8 +62,10 @@ describe("v3 decomposition plan composition", () => {
       cutMapDigest: canonicalDigest("cut-map"),
       sourceHead: "source-head",
       expectedBaseHead: "base-head",
-      origin: "origin",
-      sourceBranch: "feat/origin",
+      prospectiveTransition: {
+        origin: "origin",
+        sourceBranch: "feat/origin",
+      },
       planningProfile: { kind: "draft", sourceDesign: ["draft-origin.md"] },
       destinations: [{
         kind: "new-member",
@@ -160,6 +162,33 @@ describe("v3 decomposition plan composition", () => {
     expect(first.blobs.map(({ contentDigest }) => contentDigest)).toEqual(
       [...first.blobs.map(({ contentDigest }) => contentDigest)].sort(),
     );
+  });
+
+  it("composes an additive plan without retirement claims or transition overlay", () => {
+    const value = baseInput() as unknown as V3PlanCompositionInput & {
+      predecessorRetirement?: V3PlanCompositionInput["predecessorRetirement"];
+      sourceRetirements?: V3PlanCompositionInput["sourceRetirements"];
+      prospectiveTransition?: { origin: string; sourceBranch: string };
+    };
+    value.expectedPaths = value.expectedPaths.filter((path) =>
+      path !== predecessorPath && path !== originDraftPath);
+    delete value.predecessorRetirement;
+    delete value.sourceRetirements;
+    delete value.prospectiveTransition;
+
+    const result = composeV3DecomposePlan(value);
+
+    expect(result.status).toBe("composed");
+    if (result.status !== "composed") return;
+    expect(result.plan.allowedPaths).toEqual(sortByCanonicalBytes([
+      draftPath,
+      metaPath,
+      roadmapPath,
+    ]));
+    expect(result.plan.prospectiveOverlay).toBeUndefined();
+    expect(result.plan.mutations.some((mutation) =>
+      mutation.kind === "exclusive"
+      && (mutation.role === "predecessor-retirement" || mutation.role === "retiring-source"))).toBe(false);
   });
 
   it.each([
@@ -460,7 +489,7 @@ describe("v3 decomposition plan composition", () => {
       ...input,
       expectedPaths: [...input.expectedPaths, secondPath],
       sourceRetirements: [
-        ...input.sourceRetirements,
+        ...(input.sourceRetirements ?? []),
         {
           path: secondPath,
           before: file("origin tasks"),

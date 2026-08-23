@@ -71,7 +71,7 @@ describe("decomposition result occupation", () => {
     for (const protection of ["full", "partial"] as const) {
       const { adapter } = harness({ resolveBaseHead: async () => "moved-base" });
       expect(await occupyDecomposeResult(
-        { protection, configuredBase: "main", plan: plan() },
+        { protection, configuredBase: "main", origin: "origin", plan: plan() },
         adapter,
       )).toEqual({ status: "refused", reason: "base-moved" });
     }
@@ -80,7 +80,7 @@ describe("decomposition result occupation", () => {
   it("accepts only an exact clean partial base projection", async () => {
     const clean = harness();
     expect(await occupyDecomposeResult(
-      { protection: "partial", configuredBase: "main", plan: plan() },
+      { protection: "partial", configuredBase: "main", origin: "origin", plan: plan() },
       clean.adapter,
     )).toEqual({ status: "occupied", protection: "partial" });
 
@@ -92,7 +92,7 @@ describe("decomposition result occupation", () => {
       }),
     });
     expect(await occupyDecomposeResult(
-      { protection: "partial", configuredBase: "main", plan: plan() },
+      { protection: "partial", configuredBase: "main", origin: "origin", plan: plan() },
       dirty.adapter,
     )).toEqual({ status: "refused", reason: "partial-projection-dirty" });
   });
@@ -100,7 +100,7 @@ describe("decomposition result occupation", () => {
   it("creates once and resumes only the exact Git-owned candidate projection", async () => {
     const state = harness();
     const first = await occupyDecomposeResult(
-      { protection: "full", configuredBase: "main", plan: plan() },
+      { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
       state.adapter,
     );
     expect(first).toEqual({
@@ -110,7 +110,7 @@ describe("decomposition result occupation", () => {
       candidateBranch: "chore/decompose-origin",
     });
     expect(await occupyDecomposeResult(
-      { protection: "full", configuredBase: "main", plan: plan() },
+      { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
       state.adapter,
     )).toEqual(first);
   });
@@ -119,7 +119,7 @@ describe("decomposition result occupation", () => {
     const state = harness();
     state.setObservation({ branchHead: "foreign-head", registrations: [] });
     expect(await occupyDecomposeResult(
-      { protection: "full", configuredBase: "main", plan: plan() },
+      { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
       state.adapter,
     )).toEqual({ status: "refused", reason: "branch-exists-unregistered" });
   });
@@ -129,7 +129,7 @@ describe("decomposition result occupation", () => {
       ensureCandidate: async () => ({ status: "collision", noMutation: true }),
     });
     expect(await occupyDecomposeResult(
-      { protection: "full", configuredBase: "main", plan: plan() },
+      { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
       state.adapter,
     )).toEqual({ status: "refused", reason: "concurrent-creation" });
   });
@@ -139,7 +139,7 @@ describe("decomposition result occupation", () => {
       ensureCandidate: async () => ({ status: "collision", noMutation: false }),
     });
     expect(await occupyDecomposeResult(
-      { protection: "full", configuredBase: "main", plan: plan() },
+      { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
       state.adapter,
     )).toEqual({
       status: "refused",
@@ -226,7 +226,7 @@ describe("decomposition result occupation", () => {
       const state = harness();
       state.setObservation(candidate);
       expect(await occupyDecomposeResult(
-        { protection: "full", configuredBase: "main", plan: plan() },
+        { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
         state.adapter,
       )).toEqual({ status: "refused", reason: candidate.reason });
     }

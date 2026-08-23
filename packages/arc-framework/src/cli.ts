@@ -345,9 +345,12 @@ program
 
 program
   .command("decompose <origin>")
-  .description("Preflight, execute, or advance one decomposition")
+  .description("Preflight, execute, extract, finish, or advance one decomposition")
   .option("--preflight", "Emit one canonical read-only v3 starter map")
   .option("--execute <cut-map>", "Stage one exact result from a canonical completed cut map")
+  .option("--extract <cut-map>", "Stage one additive result while preserving the source origin")
+  .option("--finish <cut-map>", "Preview source thinning after proving the additive result landed")
+  .option("--apply <authority>", "Apply the exact source-thinning preview authority")
   .option("--advance-base <cut-map>", "Advance one committed candidate from its completed cut map")
   .action(withInteractionContext(
     {
