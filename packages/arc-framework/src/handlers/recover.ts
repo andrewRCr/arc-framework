@@ -5,6 +5,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { z } from "zod";
 
 import { runRecoverStatus } from "../commands/status.js";
 import {
@@ -23,6 +24,7 @@ import type { DirtyStateResult } from "../lib/git/dirty-state.js";
 import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -44,11 +46,23 @@ export interface RecoverAuditOptions {
   seedPath?: string;
 }
 
+/** Syntax-owned input for recovery-audit locus selection. */
+export const RecoverAuditCommandInputSchema = z.strictObject({
+  seedPath: z.string().trim().min(1).optional(),
+});
+
+/** Registry contribution owned by recovery audit. */
+export const recoverCommandInputRegistration = {
+  commandPath: "recover audit",
+  schema: RecoverAuditCommandInputSchema,
+  schemaFields: { "option.seed-path": "seedPath" },
+} satisfies CommandInputRegistration;
+
 /** Machine-output policy owned by the recovery-audit adapter. */
 export const recoverCommandInputPolicyDeclarations = [{
   commandPath: "recover audit", aliases: [], sites: [
     declareCliOptionSite("seed-path", {
-      acquisition: "optional", schemaOwnership: "none", cancellation: "not-applicable",
+      acquisition: "optional", schemaOwnership: "owned", schemaField: "seedPath", cancellation: "not-applicable",
       automation: {
         noInput: "preserve-absent",
         flags: ["--seed-path"],
