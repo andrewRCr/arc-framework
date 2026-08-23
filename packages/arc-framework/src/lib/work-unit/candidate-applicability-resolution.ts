@@ -115,7 +115,7 @@ export type CandidateApplicabilityResolutionResult = z.infer<
 
 export interface CandidateApplicabilityResolutionContext {
   readonly readRecord: () => Promise<VersionedCandidateRecord>;
-  readonly currentTarget: () => Promise<CandidateLineageTarget>;
+  readonly currentTarget: (baseRevision: string) => Promise<CandidateLineageTarget>;
   readonly currentBase: () => Promise<string>;
   readonly projectApplicability: (
     request: CandidateApplicabilityRequest,
@@ -171,9 +171,8 @@ async function rederive(
   let currentBase: string;
   let projection: CandidateApplicabilityResult;
   try {
-    [current, currentBase] = await Promise.all([context.currentTarget(), context.currentBase()]);
-    current = CandidateLineageTargetSchema.parse(current);
-    currentBase = ObjectIdSchema.parse(currentBase);
+    currentBase = ObjectIdSchema.parse(await context.currentBase());
+    current = CandidateLineageTargetSchema.parse(await context.currentTarget(currentBase));
     if (!exactTarget(current, input.currentTarget)) {
       return result({ state: "stale-bound-input", nextAction: "reclassify", reason: "current-target-changed" });
     }

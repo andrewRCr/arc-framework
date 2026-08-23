@@ -74,6 +74,7 @@ export async function readRoutedObligation(
   target: ChangeRequestTargetRef,
   pullRequest: number,
   memberLookup: DeliveryMemberLookup = new RepositoryDeliveryMemberLookup({ cwd, exec }),
+  currentBaseRevision?: string,
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
@@ -101,6 +102,7 @@ export async function readRoutedObligation(
       cwd,
       revision: target.headSha,
       baseBranch,
+      baseRevision: currentBaseRevision,
       exec,
     });
     const effective = await projectGitCandidateEffectiveTarget({
@@ -184,6 +186,7 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
           target,
           resolution.candidate.number,
           memberLookup,
+          base.currentBaseOid ?? undefined,
         );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const repository = await checksPort.resolveRepository();

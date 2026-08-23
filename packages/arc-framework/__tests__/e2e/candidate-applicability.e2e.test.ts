@@ -58,6 +58,7 @@ describe("arc candidate applicability resolve", () => {
     await writeFile(join(root, "reviewed.txt"), "base\n", "utf8");
     await git(root, ["add", "-A"]);
     await git(root, ["commit", "-m", "install ARC"]);
+    const localBase = await git(root, ["rev-parse", "main^{commit}"]);
 
     await git(root, ["switch", "-c", "feat/example"]);
     await mkdir(join(root, ".arc", "active"), { recursive: true });
@@ -79,8 +80,11 @@ describe("arc candidate applicability resolve", () => {
     await writeFile(join(root, "reviewed.txt"), "base moved\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "move base"]);
+    const currentBase = await git(root, ["rev-parse", "HEAD^{commit}"]);
     await git(root, ["switch", "feat/example"]);
-    await expect(git(root, ["merge", "--no-ff", "main", "-m", "merge base"])).rejects.toThrow();
+    await git(root, ["update-ref", "refs/remotes/origin/main", currentBase]);
+    await git(root, ["branch", "-f", "main", localBase]);
+    await expect(git(root, ["merge", "--no-ff", currentBase, "-m", "merge base"])).rejects.toThrow();
     await writeFile(join(root, "reviewed.txt"), "base moved and feature\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "--no-edit"]);
@@ -94,7 +98,8 @@ describe("arc candidate applicability resolve", () => {
       baseBranch: "main",
       exec: gitExec,
     });
-    const currentBase = await git(root, ["rev-parse", "main^{commit}"]);
+    expect(await git(root, ["rev-parse", "main^{commit}"])).toBe(localBase);
+    expect(await git(root, ["rev-parse", "refs/remotes/origin/main^{commit}"])).toBe(currentBase);
     const decision = await projectGitCandidateApplicability({
       request: {
         candidateId: baseline.candidateId,
@@ -105,7 +110,7 @@ describe("arc candidate applicability resolve", () => {
       exec: createRawGitExec(root),
       observeEndpoints: async () => ({
         candidateHead: await git(root, ["rev-parse", "HEAD^{commit}"]),
-        baseHead: await git(root, ["rev-parse", "main^{commit}"]),
+        baseHead: await git(root, ["rev-parse", "refs/remotes/origin/main^{commit}"]),
       }),
     });
     expect(decision.state).toBe("decision-required");

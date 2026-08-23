@@ -265,6 +265,7 @@ export function createIntegrationCheckpointDependencies(input: {
     return settingsPromise;
   };
   const candidates = new Map<string, Promise<CachedCandidate | null>>();
+  const candidateBaseRevisions = new Map<string, string>();
   const rawGit = createRawGitExec(input.cwd);
   let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
   const identity = () => {
@@ -284,8 +285,17 @@ export function createIntegrationCheckpointDependencies(input: {
       };
     },
   };
-  const candidate = (workUnit: string): Promise<CachedCandidate | null> => {
-    let value = candidates.get(workUnit);
+  const candidate = (workUnit: string, baseRevision?: string): Promise<CachedCandidate | null> => {
+    const boundBase = candidateBaseRevisions.get(workUnit);
+    if (baseRevision !== undefined) {
+      if (boundBase !== undefined && boundBase !== baseRevision) {
+        throw new Error("The authoritative Candidate base changed during checkpoint composition.");
+      }
+      candidateBaseRevisions.set(workUnit, baseRevision);
+    }
+    const effectiveBase = baseRevision ?? boundBase;
+    const cacheKey = `${workUnit}\0${effectiveBase ?? "materialized"}`;
+    let value = candidates.get(cacheKey);
     if (value === undefined) {
       value = (async () => {
         const versioned = await readCandidateRecordVersioned(input.cwd, workUnit);
@@ -296,6 +306,7 @@ export function createIntegrationCheckpointDependencies(input: {
           cwd: input.cwd,
           name: workUnit,
           baseBranch: config.settings["branch.base"],
+          baseRevision: effectiveBase,
           record,
           exec: input.exec,
           rawExec: rawGit,
@@ -307,7 +318,7 @@ export function createIntegrationCheckpointDependencies(input: {
           currentness: projectEffectiveCandidateCurrentness(effective),
         };
       })();
-      candidates.set(workUnit, value);
+      candidates.set(cacheKey, value);
     }
     return value;
   };
@@ -341,7 +352,7 @@ export function createIntegrationCheckpointDependencies(input: {
         return { status: "unavailable", detail: "The delivery drift overlap is unavailable." };
       }
       try {
-        const value = await candidate(workUnit);
+        const value = await candidate(workUnit, drift.baseOid ?? undefined);
         const currentness = value?.currentness ?? null;
         if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
           return { status: "unavailable", detail: "The current delivery Candidate is unavailable." };
@@ -392,12 +403,12 @@ export function createIntegrationCheckpointDependencies(input: {
         snapshot.fs,
       );
     },
-    readCandidate: async (workUnit) => {
-      const value = await candidate(workUnit);
+    readCandidate: async (workUnit, baseRevision) => {
+      const value = await candidate(workUnit, baseRevision);
       return value?.currentness ?? null;
     },
     composeCandidateApplicabilityResolutionSelector: async (workUnit, decision) => {
-      const value = await candidate(workUnit);
+      const value = await candidate(workUnit, decision.currentBase);
       if (value === null || value.effective.state !== "decision-required") {
         throw new Error("The Candidate applicability decision is no longer current.");
       }
@@ -406,6 +417,7 @@ export function createIntegrationCheckpointDependencies(input: {
         cwd: input.cwd,
         name: workUnit,
         baseBranch: config.settings["branch.base"],
+        baseRevision: decision.currentBase,
         exec: input.exec,
         revision: decision.currentTarget.revision,
       });
@@ -426,9 +438,9 @@ export function createIntegrationCheckpointDependencies(input: {
         residualDigest: decision.residualDigest,
       };
     },
-    readCandidatePublication: async (workUnit) => {
+    readCandidatePublication: async (workUnit, baseRevision) => {
       const [value, publicationBoundary] = await Promise.all([
-        candidate(workUnit),
+        candidate(workUnit, baseRevision),
         boundary(workUnit),
       ]);
       if (value === null || value.effective.state !== "current") {

@@ -677,11 +677,12 @@ comparator and trivially accepted.
                 - Classifier and composed checkpoint coverage pin substantive residual acceptance, regenerable-only
                   generic safety, and the mixed residual-plus-outside boundary.
 
-            - `[ ]` **5.7.R.e.2 Project the Candidate against the authoritative fetched base**
+            - `[x]` **5.7.R.e.2 Project the Candidate against the authoritative fetched base**
 
-                - Give every effective-target and applicability consumer the same freshly observed protected-base
-                  coordinate used by guarded reconciliation, including a stale local configured branch after fetch.
-                - Cover checkpoint rerun and exact selection resolution against that stale-local-base topology.
+                - Candidate subject and effective-target projection now prefer the materialized remote base, accept an
+                  exact authoritative coordinate, and bind every checkpoint read to its fetched base OID.
+                - Applicability resolution derives its subject from that same OID; unit and built-CLI coverage preserve
+                  checkpoint currentness and exact selection while the local configured branch remains stale.
 
             - `[ ]` **5.7.R.e.3 Retain unresolved native landing effects**
 

@@ -13,7 +13,10 @@ import {
   type CandidateEffectiveTargetProjection,
 } from "./candidate-effective-target.js";
 import { projectGitCandidateApplicability } from "./git-candidate-applicability.js";
-import { collectGitCandidateTarget } from "./git-candidate-subject.js";
+import {
+  collectGitCandidateTarget,
+  resolveGitCandidateBaseRevision,
+} from "./git-candidate-subject.js";
 
 async function readCommit(input: {
   cwd: string;
@@ -35,9 +38,11 @@ export async function resolveGitCandidateTargetBase(input: {
   readonly cwd: string;
   readonly revision: string;
   readonly baseBranch: string;
+  readonly baseRevision?: string;
   readonly exec: GitExec;
 }): Promise<string> {
-  const output = (await input.exec("git", ["merge-base", "--all", input.revision, input.baseBranch], {
+  const baseRevision = input.baseRevision ?? await resolveGitCandidateBaseRevision(input);
+  const output = (await input.exec("git", ["merge-base", "--all", input.revision, baseRevision], {
     cwd: input.cwd,
     objectAccess: "local-only",
   })).stdout.trim();
@@ -52,6 +57,8 @@ export interface GitCandidateEffectiveTargetInput {
   readonly cwd: string;
   readonly name: string;
   readonly baseBranch: string;
+  /** Exact current configured-base coordinate when an authoritative caller already observed it. */
+  readonly baseRevision?: string;
   readonly record: CandidateManagedRecordV1;
   readonly exec: GitExec;
   readonly rawExec: RawGitExec;
@@ -67,20 +74,19 @@ export async function projectGitCandidateEffectiveTarget(
   input: GitCandidateEffectiveTargetInput,
 ): Promise<CandidateEffectiveTargetProjection> {
   const observeEndpoints = async () => {
-    const [candidateHead, baseHead] = await Promise.all([
-      readCommit({
-        cwd: input.cwd,
-        exec: input.exec,
-        expression: input.target === undefined ? "HEAD^{commit}" : `${input.target.revision}^{commit}`,
-      }),
-      readCommit({
-        cwd: input.cwd,
-        exec: input.exec,
-        expression: input.target === undefined
-          ? `${input.baseBranch}^{commit}`
-          : `${input.target.currentBase}^{commit}`,
-      }),
-    ]);
+    const candidateHead = await readCommit({
+      cwd: input.cwd,
+      exec: input.exec,
+      expression: input.target === undefined ? "HEAD^{commit}" : `${input.target.revision}^{commit}`,
+    });
+    const baseHead = input.target !== undefined
+      ? await readCommit({
+          cwd: input.cwd,
+          exec: input.exec,
+          expression: `${input.target.currentBase}^{commit}`,
+        })
+      : input.baseRevision ?? await resolveGitCandidateBaseRevision(input);
+    if (!isGitObjectId(baseHead)) throw new Error("Cannot resolve exact Candidate base coordinate");
     return { candidateHead, baseHead };
   };
   const observed = await observeEndpoints();
@@ -88,6 +94,7 @@ export async function projectGitCandidateEffectiveTarget(
     cwd: input.cwd,
     name: input.name,
     baseBranch: input.baseBranch,
+    baseRevision: observed.baseHead,
     exec: input.exec,
     revision: observed.candidateHead,
   });
@@ -96,6 +103,7 @@ export async function projectGitCandidateEffectiveTarget(
       cwd: input.cwd,
       name: input.name,
       baseBranch: input.baseBranch,
+      baseRevision: observed.baseHead,
       exec: input.exec,
     });
     const stagedCurrentness = projectCandidateCurrentness({ record: input.record, current: staged });

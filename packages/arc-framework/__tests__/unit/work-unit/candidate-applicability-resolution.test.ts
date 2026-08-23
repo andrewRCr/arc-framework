@@ -74,7 +74,9 @@ function harness() {
   if (decision.state !== "decision-required") throw new Error("expected a bounded decision");
   const context: CandidateApplicabilityResolutionContext = {
     readRecord: async () => ({ record: stored, version: VERSION }),
-    currentTarget: async () => currentTarget,
+    currentTarget: async (baseRevision) => baseRevision === SHA_B
+      ? currentTarget
+      : { revision: SHA_C, subject: subject("wrong-base") },
     currentBase: async () => SHA_B,
     projectApplicability: async () => decision,
     writeRecord: async (record) => {

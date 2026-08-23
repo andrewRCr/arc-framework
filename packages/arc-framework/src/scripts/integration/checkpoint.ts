@@ -474,14 +474,14 @@ export interface IntegrationCheckpointDependencies {
   >;
   readReconcileHost(workUnit: string, drift: BaseDriftResult): Promise<ReconcileHostFact>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
-  readCandidate(workUnit: string): Promise<
+  readCandidate(workUnit: string, baseRevision?: string): Promise<
     CandidateCurrentnessProjection | Exclude<CandidateApplicabilityResult, { state: "applicable" }> | null
   >;
   composeCandidateApplicabilityResolutionSelector(
     workUnit: string,
     decision: CandidateApplicabilityDecisionResult,
   ): Promise<CandidateApplicabilityResolutionSelector>;
-  readCandidatePublication(workUnit: string): Promise<
+  readCandidatePublication(workUnit: string, baseRevision?: string): Promise<
     { readonly status: "current" } | { readonly status: "refresh-required" }
   >;
   composeDelivery(input: {
@@ -632,7 +632,7 @@ export async function checkpointIntegration(
       deliveryDrift.status === "reconcile" ? deliveryDrift.safetyClass : "generic",
     );
     if (safety.safe) {
-      const candidate = await dependencies.readCandidate(request.workUnit);
+      const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid ?? undefined);
       if (candidate === null) {
         return IntegrationCheckpointResultSchema.parse({
           ...base,
@@ -703,7 +703,7 @@ export async function checkpointIntegration(
       payload: { lifecycle },
     });
   }
-  const candidate = await dependencies.readCandidate(request.workUnit);
+  const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid ?? undefined);
   if (candidate === null) {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
@@ -735,7 +735,7 @@ export async function checkpointIntegration(
       payload: { candidate },
     });
   }
-  const publication = await dependencies.readCandidatePublication(request.workUnit);
+  const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid ?? undefined);
   if (publication.status === "refresh-required") {
     return IntegrationCheckpointResultSchema.parse({
       ...base,

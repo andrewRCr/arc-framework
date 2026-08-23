@@ -27,7 +27,10 @@ import {
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../lib/work-unit/git-candidate-applicability.js";
-import { collectGitCandidateTarget } from "../lib/work-unit/git-candidate-subject.js";
+import {
+  collectGitCandidateTarget,
+  resolveGitCandidateBaseRevision,
+} from "../lib/work-unit/git-candidate-subject.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const COMMAND_PATH = "candidate applicability resolve";
@@ -102,10 +105,16 @@ async function executeCandidateApplicabilityResolution(
       objectAccess: "local-only",
     })
   ).stdout.trim();
-  const currentTarget = async () => collectGitCandidateTarget({
+  const currentBase = () => resolveGitCandidateBaseRevision({
+    cwd: root,
+    baseBranch,
+    exec: git,
+  });
+  const currentTarget = async (baseRevision: string) => collectGitCandidateTarget({
     cwd: root,
     name,
     baseBranch,
+    baseRevision,
     exec: git,
     revision: await readObjectId("HEAD^{commit}"),
   });
@@ -113,14 +122,14 @@ async function executeCandidateApplicabilityResolution(
   return resolveCandidateApplicability({
     readRecord: () => readCandidateRecordVersioned(root, name),
     currentTarget,
-    currentBase: () => readObjectId(`${baseBranch}^{commit}`),
+    currentBase,
     projectApplicability: (request) => projectGitCandidateApplicability({
       request,
       exec: rawGit,
       observeEndpoints: async () => {
         const [candidateHead, baseHead] = await Promise.all([
           readObjectId("HEAD^{commit}"),
-          readObjectId(`${baseBranch}^{commit}`),
+          currentBase(),
         ]);
         return { candidateHead, baseHead };
       },

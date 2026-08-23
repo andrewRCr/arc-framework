@@ -175,7 +175,13 @@ describe("integration checkpoint", () => {
   });
 
   it("returns a safe behind-base verdict with the validated facts", async () => {
-    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, dependencies()))
+    const deps = dependencies();
+    const readCandidate = deps.readCandidate;
+    deps.readCandidate = async (workUnit, baseRevision) => baseRevision === oid("b")
+      ? readCandidate(workUnit, baseRevision)
+      : null;
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "reconcile",
         nextAction: "reconcile-base",
@@ -383,6 +389,13 @@ describe("integration checkpoint", () => {
 
   it("returns the complete approval composition when every prerequisite is ready", async () => {
     const deps = dependencies();
+    const readCandidate = deps.readCandidate;
+    deps.readCandidate = async (workUnit, baseRevision) => baseRevision === oid("b")
+      ? readCandidate(workUnit, baseRevision)
+      : null;
+    deps.readCandidatePublication = async (_workUnit, baseRevision) => ({
+      status: baseRevision === oid("b") ? "current" as const : "refresh-required" as const,
+    });
     deps.readDrift = async () => ({
       mode: "authoritative",
       verdict: "clean",

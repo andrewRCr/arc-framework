@@ -419,6 +419,7 @@ describe("review-fix Candidate lineage", () => {
     );
     await git(root, ["add", "-A"]);
     await git(root, ["commit", "-m", "install ARC"]);
+    const localBase = await git(root, ["rev-parse", "main^{commit}"]);
 
     await git(root, ["switch", "-c", "feat/example"]);
     await mkdir(join(root, ".arc", "active"), { recursive: true });
@@ -447,9 +448,14 @@ describe("review-fix Candidate lineage", () => {
     );
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "move base"]);
+    const currentBase = await git(root, ["rev-parse", "HEAD^{commit}"]);
     await git(root, ["switch", "feat/example"]);
-    await git(root, ["merge", "--no-ff", "main", "-m", "merge base"]);
+    await git(root, ["update-ref", "refs/remotes/origin/main", currentBase]);
+    await git(root, ["branch", "-f", "main", localBase]);
+    await git(root, ["merge", "--no-ff", currentBase, "-m", "merge base"]);
     const mergedHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+    expect(await git(root, ["rev-parse", "main^{commit}"])).toBe(localBase);
+    expect(await git(root, ["rev-parse", "refs/remotes/origin/main^{commit}"])).toBe(currentBase);
 
     const composition = createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec });
     const candidate = await composition.readCandidate("example");
@@ -462,6 +468,9 @@ describe("review-fix Candidate lineage", () => {
         status: "current",
         recognizedRevision: mergedHead,
       });
+    await expect(checkpointOver(root)).resolves.not.toMatchObject({
+      reason: "candidate-unexplained-delta",
+    });
     await expect(runActiveStatus({ cwd: root, exec: gitExec })).resolves.toMatchObject({
       candidates: [{
         integrationBoundary: {
