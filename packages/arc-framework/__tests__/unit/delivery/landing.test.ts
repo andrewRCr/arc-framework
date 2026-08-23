@@ -7,7 +7,10 @@ import {
   prepareDeliveryLanding,
   reconcileDeliveryExecution,
 } from "../../../src/lib/delivery/landing.js";
-import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
+import {
+  attachDeliveryOperationEffectIdentity,
+  reserveDeliveryOperation,
+} from "../../../src/lib/delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import {
@@ -590,7 +593,17 @@ describe("delivery landing", () => {
               : common;
       const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, request);
       if (reserved.status !== "reserved") throw new Error(`fixture must reserve ${entry.kind}`);
-      const current = { revision: 8, value: reserved.state };
+      const attached = entry.kind === "land" && entry.mode === "native"
+        ? attachDeliveryOperationEffectIdentity(
+            { revision: 8, value: reserved.state },
+            operationId,
+            { providerId: "github", effectId: "native-effect-1" },
+          )
+        : null;
+      if (attached?.status === "refused") throw new Error("fixture must attach native effect identity");
+      const current = attached === null
+        ? { revision: 8, value: reserved.state }
+        : { revision: 9, value: attached.state };
       const writes: DeliveryStateV1[] = [];
       const hostAssigned = entry.kind === "publish" || entry.kind === "land" || entry.kind === "top-remedy";
       const result = await reconcileDeliveryExecution({
@@ -622,6 +635,50 @@ describe("delivery landing", () => {
       if (writes.length === 1) expect(writes[0]?.activeOperation).toBeNull();
       else expect(current.value.activeOperation).not.toBeNull();
     }
+  });
+
+  it("does not clear an identity-less native landing from a none-landed observation", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const members = state.members.slice(0, -1);
+    const snapshot = { target: state.target, members };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "operation-native-without-identity",
+      kind: "land",
+      mode: "native",
+      affectedDeliverableIds: members.map((member) => member.deliverableId),
+      expectedStateRevision: 7,
+      before: snapshot,
+      requested: snapshot,
+      effect: {
+        providerId: "github",
+        repository: "owner/repo",
+        changeRequestId: "102",
+        headSha: members.at(-1)!.coordinates!.head,
+        baseRef: "main",
+        targetRef: "refs/heads/main",
+        strategy: "merge",
+      },
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve native landing");
+    const publish = vi.fn(async (_planId, value: DeliveryStateV1) => ({
+      status: "ok" as const,
+      value: { revision: 9, value },
+    }));
+
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: {
+        observe: async () => ({ status: "observed" as const, value: { outcome: "not-applied" as const } }),
+      },
+      stateStore: { publish },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "native-effect-ambiguous",
+      recommendedActionText: "The native effect has no persisted identity; retain the reservation and do not resubmit.",
+    });
+    expect(publish).not.toHaveBeenCalled();
   });
 
   it("returns the observed terminal continuation after adopting a highest-member teardown", async () => {

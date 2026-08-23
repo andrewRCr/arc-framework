@@ -60,9 +60,7 @@ describe("packaged delivery workflow", () => {
     );
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
     expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
-    expect(nativeSection).toMatch(
-      /only the plan, request, and remote locators[\s\S]*effect\s+identity from delivery state/iu,
-    );
+    expect(nativeSection).not.toContain("only the plan, request, and remote locators");
     expect(packaged).toContain("never enters the delivery plan or state");
     expect(packaged).toContain("integrate-work-unit.md");
     const prepare = packaged.indexOf("arc delivery land prepare");
@@ -106,8 +104,9 @@ describe("packaged delivery workflow", () => {
     expect(nativeInterlock).toBeLessThan(nativeSubmit);
     expect(nativeSubmit).toBeLessThan(nativeStatus);
     expect(nativeSection).toMatch(/exact member\/head set[\s\S]*residual race/iu);
-    expect(nativeSection).toMatch(/pending[\s\S]*restart[\s\S]*land-status/iu);
-    expect(nativeSection).toMatch(/none-landed[\s\S]*new\s+interlock/iu);
+    expect(nativeSection).toMatch(/ordinary polling[\s\S]*land-status/iu);
+    expect(nativeSection).toMatch(/restart or interruption[\s\S]*arc delivery reconcile/iu);
+    expect(nativeSection).toMatch(/terminal `failed`[\s\S]*exact `none-landed`[\s\S]*new\s+interlock/iu);
     expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);
     expect(nativeSection).toMatch(/linked-single[\s\S]*contribution proof[\s\S]*new-head review/iu);
     expect(nativeSection).toMatch(/The terminal\s+member is never included/u);

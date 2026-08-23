@@ -175,12 +175,18 @@ arc delivery native land-submit - --json
 arc delivery native land-status - --json
 ```
 
-Dispatch only on the typed result. `pending` retains the reservation; after a restart, invoke `land-status` with
-only the plan, request, and remote locators rather than submitting again. The service resolves the persisted effect
-identity from delivery state. `retryable` / `none-landed` returns to preparation and a new interlock.
-`partial-landed`, unavailable, expired, or ambiguous results stop with the reservation intact. An applied
-`linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof, before
-new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
+For ordinary polling after submission, use `land-status`. `pending` retains the reservation and polls the same
+persisted effect identity again. After a restart or interruption, invoke the general recovery verb instead:
+
+```bash
+arc delivery reconcile - --json
+```
+
+Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
+effect and exact `none-landed` observation, returns to preparation and a new interlock. A missing identity, `pending`,
+`partial-landed`, unavailable, expired, contradictory, or ambiguous result stops with the reservation intact. An
+applied `linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof,
+before new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
 
 ## Review and land the current member
 

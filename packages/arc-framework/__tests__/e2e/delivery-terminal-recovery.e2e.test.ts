@@ -8,7 +8,10 @@ import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
+import {
+  attachDeliveryOperationEffectIdentity,
+  reserveDeliveryOperation,
+} from "../../src/lib/delivery/operation.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import {
   createCandidateAttestation,
@@ -140,7 +143,10 @@ describe("delivery terminal recovery", () => {
       "#!/bin/sh",
       "case \"$2\" in",
       "  repos/owner/repo/pulls/401)",
-      `    if [ "\${ARC_FAKE_WRONG_HEAD:-0}" = "1" ]; then printf '%s\\n' '${request(401, 1, "f".repeat(40), "closed", "main")}'; else printf '%s\\n' '${request(401, 1, triggerHead, "closed", "main")}'; fi`,
+      `    if [ "\${ARC_FAKE_NATIVE_NONE:-0}" = "1" ]; then printf '%s\\n' '${request(401, 1, triggerHead, "open", "main")}'; elif [ "\${ARC_FAKE_WRONG_HEAD:-0}" = "1" ]; then printf '%s\\n' '${request(401, 1, "f".repeat(40), "closed", "main")}'; else printf '%s\\n' '${request(401, 1, triggerHead, "closed", "main")}'; fi`,
+      "    ;;",
+      "  repos/owner/repo/pulls/401/merge-async/native-effect-1)",
+      "    if [ \"${ARC_FAKE_NATIVE_MERGED:-0}\" = \"1\" ]; then printf '%s\\n' '{\"status\":\"merged\"}'; else printf '%s\\n' '{\"status\":\"failed\"}'; fi",
       "    ;;",
       "  repos/owner/repo/pulls/402)",
       "    case \"$*\" in",
@@ -211,6 +217,57 @@ describe("delivery terminal recovery", () => {
       planId: envelope.planId,
       revision: envelope.revision + 1,
       value,
+    })}\n`);
+  }
+
+  async function reserveInterruptedNativeLanding(
+    fixture: { readonly statePath: string },
+    identityBound: boolean,
+  ): Promise<void> {
+    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      planId: string;
+      revision: number;
+      value: DeliveryStateV1;
+    };
+    const plan = deliveryStackPlanFixture();
+    const members = envelope.value.members.slice(0, -1);
+    const top = members.at(-1);
+    if (top?.changeRequest === null || top?.changeRequest === undefined || top.coordinates === null) {
+      throw new Error("fixture native member must be fully bound");
+    }
+    const snapshot = { target: envelope.value.target, members };
+    const operationId = "native-landing-recovery";
+    const reserved = reserveDeliveryOperation({ revision: envelope.revision, value: envelope.value }, plan, {
+      operationId,
+      kind: "land",
+      mode: "native",
+      affectedDeliverableIds: members.map((member) => member.deliverableId),
+      expectedStateRevision: envelope.revision,
+      before: snapshot,
+      requested: snapshot,
+      effect: {
+        providerId: "github",
+        repository: "owner/repo",
+        changeRequestId: top.changeRequest.changeRequestId,
+        headSha: top.coordinates.head,
+        baseRef: "main",
+        targetRef: "refs/heads/main",
+        strategy: "merge",
+      },
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture native reservation refused");
+    const attached = identityBound
+      ? attachDeliveryOperationEffectIdentity(
+          { revision: envelope.revision + 1, value: reserved.state },
+          operationId,
+          { providerId: "github", effectId: "native-effect-1" },
+        )
+      : null;
+    if (attached?.status === "refused") throw new Error("fixture native identity attachment refused");
+    await writeFile(fixture.statePath, `${JSON.stringify({
+      ...envelope,
+      revision: envelope.revision + (attached === null ? 1 : 2),
+      value: attached === null ? reserved.state : attached.state,
     })}\n`);
   }
 
@@ -574,6 +631,87 @@ describe("delivery terminal recovery", () => {
       command: "delivery top-remedy",
       status: "remedied",
       nextAction: "terminal-checkpoint",
+    });
+  });
+
+  it("retains a native landing reservation whose provider identity was not persisted", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    await reserveInterruptedNativeLanding(fixture, false);
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_NATIVE_NONE: "1" } },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "blocked",
+      reason: "native-effect-ambiguous",
+    });
+    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    expect(retained.value.activeOperation).toMatchObject({
+      operationId: "native-landing-recovery",
+      kind: "land",
+      mode: "native",
+      effectIdentity: null,
+    });
+  });
+
+  it("clears a persisted failed native effect only after exact none-landed observation", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    await reserveInterruptedNativeLanding(fixture, true);
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_NATIVE_NONE: "1" } },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-native-land-select",
+      selector: {
+        planId: fixture.planId,
+        operationId: "native-landing-recovery",
+        operationKind: "land",
+        mode: "native",
+      },
+    });
+    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    expect(cleared.value.activeOperation).toBeNull();
+  });
+
+  it("retains a provider-reported merged effect when the selected request identity mismatches", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    await reserveInterruptedNativeLanding(fixture, true);
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_NATIVE_MERGED: "1", ARC_FAKE_WRONG_HEAD: "1" } },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "blocked",
+      reason: "native-effect-ambiguous",
+    });
+    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    expect(retained.value.activeOperation).toMatchObject({
+      operationId: "native-landing-recovery",
+      effectIdentity: { providerId: "github", effectId: "native-effect-1" },
     });
   });
 

@@ -622,6 +622,14 @@ export async function reconcileDeliveryExecution(input: {
         recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
       };
     }
+    if (operation?.kind === "land" && operation.mode === "native" && operation.effectIdentity === null) {
+      return {
+        status: "blocked",
+        reason: "native-effect-ambiguous",
+        recommendedActionText:
+          "The native effect has no persisted identity; retain the reservation and do not resubmit.",
+      };
+    }
     const rerun = recoveryRerun(input.current.value);
     if (rerun === null) {
       return {

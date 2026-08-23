@@ -94,6 +94,7 @@ import {
   observeDeliveryNativeStack,
 } from "../lib/delivery/native-stack.js";
 import {
+  classifyDeliveryNativeEffect,
   deriveNativeDeliveryMemberChain,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
@@ -603,14 +604,35 @@ async function observeNativeDeliveryEffect(
   const target = await host.observeTarget(repository, operation.effect.targetRef);
   if (target.status !== "observed") return { outcome: "ambiguous" };
   const merged: string[] = [];
-  for (const entry of operation.before.members) {
+  for (const [index, entry] of operation.before.members.entries()) {
     const member = state.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
-    if (member?.changeRequest === null || member?.changeRequest === undefined || member.coordinates === null) {
+    const prior = operation.before.members[index - 1];
+    const expectedBaseRef = prior === undefined
+      ? operation.effect.baseRef
+      : prior.ref?.replace(/^refs\/heads\//u, "");
+    if (entry.ref === null || entry.changeRequest === null || entry.coordinates === null
+      || expectedBaseRef === undefined
+      || member?.ref !== entry.ref || member.changeRequest === null || member.coordinates === null
+      || member.changeRequest.providerId !== entry.changeRequest.providerId
+      || member.changeRequest.changeRequestId !== entry.changeRequest.changeRequestId
+      || member.coordinates.base !== entry.coordinates.base
+      || member.coordinates.head !== entry.coordinates.head
+      || member.coordinates.tree !== entry.coordinates.tree) {
       return { outcome: "ambiguous" };
     }
-    const observed = await host.readRequest(repository, member.changeRequest);
-    if (observed.status === "observed" && observed.request.state === "merged") {
-      merged.push(member.deliverableId);
+    const observed = await host.readRequest(repository, entry.changeRequest);
+    if (observed.status !== "observed"
+      || observed.request.repository !== repository
+      || observed.request.headRepository !== repository
+      || observed.request.binding.providerId !== entry.changeRequest.providerId
+      || observed.request.binding.changeRequestId !== entry.changeRequest.changeRequestId
+      || observed.request.headRef !== entry.ref.replace(/^refs\/heads\//u, "")
+      || observed.request.headSha !== entry.coordinates.head
+      || observed.request.baseRef !== expectedBaseRef) {
+      return { outcome: "ambiguous" };
+    }
+    if (observed.request.state === "merged") {
+      merged.push(entry.deliverableId);
     }
   }
   if (merged.length === 0) return { outcome: "none-landed" };
@@ -1464,24 +1486,23 @@ async function executeDeliveryCommand(
               if (parsed.repository !== operation.effect.repository || operation.effect.strategy !== "merge") {
                 return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
               }
+              if (operation.effectIdentity === null) {
+                return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
+              }
               const host = new GhDeliveryHostPort(hostedGhRunner);
-              let providerReportedMerged = false;
-              if (operation.effectIdentity !== null) {
-                const polled = await host.observeNativeMerge({
-                  repository: operation.effect.repository,
-                  topChangeRequestId: operation.effect.changeRequestId,
-                  topHeadSha: operation.effect.headSha,
-                  mergeAction: "direct_merge",
-                  mergeMethod: "merge",
-                  effectIdentity: operation.effectIdentity.effectId,
-                });
-                if (polled.status === "pending") {
-                  return { status: "refused" as const, reason: "native-effect-pending" as const };
-                }
-                if (polled.status !== "merged") {
-                  return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
-                }
-                providerReportedMerged = true;
+              const polled = await host.observeNativeMerge({
+                repository: operation.effect.repository,
+                topChangeRequestId: operation.effect.changeRequestId,
+                topHeadSha: operation.effect.headSha,
+                mergeAction: "direct_merge",
+                mergeMethod: "merge",
+                effectIdentity: operation.effectIdentity.effectId,
+              });
+              if (polled.status === "pending") {
+                return { status: "refused" as const, reason: "native-effect-pending" as const };
+              }
+              if (polled.status !== "merged" && polled.status !== "failed") {
+                return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
               }
               const effect = await observeNativeDeliveryEffect(
                 host,
@@ -1489,18 +1510,18 @@ async function executeDeliveryCommand(
                 parsed.repository,
                 operation,
               );
-              if (effect.outcome === "partial-landed") {
+              const classification = classifyDeliveryNativeEffect(polled, effect);
+              if (classification.status === "partial-landed") {
                 return {
                   status: "refused" as const,
                   reason: "native-effect-partial" as const,
-                  affectedDeliverableIds: effect.affectedDeliverableIds,
+                  affectedDeliverableIds: classification.affectedDeliverableIds,
                 };
               }
-              if (effect.outcome === "ambiguous"
-                || (providerReportedMerged && effect.outcome === "none-landed")) {
+              if (classification.status === "ambiguous") {
                 return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
               }
-              if (effect.outcome === "none-landed") {
+              if (classification.status === "not-applied") {
                 return { status: "observed" as const, value: { outcome: "not-applied" as const } };
               }
               return {
@@ -1511,7 +1532,7 @@ async function executeDeliveryCommand(
                     kind: "land" as const,
                     effect: operation.effect,
                     outcome: "applied" as const,
-                    snapshot: effect.snapshot,
+                    snapshot: classification.snapshot,
                   },
                 },
               };

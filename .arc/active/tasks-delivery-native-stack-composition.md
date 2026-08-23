@@ -684,12 +684,13 @@ comparator and trivially accepted.
                 - Applicability resolution derives its subject from that same OID; unit and built-CLI coverage preserve
                   checkpoint currentness and exact selection while the local configured branch remains stale.
 
-            - `[ ]` **5.7.R.e.3 Retain unresolved native landing effects**
+            - `[x]` **5.7.R.e.3 Retain unresolved native landing effects**
 
-                - An identity-less, pending, partial, or ambiguous native effect retains its reservation and stops.
-                  Clear and return `delivery-native-land-select` only after a persisted provider effect is
-                  authoritatively terminal and exactly none of its selected members landed.
-                - Cover submission-before-persist and the identity-bound terminal result through production recovery.
+                - One terminal-effect classifier now permits the exact `failed` plus `none-landed` retry only after
+                  its compare-and-set clear; missing identity, pending, partial, contradictory, and unavailable facts
+                  retain the reservation across both native polling and general recovery.
+                - Exact request observation and built-CLI recovery coverage pin submission-before-persist, safe
+                  terminal retry, and mismatched-request retention; restart prose routes through general reconcile.
 
             - `[ ]` **5.7.R.e.4 Rerun the Member 5 criteria walk**
 
