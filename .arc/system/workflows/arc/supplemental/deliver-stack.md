@@ -114,10 +114,32 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
-Follow the typed result. `applied / read-position` and `retryable / read-position` return to
-`arc delivery position`. A bare `retryable` follows the returned guidance: prepare a landed member again and re-fire
-its interlock, or revalidate and retry the exact owning mutation that was reconciled. A blocked, refused,
-unavailable, or ambiguous result stops with its reason rendered.
+Follow the typed result. `applied / read-position` returns to `arc delivery position`; any other `applied` result
+follows its returned `nextAction`. A `retryable` result dispatches only one of these exact
+`transition / action / selector` arms:
+
+- `retryable / cleared / delivery-publish` with `operationKind: materialize` reruns
+  `arc delivery publish`.
+- `retryable / preserved / delivery-publish` with `operationKind: publish` revalidates and retries
+  `arc delivery publish` against the retained reservation.
+- `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
+  `arc delivery rematerialize`.
+- `retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and
+  `mode: provider-adoption` reruns `arc delivery native observe`.
+- `retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential` reruns
+  `arc delivery land prepare` and requires a new integration interlock before apply.
+- `retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native` reruns
+  `arc delivery native land-select`; any selected landing returns through preparation and a new interlock.
+- `retryable / preserved / delivery-teardown` with `operationKind: teardown` revalidates and retries
+  `arc delivery teardown` against the retained reservation.
+- `retryable / cleared / delivery-top-remedy` with `operationKind: top-remedy` reruns
+  `arc delivery top-remedy`.
+
+For every arm, use the returned selector's exact `planId`, `operationId`, `affectedDeliverableIds`, `operationKind`,
+and narrow `mode` when present as the authoritative reservation subject. Render `recommendedActionText` verbatim and
+let the named ordinary verb reobserve and prepare every other input; workflow prose infers neither a selector nor a
+recovery policy. Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous
+result, stops with its reason rendered.
 
 Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
 
