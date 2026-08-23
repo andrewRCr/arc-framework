@@ -721,6 +721,14 @@ comparator and trivially accepted.
 
                 - `[ ]` **5.7.R.e.4.3 Rerun the Member 5 criteria walk**
 
+                    - The fresh final pass and primary source verification resolve criteria 1–3 over the exact
+                      36-commit Member 5 union through `90ae538df`, but criterion 4 remains `[ ]`: both shipped
+                      `deliver-stack` workflow copies route an impossible `retryable / read-position` result and
+                      leave the actual closed recovery actions and exact selectors to prose guidance.
+                    - The workflow guard positively pins that obsolete shape. Correction is bounded to exhaustive
+                      action/transition routing in both workflow copies plus guard coverage for every closed arm; the
+                      recovery reducer, strict result schema, handler, and preserve/clear semantics already withstand.
+
 ## **Phase 6:** Provider-delegated refresh and native landing
 
 **Delivery member:** 6 — `refresh-and-native-landing`
