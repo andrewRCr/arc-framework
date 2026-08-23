@@ -811,7 +811,26 @@ async function executeDeliveryCommand(
       }
     }
     const observed = await observeRepositoryDeliveryPosition(plan, current.value, current.revision, {
-      exec, cwd, host, repository, remoteHeads, localCommits,
+      exec,
+      cwd,
+      host,
+      repository,
+      remoteHeads,
+      localCommits,
+      materializeTarget: async (coordinates) => {
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", remote, coordinates.head]);
+        } catch {
+          return false;
+        }
+        const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+          ...options,
+          cwd,
+          objectAccess: "local-only",
+        });
+        const local = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+        return local?.head === coordinates.head && local.tree === coordinates.tree;
+      },
     });
     if (observed.status !== "observed") return observed;
     for (const deliverableId of operation?.affectedDeliverableIds ?? []) {

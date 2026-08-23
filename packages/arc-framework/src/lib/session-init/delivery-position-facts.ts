@@ -13,6 +13,7 @@ import type {
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
   DeliveryStateV1,
+  DeliveryTargetCoordinatesV1,
 } from "../delivery/schema.js";
 import type { DeliveryPositionObservation } from "./delivery-position.js";
 import {
@@ -29,6 +30,7 @@ interface DeliveryPositionFactsDependencies {
   readonly repository: string;
   readonly remoteHeads: Readonly<Record<string, string>>;
   readonly localCommits: Readonly<Record<string, boolean>>;
+  readonly materializeTarget: (coordinates: DeliveryTargetCoordinatesV1) => Promise<boolean>;
 }
 
 type RequestState = "open" | "merged" | "closed" | null;
@@ -62,6 +64,7 @@ async function observeTarget(
   const observed = await dependencies.host.observeTarget(dependencies.repository, target.ref);
   if (observed.status !== "observed") return null;
   if (canonicalize(observed.coordinates) === canonicalize(target.coordinates)) return "exact";
+  if (!await dependencies.materializeTarget(observed.coordinates)) return null;
   const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
     ...options,
     cwd: dependencies.cwd,

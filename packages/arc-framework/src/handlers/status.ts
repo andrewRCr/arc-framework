@@ -177,6 +177,7 @@ import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../li
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { readDeliveryPositionView } from "../lib/session-init/delivery-position.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
+import { observeDeliveryEligibilityRef } from "../lib/delivery/git-eligibility.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../lib/errand/change-request-lifecycle.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import {
@@ -1039,9 +1040,12 @@ export async function handleStatus(
           states: deliveryStates,
           observe: async (plan, state, revision) => {
             const prerequisites = sessionRemotePrerequisites(context);
+            const objectAvailability = prerequisites.kind === "supplied"
+              ? prerequisites.objectAvailability
+              : null;
             if (prerequisites.kind === "not-needed"
               || prerequisites.snapshot.kind !== "available"
-              || prerequisites.objectAvailability.kind !== "complete") {
+              || objectAvailability?.kind !== "complete") {
               return { status: "refused" };
             }
             const resolved = await resolvedSettingsP;
@@ -1058,7 +1062,17 @@ export async function handleStatus(
                 host: deliveryHost,
                 repository: configuration.repositoryRef,
                 remoteHeads: prerequisites.snapshot.tips,
-                localCommits: prerequisites.objectAvailability.commits,
+                localCommits: objectAvailability.commits,
+                materializeTarget: async (coordinates) => {
+                  if (objectAvailability.commits[coordinates.head] !== true) return false;
+                  const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+                    ...options,
+                    cwd,
+                    objectAccess: "local-only",
+                  });
+                  const local = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+                  return local?.head === coordinates.head && local.tree === coordinates.tree;
+                },
               });
           },
         });

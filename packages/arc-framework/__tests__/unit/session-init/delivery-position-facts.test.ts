@@ -15,6 +15,8 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
   const trees = new Map(state.members.flatMap((member) => member.coordinates === null
     ? []
     : [[member.coordinates.head, member.coordinates.tree] as const]));
+  trees.set(targetCoordinates.head, targetCoordinates.tree);
+  const availableCommits = new Set(trees.keys());
   const exec = vi.fn(async (
     _command: string,
     args: readonly string[],
@@ -22,7 +24,9 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
   ) => {
     expect(options).toMatchObject({ cwd: "/repository", objectAccess: "local-only" });
     if (args[0] === "rev-parse" && args[2]?.endsWith("^{commit}")) {
-      return { stdout: `${args[2].slice(0, -"^{commit}".length)}\n`, stderr: "" };
+      const head = args[2].slice(0, -"^{commit}".length);
+      if (!availableCommits.has(head)) throw new Error("commit unavailable");
+      return { stdout: `${head}\n`, stderr: "" };
     }
     if (args[0] === "rev-list") return { stdout: `${args.at(-1)}\n`, stderr: "" };
     if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
@@ -45,6 +49,11 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
     cwd: "/repository",
     host,
     repository: "owner/repository",
+    materializeTarget: vi.fn(async (coordinates: { head: string; tree: string }) => {
+      trees.set(coordinates.head, coordinates.tree);
+      availableCommits.add(coordinates.head);
+      return true;
+    }),
     remoteHeads: Object.fromEntries(state.members.flatMap((member) => (
       member.ref === null || member.coordinates === null
         ? []
@@ -80,10 +89,11 @@ describe("session-init delivery position facts", () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const dependencies = exactDependencies(state);
-    dependencies.host.observeTarget.mockResolvedValue({
+    const advancedTarget = {
       status: "observed",
       coordinates: { head: "f".repeat(40), tree: "e".repeat(40) },
-    });
+    } as const;
+    dependencies.host.observeTarget.mockResolvedValue(advancedTarget);
 
     await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
       .resolves.toMatchObject({
