@@ -15,7 +15,7 @@ import {
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryContributionEndpoints, DeliveryContributionProofResult } from "./contribution-proof.js";
-import { adoptExternalDeliverySuffixRefresh } from "./suffix-reconciliation.js";
+import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 
 export interface DeliveryNativeLandingMember {
   readonly deliverableId: string;
@@ -567,7 +567,7 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
  * Reconcile the complete remaining registered suffix through the contribution-proven rewrite path.
  *
  * @param input - Exact pre-landing reservation, unpersisted landing projection, repository, and protected target.
- * @param dependencies - Fresh request/ref observers, contribution arbiter, and version-checked state writer.
+ * @param dependencies - Fresh observers, contribution arbiter, terminal absorber/publisher, and state writer.
  * @returns The once-persisted reconciled suffix or a closed refusal preserving path evidence when available.
  */
 export async function reconcileLinkedNativeDeliverySuffix(input: {
@@ -580,6 +580,19 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly observeRequest: (binding: NonNullable<DeliveryStateV1["members"][number]["changeRequest"]>) => Promise<DeliveryHostRequestObservation>;
   readonly observeRef: (ref: string) => Promise<{ readonly head: string; readonly tree: string } | null>;
   readonly proveContribution: (endpoints: DeliveryContributionEndpoints) => Promise<DeliveryContributionProofResult>;
+  readonly absorbTop: (input: {
+    readonly topRef: string;
+    readonly top: { readonly head: string; readonly tree: string };
+    readonly highestMember: { readonly head: string; readonly tree: string };
+  }) => Promise<DeliveryChainAbsorptionResult>;
+  readonly publishTop: (input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }) => Promise<
+    | { readonly status: "published" | "adopted" }
+    | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+  >;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<ReconcileLinkedNativeDeliverySuffixResult> {
   const operation = input.before.value.activeOperation;
@@ -672,48 +685,139 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       recommendedActionText: "Keep the reservation and restore complete observed suffix coordinates.",
     };
   }
-  const affectedDeliverableIds = plannedSuffix.map((member) => member.deliverableId);
-  const settled = await adoptExternalDeliverySuffixRefresh({
-    plan: input.plan,
-    current: input.landed,
-    affectedDeliverableIds,
-    observeResult: () => Promise.resolve({ target, members: observedMembers }),
-    proveContribution: (movement) => {
-      const index = affectedDeliverableIds.indexOf(movement.deliverableId);
-      const beforePredecessor = input.before.value.members[suffixStart + index - 1]?.coordinates;
-      const afterPredecessor = index === 0 ? target.coordinates : observedMembers[index - 1]?.coordinates;
-      if (index < 0 || movement.before.coordinates === null || movement.after.coordinates === null
-        || beforePredecessor === null || beforePredecessor === undefined
-        || afterPredecessor === null || afterPredecessor === undefined) {
-        return Promise.resolve({ status: "refused", reason: "contribution-endpoints-unverified" });
-      }
-      return dependencies.proveContribution({
-        before: {
-          predecessor: { head: beforePredecessor.head, tree: beforePredecessor.tree },
-          member: { head: movement.before.coordinates.head, tree: movement.before.coordinates.tree },
-        },
-        after: {
-          predecessor: { head: afterPredecessor.head, tree: afterPredecessor.tree },
-          member: { head: movement.after.coordinates.head, tree: movement.after.coordinates.tree },
-        },
-      });
-    },
-    stateStore: dependencies.stateStore,
-  });
-  if (settled.status === "applied") return { status: "applied", state: settled.state };
-  if ("paths" in settled) {
+  let movementCount = 0;
+  for (const [index, observed] of observedMembers.entries()) {
+    const before = beforeSuffix[index];
+    if (before?.coordinates === null || before?.coordinates === undefined) {
+      return {
+        status: "blocked",
+        reason: "contribution-endpoints-unverified",
+        recommendedActionText:
+          "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+      };
+    }
+    if (before.coordinates.base === observed.coordinates.base
+      && before.coordinates.head === observed.coordinates.head
+      && before.coordinates.tree === observed.coordinates.tree) continue;
+    movementCount += 1;
+    const beforePredecessor = input.before.value.members[suffixStart + index - 1]?.coordinates;
+    const afterPredecessor = index === 0 ? target.coordinates : observedMembers[index - 1]?.coordinates;
+    if (beforePredecessor === null || beforePredecessor === undefined || afterPredecessor === undefined) {
+      return {
+        status: "blocked",
+        reason: "contribution-endpoints-unverified",
+        recommendedActionText:
+          "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+      };
+    }
+    const proof = await dependencies.proveContribution({
+      before: {
+        predecessor: { head: beforePredecessor.head, tree: beforePredecessor.tree },
+        member: { head: before.coordinates.head, tree: before.coordinates.tree },
+      },
+      after: {
+        predecessor: { head: afterPredecessor.head, tree: afterPredecessor.tree },
+        member: { head: observed.coordinates.head, tree: observed.coordinates.tree },
+      },
+    });
+    if (proof.status !== "accepted") {
+      return "paths" in proof
+        ? {
+            status: "blocked",
+            reason: proof.reason,
+            paths: proof.paths,
+            guidance:
+              "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+          }
+        : {
+            status: "blocked",
+            reason: proof.reason,
+            recommendedActionText:
+              "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+          };
+    }
+  }
+  if (movementCount === 0) {
     return {
       status: "blocked",
-      reason: settled.reason,
-      paths: settled.paths,
-      guidance:
-        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+      reason: "suffix-result-unchanged",
+      recommendedActionText:
+        "Keep the reservation and rerun `arc delivery native land-status` to reobserve the provider result.",
     };
   }
-  return {
-    status: "blocked",
-    reason: settled.reason,
-    recommendedActionText:
-      "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+  const terminal = input.landed.value.members.at(-1);
+  const highest = observedMembers.at(-1);
+  if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null || highest === undefined) {
+    return {
+      status: "blocked",
+      reason: "terminal-top-unavailable",
+      recommendedActionText: "Keep the reservation and restore the exact checked-out terminal top.",
+    };
+  }
+  let terminalCoordinates = terminal.coordinates;
+  if (terminal.coordinates.base !== highest.coordinates.head) {
+    const absorbed = await dependencies.absorbTop({
+      topRef: terminal.ref,
+      top: { head: terminal.coordinates.head, tree: terminal.coordinates.tree },
+      highestMember: { head: highest.coordinates.head, tree: highest.coordinates.tree },
+    });
+    if (absorbed.status !== "absorbed") {
+      return absorbed.reason === "content-conflict" && absorbed.paths !== undefined
+        ? {
+            status: "blocked",
+            reason: "contribution-conflicted",
+            paths: absorbed.paths,
+            guidance:
+              "Resolve the listed top absorption paths, then rerun `arc delivery native land-status`.",
+          }
+        : {
+            status: "blocked",
+            reason: absorbed.reason,
+            recommendedActionText:
+              "Keep the reservation and restore the exact terminal top before retrying native landing settlement.",
+          };
+    }
+    const publishedTop = await dependencies.publishTop({
+      ref: terminal.ref,
+      beforeHead: terminal.coordinates.head,
+      requestedHead: absorbed.head,
+    });
+    if (publishedTop.status === "refused") {
+      return {
+        status: "blocked",
+        reason: `top-publish-${publishedTop.reason}`,
+        recommendedActionText:
+          "Keep the reservation and restore the exact terminal remote ref before retrying settlement.",
+      };
+    }
+    terminalCoordinates = {
+      base: highest.coordinates.head,
+      head: absorbed.head,
+      tree: absorbed.tree,
+    };
+  }
+  const observedById = new Map(observedMembers.map((member) => [member.deliverableId, member]));
+  const projected: DeliveryStateV1 = {
+    ...input.landed.value,
+    members: input.landed.value.members.map((member, index) => {
+      if (index === input.landed.value.members.length - 1) {
+        return { ...member, coordinates: terminalCoordinates };
+      }
+      const observed = observedById.get(member.deliverableId);
+      return observed === undefined ? member : { ...member, ...observed };
+    }),
+    activeOperation: null,
   };
+  const published = await dependencies.stateStore.publish(
+    input.plan.planId,
+    projected,
+    input.landed.revision,
+  );
+  return published.status === "ok"
+    ? { status: "applied", state: published.value }
+    : {
+        status: "blocked",
+        reason: "state-conflict",
+        recommendedActionText: "Re-read state; never overwrite a competing native landing settlement.",
+      };
 }

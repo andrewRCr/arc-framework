@@ -46,6 +46,27 @@ async function mergeInProgress(exec: RawGitExec): Promise<boolean> {
   return await observeCommit(exec, "MERGE_HEAD") !== null;
 }
 
+async function observeExactAbsorption(
+  exec: RawGitExec,
+  head: string,
+  topHead: string,
+  highestMemberHead: string,
+): Promise<{ readonly head: string; readonly tree: string } | null> {
+  try {
+    const [tree, parentLine] = await Promise.all([
+      exec(["rev-parse", `${head}^{tree}`], { objectAccess: "local-only" })
+        .then(({ stdout }) => text(stdout)),
+      exec(["rev-list", "--parents", "-n", "1", head], { objectAccess: "local-only" })
+        .then(({ stdout }) => text(stdout)),
+    ]);
+    return tree !== null && parentLine === `${head} ${topHead} ${highestMemberHead}`
+      ? { head, tree }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 async function unmergedPaths(exec: RawGitExec): Promise<string[] | null> {
   try {
     const value = decoder.decode((await exec(
@@ -110,9 +131,27 @@ export async function absorbGitDeliveryChain(
     checkedOut = null;
   }
   if (checkedOut !== input.topRef) return { status: "refused", reason: "top-not-checked-out" };
-  const current = await observeCommit(input.exec, "HEAD");
-  if (current !== input.top.head) return { status: "refused", reason: "top-moved" };
+  let current = await observeCommit(input.exec, "HEAD");
+  if (current !== input.top.head) {
+    const absorbed = current === null ? null : await observeExactAbsorption(
+      input.exec, current, input.top.head, input.highestMember.head,
+    );
+    return absorbed === null
+      ? { status: "refused", reason: "top-moved" }
+      : { status: "absorbed", ...absorbed };
+  }
   try {
+    const mergeHead = await observeCommit(input.exec, "MERGE_HEAD");
+    if (mergeHead !== null) {
+      if (mergeHead !== input.highestMember.head) {
+        return { status: "refused", reason: "absorption-unavailable" };
+      }
+      await input.exec(["merge", "--abort"]);
+      current = await observeCommit(input.exec, "HEAD");
+      if (current !== input.top.head || await mergeInProgress(input.exec)) {
+        return { status: "refused", reason: "absorption-unavailable" };
+      }
+    }
     if (text((await input.exec(
       ["status", "--porcelain=v1"],
       { objectAccess: "local-only" },

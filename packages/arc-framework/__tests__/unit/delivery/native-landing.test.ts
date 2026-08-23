@@ -656,6 +656,8 @@ describe("native delivery landing", () => {
       observeRequest: vi.fn(),
       observeRef: vi.fn(),
       proveContribution: vi.fn(),
+      absorbTop: vi.fn(),
+      publishTop: vi.fn(),
       stateStore,
     })).resolves.toMatchObject({
       status: "applied",
@@ -721,6 +723,12 @@ describe("native delivery landing", () => {
       ...initial,
       members: initial.members.map((member, index) => ({
         ...member,
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0
+            ? initial.target!.coordinates!.head
+            : initial.members[index - 1]!.coordinates!.head,
+        },
         changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
       })),
     };
@@ -765,6 +773,12 @@ describe("native delivery landing", () => {
       } }),
       observeRef: vi.fn().mockResolvedValue(moved),
       proveContribution: proof,
+      absorbTop: vi.fn().mockResolvedValue({
+        status: "absorbed",
+        head: "c".repeat(40),
+        tree: "f".repeat(40),
+      }),
+      publishTop: vi.fn().mockResolvedValue({ status: "published" }),
       stateStore,
     })).resolves.toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     expect(proof).toHaveBeenCalledOnce();
@@ -778,6 +792,12 @@ describe("native delivery landing", () => {
       ...initial,
       members: initial.members.map((member, index) => ({
         ...member,
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0
+            ? initial.target!.coordinates!.head
+            : initial.members[index - 1]!.coordinates!.head,
+        },
         changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
       })),
     };
@@ -842,6 +862,8 @@ describe("native delivery landing", () => {
     };
     const observeRef = async (ref: string) => movedByRef.get(ref) ?? null;
     const provedHeads = new Set<string>();
+    const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
+    let topPublished = false;
     let publishCount = 0;
 
     const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
@@ -857,9 +879,23 @@ describe("native delivery landing", () => {
           ? { status: "accepted" as const, proof: "mechanical-reapply" as const }
           : { status: "refused" as const, reason: "contribution-diverged" as const, paths: ["unexpected"] };
       },
+      absorbTop: async (input) => provedHeads.size === 2
+        && input.top.head === bound.members[3]!.coordinates!.head
+        && input.highestMember.head === "c".repeat(40)
+        ? { status: "absorbed" as const, ...absorbedTop }
+        : { status: "refused" as const, reason: "coordinate-invalid" as const },
+      publishTop: async (input) => {
+        if (input.ref !== "refs/heads/member-4"
+          || input.beforeHead !== bound.members[3]!.coordinates!.head
+          || input.requestedHead !== absorbedTop.head) {
+          return { status: "refused" as const, reason: "collision" as const };
+        }
+        topPublished = true;
+        return { status: "published" as const };
+      },
       stateStore: { publish: async (_id, value, expectedRevision) => {
         publishCount += 1;
-        if (publishCount > 1 || provedHeads.size !== 2 || expectedRevision !== 2) {
+        if (publishCount > 1 || provedHeads.size !== 2 || !topPublished || expectedRevision !== 2) {
           return { status: "refused" as const, reason: "version-conflict" as const };
         }
         return { status: "ok" as const, value: { revision: 3, value } };
@@ -875,7 +911,7 @@ describe("native delivery landing", () => {
             {},
             { coordinates: { base: newTarget.head, head: "a".repeat(40), tree: "b".repeat(40) } },
             { coordinates: { base: "a".repeat(40), head: "c".repeat(40), tree: "f".repeat(40) } },
-            {},
+            { coordinates: { base: "c".repeat(40), ...absorbedTop } },
           ],
         },
       },
@@ -892,6 +928,8 @@ describe("native delivery landing", () => {
             paths: ["src/conflict.ts"],
           }
         : { status: "accepted", proof: "mechanical-reapply" },
+      absorbTop: async () => { throw new Error("rejected suffix reached top absorption"); },
+      publishTop: async () => { throw new Error("rejected suffix reached top publication"); },
       stateStore: {
         publish: async () => { throw new Error("rejected suffix reached state publication"); },
       },

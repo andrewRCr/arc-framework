@@ -85,6 +85,33 @@ describe("delivery chain content absorption", () => {
       .toEqual([result.head, fixture.top, fixture.refreshedMember]);
     expect(await fixture.git(["merge-base", "--is-ancestor", fixture.originalMember, result.head])).toBe("");
     expect(await fixture.git(["merge-base", "--is-ancestor", fixture.top, result.head])).toBe("");
+
+    await expect(absorbGitDeliveryChain({
+      exec: fixture.exec,
+      topRef: "refs/heads/feat/example",
+      top: await fixture.coordinate(fixture.top),
+      highestMember: await fixture.coordinate(fixture.refreshedMember),
+    })).resolves.toEqual(result);
+  });
+
+  it("recovers an exact interrupted merge before retrying the absorption", async () => {
+    const fixture = await createAbsorptionFixture();
+    await fixture.git(["merge", "--no-ff", "--no-commit", fixture.refreshedMember]);
+    expect(await fixture.git(["rev-parse", "MERGE_HEAD"])).toBe(fixture.refreshedMember);
+
+    const result = await absorbGitDeliveryChain({
+      exec: fixture.exec,
+      topRef: "refs/heads/feat/example",
+      top: await fixture.coordinate(fixture.top),
+      highestMember: await fixture.coordinate(fixture.refreshedMember),
+    });
+
+    expect(result.status).toBe("absorbed");
+    if (result.status !== "absorbed") return;
+    expect((await fixture.git(["rev-list", "--parents", "-n", "1", result.head])).split(" "))
+      .toEqual([result.head, fixture.top, fixture.refreshedMember]);
+    await expect(execFileAsync("git", ["rev-parse", "--verify", "MERGE_HEAD"], { cwd: fixture.repository }))
+      .rejects.toThrow();
   });
 
   it("surfaces content conflicts for attended resolution and restores the pinned top", async () => {

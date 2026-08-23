@@ -47,6 +47,7 @@ import {
   type DeliveryPublicationPresentations,
 } from "../lib/delivery/materialization.js";
 import { adoptGitDeliveryChain } from "../lib/delivery/chain-adoption.js";
+import { absorbGitDeliveryChain } from "../lib/delivery/chain-absorption.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
   DeliveryPositionFactsV1Schema,
@@ -748,6 +749,8 @@ async function executeDeliveryCommand(
         return observed?.head === remoteRef.head ? observed : null;
       },
       proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
+      absorbTop: (input) => absorbGitDeliveryChain({ exec: rawExec, ...input }),
+      publishTop: (input) => publishDeliveryTopRef({ exec, remote, ...input }),
       stateStore,
     });
   };
