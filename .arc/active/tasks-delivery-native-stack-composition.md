@@ -730,26 +730,14 @@ never on base movement alone — because obligating a refresh on every external 
 before. Registration covers the non-terminal members only: excluding the top from provider-side rewrite is a
 structural guarantee rather than operator discipline.
 
-### `[ ]` **6.1 Detect drift, state consequences, and delegate the registered suffix**
+### `[x]` **6.1 Detect drift, state consequences, and delegate the registered suffix**
 
 - _Goal:_ When a refresh is genuinely needed, ARC emits the exact planned suffix plus its safety and
   review-invalidation consequences, and hands the mechanics to the provider or the operator.
 
-- _Shape:_ The arm fires on a refused landing — genuine conflict, native stale-suffix requirement, host
-  up-to-date policy — or on explicit operator choice. Append-only external drift that blocks nothing is disclosed,
-  not acted on. Conflicts, rewritten targets, and ambiguous provider movement refuse. The arm returns a typed
-  result carrying the planned suffix and its consequences as recommended-action text — the precomposition carrier
-  the native surfaces already use, and the one the registration disclosure mirrors. Whether ARC invokes the
-  provider or observes an operator-initiated refresh is explicit in the result, because only the former can reserve
-  a known mutation before it happens.
-
-    - Build `test-first` (one behavior at a time):
-        - Base movement alone obligates no refresh and produces a disclosure only
-        - A refused landing fires the refresh arm with the exact planned suffix
-        - The emitted consequences name review invalidation as well as safety
-        - Ambiguous provider movement refuses rather than being adopted
-        - A rewritten target refuses rather than reconciling
-        - Explicit operator choice fires the arm without a refused landing
+- _Outcome:_ Added a plan-derived refresh classifier that keeps base-only drift advisory, emits the exact registered
+  suffix and precomposed safety/review consequences for refused or operator-requested refresh, and refuses ambiguous
+  provider movement or target rewrites.
 
 ### `[ ]` **6.2 Absorb predecessor movement into the top by content merge**
 
