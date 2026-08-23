@@ -31,14 +31,17 @@ function invalidConfiguredIdentity(): UserFacingError {
  * Read the configured ARC identity without normalization or fallback.
  *
  * @param exec - Injectable Git executor
+ * @param cwd - Optional repository root to read configuration from
  * @returns A validated configured identity, or null when the key is absent
  * @throws The original non-absence Git failure or `identity.invalid` for a present invalid value
  */
-export async function readConfiguredIdentity(exec: GitExec): Promise<Slug | null> {
+export async function readConfiguredIdentity(exec: GitExec, cwd?: string): Promise<Slug | null> {
   const args = ["config", "--null", "--get", "arc.identity"];
   let stdout: string;
   try {
-    ({ stdout } = await exec("git", args));
+    ({ stdout } = cwd === undefined
+      ? await exec("git", args)
+      : await exec("git", args, { cwd }));
   } catch (error) {
     const normalized = normalizeGitRejection(error, { command: "git", args });
     if (normalized.kind === "nonzero-exit" && normalized.exitCode === 1) return null;
