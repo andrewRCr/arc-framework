@@ -350,11 +350,9 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
   async mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMutationResult> {
     if (effect.providerId !== "github") return { status: "refused", reason: "malformed" };
     try {
-      const strategyFlag = effect.strategy === "merge" ? "--merge"
-        : effect.strategy === "rebase" ? "--rebase" : "--squash";
       await this.runner.run([
         "pr", "merge", effect.changeRequestId, "--repo", effect.repository,
-        "--match-head-commit", effect.headSha, strategyFlag,
+        "--match-head-commit", effect.headSha, "--merge",
       ]);
       return { status: "submitted" };
     } catch (error) {
