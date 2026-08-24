@@ -5,6 +5,14 @@ import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createCandidateAttestation, type CandidateManagedRecordV1 } from
+  "../../src/lib/work-unit/candidate-attestation.js";
+import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import { createGitExec } from "../../src/lib/io-context.js";
+import { projectPublicationBoundary } from
+  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import {
   ROLLING_FIELD_RUN,
@@ -246,13 +254,34 @@ describe("arc delivery", () => {
   it("selects exact native arms and degrades through the built CLI", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const initial = deliveryStateFixture(plan);
+    const baseHead = await git(repository, ["rev-parse", "HEAD"]);
+    const baseTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+    const topBranch = `feat/${plan.workUnitId}`;
+    await git(repository, ["checkout", "-b", topBranch]);
+    let predecessor = baseHead;
+    const boundMembers: (typeof initial.members)[number][] = [];
+    for (const [index, member] of plan.members.entries()) {
+      await writeFile(join(repository, `member-${index + 1}.txt`), `${member.title}\n`);
+      await git(repository, ["add", `member-${index + 1}.txt`]);
+      await git(repository, ["commit", "-m", `member ${index + 1}`]);
+      const head = await git(repository, ["rev-parse", "HEAD"]);
+      const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+      const headRef = index === plan.members.length - 1
+        ? topBranch
+        : `delivery/${plan.workUnitId}/${member.chunkKey}`;
+      if (index < plan.members.length - 1) await git(repository, ["branch", headRef, head]);
+      boundMembers.push({
+        ...initial.members[index]!,
+        ref: `refs/heads/${headRef}`,
+        changeRequest: { providerId: "github" as const, changeRequestId: String(41 + index) },
+        coordinates: { base: predecessor, head, tree },
+      });
+      predecessor = head;
+    }
     const state = {
       ...initial,
-      target: { ...initial.target!, ref: "refs/heads/main" },
-      members: initial.members.map((member, index) => ({
-        ...member,
-        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
-      })),
+      target: { ref: "refs/heads/main", coordinates: { head: baseHead, tree: baseTree } },
+      members: boundMembers,
     };
     const nativeMembers = state.members.slice(0, -1).map((member, index) => ({
       deliverableId: member.deliverableId,
@@ -262,6 +291,9 @@ describe("arc delivery", () => {
       baseRef: index === 0 ? "main" : state.members[index - 1]!.ref!.replace(/^refs\/heads\//u, ""),
       headRepository: "owner/repo",
     }));
+    await git(repository, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    await git(repository, ["config", `url.file://${repository}/.insteadOf`, "https://github.com/owner/repo.git"]);
+    await git(repository, ["fetch", "origin", "main"]);
     const common = await gitCommonDir(repository);
     const plans = join(common, "arc", "delivery", "plans");
     const states = join(common, "arc", "delivery", "state");
@@ -359,6 +391,13 @@ describe("arc delivery", () => {
       "  fi",
       "  exit 0",
       "fi",
+      "case \"$*\" in",
+      "  *\"pr checks \"*) printf '[]\\n'; exit 0 ;;",
+      "  *\"rules/branches/\"*) printf '[[]]\\n'; exit 0 ;;",
+      ...nativeMembers.map((member, index) => (
+        `  *"pr list "*"--head ${member.headRef}"*) printf '%s\\n' '${listResponses[index]}'; exit 0 ;;`
+      )),
+      "esac",
       "case \"$2\" in",
       "  view)",
       "    printf '%s\\n' '{\"nameWithOwner\":\"owner/repo\",\"defaultBranchRef\":{\"name\":\"main\"}}'",
@@ -531,6 +570,53 @@ describe("arc delivery", () => {
       status: "blocked",
       reason: "member-not-ready",
     });
+
+    const unreviewed = await runArcWithStdin(
+      ["delivery", "native", "land-prepare", "-", "--json"],
+      repository,
+      `${JSON.stringify(prepareRequest)}\n`,
+      { env },
+    );
+    expect(unreviewed.exitCode, unreviewed.stderr).toBe(1);
+    expect(JSON.parse(unreviewed.stdout)).toMatchObject({
+      status: "blocked",
+      reason: "member-not-ready",
+    });
+
+    const top = state.members.at(-1)!;
+    const exec = createGitExec();
+    const candidateTarget = await collectGitCandidateTarget({
+      cwd: repository,
+      name: plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: baseHead,
+      revision: top.coordinates!.head,
+      exec,
+    });
+    const candidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: plan.workUnitId,
+        subject: candidateTarget.subject,
+        baseRevision: baseHead,
+        attestedBy: "test-user",
+        attestedAt: "2026-08-24T12:00:00.000Z",
+        verificationEvidenceRef: "verification://native-landing-e2e",
+      }),
+      subject: candidateTarget.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeCandidateRecord(repository, plan.workUnitId, candidate, null);
+    await writeSubmissionBoundary(repository, projectPublicationBoundary({
+      workUnit: plan.workUnitId,
+      branch: topBranch,
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: candidate.subject.subjectDigest,
+      reservation: null,
+      changeRequest: { repository: "owner/repo", pullRequest: 44 },
+    }), null);
 
     const prepared = await runArcWithStdin(
       ["delivery", "native", "land-prepare", "-", "--json"],
