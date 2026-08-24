@@ -236,12 +236,12 @@ describe("earlier review attempt query", () => {
   });
 
   it("composes the exact query, factual projection, and Candidate selection for both consumers", async () => {
-    const query = selector();
+    const query = { ...selector(), repository: "Owner/Repository" };
     const snapshot = { status: "complete" as const, records: [{ version: 1, state: laneState() }] };
     const projectedSelector = {
       schemaVersion: 1 as const,
       repositoryId: query.repositoryId,
-      repository: query.repository,
+      repository: query.repository.toLowerCase(),
       pullRequest: query.pullRequest,
       lane: "standard" as const,
       sourceId: query.sourceId,

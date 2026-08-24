@@ -35,6 +35,38 @@ export type ReviewApplicabilityResolutionInput = z.infer<
   typeof ReviewApplicabilityResolutionInputSchema
 >;
 
+export const ReviewApplicabilityDecisionProjectionSchema = ReviewContributionApplicabilityResultSchema.refine(
+  (projection) => projection.state === "decision-required",
+  "review applicability selection requires an exact bounded residual",
+);
+
+export const ReviewApplicabilitySelectionOfferSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  kind: z.literal("review-applicability-selection"),
+  workUnitId: z.string().trim().min(1),
+  expectedRecordVersion: DigestSchema,
+  candidateId: DigestSchema,
+  projection: ReviewApplicabilityDecisionProjectionSchema,
+  choices: z.tuple([z.literal("covered"), z.literal("review-required")]),
+  interactionText: z.string().trim().min(1),
+});
+export type ReviewApplicabilitySelectionOffer = z.infer<
+  typeof ReviewApplicabilitySelectionOfferSchema
+>;
+
+export const ReviewApplicabilityResolutionCommandInputSchema = z.strictObject({
+  kind: z.literal("review-applicability-selection"),
+  offer: ReviewApplicabilitySelectionOfferSchema,
+  selection: z.strictObject({
+    selectedBy: z.string().trim().min(1),
+    selectedAt: z.iso.datetime({ offset: true }),
+    choice: z.enum(["covered", "review-required"]),
+  }),
+});
+export type ReviewApplicabilityResolutionCommandInput = z.infer<
+  typeof ReviewApplicabilityResolutionCommandInputSchema
+>;
+
 const ResultCommon = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-applicability-resolve"),
@@ -43,9 +75,16 @@ export const ReviewApplicabilityResolutionResultSchema = z.union([
   z.strictObject({
     ...ResultCommon,
     state: z.enum(["resolved", "exact-replay"]),
-    nextAction: z.enum(["continue", "request-review"]),
+    nextAction: z.enum(["commit-selection", "continue", "request-review"]),
     candidateId: DigestSchema,
     choice: z.enum(["covered", "review-required"]),
+  }).superRefine((value, context) => {
+    const expected = value.choice === "covered"
+      ? ["commit-selection", "continue"]
+      : ["commit-selection", "request-review"];
+    if (!expected.includes(value.nextAction)) {
+      context.addIssue({ code: "custom", path: ["nextAction"], message: `must be ${expected.join(" or ")}` });
+    }
   }),
   z.strictObject({
     ...ResultCommon,
@@ -74,6 +113,24 @@ export const ReviewApplicabilityResolutionResultSchema = z.union([
 export type ReviewApplicabilityResolutionResult = z.infer<
   typeof ReviewApplicabilityResolutionResultSchema
 >;
+
+/** Convert one status-owned offer plus the authority's choice without rebuilding its exact selector. */
+export function reviewApplicabilityResolutionInputFromCommand(
+  rawInput: ReviewApplicabilityResolutionCommandInput,
+): ReviewApplicabilityResolutionInput {
+  const input = ReviewApplicabilityResolutionCommandInputSchema.parse(rawInput);
+  return ReviewApplicabilityResolutionInputSchema.parse({
+    schemaVersion: 1,
+    expectedRecordVersion: input.offer.expectedRecordVersion,
+    candidateId: input.offer.candidateId,
+    selector: input.offer.projection.selector,
+    projectionDigest: input.offer.projection.projectionDigest,
+    residualDigest: input.offer.projection.residualDigest,
+    selectedBy: input.selection.selectedBy,
+    selectedAt: input.selection.selectedAt,
+    choice: input.selection.choice,
+  });
+}
 
 export interface ReviewApplicabilityResolutionContext {
   readonly readRecord: () => Promise<VersionedCandidateRecord>;

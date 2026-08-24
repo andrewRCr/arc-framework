@@ -10,6 +10,8 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { classifyReviewContributionApplicability } from
+  "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 import {
   allHostedReservationTargetsDischarged,
   projectHostedReservationDischarge,
@@ -22,6 +24,37 @@ const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const MEMBER_ONE = `sha256:${"3".repeat(64)}`;
 const MEMBER_TWO = `sha256:${"4".repeat(64)}`;
 const target = (headSha: string) => ({ repository: "arc-framework/example", pullRequest: 42, headSha });
+
+function unresolvedApplicability() {
+  const selector = {
+    schemaVersion: 1 as const,
+    repositoryId: "repo-1",
+    repository: "arc-framework/example",
+    pullRequest: 42,
+    lane: "standard" as const,
+    sourceId: "coderabbit-pr",
+    priorAttemptId: "attempt-prior",
+    priorHead: oid("a"),
+    currentHead: oid("b"),
+    priorBase: oid("0"),
+    currentBase: oid("1"),
+  };
+  const projection = classifyReviewContributionApplicability(selector, {
+    endpoints: {
+      before: {
+        predecessor: { head: oid("0"), tree: oid("2") },
+        member: { head: oid("a"), tree: oid("3") },
+      },
+      after: {
+        predecessor: { head: oid("1"), tree: oid("4") },
+        member: { head: oid("b"), tree: oid("5") },
+      },
+    },
+    proof: { status: "refused", reason: "contribution-diverged", paths: ["src/index.ts"] },
+  });
+  if (projection.state !== "decision-required") throw new Error("expected unresolved applicability");
+  return projection;
+}
 
 function attempt(
   headSha: string,
@@ -525,6 +558,29 @@ describe("hosted reservation discharge", () => {
         readEarlierAttemptApplicability,
       })).resolves.toMatchObject({ discharged: false, nextSource: null });
     }
+  });
+
+  it("carries the exact unresolved projection to the status consumer", async () => {
+    const projection = unresolvedApplicability();
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+          applicability: "stop",
+          projection,
+        }],
+      }),
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: null,
+      applicability: projection,
+    });
   });
 
   it("admits the same source when the replayed Owner selection requires review", async () => {

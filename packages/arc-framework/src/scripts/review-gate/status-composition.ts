@@ -5,7 +5,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
   resolveGitCandidateTargetBase,
@@ -98,10 +98,11 @@ export async function readRoutedObligation(
     if (boundary === null) {
       return { state: "blocked", detail: "The publication boundary is unavailable." };
     }
-    const record = await readCandidateRecord(cwd, workUnit);
-    if (record === null) {
+    const versionedRecord = await readCandidateRecordVersioned(cwd, workUnit);
+    if (versionedRecord.record === null || versionedRecord.version === null) {
       return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
     }
+    const record = versionedRecord.record;
     const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"];
     const targetBase = await resolveGitCandidateTargetBase({
       cwd,
@@ -167,7 +168,15 @@ export async function readRoutedObligation(
         vehicle: memberTarget.vehicle,
         candidate: record,
       })));
-      return composeDeliveryReviewObligation({ targets: deliveryTargets, discharges });
+      return composeDeliveryReviewObligation({
+        targets: deliveryTargets,
+        discharges,
+        applicabilityContext: {
+          workUnitId: workUnit,
+          expectedRecordVersion: versionedRecord.version,
+          candidateId: record.attestation.candidateId,
+        },
+      });
     }
     const discharge = await readDischarge({
       reservation,

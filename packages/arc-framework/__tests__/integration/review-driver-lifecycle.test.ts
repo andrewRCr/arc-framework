@@ -49,7 +49,9 @@ describe("lifecycle review driver", () => {
       readFile(resolve(packageArc, prepareWorkflow), "utf8"),
     ]);
     expect(workflow).toContain("arc review change-request resolve --head-ref");
-    expect(workflow).not.toContain("arc review status --target '{targetRef}' --json");
+    expect(workflow).toContain("arc review status --target '{targetRef}' --json");
+    expect(workflow.indexOf("arc review status --target '{targetRef}' --json"))
+      .toBeLessThan(workflow.indexOf("arc review hosted request -"));
     expect(workflow).toContain("checkpoint now owns Candidate applicability, ordinary publication settlement");
     expect(workflow).toMatch(/delivery\s+rebind, review status, and final readiness/u);
     expect(workflow).toContain("arc merge lock resolve -");

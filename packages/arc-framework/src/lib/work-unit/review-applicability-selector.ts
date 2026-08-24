@@ -7,9 +7,7 @@ import { DeliveryReviewMemberVehicleSchema } from "../delivery/review-vehicle.js
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const SourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
-const RepositorySchema = z.string()
-  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
-  .transform((value) => value.toLowerCase());
+const RepositorySchema = z.string().regex(/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/u);
 
 export const ReviewContributionApplicabilitySelectorSchema = z.strictObject({
   schemaVersion: z.literal(1),

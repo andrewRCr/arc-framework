@@ -1008,43 +1008,35 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   discharges after top movement, unresolved or unavailable projection evidence spends no provider capacity, and a
   retained selection alone cannot substitute for missing review evidence.
 
-### `[ ]` **7.6 Re-author both workflows' review prose around the fan-out**
+### `[x]` **7.6 Re-author both workflows' review prose around the fan-out**
 
 - _Goal:_ The prose an operator actually follows drives the carried reservation per member and reads the
   conjunction at the terminal boundary, so the fan-out is reachable rather than only implemented.
 
-- _Context:_ The delivery workflow's member-review section never mentions the hosted-review reservation — its
-  reservation references are all the delivery operation's. The integration workflow carries the only
-  reservation-driving prose there is, and it is singular: one boundary read, one request, one settle.
+    - `[x]` **7.6.a Drive the reservation per member in the delivery workflow's review section**
 
-- _Shape:_ Prose stays dispatch-shaped — the returned next action selects the member and prose implements no loop
-  — and the conjunction is read from the typed discharge rather than derived in prose. Both are shipped workflows,
-  so each changes in the package source and the project copy together.
+        - The delivery workflow passes status-owned actions, handles, settlement plans, and applicability offers
+          unchanged, then admits landing only from the settled typed conjunction.
 
-- _Amended 2026-08-23:_ Extend the existing `arc review status` and hosted request / await / settle envelopes rather
-  than adding a verb. Focused contract tests pin package/project parity, action order, selector pass-through, typed
-  terminal conjunction, and absence of prose member enumeration or conditional reconstruction. One executable
-  vertical suite must drive a multi-member reservation through request, handle, await, lane attempt, settle, next
-  selection, reaped-member discharge, fallback-source carry, canonical residual selection, and terminal
-  conjunction; companion rows cover every D8.7 stop class and singleton compatibility.
+    - `[x]` **7.6.b Make the integration workflow's reservation loop delivery-aware**
 
-    - `[ ]` **7.6.a Drive the reservation per member in the delivery workflow's review section**
+        - Integration review iteration re-enters status after each concluded attempt, leaving member/source
+          selection to the CLI and advancing only from the complete discharge conjunction.
 
-        - The delivery-member vehicle, with the same typed request, await, and settle driver the singleton uses
+    - `[x]` **7.6.c Extend the existing typed review progression**
 
-    - `[ ]` **7.6.b Make the integration workflow's reservation loop delivery-aware**
+        - Status owns the complete request, applicability offer, conflict, and stop-action union; the existing
+          Candidate applicability command performs the sole versioned authority write.
 
-        - Per-member requests during the window, with the terminal boundary reading the typed conjunction
+    - `[x]` **7.6.d Prove the selector-to-terminal lifecycle vertically**
 
-    - `[ ]` **7.6.c Extend the existing typed review progression**
+        - Producer-derived handler/composition tests cross filesystem-backed lane and Candidate stores through
+          fallback, carry, canonical selection, finding settlement, next-member selection, and singleton handling.
 
-        - Status and hosted envelopes own the complete selector and next-action union; Candidate applicability
-          resolution owns the only authoritative write
-
-    - `[ ]` **7.6.d Prove the selector-to-terminal lifecycle vertically**
-
-        - Real handler/composition boundaries cover multi-member progression, reaped bindings, canonical decision
-          replay, fallback carry, stop taxonomy, and singleton compatibility
+- _Outcome:_ The existing status, hosted-review, and Candidate verbs now form one typed delivery-member spine in
+  both shipped workflows. First-outstanding order, safe fallback and carry, canonical applicability authority, and
+  terminal conjunction remain CLI-owned; package/project parity, every applicability stop class, and singleton
+  compatibility are covered without prose enumeration or selector reconstruction.
 
 ### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 

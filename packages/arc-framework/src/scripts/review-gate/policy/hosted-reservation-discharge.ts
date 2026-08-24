@@ -15,6 +15,8 @@ import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-s
 import { readLaneProgress, type LaneProgressProjection } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
+import type { ReviewContributionApplicabilityResult } from
+  "./review-contribution-applicability.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   projectEarlierReviewApplicability,
@@ -27,6 +29,8 @@ export interface HostedReservationDischarge {
   discharged: boolean;
   detail: string;
   nextSource: string | null;
+  applicability?: ReviewContributionApplicabilityResult;
+  applicabilityAuthority?: "decision-required" | "blocked";
 }
 
 /** Decide the work-unit obligation from its ordered member discharges. */
@@ -199,11 +203,16 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const selected = earlier.attempts.filter((attempt) => attempt.sourceId === sourceId);
-      if (selected.some(({ applicability }) => applicability === "stop")) {
+      const stopped = selected.find(({ applicability }) => applicability === "stop");
+      if (stopped !== undefined) {
         return {
           discharged: false,
           detail: `Hosted source \`${sourceId}\` has an unresolved contribution-applicability decision.`,
           nextSource: null,
+          ...(stopped.projection === undefined ? {} : { applicability: stopped.projection }),
+          ...(stopped.authorityState === undefined
+            ? {}
+            : { applicabilityAuthority: stopped.authorityState }),
         };
       }
       if (selected.some(({ applicability }) => applicability === "request-review")) {

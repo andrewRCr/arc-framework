@@ -8,6 +8,7 @@ import {
 import { sameDeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import {
+  EarlierReviewAttemptQuerySchema,
   queryEarlierReviewAttempts,
   type EarlierReviewAttemptQuery,
 } from "./earlier-review-attempts.js";
@@ -29,6 +30,8 @@ export type EarlierHostedAttemptApplicabilityRead =
       readonly sourceId: string;
       readonly outcome: string;
       readonly applicability: ReviewApplicabilityConsumerAction;
+      readonly projection?: ReviewContributionApplicabilityResult;
+      readonly authorityState?: "decision-required" | "blocked";
     }[];
   }
   | { readonly status: "not-found" }
@@ -73,7 +76,8 @@ export function candidateExpectsEarlierReviewAttempt(
 export async function projectEarlierReviewApplicability(
   input: EarlierReviewApplicabilityInput,
 ): Promise<EarlierHostedAttemptApplicabilityRead> {
-  const queried = queryEarlierReviewAttempts(input.query, input.snapshot);
+  const query = EarlierReviewAttemptQuerySchema.parse(input.query);
+  const queried = queryEarlierReviewAttempts(query, input.snapshot);
   if (queried.status === "unavailable") {
     if (queried.reason === "no-matching-attempt") return { status: "not-found" };
     return { status: "unavailable", detail: queried.detail };
@@ -82,25 +86,25 @@ export async function projectEarlierReviewApplicability(
   const attempts = await Promise.all(queried.candidates.map(async (candidate) => {
     const selector = {
       schemaVersion: 1 as const,
-      repositoryId: input.query.repositoryId,
-      repository: input.query.repository,
-      pullRequest: input.query.pullRequest,
+      repositoryId: query.repositoryId,
+      repository: query.repository,
+      pullRequest: query.pullRequest,
       lane: "standard" as const,
       sourceId: candidate.sourceId,
       priorAttemptId: candidate.attemptId,
       priorHead: candidate.priorHead,
-      currentHead: input.query.currentHead,
+      currentHead: query.currentHead,
       priorBase: candidate.reviewTarget.diffBaseSha,
       currentBase: input.currentBase,
       ...(candidate.priorVehicle === undefined
         ? {}
-        : { priorVehicle: candidate.priorVehicle, currentVehicle: input.query.currentVehicle }),
+        : { priorVehicle: candidate.priorVehicle, currentVehicle: query.currentVehicle }),
     };
     const projection = input.projectApplicability === undefined
       ? await projectGitReviewContributionApplicability({
           selector,
           exec: input.exec,
-          observeEndpoints: () => Promise.resolve({ head: input.query.currentHead, base: input.currentBase }),
+          observeEndpoints: () => Promise.resolve({ head: query.currentHead, base: input.currentBase }),
         })
       : await input.projectApplicability(selector);
     const authority = reduceReviewApplicabilityAuthority(
@@ -112,6 +116,10 @@ export async function projectEarlierReviewApplicability(
       sourceId: candidate.sourceId,
       outcome: candidate.outcome,
       applicability: reviewApplicabilityConsumerAction(authority),
+      projection: authority.projection,
+      ...(authority.state === "decision-required" || authority.state === "blocked"
+        ? { authorityState: authority.state }
+        : {}),
     };
   }));
   return { status: "complete", attempts };
