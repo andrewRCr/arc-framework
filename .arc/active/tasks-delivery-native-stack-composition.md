@@ -1088,30 +1088,24 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   passes work-unit, repository, and remote identities after `arc user close` and before ordinary teardown; generic
   reconciliation preserves closeout reservations for that owning verb.
 
-### `[ ]` **8.3 Mint `strategy-integration.md` and complete its four ship mechanics**
+### `[x]` **8.3 Mint `strategy-integration.md` and complete its four ship mechanics**
 
 - _Goal:_ One work unit's journey from a verified candidate to landed work on the protected base has a documented
   owner, and that document reaches installing projects.
 
-- _Rationale:_ The posture is adopter-facing doctrine with no existing home: concern boundaries and vocabulary
-  belong to the work-organization strategy, and running several work units at once and merge ordering between them
-  belongs to the concurrent-work strategy. Neither owns this.
+    - `[x]` **8.3.a Author the strategy with its bounded charter**
 
-- _Shape:_ Owns the publication boundary and its attestation; delivery topology and landing posture — members,
-  order, and window; review admission at exact heads; the integration interlock and terminal merge; and the
-  post-landing closeout hand-back. Does not own which concerns become which work units, running several at once,
-  review obligation and clearance semantics, or quality-gate tiers. Initial content is the charter plus this work
-  unit's posture only — deliberately partial, sized to grow.
+        - Established the publication, delivery-window, exact-head review, terminal-authority, and closeout charter
+          without absorbing adjacent work-organization, concurrency, review, or quality-gate ownership.
 
-- _Note:_ All four ship mechanics are required or the file reaches nobody: author in the package source, add the
-  path to the recipe, sync to the project copy, and add a firing-condition entry to the strategy index in both
-  copies.
+    - `[x]` **8.3.b Complete the four ship mechanics**
 
-    - `[ ]` **8.3.a Author the strategy with its bounded charter**
+        - Added the package source to the install recipe and self-hosting manifest, synced the project copy, and
+          indexed the strategy in both configurable navigation surfaces.
 
-    - `[ ]` **8.3.b Complete the four ship mechanics**
-
-        - Recipe entry, project sync, and a strategy-index firing condition in both copies
+- _Outcome:_ Integration doctrine now has one installed T3 owner from verified Candidate through terminal merge and
+  post-landing hand-back. Its directive trigger loads the posture when that journey is designed or changed, while
+  routine execution remains with typed lifecycle workflows and always-loaded authority rules.
 
 ### `[ ]` **8.4 Record the delivery-and-review posture ADR**
 

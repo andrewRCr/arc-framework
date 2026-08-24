@@ -18,6 +18,10 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
 - `arc/strategy-file-classification.md`
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
+- `arc/strategy-integration.md`
+    - ALWAYS load before designing or changing one work unit's publication boundary, delivery landing window,
+      terminal merge authority, or post-landing closeout; do not distribute integration doctrine across lifecycle
+      workflows.
 - `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered
   specs
     - ALWAYS load when the planning workflow in hand does not settle it — which spec form fits, how layered specs
