@@ -28,6 +28,7 @@ const FIRST_HEAD = "a".repeat(40);
 const SECOND_HEAD = "d".repeat(40);
 const BASE = "c".repeat(40);
 const TREE = "b".repeat(40);
+const authority = { status: "established", ref: "refs/heads/main" } as const;
 
 const roots: string[] = [];
 
@@ -38,7 +39,14 @@ afterEach(async () => {
 async function repository(): Promise<{ cwd: string; lookup: RepositoryDeliveryMemberLookup }> {
   const cwd = await createTempRepo("arc-review-delivery-lookup-");
   roots.push(cwd);
-  return { cwd, lookup: new RepositoryDeliveryMemberLookup({ exec: makeGitExec(cwd), cwd }) };
+  return {
+    cwd,
+    lookup: new RepositoryDeliveryMemberLookup({
+      exec: makeGitExec(cwd),
+      cwd,
+      transitionSource: { enumerate: async () => ({ status: "ok", value: [] }) },
+    }),
+  };
 }
 
 function stateDirectory(cwd: string): string {
@@ -93,6 +101,91 @@ function state(options: {
 }
 
 describe("repository delivery member lookup", () => {
+  it("distinguishes absent, planned, and coherently bound reservation records", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+
+    await expect(lookup.resolveReservationRecords(plan.workUnitId, authority))
+      .resolves.toEqual({ status: "absent" });
+
+    await publishPlan(cwd, plan);
+    await expect(lookup.resolveReservationRecords(plan.workUnitId, authority))
+      .resolves.toEqual({ status: "planned", plan });
+
+    const current = deliveryStateFixture(plan);
+    await publish(cwd, current);
+    await expect(lookup.resolveReservationRecords(plan.workUnitId, authority))
+      .resolves.toEqual({ status: "bound", plan, state: current });
+  });
+
+  it("reports duplicate plans and incoherent state as unavailable for reservation selection", async () => {
+    const duplicate = await repository();
+    const first = deliveryPlanFixture();
+    const second = deliveryPlanFixture(OTHER_PLAN_ID);
+    await publishPlan(duplicate.cwd, first);
+    await publishPlan(duplicate.cwd, second);
+    await expect(duplicate.lookup.resolveReservationRecords(first.workUnitId, authority))
+      .resolves.toEqual({ status: "unavailable" });
+
+    const incoherent = await repository();
+    await publishPlan(incoherent.cwd, first);
+    const wrongState = deliveryStateFixture(first);
+    wrongState.boundPlan.planDigest = canonicalDigest({ wrong: "plan" });
+    await publish(incoherent.cwd, wrongState);
+    await expect(incoherent.lookup.resolveReservationRecords(first.workUnitId, authority))
+      .resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("refuses rename-resolved reservation intent whose stored identity no longer matches", async () => {
+    const cwd = await createTempRepo("arc-review-delivery-rename-lookup-");
+    roots.push(cwd);
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    const exec = makeGitExec(cwd);
+    const renamed = new RepositoryDeliveryMemberLookup({
+      cwd,
+      exec,
+      transitionSource: {
+        enumerate: async () => ({
+          status: "ok",
+          value: [{
+            subject: plan.workUnitId,
+            outcome: { kind: "rename", targetSlug: "renamed-delivery-plan-record" },
+          }],
+        }),
+      },
+    });
+
+    await expect(renamed.resolveReservationRecords("renamed-delivery-plan-record", authority))
+      .resolves.toEqual({ status: "unavailable" });
+    await expect(renamed.resolveReservationRecords(
+      "renamed-delivery-plan-record",
+      { status: "unestablished" },
+    )).resolves.toEqual({ status: "unavailable" });
+
+    const ambiguous = new RepositoryDeliveryMemberLookup({
+      cwd,
+      exec,
+      transitionSource: {
+        enumerate: async () => ({
+          status: "ok",
+          value: [
+            {
+              subject: plan.workUnitId,
+              outcome: { kind: "rename", targetSlug: "renamed-delivery-plan-record" },
+            },
+            {
+              subject: plan.workUnitId,
+              outcome: { kind: "rename", targetSlug: "other-work-unit" },
+            },
+          ],
+        }),
+      },
+    });
+    await expect(ambiguous.resolveReservationRecords("renamed-delivery-plan-record", authority))
+      .resolves.toEqual({ status: "unavailable" });
+  });
+
   it("returns one coherent plan and state for terminal integration", async () => {
     const { cwd, lookup } = await repository();
     const plan = deliveryPlanFixture();
@@ -245,6 +338,18 @@ describe("repository delivery member lookup", () => {
       await expect(lookup.resolveMemberByHead(FIRST_HEAD)).resolves.toEqual({ status: "unavailable" });
     } finally {
       await chmod(stateDirectory(cwd), 0o700);
+    }
+
+    const reservation = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(reservation.cwd, plan);
+    await publish(reservation.cwd, deliveryStateFixture(plan));
+    await chmod(stateDirectory(reservation.cwd), 0o000);
+    try {
+      await expect(reservation.lookup.resolveReservationRecords(plan.workUnitId, authority))
+        .resolves.toEqual({ status: "unavailable" });
+    } finally {
+      await chmod(stateDirectory(reservation.cwd), 0o700);
     }
   });
 

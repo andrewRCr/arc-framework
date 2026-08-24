@@ -103,23 +103,37 @@ function dependencies(
 }
 
 describe("composePrePublicationReviewRequest", () => {
-  it("selects a delivery marker from one coherent bound plan", () => {
+  it.each(["planned", "bound"] as const)(
+    "selects a delivery marker from one authoritative %s plan",
+    (status) => {
+      expect(selectPrePublicationReservationTarget({
+        workUnit: "example",
+        singleton: { repository: "arc-framework/example", headSha: HEAD },
+        delivery: {
+          status,
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          workUnitId: "example",
+        },
+      })).toEqual({
+        status: "resolved",
+        target: {
+          kind: "delivery",
+          repository: "arc-framework/example",
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          workUnitId: "example",
+        },
+      });
+    },
+  );
+
+  it("selects the singleton target only from authoritative plan absence", () => {
     expect(selectPrePublicationReservationTarget({
       workUnit: "example",
       singleton: { repository: "arc-framework/example", headSha: HEAD },
-      delivery: {
-        status: "resolved",
-        planId: "123e4567-e89b-12d3-a456-426614174000",
-        workUnitId: "example",
-      },
+      delivery: { status: "absent" },
     })).toEqual({
       status: "resolved",
-      target: {
-        kind: "delivery",
-        repository: "arc-framework/example",
-        planId: "123e4567-e89b-12d3-a456-426614174000",
-        workUnitId: "example",
-      },
+      target: { kind: "pinned-head", repository: "arc-framework/example", headSha: HEAD },
     });
   });
 
@@ -130,7 +144,7 @@ describe("composePrePublicationReviewRequest", () => {
       delivery: { status: "unavailable" },
     })).toEqual({
       status: "refused",
-      reason: "The pre-publication reservation target could not be resolved from delivery state.",
+      reason: "The pre-publication reservation target could not be resolved from delivery records.",
     });
   });
 
@@ -139,7 +153,7 @@ describe("composePrePublicationReviewRequest", () => {
       workUnit: "example",
       singleton: { repository: "arc-framework/example", headSha: HEAD },
       delivery: {
-        status: "resolved",
+        status: "planned",
         planId: "123e4567-e89b-12d3-a456-426614174000",
         workUnitId: "other",
       },
