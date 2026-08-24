@@ -80,6 +80,18 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("sizes Vitest for the selected Linux runner capacity", async () => {
+    const workflow = await read("ci.yml");
+    const parsed = load(workflow) as {
+      env?: Record<string, unknown>;
+      jobs?: Record<string, { env?: Record<string, unknown> }>;
+    };
+    expect(parsed.env?.VITEST_MAX_WORKERS).toBe(
+      "${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}",
+    );
+    expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
+  });
+
   it("provisions Node before the classifier hashes the code tree", async () => {
     const workflow = await read("ci.yml");
     const classifySteps = jobValue(workflow, "classify").steps;
@@ -558,7 +570,9 @@ describe("trusted review-gate workflows", () => {
     expect(complete).toMatch(
       /arc errand close <slug> --json[\s\S]*finalizes the exact v3 identity tail[\s\S]*reaps refs[\s\S]*drops only its origin capture/iu,
     );
-    expect(complete).toMatch(/nextOffer[\s\S]*exact file-ordered execute-bound sibling[\s\S]*Never scan the inbox/iu);
+    expect(complete).toMatch(
+      /conversation[\s\S]*exact next Errand[\s\S]*takes precedence over\s+`nextOffer`[\s\S]*no additional completion offer/iu,
+    );
     expect(complete).toContain("**Post-leave merge.**");
     expect(complete).toContain("identity's owning open or materialize driver");
     expect(complete).toContain("Exact replay is");
@@ -567,7 +581,12 @@ describe("trusted review-gate workflows", () => {
     expect(packaged.match(/arc errand leave <slug>/gu)).toHaveLength(1);
     expect(lanes).not.toContain("arc errand leave <slug>");
     expect(leave).toMatch(/session is ending[\s\S]*moving machines/iu);
-    expect(leave).toMatch(/Do not leave[\s\S]*change request is open[\s\S]*start the next Errand/iu);
+    expect(leave).toMatch(
+      /Do not leave[\s\S]*change request is open[\s\S]*ordinary next-Errand queue advancement/iu,
+    );
+    expect(leave).toMatch(
+      /another Errand must land before the current one can complete[\s\S]*restoration checkout[\s\S]*Never open a different Errand from an active transient/iu,
+    );
   });
 
   it("keeps auto-merge arming on canonical classification", async () => {

@@ -1,8 +1,16 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -230,7 +238,114 @@ function withTempArcProject<T>(fn: (root: string) => T): T {
   }
 }
 
+function resolveTranscriptCheckout(root: string, raw: string): string {
+  return execFileSync(process.execPath, [
+    "--input-type=module",
+    "-e",
+    `import { resolveCodexExecutionCheckout } from ${JSON.stringify(pathToFileURL(markerScriptPath).href)};\n`
+      + `process.stdout.write(resolveCodexExecutionCheckout(${JSON.stringify(raw)}) ?? "");`,
+  ], { cwd: root, encoding: "utf8" });
+}
+
 describe("Codex CLI compaction recovery hook recipe", () => {
+  it("recognizes a ready primary transient from Codex transcript evidence", () => {
+    withTempArcProject((root) => {
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      const markerPath = join(root, ".arc", "system", ".internal", "worktree-marker.json");
+      mkdirSync(dirname(markerPath), { recursive: true });
+      writeFileSync(markerPath, `${JSON.stringify({
+        spawnedByArc: false,
+        provisioning: "ready",
+        createdFor: { kind: "errand", slug: "primary-probe", claimId: "claim-primary" },
+      })}\n`);
+      const transcriptPath = join(root, "transcript.jsonl");
+      writeFileSync(transcriptPath, `${JSON.stringify({
+        payload: {
+          item: {
+            type: "CommandExecution",
+            cwd: pathToFileURL(root).href,
+          },
+        },
+      })}\n`);
+      const raw = JSON.stringify({ transcript_path: transcriptPath });
+      const result = resolveTranscriptCheckout(root, raw);
+
+      expect(result).toBe(realpathSync(root));
+    });
+  });
+
+  it("recognizes a ready spawned housekeeping transient when Codex stays anchored to primary", () => {
+    withTempArcProject((root) => {
+      const spawned = `${root}-housekeep`;
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: root });
+      execFileSync("git", ["add", "."], { cwd: root });
+      execFileSync("git", ["commit", "-m", "seed"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["worktree", "add", "-b", "chore/housekeep", spawned], {
+        cwd: root,
+        stdio: "ignore",
+      });
+
+      try {
+        const markerPath = join(spawned, ".arc", "system", ".internal", "worktree-marker.json");
+        mkdirSync(dirname(markerPath), { recursive: true });
+        writeFileSync(markerPath, `${JSON.stringify({
+          spawnedByArc: true,
+          provisioning: "ready",
+          createdFor: { kind: "housekeep", slug: "inbox-drain", claimId: "claim-housekeep" },
+        })}\n`);
+        const transcriptPath = join(root, "transcript.jsonl");
+        writeFileSync(transcriptPath, `${JSON.stringify({
+          payload: {
+            item: {
+              type: "CommandExecution",
+              cwd: pathToFileURL(spawned).href,
+            },
+          },
+        })}\n`);
+        const raw = JSON.stringify({ transcript_path: transcriptPath });
+
+        expect(resolveTranscriptCheckout(root, raw)).toBe(realpathSync(spawned));
+      } finally {
+        execFileSync("git", ["worktree", "remove", "--force", spawned], { cwd: root });
+        rmSync(spawned, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("rejects a transient checkout registered only to another repository", () => {
+    withTempArcProject((root) => {
+      const foreign = mkdtempSync(join(tmpdir(), "arc-codex-foreign-repo-"));
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: foreign, stdio: "ignore" });
+
+      try {
+        const markerPath = join(foreign, ".arc", "system", ".internal", "worktree-marker.json");
+        mkdirSync(dirname(markerPath), { recursive: true });
+        writeFileSync(markerPath, `${JSON.stringify({
+          spawnedByArc: false,
+          provisioning: "ready",
+          createdFor: { kind: "errand", slug: "foreign-probe", claimId: "claim-foreign" },
+        })}\n`);
+        const transcriptPath = join(root, "transcript.jsonl");
+        writeFileSync(transcriptPath, `${JSON.stringify({
+          payload: {
+            item: {
+              type: "CommandExecution",
+              cwd: pathToFileURL(foreign).href,
+            },
+          },
+        })}\n`);
+        const raw = JSON.stringify({ transcript_path: transcriptPath });
+
+        expect(resolveTranscriptCheckout(root, raw)).toBe("");
+      } finally {
+        rmSync(foreign, { recursive: true, force: true });
+      }
+    });
+  });
+
   it("ships hooks.json, an opt-in feature fragment, and shared hook scripts", () => {
     const recipe = readJson<Recipe>(resolve(packageRoot, "init-recipe.json"));
 
@@ -735,7 +850,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       // The audit is mandatory even when residual context feels sufficient — compaction loss is silent.
       expect(additionalContext).toContain("mandatory even if your context feels sufficient");
       expect(additionalContext).toContain("session-recover.md");
-      expect(additionalContext).toContain("2. Audit command: arc recover audit --json.");
+      expect(additionalContext).toContain("2. Audit command: arc recover audit --seed-path");
+      expect(additionalContext).toContain(
+        join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
+      );
+      expect(additionalContext).toContain("--json.");
       expect(additionalContext).toContain(
         "re-verify any actions taken since compaction",
       );
@@ -1048,7 +1167,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       });
 
       expect(output.hookSpecificOutput?.additionalContext).toContain(
-        "2. Audit command: npx arc recover audit --json.",
+        "2. Audit command: npx arc recover audit --seed-path",
       );
     });
   });

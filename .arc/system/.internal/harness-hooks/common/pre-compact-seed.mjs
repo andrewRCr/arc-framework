@@ -5,14 +5,16 @@ import { dirname, join, resolve } from "node:path";
 import {
   readHookInput,
   reapExpiredRecoveryArtifacts,
+  resolveCodexExecutionCheckout,
   writeFallbackPendingMarker,
   writePendingMarker,
 } from "./codex-recovery-marker.mjs";
 
 // Read the PreCompact payload's `session_id` (drains stdin in the same call) so the
 // marker is scoped to a key the later reader hooks share — see codex-recovery-marker.
-const { sessionId } = readHookInput();
-const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const { sessionId, raw } = readHookInput();
+const hookCwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const cwd = isCodexHarness() ? resolveCodexExecutionCheckout(raw) ?? hookCwd : hookCwd;
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
 const env = { ...process.env };

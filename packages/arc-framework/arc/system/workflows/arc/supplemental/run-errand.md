@@ -426,10 +426,16 @@ action.
    re-entry, invokes `arc merge lock hold -` for the exact target. Dispatch on its typed action, then surface the
    originating exit rather than the hold in its place.
 
-7. **Leave only at a terminal session exit.** When the session is ending with the merge tail unresolved, or work is
-   moving machines, invoke `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the
-   change request is open, checks or owner review are pending, or to start the next Errand. Otherwise retain the
-   owning session and continue to Complete when the host reports the merge.
+7. **Leave at a terminal session exit or before a genuine blocking-Errand detour.** When the session is ending with
+   the merge tail unresolved, or work is moving machines, invoke
+   `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the change request is open,
+   checks or owner review are pending, or for ordinary next-Errand queue advancement. Otherwise retain the owning
+   session and continue to Complete when the host reports the merge.
+
+   When another Errand must land before the current one can complete, first checkpoint a clean pushed head. Leave
+   the current Errand as `awaiting-merge` when its PR exists, or as `paused` before PR creation; consume the returned
+   restoration checkout, then open the blocker there. Never open a different Errand from an active transient. After
+   the blocker lands, resume only the original exact identity through its owning open or materialize driver.
 
    If the session is ending before PR creation, commit and push the checkpoint first, then use `--state paused`.
    Partial mode and unpushed or unproven heads refuse. Post-leave work resumes only through the identity's owning
@@ -457,11 +463,18 @@ checkout paths, and `settlement` are the sole closure evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 
-When the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`, `key`, and
-`parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the returned
-between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
+When the current conversation has already agreed one exact next Errand, that named target takes precedence over
+`nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm
+a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`. Consume the open
+result as the new sibling locus. The target must resolve to one exact Errand entry; stop when it is missing or
+ambiguous.
+
+Otherwise, when the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`,
+`key`, and `parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the
+returned between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
 `arc errand open <slug> --from-inbox <nextOffer.key> --json`. Consume the open result as the new sibling locus. On
-decline, return to the restored parent/between-WUs frame. Never scan the inbox for a replacement continuation.
+decline, return to the restored parent/between-WUs frame. Never scan for a substitute, persist an Errand sequence,
+or reorder inbox captures.
 
 **Post-leave merge.** If the merge lands after the session ends, the [finalize pass][finalize-pass] or next session
 re-enters through the identity's owning open or materialize driver, then invokes `arc errand close`. Exact replay is

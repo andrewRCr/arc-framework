@@ -27,7 +27,7 @@ export async function readLocalReviewLiveContext(input: {
   exec: GitExec;
   cwd: string;
 }): Promise<ResolvedLocalReviewLiveContext> {
-  const activeIdentity = await readConfiguredIdentity(input.exec);
+  const activeIdentity = await readConfiguredIdentity(input.exec, input.cwd);
   const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.cwd,
   })).stdout.trim();
