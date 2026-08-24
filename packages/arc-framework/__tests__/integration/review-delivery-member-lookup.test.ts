@@ -161,6 +161,7 @@ describe("repository delivery member lookup", () => {
         baseRef: "main",
         headRef: "delivery/example/member-0",
         head: FIRST_HEAD,
+        candidateHead: SECOND_HEAD,
         isFinalMember: false,
       },
     });
@@ -190,11 +191,11 @@ describe("repository delivery member lookup", () => {
 
     await expect(lookup.resolveMemberByHead(SECOND_HEAD)).resolves.toMatchObject({
       status: "resolved",
-      member: { baseRef: "delivery/example/member-0", isFinalMember: true },
+      member: { baseRef: "delivery/example/member-0", candidateHead: SECOND_HEAD, isFinalMember: true },
     });
     await expect(lookup.resolveMemberByHead(FIRST_HEAD)).resolves.toMatchObject({
       status: "resolved",
-      member: { isFinalMember: false },
+      member: { candidateHead: SECOND_HEAD, isFinalMember: false },
     });
   });
 
