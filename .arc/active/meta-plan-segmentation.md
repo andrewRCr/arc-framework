@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Grooming errand adoption (2026-08-24) — the lifecycle-coverage capture from
   `delivery-native-stack-composition`'s Member 6 audit adopted into the inbound buffer alongside a regrounding
   entry (recurrence evidence, stacked-delivery exit-criterion reader, external prior art from a research pass);
