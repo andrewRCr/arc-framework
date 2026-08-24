@@ -1038,10 +1038,19 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   terminal conjunction remain CLI-owned; package/project parity, every applicability stop class, and singleton
   compatibility are covered without prose enumeration or selector reconstruction.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
+
+- _Outcome:_ `[x]` All three immutable Member 7 criteria resolve over the first-parent Task commit union from
+  `80afa0301` through `242294afb` and the cumulative tree at `242294afb`. Retained member bindings derive exact
+  review vehicles and settle only through the complete typed conjunction. The D4-backed projection preserves
+  mechanical and fallback carry through one bounded discovery/read path shared by admission and discharge; the
+  superseded lane-progress selection clause resolves through the next criterion's target-neutral, version-checked
+  Candidate transition. Existing status, request, await, attempt, and settle envelopes carry the selector through
+  executable vertical and workflow-contract coverage, with unavailable evidence stopping and no prose loop or new
+  record family. Success Criteria markers remain unchanged for terminal verification.
 
 ## **Phase 8:** Record retirement and doctrine
 
