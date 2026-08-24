@@ -141,9 +141,10 @@ describe("delivery record retirement", () => {
     }
   });
 
-  it("refuses an open or mismatched terminal request", async () => {
+  it("refuses an unmerged or mismatched terminal request", async () => {
     for (const request of [
       { state: "open" as const },
+      { state: "closed" as const },
       { headSha: "f".repeat(40) },
     ]) {
       const fixture = completedRecordsFixture();

@@ -425,6 +425,13 @@ const DeliveryTopRemedyRefusalSchema = z.strictObject({
     protectedBaseRef: z.string().min(1),
   }),
 });
+const DeliveryCloseoutBlockedSchema = z.strictObject({
+  status: z.literal("blocked"),
+  reason: z.string().min(1),
+  planId: DeliveryPlanIdSchema.optional(),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  recommendedActionText: z.string().min(1),
+});
 
 const ResultSchema = z.union([
   DeliveryRecoveryResultV1Schema,
@@ -497,7 +504,7 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   BlockedContributionRefusalSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
-  z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
+  DeliveryCloseoutBlockedSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
     status: z.literal("torn-down"),

@@ -1117,10 +1117,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   a worked fail-closed instance and names separate field-evidence triggers for reopening landing timing and terminal
   authorization composition.
 
-### `[ ]` **8.5 Close delivery member 8** — validate criteria at member scope
+### `[x]` **8.5 Close delivery member 8** — validate criteria at member scope
 
 - _Goal:_ Member 8's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
+
+- _Outcome:_ `[x]` All three immutable Member 8 criteria resolve over `e11bd763d..HEAD`, the approved
+  review-correction delta, and the cumulative tree. Exact record, ref, candidate, and gate retirement retains its
+  authorities and refuses mismatches; the integration strategy ships byte-identically through recipe and index;
+  and ADR-034 records the posture, alternative, and both reopening triggers. Fresh pass 2 converged after requiring
+  a merged terminal request and preserving exact closeout identifiers. Success Criteria markers remain unchanged
+  for terminal verification.
 
 ## **Phase 9:** Verification
 

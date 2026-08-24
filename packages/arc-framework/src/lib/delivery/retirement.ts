@@ -58,7 +58,7 @@ export async function verifyDeliveryTerminalSettlement(
     && request.headRef === terminal.ref.replace(/^refs\/heads\//u, "")
     && request.headSha === terminal.coordinates.head
     && request.baseRef === targetRef.replace(/^refs\/heads\//u, "")
-    && request.state !== "open"
+    && request.state === "merged"
     ? { status: "settled" }
     : { status: "blocked", reason: "terminal-unsettled" };
 }

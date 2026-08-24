@@ -50,6 +50,40 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves detailed delivery-closeout refusals through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const deliverableId = plan.members[0]!.deliverableId;
+    const write = vi.fn();
+    const recommendedActionText =
+      "Delivery closeout stopped: reap-candidate-head-mismatch. Resolve the exact reported state and rerun closeout.";
+    await handleDeliveryExecution("closeout", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        workUnitId: plan.workUnitId,
+        repository: "owner/repo",
+        remote: "upstream",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "blocked",
+        reason: "reap-candidate-head-mismatch",
+        planId: plan.planId,
+        deliverableId,
+        recommendedActionText,
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery closeout",
+      status: "blocked",
+      reason: "reap-candidate-head-mismatch",
+      planId: plan.planId,
+      deliverableId,
+      recommendedActionText,
+    });
+  });
+
   it("preserves deterministic authoring locators through a strict read-only verb", async () => {
     const plan = deliveryStackPlanFixture();
     const locators = plan.members.map((member) => ({
