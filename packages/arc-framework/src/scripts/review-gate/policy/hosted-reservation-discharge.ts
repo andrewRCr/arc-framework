@@ -7,11 +7,18 @@ import {
 } from "../../../lib/delivery/review-vehicle.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
+import { createRawGitExec } from "../../../lib/io-context.js";
+import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { readLaneProgress, type LaneProgressProjection } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
+import {
+  candidateExpectsEarlierReviewAttempt,
+  projectEarlierReviewApplicability,
+} from "./earlier-review-applicability.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 
@@ -127,6 +134,10 @@ export async function projectHostedReservationDischarge(input: {
     vehicle?: DeliveryReviewMemberVehicle;
   } | null;
   readLaneProgress: (headSha: string) => Promise<LaneProgressProjection>;
+  readEarlierAttemptApplicability?: (
+    sourceId: string,
+  ) => Promise<EarlierHostedAttemptApplicabilityRead>;
+  requireEarlierApplicabilityEvidence?: boolean | ((sourceId: string) => boolean);
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
@@ -164,14 +175,63 @@ export async function projectHostedReservationDischarge(input: {
     const safelyUnavailable = sourceAttempts.length > 0 && sourceAttempts.every(({ outcome }) => (
       outcome === "rate-limited" || outcome === "transient-unavailable"
     ));
-    if (!safelyUnavailable) {
-      return {
-        discharged: false,
-        detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
-          + "a settled review across the Candidate span.",
-        nextSource: sourceId,
-      };
+    if (safelyUnavailable) continue;
+    if (input.readEarlierAttemptApplicability !== undefined) {
+      const earlier = await input.readEarlierAttemptApplicability(sourceId);
+      const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
+        ? input.requireEarlierApplicabilityEvidence(sourceId)
+        : input.requireEarlierApplicabilityEvidence === true;
+      if (earlier.status === "not-found" && !evidenceRequired) {
+        return {
+          discharged: false,
+          detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+            + "a settled review across the Candidate span.",
+          nextSource: sourceId,
+        };
+      }
+      if (earlier.status !== "complete" || earlier.attempts.length === 0) {
+        return {
+          discharged: false,
+          detail: earlier.status === "unavailable"
+            ? earlier.detail
+            : "Earlier review applicability evidence is incomplete.",
+          nextSource: null,
+        };
+      }
+      const selected = earlier.attempts.filter((attempt) => attempt.sourceId === sourceId);
+      if (selected.some(({ applicability }) => applicability === "stop")) {
+        return {
+          discharged: false,
+          detail: `Hosted source \`${sourceId}\` has an unresolved contribution-applicability decision.`,
+          nextSource: null,
+        };
+      }
+      if (selected.some(({ applicability }) => applicability === "request-review")) {
+        return {
+          discharged: false,
+          detail: `Hosted source \`${sourceId}\` requires a new review by Owner selection.`,
+          nextSource: sourceId,
+        };
+      }
+      const applicable = selected.filter(({ applicability }) => applicability === "retain-prior-attempt");
+      if (applicable.some(({ outcome }) => outcome === "clean" || outcome === "settled-findings")) {
+        return {
+          discharged: true,
+          detail: `Hosted source \`${sourceId}\` through contribution applicability.`,
+          nextSource: null,
+        };
+      }
+      const earlierSafelyUnavailable = applicable.length > 0 && applicable.every(({ outcome }) => (
+        outcome === "rate-limited" || outcome === "transient-unavailable"
+      ));
+      if (earlierSafelyUnavailable) continue;
     }
+    return {
+      discharged: false,
+      detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+        + "a settled review across the Candidate span.",
+      nextSource: sourceId,
+    };
   }
   return {
     discharged: false,
@@ -196,6 +256,7 @@ export function createHostedReservationDischargeReader(input: {
   approvedHead: string;
   changeRequest: { repository: string; pullRequest: number } | null;
   vehicle?: DeliveryReviewMemberVehicle;
+  candidate?: CandidateManagedRecordV1;
 }) => Promise<HostedReservationDischarge> {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
@@ -204,8 +265,9 @@ export function createHostedReservationDischargeReader(input: {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
     return repositoryIdPromise;
   };
+  const rawExec = createRawGitExec(input.cwd);
 
-  return async ({ reservation, baseRevision, approvedHead, changeRequest, vehicle }) => {
+  return async ({ reservation, baseRevision, approvedHead, changeRequest, vehicle, candidate }) => {
     if (reservation === null) {
       return projectHostedReservationDischarge({
         reservation,
@@ -219,6 +281,10 @@ export function createHostedReservationDischargeReader(input: {
       objectAccess: "local-only",
     });
     const span = [baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
+    const currentRepositoryId = await repositoryId();
+    const snapshot = candidate === undefined || changeRequest === null
+      ? null
+      : store.readOperationSnapshot();
     return projectHostedReservationDischarge({
       reservation,
       span,
@@ -227,9 +293,41 @@ export function createHostedReservationDischargeReader(input: {
         : { ...changeRequest, headSha: approvedHead, ...(vehicle === undefined ? {} : { vehicle }) },
       readLaneProgress: async (headSha) => readLaneProgress(store, {
         lane: "standard",
-        repositoryId: await repositoryId(),
+        repositoryId: currentRepositoryId,
         headSha,
       }),
+      ...(snapshot === null || changeRequest === null || candidate === undefined
+        ? {}
+        : {
+            readEarlierAttemptApplicability: async (sourceId: string) => projectEarlierReviewApplicability({
+              query: {
+                schemaVersion: 1,
+                repositoryId: currentRepositoryId,
+                repository: changeRequest.repository,
+                pullRequest: changeRequest.pullRequest,
+                currentHead: approvedHead,
+                lane: "standard",
+                sourceId,
+                ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
+              },
+              currentBase: baseRevision,
+              snapshot: await snapshot,
+              candidate,
+              exec: rawExec,
+            }),
+            requireEarlierApplicabilityEvidence: (sourceId: string) => (
+              candidateExpectsEarlierReviewAttempt(candidate, {
+                schemaVersion: 1,
+                repositoryId: currentRepositoryId,
+                repository: changeRequest.repository,
+                pullRequest: changeRequest.pullRequest,
+                currentHead: approvedHead,
+                lane: "standard",
+                sourceId,
+                ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
+              })
+            ),
+          }),
     });
   };
 }

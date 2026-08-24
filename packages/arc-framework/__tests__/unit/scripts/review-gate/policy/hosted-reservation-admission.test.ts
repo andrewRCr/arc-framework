@@ -86,6 +86,39 @@ describe("hosted reservation admission", () => {
     })).not.toThrow();
   });
 
+  it("uses the shared applicability action before spending hosted capacity", () => {
+    expect(() => assertHostedReservationAdmission({
+      reservation,
+      provider: "coderabbit-pr",
+      repository: "owner/repo",
+      headSha: CURRENT_HEAD,
+      targetKind: "change-set",
+      attempts: [],
+      applicabilityAction: "retain-prior-attempt",
+      ...binding,
+    })).toThrow(/prior attempt remains applicable/u);
+    expect(() => assertHostedReservationAdmission({
+      reservation,
+      provider: "coderabbit-pr",
+      repository: "owner/repo",
+      headSha: CURRENT_HEAD,
+      targetKind: "change-set",
+      attempts: [],
+      applicabilityAction: "stop",
+      ...binding,
+    })).toThrow(/applicability is unresolved/u);
+    expect(() => assertHostedReservationAdmission({
+      reservation,
+      provider: "coderabbit-pr",
+      repository: "owner/repo",
+      headSha: CURRENT_HEAD,
+      targetKind: "change-set",
+      attempts: [],
+      applicabilityAction: "request-review",
+      ...binding,
+    })).not.toThrow();
+  });
+
   it("admits a current Candidate after the publication-only head advance", () => {
     expect(reservation.target.kind).toBe("pinned-head");
     if (reservation.target.kind !== "pinned-head") throw new Error("expected pinned fixture");

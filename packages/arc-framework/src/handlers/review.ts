@@ -28,6 +28,7 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { canonicalize } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
+import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { resolveUserIdentity } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
@@ -81,6 +82,12 @@ import {
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
 import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
+import {
+  candidateExpectsEarlierReviewAttempt,
+  earlierAttemptRetainsReservationPosition,
+  projectEarlierReviewApplicability,
+} from
+  "../scripts/review-gate/policy/earlier-review-applicability.js";
 import {
   bindReviewSourceReference,
   parseReviewSourceReference,
@@ -1506,6 +1513,53 @@ async function resolveHostedProgressContext(input: {
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
   }
+  const candidateRecord = await readCandidateRecord(input.root, workUnitId);
+  if (candidateRecord === null) {
+    throw new Error("Hosted review reservation requires the canonical Candidate record.");
+  }
+  const earlier = await projectEarlierReviewApplicability({
+    query: {
+      schemaVersion: 1,
+      repositoryId,
+      repository: input.target.repository,
+      pullRequest: input.target.pullRequest,
+      currentHead: input.target.headSha,
+      lane: "standard",
+      sourceId: input.provider,
+      ...(input.vehicle?.kind === "delivery-member" ? { currentVehicle: input.vehicle } : {}),
+    },
+    currentBase: reviewTarget.diffBaseSha,
+    snapshot: await store.readOperationSnapshot(),
+    candidate: candidateRecord,
+    exec: createRawGitExec(input.root),
+  });
+  const applicabilityQuery = {
+    schemaVersion: 1 as const,
+    repositoryId,
+    repository: input.target.repository,
+    pullRequest: input.target.pullRequest,
+    currentHead: input.target.headSha,
+    lane: "standard" as const,
+    sourceId: input.provider,
+    ...(input.vehicle?.kind === "delivery-member" ? { currentVehicle: input.vehicle } : {}),
+  };
+  if (earlier.status === "unavailable"
+    || (earlier.status === "not-found"
+      && candidateExpectsEarlierReviewAttempt(candidateRecord, applicabilityQuery))) {
+    throw new Error("Hosted review contribution applicability is unavailable.");
+  }
+  const applicabilityAction = earlier.status !== "complete"
+    ? undefined
+    : earlier.attempts.some(({ applicability }) => applicability === "stop")
+      ? "stop" as const
+      : earlier.attempts.some(({ applicability }) => applicability === "request-review")
+        ? "request-review" as const
+        : earlier.attempts.some(({ outcome, applicability }) => (
+            applicability === "retain-prior-attempt"
+            && earlierAttemptRetainsReservationPosition(outcome)
+          ))
+          ? "retain-prior-attempt" as const
+          : undefined;
   assertHostedReservationAdmission({
     reservation,
     provider: input.provider,
@@ -1523,6 +1577,7 @@ async function resolveHostedProgressContext(input: {
       headSha: candidate.headSha,
     },
     attempts,
+    ...(applicabilityAction === undefined ? {} : { applicabilityAction }),
   });
   const requirement = createReviewRequirement({
     target: reviewTarget,

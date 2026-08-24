@@ -995,42 +995,18 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - Applicability discovery writes no new record or index
         - An incomplete operation snapshot returns unavailable and never infers that no prior review exists
 
-### `[ ]` **7.5 Reach the discharge read with the applicability projection**
+### `[x]` **7.5 Reach the discharge read with the applicability projection**
 
 - _Goal:_ A recorded unavailability at a prior equivalent or still-in-span head does not re-void when the top
   moves, so a reservation that discharged through a fallback source stays discharged.
 
-- _Rationale:_ The top absorbs predecessor movement by merge, so its reviewed heads stay ancestors and stay in
-  span — but this holds for the reservation's first source only. The discharge loop consults the exact current
-  head when deciding whether an earlier source was safely unavailable, so a reservation that discharged through a
-  fallback after a rate-limited first source re-voids on the next append-only merge, even though the fallback's
-  clean attempt remains in span. The top moves once per predecessor absorption, so this recurs across the window.
-
-- _Note:_ The insertion point is therefore the discharge read itself, not only the request path. A projection
-  gating only re-review requests would leave the discharge status re-voiding regardless. The discharge read uses
-  the bounded existing-record query from the projection task rather than assuming an exact-head keyed lookup can
-  discover an earlier attempt. It consumes any exact versioned Owner selection through the same closed projection;
-  an unresolved decision or review-required result cannot discharge.
-
-- _Amended 2026-08-23:_ An applicable-authority selection appends as a distinct, target-neutral
-  `review-applicability-selection` transition on the existing Candidate record by exact version check. It binds the
-  complete review selector, attempt and head coordinates, digests, actor, time, and `covered | review-required`;
-  exact replay is idempotent and changed input invalidates it. Candidate target reduction ignores this arm. Request
-  admission and discharge query the same canonical selection directly; lane progress stores no approval or
-  controller conclusion.
-
-    - Build `test-first` (one behavior at a time):
-        - A first-source settled attempt anywhere in span still discharges, unchanged
-        - A rate-limited first source at a prior head remains safely unavailable after the top moves
-        - A fallback-source discharge survives an append-only merge of the top
-        - A genuinely unavailable determination at the current head still blocks progression through sources
-        - The projection result reaches the discharge read, not only the request path
-        - Request admission and discharge agree on the same replayed Owner selection
-        - An unresolved residual decision keeps discharge false without spending provider capacity
-        - The discharge read can discover the applicable earlier attempt without a new ledger or index
-        - Both Owner choices append canonically without changing the Candidate durable target
-        - Exact replay succeeds after an unrelated later Candidate transition without duplicating the selection
-        - Local lane-progress absence does not erase a canonical selection or let it discharge without review evidence
+- _Outcome:_ The Candidate transition union now carries a distinct target-neutral review-applicability selection;
+  both Owner choices bind the complete selector and factual digests without changing Candidate target reduction,
+  and exact replay survives unrelated later transitions without duplication. Request admission and discharge reduce
+  that same canonical authority, while discharge discovers the underlying prior attempt through the complete
+  operation snapshot: applicable safe-unavailability advances source order, applicable settled fallback evidence
+  discharges after top movement, unresolved or unavailable projection evidence spends no provider capacity, and a
+  retained selection alone cannot substitute for missing review evidence.
 
 ### `[ ]` **7.6 Re-author both workflows' review prose around the fan-out**
 

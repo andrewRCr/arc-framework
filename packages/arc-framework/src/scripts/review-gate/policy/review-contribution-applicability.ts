@@ -7,17 +7,20 @@ import {
   DeliveryContributionProofResultSchema,
   type DeliveryContributionEndpoints,
 } from "../../../lib/delivery/contribution-proof.js";
-import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import { isManagedPath } from "../../../lib/kernel/canonical/managed-path.js";
+import {
+  ReviewContributionApplicabilitySelectorSchema,
+  type ReviewContributionApplicabilitySelector,
+} from "../../../lib/work-unit/review-applicability-selector.js";
+
+export {
+  ReviewContributionApplicabilitySelectorSchema,
+  type ReviewContributionApplicabilitySelector,
+} from "../../../lib/work-unit/review-applicability-selector.js";
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
-const SourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
-const RepositorySchema = z.string()
-  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
-  .transform((value) => value.toLowerCase());
 const ApplicabilityPathSchema = z.string().min(1)
   .refine(isManagedPath, "must be a managed repository path");
 
@@ -40,38 +43,6 @@ const BoundedResidualSchema = z.array(ApplicabilityPathSchema)
       context.addIssue({ code: "custom", message: "path evidence must be sorted and unique" });
     }
   });
-
-export const ReviewContributionApplicabilitySelectorSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  repositoryId: IdentifierSchema,
-  repository: RepositorySchema,
-  pullRequest: z.int().positive(),
-  lane: z.literal("standard"),
-  sourceId: SourceIdSchema,
-  priorAttemptId: IdentifierSchema,
-  priorHead: ObjectIdSchema,
-  currentHead: ObjectIdSchema,
-  priorBase: ObjectIdSchema,
-  currentBase: ObjectIdSchema,
-  priorVehicle: DeliveryReviewMemberVehicleSchema.optional(),
-  currentVehicle: DeliveryReviewMemberVehicleSchema.optional(),
-}).superRefine((selector, context) => {
-  if ((selector.priorVehicle === undefined) !== (selector.currentVehicle === undefined)) {
-    context.addIssue({ code: "custom", path: ["currentVehicle"], message: "review vehicle coordinates mismatch" });
-    return;
-  }
-  if (selector.priorVehicle === undefined || selector.currentVehicle === undefined) return;
-  if (selector.priorVehicle.head !== selector.priorHead
-    || selector.currentVehicle.head !== selector.currentHead
-    || selector.priorVehicle.planId !== selector.currentVehicle.planId
-    || selector.priorVehicle.deliverableId !== selector.currentVehicle.deliverableId
-    || selector.priorVehicle.workUnitId !== selector.currentVehicle.workUnitId) {
-    context.addIssue({ code: "custom", path: ["currentVehicle"], message: "review vehicle coordinates mismatch" });
-  }
-});
-export type ReviewContributionApplicabilitySelector = z.infer<
-  typeof ReviewContributionApplicabilitySelectorSchema
->;
 
 export const ReviewContributionStructuralFactsSchema = z.strictObject({
   endpoints: DeliveryContributionEndpointsSchema,

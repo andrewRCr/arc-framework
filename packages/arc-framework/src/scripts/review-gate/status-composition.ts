@@ -165,6 +165,7 @@ export async function readRoutedObligation(
           pullRequest: memberTarget.pullRequest,
         },
         vehicle: memberTarget.vehicle,
+        candidate: record,
       })));
       return composeDeliveryReviewObligation({ targets: deliveryTargets, discharges });
     }
@@ -173,6 +174,7 @@ export async function readRoutedObligation(
       baseRevision: record.attestation.baseRevision,
       approvedHead: target.headSha,
       changeRequest: { repository: target.repository, pullRequest },
+      candidate: record,
     });
     return discharge.discharged
       ? { state: "settled", detail: discharge.detail }

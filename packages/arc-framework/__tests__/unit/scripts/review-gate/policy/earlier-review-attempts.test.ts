@@ -3,6 +3,12 @@
 import { describe, expect, it } from "vitest";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
+import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  type CandidateLineageTransitionV1,
+} from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import { LaneProgressStateSchema } from
   "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import {
@@ -11,6 +17,13 @@ import {
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { queryEarlierReviewAttempts } from
   "../../../../../src/scripts/review-gate/policy/earlier-review-attempts.js";
+import {
+  candidateExpectsEarlierReviewAttempt,
+  projectEarlierReviewApplicability,
+} from
+  "../../../../../src/scripts/review-gate/policy/earlier-review-applicability.js";
+import { classifyReviewContributionApplicability } from
+  "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -86,6 +99,31 @@ function selector() {
     currentHead: oid("c"),
     lane: "standard" as const,
     sourceId: "codex-pr",
+  };
+}
+
+function candidateRecord(transitions: readonly CandidateLineageTransitionV1[] = []) {
+  const subject = createCandidateSubjectSnapshot([{
+    path: "src/example.ts",
+    mode: "100644",
+    digest: canonicalDigest({ source: "root" }),
+    treatment: "reviewable",
+  }]);
+  const attestation = createCandidateAttestation({
+    workUnit: "example",
+    subject,
+    baseRevision: oid("0"),
+    attestedBy: "andrew",
+    attestedAt: "2026-08-23T10:00:00.000Z",
+    verificationEvidenceRef: "verification://root",
+  });
+  return {
+    schemaVersion: 1 as const,
+    semanticsVersion: "candidate-attestation/v1" as const,
+    attestation,
+    subject,
+    transitions: [...transitions],
+    lineageAttestations: [],
   };
 }
 
@@ -195,5 +233,84 @@ describe("earlier review attempt query", () => {
     });
     expect(result.status === "complete" && result.candidates.map(({ attemptId }) => attemptId))
       .toEqual(["attempt-prior", "attempt-later"]);
+  });
+
+  it("composes the exact query, factual projection, and Candidate selection for both consumers", async () => {
+    const query = selector();
+    const snapshot = { status: "complete" as const, records: [{ version: 1, state: laneState() }] };
+    const projectedSelector = {
+      schemaVersion: 1 as const,
+      repositoryId: query.repositoryId,
+      repository: query.repository,
+      pullRequest: query.pullRequest,
+      lane: "standard" as const,
+      sourceId: query.sourceId,
+      priorAttemptId: "attempt-prior",
+      priorHead: oid("a"),
+      currentHead: oid("c"),
+      priorBase: oid("1"),
+      currentBase: oid("2"),
+    };
+    const decision = classifyReviewContributionApplicability(projectedSelector, {
+      endpoints: {
+        before: {
+          predecessor: { head: oid("1"), tree: oid("3") },
+          member: { head: oid("a"), tree: oid("4") },
+        },
+        after: {
+          predecessor: { head: oid("2"), tree: oid("5") },
+          member: { head: oid("c"), tree: oid("6") },
+        },
+      },
+      proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
+    });
+    if (decision.state !== "decision-required") throw new Error("expected exact residual decision");
+    const projectDecision = (
+      applicabilitySelector: Parameters<typeof classifyReviewContributionApplicability>[0],
+    ) => {
+      expect(applicabilitySelector).toEqual(projectedSelector);
+      return Promise.resolve(decision);
+    };
+    const baseInput = {
+      query,
+      currentBase: oid("2"),
+      snapshot,
+      exec: async () => { throw new Error("injected projection must own Git"); },
+      projectApplicability: projectDecision,
+    };
+    await expect(projectEarlierReviewApplicability({
+      ...baseInput,
+      candidate: candidateRecord(),
+    })).resolves.toMatchObject({
+      status: "complete",
+      attempts: [{ sourceId: "codex-pr", outcome: "clean", applicability: "stop" }],
+    });
+    const selected = (choice: "covered" | "review-required"): CandidateLineageTransitionV1 => ({
+      transitionKind: "review-applicability-selection",
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      candidateId: candidateRecord().attestation.candidateId,
+      selector: decision.selector,
+      projectionDigest: decision.projectionDigest,
+      residualDigest: decision.residualDigest,
+      selectedBy: "andrew",
+      selectedAt: "2026-08-23T12:00:00.000Z",
+      choice,
+    });
+    const coveredCandidate = candidateRecord([selected("covered")]);
+    await expect(projectEarlierReviewApplicability({
+      ...baseInput,
+      candidate: coveredCandidate,
+    })).resolves.toMatchObject({ attempts: [{ applicability: "retain-prior-attempt" }] });
+    expect(candidateExpectsEarlierReviewAttempt(coveredCandidate, query)).toBe(true);
+    await expect(projectEarlierReviewApplicability({
+      ...baseInput,
+      snapshot: { status: "complete", records: [] },
+      candidate: coveredCandidate,
+    })).resolves.toEqual({ status: "not-found" });
+    await expect(projectEarlierReviewApplicability({
+      ...baseInput,
+      candidate: candidateRecord([selected("review-required")]),
+    })).resolves.toMatchObject({ attempts: [{ applicability: "request-review" }] });
   });
 });

@@ -5,6 +5,7 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+import type { ReviewApplicabilityConsumerAction } from "./review-applicability-authority.js";
 
 interface ReservationAttempt {
   sourceId: string;
@@ -134,7 +135,14 @@ export function assertHostedReservationAdmission(input: {
   boundary: { candidateId: string; candidateSubjectDigest: string | null };
   candidate: { candidateId: string; subjectDigest: string; headSha: string };
   attempts: readonly ReservationAttempt[];
+  applicabilityAction?: ReviewApplicabilityConsumerAction;
 }): void {
+  if (input.applicabilityAction === "retain-prior-attempt") {
+    throw new Error("Hosted review capacity is not admissible while the prior attempt remains applicable.");
+  }
+  if (input.applicabilityAction === "stop") {
+    throw new Error("Hosted review capacity is not admissible while contribution applicability is unresolved.");
+  }
   if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()) {
     throw new Error("Hosted review target does not match the carried standard-review reservation.");
   }

@@ -480,4 +480,86 @@ describe("hosted reservation discharge", () => {
 
     expect(result).toMatchObject({ discharged: true, detail: "Hosted source `codex-pr`." });
   });
+
+  it("keeps prior safe unavailability and fallback discharge after an applicable top-head move", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async (sourceId) => ({
+        status: "complete",
+        attempts: [{
+          sourceId,
+          outcome: sourceId === "coderabbit-pr" ? "rate-limited" : "clean",
+          applicability: "retain-prior-attempt",
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: true,
+      detail: "Hosted source `codex-pr` through contribution applicability.",
+      nextSource: null,
+    });
+  });
+
+  it("does not spend provider capacity for an unresolved or unavailable prior projection", async () => {
+    for (const readEarlierAttemptApplicability of [
+      async () => ({
+        status: "complete" as const,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+          applicability: "stop" as const,
+        }],
+      }),
+      async () => ({ status: "unavailable" as const, detail: "Operation snapshot is incomplete." }),
+      async () => ({ status: "complete" as const, attempts: [] }),
+    ]) {
+      await expect(projectHostedReservationDischarge({
+        reservation: reservation(),
+        span: [oid("b")],
+        target: target(oid("b")),
+        readLaneProgress: progress({}),
+        readEarlierAttemptApplicability,
+      })).resolves.toMatchObject({ discharged: false, nextSource: null });
+    }
+  });
+
+  it("admits the same source when the replayed Owner selection requires review", async () => {
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+          applicability: "request-review",
+        }],
+      }),
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "coderabbit-pr",
+      detail: expect.stringContaining("Owner selection"),
+    });
+  });
+
+  it("does not let canonical authority discharge after its machine-local attempt disappears", async () => {
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({ status: "not-found" }),
+      requireEarlierApplicabilityEvidence: true,
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: null,
+      detail: "Earlier review applicability evidence is incomplete.",
+    });
+  });
 });

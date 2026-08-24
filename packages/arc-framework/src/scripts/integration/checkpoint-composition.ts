@@ -594,6 +594,7 @@ export function createIntegrationCheckpointDependencies(input: {
           approvedHead: target.headSha,
           changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
           ...(target.vehicle === undefined ? {} : { vehicle: target.vehicle }),
+          candidate: value.record,
         })
       )));
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
@@ -691,6 +692,7 @@ export function createIntegrationCheckpointDependencies(input: {
               repository: changeRequest.targetRef.repository,
               pullRequest: changeRequest.candidate.number,
             },
+            candidate: value.record,
           });
       const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
         && !discharge.discharged;
