@@ -1086,6 +1086,16 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   another head remains intact and surfaces. The driver never discovers ownership by HEAD coincidence and adds no
   checkout or ref-ownership registry.
 
+- _Amended 2026-08-24 after the pre-implementation audit:_ Before mutation, the typed closeout driver requires each
+  present exact candidate-ref / derived gate-path pair to agree on head, validates the registered checkout as
+  detached and clean, and reserves those heads as transient intent in the existing `teardown` operation's narrow
+  `closeout-residue` mode. Retry consumes that reservation after either destructive half completes; a mismatched
+  pair remains intact, while a pair already absent before reservation is an idempotent no-op. Local member refs
+  advance by exact compare-and-swap whenever an accepted rematerialization, provider refresh, or native settlement
+  advances the corresponding remote/state coordinate, leaving the retained current head authoritative for
+  two-sided member-ref deletion. No candidate inventory, creation provenance, or ownership registry persists after
+  cleanup.
+
     - Build `test-first` (one behavior at a time):
         - Teardown removes local and remote member refs for a landed member
         - Teardown removes the exact expected candidate ref in the ARC-reserved namespace
@@ -1095,6 +1105,8 @@ meta exists and that resolution shape is the exact defect the retired terminal a
         - A checkout at another path or with the wrong ref, head, or attached state is left alone and surfaced
         - A dirty gate checkout surfaces rather than being force-removed
         - A checkout sharing the expected HEAD by coincidence is never reaped
+        - A crash after either candidate-ref or gate-worktree removal resumes from the exact closeout reservation
+        - Local member refs remain exact after every supported accepted member-head movement
         - Reaping is idempotent across a repeated run
 
 ### `[ ]` **8.2 Retire the completed plan and state pair under an explicit work-unit identity**
@@ -1116,6 +1128,15 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   resurrection to guard against. This final state retirement, not per-member physical teardown, is the sole point
   that clears the retained member bindings.
 
+- _Amended 2026-08-24 after the pre-implementation audit:_ The existing integration closeout tail invokes one
+  typed delivery-closeout verb after `arc user close` and before ordinary work-unit `arc teardown`, passing explicit
+  work-unit, repository, and remote inputs. The verb owns `reap → retire`; workflow prose performs no path, head,
+  store, or recovery inference. Retirement consumes reaping's postconditions rather than independently discovering
+  candidates or gate checkouts, freshly verifies terminal settlement and two-sided member-ref absence, removes
+  state by exact revision first, then removes the bound plan and same-work-unit orphan plans by exact digest. A
+  crash between the separate namespaces converges through the surviving discoverable orphan plan; no
+  cross-namespace transaction, receipt, tombstone, or recovery workflow is introduced.
+
     - Build `test-first` (one behavior at a time):
         - Retirement deletes the bound plan and state pair for the named work unit
         - An orphan plan with no state for the same work unit is deleted with it
@@ -1123,6 +1144,8 @@ meta exists and that resolution shape is the exact defect the retired terminal a
         - Retirement refuses while a member ref remains on either side
         - Retirement refuses while the terminal is unsettled
         - Successful retirement clears every retained member ref, change-request, and coordinate binding
+        - A crash after exact state removal retries through the surviving same-work-unit orphan plan
+        - The integration closeout tail dispatches the typed delivery result before ordinary work-unit teardown
         - A repeated retirement is idempotent rather than an error
         - The verb takes the work-unit identity as input and never resolves it from an active meta
 

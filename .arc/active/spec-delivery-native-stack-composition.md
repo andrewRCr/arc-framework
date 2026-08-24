@@ -1068,6 +1068,36 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   `delivery-native-observe`. Its ordinary verb consumes the exact requested suffix, completes terminal-top
   absorption and publication, and only then clears in the final state write. The generic exact-not-applied rewrite
   cancellation rule does not apply to this specialized preserved arm.
+- **D9.7 Closeout residue reservation — amended 2026-08-24 after the Phase 8 task audit exposed an
+  interrupted-cleanup authority gap.** D9.4's residue remains derived rather than registered, but cleanup may not
+  destroy one half of the authority that makes the other half safe to remove. Before its first mutation, the typed
+  closeout verb derives every candidate ref and gate path from repository-common identity plus exact plan/member
+  identity, requires each present candidate/gate pair to agree on head, and validates the registered gate checkout
+  as detached and clean. It then reserves the existing `teardown` operation in a narrow `closeout-residue` mode,
+  binding those freshly established candidate heads as transient mutation intent. The reservation is neither
+  historical creation provenance nor an ownership registry: it exists only across the destructive cleanup, clears
+  before record retirement, and is never consulted to discover residue outside the deterministic locators.
+
+  A retry consumes that exact reservation, so candidate-ref deletion and gate-worktree removal may complete in
+  either attempt without turning the surviving locator's self-observed head into circular authority. Mismatched
+  pairs remain intact and surface; absence is idempotent only after the reservation exists or when both members of
+  the pair are absent before reservation. The ordinary member-teardown mode remains selected by its one exact
+  affected member and keeps D9.6's existing recovery behavior.
+
+  Local delivery-member refs follow every accepted member-head movement by exact compare-and-swap under the same
+  operation that adopts the remote/state movement. That keeps the retained current member coordinate authoritative
+  for both local and remote deletion after review-fix rematerialization, provider refresh, or native suffix
+  settlement without recording a second head lineage. Any local mismatch refuses before state adoption.
+
+  The existing integration closeout tail owns the complete sequence: after `arc user close` and before ordinary
+  work-unit `arc teardown`, one typed delivery-closeout verb takes explicit work-unit, repository, and remote inputs,
+  reaps residue, and then retires records. Retirement does not rediscover candidate refs or gate checkouts; it
+  consumes reaping's established postconditions, verifies terminal settlement and member-ref absence from fresh
+  Git/host facts, deletes state by exact revision first, and deletes the bound plan plus same-work-unit orphan plans
+  by exact digest. A crash between namespaces leaves a discoverable orphan plan for the same idempotent verb to
+  remove on retry. No cross-namespace transaction, receipt, tombstone, archive, new operation kind, autonomous
+  recovery workflow, or compatibility reader is added; workflow prose invokes the verb and dispatches only on its
+  typed, CLI-precomposed result.
 
 ### D10 — Doctrine surfaces
 
