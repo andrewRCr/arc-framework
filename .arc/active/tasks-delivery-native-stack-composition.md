@@ -220,12 +220,16 @@ copy together.
         - Captured one grooming pass to `knowledge-architecture`, naming `composable-workflows` and
           `method-conventions` as consumers of the landed seam and preserving their broader planned ownership.
 
-- _Outcome:_ The Member 1 criterion resolved `[x]` over `45b0e9393..c22890a42` and the cumulative tree: grouped
-  criteria and eight ordinary closing tasks feed the member-scoped walk; terminal verification remains sole and
-  unassigned; closeout consumes recorded reports plus the seam group; and every shipped surface has matching
-  package/project coverage. Delivery validation refuses empty, interleaved, or order-departing ranges; workflow
-  roots plus method-owned dependencies make both fire-points reachable; and the authored-partition carrier retains
-  one complete logical pass. Both Heavy adversarial passes were consumed, and every confirmed finding was resolved.
+- _Outcome:_ Member 1 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 1 — member-boundary-verification`.
+    - _Span:_ diff `45b0e9393..c22890a42`; reachability `c22890a42`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 1 — member-boundary-verification > 1`; _State:_ `[x]`;
+      _Evidence:_ grouped criteria and eight ordinary closing tasks feed the member-scoped walk; terminal
+      verification remains sole and unassigned; closeout consumes recorded reports plus the seam group; all shipped
+      surfaces have matching package/project coverage; validation refuses empty, interleaved, or order-departing
+      ranges; and the authored-partition carrier preserves one complete logical pass. Both Heavy adversarial passes
+      were consumed, and every confirmed finding was resolved.
 
 ## **Phase 2:** Structural contribution identity
 
@@ -293,11 +297,19 @@ trunk makes common, which is the observed failure with different bytes.
 - _Goal:_ Member 2's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
-- _Outcome:_ All three Member 2 criteria resolved `[x]` over `22c11cc63..a8eaa4d70` and the cumulative tree.
-  The structural arbiter reapplies every moved-predecessor case and carries exact conflict or divergence paths;
-  the shared capability probe preserves the typed refusal while verifying a pinned fallback when `HEAD` is
-  unusable; and the aggregate-patch and linearity substrate is absent. The first Heavy adversarial pass exposed
-  both edge cases, their approved fixes landed in the evidence span, and the second full pass returned no findings.
+- _Outcome:_ Member 2 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 2 — contribution-identity`.
+    - _Span:_ diff `22c11cc63..a8eaa4d70`; reachability `a8eaa4d70`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 2 — contribution-identity > 1`; _State:_ `[x]`;
+      _Evidence:_ the single structural arbiter reapplies every moved-predecessor case, keeps the unchanged-predecessor
+      shortcut, carries equivalent results, and names exact conflict or divergence paths.
+    - _Criterion:_ `Success Criteria > Member 2 — contribution-identity > 2`; _State:_ `[x]`;
+      _Evidence:_ the shared capability probe preserves the typed unsupported refusal and a pinned fallback when
+      `HEAD` is unusable, without another version floor or disclosure/degrade path.
+    - _Criterion:_ `Success Criteria > Member 2 — contribution-identity > 3`; _State:_ `[x]`;
+      _Evidence:_ the aggregate-patch envelope and linearity substrate are absent. Heavy pass 1 exposed two edge
+      cases, their approved fixes landed in-span, and pass 2 returned no findings.
 
 ## **Phase 3:** Delivery-aware review-gate resolution
 
@@ -357,10 +369,14 @@ throughout the landing window and leave every other consumer refusing, which is 
 - _Goal:_ Member 3's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
-- _Outcome:_ The Member 3 criterion resolved `[x]` over `f9f7ed482..fde706811` and the cumulative tree at
-  `fde706811`: exact-head reverse lookup addresses review status and hosted member progress, all shared
-  change-request callers supply delivery bases, and no session or recovery authority moved outside the originating
-  checkout. A fresh second pass found no residual findings after the hosted-member composition correction.
+- _Outcome:_ Member 3 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 3 — review-gate-resolution`.
+    - _Span:_ diff `f9f7ed482..fde706811`; reachability `fde706811`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 3 — review-gate-resolution > 1`; _State:_ `[x]`;
+      _Evidence:_ exact-head reverse lookup addresses review status and hosted member progress, every shared
+      change-request caller supplies the valid delivery bases, and session/recovery authority remains with the
+      originating checkout. Fresh pass 2 found no residual finding after the hosted-member composition correction.
 
 ## **Phase 4:** Topology transition and publication
 
@@ -475,10 +491,15 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
 - _Goal:_ Member 4's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
-- _Outcome:_ `[x]` The immutable Member 4 criterion is met through the recorded boundary-order deviation: the
-  Phase 4 diff (`a202eec2a..d26adf058`) establishes first-class member refs, bound terminal publication, complete
-  presentation preflight, and containment-guarded adoption; the boundary remained open through `c9a753e3b`, whose
-  reachable tree removes the incompatible terminal path and delegates directly to the ordinary checkpoint spine.
+- _Outcome:_ Member 4 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 4 — topology-transition`.
+    - _Span:_ diff `a202eec2a..d26adf058`; reachability `c9a753e3b`; boundary-order deviation: the Phase 5 terminal-
+      path removal at `c9a753e3b` supplied the dependency required to close the Phase 4 boundary.
+    - _Criterion:_ `Success Criteria > Member 4 — topology-transition > 1`; _State:_ `[x]`;
+      _Evidence:_ the bounded diff establishes first-class member refs, bound terminal publication, complete
+      presentation preflight, and containment-guarded adoption; the exact deviation reachability removes the
+      incompatible disconnected terminal path and delegates to the ordinary checkpoint spine.
 
 ## **Phase 5:** Terminal integration arm
 
@@ -708,12 +729,23 @@ comparator and trivially accepted.
                       both shipped copies and their guard now consume every strict action/transition/selector arm, and
                       the primary recheck resolves criterion 4 without another adversarial cycle.
 
-- _Outcome:_ `[x]` All four immutable Member 5 criteria resolve over the bounded implementation union through
-  `f2efb6c5d` and its cumulative tree. The ordinary checkpoint/interlock/merge spine binds the exact terminal claim;
-  retained member bindings and explicit top remedies protect the landing window; authoritative-base Candidate
-  applicability and versioned terminal rebind converge through informative reruns; and the proportional recovery
-  contract now matches across reducer, schema, handler, both workflows, and their exhaustive guard. Success Criteria
-  markers remain unchanged for terminal verification.
+- _Outcome:_ Member 5 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 5 — terminal-integration`.
+    - _Span:_ diff `d26adf058..f2efb6c5d`; reachability `f2efb6c5d`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 1`; _State:_ `[x]`;
+      _Evidence:_ the ordinary checkpoint/interlock/merge spine composes the exact attested terminal claim from
+      retained bound heads and the residual comparison.
+    - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 2`; _State:_ `[x]`;
+      _Evidence:_ retained member bindings, branch deletion, fresh top observation, explicit remedy invocation, and
+      protected-base readiness preserve the landing window without another automatic mutation.
+    - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 3`; _State:_ `[x]`;
+      _Evidence:_ authoritative-base Candidate applicability, exact endpoint comparison, versioned terminal rebind,
+      and publication-boundary settlement converge through typed informative reruns and no new lineage authority.
+    - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 4`; _State:_ `[x]`;
+      _Evidence:_ the proportional reservation recovery contract and closed rerun union agree across reducer,
+      schema, handler, both workflows, and the exhaustive guard; ambiguous or incomplete observations retain and
+      stop. Success Criteria markers remain unchanged for terminal verification.
 
 ## **Phase 6:** Provider-delegated refresh and native landing
 
@@ -867,12 +899,31 @@ structural guarantee rather than operator discipline.
 
     - `[x]` **6.11.c Prove the vertical lifecycle rows and reconcile every contract surface**
 
-        - All six immutable Member 6 criteria resolve over the first-parent task-commit union from
-          `f4db64870` through `a99cc46a9`, the real-Git lifecycle rows, and the cumulative reconciled tree. Base
-          movement remains advisory; external refresh is proved before reserved top settlement and one final state
-          write; native settlement proves the full suffix and semantic no-effect returns to canonical selection.
-          Registration remains non-terminal, filters the dependent top, degrades the two-member floor, discloses
-          opt-in cost, and keeps opt-out host-silent. Success Criteria markers remain unchanged for final verification.
+        - Real-Git lifecycle coverage now drives external refresh adoption, full native suffix settlement, semantic
+          fallback, exact registration, two-member degradation, and opt-out through their production CLI surfaces.
+
+- _Outcome:_ Member 6 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+    - _Span:_ Task 6 first-parent commit union from `f4db64870` through `2fae38462`; reachability `2fae38462`;
+      boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+      _Evidence:_ protected-base movement remains advisory and creates no refresh obligation by itself.
+    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[x]`;
+      _Evidence:_ external refresh is freshly observed and proved before reserved top settlement, lease publication,
+      and one atomic suffix-plus-top state write; interruption cannot expose suffix-only adoption.
+    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+      _Evidence:_ native settlement structurally proves every member in the rewritten remaining suffix before its
+      exact new head becomes review-admissible.
+    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+      _Evidence:_ selection derives the canonical current non-terminal remainder, and exact semantic no-effect
+      clears the sequential reservation into fresh native selection without conflating stale-suffix refresh.
+    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+      _Evidence:_ registration is exactly non-terminal, filters the dependent top as registered, and degrades the
+      two-member floor to the unlinked route.
+    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+      _Evidence:_ the decision point discloses native review invalidation before opt-in, while opt-out is supported
+      and host-silent. Success Criteria markers remain unchanged for terminal verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -1046,14 +1097,21 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
-- _Outcome:_ `[x]` All three immutable Member 7 criteria resolve over the bounded Phase 7 Task commit union, its
-  review-driven production-composition correction, and the cumulative tree. Retained member bindings derive exact
-  review vehicles and settle only through the complete typed conjunction. The D4-backed projection preserves
-  mechanical and fallback carry through one bounded discovery/read path shared by admission and discharge; the
-  superseded lane-progress selection clause resolves through the next criterion's target-neutral, version-checked
-  Candidate transition. The executable lifecycle now drives the status, request, await, attempt, settle, Candidate,
-  delivery, and publication-boundary production composition directly, with unavailable evidence stopping and no
-  prose loop or new record family. Success Criteria markers remain unchanged for terminal verification.
+- _Outcome:_ Member 7 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+    - _Span:_ diff `2fae38462..e11bd763d`; reachability `e11bd763d`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
+      _Evidence:_ retained member bindings derive an exact review vehicle for every member and settle the work-unit
+      obligation only through the complete typed conjunction, including reaped physical refs.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`;
+      _Evidence:_ the D4-backed projection preserves mechanical and fallback carry through one bounded discovery
+      path shared by admission and discharge, retains the distinct path proof, and creates no duplicate equivalence
+      projection or record family.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`;
+      _Evidence:_ target-neutral, version-checked Candidate transitions carry the exact selector through the complete
+      executable status-to-terminal lifecycle; unavailable evidence stops, and lane progress remains discovery-only.
+      The production-composition correction is included in-span; Success Criteria markers remain unchanged.
 
 ## **Phase 8:** Record retirement and doctrine
 
@@ -1122,16 +1180,27 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - _Goal:_ Member 8's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
-- _Outcome:_ `[x]` All three immutable Member 8 criteria resolve over `e11bd763d..HEAD`, the approved
-  review-correction delta, and the cumulative tree. Exact record, ref, candidate, and gate retirement retains its
-  authorities and refuses mismatches; the integration strategy ships byte-identically through recipe and index;
-  and ADR-034 records the posture, alternative, and both reopening triggers. Fresh pass 2 converged after requiring
-  a merged terminal request and preserving exact closeout identifiers. Success Criteria markers remain unchanged
-  for terminal verification.
+- _Outcome:_ Member 8 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
+    - _Span:_ diff `e11bd763d..270f42c1b`; reachability `270f42c1b`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
+      _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
+      terminal request, retains exact closeout identifiers, and leaves every mismatch intact with a refusal.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 2`; _State:_ `[x]`;
+      _Evidence:_ the integration strategy ships byte-identically through the installation recipe and both indexes.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 3`; _State:_ `[x]`;
+      _Evidence:_ ADR-034 records the posture, considered alternative, and both reopening triggers. Fresh pass 2
+      converged after the two approved retirement corrections; Success Criteria markers remain unchanged.
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown/ARC, TypeScript and shell lint, both typechecks, 10,836 tests with one skipped, and the
+  package build all passed.
+- _Success criteria:_ 25 met; eight member reports carried without re-derivation, with cross-member seams and the
+  complete union validated against the final landing guards and live GitHub stack-response evidence.
 
 ---
 
@@ -1139,7 +1208,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### Member 1 — `member-boundary-verification`
 
-- `[ ]` Each planned member's task range closes with an ordinary implementation task that fires `validate-criteria`
+- `[x]` Each planned member's task range closes with an ordinary implementation task that fires `validate-criteria`
   at member scope over its group in the member-grouped Success Criteria section, adding no phases and leaving the
   single terminal verification task unassigned to any member. Success criteria remain marked only during the
   verification phase. The closeout pass walks the seam group and dispositions the member groups from recorded
@@ -1151,19 +1220,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### Member 2 — `contribution-identity`
 
-- `[ ]` When a predecessor moves, the member is mechanically reapplied even if its before/after trees are equal;
+- `[x]` When a predecessor moves, the member is mechanically reapplied even if its before/after trees are equal;
   only an unchanged predecessor plus equal member tree takes the tree-equality shortcut. An equivalent provider
   result carries without attended acknowledgement, a genuine reapply conflict refuses with the conflicted paths
   named, and a conflict-free divergence refuses with the divergent paths named.
 
-- `[ ]` `merge-tree --merge-base` capability is established through the existing probe and reuses the existing
+- `[x]` `merge-tree --merge-base` capability is established through the existing probe and reuses the existing
   typed unsupported-refusal. No new version floor, disclosure path, or degrade path exists in the change set.
 
-- `[ ]` The aggregate-patch envelope and the linearity precondition are absent from the code base.
+- `[x]` The aggregate-patch envelope and the linearity precondition are absent from the code base.
 
 ### Member 3 — `review-gate-resolution`
 
-- `[ ]` A delivery member branch resolves to its owning work unit through the delivery reverse lookup — not a
+- `[x]` A delivery member branch resolves to its owning work unit through the delivery reverse lookup — not a
   branch prefix test — so `arc review status` and the hosted request path address a member; and the terminal spine
   resolves the top's change request while its base is a member branch, rather than refusing `base-mismatch`.
   Every shared-resolution caller supplies its acceptable-base set. Member and gate checkouts remain operation
@@ -1172,7 +1241,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### Member 4 — `topology-transition`
 
-- `[ ]` No retained control branch and no disconnected terminal pull request exist in any delivery path. The top
+- `[x]` No retained control branch and no disconnected terminal pull request exist in any delivery path. The top
   member is the work unit's own branch, its pull request is the terminal integration vehicle, and it presents with
   the ordinary work-unit template and title. Publication validates a distinct caller-authored terminal title/body
   with the complete presentation set before mutation, and an exact-request retry does not rewrite it. Content-neutral
@@ -1180,17 +1249,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### Member 5 — `terminal-integration`
 
-- `[ ]` The terminal ceremony runs through the ordinary `arc integrate checkpoint` to interlock to
+- `[x]` The terminal ceremony runs through the ordinary `arc integrate checkpoint` to interlock to
   `arc integrate merge` flow, with the delivery arm composing its claim from the attestation record, exact bound
   member heads, and the residual comparison.
 
-- `[ ]` After the highest non-terminal landing, its binding remains available while its remote branch is deleted
+- `[x]` After the highest non-terminal landing, its binding remains available while its remote branch is deleted
   as the host retarget trigger and the top is reobserved. Automatic retarget proceeds without another mutation;
   an open request on the wrong base yields `retarget`, and `closed-unmerged` yields `reopen-and-retarget`. Either
   remedy requires explicit invocation and another observation, and the terminal arm refuses until the top is
   freshly observed open against the protected base. A member-branch base remains valid during the landing window.
 
-- `[ ]` Terminal base reconciliation compares both the protected-base and Candidate heads before mutation, then
+- `[x]` Terminal base reconciliation compares both the protected-base and Candidate heads before mutation, then
   converges through informative checkpoint reruns over existing durable facts. Changed Candidate content requires
   ordinary whole-work-unit verification and a new Candidate root; stale terminal coordinates require only an
   idempotent, version-checked delivery-state rebind. Neither path adds Candidate-lineage authority, a
@@ -1204,7 +1273,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   reads the same pure durable baseline and asynchronous Git-backed effective target, and the publication boundary
   settles that target independently before checkpoint proceeds.
 
-- `[ ]` Interrupted delivery operations reobserve the existing reservation and return an informative ordinary rerun
+- `[x]` Interrupted delivery operations reobserve the existing reservation and return an informative ordinary rerun
   action with a minimal exact reservation-subject selector and CLI-precomposed text; ordinary preparation rederives
   every other input. Only overloaded `rewrite` and `land` kinds carry a narrow mode discriminator. Exact not-applied
   `publish` and `teardown` preserve a reservation their ordinary verbs consume; other kinds/modes version-clear
@@ -1217,37 +1286,37 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### Member 6 — `refresh-and-native-landing`
 
-- `[ ]` A delivery completes while the protected base receives unrelated external landings throughout, with no
+- `[x]` A delivery completes while the protected base receives unrelated external landings throughout, with no
   freeze and no refresh obligated by base movement alone.
 
-- `[ ]` An externally performed registered-suffix refresh is freshly observed and structurally proved member by
+- `[x]` An externally performed registered-suffix refresh is freshly observed and structurally proved member by
   member before ARC reserves only its own adoption settlement; the excluded terminal top then absorbs the refreshed
   predecessor by genuine content merge and is lease-published before suffix and top coordinates enter state
   together. ARC invokes no provider refresh mutation, and interruption never exposes suffix-only adoption.
 
-- `[ ]` A native landing that rewrites the entire remaining suffix reconciles every rewritten member by structural
+- `[x]` A native landing that rewrites the entire remaining suffix reconciles every rewritten member by structural
   equivalence before admitting its new head to review.
 
-- `[ ]` Native selection observes only the canonical plan/state-derived remaining non-terminal chain. A semantic
+- `[x]` Native selection observes only the canonical plan/state-derived remaining non-terminal chain. A semantic
   `native-stack-required` refusal with exact no-effect evidence clears its sequential reservation and returns to
   fresh native selection; it is never conflated with the `native-stale-suffix` refresh trigger.
 
-- `[ ]` Registration covers exactly the non-terminal member set, and ARC's own observation predicate reads that set
+- `[x]` Registration covers exactly the non-terminal member set, and ARC's own observation predicate reads that set
   as `registered` rather than `partial` when the top pull request is chained onto it. A delivery of two total
   members routes unlinked whether or not the operator opted in — the sub-two member set degrades rather than
   stopping the workflow.
 
-- `[ ]` Opting into native registration surfaces its review-invalidation consequence at the decision point, and
+- `[x]` Opting into native registration surfaces its review-invalidation consequence at the decision point, and
   declining it is a supported route that makes no host calls.
 
 ### Member 7 — `review-fan-out`
 
-- `[ ]` A carried hosted-review reservation resumes on every member pull request at its exact head, and the
+- `[x]` A carried hosted-review reservation resumes on every member pull request at its exact head, and the
   work-unit obligation reports discharged only when every member review has cleared — verified at the terminal
   boundary as the conjunction over every retained binding, including members whose physical refs were reaped,
   never satisfied by the top's own residual review.
 
-- `[ ]` Landing an N-member stack spends N member reviews plus review of genuinely uncovered deltas. A member whose
+- `[x]` Landing an N-member stack spends N member reviews plus review of genuinely uncovered deltas. A member whose
   contribution is proved unchanged under a predecessor rewrite is not re-reviewed, and a review preserved across a
   fallback-source discharge survives append-only head movement of the top. One equivalence arbiter serves both the
   delivery and ordinary base-merge cases; earlier attempts are found through a bounded read of existing
@@ -1256,7 +1325,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   path-based applicability proof remains intact, and no duplicate contribution-equivalence projection or new
   record family exists.
 
-- `[ ]` The preceding criterion's existing-attempt persistence clause is superseded: every authoritative
+- `[x]` The preceding criterion's existing-attempt persistence clause is superseded: every authoritative
   review-applicability selection is a target-neutral transition on the version-checked canonical Candidate record,
   while lane progress remains non-evidentiary discovery state. An incomplete or missing earlier-attempt query stops
   unavailable; it never infers clearance or invites judgment. Existing typed review verbs carry the exact member
@@ -1265,25 +1334,25 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### Member 8 — `retirement-and-doctrine`
 
-- `[ ]` After terminal adoption and closeout, the delivery store holds no plan or state record for the completed
+- `[x]` After terminal adoption and closeout, the delivery store holds no plan or state record for the completed
   work unit, and the retirement operation refuses while an operation, member ref, or unsettled terminal remains.
   Physical teardown retains exact member bindings until that retirement; gate-checkout reaping validates a
   deterministic ARC-owned path, expected candidate ref or head, detached state, and cleanliness without a new
   registry or HEAD-coincidence discovery. Candidate-ref reaping requires the ARC-reserved namespace plus exact
   plan/member identity and expected head; mismatches remain intact and surface.
 
-- `[ ]` `strategy-integration.md` exists in the package source, is listed in `init-recipe.json` `include_files`, is
+- `[x]` `strategy-integration.md` exists in the package source, is listed in `init-recipe.json` `include_files`, is
   synced to the project copy, and is reachable from `STRATEGY-INDEX.md` in both copies.
 
-- `[ ]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
+- `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
 
 ### Cross-member seams
 
-- `[ ]` Landing an N-member stack requires at most N landing decisions — or one contiguous-prefix decision — plus
+- `[x]` Landing an N-member stack requires at most N landing decisions — or one contiguous-prefix decision — plus
   genuine content-conflict resolutions, with no manual recut, no per-member manual suffix adoption, and no
   synthetic ancestry-reconciliation merge on any path; every ARC-added step in the delivery path names the
   chartered failure it guards that a team on provider-native stacks does not already guard.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
