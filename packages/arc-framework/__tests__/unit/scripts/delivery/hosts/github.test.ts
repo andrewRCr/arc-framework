@@ -83,6 +83,20 @@ describe("GhDeliveryHostPort", () => {
     expect(calls.flat()).not.toContain("stack");
   });
 
+  it("accepts the provider stack listing that omits member base objects", async () => {
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, head: { ref: "delivery/example/first", sha: headSha } },
+        { number: 402, head: { ref: "delivery/example/second", sha: "b".repeat(40) } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(nativeInput))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
   it("excludes a chained dependent request from the registered-member predicate", async () => {
     const response = [{
       number: 9,
