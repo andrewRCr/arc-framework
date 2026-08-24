@@ -104,9 +104,10 @@ export async function readRoutedObligation(
     }
     const record = versionedRecord.record;
     const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"];
+    const candidateHead = subject.member?.candidateHead ?? target.headSha;
     const targetBase = await resolveGitCandidateTargetBase({
       cwd,
-      revision: target.headSha,
+      revision: candidateHead,
       baseBranch,
       baseRevision: currentBaseRevision,
       exec,
@@ -118,10 +119,10 @@ export async function readRoutedObligation(
       record,
       exec,
       rawExec: createRawGitExec(cwd),
-      target: { revision: target.headSha, currentBase: targetBase },
+      target: { revision: candidateHead, currentBase: targetBase },
     });
-    if (effective.state !== "current" || effective.recognizedTarget.revision !== target.headSha) {
-      return { state: "blocked", detail: "The exact review target is not a current Candidate subject." };
+    if (effective.state !== "current" || effective.recognizedTarget.revision !== candidateHead) {
+      return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
     }
     const candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
     if (boundary.candidateId !== record.attestation.candidateId

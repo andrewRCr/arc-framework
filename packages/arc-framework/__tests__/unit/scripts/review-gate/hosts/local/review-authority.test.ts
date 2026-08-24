@@ -19,6 +19,7 @@ const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMember
   base: "b".repeat(40),
   baseRef: "main",
   head: MEMBER_HEAD,
+  candidateHead: MEMBER_HEAD,
   isFinalMember: false,
   ...overrides,
   headRef: overrides.headRef === undefined ? "delivery/stack-1/member-1" : overrides.headRef,

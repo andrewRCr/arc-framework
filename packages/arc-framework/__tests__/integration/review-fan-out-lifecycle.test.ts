@@ -453,6 +453,11 @@ describe("hosted review fan-out lifecycle", () => {
     const priorSecond = member(harness.plan, 1, harness.priorSecond);
     const firstTarget = { repository, pullRequest: 41, headSha: harness.oldFirst };
     const priorSecondTarget = { repository, pullRequest: 42, headSha: harness.priorSecond };
+    const firstStatusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
     const priorStatusTarget = { repository, headRef: "prior-top", headSha: harness.priorSecond };
     const firstReview = targetAndRequirement({
       repositoryId: harness.repositoryId,
@@ -469,7 +474,7 @@ describe("hosted review fan-out lifecycle", () => {
       headTree: harness.priorSecondTree,
     });
 
-    const initial = await statusThroughHandler(harness, priorStatusTarget);
+    const initial = await statusThroughHandler(harness, firstStatusTarget);
     expect(initial).toMatchObject({
       nextAction: "review-hosted-request",
       action: { target: firstTarget, provider: "coderabbit-pr", vehicle: first },
@@ -495,7 +500,7 @@ describe("hosted review fan-out lifecycle", () => {
       now: "2026-08-24T04:01:00.000Z",
     });
 
-    const fallback = await statusThroughHandler(harness, priorStatusTarget);
+    const fallback = await statusThroughHandler(harness, firstStatusTarget);
     expect(fallback).toMatchObject({
       nextAction: "review-hosted-request",
       action: { target: firstTarget, provider: "codex-pr", vehicle: first },

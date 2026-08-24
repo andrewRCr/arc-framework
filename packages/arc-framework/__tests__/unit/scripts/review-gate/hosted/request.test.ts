@@ -31,6 +31,7 @@ const DELIVERY_MEMBER = {
   baseRef: "main",
   headRef: "delivery/plan-1/member-1",
   head: HEAD,
+  candidateHead: HEAD,
   isFinalMember: false,
 };
 
