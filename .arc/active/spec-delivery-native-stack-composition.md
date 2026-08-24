@@ -572,6 +572,22 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
 - **D5.5 Execution-time movement.** Base movement before materialization is ordinary work-unit base-merge
   territory; member-boundary verification evidence then follows the ordinary after-base-merge re-run rules.
 - **D5.6 Refusals.** Conflicts, rewritten targets, and ambiguous provider movement refuse.
+- **D5.7 External-only provider refresh and reserved ARC adoption — amended 2026-08-23 after the Member 6
+  lifecycle audit.** This amendment supersedes D5.1's final sentence and D5.4's ARC-issued provider-mutation arm.
+  The reference adapter exposes no provider refresh mutation, the non-goals exclude provider submission machinery,
+  and ARC does not invoke or pre-reserve the provider's work. The provider or operator performs the exact planned
+  suffix refresh externally; until ARC has freshly observed and structurally proved that complete result, no ARC
+  operation exists.
+
+  Once those assigned heads are known, ARC reserves `rewrite/provider-adoption` for its own post-observation
+  settlement only. The reservation binds the old suffix snapshot and the exact freshly observed requested suffix,
+  then owns a second exact observation and proof, the terminal top's genuine append-only content merge, lease
+  publication of that top, and one final version-checked state write that installs the target, complete suffix, and
+  terminal coordinates while clearing the reservation. The terminal top remains outside provider authority. A
+  crash before reservation leaves only external facts to reobserve; a crash after reservation reruns
+  `delivery-refresh-adopt`, which idempotently recognizes the exact local merge and remote publication. No
+  suffix-only state may publish before top settlement, and no new operation kind, provider capability, or durable
+  proof record is introduced.
 
 ### D6 — Native registration and landing
 
@@ -645,6 +661,15 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   with one limit named: it is immune to provider-initiated rewrite, not to rewrite generally, so under strict
   up-to-date branch protection forced refreshes rewrite heads on either arm and D8.6's projection is the only
   answer.
+- **D6.11 Semantic stacked refusal routing — amended 2026-08-23 after the Member 6 lifecycle audit.**
+  `native-stack-required` and `native-stale-suffix` name different facts. The former is minted when the ordinary
+  merge endpoint discovers that its exact open request requires the native stack lifecycle; it says no landing was
+  applied and does not authorize refresh. ARC freshly proves the reserved request and delivery snapshot remain
+  exact, clears that sequential reservation in one version-checked write, and returns the executable
+  `delivery-native-land-select` transition. That selector derives the complete remaining non-terminal chain from
+  canonical plan/state before fresh host observation; caller-authored member coordinates never select or downgrade
+  an arm. `native-stale-suffix` remains a D5.3 refresh trigger after an actual stale-suffix refusal. Ambiguous
+  no-effect evidence or a competing state write retains the reservation and stops.
 
 ### D7 — Member-boundary verification
 
@@ -1009,6 +1034,12 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   field, blanket owner field, recovery record family, autonomous replay, or promise to repair every provider failure
   is added.
 
+  **Amended 2026-08-23 after the Member 6 lifecycle audit:** provider-adoption `rewrite` is a preserved
+  post-observation settlement reservation and reruns `delivery-refresh-adopt`, not the presentation-only
+  `delivery-native-observe`. Its ordinary verb consumes the exact requested suffix, completes terminal-top
+  absorption and publication, and only then clears in the final state write. The generic exact-not-applied rewrite
+  cancellation rule does not apply to this specialized preserved arm.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
@@ -1366,7 +1397,13 @@ added.
    unsupported-refusal. No new version floor, disclosure path, or degrade path exists in the change set (D4.4).
 6. The aggregate-patch envelope and the linearity precondition are absent from the code base (D4.6).
 7. A delivery completes while the protected base receives unrelated external landings throughout, with no freeze
-   and no refresh obligated by base movement alone (Goal 3, D5.3).
+   and no refresh obligated by base movement alone. When the provider or operator externally refreshes the exact
+   registered suffix after a real trigger, ARC invokes no provider mutation: it freshly observes and structurally
+   proves every changed member, reserves only its own post-observation settlement, genuinely content-merges the
+   refreshed predecessor into the excluded terminal top, lease-publishes that top, and admits the target, suffix,
+   and terminal coordinates together in one final version-checked write. Conflict, provider movement, interruption
+   after top publication, and state collision remain retryable or attended without suffix-only adoption
+   (Goal 3, D5.2, D5.3, D5.7).
 8. A native landing that rewrites the entire remaining suffix reconciles every rewritten member by structural
    equivalence before admitting its new head to review (D6.7).
 9. Registration covers exactly the non-terminal member set, and ARC's own observation predicate reads that set as
@@ -1458,7 +1495,7 @@ added.
     ordinary action rederives every non-selector input rather than persisting a downstream command request. Exact
     not-applied `publish` and `teardown` preserve a reservation their ordinary verbs consume; the other kinds/modes
     version-clear before returning fresh preparation or invocation through the closed
-    `delivery-publish | delivery-rematerialize | delivery-native-observe |
+    `delivery-publish | delivery-rematerialize | delivery-refresh-adopt |
     delivery-land-prepare | delivery-native-land-select | delivery-teardown | delivery-top-remedy` rerun union.
     Exact applied results clear after their already-owed observation, while ambiguous or incomplete results retain
     and stop. Highest-member teardown remains reserved through fresh top observation across stack cardinalities. No

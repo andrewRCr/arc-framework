@@ -757,6 +757,12 @@ structural guarantee rather than operator discipline.
   recovery and a reservation-free external arm; both adopt only stable bindings whose changed members pass the
   existing arbiter, using one final CAS and no new operation kind, protocol, or proof record.
 
+- _Forward amendment (2026-08-23):_ The Member 6 lifecycle audit found that the completed split modeled an
+  ARC-issued provider mutation the reference adapter cannot perform, while the reservation-free adoption published
+  the suffix without composing Task 6.2's required terminal-top settlement. D5.7 supersedes that execution model:
+  provider/operator refresh stays external and unreserved; `rewrite/provider-adoption` begins only after exact
+  observation and proof, then owns ARC's top absorption/publication and the one final suffix-plus-top CAS.
+
 ### `[x]` **6.4 Route a registered stack natively and mint the `native-stack-required` refusal**
 
 - _Goal:_ A linked stack reaches the native lifecycle rather than the singleton merge path, and a stacked-member
@@ -765,6 +771,11 @@ structural guarantee rather than operator discipline.
 - _Outcome:_ Preserved fresh provider-observed registered/unregistered routing through the existing exact-head,
   lock-release, and asynchronous native lifecycle, and carried a semantic stacked-member `422` as the closed
   `native-stack-required` refusal while leaving generic validation failures unavailable and plan intent unchanged.
+
+- _Forward amendment (2026-08-23):_ D6.11 makes that semantic refusal executable: after exact no-effect proof it
+  clears the sequential reservation and routes to state-derived fresh native selection, never to the distinct
+  `native-stale-suffix` refresh trigger. Native selection must bind the full remaining chain from plan/state before
+  observing the provider.
 
 ### `[x]` **6.5 Scope registration to the non-terminal member set**
 
@@ -840,6 +851,26 @@ structural guarantee rather than operator discipline.
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
+
+    - `[ ]` **6.11.a Close external refresh adoption as one top-settling transaction**
+
+        - Remove the dead ARC-issued provider-refresh mutation seam. After an external refresh, observe and prove
+          the complete exact suffix before reservation; then reserve ARC's adoption settlement, reobserve, absorb
+          and lease-publish the terminal top, and install suffix plus terminal coordinates in one final CAS.
+          Recovery reruns `delivery-refresh-adopt` and recognizes interruption at every mutation boundary.
+
+    - `[ ]` **6.11.b Bind native routing and make semantic fallback executable**
+
+        - Derive the native selection chain from canonical plan/state before host observation. On an exact
+          `native-stack-required` no-effect result, version-clear the sequential reservation and return fresh native
+          selection; ambiguity or state collision retains and stops. Never route that refusal as
+          `native-stale-suffix` refresh demand.
+
+    - `[ ]` **6.11.c Prove the vertical lifecycle rows and reconcile every contract surface**
+
+        - Add executable scenarios for refresh observation through top publication/final CAS and for sequential
+          semantic refusal through canonical native selection, including crash, conflict, collision, and false
+          downgrade cases. Align schema, reducer/service, handler, both workflows, D9.6, and strict contract tests.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -1224,7 +1255,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   every other input. Only overloaded `rewrite` and `land` kinds carry a narrow mode discriminator. Exact not-applied
   `publish` and `teardown` preserve a reservation their ordinary verbs consume; other kinds/modes version-clear
   before fresh preparation or invocation through the closed
-  `delivery-publish | delivery-rematerialize | delivery-native-observe | delivery-land-prepare |
+  `delivery-publish | delivery-rematerialize | delivery-refresh-adopt | delivery-land-prepare |
   delivery-native-land-select | delivery-teardown | delivery-top-remedy` rerun union. Exact applied results clear
   after their already-owed observation, while ambiguous or incomplete results retain and stop. Highest-member
   teardown stays reserved through fresh top observation across stack cardinalities, with no owner field, retry
@@ -1235,8 +1266,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[ ]` A delivery completes while the protected base receives unrelated external landings throughout, with no
   freeze and no refresh obligated by base movement alone.
 
+- `[ ]` An externally performed registered-suffix refresh is freshly observed and structurally proved member by
+  member before ARC reserves only its own adoption settlement; the excluded terminal top then absorbs the refreshed
+  predecessor by genuine content merge and is lease-published before suffix and top coordinates enter state
+  together. ARC invokes no provider refresh mutation, and interruption never exposes suffix-only adoption.
+
 - `[ ]` A native landing that rewrites the entire remaining suffix reconciles every rewritten member by structural
   equivalence before admitting its new head to review.
+
+- `[ ]` Native selection observes only the canonical plan/state-derived remaining non-terminal chain. A semantic
+  `native-stack-required` refusal with exact no-effect evidence clears its sequential reservation and returns to
+  fresh native selection; it is never conflated with the `native-stale-suffix` refresh trigger.
 
 - `[ ]` Registration covers exactly the non-terminal member set, and ARC's own observation predicate reads that set
   as `registered` rather than `partial` when the top pull request is chained onto it. A delivery of two total

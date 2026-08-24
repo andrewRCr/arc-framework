@@ -90,6 +90,20 @@ promised by the design without adding a ledger, record family, provider abstract
 - candidate-ref cleanup authority comes from the ARC-reserved namespace, exact plan/member identity, and expected
   head, not historical creation provenance that the recordless cleanup design cannot establish.
 
+## Member 6 lifecycle audit amendment
+
+The bounded D5/D6 audit after repeated Member 6 adversarial passes found one shared planning failure rather than an
+open-ended defect tail: Phase 6 had been sliced horizontally by primitive and surface, so no task or executable
+scenario owned the complete refresh-adoption or semantic native-fallback transition. Local service, schema, handler,
+and workflow assertions could all pass while production composition remained absent.
+
+The forward correction keeps the provider/operator refresh external and unreserved, removes the fictitious
+ARC-issued provider mutation, and reuses `rewrite/provider-adoption` only after exact observed heads exist to own
+ARC's top absorption, publication, and final suffix-plus-top CAS. It also state-binds native selection and keeps
+`native-stack-required` distinct from the `native-stale-suffix` refresh trigger. Member 6 closeout now requires
+executable vertical lifecycle scenarios, including interruption boundaries, rather than accepting isolated
+primitive and workflow-string coverage.
+
 ## Guard-test digest history
 
 `delivery-terminal-workflow.test.ts` once pinned a whole-file sha256 over the workflow document. It was removed
