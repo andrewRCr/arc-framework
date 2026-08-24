@@ -925,10 +925,17 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   all-member conjunction reports discharged. Source fallback and request admission use selector-qualified attempts,
   so coincident progress from another member or a delivery attempt on a singleton cannot affect ordering.
 
-### `[ ]` **7.4 Project review applicability across non-substantive head movement**
+### `[x]` **7.4 Project review applicability across non-substantive head movement**
 
 - _Goal:_ A review survives head movement that does not change what it reviewed, and where a residual delta
   remains, that bounded delta reaches an owner decision before provider capacity is spent.
+
+- _Outcome:_ One exact selector now projects ordinary and delivery-member prior reviews through the existing D4
+  contribution arbiter: unchanged or mechanically equivalent heads remain applicable, bounded residuals stop at
+  factual `decision-required`, and movement, malformed/failed Git, unsupported capability, and unavailable evidence
+  retain distinct fail-closed results. Earlier attempts come from one locked, complete, read-only snapshot of the
+  existing operation namespace; every record and selector dimension is validated, and incomplete or empty evidence
+  cannot be mistaken for permission to spend another provider pass.
 
 - _Rationale:_ Rewrite destroys applicability; retarget preserves it. Discharge reads a settled attempt anywhere
   in the base-to-approved-head span, so a rewritten head drops its reviewed commits out of that span while a

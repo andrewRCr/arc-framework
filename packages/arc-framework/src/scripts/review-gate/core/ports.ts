@@ -36,6 +36,23 @@ export interface ReviewOperationStateStore {
   ): Promise<{ version: number }>;
 }
 
+/** One strictly parsed record from an atomic operation-namespace snapshot. */
+export interface ReviewOperationStateSnapshotRecord {
+  readonly version: number;
+  readonly state: ReviewOperationState;
+}
+
+/** Complete-or-typed-unavailable read of every operation record at one instant. */
+export type ReviewOperationStateSnapshot =
+  | { readonly status: "complete"; readonly records: readonly ReviewOperationStateSnapshotRecord[] }
+  | { readonly status: "incomplete"; readonly reason: string }
+  | { readonly status: "unavailable"; readonly reason: string };
+
+/** Read-only enumeration boundary, separate from keyed operation mutation. */
+export interface ReviewOperationStateSnapshotIndex {
+  readOperationSnapshot(): Promise<ReviewOperationStateSnapshot>;
+}
+
 /** Path-agnostic immutable source storage for local review materializations. */
 export interface LocalReviewSourceStore {
   readSource(sourceRef: string): Promise<LocalReviewSource | null>;
