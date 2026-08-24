@@ -3,7 +3,7 @@
   "slug": "honor-explicit-next-errand-direction",
   "claimId": "ce75d5baf13fede63c20166405d4235e",
   "createdAt": "2026-08-23T22:22:22.776Z",
-  "updatedAt": "2026-08-23T22:22:22.776Z",
+  "updatedAt": "2026-08-24T00:00:23.148Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Prefer an explicitly agreed next Errand at completion before the mechanical nextOffer default",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Honor explicit next-Errand direction at completion",
   "originEntrySourceDigest": "sha256:b9ca88363cd0f87b70cd738c9171a36f154aa99aba7d0411bd8258a8bbcdd2e4",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/honor-explicit-next-errand-direction",
+    "headSha": "5fa77ff65ef65670bf97e8339f365fe4bd878825"
+  }
 }
