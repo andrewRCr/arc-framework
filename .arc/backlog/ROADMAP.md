@@ -33,6 +33,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
 | integration-lane                    | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
+| plan-amendment                      | P1       | andrew | —          | —                          |
+| plan-segmentation                   | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
 | roadmap-tooling                     | P1       | andrew | —          | —                          |
@@ -58,7 +60,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | operational-advisory-registers      | P2       | andrew | —          | —                          |
 | operational-state-docs              | P2       | andrew | —          | —                          |
 | package-project-development-sync    | P2       | andrew | —          | —                          |
-| plan-segmentation                   | P2       | andrew | —          | —                          |
 | planning-lane-relief                | P2       | andrew | —          | —                          |
 | review-orchestration-right-sizing   | P2       | andrew | —          | —                          |
 | workflow-eval-harness               | P2       | andrew | —          | —                          |
