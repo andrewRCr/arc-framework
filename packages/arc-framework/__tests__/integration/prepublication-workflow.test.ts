@@ -99,6 +99,10 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toContain("Mark the task `[x]`");
       expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
       expect(validateCriteria).toContain("walk the seam group and union coherence");
+      expect(validateCriteria).toMatch(
+        /criteria-slice:[\s\S]*?span:[\s\S]*?diff:[\s\S]*?reachability:[\s\S]*?boundary-order-deviation:[\s\S]*?criteria:[\s\S]*?- locus:/u,
+      );
+      expect(validateCriteria).not.toContain("- text:");
     }
   });
 
