@@ -881,6 +881,35 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   capability stops for upgrade; and missing or unbounded evidence stops as unavailable. None is presented as a
   judgment call. Typed CLI results and precomposed text carry the facts and offer; workflow prose only dispatches.
 
+- **D8.8 Canonical review-applicability authority — amended 2026-08-23 after the storage-evolution check exposed
+  an authority mismatch.** D8.6's placement of an Owner selection on the existing lane-progress attempt is
+  superseded. Lane progress is deliberately machine-local, resumable, and non-evidentiary; it cannot become the
+  authority for a selection that preserves or discharges review. The selection instead appends by version check to
+  the existing canonical Candidate record as a distinct, target-neutral `review-applicability-selection` arm in its
+  ordered transition union. It does not overload Candidate verification's `applicability-selection`, alter the
+  Candidate durable target, or add a sibling ordering domain. It binds the Candidate, repository, change request,
+  exact review vehicle, lane, source, prior attempt, prior and current heads, projection and residual digests,
+  selecting actor and time, and `covered | review-required`; exact replay is idempotent and any bound-input change
+  invalidates it. Request admission and discharge query that canonical transition directly by its exact selector.
+
+  Earlier-attempt enumeration remains a storage-neutral, read-only query over a complete snapshot of the current
+  operation-state namespace and never returns or writes authority. Its result distinguishes an exact candidate set
+  from unavailable or incomplete evidence. A missing earlier attempt after head movement, a malformed record, or an
+  incomplete snapshot follows D8.7's `classification-unavailable / stop` arm rather than being read as no prior
+  review or silently spending provider capacity. The exact Candidate transition contains enough coordinates to
+  replay a selection without the machine-local attempt remaining present; discharge still requires the underlying
+  review result to be freshly available from its governing review or host evidence. No new record family, ledger,
+  persisted index, storage mode, compatibility reader, or migration is introduced.
+
+- **D8.9 Typed member progression — amended 2026-08-23 after the procedure-evolution check found an unowned
+  dispatch seam.** The existing `arc review status` and hosted request / await / settle envelopes own one closed
+  progression. Status selects the first outstanding retained member in plan order and returns the complete existing
+  request action with its exact delivery-member vehicle; request carries that selector into its handle, await
+  round-trips it, and the concluded lane attempt retains it. Settle consumes the selector from the exact attempt
+  reference rather than rebuilding it. The terminal status exposes the typed discharge conjunction. Workflow prose
+  invokes only those returned actions and implements no member enumeration, loop, comparison, or input
+  reconstruction. This extends existing verbs and schemas; it does not add a review verb or workflow engine.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
@@ -1509,6 +1538,16 @@ added.
     applicability selection remains reducible from the response's new target. Mechanical proof and generalized
     decision history remain absent, every Candidate consumer uses the shared reducer/effective projection, and the
     unpublished response-only record changes in place without an alias or migration reader (D3.10a).
+25. Criterion 12's lane-progress persistence clause is superseded. An Owner's review-applicability selection is a
+    distinct, target-neutral transition on the existing canonical Candidate record, written by exact version check
+    and resolved by its complete review selector. Lane progress remains non-evidentiary discovery state; its
+    storage-neutral bounded query returns unavailable on incomplete or missing earlier-attempt evidence rather than
+    inferring clearance or inviting judgment. The existing status and hosted request / await / settle envelopes carry
+    one exact member selector from first-outstanding selection through the retained lane attempt, and terminal status
+    returns the typed conjunction. Endpoint movement reruns; failed or malformed evidence stops; unsupported
+    capability stops for upgrade; unavailable or unbounded evidence stops unavailable. Workflow prose implements no
+    loop, and vertical lifecycle coverage proves multi-member progression, reaped-member discharge, fallback-source
+    carry, canonical selection replay, every stop class, and singleton compatibility (D8.7–D8.9).
 
 ## Open Questions
 

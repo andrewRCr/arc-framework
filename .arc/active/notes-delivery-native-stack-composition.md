@@ -2,8 +2,8 @@
 
 **Contents:** comparator/fingerprint distinction · applicability notions · Success Criterion 18 re-cut · member
 checkout and recovery authority · authored partitions and adversarial attention · first adversarial pass amendments
-· second adversarial pass amendments · guard-test digest history · consumed `integration-boundary-accuracy`
-substrate
+· second adversarial pass amendments · Phase 7 authority audit amendment · guard-test digest history · consumed
+`integration-boundary-accuracy` substrate
 
 ## Comparator vs plan-semantics fingerprinting
 
@@ -103,6 +103,20 @@ ARC's top absorption, publication, and final suffix-plus-top CAS. It also state-
 `native-stack-required` distinct from the `native-stale-suffix` refresh trigger. Member 6 closeout now requires
 executable vertical lifecycle scenarios, including interruption boundaries, rather than accepting isolated
 primitive and workflow-string coverage.
+
+## Phase 7 authority audit amendment
+
+The Phase 7 pre-implementation check found the same horizontal-ownership pattern before code landed. Reservation,
+request, lane progress, discharge, applicability, and workflow prose each had a task, but no task owned the complete
+selector-to-terminal lifecycle. More importantly, the plan placed an authoritative Owner selection on lane progress,
+whose governing review-architecture contract makes it machine-local and non-evidentiary.
+
+The correction keeps attempt progress operational and moves only the exact-bound Owner selection to the existing
+canonical Candidate transition sequence. A distinct target-neutral arm avoids changing Candidate target reduction;
+the lane query becomes a storage-neutral discovery port with typed incomplete evidence, and the existing review
+verbs carry one exact member selector through status, request, await, attempt, settle, and terminal conjunction.
+Phase 7 closes through executable vertical scenarios over that complete spine rather than accepting isolated schema,
+handler, reducer, and workflow-string tests.
 
 ## Guard-test digest history
 

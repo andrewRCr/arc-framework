@@ -888,6 +888,13 @@ in a stack, so a top-only resumption would review a sliver while claiming the wo
 projection does not make delivery the owner of review architecture: it owns whether an existing review still
 covers the current content, and obligation, findings, clearance, and lane precedence are untouched.
 
+_Amended 2026-08-23 — vertical ownership:_ Phase 7 now closes one selector-to-terminal spine. Task 7.1 owns the
+reservation marker and exact shared vehicle; Task 7.2 carries it through request, handle, await, attempt, and settle;
+Task 7.3 owns first-outstanding selection, source order, and the typed conjunction; Task 7.4 owns the pure and
+Git-backed applicability projection plus its read-only query; Task 7.5 owns canonical Owner selection and the shared
+request/discharge consumer; Task 7.6 makes the existing verbs and workflows reach the spine and proves it through
+vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or delivery-plan revision.
+
 ### `[ ]` **7.1 Make the reservation's pinned target vehicle-typed**
 
 - _Goal:_ A carried reservation can name a delivery marker instead of a single pinned head, so its targets resolve
@@ -901,6 +908,12 @@ covers the current content, and obligation, findings, clearance, and lane preced
 - _Note:_ The reservation-admission guard binds the candidate's head, which is the top rather than the member, so
   that binding becomes vehicle-typed alongside the target resolution.
 
+- _Amended 2026-08-23:_ The target union is explicit: `pinned-head` binds repository and exact head; `delivery`
+  binds repository, work unit, and exact plan. The pre-publication builder selects the delivery arm only from one
+  coherent bound plan, and the discharge resolver refuses repository, work-unit, or plan mismatch. This task also
+  establishes the one shared exact delivery-member progress selector consumed by later tasks; no consumer authors a
+  second vehicle schema.
+
     - Build `test-first` (one behavior at a time):
         - A singleton reservation with a pinned head behaves exactly as before
         - A delivery-marker reservation resolves one target per bound member
@@ -908,6 +921,8 @@ covers the current content, and obligation, findings, clearance, and lane preced
         - Admission binds the member's head rather than the candidate's head on the delivery arm
         - No target list is persisted by either arm
         - A reservation whose repository does not match its target still refuses
+        - A delivery marker whose work unit or plan changed refuses rather than selecting replacement state
+        - Every request, progress, Candidate-selection, and discharge surface imports one exact vehicle authority
 
 ### `[ ]` **7.2 Iterate and conjoin discharge over derived member targets**
 
@@ -927,6 +942,11 @@ covers the current content, and obligation, findings, clearance, and lane preced
   typically one at a time. Cross-member seams stay covered by the member-boundary substrate and the chunked local
   lane's seam doctrine where it runs.
 
+- _Amended 2026-08-23:_ This task owns selector continuity. The validated delivery-member request selector is copied
+  into the resumable handle, round-trips through await, and is retained on both concluded-await and request-time
+  unavailable lane attempts. Settle authenticates the exact attempt's retained selector rather than accepting a
+  caller reconstruction. A coincident repository, request, and head under a different plan or member never matches.
+
     - Build `test-first` (one behavior at a time):
         - Discharge evaluates each derived member target against its own bound head and span
         - Discharge includes a member whose ref was physically reaped but whose binding remains active
@@ -935,6 +955,8 @@ covers the current content, and obligation, findings, clearance, and lane preced
         - A top-only clean review does not discharge the work-unit obligation
         - The singleton non-delivery discharge is unchanged
         - The three current-checkout bindings admit a member request on the delivery arm
+        - Request, handle, await result, lane attempt, and settle preserve one exact member selector
+        - An attempt with coincident host coordinates but another plan or deliverable is excluded
 
 ### `[ ]` **7.3 Enforce reserved-source ordering per member at request time**
 
@@ -944,11 +966,19 @@ covers the current content, and obligation, findings, clearance, and lane preced
 - _Approach:_ The ordering rule fans out with the reservation and is enforced per member at request time through
   the existing driver check, made member-aware by the vehicle-typed target resolution. No new mechanism.
 
+- _Amended 2026-08-23:_ The existing status/driver boundary selects the first outstanding retained member in plan
+  order and returns the complete `review-hosted-request` action with its exact vehicle. Later existing envelopes
+  drive await and settle; terminal status returns the typed all-members conjunction. Neither handlers nor workflow
+  prose enumerate members or rebuild command inputs.
+
     - Build `test-first` (one behavior at a time):
         - A lower-ranked carrier is refused on a member while the reserved source remains admissible
         - The reserved source is admissible per member independently
         - A safely-unavailable reserved source admits the next source in order, per member
         - The singleton ordering behavior is unchanged
+        - Status returns the first outstanding member and its complete existing request action
+        - Settling one member advances selection to the next retained member in plan order
+        - Terminal status exposes `discharged` only after every retained member conjunct is true
 
 ### `[ ]` **7.4 Project review applicability across non-substantive head movement**
 
@@ -985,6 +1015,13 @@ covers the current content, and obligation, findings, clearance, and lane preced
   Owner selection is the only write and extends the selected existing attempt by version check — no review ledger,
   index, or record family.
 
+- _Amended 2026-08-23:_ The preceding write placement is superseded. This task produces facts only: one
+  storage-neutral query returns an exact complete candidate set or typed unavailable/incomplete evidence, and one
+  consumer-specific projection reuses D4's arbiter without duplicating it. Only a non-empty bounded residual yields
+  `decision-required`. Endpoint movement reruns; failed or malformed Git evidence stops; unsupported capability
+  stops for upgrade; missing, ambiguous, empty, incomplete, or unbounded evidence stops unavailable. None becomes
+  `review-required` or an Owner offer.
+
 - **Additional Context:** `notes-delivery-native-stack-composition.md` § Applicability: contribution equivalence
   versus path carry-forward — the existing path-based proof this projection must not absorb
 
@@ -999,10 +1036,12 @@ covers the current content, and obligation, findings, clearance, and lane preced
         - A residual returns `decision-required` with exact delta and stable digest
         - An Owner `covered` selection is version-checked onto the existing attempt and replays on retry
         - An Owner `review-required` selection reaches request admission and never discharges the prior attempt
-        - Proof conflict, divergence, or unavailable evidence reaches a typed `review-required` result
+        - The earlier proof-conflict/unavailable-to-`review-required` behavior is superseded by D8.7's distinct
+          rerun, stop, upgrade, and unavailable results
         - The bounded lane-progress query excludes attempts from another repository, request, vehicle, lane, or
           source
         - Applicability discovery writes no new record or index
+        - An incomplete operation snapshot returns unavailable and never infers that no prior review exists
 
 ### `[ ]` **7.5 Reach the discharge read with the applicability projection**
 
@@ -1021,6 +1060,13 @@ covers the current content, and obligation, findings, clearance, and lane preced
   discover an earlier attempt. It consumes any exact versioned Owner selection through the same closed projection;
   an unresolved decision or review-required result cannot discharge.
 
+- _Amended 2026-08-23:_ An applicable-authority selection appends as a distinct, target-neutral
+  `review-applicability-selection` transition on the existing Candidate record by exact version check. It binds the
+  complete review selector, attempt and head coordinates, digests, actor, time, and `covered | review-required`;
+  exact replay is idempotent and changed input invalidates it. Candidate target reduction ignores this arm. Request
+  admission and discharge query the same canonical selection directly; lane progress stores no approval or
+  controller conclusion.
+
     - Build `test-first` (one behavior at a time):
         - A first-source settled attempt anywhere in span still discharges, unchanged
         - A rate-limited first source at a prior head remains safely unavailable after the top moves
@@ -1030,6 +1076,9 @@ covers the current content, and obligation, findings, clearance, and lane preced
         - Request admission and discharge agree on the same replayed Owner selection
         - An unresolved residual decision keeps discharge false without spending provider capacity
         - The discharge read can discover the applicable earlier attempt without a new ledger or index
+        - Both Owner choices append canonically without changing the Candidate durable target
+        - Exact replay succeeds after an unrelated later Candidate transition without duplicating the selection
+        - Local lane-progress absence does not erase a canonical selection or let it discharge without review evidence
 
 ### `[ ]` **7.6 Re-author both workflows' review prose around the fan-out**
 
@@ -1044,6 +1093,13 @@ covers the current content, and obligation, findings, clearance, and lane preced
   — and the conjunction is read from the typed discharge rather than derived in prose. Both are shipped workflows,
   so each changes in the package source and the project copy together.
 
+- _Amended 2026-08-23:_ Extend the existing `arc review status` and hosted request / await / settle envelopes rather
+  than adding a verb. Focused contract tests pin package/project parity, action order, selector pass-through, typed
+  terminal conjunction, and absence of prose member enumeration or conditional reconstruction. One executable
+  vertical suite must drive a multi-member reservation through request, handle, await, lane attempt, settle, next
+  selection, reaped-member discharge, fallback-source carry, canonical residual selection, and terminal
+  conjunction; companion rows cover every D8.7 stop class and singleton compatibility.
+
     - `[ ]` **7.6.a Drive the reservation per member in the delivery workflow's review section**
 
         - The delivery-member vehicle, with the same typed request, await, and settle driver the singleton uses
@@ -1051,6 +1107,16 @@ covers the current content, and obligation, findings, clearance, and lane preced
     - `[ ]` **7.6.b Make the integration workflow's reservation loop delivery-aware**
 
         - Per-member requests during the window, with the terminal boundary reading the typed conjunction
+
+    - `[ ]` **7.6.c Extend the existing typed review progression**
+
+        - Status and hosted envelopes own the complete selector and next-action union; Candidate applicability
+          resolution owns the only authoritative write
+
+    - `[ ]` **7.6.d Prove the selector-to-terminal lifecycle vertically**
+
+        - Real handler/composition boundaries cover multi-member progression, reaped bindings, canonical decision
+          replay, fallback carry, stop taxonomy, and singleton compatibility
 
 ### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
@@ -1303,6 +1369,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   applicability result; a residual requires a replayable Owner selection on the existing attempt. The distinct
   path-based applicability proof remains intact, and no duplicate contribution-equivalence projection or new
   record family exists.
+
+- `[ ]` The preceding criterion's existing-attempt persistence clause is superseded: every authoritative
+  review-applicability selection is a target-neutral transition on the version-checked canonical Candidate record,
+  while lane progress remains non-evidentiary discovery state. An incomplete or missing earlier-attempt query stops
+  unavailable; it never infers clearance or invites judgment. Existing typed review verbs carry the exact member
+  selector from first-outstanding status through request, await, attempt, settle, and terminal conjunction, and
+  executable vertical coverage proves the complete lifecycle without prose control flow or a new record family.
 
 ### Member 8 — `retirement-and-doctrine`
 
