@@ -116,6 +116,96 @@ describe("delivery entry inspection", () => {
       .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
   });
 
+  it("selects integration from authoritative plan presence before delivery state exists", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({ taskList, resolvedPlan: plan }))).resolves.toMatchObject({
+      status: "validate-canonical",
+      planId: plan.planId,
+      planDigest: plan.planDigest,
+    });
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({ taskList, resolvedPlan: plan, state: deliveryStateFixture(plan) })))
+      .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
+  });
+
+  it("continues singleton integration only from exact authored-evidence absence", async () => {
+    const absent = dependencies();
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, absent)).resolves.toMatchObject({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: expect.stringContaining("singleton integration"),
+    });
+    expect(absent.readState).not.toHaveBeenCalled();
+
+    const cases = [
+      dependencies({ resolvedPlan: "indeterminate" }),
+      dependencies({ authoring: "indeterminate" }),
+      dependencies({ authoring: "match" }),
+      dependencies({ taskList: `${prefix}## Delivery Plan\n\nUnconfirmed.\n\n${suffix}` }),
+      dependencies({ taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}` }),
+    ];
+    for (const deps of cases) {
+      await expect(inspectDeliveryEntry({
+        workUnitId: plan.workUnitId,
+        entryMode: "integrating",
+      }, deps)).resolves.toMatchObject({ status: "refused" });
+    }
+  });
+
+  it("recovers an interrupted canonical publication during integration from its exact receipt", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      authoring: "match",
+      authoringPlanDigest: plan.planDigest,
+    }))).resolves.toMatchObject({
+      status: "canonicalize-provisional",
+      authoringMapId: "map-1",
+    });
+  });
+
+  it("refuses unavailable or incoherent state after integration selects a canonical plan", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    const incoherent = deliveryStateFixture(plan);
+    incoherent.boundPlan.planDigest = `sha256:${"0".repeat(64)}`;
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      authoring: "match",
+      authoringPlanDigest: plan.planDigest,
+      state: "refused",
+    })))
+      .resolves.toMatchObject({ status: "refused", reason: "evidence-unavailable" });
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      authoring: "match",
+      authoringPlanDigest: plan.planDigest,
+      state: incoherent,
+    })))
+      .resolves.toMatchObject({ status: "refused", reason: "state-incoherent" });
+  });
+
   it("recovers a canonical plan only from its exact authoring receipt", async () => {
     const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
     await expect(inspectDeliveryEntry({

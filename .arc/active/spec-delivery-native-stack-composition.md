@@ -141,8 +141,10 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 
 ### D1 — Topology: the originating branch is the first-class top member
 
-A work unit begins ordinary: one branch, one worktree, artifacts in place. Stacking is adopted as a **transition**,
-not a starting shape.
+A work unit begins ordinary in physical shape: one branch, one worktree, artifacts in place. Stacking is adopted as
+a **topology transition**, not a pre-authored branch shape. Once task generation publishes one authoritative
+canonical Delivery Plan for the active work unit, however, that plan is sufficient durable stacked-delivery intent;
+the later delivery state records the first external binding and is not the intent selector.
 
 - **D1.1 Member cuts.** Member branches are authored filtered cuts below the originating branch, excluding
   lifecycle artifacts per the existing eligibility contract, published as first-class refs under the existing
@@ -214,6 +216,11 @@ interlock authority and drops whole-stack serialization.
   creation. Registration covers the non-terminal members per D6.3, the terminal request opens in the same arm per
   D1.6, and declining registration makes no registration call per D6.10. `Integrating` spans the landing window;
   the top member's merge is the terminal instant.
+  **Amended 2026-08-24 after self-delivery exposed the missing entry seam:** before ordinary integration resolves a
+  singleton change request or pushes the work-unit branch, it performs one typed read-only delivery-entry
+  inspection. Exact absence of a canonical plan continues the singleton path. One authoritative canonical plan —
+  whether still unbound or already coherently bound — dispatches to `Deliver Stack`; ambiguous, unreadable,
+  provisional, mismatched, or incoherent evidence stops. Publication remains the first external binding event.
 - **D2.3 Non-interference, both directions.** A registered delivery imposes zero coordination cost on work outside
   it, and external base movement never obligates an immediate refresh. The delivery absorbs drift on demand, at its
   own landing boundaries.
@@ -805,6 +812,12 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   vehicle and reservation arms are disjoint (the vehicle arm never reads the carried reservation; the reservation
   arm takes no vehicle). The delivery-member arm therefore composes against the carried reservation, and the
   Candidate-head binding becomes vehicle-typed alongside the target resolution above.
+  **Amended 2026-08-24 after self-delivery exposed plan/state circularity:** pre-publication reservation selects its
+  vehicle from the authoritative canonical plan read, not from terminal plan/state coherence. Exact plan absence
+  selects the singleton pinned head; one matching plan selects the delivery marker even while state is absent;
+  duplicate, unreadable, mismatched, or incoherent records refuse. Bound member targets still derive only from
+  coherent delivery state at discharge, so this changes reservation reachability without moving binding earlier or
+  persisting a second target list.
 - **D8.2 Discharge.** The work-unit obligation discharges as the conjunction of member reviews — the same reviews
   the delivery's per-member admission already requires. One review system, not two.
 - **D8.3 Excluded by construction.** No pull request presents the union delta in a stack, so a top-only resumption
@@ -1150,6 +1163,11 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   services and their returned next actions rather than narrating git mechanics. Both are shipped workflows, so
   each changes in the package source and the project copy together. The task-generation and work-unit-verification
   workflows change under D7.5.
+  **Amended 2026-08-24:** `integrate-work-unit.md` also owns the pre-push dispatch D2.2 names. After confirming the
+  work unit is `Integrating` and before resolving a singleton change request or pushing, it invokes the typed
+  delivery-entry inspection in integration mode. `not-applicable` alone continues ordinary singleton integration;
+  canonical-plan routes enter the corresponding `Deliver Stack` section; refusal stops. Prose does not infer plan
+  presence, reconstruct the route, or bind delivery state.
 - **D10.4 Guard tests.** Two guards pin the workflows D3.7 changes: `delivery-terminal-workflow.test.ts`, whose
   eleven assertions are anchored on the terminal-attachment block, and `delivery-workflow.test.ts`, which pins a
   `delivery terminal prepare` invocation in `deliver-stack.md`'s handoff. Removing that machinery reddens both —
@@ -1247,6 +1265,8 @@ retirement (D3) · refresh and native registration scoping (D5, D6) · member-bo
 hosted-review fan-out (D8) · doctrine and record retirement (D9, D10).
 
 Nothing is published or bound at spec time. Plan authoring, member count, and order are `generate-tasks` decisions.
+Once that authoring publishes one authoritative canonical plan, its presence selects stacked-delivery intent while
+the delivery remains unbound; the first external publication event creates state later.
 
 ## Alternatives & Rationale
 
@@ -1578,6 +1598,14 @@ added.
     capability stops for upgrade; unavailable or unbounded evidence stops unavailable. Workflow prose implements no
     loop, and vertical lifecycle coverage proves multi-member progression, reaped-member discharge, fallback-source
     carry, canonical selection replay, every stop class, and singleton compatibility (D8.7–D8.9).
+
+26. A unique authoritative canonical Delivery Plan selects stacked delivery before delivery state exists. The
+    pre-publication reservation therefore carries a delivery marker from plan-only evidence, and ordinary
+    integration dispatches to `Deliver Stack` before singleton change-request resolution or any push. Exact plan
+    absence preserves singleton behavior; ambiguous, unreadable, provisional, mismatched, or incoherent evidence
+    stops. The first external member publication remains the state-binding event, and a vertical scenario begins
+    plan-present/state-absent and proves plan-only reservation, the publication transition, integration dispatch,
+    first member publication and state binding, then hosted member fan-out in that order (D1, D2.2, D8.1, D10.3).
 
 ## Open Questions
 

@@ -56,6 +56,20 @@ already-swept candidate whose PR or post-merge tail remains incomplete.
 On interruption, re-enter hosted review only through the public typed protocol. Resume an operation with its
 self-contained handle; never reconstruct review state from workflow prose or narrative meta fields.
 
+When the status result is `integrating`, classify delivery intent before resolving a singleton change request or
+performing any push:
+
+```bash
+printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input - --json
+```
+
+Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
+`canonicalize-provisional`, `validate-canonical`, and `resume-bound` leave this workflow and enter the matching
+route in [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns publication,
+state binding, member pull requests, and the landing window. `refused` stops after rendering
+`recommendedActionText`; any other route also stops as an integration-entry contract violation. Do not perform this
+entry dispatch on the `shipped` tail, which has already crossed initial publication.
+
 Resolve the branch head, then invoke
 `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`. Follow its typed state:
 

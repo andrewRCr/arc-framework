@@ -32,11 +32,12 @@ Run the delivery-owned read before eligibility or mutation:
 arc delivery entry inspect --input - --json
 ```
 
-The request carries only the attended `assess-boundary-fit` disposition and, when present, confirmation that the
-provisional plan was reviewed. Render `laterEntryCostText` and `recommendedActionText` verbatim when present, then
-dispatch the returned route; the workflow never parses headings, derives members, or re-decides cohesion:
+The request carries either the attended `assess-boundary-fit` disposition (plus confirmation when a provisional plan
+was reviewed) or the closed `{ "entryMode": "integrating" }` context supplied by ordinary integration's pre-push
+dispatch. Render `laterEntryCostText` and `recommendedActionText` verbatim when present, then dispatch the returned
+route; the workflow never parses headings, derives members, or re-decides cohesion:
 
-- `not-applicable` returns to ordinary work-unit execution.
+- `not-applicable` returns to ordinary work-unit execution, including singleton integration from the pre-push door.
 - `authoring-required` enters the existing inventory-schema, `from-tasks`, author-slot, and compose sequence.
 - `canonicalize-provisional` runs that same canonicalization sequence or its receipt-pinned recovery.
 - `validate-canonical` advances to eligibility.

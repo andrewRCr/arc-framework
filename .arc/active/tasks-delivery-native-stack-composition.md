@@ -386,10 +386,12 @@ _Purpose:_ Make the provider stack chain the delivery topology — every code-be
 one ancestral chain, with the originating branch as its top. Removes the retained control branch and the
 disconnected terminal request by construction rather than by patching their failure modes.
 
-_Design decisions:_ Stacking is adopted as a transition, not a starting shape: a work unit begins ordinary and the
-originating branch adopts the chain by an append-only ancestry merge. The rejected alternative — rewriting the
-work-unit branch to a residual-only range — would force-push a pushed session branch, violating the append-only
-contract and orphaning SHA-keyed user notes, so it is excluded by construction. Two merge semantics share the
+_Design decisions:_ Stacking is adopted as a topology transition, not a pre-authored branch shape: a work unit
+begins with one ordinary branch and worktree, while one authoritative canonical Delivery Plan selects stacked
+delivery intent before state exists. The originating branch adopts the chain by an append-only ancestry merge. The
+rejected alternative — rewriting the work-unit branch to a residual-only range — would force-push a pushed session
+branch, violating the append-only contract and orphaning SHA-keyed user notes, so it is excluded by construction.
+Two merge semantics share the
 ancestry-merge name and must not be conflated: adoption is content-neutral and keeps the top's tree exactly,
 guarded by a subset check; absorption is the genuine content merge and belongs to the refresh path.
 
@@ -956,6 +958,11 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   time and refuses repository, work-unit, or plan drift. Hosted request and admission share one exact member selector,
   including its work unit and head, without persisting a target list.
 
+- _Amended 2026-08-24:_ The outcome's plan/state premise is superseded for pre-publication selection. One
+  authoritative canonical plan selects the delivery reservation marker even while state is absent; exact plan
+  absence selects the singleton target, and unavailable or incoherent evidence refuses. Discharge continues to
+  require coherent state and derive retained member targets at read time.
+
 ### `[x]` **7.2 Iterate and conjoin discharge over derived member targets**
 
 - _Goal:_ The work-unit obligation reports discharged only when every member review has cleared, evaluated against
@@ -1092,6 +1099,12 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   lane, Candidate, and publication-boundary stores, while package/project parity, every applicability stop class,
   and singleton compatibility remain covered without prose enumeration or selector reconstruction.
 
+- _Amended 2026-08-24:_ Reachability also begins before ordinary integration's first push. The integration workflow
+  performs a typed delivery-entry inspection after confirming `Integrating`; exact plan absence continues singleton
+  integration, while a canonical unbound or coherently bound plan dispatches to `Deliver Stack` and every ambiguous
+  or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
+  verification adds the missing plan-present/state-absent vertical path.
+
 ### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
@@ -1197,10 +1210,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Markdown/ARC, TypeScript and shell lint, both typechecks, 10,836 tests with one skipped, and the
-  package build all passed.
-- _Success criteria:_ 25 met; eight member reports carried without re-derivation, with cross-member seams and the
-  complete union validated against the final landing guards and live GitHub stack-response evidence.
+- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 10,848 tests with one
+  skipped, package build, and diff hygiene all passed; the focused review-fix slice passed 30 tests.
+- _Success criteria:_ 26 met. Eight member reports were carried without re-derivation; four cross-member seams and
+  union coherence were validated over diff `7a4699cba..d1f05b288` plus the staged amendment and its complete
+  reachable tree. The new vertical proof covers plan-only reservation, publication transition, integration
+  dispatch, first-member state binding, and hosted fan-out in order; a fresh closure pass found all three amendment
+  findings closed.
 
 ---
 
@@ -1347,6 +1363,14 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
 
 ### Cross-member seams
+
+- `[x]` A unique authoritative canonical Delivery Plan selects stacked delivery before state exists. The
+  pre-publication reservation carries its delivery marker from plan-only evidence, and ordinary integration
+  dispatches to `Deliver Stack` before singleton change-request resolution or any push. Exact plan absence alone
+  preserves singleton integration; ambiguity, unreadable or mismatched evidence, provisional residue, and
+  incoherent state stop. A vertical lifecycle begins plan-present/state-absent and proves plan-only reservation,
+  the publication transition, integration dispatch, first member publication and state binding, then hosted member
+  fan-out in order.
 
 - `[x]` Landing an N-member stack requires at most N landing decisions — or one contiguous-prefix decision — plus
   genuine content-conflict resolutions, with no manual recut, no per-member manual suffix adoption, and no

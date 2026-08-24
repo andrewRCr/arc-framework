@@ -36,10 +36,13 @@ import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { requireArcProjectRoot } from "./shared.js";
 
-const InputSchema = z.strictObject({
-  boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
-  provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
-});
+const InputSchema = z.union([
+  z.strictObject({
+    boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
+    provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
+  }),
+  z.strictObject({ entryMode: z.literal("integrating") }),
+]);
 const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
 
 export interface DeliveryEntryInspectOptions { readonly input?: string; readonly json?: boolean }
@@ -58,7 +61,7 @@ export const deliveryEntryCommandInputPolicyDeclarations = [{
       acquisition: "handler-required", schemaOwnership: "owned", schemaField: "input",
       cancellation: "not-applicable",
       automation: { noInput: "read-explicit-stdin", flags: ["--input"], acceptedSyntax: ["--input <json-path>", "--input -"] },
-      mutationBoundary: "attended delivery entry input validation", subprocess: "explicit-stdin",
+      mutationBoundary: "delivery entry context validation", subprocess: "explicit-stdin",
     }),
     declareCliOptionSite("json", {
       acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
@@ -70,7 +73,7 @@ export const deliveryEntryCommandInputPolicyDeclarations = [{
       {
         acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
         automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
-        mutationBoundary: "attended delivery entry request read", subprocess: "explicit-stdin",
+        mutationBoundary: "delivery entry request read", subprocess: "explicit-stdin",
       },
     ),
   ],
@@ -115,7 +118,7 @@ function emit(
   if (result.status === "refused") dependencies.setExitCode(1);
 }
 
-/** Validate attended input and preserve the exact closed inspection route. */
+/** Validate the closed entry context and preserve the exact inspection route. */
 export async function handleDeliveryEntryInspect(
   opts: DeliveryEntryInspectOptions,
   interaction?: InteractionContext,

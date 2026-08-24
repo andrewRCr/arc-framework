@@ -67,4 +67,35 @@ describe("delivery entry handler", () => {
       reason: "invalid-command-input",
     });
   });
+
+  it("accepts the closed integration-entry arm without attended dispositions", async () => {
+    const deps = dependencies({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue singleton integration.",
+    });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "integrating" }));
+
+    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+
+    expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "integrating" }, undefined);
+    expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects mixed attended and integration-entry arms", async () => {
+    const deps = dependencies({ status: "not-applicable" });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({
+      entryMode: "integrating",
+      boundaryDisposition: "delivery-candidate",
+      provisionalDisposition: "not-applicable",
+    }));
+
+    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+
+    expect(deps.inspect).not.toHaveBeenCalled();
+    expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
 });

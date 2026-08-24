@@ -17,9 +17,15 @@ import {
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
   "../../src/lib/delivery/local-stores.js";
+import {
+  bindInitialDeliveryRef,
+  deriveDeliveryMaterialization,
+} from "../../src/lib/delivery/materialization.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
+import { inspectDeliveryEntry } from "../../src/lib/delivery/entry-inspection.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
+import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import {
@@ -72,6 +78,8 @@ import {
   projectPublicationBoundary,
 } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { createPrePublicationCompositionDependencies } from
+  "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import {
   ReviewStatusCommandResultSchema,
   resolveReviewStatus,
@@ -257,8 +265,30 @@ async function writeBoundary(
   harness: FanOutHarness,
   candidate: CandidateManagedRecordV1,
   branch: string,
+  expectedDeliveryStatus: "planned" | "bound",
+  lifecycleOrder?: string[],
 ): Promise<void> {
   const current = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+  const lookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
+  const records = await lookup.resolveReservationRecords(
+    harness.plan.workUnitId,
+    { status: "established", ref: "refs/heads/main" },
+  );
+  expect(records).toMatchObject({ status: expectedDeliveryStatus, plan: harness.plan });
+  if (records.status !== "planned" && records.status !== "bound") {
+    throw new Error("expected authoritative reservation records");
+  }
+  const composition = createPrePublicationCompositionDependencies({
+    cwd: harness.root,
+    exec: harness.exec,
+  });
+  const selected = await composition.readReservationTarget(
+    harness.plan.workUnitId,
+    { repository, headSha: await git(harness.root, ["rev-parse", branch]) },
+  );
+  expect(selected).toMatchObject({ status: "resolved", target: { kind: "delivery" } });
+  if (selected.status !== "resolved") throw new Error("expected delivery reservation target");
+  lifecycleOrder?.push("reservation");
   const reservation = createStandardReviewReservation({
     candidateId: candidate.attestation.candidateId,
     sourceId: "coderabbit-pr",
@@ -270,12 +300,7 @@ async function writeBoundary(
       headSha: harness.oldFirst,
       headTree: harness.oldFirstTree,
     }).projection,
-    target: {
-      kind: "delivery",
-      repository,
-      workUnitId: harness.plan.workUnitId,
-      planId: harness.plan.planId,
-    },
+    target: selected.target,
   });
   await writeSubmissionBoundary(harness.root, projectPublicationBoundary({
     workUnit: harness.plan.workUnitId,
@@ -285,6 +310,7 @@ async function writeBoundary(
     reservation,
     changeRequest: { repository, pullRequest: 42 },
   }), current.version);
+  lifecycleOrder?.push("publication-transition");
 }
 
 async function createHarness(): Promise<FanOutHarness> {
@@ -352,8 +378,6 @@ async function createHarness(): Promise<FanOutHarness> {
     ],
   };
   expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
-  const published = await states.publish(plan.planId, state, 0);
-  if (published.status !== "ok") throw new Error("expected initial delivery state");
   const repositoryId = await resolveRepositoryIdentity(publisher);
   const harness: FanOutHarness = {
     root,
@@ -362,7 +386,7 @@ async function createHarness(): Promise<FanOutHarness> {
     plans,
     states,
     state,
-    stateRevision: published.value.revision,
+    stateRevision: 0,
     store: new LocalReviewOperationStateStore(publisher),
     repositoryId,
     baseHead,
@@ -376,8 +400,90 @@ async function createHarness(): Promise<FanOutHarness> {
     currentSecond,
     currentSecondTree,
   };
+  const lifecycleOrder: string[] = [];
   const candidate = await installCandidate(harness, priorSecond, null);
-  await writeBoundary(harness, candidate, "prior-top");
+  await writeBoundary(harness, candidate, "prior-top", "planned", lifecycleOrder);
+  await expect(states.read(plan.planId)).resolves.toEqual({ status: "ok", value: null });
+  lifecycleOrder.push("integration-dispatch");
+  const entry = await inspectDeliveryEntry({
+    workUnitId: plan.workUnitId,
+    entryMode: "integrating",
+  }, {
+    readTaskList: async () => `# Task List\n\n${renderDeliveryPlanSection(plan)}\n`
+      + "## **Phase 1:** Build\n\n### `[x]` **1.1 Work**\n",
+    resolvePlan: async () => {
+      const records = await plans.enumerateCurrentReadOnly();
+      const matching = records.status === "ok"
+        ? records.value.filter((candidate) => candidate.workUnitId === plan.workUnitId)
+        : [];
+      return matching.length === 1
+        ? { status: "match", plan: matching[0]! }
+        : { status: "indeterminate" };
+    },
+    resolveAuthoring: async () => ({ status: "no-match" }),
+    readState: async (requestedPlanId) => {
+      const record = await states.read(requestedPlanId);
+      return record.status === "refused"
+        ? { status: "refused" }
+        : record.value === null
+          ? { status: "ok", value: null, revision: null }
+          : { status: "ok", value: record.value.value, revision: record.value.revision };
+    },
+  });
+  expect(entry).toMatchObject({ status: "validate-canonical", planId: plan.planId });
+  expect(lifecycleOrder).toEqual(["reservation", "publication-transition", "integration-dispatch"]);
+  const materialization = deriveDeliveryMaterialization(plan, {
+    planId: plan.planId,
+    workUnitId: plan.workUnitId,
+    planRevision: plan.planRevision,
+    planDigest: plan.planDigest,
+    protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
+    top: { ref: "refs/heads/prior-top", head: priorSecond, tree: priorSecondTree },
+    members: [
+      {
+        deliverableId: plan.members[0]!.deliverableId,
+        ref: "refs/heads/delivery/delivery-plan-record/first",
+        head: oldFirst,
+        tree: oldFirstTree,
+      },
+      {
+        deliverableId: plan.members[1]!.deliverableId,
+        ref: "refs/heads/prior-top",
+        head: priorSecond,
+        tree: priorSecondTree,
+      },
+    ],
+    lifecyclePaths: [],
+  });
+  if (materialization.status !== "derived") throw new Error("expected delivery materialization");
+  const bindingOrder: string[] = [];
+  const bound = await bindInitialDeliveryRef({
+    plan,
+    materialization: materialization.value,
+    stateStore: {
+      read: (requestedPlanId) => states.read(requestedPlanId),
+      publish: async (requestedPlanId, value, expectedRevision) => {
+        bindingOrder.push("state-binding");
+        return states.publish(requestedPlanId, value, expectedRevision);
+      },
+    },
+    refs: {
+      publish: async () => {
+        bindingOrder.push("member-publication");
+        return { status: "published" };
+      },
+      observe: async () => {
+        bindingOrder.push("member-observation");
+        return { status: "observed", head: oldFirst };
+      },
+    },
+  });
+  expect(bound.status).toBe("bound");
+  if (bound.status !== "bound") throw new Error("expected first external event to bind delivery state");
+  expect(bindingOrder).toEqual(["member-publication", "member-observation", "state-binding"]);
+  const published = await states.publish(plan.planId, state, bound.state.revision);
+  if (published.status !== "ok") throw new Error("expected initial delivery state");
+  harness.stateRevision = published.value.revision;
   return harness;
 }
 
@@ -412,7 +518,7 @@ async function moveDeliveryTargets(harness: FanOutHarness): Promise<void> {
   const current = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
   if (current.version === null) throw new Error("expected initial Candidate version");
   const candidate = await installCandidate(harness, harness.currentSecond, current.version);
-  await writeBoundary(harness, candidate, "feat/delivery-plan-record");
+  await writeBoundary(harness, candidate, "feat/delivery-plan-record", "bound");
 }
 
 async function statusThroughHandler(

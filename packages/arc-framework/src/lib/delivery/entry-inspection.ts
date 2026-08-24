@@ -13,12 +13,22 @@ import {
 } from "./task-list-render.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 
-/** Ephemeral attended judgment supplied by the delivery workflow. */
-export const DeliveryEntryInspectionRequestSchema = z.strictObject({
+const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
   boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
   provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
 });
+
+const IntegratingDeliveryEntryInspectionRequestSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  entryMode: z.literal("integrating"),
+});
+
+/** Closed entry contexts: attended authoring judgment or read-only integration dispatch. */
+export const DeliveryEntryInspectionRequestSchema = z.union([
+  AttendedDeliveryEntryInspectionRequestSchema,
+  IntegratingDeliveryEntryInspectionRequestSchema,
+]);
 export type DeliveryEntryInspectionRequest = z.infer<typeof DeliveryEntryInspectionRequestSchema>;
 
 export type DeliveryPlanLocusInspection =
@@ -185,7 +195,7 @@ export function inspectDeliveryPlanLocus(
     : { status: "refused", reason: "canonical-projection-mismatch" };
 }
 
-/** Derive the exact delivery entry route from attended judgment and authoritative read-only facts. */
+/** Derive the exact delivery entry route from its entry context and authoritative read-only facts. */
 export async function inspectDeliveryEntry(
   request: DeliveryEntryInspectionRequest,
   dependencies: DeliveryEntryInspectionDependencies,
@@ -212,8 +222,10 @@ export async function inspectDeliveryEntry(
       ? "canonical-projection-mismatch"
       : "evidence-conflict");
   }
+  const attended = "boundaryDisposition" in parsed.data ? parsed.data : null;
+  const integrating = attended === null;
 
-  if (parsed.data.boundaryDisposition === "not-delivery-candidate") {
+  if (attended?.boundaryDisposition === "not-delivery-candidate") {
     if (plan !== null || authoring.status === "match" || locus.status !== "absent") {
       return refused("evidence-conflict");
     }
@@ -227,7 +239,7 @@ export async function inspectDeliveryEntry(
   if (plan === null) {
     if (locus.status === "canonical-unmatched") return refused("canonical-plan-missing");
     if (locus.status === "provisional") {
-      if (parsed.data.provisionalDisposition !== "confirmed-reviewed") {
+      if (attended === null || attended.provisionalDisposition !== "confirmed-reviewed") {
         return refused("provisional-unconfirmed");
       }
       return {
@@ -239,6 +251,13 @@ export async function inspectDeliveryEntry(
       };
     }
     if (authoring.status === "match") return refused("evidence-conflict");
+    if (integrating) {
+      return {
+        status: "not-applicable",
+        nextAction: "continue-work-unit",
+        recommendedActionText: "Continue ordinary singleton integration; no canonical Delivery Plan exists.",
+      };
+    }
     return {
       status: "authoring-required",
       nextAction: "attend-authoring",
@@ -247,8 +266,13 @@ export async function inspectDeliveryEntry(
     };
   }
 
+  const recoverCanonicalPublication = authoring.status === "match"
+    && locus.status === "canonical"
+    && authoring.candidatePlanDigest === plan.planDigest;
   if (authoring.status === "match") {
-    if (locus.status === "provisional" && parsed.data.provisionalDisposition === "confirmed-reviewed") {
+    if (attended !== null
+      && locus.status === "provisional"
+      && attended.provisionalDisposition === "confirmed-reviewed") {
       return {
         status: "canonicalize-provisional",
         nextAction: "canonicalize-provisional",
@@ -257,16 +281,7 @@ export async function inspectDeliveryEntry(
         recommendedActionText: "Recover and finish canonical publication from the reviewed provisional plan.",
       };
     }
-    if (locus.status === "canonical" && authoring.candidatePlanDigest === plan.planDigest) {
-      return {
-        status: "canonicalize-provisional",
-        nextAction: "canonicalize-provisional",
-        authoringMapId: authoring.mapId,
-        laterEntryCostText: LATER_ENTRY_COST,
-        recommendedActionText: "Recover and finish canonical publication from the matching authoring receipt.",
-      };
-    }
-    return refused("evidence-conflict");
+    if (!recoverCanonicalPublication) return refused("evidence-conflict");
   }
   if (locus.status !== "canonical") {
     return locus.status === "canonical-unmatched"
@@ -276,6 +291,19 @@ export async function inspectDeliveryEntry(
 
   const state = await dependencies.readState(plan.planId);
   if (state.status === "refused") return refused("evidence-unavailable");
+  if (state.value !== null
+    && (state.revision === null || validateDeliveryStateAgainstPlan(state.value, plan).status === "refused")) {
+    return refused("state-incoherent");
+  }
+  if (recoverCanonicalPublication) {
+    return {
+      status: "canonicalize-provisional",
+      nextAction: "canonicalize-provisional",
+      authoringMapId: authoring.mapId,
+      laterEntryCostText: LATER_ENTRY_COST,
+      recommendedActionText: "Recover and finish canonical publication from the matching authoring receipt.",
+    };
+  }
   if (state.value === null) {
     return {
       status: "validate-canonical",
@@ -286,9 +314,7 @@ export async function inspectDeliveryEntry(
       recommendedActionText: "Validate complete eligibility before the first materialization event.",
     };
   }
-  if (state.revision === null || validateDeliveryStateAgainstPlan(state.value, plan).status === "refused") {
-    return refused("state-incoherent");
-  }
+  if (state.revision === null) return refused("state-incoherent");
   return {
     status: "resume-bound",
     nextAction: "read-position-and-reconcile",
