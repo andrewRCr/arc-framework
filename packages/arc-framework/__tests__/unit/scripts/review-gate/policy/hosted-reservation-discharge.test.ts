@@ -3,29 +3,36 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../../src/lib/delivery/review-vehicle.js";
 import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
+  allHostedReservationTargetsDischarged,
   projectHostedReservationDischarge,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 
 const oid = (character: string): string => character.repeat(40);
+const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
+const MEMBER_ONE = `sha256:${"3".repeat(64)}`;
+const MEMBER_TWO = `sha256:${"4".repeat(64)}`;
 const target = (headSha: string) => ({ repository: "arc-framework/example", pullRequest: 42, headSha });
 
 function attempt(
   headSha: string,
   sourceId: "coderabbit-pr" | "codex-pr",
   outcome: "clean" | "findings" | "settled-findings" | "rate-limited",
+  vehicle?: ReturnType<typeof DeliveryReviewMemberVehicleSchema.parse>,
 ) {
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    kind: "change-set",
+    kind: vehicle === undefined ? "change-set" : "delivery-member",
     repositoryId: "repo-1",
     baseRef: "main",
     diffBaseSha: oid("0"),
@@ -63,6 +70,7 @@ function attempt(
     outcome,
     hosted: {
       target: target(headSha),
+      ...(vehicle === undefined ? {} : { vehicle }),
       reviewTarget,
       requirement,
       actorIdentity: "actor-1",
@@ -112,6 +120,13 @@ function progress(
 }
 
 describe("hosted reservation discharge", () => {
+  it("does not discharge the work unit from a top-only clean review", () => {
+    expect(allHostedReservationTargetsDischarged([
+      { discharged: false, detail: "member one outstanding" },
+      { discharged: true, detail: "top cleared" },
+    ])).toBe(false);
+  });
+
   it("keeps the singleton target for a non-delivery work unit", async () => {
     const singleton = { ...target(oid("a")), baseRevision: oid("0") };
     await expect(resolveHostedReservationTargets({
@@ -127,7 +142,7 @@ describe("hosted reservation discharge", () => {
       kind: "delivery",
       repository: "arc-framework/example",
       workUnitId: "delivery",
-      planId: "123e4567-e89b-12d3-a456-426614174000",
+      planId: PLAN_ID,
     });
     await expect(resolveHostedReservationTargets({
       workUnitId: "delivery",
@@ -138,12 +153,12 @@ describe("hosted reservation discharge", () => {
           status: "resolved",
           targets: [
             {
-              planId: "123e4567-e89b-12d3-a456-426614174000", deliverableId: "member-1",
+              planId: PLAN_ID, deliverableId: MEMBER_ONE,
               workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "41", base: oid("1"), head: oid("a"),
             },
             {
-              planId: "123e4567-e89b-12d3-a456-426614174000", deliverableId: "member-2",
+              planId: PLAN_ID, deliverableId: MEMBER_TWO,
               workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "42", base: oid("2"), head: oid("b"),
             },
@@ -154,8 +169,32 @@ describe("hosted reservation discharge", () => {
       status: "resolved",
       kind: "delivery",
       targets: [
-        { repository: "arc-framework/example", pullRequest: 41, baseRevision: oid("1"), headSha: oid("a") },
-        { repository: "arc-framework/example", pullRequest: 42, baseRevision: oid("2"), headSha: oid("b") },
+        {
+          repository: "arc-framework/example",
+          pullRequest: 41,
+          baseRevision: oid("1"),
+          headSha: oid("a"),
+          vehicle: {
+            kind: "delivery-member",
+            planId: PLAN_ID,
+            deliverableId: MEMBER_ONE,
+            workUnitId: "delivery",
+            head: oid("a"),
+          },
+        },
+        {
+          repository: "arc-framework/example",
+          pullRequest: 42,
+          baseRevision: oid("2"),
+          headSha: oid("b"),
+          vehicle: {
+            kind: "delivery-member",
+            planId: PLAN_ID,
+            deliverableId: MEMBER_TWO,
+            workUnitId: "delivery",
+            head: oid("b"),
+          },
+        },
       ],
     });
   });
@@ -289,6 +328,39 @@ describe("hosted reservation discharge", () => {
 
     expect(result.discharged).toBe(true);
     expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
+  });
+
+  it("excludes a coincident hosted attempt for a different delivery member", async () => {
+    const expectedVehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: "123e4567-e89b-12d3-a456-426614174000",
+      deliverableId: `sha256:${"1".repeat(64)}`,
+      workUnitId: "delivery",
+      head: oid("b"),
+    });
+    const otherVehicle = DeliveryReviewMemberVehicleSchema.parse({
+      ...expectedVehicle,
+      deliverableId: `sha256:${"2".repeat(64)}`,
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: expectedVehicle.planId,
+      }),
+      span: [oid("a"), oid("b")],
+      target: { ...target(oid("b")), vehicle: expectedVehicle },
+      readLaneProgress: progress({
+        [oid("b")]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [attempt(oid("b"), "coderabbit-pr", "clean", otherVehicle)],
+        },
+      }),
+    });
+
+    expect(result.discharged).toBe(false);
   });
 
   it("does not discharge raw findings before their dispositions settle", async () => {

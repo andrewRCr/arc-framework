@@ -905,39 +905,15 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   time and refuses repository, work-unit, or plan drift. Hosted request and admission share one exact member selector,
   including its work unit and head, without persisting a target list.
 
-### `[ ]` **7.2 Iterate and conjoin discharge over derived member targets**
+### `[x]` **7.2 Iterate and conjoin discharge over derived member targets**
 
 - _Goal:_ The work-unit obligation reports discharged only when every member review has cleared, evaluated against
   each retained member's own bound head and span.
 
-- _Context:_ Per-member readiness admission and head-keyed member lookup shipped with the first topology. The
-  hosted request path is the rework: it carries three current-checkout bindings that each refuse a member request
-  today — local review-target head equality, change-request resolution against the configured base, and the
-  reservation-admission guard binding the candidate's head — and its vehicle and reservation arms are disjoint,
-  since the vehicle arm never reads the carried reservation and the reservation arm takes no vehicle. The
-  delivery-member arm composes against the carried reservation. This task changes the first binding; the base
-  admission is member 3's and the candidate-head guard belongs to the vehicle-typing task, so the three-binding
-  behavior below is the integration check over all three.
-
-- _Shape:_ Fan-out is target multiplicity, not concurrency — reviews run bottom-up as members become ready,
-  typically one at a time. Cross-member seams stay covered by the member-boundary substrate and the chunked local
-  lane's seam doctrine where it runs.
-
-- _Amended 2026-08-23:_ This task owns selector continuity. The validated delivery-member request selector is copied
-  into the resumable handle, round-trips through await, and is retained on both concluded-await and request-time
-  unavailable lane attempts. Settle authenticates the exact attempt's retained selector rather than accepting a
-  caller reconstruction. A coincident repository, request, and head under a different plan or member never matches.
-
-    - Build `test-first` (one behavior at a time):
-        - Discharge evaluates each derived member target against its own bound head and span
-        - Discharge includes a member whose ref was physically reaped but whose binding remains active
-        - An obligation with one member unreviewed reports undischarged
-        - An obligation with every member cleared reports discharged
-        - A top-only clean review does not discharge the work-unit obligation
-        - The singleton non-delivery discharge is unchanged
-        - The three current-checkout bindings admit a member request on the delivery arm
-        - Request, handle, await result, lane attempt, and settle preserve one exact member selector
-        - An attempt with coincident host coordinates but another plan or deliverable is excluded
+- _Outcome:_ The validated member selector now survives request, handle, await, request-time unavailability, and the
+  concluded lane attempt that settlement reaches by `attemptRef`. Each discharge read matches that selector as well
+  as host coordinates, so a coincident attempt for another member cannot count and the work-unit result is the
+  conjunction over every retained member rather than the top review.
 
 ### `[ ]` **7.3 Enforce reserved-source ordering per member at request time**
 

@@ -47,6 +47,7 @@ import {
   resolveMergeMethod,
 } from "../review-gate/merge-method.js";
 import {
+  allHostedReservationTargetsDischarged,
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
@@ -592,6 +593,7 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision: target.baseRevision,
           approvedHead: target.headSha,
           changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+          ...(target.vehicle === undefined ? {} : { vehicle: target.vehicle }),
         })
       )));
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
@@ -617,7 +619,7 @@ export function createIntegrationCheckpointDependencies(input: {
         publication: { candidateId: publicationBoundary.candidateId, head: currentness.recognizedRevision },
         top,
         review: {
-          status: discharges.every((discharge) => discharge.discharged) ? "discharged" : "outstanding",
+          status: allHostedReservationTargetsDischarged(discharges) ? "discharged" : "outstanding",
           targets: reviewTargets,
         },
         readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),

@@ -124,7 +124,7 @@ describe("hosted review request", () => {
     });
   });
 
-  it("parses and validates a delivery-member request without storing member progress in the handle", async () => {
+  it("carries validated delivery-member progress authority in the resumable handle", async () => {
     const input = {
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
@@ -154,8 +154,10 @@ describe("hosted review request", () => {
       },
     });
 
-    expect(result).toMatchObject({ state: "requested", handle: { target: input.target } });
-    expect(result.state === "requested" ? result.handle : null).not.toHaveProperty("vehicle");
+    expect(result).toMatchObject({
+      state: "requested",
+      handle: { target: input.target, vehicle: input.vehicle },
+    });
   });
 
   it("rejects a delivery-member request whose exact binding does not match", async () => {

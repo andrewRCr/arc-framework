@@ -1,5 +1,9 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
 
+import {
+  DeliveryReviewMemberVehicleSchema,
+  type DeliveryReviewMemberVehicle,
+} from "../../../lib/delivery/review-vehicle.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
@@ -10,10 +14,28 @@ import type { StandardReviewReservationV1 } from "./integration-boundary-locus.j
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 
+function sameDeliveryVehicle(
+  expected: DeliveryReviewMemberVehicle | undefined,
+  actual: DeliveryReviewMemberVehicle | undefined,
+): boolean {
+  if (expected === undefined || actual === undefined) return expected === actual;
+  return expected.planId === actual.planId
+    && expected.deliverableId === actual.deliverableId
+    && expected.workUnitId === actual.workUnitId
+    && expected.head === actual.head;
+}
+
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
   discharged: boolean;
   detail: string;
+}
+
+/** Decide the work-unit obligation from its ordered member discharges. */
+export function allHostedReservationTargetsDischarged(
+  discharges: readonly HostedReservationDischarge[],
+): boolean {
+  return discharges.every(({ discharged }) => discharged);
 }
 
 /** One exact hosted target and its contribution span base. */
@@ -22,6 +44,7 @@ export interface HostedReservationTarget {
   readonly pullRequest: number;
   readonly headSha: string;
   readonly baseRevision: string;
+  readonly vehicle?: DeliveryReviewMemberVehicle;
 }
 
 /** Contained target derivation for singleton and delivery review obligations. */
@@ -75,6 +98,13 @@ export async function resolveHostedReservationTargets(input: {
         pullRequest,
         headSha: binding.head,
         baseRevision: binding.base,
+        vehicle: DeliveryReviewMemberVehicleSchema.parse({
+          kind: "delivery-member",
+          planId: binding.planId,
+          deliverableId: binding.deliverableId,
+          workUnitId: binding.workUnitId,
+          head: binding.head,
+        }),
       });
     }
     return { status: "resolved", kind: "delivery", targets };
@@ -99,7 +129,12 @@ export async function resolveHostedReservationTargets(input: {
 export async function projectHostedReservationDischarge(input: {
   reservation: StandardReviewReservationV1 | null;
   span: readonly string[];
-  target: { repository: string; pullRequest: number; headSha: string } | null;
+  target: {
+    repository: string;
+    pullRequest: number;
+    headSha: string;
+    vehicle?: DeliveryReviewMemberVehicle;
+  } | null;
   readLaneProgress: (headSha: string) => Promise<LaneProgressProjection>;
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
@@ -119,6 +154,7 @@ export async function projectHostedReservationDischarge(input: {
       && attempt.hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
       && attempt.hosted.target.pullRequest === target.pullRequest
       && attempt.hosted.target.headSha === headSha
+      && sameDeliveryVehicle(target.vehicle, attempt.hosted.vehicle)
     )));
   }
   const allAttempts = [...attemptsByHead.values()].flat();
@@ -156,6 +192,7 @@ export function createHostedReservationDischargeReader(input: {
   baseRevision: string;
   approvedHead: string;
   changeRequest: { repository: string; pullRequest: number } | null;
+  vehicle?: DeliveryReviewMemberVehicle;
 }) => Promise<HostedReservationDischarge> {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
@@ -165,7 +202,7 @@ export function createHostedReservationDischargeReader(input: {
     return repositoryIdPromise;
   };
 
-  return async ({ reservation, baseRevision, approvedHead, changeRequest }) => {
+  return async ({ reservation, baseRevision, approvedHead, changeRequest, vehicle }) => {
     if (reservation === null) {
       return projectHostedReservationDischarge({
         reservation,
@@ -182,7 +219,9 @@ export function createHostedReservationDischargeReader(input: {
     return projectHostedReservationDischarge({
       reservation,
       span,
-      target: changeRequest === null ? null : { ...changeRequest, headSha: approvedHead },
+      target: changeRequest === null
+        ? null
+        : { ...changeRequest, headSha: approvedHead, ...(vehicle === undefined ? {} : { vehicle }) },
       readLaneProgress: async (headSha) => readLaneProgress(store, {
         lane: "standard",
         repositoryId: await repositoryId(),
