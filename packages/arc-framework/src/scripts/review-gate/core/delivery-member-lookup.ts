@@ -11,6 +11,7 @@ export interface DeliveryMemberBinding {
   readonly baseRef: string | null;
   readonly headRef: string | null;
   readonly head: string;
+  readonly candidateHead: string;
   readonly isFinalMember: boolean;
 }
 
