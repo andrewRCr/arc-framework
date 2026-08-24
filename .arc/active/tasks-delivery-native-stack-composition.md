@@ -867,7 +867,7 @@ structural guarantee rather than operator discipline.
 
     - `[x]` **6.11.c Prove the vertical lifecycle rows and reconcile every contract surface**
 
-        - `[x]` All six immutable Member 6 criteria resolve over the first-parent task-commit union from
+        - All six immutable Member 6 criteria resolve over the first-parent task-commit union from
           `f4db64870` through `a99cc46a9`, the real-Git lifecycle rows, and the cumulative reconciled tree. Base
           movement remains advisory; external refresh is proved before reserved top settlement and one final state
           write; native settlement proves the full suffix and semantic no-effect returns to canonical selection.
