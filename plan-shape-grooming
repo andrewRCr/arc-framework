@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "plan-shape-grooming",
+  "claimId": "0627266e2d685ae6ce36c496d4c8e5f1",
+  "createdAt": "2026-08-24T13:56:39.091Z",
+  "updatedAt": "2026-08-24T13:56:39.091Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Grooming: adopt lifecycle-coverage capture into plan-segmentation (regrounding, P1 bump) and mint plan-amendment stub for the mid-impl design-amendment procedure",
+  "branch": "chore/plan-shape-grooming",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
