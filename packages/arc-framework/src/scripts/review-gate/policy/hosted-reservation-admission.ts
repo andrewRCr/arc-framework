@@ -1,11 +1,41 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
 
-import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
+import {
+  sameDeliveryReviewMemberVehicle,
+  type DeliveryReviewMemberVehicle,
+} from "../../../lib/delivery/review-vehicle.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
 interface ReservationAttempt {
   sourceId: string;
   outcome: string;
+}
+
+interface HostedTargetAttempt extends ReservationAttempt {
+  hosted?: {
+    target: { repository: string; pullRequest: number; headSha: string };
+    vehicle?: DeliveryReviewMemberVehicle;
+  };
+}
+
+/**
+ * Select only source progress recorded for one exact hosted target and optional delivery member.
+ *
+ * @param input - Lane attempts plus the exact host coordinates and optional member selector.
+ * @returns Source outcomes admissible as ordering evidence for that exact target.
+ */
+export function hostedReservationAttemptsForTarget(input: {
+  attempts: readonly HostedTargetAttempt[];
+  target: { repository: string; pullRequest: number; headSha: string };
+  vehicle?: DeliveryReviewMemberVehicle;
+}): ReservationAttempt[] {
+  return input.attempts.filter((attempt) => (
+    attempt.hosted !== undefined
+    && attempt.hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
+    && attempt.hosted.target.pullRequest === input.target.pullRequest
+    && attempt.hosted.target.headSha === input.target.headSha
+    && sameDeliveryReviewMemberVehicle(input.vehicle, attempt.hosted.vehicle)
+  )).map(({ sourceId, outcome }) => ({ sourceId, outcome }));
 }
 
 /**

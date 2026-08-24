@@ -2,6 +2,7 @@
 
 import {
   DeliveryReviewMemberVehicleSchema,
+  sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
@@ -14,26 +15,16 @@ import type { StandardReviewReservationV1 } from "./integration-boundary-locus.j
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 
-function sameDeliveryVehicle(
-  expected: DeliveryReviewMemberVehicle | undefined,
-  actual: DeliveryReviewMemberVehicle | undefined,
-): boolean {
-  if (expected === undefined || actual === undefined) return expected === actual;
-  return expected.planId === actual.planId
-    && expected.deliverableId === actual.deliverableId
-    && expected.workUnitId === actual.workUnitId
-    && expected.head === actual.head;
-}
-
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
   discharged: boolean;
   detail: string;
+  nextSource: string | null;
 }
 
 /** Decide the work-unit obligation from its ordered member discharges. */
 export function allHostedReservationTargetsDischarged(
-  discharges: readonly HostedReservationDischarge[],
+  discharges: readonly { readonly discharged: boolean }[],
 ): boolean {
   return discharges.every(({ discharged }) => discharged);
 }
@@ -139,10 +130,14 @@ export async function projectHostedReservationDischarge(input: {
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
-    return { discharged: true, detail: "Local carrier `local-attestation`." };
+    return { discharged: true, detail: "Local carrier `local-attestation`.", nextSource: null };
   }
   if (input.target === null) {
-    return { discharged: false, detail: "The reserved hosted review has no exact open change-request target." };
+    return {
+      discharged: false,
+      detail: "The reserved hosted review has no exact open change-request target.",
+      nextSource: reservation.sources[0] ?? null,
+    };
   }
   const target = input.target;
   const attemptsByHead = new Map<string, ProjectedLaneAttempt[]>();
@@ -154,7 +149,7 @@ export async function projectHostedReservationDischarge(input: {
       && attempt.hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
       && attempt.hosted.target.pullRequest === target.pullRequest
       && attempt.hosted.target.headSha === headSha
-      && sameDeliveryVehicle(target.vehicle, attempt.hosted.vehicle)
+      && sameDeliveryReviewMemberVehicle(target.vehicle, attempt.hosted.vehicle)
     )));
   }
   const allAttempts = [...attemptsByHead.values()].flat();
@@ -163,18 +158,26 @@ export async function projectHostedReservationDischarge(input: {
     const settledAcrossSpan = allAttempts.some((attempt) => attempt.sourceId === sourceId
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
     if (settledAcrossSpan) {
-      return { discharged: true, detail: `Hosted source \`${sourceId}\`.` };
+      return { discharged: true, detail: `Hosted source \`${sourceId}\`.`, nextSource: null };
     }
     const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
     const safelyUnavailable = sourceAttempts.length > 0 && sourceAttempts.every(({ outcome }) => (
       outcome === "rate-limited" || outcome === "transient-unavailable"
     ));
-    if (!safelyUnavailable) break;
+    if (!safelyUnavailable) {
+      return {
+        discharged: false,
+        detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+          + "a settled review across the Candidate span.",
+        nextSource: sourceId,
+      };
+    }
   }
   return {
     discharged: false,
     detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
       + "a settled review across the Candidate span.",
+    nextSource: null,
   };
 }
 

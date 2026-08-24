@@ -915,27 +915,15 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   as host coordinates, so a coincident attempt for another member cannot count and the work-unit result is the
   conjunction over every retained member rather than the top review.
 
-### `[ ]` **7.3 Enforce reserved-source ordering per member at request time**
+### `[x]` **7.3 Enforce reserved-source ordering per member at request time**
 
 - _Goal:_ The reserved source cannot be leapfrogged by a lower-ranked carrier on any member merely because that
   member's pull request now exists.
 
-- _Approach:_ The ordering rule fans out with the reservation and is enforced per member at request time through
-  the existing driver check, made member-aware by the vehicle-typed target resolution. No new mechanism.
-
-- _Amended 2026-08-23:_ The existing status/driver boundary selects the first outstanding retained member in plan
-  order and returns the complete `review-hosted-request` action with its exact vehicle. Later existing envelopes
-  drive await and settle; terminal status returns the typed all-members conjunction. Neither handlers nor workflow
-  prose enumerate members or rebuild command inputs.
-
-    - Build `test-first` (one behavior at a time):
-        - A lower-ranked carrier is refused on a member while the reserved source remains admissible
-        - The reserved source is admissible per member independently
-        - A safely-unavailable reserved source admits the next source in order, per member
-        - The singleton ordering behavior is unchanged
-        - Status returns the first outstanding member and its complete existing request action
-        - Settling one member advances selection to the next retained member in plan order
-        - Terminal status exposes `discharged` only after every retained member conjunct is true
+- _Outcome:_ Status now projects retained targets in delivery order, exposes each exact member conjunct, and returns
+  the complete hosted-request envelope for the first outstanding member; settling it advances selection and only an
+  all-member conjunction reports discharged. Source fallback and request admission use selector-qualified attempts,
+  so coincident progress from another member or a delivery attempt on a singleton cannot affect ordering.
 
 ### `[ ]` **7.4 Project review applicability across non-substantive head movement**
 

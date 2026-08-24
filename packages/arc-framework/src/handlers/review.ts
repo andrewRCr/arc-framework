@@ -162,6 +162,7 @@ import {
   assertHostedErrandBindingAuthority,
   assertHostedReservationAdmission,
   configuredSourceSuffix,
+  hostedReservationAttemptsForTarget,
 } from
   "../scripts/review-gate/policy/hosted-reservation-admission.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
@@ -1434,12 +1435,11 @@ async function resolveHostedProgressContext(input: {
     headSha: reviewTarget.headSha,
   });
   const attempts = progress.status === "recorded"
-    ? progress.attempts.filter((attempt) => (
-        attempt.hosted !== undefined
-        && attempt.hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
-        && attempt.hosted.target.pullRequest === input.target.pullRequest
-        && attempt.hosted.target.headSha === input.target.headSha
-      ))
+    ? hostedReservationAttemptsForTarget({
+        attempts: progress.attempts,
+        target: input.target,
+        ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
+      })
     : [];
   if (input.vehicle?.kind === "errand") {
     const identity = await resolveUserIdentity(gitExec);

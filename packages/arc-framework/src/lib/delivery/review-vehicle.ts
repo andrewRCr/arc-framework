@@ -18,3 +18,21 @@ export const DeliveryReviewMemberVehicleSchema = z.strictObject({
   head: DeliveryGitObjectIdSchema,
 });
 export type DeliveryReviewMemberVehicle = z.infer<typeof DeliveryReviewMemberVehicleSchema>;
+
+/**
+ * Compare the complete optional delivery-member selector carried by hosted progress.
+ *
+ * @param expected - Selector required by the current hosted target, or no delivery selector.
+ * @param actual - Selector retained on one hosted progress attempt, or no delivery selector.
+ * @returns Whether both values identify the same complete selector state.
+ */
+export function sameDeliveryReviewMemberVehicle(
+  expected: DeliveryReviewMemberVehicle | undefined,
+  actual: DeliveryReviewMemberVehicle | undefined,
+): boolean {
+  if (expected === undefined || actual === undefined) return expected === actual;
+  return expected.planId === actual.planId
+    && expected.deliverableId === actual.deliverableId
+    && expected.workUnitId === actual.workUnitId
+    && expected.head === actual.head;
+}

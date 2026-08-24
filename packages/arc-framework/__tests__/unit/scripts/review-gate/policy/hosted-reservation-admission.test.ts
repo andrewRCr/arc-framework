@@ -12,6 +12,7 @@ import {
   assertHostedReservationAdmission,
   configuredSourceSuffix,
   firstAdmissibleHostedSource,
+  hostedReservationAttemptsForTarget,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
 
 const reservation = createStandardReviewReservation({
@@ -111,6 +112,66 @@ describe("hosted reservation admission", () => {
       attempts: [],
       ...binding,
     })).not.toThrow();
+  });
+
+  it("keeps safe-unavailability progress independent for each exact delivery member", () => {
+    const otherVehicle = {
+      ...deliveryVehicle,
+      deliverableId: `sha256:${"1".repeat(64)}`,
+    };
+    const attempts = [{
+      sourceId: "coderabbit-pr",
+      outcome: "rate-limited",
+      hosted: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+        vehicle: deliveryVehicle,
+      },
+    }];
+    const currentMemberAttempts = hostedReservationAttemptsForTarget({
+      attempts,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    });
+    const otherMemberAttempts = hostedReservationAttemptsForTarget({
+      attempts,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: otherVehicle,
+    });
+
+    expect(() => assertHostedReservationAdmission({
+      reservation: deliveryReservation,
+      provider: "codex-pr",
+      repository: "owner/repo",
+      headSha: deliveryVehicle.head,
+      targetKind: "delivery-member",
+      vehicle: deliveryVehicle,
+      attempts: currentMemberAttempts,
+      ...binding,
+    })).not.toThrow();
+    expect(() => assertHostedReservationAdmission({
+      reservation: deliveryReservation,
+      provider: "codex-pr",
+      repository: "owner/repo",
+      headSha: otherVehicle.head,
+      targetKind: "delivery-member",
+      vehicle: otherVehicle,
+      attempts: otherMemberAttempts,
+      ...binding,
+    })).toThrow(/requires `coderabbit-pr` next/u);
+  });
+
+  it("excludes a delivery-member attempt from singleton source ordering", () => {
+    expect(hostedReservationAttemptsForTarget({
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "rate-limited",
+        hosted: {
+          target: { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD },
+          vehicle: { ...deliveryVehicle, head: CURRENT_HEAD },
+        },
+      }],
+      target: { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD },
+    })).toEqual([]);
   });
 
   it("rejects a delivery member reconstructed under a different plan", () => {

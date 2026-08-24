@@ -122,8 +122,8 @@ function progress(
 describe("hosted reservation discharge", () => {
   it("does not discharge the work unit from a top-only clean review", () => {
     expect(allHostedReservationTargetsDischarged([
-      { discharged: false, detail: "member one outstanding" },
-      { discharged: true, detail: "top cleared" },
+      { discharged: false },
+      { discharged: true },
     ])).toBe(false);
   });
 
@@ -398,6 +398,23 @@ describe("hosted reservation discharge", () => {
     });
 
     expect(result).toMatchObject({ discharged: true, detail: "Hosted source `codex-pr`." });
+  });
+
+  it("selects the next ordered source for an outstanding member after safe unavailability", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
+      span: [oid("a")],
+      target: target(oid("a")),
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 0,
+          attempts: [attempt(oid("a"), "coderabbit-pr", "rate-limited")],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({ discharged: false, nextSource: "codex-pr" });
   });
 
   it("does not accept a lower source without safe-unavailability evidence for the ordered prefix", async () => {
