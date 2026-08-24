@@ -77,7 +77,7 @@ import {
 import {
   adoptExternalDeliverySuffixRefresh,
   executeDeliverySuffixRewrite,
-  reconcileReservedSuffixRetarget,
+  settleReservedDeliverySuffixRefresh,
   type DeliveryProviderRefreshMovement,
 } from "../lib/delivery/suffix-reconciliation.js";
 import {
@@ -1102,6 +1102,37 @@ async function executeDeliveryCommand(
     }
 
     const adopt = RefreshAdoptSchema.parse(parsed);
+    const providerAdoptionResult = <Result extends {
+      readonly status: string;
+      readonly reason?: string;
+      readonly paths?: readonly string[];
+    }>(result: Result) => {
+      if (result.status !== "blocked") return result;
+      if (result.paths !== undefined) {
+        return {
+          ...result,
+          reason: result.reason === "content-conflict" ? "contribution-conflicted" : result.reason,
+          guidance: "Resolve the listed paths, then rerun refresh adoption with the reservation retained.",
+        };
+      }
+      return {
+        ...result,
+        guidance: "Restore exact provider and terminal-top state, then rerun refresh adoption.",
+      };
+    };
+    const refreshSettlementDependencies = (subject: DeliveryProviderRefreshSubject) => ({
+      observeResult: () => observeProviderRefresh(subject, adopt.repository, adopt.remote),
+      proveContribution: proveProviderRefreshMovement,
+      absorbTop: (input: {
+        topRef: string;
+        top: { head: string; tree: string };
+        highestMember: { head: string; tree: string };
+      }) => absorbGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
+      publishTop: (input: { ref: string; beforeHead: string; requestedHead: string }) => (
+        publishDeliveryTopRef({ exec, remote: adopt.remote, ...input })
+      ),
+      stateStore,
+    });
     const active = current.value.activeOperation;
     if (active !== null) {
       if (active.kind !== "rewrite" || active.mode !== "provider-adoption"
@@ -1120,44 +1151,12 @@ async function executeDeliveryCommand(
           recommendedActionText: "Restore the reserved suffix subject before provider adoption.",
         };
       }
-      const observed = await observeProviderRefresh(subject, adopt.repository, adopt.remote);
-      if (observed.status === "refused") {
-        return {
-          status: "refused",
-          reason: observed.reason,
-          recommendedActionText: "Stop and restore an exact provider suffix observation before adoption.",
-        };
-      }
-      const reconciled = await reconcileReservedSuffixRetarget({
-        planId: plan.planId,
+      const reconciled = await settleReservedDeliverySuffixRefresh({
+        plan,
         current,
-        observed: observed.observation,
-        proveContribution: proveProviderRefreshMovement,
-        stateStore,
+        ...refreshSettlementDependencies(subject),
       });
-      if (reconciled.status === "retryable") {
-        const cleared = await stateStore.publish(
-          plan.planId,
-          { ...current.value, activeOperation: null },
-          current.revision,
-        );
-        return cleared.status === "ok"
-          ? {
-              status: "retryable",
-              recommendedActionText: "No provider rewrite was observed; plan again from current delivery state.",
-            }
-          : {
-              status: "blocked",
-              reason: "state-conflict",
-              guidance: "Rerun delivery reconcile before clearing the stale reservation.",
-            };
-      }
-      if (reconciled.status === "blocked") {
-        return "paths" in reconciled
-          ? { ...reconciled, guidance: "Resolve the contribution refusal before adopting provider movement." }
-          : { ...reconciled, guidance: "Restore exact provider state and rerun refresh adoption." };
-      }
-      return reconciled;
+      return providerAdoptionResult(reconciled);
     }
     if (adopt.operationId !== undefined) {
       return {
@@ -1173,22 +1172,13 @@ async function executeDeliveryCommand(
         recommendedActionText: "Restore one exact bound non-terminal suffix before refresh adoption.",
       };
     }
-    const observed = await observeProviderRefresh(derived.subject, adopt.repository, adopt.remote);
-    if (observed.status === "refused") {
-      return {
-        status: "refused",
-        reason: observed.reason,
-        recommendedActionText: "Stop and restore an exact provider suffix observation before adoption.",
-      };
-    }
-    return adoptExternalDeliverySuffixRefresh({
+    const adopted = await adoptExternalDeliverySuffixRefresh({
       plan,
       current,
       affectedDeliverableIds: derived.subject.affectedDeliverableIds,
-      observeResult: () => Promise.resolve(observed.observation),
-      proveContribution: proveProviderRefreshMovement,
-      stateStore,
+      ...refreshSettlementDependencies(derived.subject),
     });
+    return providerAdoptionResult(adopted);
   }
 
   if (command === "native-observe" || command === "native-unlink") {

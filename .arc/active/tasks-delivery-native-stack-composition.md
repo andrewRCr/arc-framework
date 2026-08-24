@@ -852,12 +852,12 @@ structural guarantee rather than operator discipline.
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
-    - `[ ]` **6.11.a Close external refresh adoption as one top-settling transaction**
+    - `[x]` **6.11.a Close external refresh adoption as one top-settling transaction**
 
-        - Remove the dead ARC-issued provider-refresh mutation seam. After an external refresh, observe and prove
-          the complete exact suffix before reservation; then reserve ARC's adoption settlement, reobserve, absorb
-          and lease-publish the terminal top, and install suffix plus terminal coordinates in one final CAS.
-          Recovery reruns `delivery-refresh-adopt` and recognizes interruption at every mutation boundary.
+        - External refresh now remains unreserved until a complete exact suffix is observed and proved. ARC then
+          reserves only its adoption settlement, reobserves and reproves, absorbs and lease-publishes the terminal
+          top, and installs target, suffix, and terminal coordinates in one final CAS. Recovery reruns the exact
+          `delivery-refresh-adopt` reservation and recognizes the local-merge and remote-publication boundaries.
 
     - `[x]` **6.11.b Bind native routing and make semantic fallback executable**
 

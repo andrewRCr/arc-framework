@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   adoptExternalDeliverySuffixRefresh,
-  executeDeliveryProviderRefresh,
   executeDeliverySuffixRewrite,
-  reconcileReservedSuffixRetarget,
+  settleReservedDeliverySuffixRefresh,
+  type DeliveryProviderRefreshMovement,
 } from "../../../src/lib/delivery/suffix-reconciliation.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
@@ -66,135 +66,249 @@ function reservedProviderRefreshFixture() {
     affectedDeliverableIds: fixture.affected,
     expectedStateRevision: 7,
     before: fixture.before,
-    requested: fixture.before,
+    requested: fixture.observed,
   });
   if (reserved.status !== "reserved") throw new Error("provider refresh fixture must reserve");
   return { ...fixture, reserved: { revision: 8, value: reserved.state } };
 }
 
 describe("delivery suffix reconciliation", () => {
-  it("persists the rewrite reservation before invoking an ARC-issued provider refresh", async () => {
-    const { plan, state, affected, before, observed } = providerRefreshFixture();
-    const writes: DeliveryStateV1[] = [];
-    const proved: string[] = [];
-    let mutationSawReservation = false;
-    const result = await executeDeliveryProviderRefresh({
-      plan,
-      current: { revision: 7, value: state },
-      affectedDeliverableIds: affected,
-      observeBefore: async () => ({ snapshot: before, targetMovement: "exact" }),
-      refreshProvider: async () => {
-        const operation = writes.at(-1)?.activeOperation;
-        mutationSawReservation = operation?.kind === "rewrite" && operation.mode === "provider-adoption";
-        return { status: "accepted" };
-      },
-      observeResult: async () => ({ snapshot: observed, targetMovement: "exact" }),
-      proveContribution: async ({ deliverableId }) => {
-        proved.push(deliverableId);
-        return { status: "accepted", proof: "mechanical-reapply" };
-      },
-      stateStore: { publish: async (_planId, value, revision) => {
-        writes.push(value);
-        return { status: "ok", value: { revision: revision + 1, value } };
-      } },
-    });
-
-    expect(result).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
-    expect(mutationSawReservation).toBe(true);
-    expect(proved).toEqual(affected);
-  });
-
-  it("resumes an interrupted provider refresh by adopting its exact partial result", async () => {
-    const { plan, state, affected, before, observed } = providerRefreshFixture();
-    const writes: Array<{ revision: number; value: DeliveryStateV1 }> = [];
-    await expect(executeDeliveryProviderRefresh({
-      plan,
-      current: { revision: 7, value: state },
-      affectedDeliverableIds: affected,
-      observeBefore: async () => ({ snapshot: before, targetMovement: "exact" }),
-      refreshProvider: async () => ({ status: "accepted" }),
-      observeResult: async () => { throw new Error("session interrupted"); },
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      stateStore: { publish: async (_planId, value, revision) => {
-        const record = { revision: revision + 1, value };
-        writes.push(record);
-        return { status: "ok", value: record };
-      } },
-    })).rejects.toThrow("session interrupted");
-    const reserved = writes[0];
-    if (reserved === undefined) throw new Error("reservation must persist before interruption");
-    const partial = {
-      ...before,
-      members: [observed.members[0]!, before.members[1]!],
-    };
-
-    const result = await reconcileReservedSuffixRetarget({
-      planId: plan.planId,
-      current: reserved,
-      observed: { snapshot: partial, targetMovement: "exact" },
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      stateStore: { publish: async (_planId, value, revision) => ({
-        status: "ok", value: { revision: revision + 1, value },
-      }) },
-    });
-
-    expect(result).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
-    if (result.status !== "applied") return;
-    expect(result.state.value.members[1]?.coordinates).toEqual(partial.members[0]!.coordinates);
-    expect(result.state.value.members[2]?.coordinates).toEqual(partial.members[1]!.coordinates);
-  });
-
-  it("observes and proves external refresh results member by member before one direct CAS adoption", async () => {
+  it("reserves an observed refresh before settling the terminal top and one final state", async () => {
     const { plan, state, affected, observed } = providerRefreshFixture();
-    const proved: string[] = [];
-    let observedResult = false;
-    let prematureWrite = false;
-    const result = await adoptExternalDeliverySuffixRefresh({
+    const events: string[] = [];
+    const absorbed = { head: "a".repeat(40), tree: "b".repeat(40) };
+    const input = {
       plan,
       current: { revision: 7, value: state },
       affectedDeliverableIds: affected,
       observeResult: async () => {
-        observedResult = true;
-        return { snapshot: observed, targetMovement: "exact" };
+        events.push(events.includes("reserve") ? "reobserve" : "observe");
+        return {
+          status: "observed" as const,
+          observation: { snapshot: observed, targetMovement: "exact" as const },
+        };
       },
-      proveContribution: async ({ deliverableId }) => {
-        proved.push(deliverableId);
-        return { status: "accepted", proof: "mechanical-reapply" };
+      proveContribution: async ({ deliverableId }: DeliveryProviderRefreshMovement) => {
+        events.push(`prove:${deliverableId}`);
+        return { status: "accepted" as const, proof: "mechanical-reapply" as const };
       },
-      stateStore: { publish: async (_planId, value, revision) => {
-        prematureWrite = !observedResult || proved.length !== affected.length
-          || value.activeOperation !== null;
-        return { status: "ok", value: { revision: revision + 1, value } };
+      absorbTop: async () => {
+        events.push("absorb");
+        return { status: "absorbed" as const, ...absorbed };
+      },
+      publishTop: async () => {
+        events.push("publish");
+        return { status: "published" as const };
+      },
+      stateStore: { publish: async (_planId: string, value: DeliveryStateV1, revision: number) => {
+        events.push(value.activeOperation === null ? "final" : "reserve");
+        return { status: "ok" as const, value: { revision: revision + 1, value } };
       } },
-    });
+    };
+    const result = await adoptExternalDeliverySuffixRefresh(input);
 
-    expect(result).toMatchObject({ status: "applied", state: { revision: 8 } });
-    expect(proved).toEqual(affected);
-    expect(prematureWrite).toBe(false);
-    if (result.status !== "applied") return;
-    expect(result.state.value.members.slice(1, -1).map(({ coordinates }) => coordinates))
-      .toEqual(observed.members.map(({ coordinates }) => coordinates));
-    expect(Object.keys(result.state.value).sort()).toEqual([
-      "activeOperation", "boundPlan", "members", "planId", "schemaVersion", "semanticsVersion", "target",
-      "workUnitId",
+    expect(events).toEqual([
+      "observe", ...affected.map((id) => `prove:${id}`), "reserve",
+      "reobserve", ...affected.map((id) => `prove:${id}`), "absorb", "publish", "final",
     ]);
+    expect(result).toMatchObject({
+      status: "applied",
+      state: {
+        revision: 9,
+        value: {
+          activeOperation: null,
+          members: [
+            {}, {}, {},
+            { coordinates: { base: observed.members.at(-1)!.coordinates!.head, ...absorbed } },
+          ],
+        },
+      },
+    });
   });
 
-  it("adopts an observer-proven append-only target with the refreshed suffix", async () => {
+  it("replays the exact reserved settlement after local merge or remote publication", async () => {
+    const { plan, reserved, observed } = reservedProviderRefreshFixture();
+    const absorbed = { head: "a".repeat(40), tree: "b".repeat(40) };
+    for (const publication of ["published", "adopted"] as const) {
+      const result = await settleReservedDeliverySuffixRefresh({
+        plan,
+        current: reserved,
+        observeResult: async () => ({
+          status: "observed",
+          observation: { snapshot: observed, targetMovement: "exact" },
+        }),
+        proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+        absorbTop: async () => ({ status: "absorbed", ...absorbed }),
+        publishTop: async () => ({ status: publication }),
+        stateStore: { publish: async (_planId, value, revision) => ({
+          status: "ok", value: { revision: revision + 1, value },
+        }) },
+      });
+      expect(result).toMatchObject({
+        status: "applied",
+        state: {
+          revision: 9,
+          value: {
+            activeOperation: null,
+            members: [
+              {}, {}, {},
+              { coordinates: { base: observed.members.at(-1)!.coordinates!.head, ...absorbed } },
+            ],
+          },
+        },
+      });
+    }
+  });
+
+  it("keeps a reserved settlement on changed observation or contribution refusal", async () => {
+    const { plan, reserved, before, observed } = reservedProviderRefreshFixture();
+    const finalStates: DeliveryStateV1[] = [];
+    const topEffects: string[] = [];
+    const dependencies = {
+      absorbTop: async () => {
+        topEffects.push("absorb");
+        return { status: "absorbed" as const, head: "a".repeat(40), tree: "b".repeat(40) };
+      },
+      publishTop: async () => {
+        topEffects.push("publish");
+        return { status: "published" as const };
+      },
+      stateStore: { publish: async (_planId: string, value: DeliveryStateV1) => {
+        finalStates.push(value);
+        return { status: "ok" as const, value: { revision: 9, value } };
+      } },
+    };
+    await expect(settleReservedDeliverySuffixRefresh({
+      plan,
+      current: reserved,
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: before, targetMovement: "exact" },
+      }),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...dependencies,
+    })).resolves.toEqual({ status: "blocked", reason: "ambiguous" });
+    await expect(settleReservedDeliverySuffixRefresh({
+      plan,
+      current: reserved,
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: observed, targetMovement: "exact" },
+      }),
+      proveContribution: async () => ({
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: ["feature.txt"],
+      }),
+      ...dependencies,
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "contribution-diverged",
+      paths: ["feature.txt"],
+    });
+    expect(topEffects).toHaveLength(0);
+    expect(finalStates).toHaveLength(0);
+    expect(reserved.value.activeOperation).not.toBeNull();
+  });
+
+  it("keeps the reservation when top absorption, publication, or final state fails", async () => {
+    const { plan, reserved, observed } = reservedProviderRefreshFixture();
+    const common = {
+      plan,
+      current: reserved,
+      observeResult: async () => ({
+        status: "observed" as const,
+        observation: { snapshot: observed, targetMovement: "exact" as const },
+      }),
+      proveContribution: async () => ({
+        status: "accepted" as const, proof: "mechanical-reapply" as const,
+      }),
+    };
+    await expect(settleReservedDeliverySuffixRefresh({
+      ...common,
+      absorbTop: async () => ({
+        status: "refused", reason: "content-conflict", paths: ["top.txt"],
+      }),
+      publishTop: async () => { throw new Error("must not publish"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    })).resolves.toEqual({ status: "blocked", reason: "content-conflict", paths: ["top.txt"] });
+    await expect(settleReservedDeliverySuffixRefresh({
+      ...common,
+      absorbTop: async () => ({ status: "absorbed", head: "a".repeat(40), tree: "b".repeat(40) }),
+      publishTop: async () => ({ status: "refused", reason: "collision" }),
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    })).resolves.toEqual({ status: "blocked", reason: "top-publish-collision" });
+    await expect(settleReservedDeliverySuffixRefresh({
+      ...common,
+      absorbTop: async () => ({ status: "absorbed", head: "a".repeat(40), tree: "b".repeat(40) }),
+      publishTop: async () => ({ status: "adopted" }),
+      stateStore: { publish: async () => ({ status: "refused", reason: "version-conflict" }) },
+    })).resolves.toEqual({ status: "blocked", reason: "state-conflict" });
+    expect(reserved.value.activeOperation).not.toBeNull();
+  });
+
+  it("writes nothing before reservation when the observation, proof, or exact suffix refuses", async () => {
+    const { plan, state, affected, observed } = providerRefreshFixture();
+    const observedResult = vi.fn(async () => ({
+      status: "observed" as const,
+      observation: { snapshot: observed, targetMovement: "exact" as const },
+    }));
+    const topEffects = vi.fn();
+    const stateWrites = vi.fn();
+    const common = {
+      plan,
+      current: { revision: 7, value: state },
+      observeResult: observedResult,
+      absorbTop: async () => {
+        topEffects();
+        return { status: "absorbed" as const, head: "a".repeat(40), tree: "b".repeat(40) };
+      },
+      publishTop: async () => {
+        topEffects();
+        return { status: "published" as const };
+      },
+      stateStore: { publish: stateWrites },
+    };
+    await expect(adoptExternalDeliverySuffixRefresh({
+      ...common,
+      affectedDeliverableIds: affected.slice(0, 1),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+    })).resolves.toEqual({ status: "refused", reason: "position-mismatch" });
+    await expect(adoptExternalDeliverySuffixRefresh({
+      ...common,
+      affectedDeliverableIds: affected,
+      proveContribution: async () => ({
+        status: "refused", reason: "contribution-diverged", paths: ["feature.txt"],
+      }),
+    })).resolves.toEqual({
+      status: "refused", reason: "contribution-diverged", paths: ["feature.txt"],
+    });
+    expect(observedResult).toHaveBeenCalledOnce();
+    expect(stateWrites).not.toHaveBeenCalled();
+    expect(topEffects).not.toHaveBeenCalled();
+  });
+
+  it("adopts an observer-proven append-only target only with suffix and terminal coordinates", async () => {
     const { plan, state, affected, observed } = providerRefreshFixture();
     const advancedTarget = {
       ref: state.target!.ref,
       coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
     };
+    const absorbed = { head: "a".repeat(40), tree: "b".repeat(40) };
     const result = await adoptExternalDeliverySuffixRefresh({
       plan,
       current: { revision: 7, value: state },
       affectedDeliverableIds: affected,
       observeResult: async () => ({
-        snapshot: { ...observed, target: advancedTarget },
-        targetMovement: "append-only",
+        status: "observed",
+        observation: {
+          snapshot: { ...observed, target: advancedTarget },
+          targetMovement: "append-only",
+        },
       }),
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      absorbTop: async () => ({ status: "absorbed", ...absorbed }),
+      publishTop: async () => ({ status: "published" }),
       stateStore: { publish: async (_planId, value, revision) => ({
         status: "ok", value: { revision: revision + 1, value },
       }) },
@@ -202,79 +316,18 @@ describe("delivery suffix reconciliation", () => {
 
     expect(result).toMatchObject({
       status: "applied",
-      state: { value: { target: advancedTarget, activeOperation: null } },
-    });
-  });
-
-  it("keeps a provider reservation retryable and blocks ambiguous or unproved recovery", async () => {
-    const { plan, reserved, before, observed } = reservedProviderRefreshFixture();
-    const wrongMode = {
-      ...reserved,
-      value: {
-        ...reserved.value,
-        activeOperation: {
-          ...reserved.value.activeOperation!,
-          kind: "rewrite" as const,
-          mode: "review-fix" as const,
+      state: {
+        revision: 9,
+        value: {
+          target: advancedTarget,
+          activeOperation: null,
+          members: [
+            {}, {}, {},
+            { coordinates: { base: observed.members.at(-1)!.coordinates!.head, ...absorbed } },
+          ],
         },
       },
-    };
-    await expect(reconcileReservedSuffixRetarget({
-      planId: plan.planId,
-      current: wrongMode,
-      observed: { snapshot: before, targetMovement: "exact" },
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      stateStore: { publish: async (_id, value) => ({ status: "ok", value: { revision: 9, value } }) },
-    })).resolves.toEqual({ status: "blocked", reason: "ambiguous" });
-    await expect(reconcileReservedSuffixRetarget({
-      planId: plan.planId,
-      current: reserved,
-      observed: { snapshot: observed, targetMovement: "exact" },
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      stateStore: { publish: async () => ({ status: "refused", reason: "version-conflict" }) },
-    })).resolves.toEqual({ status: "blocked", reason: "state-conflict" });
-    await expect(reconcileReservedSuffixRetarget({
-      planId: plan.planId,
-      current: reserved,
-      observed: { snapshot: observed, targetMovement: "exact" },
-      proveContribution: async () => ({
-        status: "refused",
-        reason: "contribution-diverged",
-        paths: ["feature.txt"],
-      }),
-      stateStore: { publish: vi.fn() },
-    })).resolves.toEqual({
-      status: "blocked",
-      reason: "contribution-diverged",
-      paths: ["feature.txt"],
     });
-    const proveRetry = vi.fn(async () => ({
-      status: "refused" as const, reason: "git-failure" as const,
-    }));
-    await expect(reconcileReservedSuffixRetarget({
-      planId: plan.planId,
-      current: reserved,
-      observed: { snapshot: reserved.value.activeOperation!.before, targetMovement: "exact" },
-      proveContribution: proveRetry,
-      stateStore: { publish: vi.fn() },
-    })).resolves.toEqual({ status: "retryable" });
-    expect(proveRetry).not.toHaveBeenCalled();
-  });
-
-  it("refuses a second ARC-issued refresh while the provider reservation is active", async () => {
-    const { plan, reserved, affected, before, observed } = reservedProviderRefreshFixture();
-    const refreshProvider = vi.fn(async () => ({ status: "accepted" as const }));
-    await expect(executeDeliveryProviderRefresh({
-      plan,
-      current: reserved,
-      affectedDeliverableIds: affected,
-      observeBefore: async () => ({ snapshot: before, targetMovement: "exact" }),
-      refreshProvider,
-      observeResult: async () => ({ snapshot: observed, targetMovement: "exact" }),
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      stateStore: { publish: vi.fn() },
-    })).resolves.toEqual({ status: "refused", reason: "reservation-refused" });
-    expect(refreshProvider).not.toHaveBeenCalled();
   });
 
   it("revalidates lifecycle paths before reserving and rewriting an explicit suffix head", async () => {

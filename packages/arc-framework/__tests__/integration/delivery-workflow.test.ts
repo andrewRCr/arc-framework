@@ -92,6 +92,22 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(reviewSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
+    const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
+    const refreshAdopt = reviewSection.indexOf("arc delivery refresh adopt", refreshPlan);
+    const refreshTail = reviewSection.slice(refreshPlan, reviewSection.indexOf("arc delivery rematerialize"));
+    expect(refreshPlan).toBeLessThan(refreshAdopt);
+    expect(refreshTail).toMatch(/external refresh is unreserved[\s\S]*no provider\s+mutation operation/iu);
+    expect(refreshTail).toMatch(
+      /Before reserving[\s\S]*observes the complete exact suffix[\s\S]*proves every changed contribution/iu,
+    );
+    expect(refreshTail).toMatch(
+      /provider-adoption[\s\S]*reobserves and reproves[\s\S]*absorbs[\s\S]*lease-publishes[\s\S]*one final state/iu,
+    );
+    expect(refreshTail).toMatch(/never records suffix-only state/iu);
+    expect(refreshTail).toMatch(
+      /blocked result[\s\S]*retains it[\s\S]*delivery-refresh-adopt[\s\S]*exact `operationId`/iu,
+    );
+    expect(refreshTail).toMatch(/already-created local merge[\s\S]*already-published top/iu);
     const rematerialize = reviewSection.indexOf("arc delivery rematerialize");
     const teardown = reviewSection.indexOf("arc delivery teardown", rematerialize);
     const mutationTail = reviewSection.slice(rematerialize, teardown);

@@ -8,7 +8,10 @@ import type {
   DeliveryStateV1,
   DeliveryTargetCoordinatesV1,
 } from "./schema.js";
-import type { DeliveryProviderRefreshObservation } from "./suffix-reconciliation.js";
+import type {
+  DeliveryProviderRefreshObservation,
+  DeliveryProviderRefreshObservationResult,
+} from "./suffix-reconciliation.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 /** The exact remaining registered suffix derived from canonical plan and state. */
@@ -73,12 +76,7 @@ export interface DeliveryProviderRefreshObservationPort {
   readAncestry(ancestor: string, descendant: string): Promise<"ancestor" | "not-ancestor" | null>;
 }
 
-export type ObserveDeliveryProviderRefreshResult =
-  | { readonly status: "observed"; readonly observation: DeliveryProviderRefreshObservation }
-  | {
-      readonly status: "refused";
-      readonly reason: "observation-unavailable" | "ambiguous-provider-movement" | "target-rewritten";
-    };
+export type ObserveDeliveryProviderRefreshResult = DeliveryProviderRefreshObservationResult;
 
 /** Reobserve the exact subject through host and Git authorities. */
 export async function observeDeliveryProviderRefresh(input: {

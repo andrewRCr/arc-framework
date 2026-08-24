@@ -19,6 +19,7 @@ import type {
   DeliveryContributionProofResult,
   DeliveryContributionRefusal,
 } from "./contribution-proof.js";
+import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
@@ -35,6 +36,14 @@ export interface DeliveryProviderRefreshObservation {
   readonly snapshot: DeliveryOperationSnapshotV1;
   readonly targetMovement: "exact" | "append-only";
 }
+
+/** Fresh provider observation or the closed reason it could not be established. */
+export type DeliveryProviderRefreshObservationResult =
+  | { readonly status: "observed"; readonly observation: DeliveryProviderRefreshObservation }
+  | {
+      readonly status: "refused";
+      readonly reason: "observation-unavailable" | "ambiguous-provider-movement" | "target-rewritten";
+    };
 
 function snapshotFor(
   state: DeliveryStateV1,
@@ -62,18 +71,6 @@ function isPlannedNonterminalSuffix(
   const start = nonterminal.length - affectedDeliverableIds.length;
   return affectedDeliverableIds.length > 0 && start >= 0
     && canonicalize(nonterminal.slice(start)) === canonicalize(affectedDeliverableIds);
-}
-
-function isPlannedNonterminalRange(
-  plan: DeliveryPlanV1,
-  affectedDeliverableIds: readonly string[],
-): boolean {
-  if (affectedDeliverableIds.length === 0) return false;
-  const nonterminal = plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId);
-  const start = nonterminal.indexOf(affectedDeliverableIds[0] ?? "");
-  return start >= 0
-    && canonicalize(nonterminal.slice(start, start + affectedDeliverableIds.length))
-      === canonicalize(affectedDeliverableIds);
 }
 
 function observationMatchesSubject(
@@ -118,15 +115,17 @@ async function proveProviderMovements(
   return null;
 }
 
-function applyProviderObservation(
+function applyProviderSettlement(
   state: DeliveryStateV1,
   observed: DeliveryProviderRefreshObservation,
+  terminalCoordinates: NonNullable<DeliveryStateV1["members"][number]["coordinates"]>,
 ): DeliveryStateV1 | null {
   const byId = new Map(observed.snapshot.members.map((member) => [member.deliverableId, member]));
   const parsed = DeliveryStateV1Schema.safeParse({
     ...state,
     target: observed.snapshot.target,
-    members: state.members.map((member) => {
+    members: state.members.map((member, index) => {
+      if (index === state.members.length - 1) return { ...member, coordinates: terminalCoordinates };
       const result = byId.get(member.deliverableId);
       return result === undefined ? member : {
         ...member,
@@ -146,31 +145,63 @@ type BlockedContributionRefusal = DeliveryContributionRefusal extends infer Refu
     : never
   : never;
 
-/** Reobserve and converge one persisted rewrite reservation through ordinary exact reconciliation. */
-export async function reconcileReservedSuffixRetarget(input: {
-  readonly planId: string;
-  readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
-  readonly observed: DeliveryProviderRefreshObservation;
+type ProviderAdoptionBlockedResult =
+  | BlockedContributionRefusal
+  | {
+      readonly status: "blocked";
+      readonly reason: string;
+      readonly paths?: readonly string[];
+    };
+
+interface ProviderAdoptionSettlementDependencies {
+  readonly observeResult: () => Promise<DeliveryProviderRefreshObservationResult>;
   readonly proveContribution: (
     movement: DeliveryProviderRefreshMovement,
   ) => Promise<DeliveryContributionProofResult>;
+  readonly absorbTop: (input: {
+    readonly topRef: string;
+    readonly top: { readonly head: string; readonly tree: string };
+    readonly highestMember: { readonly head: string; readonly tree: string };
+  }) => Promise<DeliveryChainAbsorptionResult>;
+  readonly publishTop: (input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }) => Promise<
+    | { readonly status: "published" | "adopted" }
+    | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+  >;
   readonly stateStore: StateWriter;
-}): Promise<
+}
+
+/** Reobserve and finish one persisted post-observation provider-adoption reservation. */
+export async function settleReservedDeliverySuffixRefresh(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
+} & ProviderAdoptionSettlementDependencies): Promise<
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-  | { readonly status: "retryable" }
-  | BlockedContributionRefusal
-  | { readonly status: "blocked"; readonly reason: "ambiguous" | "state-conflict" }
+  | ProviderAdoptionBlockedResult
 > {
   const active = validateDeliveryActiveOperation(input.current);
   if (active.status !== "valid" || active.operation.kind !== "rewrite"
-    || active.operation.mode !== "provider-adoption") {
+    || active.operation.mode !== "provider-adoption"
+    || !isPlannedNonterminalSuffix(input.plan, active.operation.affectedDeliverableIds)
+    || validateDeliveryStateAgainstPlan(active.state, input.plan).status === "refused") {
     return { status: "blocked", reason: "ambiguous" };
   }
-  const observed = DeliveryOperationSnapshotV1Schema.safeParse(input.observed.snapshot);
+  const requested = DeliveryOperationSnapshotV1Schema.safeParse(active.operation.requested);
+  if (!requested.success
+    || canonicalize(requested.data) === canonicalize(active.operation.before)) {
+    return { status: "blocked", reason: "ambiguous" };
+  }
+  const fresh = await input.observeResult();
+  if (fresh.status === "refused") return { status: "blocked", reason: fresh.reason };
+  const freshObservation = fresh.observation;
+  const observed = DeliveryOperationSnapshotV1Schema.safeParse(freshObservation.snapshot);
   if (!observed.success) return { status: "blocked", reason: "ambiguous" };
-  const observation = { ...input.observed, snapshot: observed.data };
-  if (canonicalize(observation.snapshot) === canonicalize(active.operation.before)) {
-    return { status: "retryable" };
+  const observation = { ...freshObservation, snapshot: observed.data };
+  if (canonicalize(observation.snapshot) !== canonicalize(requested.data)) {
+    return { status: "blocked", reason: "ambiguous" };
   }
   const movements = changedProviderMovements(active.operation.before, observation);
   if (movements === null || movements.length === 0) {
@@ -178,9 +209,53 @@ export async function reconcileReservedSuffixRetarget(input: {
   }
   const refusal = await proveProviderMovements(movements, input.proveContribution);
   if (refusal !== null) return { ...refusal, status: "blocked" };
-  const applied = applyProviderObservation(active.state, observation);
-  if (applied === null) return { status: "blocked", reason: "ambiguous" };
-  const persisted = await input.stateStore.publish(input.planId, applied, input.current.revision);
+
+  const terminal = active.state.members.at(-1);
+  const highestMember = observation.snapshot.members.at(-1);
+  if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null
+    || highestMember?.coordinates === null || highestMember?.coordinates === undefined) {
+    return { status: "blocked", reason: "terminal-top-unavailable" };
+  }
+  let terminalCoordinates = terminal.coordinates;
+  if (terminalCoordinates.base !== highestMember.coordinates.head) {
+    const absorbed = await input.absorbTop({
+      topRef: terminal.ref,
+      top: { head: terminalCoordinates.head, tree: terminalCoordinates.tree },
+      highestMember: {
+        head: highestMember.coordinates.head,
+        tree: highestMember.coordinates.tree,
+      },
+    });
+    if (absorbed.status !== "absorbed") {
+      return {
+        status: "blocked",
+        reason: absorbed.reason,
+        ...(absorbed.paths === undefined ? {} : { paths: absorbed.paths }),
+      };
+    }
+    const published = await input.publishTop({
+      ref: terminal.ref,
+      beforeHead: terminalCoordinates.head,
+      requestedHead: absorbed.head,
+    });
+    if (published.status === "refused") {
+      return { status: "blocked", reason: `top-publish-${published.reason}` };
+    }
+    terminalCoordinates = {
+      base: highestMember.coordinates.head,
+      head: absorbed.head,
+      tree: absorbed.tree,
+    };
+  }
+  const applied = applyProviderSettlement(active.state, observation, terminalCoordinates);
+  if (applied === null || validateDeliveryStateAgainstPlan(applied, input.plan).status === "refused") {
+    return { status: "blocked", reason: "ambiguous" };
+  }
+  const persisted = await input.stateStore.publish(
+    input.plan.planId,
+    applied,
+    input.current.revision,
+  );
   return persisted.status === "ok"
     ? { status: "applied", state: persisted.value }
     : { status: "blocked", reason: "state-conflict" };
@@ -277,105 +352,36 @@ export async function executeDeliverySuffixRewrite(input: {
 }
 
 /**
- * Execute one provider refresh under the existing rewrite reservation.
+ * Observe and prove an external provider refresh, then reserve and settle ARC's top adoption.
  *
- * @param input - Exact suffix subject, provider and observation boundaries, contribution arbiter, and state store
- * @returns Applied current coordinates or a typed refusal that leaves any persisted reservation recoverable
- */
-export async function executeDeliveryProviderRefresh(input: {
-  readonly plan: DeliveryPlanV1;
-  readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
-  readonly affectedDeliverableIds: readonly string[];
-  readonly observeBefore: () => Promise<DeliveryProviderRefreshObservation>;
-  readonly refreshProvider: () => Promise<{ readonly status: "accepted" | "refused" }>;
-  readonly observeResult: () => Promise<DeliveryProviderRefreshObservation>;
-  readonly proveContribution: (
-    movement: DeliveryProviderRefreshMovement,
-  ) => Promise<DeliveryContributionProofResult>;
-  readonly stateStore: StateWriter;
-}): Promise<
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-  | DeliveryContributionRefusal
-  | {
-      readonly status: "refused";
-      readonly reason: "position-mismatch" | "reservation-refused" | "state-conflict"
-        | "precondition-mismatch" | "provider-refused" | "ambiguous-result";
-    }
-> {
-  if (!isPlannedNonterminalSuffix(input.plan, input.affectedDeliverableIds)) {
-    return { status: "refused", reason: "position-mismatch" };
-  }
-  const before = snapshotFor(input.current.value, input.affectedDeliverableIds);
-  if (before === null || before.target === null || before.target.coordinates === null
-    || before.members.some((member) => member.ref === null || member.changeRequest === null
-      || member.coordinates === null)) {
-    return { status: "refused", reason: "position-mismatch" };
-  }
-  const reserved = reserveDeliveryOperation(input.current, input.plan, {
-    operationId: crypto.randomUUID(),
-    kind: "rewrite",
-    mode: "provider-adoption",
-    affectedDeliverableIds: input.affectedDeliverableIds,
-    expectedStateRevision: input.current.revision,
-    before,
-    requested: before,
-  });
-  if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
-  const persistedReservation = await input.stateStore.publish(
-    input.plan.planId, reserved.state, input.current.revision,
-  );
-  if (persistedReservation.status !== "ok") return { status: "refused", reason: "state-conflict" };
-  const observedBefore = await input.observeBefore();
-  if (checkDeliveryOperationPrecondition(persistedReservation.value, observedBefore.snapshot).status !== "ready") {
-    return { status: "refused", reason: "precondition-mismatch" };
-  }
-  if ((await input.refreshProvider()).status !== "accepted") {
-    return { status: "refused", reason: "provider-refused" };
-  }
-  const observed = await input.observeResult();
-  const movements = changedProviderMovements(before, observed);
-  if (movements === null || movements.length === 0) {
-    return { status: "refused", reason: "ambiguous-result" };
-  }
-  const refusal = await proveProviderMovements(movements, input.proveContribution);
-  if (refusal !== null) return refusal;
-  const applied = applyProviderObservation(persistedReservation.value.value, observed);
-  if (applied === null) return { status: "refused", reason: "ambiguous-result" };
-  const persisted = await input.stateStore.publish(
-    input.plan.planId, applied, persistedReservation.value.revision,
-  );
-  return persisted.status === "ok"
-    ? { status: "applied", state: persisted.value }
-    : { status: "refused", reason: "state-conflict" };
-}
-
-/**
- * Observe and adopt an externally initiated provider refresh without inventing a reservation.
- *
- * @param input - Planned member range, bounded observer, contribution arbiter, and version-checked state store
- * @returns Applied current coordinates or a typed refusal without writing intermediate state
+ * @param input - Planned suffix, bounded observers, contribution arbiter, top boundaries, and state store
+ * @returns Applied suffix and terminal coordinates, or a refusal before/after the settlement reservation
  */
 export async function adoptExternalDeliverySuffixRefresh(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly affectedDeliverableIds: readonly string[];
-  readonly observeResult: () => Promise<DeliveryProviderRefreshObservation>;
-  readonly proveContribution: (
-    movement: DeliveryProviderRefreshMovement,
-  ) => Promise<DeliveryContributionProofResult>;
-  readonly stateStore: StateWriter;
-}): Promise<
+} & ProviderAdoptionSettlementDependencies): Promise<
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
   | DeliveryContributionRefusal
+  | ProviderAdoptionBlockedResult
   | {
       readonly status: "refused";
-      readonly reason: "position-mismatch" | "operation-active" | "ambiguous-result" | "state-conflict";
+      readonly reason:
+        | "position-mismatch"
+        | "operation-active"
+        | "ambiguous-result"
+        | "reservation-refused"
+        | "state-conflict"
+        | "observation-unavailable"
+        | "ambiguous-provider-movement"
+        | "target-rewritten";
     }
 > {
   if (input.current.value.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
-  if (!isPlannedNonterminalRange(input.plan, input.affectedDeliverableIds)
+  if (!isPlannedNonterminalSuffix(input.plan, input.affectedDeliverableIds)
     || validateDeliveryStateAgainstPlan(input.current.value, input.plan).status === "refused") {
     return { status: "refused", reason: "position-mismatch" };
   }
@@ -385,17 +391,41 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
       || member.coordinates === null)) {
     return { status: "refused", reason: "position-mismatch" };
   }
-  const observed = await input.observeResult();
+  const initial = await input.observeResult();
+  if (initial.status === "refused") return initial;
+  const initialObservation = initial.observation;
+  const parsed = DeliveryOperationSnapshotV1Schema.safeParse(initialObservation.snapshot);
+  if (!parsed.success) return { status: "refused", reason: "ambiguous-result" };
+  const observed = { ...initialObservation, snapshot: parsed.data };
   const movements = changedProviderMovements(before, observed);
   if (movements === null || movements.length === 0) {
     return { status: "refused", reason: "ambiguous-result" };
   }
   const refusal = await proveProviderMovements(movements, input.proveContribution);
   if (refusal !== null) return refusal;
-  const applied = applyProviderObservation(input.current.value, observed);
-  if (applied === null) return { status: "refused", reason: "ambiguous-result" };
-  const persisted = await input.stateStore.publish(input.plan.planId, applied, input.current.revision);
-  return persisted.status === "ok"
-    ? { status: "applied", state: persisted.value }
-    : { status: "refused", reason: "state-conflict" };
+  const reserved = reserveDeliveryOperation(input.current, input.plan, {
+    operationId: crypto.randomUUID(),
+    kind: "rewrite",
+    mode: "provider-adoption",
+    affectedDeliverableIds: input.affectedDeliverableIds,
+    expectedStateRevision: input.current.revision,
+    before,
+    requested: observed.snapshot,
+  });
+  if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
+  const persistedReservation = await input.stateStore.publish(
+    input.plan.planId,
+    reserved.state,
+    input.current.revision,
+  );
+  if (persistedReservation.status !== "ok") return { status: "refused", reason: "state-conflict" };
+  return settleReservedDeliverySuffixRefresh({
+    plan: input.plan,
+    current: persistedReservation.value,
+    observeResult: input.observeResult,
+    proveContribution: input.proveContribution,
+    absorbTop: input.absorbTop,
+    publishTop: input.publishTop,
+    stateStore: input.stateStore,
+  });
 }

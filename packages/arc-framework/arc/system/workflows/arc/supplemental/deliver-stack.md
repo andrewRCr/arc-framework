@@ -284,17 +284,25 @@ arc delivery refresh plan - --json
 
 The request carries only the plan and repository locators plus that exact trigger. Only `refresh-required`
 continues. Render its exact `plannedSuffix`, mechanics, and `recommendedActionText` before the operator refreshes
-that registered set through the provider UI or porcelain. The terminal top remains outside the provider operation.
-After the external operation settles, adopt only a fresh complete observation:
+that registered set through the provider UI or porcelain. The external refresh is unreserved: ARC has no provider
+mutation operation while it runs, and the terminal top remains outside it. After the external operation settles,
+adopt only a fresh complete observation:
 
 ```bash
 arc delivery refresh adopt - --json
 ```
 
-The external-adoption request carries only the plan and repository locators; the CLI derives the remaining suffix,
-reobserves every request and ref, proves every changed contribution, and writes the new coordinates atomically.
-`applied` returns to `arc delivery position`. A retryable recovery result follows its precomposed action; every
-refused or blocked result stops without adopting ambiguous movement. Base movement alone never invokes this arm.
+The request carries only the plan and repository locators; the CLI derives the remaining suffix. Before reserving,
+the verb freshly observes the complete exact suffix and proves every changed contribution. It then reserves
+`rewrite / provider-adoption` against the old and observed suffixes, reobserves and reproves that exact result,
+absorbs the refreshed predecessor into the terminal top append-only, lease-publishes the top, and installs the
+target, suffix, and terminal coordinates in one final state transition. It never records suffix-only state.
+
+`applied` returns to `arc delivery position`. A refusal before reservation leaves no operation. A blocked result
+after reservation retains it; follow the returned `delivery-refresh-adopt` selector and rerun this verb with the
+exact `operationId`. Recovery recognizes an already-created local merge and already-published top before retrying
+the final state transition. Any other retryable result follows its precomposed action, and every refused or blocked
+result stops without adopting ambiguous movement. Base movement alone never invokes this arm.
 
 Apply review fixes to the freshly authored suffix, run the ordinary project gates for every candidate, then invoke
 the composed rematerialization service with only the exact selected-member IDs and raw candidate locators:
