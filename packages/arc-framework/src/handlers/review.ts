@@ -1512,6 +1512,7 @@ async function resolveHostedProgressContext(input: {
     repository: input.target.repository,
     headSha: input.target.headSha,
     targetKind: reviewTarget.kind,
+    ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
     boundary: {
       candidateId: boundary.candidateId,
       candidateSubjectDigest: boundary.candidateSubjectDigest,

@@ -1,5 +1,6 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
 
+import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 
 interface ReservationAttempt {
@@ -99,12 +100,25 @@ export function assertHostedReservationAdmission(input: {
   repository: string;
   headSha: string;
   targetKind: "change-set" | "delivery-member";
+  vehicle?: DeliveryReviewMemberVehicle;
   boundary: { candidateId: string; candidateSubjectDigest: string | null };
   candidate: { candidateId: string; subjectDigest: string; headSha: string };
   attempts: readonly ReservationAttempt[];
 }): void {
   if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()) {
     throw new Error("Hosted review target does not match the carried standard-review reservation.");
+  }
+  if (input.targetKind === "delivery-member") {
+    const marker = input.reservation.target;
+    if (marker.kind !== "delivery"
+      || input.vehicle === undefined
+      || input.vehicle.planId !== marker.planId
+      || input.vehicle.workUnitId !== marker.workUnitId
+      || input.vehicle.head !== input.headSha) {
+      throw new Error("Hosted delivery-member target does not match the carried reservation vehicle.");
+    }
+  } else if (input.reservation.target.kind !== "pinned-head") {
+    throw new Error("Hosted change-set target does not match the carried reservation vehicle.");
   }
   // The caller supplies only a Candidate already proven current. Candidate review binds its current
   // host head directly; a delivery member instead arrives through the exact-head reverse lookup, while

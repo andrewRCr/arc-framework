@@ -24,8 +24,8 @@ const ERRAND_BINDING = {
   standardReview: STANDARD_REVIEW,
 };
 const DELIVERY_MEMBER = {
-  planId: "plan-1",
-  deliverableId: "member-1",
+  planId: "123e4567-e89b-12d3-a456-426614174000",
+  deliverableId: `sha256:${"d".repeat(64)}`,
   workUnitId: "example",
   base: "b".repeat(40),
   baseRef: "main",
@@ -134,6 +134,7 @@ describe("hosted review request", () => {
         kind: "delivery-member" as const,
         planId: DELIVERY_MEMBER.planId,
         deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
         head: DELIVERY_MEMBER.head,
       },
     };
@@ -165,8 +166,9 @@ describe("hosted review request", () => {
       coverage: "complete",
       vehicle: {
         kind: "delivery-member",
-        planId: "plan-other",
+        planId: "123e4567-e89b-12d3-a456-426614174001",
         deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
         head: HEAD,
       },
     }, {

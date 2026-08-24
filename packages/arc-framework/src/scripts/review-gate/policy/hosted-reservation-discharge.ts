@@ -36,17 +36,35 @@ export type HostedReservationTargetResolution =
 /** Derive the current hosted-review targets without persisting a target list. */
 export async function resolveHostedReservationTargets(input: {
   readonly workUnitId: string;
+  readonly reservation: StandardReviewReservationV1 | null;
   readonly singleton: HostedReservationTarget;
   readonly delivery: DeliveryDischargeTargetLookup;
 }): Promise<HostedReservationTargetResolution> {
   try {
-    const resolved = await input.delivery.resolveDischargeTargets(input.workUnitId);
-    if (resolved.status === "unbound") {
+    const marker = input.reservation?.target;
+    if (marker !== undefined
+      && marker.repository.toLowerCase() !== input.singleton.repository.toLowerCase()) {
+      return { status: "unavailable", targets: [] };
+    }
+    if (marker?.kind === "pinned-head") {
       return { status: "resolved", kind: "singleton", targets: [input.singleton] };
     }
-    if (resolved.status === "unavailable") return { status: "unavailable", targets: [] };
+    if (marker?.kind === "delivery" && marker.workUnitId !== input.workUnitId) {
+      return { status: "unavailable", targets: [] };
+    }
+    const resolved = await input.delivery.resolveDischargeTargets(input.workUnitId);
+    if (resolved.status === "unbound" && marker === undefined) {
+      return { status: "resolved", kind: "singleton", targets: [input.singleton] };
+    }
+    if (resolved.status !== "resolved" || resolved.targets.length === 0) {
+      return { status: "unavailable", targets: [] };
+    }
     const targets: HostedReservationTarget[] = [];
     for (const binding of resolved.targets) {
+      if (marker?.kind === "delivery"
+        && (binding.planId !== marker.planId || binding.workUnitId !== marker.workUnitId)) {
+        return { status: "unavailable", targets: [] };
+      }
       if (!/^[1-9][0-9]*$/u.test(binding.changeRequestId)) {
         return { status: "unavailable", targets: [] };
       }

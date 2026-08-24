@@ -895,34 +895,15 @@ Git-backed applicability projection plus its read-only query; Task 7.5 owns cano
 request/discharge consumer; Task 7.6 makes the existing verbs and workflows reach the spine and proves it through
 vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or delivery-plan revision.
 
-### `[ ]` **7.1 Make the reservation's pinned target vehicle-typed**
+### `[x]` **7.1 Make the reservation's pinned target vehicle-typed**
 
 - _Goal:_ A carried reservation can name a delivery marker instead of a single pinned head, so its targets resolve
   per member at read time.
 
-- _Context:_ The reservation record keeps what it carries today — the obligation and the ordered sources — while
-  its single pinned target becomes vehicle-typed: a pinned head for the singleton case, a delivery marker here.
-  Member targets derive fresh from the state's retained bound members at each discharge read, including members
-  whose physical refs were already reaped, never copied into a target list and never walked by a mutating pointer.
-
-- _Note:_ The reservation-admission guard binds the candidate's head, which is the top rather than the member, so
-  that binding becomes vehicle-typed alongside the target resolution.
-
-- _Amended 2026-08-23:_ The target union is explicit: `pinned-head` binds repository and exact head; `delivery`
-  binds repository, work unit, and exact plan. The pre-publication builder selects the delivery arm only from one
-  coherent bound plan, and the discharge resolver refuses repository, work-unit, or plan mismatch. This task also
-  establishes the one shared exact delivery-member progress selector consumed by later tasks; no consumer authors a
-  second vehicle schema.
-
-    - Build `test-first` (one behavior at a time):
-        - A singleton reservation with a pinned head behaves exactly as before
-        - A delivery-marker reservation resolves one target per bound member
-        - A physically reaped member remains targetable through its retained binding
-        - Admission binds the member's head rather than the candidate's head on the delivery arm
-        - No target list is persisted by either arm
-        - A reservation whose repository does not match its target still refuses
-        - A delivery marker whose work unit or plan changed refuses rather than selecting replacement state
-        - Every request, progress, Candidate-selection, and discharge surface imports one exact vehicle authority
+- _Outcome:_ Reservations now carry either a singleton pinned head or one exact delivery-plan marker. Production
+  selects the delivery arm only from a coherent plan/state read; discharge derives retained member targets at read
+  time and refuses repository, work-unit, or plan drift. Hosted request and admission share one exact member selector,
+  including its work unit and head, without persisting a target list.
 
 ### `[ ]` **7.2 Iterate and conjoin discharge over derived member targets**
 

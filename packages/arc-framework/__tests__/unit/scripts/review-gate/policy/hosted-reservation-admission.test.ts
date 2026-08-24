@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../../src/lib/delivery/review-vehicle.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -30,6 +32,27 @@ const reservation = createStandardReviewReservation({
 const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
 const SUBJECT_DIGEST = `sha256:${"d".repeat(64)}`;
 const CURRENT_HEAD = "e".repeat(40);
+const DELIVERY_PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
+const DELIVERY_MEMBER_ID = `sha256:${"f".repeat(64)}`;
+const deliveryReservation = createStandardReviewReservation({
+  candidateId: CANDIDATE_ID,
+  sourceId: "coderabbit-pr",
+  sources: ["coderabbit-pr", "codex-pr"],
+  target: {
+    kind: "delivery",
+    repository: "owner/repo",
+    workUnitId: "example",
+    planId: DELIVERY_PLAN_ID,
+  },
+  obligation: reservation.obligation,
+});
+const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
+  kind: "delivery-member",
+  planId: DELIVERY_PLAN_ID,
+  deliverableId: DELIVERY_MEMBER_ID,
+  workUnitId: "example",
+  head: "f".repeat(40),
+});
 const binding = {
   boundary: { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST },
   candidate: { candidateId: CANDIDATE_ID, subjectDigest: SUBJECT_DIGEST, headSha: CURRENT_HEAD },
@@ -63,6 +86,8 @@ describe("hosted reservation admission", () => {
   });
 
   it("admits a current Candidate after the publication-only head advance", () => {
+    expect(reservation.target.kind).toBe("pinned-head");
+    if (reservation.target.kind !== "pinned-head") throw new Error("expected pinned fixture");
     expect(reservation.target.headSha).not.toBe(CURRENT_HEAD);
     expect(() => assertHostedReservationAdmission({
       reservation,
@@ -77,14 +102,31 @@ describe("hosted reservation admission", () => {
 
   it("admits an exact delivery member under the originating Candidate authority", () => {
     expect(() => assertHostedReservationAdmission({
-      reservation,
+      reservation: deliveryReservation,
       provider: "coderabbit-pr",
       repository: "owner/repo",
-      headSha: "f".repeat(40),
+      headSha: deliveryVehicle.head,
       targetKind: "delivery-member",
+      vehicle: deliveryVehicle,
       attempts: [],
       ...binding,
     })).not.toThrow();
+  });
+
+  it("rejects a delivery member reconstructed under a different plan", () => {
+    expect(() => assertHostedReservationAdmission({
+      reservation: deliveryReservation,
+      provider: "coderabbit-pr",
+      repository: "owner/repo",
+      headSha: deliveryVehicle.head,
+      targetKind: "delivery-member",
+      vehicle: {
+        ...deliveryVehicle,
+        planId: "123e4567-e89b-12d3-a456-426614174001",
+      },
+      attempts: [],
+      ...binding,
+    })).toThrow(/reservation vehicle/u);
   });
 
   it("rejects a direct lower-source request when the preferred source has no safe attempt", () => {

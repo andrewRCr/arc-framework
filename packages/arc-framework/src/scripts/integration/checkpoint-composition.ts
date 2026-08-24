@@ -559,6 +559,7 @@ export function createIntegrationCheckpointDependencies(input: {
       };
       const targetResolution = await resolveHostedReservationTargets({
         workUnitId: workUnit,
+        reservation: publicationBoundary.reservation,
         singleton: {
           repository: top.repository,
           pullRequest: topResolution.candidate.number,

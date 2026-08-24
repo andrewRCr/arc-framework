@@ -3,6 +3,10 @@
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
+import {
+  DeliveryReviewMemberVehicleSchema,
+  type DeliveryReviewMemberVehicle,
+} from "../../../lib/delivery/review-vehicle.js";
 import type { DeliveryMemberLookup } from "../core/delivery-member-lookup.js";
 import { StandardReviewObligationProjectionSchema } from
   "../policy/standard-review-projection-schema.js";
@@ -37,13 +41,8 @@ export const HostedErrandRequestVehicleSchema = z.strictObject({
 });
 export type HostedErrandRequestVehicle = z.infer<typeof HostedErrandRequestVehicleSchema>;
 
-export const HostedDeliveryMemberRequestVehicleSchema = z.strictObject({
-  kind: z.literal("delivery-member"),
-  planId: z.string().trim().min(1),
-  deliverableId: z.string().trim().min(1),
-  head: GitHubObjectIdSchema,
-});
-export type HostedDeliveryMemberRequestVehicle = z.infer<typeof HostedDeliveryMemberRequestVehicleSchema>;
+export const HostedDeliveryMemberRequestVehicleSchema = DeliveryReviewMemberVehicleSchema;
+export type HostedDeliveryMemberRequestVehicle = DeliveryReviewMemberVehicle;
 
 export const HostedRequestVehicleSchema = z.discriminatedUnion("kind", [
   HostedErrandRequestVehicleSchema,
@@ -131,6 +130,7 @@ async function validateDeliveryMemberBinding(
   if (resolution.status === "unbound") throw new Error("Hosted delivery-member binding is unbound.");
   if (resolution.member.planId !== vehicle.planId
     || resolution.member.deliverableId !== vehicle.deliverableId
+    || resolution.member.workUnitId !== vehicle.workUnitId
     || resolution.member.head !== vehicle.head) {
     throw new Error("Hosted delivery-member binding does not match the requested member.");
   }

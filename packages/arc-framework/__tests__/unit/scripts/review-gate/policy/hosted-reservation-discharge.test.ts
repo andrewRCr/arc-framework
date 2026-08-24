@@ -73,22 +73,36 @@ function attempt(
   };
 }
 
-function reservation(sourceId = "coderabbit-pr", sources: readonly string[] = [sourceId]) {
-  return createStandardReviewReservation({
+function reservation(
+  sourceId = "coderabbit-pr",
+  sources: readonly string[] = [sourceId],
+  targetVehicle?: {
+    kind: "delivery";
+    repository: string;
+    workUnitId: string;
+    planId: string;
+  },
+) {
+  const common = {
     candidateId: `sha256:${"c".repeat(64)}`,
     sourceId,
     sources,
-    repository: "arc-framework/example",
-    headSha: oid("a"),
     obligation: {
-      obligation: "required",
-      reasons: ["sensitive-change-set"],
+      obligation: "required" as const,
+      reasons: ["sensitive-change-set" as const],
       rubricVersion: "standard-review/v1",
       rubricDigest: `sha256:${"b".repeat(64)}`,
-      retrigger: "full-final",
-      count: 1,
+      retrigger: "full-final" as const,
+      count: 1 as const,
     },
-  });
+  };
+  return targetVehicle === undefined
+    ? createStandardReviewReservation({
+        ...common,
+        repository: "arc-framework/example",
+        headSha: oid("a"),
+      })
+    : createStandardReviewReservation({ ...common, target: targetVehicle });
 }
 
 function progress(
@@ -102,25 +116,35 @@ describe("hosted reservation discharge", () => {
     const singleton = { ...target(oid("a")), baseRevision: oid("0") };
     await expect(resolveHostedReservationTargets({
       workUnitId: "ordinary",
+      reservation: reservation(),
       singleton,
       delivery: { resolveDischargeTargets: async () => ({ status: "unbound" }) },
     })).resolves.toEqual({ status: "resolved", kind: "singleton", targets: [singleton] });
   });
 
   it("derives one exact target per retained delivery binding", async () => {
+    const deliveryReservation = reservation("coderabbit-pr", ["coderabbit-pr"], {
+      kind: "delivery",
+      repository: "arc-framework/example",
+      workUnitId: "delivery",
+      planId: "123e4567-e89b-12d3-a456-426614174000",
+    });
     await expect(resolveHostedReservationTargets({
       workUnitId: "delivery",
+      reservation: deliveryReservation,
       singleton: { ...target(oid("f")), baseRevision: oid("0") },
       delivery: {
         resolveDischargeTargets: async () => ({
           status: "resolved",
           targets: [
             {
-              planId: "plan-1", deliverableId: "member-1", workUnitId: "delivery", ref: null,
+              planId: "123e4567-e89b-12d3-a456-426614174000", deliverableId: "member-1",
+              workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "41", base: oid("1"), head: oid("a"),
             },
             {
-              planId: "plan-1", deliverableId: "member-2", workUnitId: "delivery", ref: null,
+              planId: "123e4567-e89b-12d3-a456-426614174000", deliverableId: "member-2",
+              workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "42", base: oid("2"), head: oid("b"),
             },
           ],
@@ -139,8 +163,98 @@ describe("hosted reservation discharge", () => {
   it("contains an unavailable delivery read without falling back to a single target", async () => {
     await expect(resolveHostedReservationTargets({
       workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+      }),
       singleton: { ...target(oid("a")), baseRevision: oid("0") },
       delivery: { resolveDischargeTargets: async () => ({ status: "unavailable" }) },
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  it("refuses a reservation marker from a different repository", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/other",
+        workUnitId: "delivery",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+      }),
+      singleton: { ...target(oid("a")), baseRevision: oid("0") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [{
+            planId: "123e4567-e89b-12d3-a456-426614174000",
+            deliverableId: "member-1",
+            workUnitId: "delivery",
+            ref: null,
+            providerId: "github",
+            changeRequestId: "41",
+            base: oid("1"),
+            head: oid("a"),
+          }],
+        }),
+      },
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  it("refuses a delivery marker whose retained plan no longer matches", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+      }),
+      singleton: { ...target(oid("f")), baseRevision: oid("0") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [{
+            planId: "123e4567-e89b-12d3-a456-426614174001",
+            deliverableId: "member-1",
+            workUnitId: "delivery",
+            ref: null,
+            providerId: "github",
+            changeRequestId: "41",
+            base: oid("1"),
+            head: oid("a"),
+          }],
+        }),
+      },
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  it("refuses a delivery marker whose work unit no longer matches", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "other",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+      }),
+      singleton: { ...target(oid("f")), baseRevision: oid("0") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [{
+            planId: "123e4567-e89b-12d3-a456-426614174000",
+            deliverableId: "member-1",
+            workUnitId: "other",
+            ref: null,
+            providerId: "github",
+            changeRequestId: "41",
+            base: oid("1"),
+            head: oid("a"),
+          }],
+        }),
+      },
     })).resolves.toEqual({ status: "unavailable", targets: [] });
   });
 
