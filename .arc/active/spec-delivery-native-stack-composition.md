@@ -1588,11 +1588,17 @@ and the fallback (D3.4, D6.3a, D6.4).
 - **Stacks API preview churn.** Re-verify endpoint and precondition behavior at implementation time. Empirically
   confirm that a successful registration writes no pull-request timeline events; provider-observed purity is
   load-bearing and is currently documented only by inference. Stacks-API OAuth-scope requirements are undocumented
-  and need establishing.
+  and need establishing. **Resolved 2026-08-24:** a live raw registration returned `201`, and the complete REST
+  timelines of both registered requests and their dependent top were byte-identical before and after the call. The
+  authenticated classic token's broad `repo`-bearing scope set was sufficient; GitHub returned an empty
+  `X-Accepted-OAuth-Scopes` header, so no narrower endpoint-specific minimum is claimed.
 - **Registration-scope observations.** Confirm whether the provider reports a dependent unregistered pull request
   as part of the stack — the reading that decides how D6.3a's predicate obligation is discharged — and confirm
   empirically which repository branch-deletion settings produce the host's automatic retarget, which decides how
-  often D3.4's remedy actually fires.
+  often D3.4's remedy actually fires. **Resolved registration shape 2026-08-24:** both the registration response and
+  the fresh stack read contained only the two registered requests; the dependent unregistered top was absent. The
+  live stack read omitted member-level base objects, so observation validates the root base and exact ordered member
+  heads, deriving each omitted member base from its predecessor; an explicitly returned base must still match.
 - **Conflict-evidence extraction.** `merge-tree --write-tree` signals conflict by exit status and prints conflict
   information; the exact parse that yields D4.5's conflicted-path list, and its distinction from a hard error, is
   established against the installed Git at implementation time.

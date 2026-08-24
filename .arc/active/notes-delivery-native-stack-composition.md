@@ -1,9 +1,19 @@
 # Notes: delivery-native-stack-composition
 
-**Contents:** comparator/fingerprint distinction · applicability notions · Success Criterion 18 re-cut · member
-checkout and recovery authority · authored partitions and adversarial attention · first adversarial pass amendments
-· second adversarial pass amendments · Phase 7 authority audit amendment · guard-test digest history · consumed
-`integration-boundary-accuracy` substrate
+## Contents
+
+- [Comparator vs plan-semantics fingerprinting](#comparator-vs-plan-semantics-fingerprinting)
+- [Applicability: contribution equivalence versus path carry-forward](#applicability-contribution-equivalence-versus-path-carry-forward)
+- [Success Criterion 18 — why it was re-cut](#success-criterion-18--why-it-was-re-cut)
+- [Member checkouts and recovery authority](#member-checkouts-and-recovery-authority)
+- [Authored partitions and adversarial attention](#authored-partitions-and-adversarial-attention)
+- [First adversarial pass amendments](#first-adversarial-pass-amendments)
+- [Second adversarial pass amendments](#second-adversarial-pass-amendments)
+- [Refresh and native-landing lifecycle audit amendment](#refresh-and-native-landing-lifecycle-audit-amendment)
+- [Hosted-review authority audit amendment](#hosted-review-authority-audit-amendment)
+- [Live GitHub Stacks API observation](#live-github-stacks-api-observation)
+- [Guard-test digest history](#guard-test-digest-history)
+- [Consumed `integration-boundary-accuracy` substrate](#consumed-integration-boundary-accuracy-substrate)
 
 ## Comparator vs plan-semantics fingerprinting
 
@@ -90,7 +100,7 @@ promised by the design without adding a ledger, record family, provider abstract
 - candidate-ref cleanup authority comes from the ARC-reserved namespace, exact plan/member identity, and expected
   head, not historical creation provenance that the recordless cleanup design cannot establish.
 
-## Member 6 lifecycle audit amendment
+## Refresh and native-landing lifecycle audit amendment
 
 The bounded D5/D6 audit after repeated Member 6 adversarial passes found one shared planning failure rather than an
 open-ended defect tail: Phase 6 had been sliced horizontally by primitive and surface, so no task or executable
@@ -104,7 +114,7 @@ ARC's top absorption, publication, and final suffix-plus-top CAS. It also state-
 executable vertical lifecycle scenarios, including interruption boundaries, rather than accepting isolated
 primitive and workflow-string coverage.
 
-## Phase 7 authority audit amendment
+## Hosted-review authority audit amendment
 
 The Phase 7 pre-implementation check found the same horizontal-ownership pattern before code landed. Reservation,
 request, lane progress, discharge, applicability, and workflow prose each had a task, but no task owned the complete
@@ -117,6 +127,24 @@ the lane query becomes a storage-neutral discovery port with typed incomplete ev
 verbs carry one exact member selector through status, request, await, attempt, settle, and terminal conjunction.
 Phase 7 closes through executable vertical scenarios over that complete spine rather than accepting isolated schema,
 handler, reducer, and workflow-string tests.
+
+## Live GitHub Stacks API observation
+
+The 2026-08-24 probe created temporary draft pull requests `andrewRCr/arc-framework#546` through `#548` over one
+three-head chain. Raw registration of the lower requests `#546` and `#547` returned HTTP `201` as stack `#549`.
+Complete REST timeline snapshots for all three requests were byte-identical before and after registration, so the
+raw endpoint added no pull-request timeline event. Both the registration response and a fresh stack read contained
+only `#546` and `#547`; dependent unregistered top `#548` was absent.
+
+The fresh stack read exposed one adapter-shape correction: its member entries carried exact ordered request numbers
+and head refs/SHAs but no member-level `base` objects. The root still carried `base.ref: main`. The observer now
+validates that root plus the exact ordered heads and derives an omitted member base from the preceding returned head;
+if the provider returns a member base, it remains an exact required match. The classic token's
+`gist, read:org, repo, user, workflow` scope set was sufficient, while GitHub advertised no endpoint-specific
+accepted OAuth scope. This establishes a sufficient live credential, not a narrower minimum.
+
+Cleanup unstacked `#549`, closed all three temporary requests, and deleted their remote branches. No probe commit
+landed on `main`; the closed pull-request records remain as the durable provider evidence.
 
 ## Guard-test digest history
 
