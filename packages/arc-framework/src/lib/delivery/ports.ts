@@ -78,6 +78,10 @@ export interface DeliveryPlanStore<TPlan> {
     plan: TPlan,
     expectedCurrentDigest: CanonicalDigest | null,
   ): Promise<DeliveryStoreResult<{ readonly currentDigest: CanonicalDigest }, DeliveryPlanStoreFailure>>;
+  removeCurrent(
+    planId: string,
+    expectedCurrentDigest: CanonicalDigest,
+  ): Promise<DeliveryStoreResult<{ readonly removed: boolean }, DeliveryPlanStoreFailure>>;
   enumerateCurrent(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>>;
 }
 
@@ -91,6 +95,10 @@ export interface DeliveryStateStore<TState> {
     value: TState,
     expectedRevision: number,
   ): Promise<DeliveryStoreResult<DeliveryRevisionedRecord<TState>, DeliveryStateStoreFailure>>;
+  remove(
+    planId: string,
+    expectedRevision: number,
+  ): Promise<DeliveryStoreResult<{ readonly removed: boolean }, DeliveryStateStoreFailure>>;
   resolveMember(input: {
     readonly selector: DeliveryMemberSelector;
     readonly owningUnit?: DeliveryOwningUnitPointer;

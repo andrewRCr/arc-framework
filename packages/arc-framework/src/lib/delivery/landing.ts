@@ -196,6 +196,7 @@ const DeliveryRecoveryBlockedV1Schema = z.union([
       "top-observation-unavailable",
       "native-effect-pending",
       "native-effect-ambiguous",
+      "closeout-residue-owned-by-closeout",
     ]),
     recommendedActionText: z.string().min(1),
   }),
@@ -677,6 +678,15 @@ export async function reconcileDeliveryExecution(input: {
   readonly observation: DeliveryRecoveryObservationPort;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<DeliveryRecoveryResultV1> {
+  const operation = input.current.value.activeOperation;
+  if (operation?.kind === "teardown" && operation.mode === "closeout-residue") {
+    return {
+      status: "blocked",
+      reason: "closeout-residue-owned-by-closeout",
+      recommendedActionText:
+        "Rerun `arc delivery closeout` with the exact work-unit, repository, and remote inputs.",
+    };
+  }
   const observed = await input.observation.observe();
   if (observed.status !== "observed") {
     return {
@@ -685,7 +695,6 @@ export async function reconcileDeliveryExecution(input: {
       recommendedActionText: "The reserved operation result is unavailable; retain the reservation.",
     };
   }
-  const operation = input.current.value.activeOperation;
   const highestTeardown = operation?.kind === "teardown"
     && operation.affectedDeliverableIds.length === 1
     && operation.affectedDeliverableIds[0] === input.current.value.members.at(-2)?.deliverableId;

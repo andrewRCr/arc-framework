@@ -1076,45 +1076,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   locator. Accepted head movements keep local refs exact; member teardown deletes both sides; and closeout reaping
   reserves paired candidate heads before exact, idempotent ref/worktree removal while retaining state bindings.
 
-### `[ ]` **8.2 Retire the completed plan and state pair under an explicit work-unit identity**
+### `[x]` **8.2 Retire the completed plan and state pair under an explicit work-unit identity**
 
 - _Goal:_ After terminal adoption and ordinary closeout, the store holds no plan or state record for the completed
   work unit, so a reopened same-slug work unit cannot rediscover the old plan and global member reverse lookup
   cannot treat historical heads as live delivery authority.
 
-- _Context:_ After the first live integration the store still held two canonical plan records and one bound state
-  record for shipped, unoccupied work units. The store exposes publish, enumerate, read, and reverse lookup only,
-  so nothing removes them.
-
-- _Shape:_ One idempotent, version-checked operation deleting the completed bound plan and state pair plus any
-  orphan plan with no state belonging to the same work unit. It refuses while an operation, an unreaped member ref
-  on either side, or an unsettled terminal remains — which are the reaping postconditions, so retirement fires in
-  the same tail as the reaping above. Both stores gain an exact removal method, since neither exposes one today,
-  so this is a port change as well as a service. The transfer restore is the only other writer over the same
-  records; retirement runs after closeout, so a later restore is a deliberate operator act rather than a
-  resurrection to guard against. This final state retirement, not per-member physical teardown, is the sole point
-  that clears the retained member bindings.
-
-- _Amended 2026-08-24 after the pre-implementation audit:_ The existing integration closeout tail invokes one
-  typed delivery-closeout verb after `arc user close` and before ordinary work-unit `arc teardown`, passing explicit
-  work-unit, repository, and remote inputs. The verb owns `reap → retire`; workflow prose performs no path, head,
-  store, or recovery inference. Retirement consumes reaping's postconditions rather than independently discovering
-  candidates or gate checkouts, freshly verifies terminal settlement and two-sided member-ref absence, removes
-  state by exact revision first, then removes the bound plan and same-work-unit orphan plans by exact digest. A
-  crash between the separate namespaces converges through the surviving discoverable orphan plan; no
-  cross-namespace transaction, receipt, tombstone, or recovery workflow is introduced.
-
-    - Build `test-first` (one behavior at a time):
-        - Retirement deletes the bound plan and state pair for the named work unit
-        - An orphan plan with no state for the same work unit is deleted with it
-        - Retirement refuses while an operation is active
-        - Retirement refuses while a member ref remains on either side
-        - Retirement refuses while the terminal is unsettled
-        - Successful retirement clears every retained member ref, change-request, and coordinate binding
-        - A crash after exact state removal retries through the surviving same-work-unit orphan plan
-        - The integration closeout tail dispatches the typed delivery result before ordinary work-unit teardown
-        - A repeated retirement is idempotent rather than an error
-        - The verb takes the work-unit identity as input and never resolves it from an active meta
+- _Outcome:_ Delivery plans and states now expose exact version-checked removal, and one explicit
+  `arc delivery closeout` call verifies the terminal before mutation, reaps exact Git residue, removes state before
+  bound and orphan plans, and converges on retries after a partial cross-namespace delete. The integration tail
+  passes work-unit, repository, and remote identities after `arc user close` and before ordinary teardown; generic
+  reconciliation preserves closeout reservations for that owning verb.
 
 ### `[ ]` **8.3 Mint `strategy-integration.md` and complete its four ship mechanics**
 

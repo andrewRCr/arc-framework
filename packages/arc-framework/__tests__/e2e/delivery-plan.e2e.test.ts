@@ -69,7 +69,7 @@ describe("arc delivery", () => {
     for (const command of [
       ["eligibility", "prepare"], ["eligibility", "close"], ["publish"],
       ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"],
-      ["teardown"], ["top-remedy"],
+      ["teardown"], ["top-remedy"], ["closeout"],
     ]) {
       const help = await runArc(["delivery", ...command, "--help"], repository);
       expect(help.exitCode, help.stderr).toBe(0);
@@ -102,6 +102,100 @@ describe("arc delivery", () => {
         },
       },
     });
+  });
+
+  it("reaps refs and retires records through the destructive closeout verb", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const head = await git(repository, ["rev-parse", "HEAD"]);
+    const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      target: { ref: "refs/heads/main", coordinates: { head, tree } },
+      members: initial.members.map((member, index) => ({
+        ...member,
+        ref: index === initial.members.length - 1
+          ? "refs/heads/main"
+          : `refs/heads/delivery/${plan.workUnitId}/${plan.members[index]!.chunkKey}`,
+        changeRequest: index === initial.members.length - 1
+          ? { providerId: "github", changeRequestId: "401" }
+          : null,
+        coordinates: { base: head, head, tree },
+      })),
+    };
+    const nonterminalRefs = state.members.slice(0, -1).map((member) => member.ref);
+    for (const ref of nonterminalRefs) await git(repository, ["update-ref", ref, head]);
+    const origin = join(repository, "origin.git");
+    await git(repository, ["init", "--bare", origin]);
+    await git(repository, ["remote", "add", "origin", origin]);
+    await git(repository, ["push", "origin", ...nonterminalRefs.map((ref) => `${head}:${ref}`)]);
+
+    const common = await gitCommonDir(repository);
+    const planPath = join(common, "arc", "delivery", "plans", `${plan.planId}.json`);
+    const statePath = join(common, "arc", "delivery", "state", `${plan.planId}.json`);
+    await mkdir(resolve(planPath, ".."), { recursive: true });
+    await mkdir(resolve(statePath, ".."), { recursive: true });
+    await writeFile(planPath, `${JSON.stringify(plan)}\n`);
+    await writeFile(statePath, `${JSON.stringify({
+      schemaVersion: 1,
+      semanticsVersion: "delivery-state-store/v1",
+      planId: plan.planId,
+      revision: 7,
+      value: state,
+    })}\n`);
+    await writeFile(join(repository, "delivery-closeout.json"), `${JSON.stringify({
+      workUnitId: plan.workUnitId,
+      repository: "owner/repo",
+      remote: "origin",
+    })}\n`);
+
+    const fakeBin = join(repository, "fake-closeout-bin");
+    const fakeGh = join(fakeBin, "gh");
+    await mkdir(fakeBin);
+    await writeFile(fakeGh, [
+      "#!/bin/sh",
+      "case \"$2\" in",
+      "  repos/owner/repo/pulls/401)",
+      `    printf '%s\\n' '${JSON.stringify({
+        number: 401,
+        state: "closed",
+        merged: true,
+        draft: false,
+        head: { ref: "main", sha: head, repo: { full_name: "owner/repo" } },
+        base: { ref: "main", repo: { full_name: "owner/repo" } },
+        merge_commit_sha: head,
+      })}'`,
+      "    ;;",
+      "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
+      "esac",
+      "",
+    ].join("\n"));
+    await chmod(fakeGh, 0o755);
+    const env = { PATH: `${fakeBin}:${process.env.PATH ?? ""}` };
+
+    const closed = await runArc([
+      "delivery", "closeout", "delivery-closeout.json", "--json",
+    ], repository, { env });
+    expect(closed.exitCode, closed.stderr).toBe(0);
+    expect(JSON.parse(closed.stdout)).toMatchObject({
+      command: "delivery closeout",
+      status: "closed-out",
+      workUnitId: plan.workUnitId,
+      planIds: [plan.planId],
+    });
+    await expect(readFile(planPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(statePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    for (const ref of nonterminalRefs) {
+      await expect(git(repository, ["rev-parse", "--verify", ref])).rejects.toBeDefined();
+      expect(await git(repository, ["ls-remote", "--refs", "origin", ref])).toBe("");
+    }
+    expect(await git(repository, ["rev-parse", "--verify", "refs/heads/main"])).toBe(head);
+
+    const replay = await runArc([
+      "delivery", "closeout", "delivery-closeout.json", "--json",
+    ], repository, { env });
+    expect(replay.exitCode, replay.stderr).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({ status: "closed-out", planIds: [] });
   });
 
   it.skipIf(process.platform === "win32")(
@@ -224,7 +318,7 @@ describe("arc delivery", () => {
       (workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? [],
     );
     expect(invocationsByWorkflow[0]?.length).toBeGreaterThan(0);
-    expect(invocationsByWorkflow[1]).toEqual([]);
+    expect(invocationsByWorkflow[1]).toEqual(["arc delivery closeout - --json"]);
     const invocations = invocationsByWorkflow.flat();
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);

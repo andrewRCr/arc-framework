@@ -1,6 +1,6 @@
 /** Strict CLI composition for delivery execution services. */
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { posix, resolve } from "node:path";
 
 import { z } from "zod";
@@ -33,12 +33,15 @@ import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-res
 import {
   deleteDeliveryRemoteRef,
   deleteDeliveryLocalRef,
+  deleteDeliveryCandidateRef,
+  observeDeliveryLocalRef,
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
   publishDeliveryTopRef,
   rewriteDeliveryLocalRef,
   rewriteDeliveryMemberRef,
 } from "../lib/delivery/git-materialization.js";
+import { closeoutCompletedDelivery } from "../lib/delivery/closeout.js";
 import {
   bindInitialDeliveryRef,
   bindInitialDeliveryRequest,
@@ -59,7 +62,11 @@ import {
   routeDeliveryPosition,
 } from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
-import { deriveDeliveryResidueLocators } from "../lib/delivery/residue-reaping.js";
+import {
+  deriveDeliveryResidueLocators,
+  observeDeliveryGateCheckout,
+  removeDeliveryGateCheckout,
+} from "../lib/delivery/residue-reaping.js";
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
@@ -124,7 +131,7 @@ import {
   type DeliveryNativeEffectFacts,
 } from "../lib/delivery/native-landing.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { canonicalize, validateManagedPath } from "../lib/kernel/index.js";
+import { canonicalize, SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
@@ -199,6 +206,11 @@ const PublishSchema = MaterializeSchema.extend({
 });
 const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: DeliveryPositionFactsV1Schema });
 const AuthoringLocateSchema = z.strictObject({ planId: DeliveryPlanIdSchema });
+const CloseoutSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+});
 const ReconcileSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -343,6 +355,7 @@ const RefreshAdoptSchema = z.strictObject({
 
 const RequestSchemas = {
   "authoring-locate": AuthoringLocateSchema,
+  closeout: CloseoutSchema,
   "eligibility-prepare": PrepareSchema,
   "eligibility-close": CloseSchema,
   publish: PublishSchema,
@@ -417,6 +430,12 @@ const ResultSchema = z.union([
   DeliveryRecoveryResultV1Schema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
+  z.strictObject({
+    status: z.literal("closed-out"),
+    workUnitId: SlugSchema,
+    planIds: z.array(DeliveryPlanIdSchema),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({
     status: z.literal("located"),
     planId: DeliveryPlanIdSchema,
@@ -830,6 +849,41 @@ async function executeDeliveryCommand(
     return locators.status === "derived"
       ? { status: "located", planId: parsed.planId, locators: locators.locators }
       : { status: "refused", reason: locators.reason };
+  }
+  if (command === "closeout") {
+    const parsed = CloseoutSchema.parse(request);
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const pathExists = async (path: string): Promise<boolean> => {
+      try {
+        await stat(path);
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+      }
+    };
+    return closeoutCompletedDelivery(parsed, {
+      planStore,
+      stateStore,
+      gitCommonDir: await resolveGitCommonDir(exec, cwd),
+      residue: {
+        observeCandidate: (ref) => observeDeliveryLocalRef(exec, ref),
+        observeGate: (path) => observeDeliveryGateCheckout({ exec, path, pathExists }),
+        deleteCandidate: (input) => deleteDeliveryCandidateRef({ exec, ...input }),
+        removeGate: (input) => removeDeliveryGateCheckout({ exec, pathExists, ...input }),
+        deleteLocalMember: (input) => deleteDeliveryLocalRef({ exec, ...input }),
+        deleteRemoteMember: (input) => deleteDeliveryRemoteRef({
+          exec,
+          remote: parsed.remote,
+          ...input,
+        }),
+      },
+      retirement: {
+        observeLocalRef: (ref) => observeDeliveryLocalRef(exec, ref),
+        observeRemoteRef: (ref) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
+        readTerminalRequest: (repository, binding) => host.readRequest(repository, binding),
+      },
+    });
   }
   const settleAppliedNativeLanding = (
     plan: z.infer<typeof DeliveryPlanV1Schema>,

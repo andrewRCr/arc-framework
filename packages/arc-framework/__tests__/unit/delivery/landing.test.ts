@@ -798,6 +798,40 @@ describe("delivery landing", () => {
     }
   });
 
+  it("leaves closeout-residue reservations to the closeout verb", async () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const members = state.members;
+    const snapshot = { target: state.target, members };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "operation-closeout-residue",
+      kind: "teardown",
+      mode: "closeout-residue",
+      candidateHeads: members.map(({ deliverableId }) => ({ deliverableId, head: null })),
+      affectedDeliverableIds: members.map(({ deliverableId }) => deliverableId),
+      expectedStateRevision: 7,
+      before: snapshot,
+      requested: snapshot,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve closeout residue");
+    const observe = vi.fn();
+    const publish = vi.fn();
+
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: { observe },
+      stateStore: { publish },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "closeout-residue-owned-by-closeout",
+      recommendedActionText:
+        "Rerun `arc delivery closeout` with the exact work-unit, repository, and remote inputs.",
+    });
+    expect(observe).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("does not clear an identity-less native landing from a none-landed observation", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);

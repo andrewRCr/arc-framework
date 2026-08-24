@@ -20,6 +20,36 @@ function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
 }
 
 describe("delivery execution handler", () => {
+  it("preserves explicit delivery-closeout identity and continuation text", async () => {
+    const write = vi.fn();
+    const recommendedActionText =
+      "Delivery closeout is complete for `delivery-plan-record`. Continue with ordinary work-unit teardown.";
+    await handleDeliveryExecution("closeout", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        workUnitId: "delivery-plan-record",
+        repository: "owner/repo",
+        remote: "upstream",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "closed-out",
+        workUnitId: "delivery-plan-record",
+        planIds: ["123e4567-e89b-42d3-a456-426614174000"],
+        recommendedActionText,
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery closeout",
+      status: "closed-out",
+      workUnitId: "delivery-plan-record",
+      planIds: ["123e4567-e89b-42d3-a456-426614174000"],
+      recommendedActionText,
+    });
+  });
+
   it("preserves deterministic authoring locators through a strict read-only verb", async () => {
     const plan = deliveryStackPlanFixture();
     const locators = plan.members.map((member) => ({

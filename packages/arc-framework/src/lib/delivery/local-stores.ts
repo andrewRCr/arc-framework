@@ -346,6 +346,26 @@ export class RepositoryDeliveryPlanStore<TPlan> implements DeliveryPlanStore<TPl
     });
   }
 
+  async removeCurrent(
+    planId: string,
+    expectedCurrentDigest: CanonicalDigest,
+  ): Promise<DeliveryStoreResult<{ readonly removed: boolean }, DeliveryPlanStoreFailure>> {
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    return this.publisher.update<DeliveryStoreResult<
+      { readonly removed: boolean },
+      DeliveryPlanStoreFailure
+    >>(PLAN_LOCATION, planRecordName(addressedPlanId), (raw) => {
+      if (raw === null) return { kind: "keep", result: { status: "ok", value: { removed: false } } };
+      const current = decodeRecord(raw, addressedPlanId, this.codec);
+      if (current.status === "refused") return { kind: "keep", result: current };
+      if (this.codec.digest(current.value) !== expectedCurrentDigest) {
+        return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+      }
+      return { kind: "delete", result: { status: "ok", value: { removed: true } } };
+    });
+  }
+
   async enumerateCurrent(): Promise<DeliveryStoreResult<readonly TPlan[], DeliveryPlanStoreFailure>> {
     const entries = await this.publisher.snapshot(PLAN_LOCATION);
     return this.decodePlanEntries(entries);
@@ -447,6 +467,31 @@ export class RepositoryDeliveryStateStore implements DeliveryStateStore<Delivery
       value,
       expectedRevision,
     );
+  }
+
+  async remove(
+    planId: string,
+    expectedRevision: number,
+  ): Promise<DeliveryStoreResult<{ readonly removed: boolean }, DeliveryStateStoreFailure>> {
+    const addressedPlanId = normalizePlanId(planId);
+    if (addressedPlanId === null) return { status: "refused", reason: "identity-mismatch" };
+    return this.publisher.update<DeliveryStoreResult<
+      { readonly removed: boolean },
+      DeliveryStateStoreFailure
+    >>(STATE_LOCATION, planRecordName(addressedPlanId), (raw) => {
+      if (raw === null) return { kind: "keep", result: { status: "ok", value: { removed: false } } };
+      const current = decodeRevisionedRecord(
+        raw,
+        addressedPlanId,
+        STATE_SEMANTICS,
+        DeliveryStateV1Codec,
+      );
+      if (current.status === "refused") return { kind: "keep", result: current };
+      if (current.value.revision !== expectedRevision) {
+        return { kind: "keep", result: { status: "refused", reason: "version-conflict" } };
+      }
+      return { kind: "delete", result: { status: "ok", value: { removed: true } } };
+    });
   }
 
   async resolveMember(input: {

@@ -213,6 +213,15 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     this.current = plan;
     return { status: "ok" as const, value: { currentDigest: plan.planDigest as CanonicalDigest } };
   }
+
+  async removeCurrent(planId: string, expectedCurrentDigest: CanonicalDigest) {
+    if (this.current === null) return { status: "ok" as const, value: { removed: false } };
+    if (this.current.planId !== planId || this.current.planDigest !== expectedCurrentDigest) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = null;
+    return { status: "ok" as const, value: { removed: true } };
+  }
 }
 
 class MemoryStateStore implements DeliveryStateStore<DeliveryStateV1> {
@@ -251,6 +260,15 @@ class MemoryStateStore implements DeliveryStateStore<DeliveryStateV1> {
     }
     this.current = { revision: expectedRevision + 1, value };
     return { status: "ok" as const, value: this.current };
+  }
+
+  async remove(planId: string, expectedRevision: number) {
+    if (this.current === null) return { status: "ok" as const, value: { removed: false } };
+    if (this.current.value.planId !== planId || this.current.revision !== expectedRevision) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = null;
+    return { status: "ok" as const, value: { removed: true } };
   }
 
   async resolveMember() {
