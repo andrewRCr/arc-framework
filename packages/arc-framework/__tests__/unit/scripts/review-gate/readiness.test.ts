@@ -142,6 +142,7 @@ function resolvedMember(
       baseRef: "main",
       headRef: "delivery/demo/member-1",
       head: SHA,
+      candidateHead: SHA,
       isFinalMember: false,
       ...overrides,
     },
