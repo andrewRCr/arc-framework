@@ -375,7 +375,6 @@ describe("arc delivery", () => {
       repository: "owner/repo",
       mergeAction: "direct",
       explicitAtomic: false,
-      members: nativeMembers,
     };
 
     const singleton = await runArcWithStdin(

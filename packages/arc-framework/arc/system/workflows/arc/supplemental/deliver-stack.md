@@ -175,8 +175,9 @@ Immediately after the fresh native observation, select the service-owned arm:
 arc delivery native land-select - --json
 ```
 
-The selector derives the exact plan-ordered non-terminal remainder from current plan/state facts. An `unlinked` arm
-or a preceding `downgrade-required` result invokes the presentation-only degradation verb:
+The selector request carries no member coordinates. It derives the exact plan-ordered non-terminal remainder from
+current plan/state facts before fresh provider observation. An `unlinked` arm or a preceding
+`downgrade-required` result invokes the presentation-only degradation verb:
 
 ```bash
 arc delivery native unlink - --json
@@ -259,6 +260,12 @@ The apply request carries the prepared presentation and repository locators, not
 reobserves the exact selection and readiness before lock release and again before merge, then accepts only the
 matching merged request, target, and contribution.
 
+A semantic `native-stack-required` result is not a stale-suffix refresh. Only its returned
+`retryable / cleared / delivery-native-land-select` transition, with `operationKind: land` and `mode: sequential`,
+continues: invoke `arc delivery native land-select`, which freshly observes the canonical remaining chain, then
+return through native preparation and a new integration interlock. If exact no-effect proof or the version-checked
+clear fails, stop with the sequential reservation retained; do not infer refresh or ordinary landing preparation.
+
 Do not advance until the effect and any remaining suffix reconciliation settle. A `retryable` result returns to
 land prepare and a new integration interlock; it never reuses approval. A blocked or ambiguous result runs the
 typed reconcile route and stops when that route does not settle:
@@ -267,8 +274,9 @@ typed reconcile route and stops when that route does not settle:
 arc delivery reconcile - --json
 ```
 
-When landing refuses for a genuine conflict, native stale-suffix requirement, or host up-to-date policy — or when
-the operator explicitly chooses a refresh — plan from current canonical state:
+When landing refuses for a genuine conflict, `native-stale-suffix` requirement, or host up-to-date policy — or when
+the operator explicitly chooses a refresh — plan from current canonical state. `native-stack-required` never enters
+this arm; it follows the semantic native-selection transition above.
 
 ```bash
 arc delivery refresh plan - --json

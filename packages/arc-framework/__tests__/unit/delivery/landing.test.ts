@@ -117,6 +117,33 @@ function boundaries(state: DeliveryStateV1) {
   };
 }
 
+async function preparedBoundLanding() {
+  const { plan, state } = boundState();
+  const deps = boundaries(state);
+  const records: Array<{ revision: number; value: DeliveryStateV1 }> = [];
+  const prepared = await prepareDeliveryLanding({
+    plan,
+    current: { revision: 7, value: state },
+    facts: facts(state),
+    selectedDeliverableId: state.members[0]!.deliverableId,
+    repository: "andrewRCr/arc-framework",
+    baseRef: "refs/heads/main",
+    targetRef: "refs/heads/main",
+    mergePolicy,
+    releaseMergeLock: false,
+    stateStore: { publish: async (_planId, value) => {
+      const current = { revision: 8, value };
+      records.push(current);
+      return { status: "ok" as const, value: current };
+    } },
+    host: deps.host,
+    readiness: deps.readiness,
+  });
+  const current = records[0];
+  if (prepared.status !== "prepared" || current === undefined) throw new Error("fixture must prepare");
+  return { plan, state, deps, prepared, current };
+}
+
 describe("delivery landing", () => {
   it("prepares one exact non-terminal member without merging and always runs readiness", async () => {
     const { plan, state } = boundState();
@@ -277,34 +304,17 @@ describe("delivery landing", () => {
     expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
-  it("surfaces a stacked-member merge rejection as native-stack-required", async () => {
-    const { plan, state } = boundState();
-    const deps = boundaries(state);
-    let current: { revision: number; value: DeliveryStateV1 } | null = null;
-    const prepared = await prepareDeliveryLanding({
-      plan,
-      current: { revision: 7, value: state },
-      facts: facts(state),
-      selectedDeliverableId: state.members[0]!.deliverableId,
-      repository: "andrewRCr/arc-framework",
-      baseRef: "refs/heads/main",
-      targetRef: "refs/heads/main",
-      mergePolicy,
-      releaseMergeLock: false,
-      stateStore: { publish: async (_planId, value) => {
-        current = { revision: 8, value };
-        return { status: "ok" as const, value: current };
-      } },
-      host: deps.host,
-      readiness: deps.readiness,
-    });
-    if (prepared.status !== "prepared" || current === null) throw new Error("fixture must prepare");
-
+  it("clears an exactly unapplied stacked-member refusal into canonical native selection", async () => {
+    const { plan, deps, prepared, current } = await preparedBoundLanding();
+    const writes: DeliveryStateV1[] = [];
     await expect(applyDeliveryLanding({
       plan,
       current,
       approved: prepared.presentation,
-      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+      stateStore: { publish: async (_planId, value) => {
+        writes.push(value);
+        return { status: "ok" as const, value: { revision: 9, value } };
+      } },
       host: {
         ...deps.host,
         mergeRequest: async () => ({ status: "refused", reason: "native-stack-required" }),
@@ -312,7 +322,85 @@ describe("delivery landing", () => {
       readiness: deps.readiness,
       lock: deps.lock,
       observation: deps.observation,
-    })).resolves.toEqual({ status: "refused", reason: "native-stack-required" });
+    })).resolves.toEqual({
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-native-land-select",
+      selector: {
+        planId: plan.planId,
+        operationId: current.value.activeOperation!.operationId,
+        affectedDeliverableIds: current.value.activeOperation!.affectedDeliverableIds,
+        operationKind: "land",
+        mode: "sequential",
+      },
+      recommendedActionText:
+        "Rerun `arc delivery native land-select`; it will freshly observe the canonical remaining stack.",
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.activeOperation).toBeNull();
+    expect(current.value.activeOperation).not.toBeNull();
+  });
+
+  it("retains a stacked-member refusal when exact non-application is ambiguous", async () => {
+    const { plan, deps, prepared, current } = await preparedBoundLanding();
+    const exact = await deps.observation.observeSelection();
+    let observations = 0;
+    const persisted: DeliveryStateV1[] = [];
+
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: { publish: async (_planId, value) => {
+        persisted.push(value);
+        return { status: "ok" as const, value: { revision: 9, value } };
+      } },
+      host: {
+        ...deps.host,
+        mergeRequest: async () => ({ status: "refused", reason: "native-stack-required" }),
+      },
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: {
+        ...deps.observation,
+        observeSelection: async () => ++observations < 3
+          ? exact
+          : { status: "refused" as const },
+      },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "operation-result-ambiguous",
+      recommendedActionText:
+        "Retain the sequential reservation; the semantic native refusal could not be proved not applied.",
+    });
+    expect(persisted).toHaveLength(0);
+    expect(current.value.activeOperation).not.toBeNull();
+  });
+
+  it("retains a stacked-member refusal when the version-checked clear collides", async () => {
+    const { plan, deps, prepared, current } = await preparedBoundLanding();
+
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: {
+        publish: async () => ({ status: "refused" as const, reason: "version-conflict" as const }),
+      },
+      host: {
+        ...deps.host,
+        mergeRequest: async () => ({ status: "refused", reason: "native-stack-required" }),
+      },
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: deps.observation,
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "retry-state-persistence-failed",
+      recommendedActionText:
+        "Retain and reconcile the sequential reservation; native-selection transition persistence failed.",
+    });
+    expect(current.value.activeOperation).not.toBeNull();
   });
 
   it("refuses mismatched post-merge request, merge result, or contribution evidence", async () => {

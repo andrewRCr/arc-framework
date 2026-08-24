@@ -291,7 +291,6 @@ const NativeSelectSchema = z.strictObject({
   repository: z.string().min(1),
   mergeAction: z.enum(["direct", "queue"]),
   explicitAtomic: z.boolean(),
-  members: z.array(NativeMemberSchema).min(1),
 });
 const NativeSelectionSchema = z.strictObject({
   status: z.literal("selected"),
@@ -1233,15 +1232,34 @@ async function executeDeliveryCommand(
       return { status: "blocked", reason: position.reason, recommendedActionText: "Refresh exact delivery position before selecting a landing arm." };
     }
     const target = deriveDeliveryNativeTarget(stateRead.value.value);
-    if (target.status !== "resolved" || parsed.members[0]?.baseRef !== target.baseRef) {
+    const firstRemaining = planRead.value.members[position.position.landedPrefix.length];
+    if (target.status !== "resolved" || firstRemaining === undefined
+      || position.position.landedPrefix.length >= planRead.value.members.length - 1) {
       return {
         status: "blocked",
         reason: "protected-target-mismatch",
         recommendedActionText: "Use the exact protected target bound in current delivery state.",
       };
     }
+    const expectedChain = deriveNativeDeliveryRegisteredRemainder({
+      plan: planRead.value,
+      state: stateRead.value.value,
+      firstDeliverableId: firstRemaining.deliverableId,
+      repository: parsed.repository,
+      baseRef: target.baseRef,
+    });
+    if (expectedChain.status === "refused") {
+      return {
+        status: "blocked",
+        reason: expectedChain.reason,
+        recommendedActionText: "Restore the exact canonical non-terminal remainder before selecting an arm.",
+      };
+    }
     const host = new GhDeliveryHostPort(hostedGhRunner);
-    const observation = await observeDeliveryNativeStack({ repository: parsed.repository, members: parsed.members }, host);
+    const observation = await observeDeliveryNativeStack({
+      repository: parsed.repository,
+      members: expectedChain.members,
+    }, host);
     if (observation.status === "refused") {
       return { status: "blocked", reason: observation.reason, recommendedActionText: "Repair the exact native-stack input before selecting a landing arm." };
     }
@@ -1262,7 +1280,11 @@ async function executeDeliveryCommand(
       mergeStrategy: mergePolicy?.method ?? "merge",
       mergeAction: parsed.mergeAction,
       explicitAtomic: parsed.explicitAtomic,
-      members: parsed.members.map(({ deliverableId, changeRequestId, headSha }) => ({ deliverableId, changeRequestId, headSha })),
+      members: expectedChain.members.map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId,
+        changeRequestId,
+        headSha,
+      })),
     });
   }
   if (command === "native-land-prepare" || command === "native-land-submit" || command === "native-land-status") {

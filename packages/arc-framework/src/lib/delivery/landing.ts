@@ -107,6 +107,16 @@ export const DeliveryRecoveryRerunV1Schema = z.union([
   }),
   z.strictObject({
     ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-native-land-select"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("land"),
+      mode: z.literal("sequential"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
     transition: z.literal("preserved"),
     action: z.literal("delivery-teardown"),
     selector: z.strictObject({
@@ -443,8 +453,8 @@ export async function applyDeliveryLanding(input: {
   readonly observation: DeliveryLandingObservationPort;
 }): Promise<{ readonly status: "landed"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
   readonly status: "refused";
-  readonly reason: "landing-refused" | "native-stack-required";
-} | DeliveryContributionRefusal> {
+  readonly reason: "landing-refused";
+} | DeliveryContributionRefusal | DeliveryRecoveryResultV1> {
   const operation = input.current.value.activeOperation;
   if (operation?.kind !== "land" || operation.mode !== "sequential"
     || operation.operationId !== input.approved.operationId
@@ -479,6 +489,17 @@ export async function applyDeliveryLanding(input: {
         head: memberHead,
       })).status === "ready";
   };
+  const proveNotApplied = async (): Promise<boolean> => {
+    const fresh = await input.observation.observeSelection();
+    return fresh.status === "observed"
+      && checkDeliveryOperationPrecondition(input.current, fresh.snapshot).status === "ready"
+      && (await exactOpenRequest({
+        host: input.host,
+        repository: input.approved.repository,
+        member,
+        baseRef: `refs/heads/${operation.effect.baseRef}`,
+      })).status === "exact";
+  };
   if (!(await observeReady())) return landingRefused();
   if (input.approved.releaseMergeLock
     && (await input.lock.release({
@@ -491,9 +512,41 @@ export async function applyDeliveryLanding(input: {
   }
   const submitted = await input.host.mergeRequest(operation.effect);
   if (submitted.status !== "submitted") {
-    return submitted.reason === "native-stack-required"
-      ? { status: "refused", reason: "native-stack-required" }
-      : landingRefused();
+    if (submitted.reason !== "native-stack-required") return landingRefused();
+    if (!(await proveNotApplied())) {
+      return {
+        status: "blocked",
+        reason: "operation-result-ambiguous",
+        recommendedActionText:
+          "Retain the sequential reservation; the semantic native refusal could not be proved not applied.",
+      };
+    }
+    const cleared = await input.stateStore.publish(input.plan.planId, {
+      ...input.current.value,
+      activeOperation: null,
+    }, input.current.revision);
+    if (cleared.status !== "ok") {
+      return {
+        status: "blocked",
+        reason: "retry-state-persistence-failed",
+        recommendedActionText:
+          "Retain and reconcile the sequential reservation; native-selection transition persistence failed.",
+      };
+    }
+    return {
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-native-land-select",
+      selector: {
+        planId: input.plan.planId,
+        operationId: operation.operationId,
+        affectedDeliverableIds: operation.affectedDeliverableIds,
+        operationKind: "land",
+        mode: "sequential",
+      },
+      recommendedActionText:
+        "Rerun `arc delivery native land-select`; it will freshly observe the canonical remaining stack.",
+    };
   }
   const merged = member.changeRequest === null
     ? { status: "refused" as const }

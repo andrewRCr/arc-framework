@@ -75,6 +75,9 @@ describe("packaged delivery workflow", () => {
     expect(materializeSection).not.toContain("review applicability must be re-evaluated");
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
     expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
+    expect(nativeSection).toMatch(
+      /selector request carries no member coordinates[\s\S]*current plan\/state facts[\s\S]*provider observation/iu,
+    );
     expect(nativeSection).not.toContain("only the plan, request, and remote locators");
     expect(packaged).toContain("never enters the delivery plan or state");
     expect(packaged).toContain("integrate-work-unit.md");
@@ -84,6 +87,10 @@ describe("packaged delivery workflow", () => {
     expect(prepare).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(apply);
     expect(reviewSection).toMatch(/retryable[\s\S]*prepare[\s\S]*new integration interlock/iu);
+    expect(reviewSection).toMatch(
+      /native-stack-required[\s\S]*delivery-native-land-select[\s\S]*mode: sequential[\s\S]*canonical remaining chain/iu,
+    );
+    expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(reviewSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
     const rematerialize = reviewSection.indexOf("arc delivery rematerialize");
     const teardown = reviewSection.indexOf("arc delivery teardown", rematerialize);

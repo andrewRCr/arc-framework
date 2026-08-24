@@ -353,6 +353,54 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(output)).toMatchObject({ status: "unlinked" });
   });
 
+  it("accepts state-bound native selection and rejects caller-authored member coordinates", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const request = {
+      planId: plan.planId,
+      facts: {
+        target: state.target,
+        members: state.members,
+        landedDeliverableIds: [],
+      },
+      repository: "owner/repo",
+      mergeAction: "direct",
+      explicitAtomic: false,
+    };
+    const execute = vi.fn().mockResolvedValue({
+      status: "blocked",
+      reason: "unsupported",
+      recommendedActionText: "Use the complete unlinked landing route.",
+    });
+    const acceptedWrite = vi.fn();
+
+    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write: acceptedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(JSON.parse(acceptedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "blocked",
+      reason: "unsupported",
+    });
+
+    const rejectedExecute = vi.fn();
+    const rejectedWrite = vi.fn();
+    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({ ...request, members: state.members.slice(0, -1) })),
+      execute: rejectedExecute,
+      write: rejectedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(rejectedExecute).not.toHaveBeenCalled();
+    expect(JSON.parse(rejectedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
   it("exposes the explicit terminal remedy as a strict typed command", async () => {
     const state = deliveryStateFixture();
     const terminal = state.members.at(-1)!;
@@ -600,6 +648,10 @@ describe("delivery execution handler", () => {
       { operationKind: "land", mode: "sequential", transition: "cleared", action: "delivery-land-prepare" },
       {
         operationKind: "land", mode: "native", transition: "cleared",
+        action: "delivery-native-land-select",
+      },
+      {
+        operationKind: "land", mode: "sequential", transition: "cleared",
         action: "delivery-native-land-select",
       },
       { operationKind: "teardown", transition: "preserved", action: "delivery-teardown" },

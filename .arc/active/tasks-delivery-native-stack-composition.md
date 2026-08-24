@@ -859,12 +859,11 @@ structural guarantee rather than operator discipline.
           and lease-publish the terminal top, and install suffix plus terminal coordinates in one final CAS.
           Recovery reruns `delivery-refresh-adopt` and recognizes interruption at every mutation boundary.
 
-    - `[ ]` **6.11.b Bind native routing and make semantic fallback executable**
+    - `[x]` **6.11.b Bind native routing and make semantic fallback executable**
 
-        - Derive the native selection chain from canonical plan/state before host observation. On an exact
-          `native-stack-required` no-effect result, version-clear the sequential reservation and return fresh native
-          selection; ambiguity or state collision retains and stops. Never route that refusal as
-          `native-stale-suffix` refresh demand.
+        - Native selection now accepts no caller member coordinates and derives the complete current non-terminal
+          remainder before provider observation. An exactly unapplied `native-stack-required` result version-clears
+          the sequential reservation into fresh native selection; ambiguity and state collision retain it and stop.
 
     - `[ ]` **6.11.c Prove the vertical lifecycle rows and reconcile every contract surface**
 
