@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/plan-segmentation` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `delivery-native-stack-composition`
 
 - **Origin:** [internal]
 - **Design:** `draft-plan-segmentation.md`
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft-design complete (2026-08-24) — draft worked `rough` → formalization-ready: buffer
-  integration, forward-compat checkdoc reads, mode taxonomy `slice` / `layer` / `replication`, composed
-  exit-criterion reader (`Verification:` family marker, task-list-native), worked prototype, adversarial pass 2
-  folded (3 major / 4 minor); captured at `870c37b33`, stage advanced to create-spec. Prior: grooming errand
-  adoption (2026-08-24); first grooming pass (2026-07-28) — discriminator and neighbour boundaries settled.
+- **Last Completed:** Spec authored, self-reviewed, and saved (2026-08-24) — `spec-plan-segmentation.md`,
+  `detailed` · RFC, substrate D1–D13, saved at `26bf15461` and surfaced at Gate 1. Prior: draft-design complete
+  (2026-08-24), captured at `870c37b33`.
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Gate 2 (finalize) held until `delivery-native-stack-composition` merges — it edits the same four
+  task-list surfaces this spec edits, and D6 is grounded against its unlanded worktree.
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Hold at create-spec Gate 1. On that merge, reground per the SESSION-NOTES checklist, then run
+  the deferred adversarial pass, then Gate 2 finalize.
 
 - **PR URL:** [none]
 - **Completed:** [none]
