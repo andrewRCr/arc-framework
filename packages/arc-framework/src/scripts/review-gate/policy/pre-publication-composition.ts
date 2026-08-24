@@ -46,23 +46,24 @@ export function selectPrePublicationReservationTarget(input: {
   workUnit: string;
   singleton: { repository: string; headSha: string };
   delivery:
-    | { status: "unbound" | "unavailable" }
-    | { status: "resolved"; planId: string; workUnitId: string };
+    | { status: "absent" }
+    | { status: "unavailable" }
+    | { status: "planned" | "bound"; planId: string; workUnitId: string };
 }): ReservationTargetRead {
   const workUnit = SlugSchema.parse(input.workUnit);
   if (input.delivery.status === "unavailable") {
     return {
       status: "refused",
-      reason: "The pre-publication reservation target could not be resolved from delivery state.",
+      reason: "The pre-publication reservation target could not be resolved from delivery records.",
     };
   }
-  if (input.delivery.status === "resolved" && input.delivery.workUnitId !== workUnit) {
+  if (input.delivery.status !== "absent" && input.delivery.workUnitId !== workUnit) {
     return {
       status: "refused",
       reason: "The resolved delivery plan does not belong to the requested work unit.",
     };
   }
-  if (input.delivery.status === "resolved") {
+  if (input.delivery.status !== "absent") {
     return {
       status: "resolved",
       target: {
@@ -213,12 +214,22 @@ export function createPrePublicationCompositionDependencies(input: {
     },
 
     readReservationTarget: async (workUnit, singleton): Promise<ReservationTargetRead> => {
-      const delivery = await deliveryMemberLookup.resolveTerminalRecords(workUnit);
+      const base = (await settings())["branch.base"].trim();
+      const delivery = await deliveryMemberLookup.resolveReservationRecords(
+        workUnit,
+        base === ""
+          ? { status: "unestablished" }
+          : { status: "established", ref: `refs/heads/${base}` },
+      );
       return selectPrePublicationReservationTarget({
         workUnit,
         singleton,
-        delivery: delivery.status === "resolved"
-          ? { status: "resolved", planId: delivery.plan.planId, workUnitId: delivery.plan.workUnitId }
+        delivery: delivery.status === "planned" || delivery.status === "bound"
+          ? {
+              status: delivery.status,
+              planId: delivery.plan.planId,
+              workUnitId: delivery.plan.workUnitId,
+            }
           : delivery,
       });
     },
