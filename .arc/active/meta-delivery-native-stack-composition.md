@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.7 — Close delivery member 5 (Phase 5 complete)
-- **Next Task:** Task 6.1 — Detect drift, state consequences, and delegate the registered suffix (line 733 in tasks-delivery-native-stack-composition.md)
+- **Last Completed:** Task 8.4 — Record the delivery-and-review posture ADR
+- **Next Task:** Task 8.5 — Close delivery member 8 (line 1120 in tasks-delivery-native-stack-composition.md)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — Detect drift, state consequences, and delegate the registered suffix
+- **Next Action:** Continue Task 8.5 — run adversarial-review pass 2 over the corrected Member 8 scope
 
 - **PR URL:** [none]
 - **Completed:** [none]
