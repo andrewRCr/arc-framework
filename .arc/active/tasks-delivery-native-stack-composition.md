@@ -1030,27 +1030,30 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 
     - `[x]` **7.6.d Prove the selector-to-terminal lifecycle vertically**
 
-        - Producer-derived handler/composition tests cross filesystem-backed lane and Candidate stores through
-          fallback, carry, canonical selection, finding settlement, next-member selection, and singleton handling.
+        - The review-status handler now reads its routed obligation through production composition over one real Git
+          repository and repository-backed delivery, lane, Candidate, and publication-boundary stores. The scenario
+          drives fallback, equivalent-head carry, residual selection, finding settlement, next-member selection,
+          terminal conjunction, and singleton handling without assembling applicability or discharge in the test.
 
 - _Outcome:_ The existing status, hosted-review, and Candidate verbs now form one typed delivery-member spine in
   both shipped workflows. First-outstanding order, safe fallback and carry, canonical applicability authority, and
-  terminal conjunction remain CLI-owned; package/project parity, every applicability stop class, and singleton
-  compatibility are covered without prose enumeration or selector reconstruction.
+  terminal conjunction remain CLI-owned; production status composition crosses the repository-backed delivery,
+  lane, Candidate, and publication-boundary stores, while package/project parity, every applicability stop class,
+  and singleton compatibility remain covered without prose enumeration or selector reconstruction.
 
 ### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
-- _Outcome:_ `[x]` All three immutable Member 7 criteria resolve over the first-parent Task commit union from
-  `80afa0301` through `242294afb` and the cumulative tree at `242294afb`. Retained member bindings derive exact
+- _Outcome:_ `[x]` All three immutable Member 7 criteria resolve over the bounded Phase 7 Task commit union, its
+  review-driven production-composition correction, and the cumulative tree. Retained member bindings derive exact
   review vehicles and settle only through the complete typed conjunction. The D4-backed projection preserves
   mechanical and fallback carry through one bounded discovery/read path shared by admission and discharge; the
   superseded lane-progress selection clause resolves through the next criterion's target-neutral, version-checked
-  Candidate transition. Existing status, request, await, attempt, and settle envelopes carry the selector through
-  executable vertical and workflow-contract coverage, with unavailable evidence stopping and no prose loop or new
-  record family. Success Criteria markers remain unchanged for terminal verification.
+  Candidate transition. The executable lifecycle now drives the status, request, await, attempt, settle, Candidate,
+  delivery, and publication-boundary production composition directly, with unavailable evidence stopping and no
+  prose loop or new record family. Success Criteria markers remain unchanged for terminal verification.
 
 ## **Phase 8:** Record retirement and doctrine
 

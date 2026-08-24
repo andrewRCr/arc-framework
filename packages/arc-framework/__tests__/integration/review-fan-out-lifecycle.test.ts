@@ -1,7 +1,6 @@
 /** Executable hosted-review progression across delivery-member targets. */
 
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,24 +9,32 @@ import {
   handleCandidateApplicabilityResolve,
 } from "../../src/handlers/candidate.js";
 import {
+  handleReviewStatus,
   handleReviewHostedAwait,
   handleReviewHostedRequest,
   handleReviewHostedSettle,
 } from "../../src/handlers/review.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
+  "../../src/lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
+import type { DeliveryPlanV1, DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import {
   createCandidateAttestation,
-  createCandidateSubjectSnapshot,
   type CandidateManagedRecordV1,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import {
-  CandidateRecordVersionConflictError,
   readCandidateRecordVersioned,
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
+import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import {
+  readSubmissionBoundaryVersioned,
+  writeSubmissionBoundary,
+} from "../../src/lib/work-unit/submission-boundary-store.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -50,69 +57,72 @@ import {
   bindHostedAttemptDisposition,
   hostedLaneAttemptId,
   laneProgressOperationId,
-  readLaneProgress,
   recordHostedAwaitAttempt,
   recordHostedRequestUnavailableAttempt,
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { RepositoryDeliveryMemberLookup } from
+  "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { resolveRepositoryIdentity } from
+  "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import {
-  projectHostedReservationDischarge,
-} from "../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
-import { createStandardReviewReservation } from
+  createStandardReviewReservation,
+  projectPublicationBoundary,
+} from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
-  resolveReviewApplicability,
-  reviewApplicabilityResolutionInputFromCommand,
-} from "../../src/scripts/review-gate/policy/review-applicability-resolution.js";
-import { classifyReviewContributionApplicability } from
-  "../../src/scripts/review-gate/policy/review-contribution-applicability.js";
-import {
-  composeDeliveryReviewObligation,
+  ReviewStatusCommandResultSchema,
   resolveReviewStatus,
 } from "../../src/scripts/review-gate/status.js";
+import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
+import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../fixtures/delivery-state.js";
+import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 
 const oid = (character: string): string => character.repeat(40);
-const repositoryId = "repository-1";
 const repository = "owner/repository";
 const planId = "123e4567-e89b-42d3-a456-426614174000";
 const roots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map(cleanupTempDir));
 });
 
-async function operationStore(): Promise<LocalReviewOperationStateStore> {
-  const root = await mkdtemp(join(tmpdir(), "arc-review-fan-out-"));
-  roots.push(root);
-  const commonDir = join(root, "common.git");
-  await mkdir(commonDir, { recursive: true });
-  const exec: GitExec = async () => ({ stdout: `${commonDir}\n` });
-  return new LocalReviewOperationStateStore(new RepositoryGitCommonStatePublisher(exec, root));
+async function git(root: string, args: string[]): Promise<string> {
+  return (await makeGitExec(root)("git", args, { cwd: root })).stdout.trim();
 }
 
-function member(deliverable: string, head: string) {
+function member(plan: DeliveryPlanV1, index: number, head: string) {
+  const deliverable = plan.members[index];
+  if (deliverable === undefined) throw new Error(`missing delivery member ${index}`);
   return DeliveryReviewMemberVehicleSchema.parse({
     kind: "delivery-member",
-    planId,
-    deliverableId: canonicalDigest({ deliverable }),
-    workUnitId: "example",
+    planId: plan.planId,
+    deliverableId: deliverable.deliverableId,
+    workUnitId: plan.workUnitId,
     head,
   });
 }
 
-function targetAndRequirement(headSha: string) {
+function targetAndRequirement(input: {
+  repositoryId: string;
+  baseSha: string;
+  baseTree: string;
+  headSha: string;
+  headTree: string;
+}) {
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     kind: "delivery-member",
-    repositoryId,
+    repositoryId: input.repositoryId,
     baseRef: "main",
-    diffBaseSha: oid("0"),
-    diffBaseTree: oid("1"),
-    headSha,
-    headTree: oid("2"),
+    diffBaseSha: input.baseSha,
+    diffBaseTree: input.baseTree,
+    headSha: input.headSha,
+    headTree: input.headTree,
   });
   const projection = {
     obligation: "required" as const,
@@ -138,7 +148,8 @@ function targetAndRequirement(headSha: string) {
 async function requestThroughHandler(
   request: HostedRequestEnvelope,
   outcome: HostedRequestOutcome,
-  vehicles: readonly ReturnType<typeof member>[],
+  root: string,
+  exec: GitExec,
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
@@ -150,26 +161,7 @@ async function requestThroughHandler(
         identities: { botUserId: `${request.provider}-bot` },
         request: async () => outcome,
       }],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async (head) => {
-          const vehicle = vehicles.find((candidate) => candidate.head === head);
-          return vehicle === undefined
-            ? { status: "unbound" as const }
-            : {
-                status: "resolved" as const,
-                member: {
-                  planId: vehicle.planId,
-                  deliverableId: vehicle.deliverableId,
-                  workUnitId: vehicle.workUnitId,
-                  base: oid("0"),
-                  baseRef: "main",
-                  headRef: `review/${vehicle.deliverableId.slice(-8)}`,
-                  head: vehicle.head,
-                  isFinalMember: vehicle.deliverableId === vehicles.at(-1)?.deliverableId,
-                },
-              };
-        },
-      },
+      deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ cwd: root, exec }),
     }),
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),
@@ -207,93 +199,295 @@ async function awaitThroughHandler(handle: unknown, observation: unknown) {
   return HostedAwaitResultSchema.parse(JSON.parse(output.join("")));
 }
 
-function statusFor(routedObligation: ReturnType<typeof composeDeliveryReviewObligation>) {
-  const statusTarget = { repository, headRef: "feat/example", headSha: oid("b") };
-  return resolveReviewStatus({ target: statusTarget }, {
-    observe: async () => ({
-      actualHeadSha: statusTarget.headSha,
-      requiredChecks: "green",
-      routedObligation,
-      currentBaseOid: oid("0"),
-      baseContained: true,
-    }),
-  });
+interface FanOutHarness {
+  root: string;
+  exec: GitExec;
+  plan: DeliveryPlanV1;
+  plans: RepositoryDeliveryPlanStore<DeliveryPlanV1>;
+  states: RepositoryDeliveryStateStore;
+  state: DeliveryStateV1;
+  stateRevision: number;
+  store: LocalReviewOperationStateStore;
+  repositoryId: string;
+  baseHead: string;
+  baseTree: string;
+  oldFirst: string;
+  oldFirstTree: string;
+  priorSecond: string;
+  priorSecondTree: string;
+  movedFirst: string;
+  movedFirstTree: string;
+  currentSecond: string;
+  currentSecondTree: string;
 }
 
-async function candidateHarness() {
-  const subject = createCandidateSubjectSnapshot([{
-    path: "src/example.ts",
-    mode: "100644",
-    digest: canonicalDigest({ source: "root" }),
-    treatment: "reviewable",
-  }]);
-  const attestation = createCandidateAttestation({
-    workUnit: "example",
-    subject,
-    baseRevision: oid("0"),
-    attestedBy: "andrew",
-    attestedAt: "2026-08-24T04:00:00.000Z",
-    verificationEvidenceRef: "verification://root",
+async function installCandidate(
+  harness: FanOutHarness,
+  head: string,
+  expectedVersion: string | null,
+): Promise<CandidateManagedRecordV1> {
+  const target = await collectGitCandidateTarget({
+    cwd: harness.root,
+    name: harness.plan.workUnitId,
+    baseBranch: "main",
+    baseRevision: harness.baseHead,
+    revision: head,
+    exec: harness.exec,
   });
   const record: CandidateManagedRecordV1 = {
     schemaVersion: 1,
     semanticsVersion: "candidate-attestation/v1",
-    attestation,
-    subject,
+    attestation: createCandidateAttestation({
+      workUnit: harness.plan.workUnitId,
+      subject: target.subject,
+      baseRevision: harness.baseHead,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-24T04:00:00.000Z",
+      verificationEvidenceRef: `verification://${head}`,
+    }),
+    subject: target.subject,
     transitions: [],
     lineageAttestations: [],
   };
-  const root = await mkdtemp(join(tmpdir(), "arc-review-candidate-"));
-  roots.push(root);
-  await writeCandidateRecord(root, "example", record, null);
-  const initial = await readCandidateRecordVersioned(root, "example");
-  if (initial.record === null || initial.version === null) throw new Error("expected Candidate fixture");
-  return {
-    attestation,
-    initialVersion: initial.version,
-    root,
-    read: () => readCandidateRecordVersioned(root, "example"),
-    write: async (next: CandidateManagedRecordV1, expectedVersion: string) => {
-      try {
-        await writeCandidateRecord(root, "example", next, expectedVersion);
-        return "written" as const;
-      } catch (error) {
-        if (error instanceof CandidateRecordVersionConflictError) return "version-conflict" as const;
-        throw error;
-      }
+  await writeCandidateRecord(harness.root, harness.plan.workUnitId, record, expectedVersion);
+  return record;
+}
+
+async function writeBoundary(
+  harness: FanOutHarness,
+  candidate: CandidateManagedRecordV1,
+  branch: string,
+): Promise<void> {
+  const current = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+  const reservation = createStandardReviewReservation({
+    candidateId: candidate.attestation.candidateId,
+    sourceId: "coderabbit-pr",
+    sources: ["coderabbit-pr", "codex-pr"],
+    obligation: targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.baseHead,
+      baseTree: harness.baseTree,
+      headSha: harness.oldFirst,
+      headTree: harness.oldFirstTree,
+    }).projection,
+    target: {
+      kind: "delivery",
+      repository,
+      workUnitId: harness.plan.workUnitId,
+      planId: harness.plan.planId,
     },
+  });
+  await writeSubmissionBoundary(harness.root, projectPublicationBoundary({
+    workUnit: harness.plan.workUnitId,
+    branch,
+    candidateId: candidate.attestation.candidateId,
+    candidateSubjectDigest: candidate.subject.subjectDigest,
+    reservation,
+    changeRequest: { repository, pullRequest: 42 },
+  }), current.version);
+}
+
+async function createHarness(): Promise<FanOutHarness> {
+  const root = await createTempRepo("arc-review-fan-out-");
+  roots.push(root);
+  const exec = makeGitExec(root);
+  await mkdir(join(root, ".arc", "system"), { recursive: true });
+  await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch:\n  base: main\n", "utf8");
+  await writeFile(join(root, "README.md"), "base\n", "utf8");
+  await git(root, ["add", "README.md"]);
+  await git(root, ["commit", "-m", "base"]);
+  const baseHead = await git(root, ["rev-parse", "HEAD"]);
+  const baseTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+
+  await git(root, ["checkout", "-b", "prior-top"]);
+  await writeFile(join(root, "first.txt"), "same first contribution\n", "utf8");
+  await git(root, ["add", "first.txt"]);
+  await git(root, ["commit", "-m", "old first member"]);
+  const oldFirst = await git(root, ["rev-parse", "HEAD"]);
+  const oldFirstTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+  await writeFile(join(root, "second.txt"), "prior second contribution\n", "utf8");
+  await git(root, ["add", "second.txt"]);
+  await git(root, ["commit", "-m", "prior second member"]);
+  const priorSecond = await git(root, ["rev-parse", "HEAD"]);
+  const priorSecondTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+
+  await git(root, ["checkout", "-b", "feat/delivery-plan-record", baseHead]);
+  await writeFile(join(root, "first.txt"), "same first contribution\n", "utf8");
+  await git(root, ["add", "first.txt"]);
+  await git(root, ["commit", "-m", "moved first member"]);
+  const movedFirst = await git(root, ["rev-parse", "HEAD"]);
+  const movedFirstTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+  await writeFile(join(root, "second.txt"), "current second contribution\n", "utf8");
+  await git(root, ["add", "second.txt"]);
+  await git(root, ["commit", "-m", "current second member"]);
+  const currentSecond = await git(root, ["rev-parse", "HEAD"]);
+  const currentSecondTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+
+  await git(root, ["branch", "delivery/delivery-plan-record/first", oldFirst]);
+  await git(root, ["branch", "delivery/delivery-plan-record/moved-first", movedFirst]);
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const states = new RepositoryDeliveryStateStore(publisher);
+  const plan = deliveryStackPlanFixture(planId);
+  const fixture = deliveryStateFixture(plan);
+  const state: DeliveryStateV1 = {
+    ...fixture,
+    target: {
+      ref: "refs/heads/main",
+      coordinates: { head: baseHead, tree: baseTree },
+    },
+    members: [
+      {
+        ...fixture.members[0]!,
+        ref: "refs/heads/delivery/delivery-plan-record/first",
+        changeRequest: { providerId: "github", changeRequestId: "41" },
+        coordinates: { base: baseHead, head: oldFirst, tree: oldFirstTree },
+      },
+      {
+        ...fixture.members[1]!,
+        ref: "refs/heads/prior-top",
+        changeRequest: { providerId: "github", changeRequestId: "42" },
+        coordinates: { base: oldFirst, head: priorSecond, tree: priorSecondTree },
+      },
+    ],
   };
+  expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
+  const published = await states.publish(plan.planId, state, 0);
+  if (published.status !== "ok") throw new Error("expected initial delivery state");
+  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const harness: FanOutHarness = {
+    root,
+    exec,
+    plan,
+    plans,
+    states,
+    state,
+    stateRevision: published.value.revision,
+    store: new LocalReviewOperationStateStore(publisher),
+    repositoryId,
+    baseHead,
+    baseTree,
+    oldFirst,
+    oldFirstTree,
+    priorSecond,
+    priorSecondTree,
+    movedFirst,
+    movedFirstTree,
+    currentSecond,
+    currentSecondTree,
+  };
+  const candidate = await installCandidate(harness, priorSecond, null);
+  await writeBoundary(harness, candidate, "prior-top");
+  return harness;
+}
+
+async function moveDeliveryTargets(harness: FanOutHarness): Promise<void> {
+  const state: DeliveryStateV1 = {
+    ...harness.state,
+    members: [
+      {
+        ...harness.state.members[0]!,
+        ref: "refs/heads/delivery/delivery-plan-record/moved-first",
+        coordinates: {
+          base: harness.baseHead,
+          head: harness.movedFirst,
+          tree: harness.movedFirstTree,
+        },
+      },
+      {
+        ...harness.state.members[1]!,
+        ref: "refs/heads/feat/delivery-plan-record",
+        coordinates: {
+          base: harness.movedFirst,
+          head: harness.currentSecond,
+          tree: harness.currentSecondTree,
+        },
+      },
+    ],
+  };
+  const published = await harness.states.publish(harness.plan.planId, state, harness.stateRevision);
+  if (published.status !== "ok") throw new Error("expected moved delivery state");
+  harness.state = state;
+  harness.stateRevision = published.value.revision;
+  const current = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+  if (current.version === null) throw new Error("expected initial Candidate version");
+  const candidate = await installCandidate(harness, harness.currentSecond, current.version);
+  await writeBoundary(harness, candidate, "feat/delivery-plan-record");
+}
+
+async function statusThroughHandler(
+  harness: FanOutHarness,
+  target: { repository: string; headRef: string; headSha: string },
+) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  await handleReviewStatus({ target: JSON.stringify(target), json: true }, undefined, {
+    resolveRoot: () => harness.root,
+    resolve: (root, input) => resolveReviewStatus(input, {
+      observe: async (statusTarget) => ({
+        actualHeadSha: statusTarget.headSha,
+        requiredChecks: "green",
+        routedObligation: await readRoutedObligation(
+          root,
+          harness.exec,
+          statusTarget,
+          42,
+          new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
+          harness.baseHead,
+        ),
+        currentBaseOid: harness.baseHead,
+        baseContained: true,
+      }),
+    }),
+    write: (text) => output.push(text),
+    setExitCode: (code) => exitCodes.push(code),
+  });
+  expect(exitCodes).toEqual([]);
+  return ReviewStatusCommandResultSchema.parse(JSON.parse(output.join("")));
 }
 
 describe("hosted review fan-out lifecycle", () => {
-  it("drives ordered member review through fallback, canonical selection, settlement, and conjunction", async () => {
-    const first = member("first", oid("a"));
-    const second = member("second", oid("b"));
-    const movedFirst = member("first", oid("c"));
-    const vehicles = [first, second];
-    const store = await operationStore();
-    const candidate = await candidateHarness();
-    const candidateVersion = candidate.initialVersion;
-    const firstTarget = { repository, pullRequest: 41, headSha: first.head };
-    const secondTarget = { repository, pullRequest: 42, headSha: second.head };
-    const firstReview = targetAndRequirement(first.head);
-    const secondReview = targetAndRequirement(second.head);
-    const reservation = createStandardReviewReservation({
-      candidateId: candidate.attestation.candidateId,
-      sourceId: "coderabbit-pr",
-      sources: ["coderabbit-pr", "codex-pr"],
-      obligation: firstReview.projection,
-      target: { kind: "delivery", repository, workUnitId: "example", planId },
+  it("drives production composition through fallback, carry, selection, settlement, and conjunction", async () => {
+    const harness = await createHarness();
+    const first = member(harness.plan, 0, harness.oldFirst);
+    const priorSecond = member(harness.plan, 1, harness.priorSecond);
+    const firstTarget = { repository, pullRequest: 41, headSha: harness.oldFirst };
+    const priorSecondTarget = { repository, pullRequest: 42, headSha: harness.priorSecond };
+    const priorStatusTarget = { repository, headRef: "prior-top", headSha: harness.priorSecond };
+    const firstReview = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.baseHead,
+      baseTree: harness.baseTree,
+      headSha: harness.oldFirst,
+      headTree: harness.oldFirstTree,
+    });
+    const priorSecondReview = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.oldFirst,
+      baseTree: harness.oldFirstTree,
+      headSha: harness.priorSecond,
+      headTree: harness.priorSecondTree,
     });
 
-    const unavailableRequest = { schemaVersion: 1 as const, target: firstTarget, provider: "coderabbit-pr" as const,
-      coverage: "complete" as const, vehicle: first };
-    const unavailable = await requestThroughHandler(unavailableRequest, { kind: "rate-limited" }, vehicles);
+    const initial = await statusThroughHandler(harness, priorStatusTarget);
+    expect(initial).toMatchObject({
+      nextAction: "review-hosted-request",
+      action: { target: firstTarget, provider: "coderabbit-pr", vehicle: first },
+      routedObligation: {
+        conjunction: {
+          status: "outstanding",
+          members: [{ state: "outstanding" }, { state: "outstanding" }],
+        },
+      },
+    });
+    if (initial.nextAction !== "review-hosted-request") throw new Error("expected initial hosted request");
+
+    const unavailable = await requestThroughHandler(initial.action, { kind: "rate-limited" }, harness.root, harness.exec);
     expect(unavailable).toMatchObject({ state: "rate-limited", nextAction: "try-next-source" });
     if (unavailable.nextAction !== "try-next-source") throw new Error("expected unavailable request result");
-    await recordHostedRequestUnavailableAttempt(store, {
-      repositoryId,
-      request: unavailableRequest,
+    await recordHostedRequestUnavailableAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      request: initial.action,
       result: unavailable,
       reviewTarget: firstReview.reviewTarget,
       requirement: firstReview.requirement,
@@ -301,29 +495,14 @@ describe("hosted review fan-out lifecycle", () => {
       now: "2026-08-24T04:01:00.000Z",
     });
 
-    const beforeFallback = await projectHostedReservationDischarge({
-      reservation,
-      span: [first.head],
-      target: { ...firstTarget, vehicle: first },
-      readLaneProgress: (headSha) => readLaneProgress(store, { lane: "standard", repositoryId, headSha }),
-    });
-    const firstStatus = await statusFor(composeDeliveryReviewObligation({
-      targets: [
-        { ...firstTarget, vehicle: first },
-        { ...secondTarget, vehicle: second },
-      ],
-      discharges: [
-        beforeFallback,
-        { discharged: false, detail: "Second member outstanding.", nextSource: "coderabbit-pr" },
-      ],
-    }));
-    expect(firstStatus).toMatchObject({
+    const fallback = await statusThroughHandler(harness, priorStatusTarget);
+    expect(fallback).toMatchObject({
       nextAction: "review-hosted-request",
-      action: { provider: "codex-pr", vehicle: first },
+      action: { target: firstTarget, provider: "codex-pr", vehicle: first },
     });
-    if (firstStatus.nextAction !== "review-hosted-request") throw new Error("expected fallback request action");
+    if (fallback.nextAction !== "review-hosted-request") throw new Error("expected fallback request action");
 
-    const requested = await requestThroughHandler(firstStatus.action, {
+    const requested = await requestThroughHandler(fallback.action, {
       kind: "created",
       artifact: {
         kind: "pull-request-review",
@@ -332,7 +511,7 @@ describe("hosted review fan-out lifecycle", () => {
         createdAt: "2026-08-24T04:02:00.000Z",
       },
       effectiveCoverage: "complete",
-    }, vehicles);
+    }, harness.root, harness.exec);
     expect(requested).toMatchObject({ state: "requested", handle: { vehicle: first } });
     if (requested.nextAction !== "await") throw new Error("expected requested review handle");
     const firstAwait = await awaitThroughHandler(requested.handle, {
@@ -340,8 +519,8 @@ describe("hosted review fan-out lifecycle", () => {
       reviewUrl: "https://example.test/review-first",
     });
     expect(firstAwait).toMatchObject({ state: "clean", handle: { vehicle: first } });
-    await recordHostedAwaitAttempt(store, {
-      repositoryId,
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
       result: firstAwait,
       reviewTarget: firstReview.reviewTarget,
       requirement: firstReview.requirement,
@@ -349,116 +528,119 @@ describe("hosted review fan-out lifecycle", () => {
       now: "2026-08-24T04:03:00.000Z",
     });
 
-    const carriedFirst = await projectHostedReservationDischarge({
-      reservation,
-      span: [movedFirst.head],
-      target: { ...firstTarget, headSha: movedFirst.head, vehicle: movedFirst },
-      readLaneProgress: (headSha) => readLaneProgress(store, { lane: "standard", repositoryId, headSha }),
-      readEarlierAttemptApplicability: async (sourceId) => ({
-        status: "complete",
-        attempts: [{
-          sourceId,
-          outcome: sourceId === "coderabbit-pr" ? "rate-limited" : "clean",
-          applicability: "retain-prior-attempt",
-        }],
-      }),
+    const priorSecondStatus = await statusThroughHandler(harness, priorStatusTarget);
+    expect(priorSecondStatus).toMatchObject({
+      nextAction: "review-hosted-request",
+      action: { target: priorSecondTarget, provider: "coderabbit-pr", vehicle: priorSecond },
+      routedObligation: {
+        conjunction: {
+          members: [{ state: "discharged" }, { state: "outstanding" }],
+        },
+      },
     });
-    expect(carriedFirst).toMatchObject({ discharged: true, detail: expect.stringContaining("applicability") });
+    if (priorSecondStatus.nextAction !== "review-hosted-request") {
+      throw new Error("expected prior second-member request");
+    }
+    const priorSecondRequested = await requestThroughHandler(priorSecondStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-second-prior",
+        url: "https://example.test/review-second-prior",
+        createdAt: "2026-08-24T04:04:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (priorSecondRequested.nextAction !== "await") throw new Error("expected prior second review handle");
+    const priorSecondAwait = await awaitThroughHandler(priorSecondRequested.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-second-prior",
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: priorSecondAwait,
+      reviewTarget: priorSecondReview.reviewTarget,
+      requirement: priorSecondReview.requirement,
+      actorIdentity: "andrew",
+      now: "2026-08-24T04:05:00.000Z",
+    });
 
-    const priorSecond = member("second", oid("d"));
-    const applicability = classifyReviewContributionApplicability({
-      schemaVersion: 1,
-      repositoryId,
+    await moveDeliveryTargets(harness);
+    const movedFirst = member(harness.plan, 0, harness.movedFirst);
+    const currentSecond = member(harness.plan, 1, harness.currentSecond);
+    const currentSecondTarget = { repository, pullRequest: 42, headSha: harness.currentSecond };
+    const currentStatusTarget = {
       repository,
-      pullRequest: secondTarget.pullRequest,
-      lane: "standard",
-      sourceId: "coderabbit-pr",
-      priorAttemptId: "attempt-second-prior",
-      priorHead: priorSecond.head,
-      currentHead: second.head,
-      priorBase: oid("0"),
-      currentBase: oid("1"),
-      priorVehicle: priorSecond,
-      currentVehicle: second,
-    }, {
-      endpoints: {
-        before: {
-          predecessor: { head: oid("0"), tree: oid("2") },
-          member: { head: priorSecond.head, tree: oid("3") },
-        },
-        after: {
-          predecessor: { head: oid("1"), tree: oid("4") },
-          member: { head: second.head, tree: oid("5") },
+      headRef: "feat/delivery-plan-record",
+      headSha: harness.currentSecond,
+    };
+    const decisionStatus = await statusThroughHandler(harness, currentStatusTarget);
+    expect(decisionStatus).toMatchObject({
+      nextAction: "resolve-review-applicability",
+      selectionAction: {
+        projection: {
+          state: "decision-required",
+          selector: { priorVehicle: priorSecond, currentVehicle: currentSecond },
         },
       },
-      proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
+      routedObligation: {
+        conjunction: {
+          members: [
+            { state: "discharged", vehicle: movedFirst },
+            { state: "outstanding", vehicle: currentSecond },
+          ],
+        },
+      },
     });
-    if (applicability.state !== "decision-required") throw new Error("expected residual selection");
-    const decisionStatus = await statusFor(composeDeliveryReviewObligation({
-      targets: [
-        { ...firstTarget, headSha: movedFirst.head, vehicle: movedFirst },
-        { ...secondTarget, vehicle: second },
-      ],
-      discharges: [
-        carriedFirst,
-        { discharged: false, detail: "Second member residual.", nextSource: null, applicability },
-      ],
-      applicabilityContext: {
-        workUnitId: "example",
-        expectedRecordVersion: candidateVersion,
-        candidateId: candidate.attestation.candidateId,
-      },
-    }));
-    expect(decisionStatus).toMatchObject({ nextAction: "resolve-review-applicability" });
-    if (decisionStatus.nextAction !== "resolve-review-applicability") throw new Error("expected selection action");
+    if (decisionStatus.nextAction !== "resolve-review-applicability") {
+      throw new Error("expected production applicability selection");
+    }
 
     const selectionOutput: string[] = [];
-    await handleCandidateApplicabilityResolve("example", "-", undefined, {
-      resolveRoot: () => candidate.root,
+    const selectionExitCodes: number[] = [];
+    await handleCandidateApplicabilityResolve(harness.plan.workUnitId, "-", undefined, {
+      resolveRoot: () => harness.root,
       readText: async () => JSON.stringify({
         kind: "review-applicability-selection",
         offer: decisionStatus.selectionAction,
         selection: {
           selectedBy: "andrew",
-          selectedAt: "2026-08-24T04:04:00.000Z",
+          selectedAt: "2026-08-24T04:06:00.000Z",
           choice: "review-required",
         },
       }),
-      execute: async (_root, _name, input) => {
-        if (!("kind" in input)) throw new Error("expected review applicability input");
-        return resolveReviewApplicability({
-          readRecord: candidate.read,
-          projectApplicability: async () => applicability,
-          writeRecord: candidate.write,
-        }, reviewApplicabilityResolutionInputFromCommand(input));
-      },
       write: (text) => selectionOutput.push(text),
-      setExitCode: () => undefined,
+      setExitCode: (code) => selectionExitCodes.push(code),
     });
+    expect(selectionExitCodes).toEqual([]);
     expect(JSON.parse(selectionOutput.join(""))).toMatchObject({
       state: "resolved",
-      nextAction: "request-review",
+      nextAction: "commit-selection",
+      choice: "review-required",
     });
-    const selectedCandidate = await candidate.read();
+    const selectedCandidate = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
     expect(selectedCandidate.record?.transitions).toEqual([
-      expect.objectContaining({ transitionKind: "review-applicability-selection", choice: "review-required" }),
+      expect.objectContaining({
+        transitionKind: "review-applicability-selection",
+        choice: "review-required",
+      }),
     ]);
 
-    const secondStatus = await statusFor(composeDeliveryReviewObligation({
-      targets: [
-        { ...firstTarget, headSha: movedFirst.head, vehicle: movedFirst },
-        { ...secondTarget, vehicle: second },
-      ],
-      discharges: [
-        carriedFirst,
-        { discharged: false, detail: "Second member needs review.", nextSource: "coderabbit-pr" },
-      ],
-    }));
+    const secondStatus = await statusThroughHandler(harness, currentStatusTarget);
     expect(secondStatus).toMatchObject({
       nextAction: "review-hosted-request",
-      action: { target: secondTarget, provider: "coderabbit-pr", vehicle: second },
+      action: {
+        target: currentSecondTarget,
+        provider: "coderabbit-pr",
+        vehicle: currentSecond,
+      },
+      routedObligation: {
+        conjunction: {
+          members: [{ state: "discharged" }, { state: "outstanding" }],
+        },
+      },
     });
-    if (secondStatus.nextAction !== "review-hosted-request") throw new Error("expected second request action");
+    if (secondStatus.nextAction !== "review-hosted-request") throw new Error("expected current second request");
 
     const secondRequested = await requestThroughHandler(secondStatus.action, {
       kind: "created",
@@ -466,10 +648,10 @@ describe("hosted review fan-out lifecycle", () => {
         kind: "pull-request-review",
         id: "review-second",
         url: "https://example.test/review-second",
-        createdAt: "2026-08-24T04:05:00.000Z",
+        createdAt: "2026-08-24T04:07:00.000Z",
       },
       effectiveCoverage: "complete",
-    }, vehicles);
+    }, harness.root, harness.exec);
     if (secondRequested.nextAction !== "await") throw new Error("expected second review handle");
     const finding = {
       findingId: "finding-1",
@@ -486,53 +668,63 @@ describe("hosted review fan-out lifecycle", () => {
       reviewUrl: "https://example.test/review-second",
       findings: [finding],
     });
-    const secondProgress = await recordHostedAwaitAttempt(store, {
-      repositoryId,
+    const currentSecondReview = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.movedFirst,
+      baseTree: harness.movedFirstTree,
+      headSha: harness.currentSecond,
+      headTree: harness.currentSecondTree,
+    });
+    const secondProgress = await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
       result: secondAwait,
-      reviewTarget: secondReview.reviewTarget,
-      requirement: secondReview.requirement,
+      reviewTarget: currentSecondReview.reviewTarget,
+      requirement: currentSecondReview.requirement,
       actorIdentity: "andrew",
-      now: "2026-08-24T04:06:00.000Z",
+      now: "2026-08-24T04:08:00.000Z",
     });
     if (secondProgress === null) throw new Error("expected findings attempt");
     const attemptId = hostedLaneAttemptId(secondRequested.handle);
-    const operationId = laneProgressOperationId({ lane: "standard", repositoryId, headSha: second.head });
+    const operationId = laneProgressOperationId({
+      lane: "standard",
+      repositoryId: harness.repositoryId,
+      headSha: harness.currentSecond,
+    });
     const dispositionSetId = canonicalDigest({ disposition: "second" });
-    await bindHostedAttemptDisposition(store, {
+    await bindHostedAttemptDisposition(harness.store, {
       operationId,
       attemptId,
       dispositionSetId,
       findingIds: [finding.findingId],
       noHostSettlementFindingIds: [],
-      now: "2026-08-24T04:07:00.000Z",
+      now: "2026-08-24T04:09:00.000Z",
     });
 
     let resolved = false;
     let reply: { id: string; actorIdentity: string; body: string; inReplyToId: string } | null = null;
-    const settlementRequest = {
-      schemaVersion: 1,
-      response: {
-        attemptRef: bindReviewSourceReference({
-          kind: "hosted",
-          operationId,
-          durableRef: attemptId,
-        }),
-        dispositionSetId,
-        findingId: finding.findingId,
-      },
-      target: secondTarget,
-      fixTarget: null,
-      actorIdentity: "andrew",
-      finding: { commentId: finding.commentId, threadId: finding.threadId },
-      disposition: "defer",
-      reply: "Tracked for follow-up.",
-    };
     const settlementOutput: string[] = [];
     await handleReviewHostedSettle("-", {
-      readText: async () => JSON.stringify(settlementRequest),
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        response: {
+          attemptRef: bindReviewSourceReference({
+            kind: "hosted",
+            operationId,
+            durableRef: attemptId,
+          }),
+          dispositionSetId,
+          findingId: finding.findingId,
+        },
+        target: currentSecondTarget,
+        fixTarget: null,
+        actorIdentity: "andrew",
+        finding: { commentId: finding.commentId, threadId: finding.threadId },
+        disposition: "defer",
+        reply: "Tracked for follow-up.",
+      }),
       settle: (input) => settleHostedFinding(input, { port: {
         currentActorIdentity: async () => "andrew",
-        readHead: async () => second.head,
+        readHead: async () => harness.currentSecond,
         readThread: async () => ({
           kind: "present",
           isResolved: resolved,
@@ -552,40 +744,34 @@ describe("hosted review fan-out lifecycle", () => {
       setExitCode: () => undefined,
     });
     expect(JSON.parse(settlementOutput.join(""))).toMatchObject({ state: "settled", nextAction: "complete" });
-    await settleHostedAttemptFinding(store, {
+    await settleHostedAttemptFinding(harness.store, {
       operationId,
       attemptId,
       dispositionSetId,
       findingId: finding.findingId,
-      now: "2026-08-24T04:08:00.000Z",
+      now: "2026-08-24T04:10:00.000Z",
     });
 
-    const secondDischarge = await projectHostedReservationDischarge({
-      reservation,
-      span: [second.head],
-      target: { ...secondTarget, vehicle: second },
-      readLaneProgress: (headSha) => readLaneProgress(store, { lane: "standard", repositoryId, headSha }),
-    });
-    const terminal = await statusFor(composeDeliveryReviewObligation({
-      targets: [
-        { ...firstTarget, headSha: movedFirst.head, vehicle: movedFirst },
-        { ...secondTarget, vehicle: second },
-      ],
-      discharges: [carriedFirst, secondDischarge],
-    }));
+    const terminal = await statusThroughHandler(harness, currentStatusTarget);
     expect(terminal).toMatchObject({
       state: "settled",
       nextAction: "continue-reconcile",
       routedObligation: {
         conjunction: {
           status: "discharged",
-          members: [{ state: "discharged" }, { state: "discharged" }],
+          members: [
+            { state: "discharged", vehicle: movedFirst },
+            { state: "discharged", vehicle: currentSecond },
+          ],
         },
       },
     });
   });
 
   it("keeps the existing hosted progression compatible with a singleton target", async () => {
+    const root = await createTempRepo("arc-review-singleton-");
+    roots.push(root);
+    const exec = makeGitExec(root);
     const request = {
       schemaVersion: 1 as const,
       target: { repository, pullRequest: 51, headSha: oid("e") },
@@ -601,7 +787,7 @@ describe("hosted review fan-out lifecycle", () => {
         createdAt: "2026-08-24T04:10:00.000Z",
       },
       effectiveCoverage: "complete",
-    }, []);
+    }, root, exec);
     expect(result).toMatchObject({ state: "requested" });
     if (result.nextAction !== "await") throw new Error("expected singleton review handle");
     expect(result.handle).not.toHaveProperty("vehicle");
