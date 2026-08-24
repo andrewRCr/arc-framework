@@ -463,11 +463,18 @@ checkout paths, and `settlement` are the sole closure evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 
-When the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`, `key`, and
-`parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the returned
-between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
+When the current conversation has already agreed one exact next Errand, that named target takes precedence over
+`nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm
+a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`. Consume the open
+result as the new sibling locus. The target must resolve to one exact Errand entry; stop when it is missing or
+ambiguous.
+
+Otherwise, when the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`,
+`key`, and `parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the
+returned between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
 `arc errand open <slug> --from-inbox <nextOffer.key> --json`. Consume the open result as the new sibling locus. On
-decline, return to the restored parent/between-WUs frame. Never scan the inbox for a replacement continuation.
+decline, return to the restored parent/between-WUs frame. Never scan for a substitute, persist an Errand sequence,
+or reorder inbox captures.
 
 **Post-leave merge.** If the merge lands after the session ends, the [finalize pass][finalize-pass] or next session
 re-enters through the identity's owning open or materialize driver, then invokes `arc errand close`. Exact replay is

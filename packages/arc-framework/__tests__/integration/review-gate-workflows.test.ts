@@ -570,7 +570,9 @@ describe("trusted review-gate workflows", () => {
     expect(complete).toMatch(
       /arc errand close <slug> --json[\s\S]*finalizes the exact v3 identity tail[\s\S]*reaps refs[\s\S]*drops only its origin capture/iu,
     );
-    expect(complete).toMatch(/nextOffer[\s\S]*exact file-ordered execute-bound sibling[\s\S]*Never scan the inbox/iu);
+    expect(complete).toMatch(
+      /conversation[\s\S]*exact next Errand[\s\S]*takes precedence over\s+`nextOffer`[\s\S]*no additional completion offer/iu,
+    );
     expect(complete).toContain("**Post-leave merge.**");
     expect(complete).toContain("identity's owning open or materialize driver");
     expect(complete).toContain("Exact replay is");
