@@ -1,6 +1,7 @@
 /** Host-neutral read from an exact head to the delivery member it is bound to. */
 
 import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../lib/delivery/schema.js";
+import type { DeliveryRenameEvidenceAuthority } from "../../../lib/delivery/plan-resolution.js";
 
 /** One delivery member authoritatively bound to the requested head. */
 export interface DeliveryMemberBinding {
@@ -58,6 +59,25 @@ export type DeliveryDischargeTargetLookupResult =
 /** Read-only delivery target enumeration used by hosted-review discharge. */
 export interface DeliveryDischargeTargetLookup {
   resolveDischargeTargets(workUnitId: string): Promise<DeliveryDischargeTargetLookupResult>;
+}
+
+/** Closed pre-publication read that distinguishes authored intent from external binding. */
+export type DeliveryReservationRecordLookupResult =
+  | { readonly status: "absent" }
+  | { readonly status: "planned"; readonly plan: DeliveryPlanV1 }
+  | {
+      readonly status: "bound";
+      readonly plan: DeliveryPlanV1;
+      readonly state: DeliveryStateV1;
+    }
+  | { readonly status: "unavailable" };
+
+/** Read-only delivery record composition used to choose the pre-publication reservation vehicle. */
+export interface DeliveryReservationRecordLookup {
+  resolveReservationRecords(
+    workUnitId: string,
+    authority: DeliveryRenameEvidenceAuthority,
+  ): Promise<DeliveryReservationRecordLookupResult>;
 }
 
 /** Closed read of the exact plan and active state needed by terminal integration. */

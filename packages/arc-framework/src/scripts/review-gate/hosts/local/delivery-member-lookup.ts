@@ -5,15 +5,24 @@ import {
   RepositoryDeliveryStateStore,
 } from "../../../../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../../lib/delivery/plan.js";
+import {
+  GitDeliveryRenameTransitionSource,
+  resolveExistingDeliveryPlan,
+  type DeliveryRenameEvidenceAuthority,
+  type DeliveryRenameTransitionSource,
+} from "../../../../lib/delivery/plan-resolution.js";
 import type { DeliveryPlanV1 } from "../../../../lib/delivery/schema.js";
 import { validateDeliveryStateAgainstPlan } from "../../../../lib/delivery/state.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../lib/git-common-state.js";
+import { createRawGitExec } from "../../../../lib/io-context.js";
 import type {
   DeliveryDischargeTargetLookup,
   DeliveryDischargeTargetLookupResult,
   DeliveryMemberLookup,
   DeliveryMemberLookupResult,
+  DeliveryReservationRecordLookup,
+  DeliveryReservationRecordLookupResult,
   DeliveryTerminalRecordLookup,
   DeliveryTerminalRecordLookupResult,
 } from "../../core/delivery-member-lookup.js";
@@ -25,17 +34,24 @@ function branchName(ref: string | null): string | null {
 
 /** Delivery-member lookup backed by one repository's Git-common delivery state. */
 export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, DeliveryDischargeTargetLookup,
-DeliveryTerminalRecordLookup {
+DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
   private readonly plans: RepositoryDeliveryPlanStore<DeliveryPlanV1>;
   private readonly store: RepositoryDeliveryStateStore;
+  private readonly transitionSource: DeliveryRenameTransitionSource;
 
   /**
    * @param input - Git executor and the resolved repository root to bind against.
    */
-  constructor(input: { readonly exec: GitExec; readonly cwd: string }) {
+  constructor(input: {
+    readonly exec: GitExec;
+    readonly cwd: string;
+    readonly transitionSource?: DeliveryRenameTransitionSource;
+  }) {
     const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
     this.plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
     this.store = new RepositoryDeliveryStateStore(publisher);
+    this.transitionSource = input.transitionSource
+      ?? new GitDeliveryRenameTransitionSource(createRawGitExec(input.cwd));
   }
 
   /**
@@ -117,6 +133,35 @@ DeliveryTerminalRecordLookup {
           }];
         }),
       };
+    } catch {
+      return { status: "unavailable" };
+    }
+  }
+
+  /** Read authoritative plan intent without requiring delivery state to exist yet. */
+  async resolveReservationRecords(
+    workUnitId: string,
+    authority: DeliveryRenameEvidenceAuthority,
+  ): Promise<DeliveryReservationRecordLookupResult> {
+    try {
+      const resolution = await resolveExistingDeliveryPlan({
+        planStore: { enumerateCurrent: () => this.plans.enumerateCurrentReadOnly() },
+        currentWorkUnitId: workUnitId,
+        planWorkUnitId: (plan) => plan.workUnitId,
+        authority,
+        transitionSource: this.transitionSource,
+      });
+      if (resolution.status === "indeterminate") return { status: "unavailable" };
+      if (resolution.status === "no-match") return { status: "absent" };
+      const plan = resolution.plan;
+      if (plan.workUnitId !== workUnitId) return { status: "unavailable" };
+      const record = await this.store.read(plan.planId);
+      if (record.status === "refused") return { status: "unavailable" };
+      if (record.value === null) return { status: "planned", plan };
+      const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
+      return coherence.status === "valid"
+        ? { status: "bound", plan, state: coherence.state }
+        : { status: "unavailable" };
     } catch {
       return { status: "unavailable" };
     }
