@@ -40,4 +40,51 @@ describe("delivery terminal integration handoff", () => {
     expect(terminalRemedy).toBeLessThan(remedyInvocation);
     expect(remedyInvocation).toBeLessThan(baseMerge);
   });
+
+  it("dispatches canonical delivery intent before singleton resolution or push", async () => {
+    const [packaged, installed, preparation, installedPreparation] = await Promise.all([
+      readFile(
+        resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+        "utf8",
+      ),
+      readFile(resolve(root, ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
+      readFile(
+        resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
+        "utf8",
+      ),
+      readFile(resolve(root, ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
+    ]);
+    expect(installed).toBe(packaged);
+    expect(installedPreparation).toBe(preparation);
+    const prePublication = preparation.indexOf("arc review pre-publication <wu> --json");
+    const reservation = preparation.indexOf("hosted-first reservation", prePublication);
+    const publication = preparation.indexOf("arc publish {name} --json", reservation);
+    const integrationHandoff = preparation.indexOf("After the transition commit", publication);
+    const status = packaged.indexOf("arc status {name} --json");
+    const inspect = packaged.indexOf("arc delivery entry inspect --input - --json");
+    const singletonResolution = packaged.indexOf("arc review change-request resolve --head-ref");
+    const push = packaged.indexOf("**Push the WU branch upstream.**");
+
+    for (const position of [
+      prePublication,
+      reservation,
+      publication,
+      integrationHandoff,
+      status,
+      inspect,
+      singletonResolution,
+      push,
+    ]) expect(position).toBeGreaterThan(-1);
+    expect(prePublication).toBeLessThan(reservation);
+    expect(reservation).toBeLessThan(publication);
+    expect(publication).toBeLessThan(integrationHandoff);
+    expect(status).toBeLessThan(inspect);
+    expect(inspect).toBeLessThan(singletonResolution);
+    expect(inspect).toBeLessThan(push);
+    expect(packaged).toContain('{"entryMode":"integrating"}');
+    expect(packaged).toMatch(/`not-applicable`[\s\S]*ordinary singleton integration/iu);
+    expect(packaged).toMatch(/`canonicalize-provisional`[\s\S]*`validate-canonical`[\s\S]*`resume-bound`/u);
+    expect(packaged).toContain("supplemental/deliver-stack.md");
+    expect(packaged).toMatch(/`refused`[\s\S]*stop/iu);
+  });
 });
