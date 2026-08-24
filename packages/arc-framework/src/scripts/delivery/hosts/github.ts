@@ -66,6 +66,25 @@ function isDependentNativeRequest(
     && base?.ref === highestHeadRef;
 }
 
+function nativeRequestBaseRef(
+  requests: readonly unknown[],
+  index: number,
+  stackBaseRef: string,
+): string | null {
+  const request = record(requests[index]);
+  if (request === null) return null;
+  if (request.base !== undefined) {
+    const base = record(request.base);
+    return typeof base?.ref === "string" && base.ref !== "" ? base.ref : null;
+  }
+  if (index === 0) return stackBaseRef;
+  const predecessor = record(requests[index - 1]);
+  const predecessorHead = record(predecessor?.head);
+  return typeof predecessorHead?.ref === "string" && predecessorHead.ref !== ""
+    ? predecessorHead.ref
+    : null;
+}
+
 function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const request = record(value);
   const head = record(request?.head);
@@ -146,8 +165,9 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
         const stack = record(candidate);
         const number = stack?.number;
         const base = record(stack?.base);
+        const stackBaseRef = base?.ref;
         const requests = stack?.pull_requests;
-        if (!Number.isSafeInteger(number) || typeof base?.ref !== "string" || base.ref === ""
+        if (!Number.isSafeInteger(number) || typeof stackBaseRef !== "string" || stackBaseRef === ""
           || !Array.isArray(requests)) return { status: "malformed" };
         const firstMember = input.members[0];
         const highestMember = input.members.at(-1);
@@ -158,17 +178,16 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
         const comparedRequests = dependentIndexes.length === 1
           ? requests.filter((_, index) => index !== dependentIndexes[0])
           : requests;
-        let exact = comparedRequests.length === input.members.length && base.ref === firstMember?.baseRef;
-        if (base.ref !== firstMember?.baseRef && firstMember !== undefined) {
+        let exact = comparedRequests.length === input.members.length && stackBaseRef === firstMember?.baseRef;
+        if (stackBaseRef !== firstMember?.baseRef && firstMember !== undefined) {
           affected.add(firstMember.deliverableId);
         }
         for (const [index, member] of input.members.entries()) {
           const request = record(comparedRequests[index]);
           const head = record(request?.head);
-          const requestBase = record(request?.base);
           const matchesMember = String(request?.number) === member.changeRequestId
             && head?.ref === member.headRef && head.sha === member.headSha
-            && requestBase?.ref === member.baseRef;
+            && nativeRequestBaseRef(comparedRequests, index, stackBaseRef) === member.baseRef;
           if (!matchesMember) affected.add(member.deliverableId);
           exact &&= matchesMember;
         }
