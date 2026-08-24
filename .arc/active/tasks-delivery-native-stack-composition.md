@@ -1107,24 +1107,15 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   post-landing hand-back. Its directive trigger loads the posture when that journey is designed or changed, while
   routine execution remains with typed lifecycle workflows and always-loaded authority rules.
 
-### `[ ]` **8.4 Record the delivery-and-review posture ADR**
+### `[x]` **8.4 Record the delivery-and-review posture ADR**
 
 - _Goal:_ The canonical decision — agentic review as the primary lane with human review complementing it, and
   windowed landing as its consequence — is recorded once with its alternative and both reopening triggers.
 
-- _Rationale:_ One ADR, not two: the windowed-landing decision is a consequence of the review-lane posture rather
-  than an independent decision with its own alternatives, and splitting them would leave each needing the other's
-  context.
-
-- _Shape:_ Records the considered land-as-you-go alternative and the named reasons for the narrow divergence —
-  amendment freedom until the window, agent-reviewer latency removing the pipelining payoff, restack-triggered
-  re-review churn, and the native machinery's current maturity. Records the reopening trigger: field use showing
-  late-batched hosted review producing rework that boundary-time landing would have prevented. Records the second
-  reopening trigger for terminal authorization: field evidence that residual-overlap re-verification or the
-  delivery-arm composition dominates window ceremony. Records the raw-API registration decision as a worked
-  instance of typed fail-closed host surfaces over silently-repairing porcelain, rather than its own record.
-
-- **Additional Context:** `strategy-adr-methodology.md` — decision criteria and the stability model
+- _Outcome:_ Accepted ADR-034 records agentic-review-led windowed landing as one decision, with land-as-you-go as the
+  considered alternative and the four forces supporting the narrower posture. It preserves raw API registration as
+  a worked fail-closed instance and names separate field-evidence triggers for reopening landing timing and terminal
+  authorization composition.
 
 ### `[ ]` **8.5 Close delivery member 8** — validate criteria at member scope
 
