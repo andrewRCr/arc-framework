@@ -847,7 +847,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -865,11 +865,14 @@ structural guarantee rather than operator discipline.
           remainder before provider observation. An exactly unapplied `native-stack-required` result version-clears
           the sequential reservation into fresh native selection; ambiguity and state collision retain it and stop.
 
-    - `[ ]` **6.11.c Prove the vertical lifecycle rows and reconcile every contract surface**
+    - `[x]` **6.11.c Prove the vertical lifecycle rows and reconcile every contract surface**
 
-        - Add executable scenarios for refresh observation through top publication/final CAS and for sequential
-          semantic refusal through canonical native selection, including crash, conflict, collision, and false
-          downgrade cases. Align schema, reducer/service, handler, both workflows, D9.6, and strict contract tests.
+        - `[x]` All six immutable Member 6 criteria resolve over the first-parent task-commit union from
+          `f4db64870` through `a99cc46a9`, the real-Git lifecycle rows, and the cumulative reconciled tree. Base
+          movement remains advisory; external refresh is proved before reserved top settlement and one final state
+          write; native settlement proves the full suffix and semantic no-effect returns to canonical selection.
+          Registration remains non-terminal, filters the dependent top, degrades the two-member floor, discloses
+          opt-in cost, and keeps opt-out host-silent. Success Criteria markers remain unchanged for final verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
