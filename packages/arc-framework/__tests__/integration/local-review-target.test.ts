@@ -279,6 +279,7 @@ describe("member-coordinate target derivation", () => {
         deliverableId: `sha256:${"1".repeat(64)}`,
         workUnitId: "owning-work-unit",
         baseRef: "main",
+        candidateHead: overrides.head,
         isFinalMember: false,
         ...overrides,
         headRef: overrides.headRef === undefined ? "delivery/plan/member-1" : overrides.headRef,
