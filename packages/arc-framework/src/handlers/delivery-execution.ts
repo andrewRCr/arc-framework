@@ -149,9 +149,12 @@ import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { releaseMergeLock } from "../scripts/review-gate/merge-lock.js";
 import { evaluateReviewReadiness } from "../scripts/review-gate/readiness.js";
 import { MergeMethodSchema, resolveMergeMethod } from "../scripts/review-gate/merge-method.js";
+import { assessDeliveryLandingReviewReadiness } from
+  "../scripts/review-gate/delivery-landing-readiness.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
+import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
 import { defaultMergeLockPort } from "./review.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -1382,6 +1385,7 @@ async function executeDeliveryCommand(
     const plan = planRead.value;
     const current = stateRead.value;
     const host = new GhDeliveryHostPort(hostedGhRunner);
+    const reviewStatus = createReviewStatusPort({ cwd, exec });
     if (command === "native-land-prepare") {
       const prepare = NativePrepareSchema.parse(parsed);
       const expectedChain = deriveNativeDeliveryMemberChain({
@@ -1425,13 +1429,11 @@ async function executeDeliveryCommand(
             || observed.request.baseRef !== expected.baseRef) {
             return { status: "refused" as const };
           }
-          const checked = await evaluateReviewReadiness({
-            schemaVersion: 1, treeRoot: prepare.treeRoot,
-            target: { repository: prepare.repository, pullRequest: Number(member.changeRequestId), headSha: member.headSha },
-            pullRequest: { repository: prepare.repository, number: Number(member.changeRequestId), state: "open", headBranch: observed.request.headRef, headSha: member.headSha },
-            vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId: member.deliverableId, workUnitSlug: plan.workUnitId },
-          }, { deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd }) });
-          return { status: checked.state === "ready" ? "ready" as const : "refused" as const };
+          return assessDeliveryLandingReviewReadiness({
+            repository: prepare.repository,
+            headRef: expected.headRef,
+            headSha: expected.headSha,
+          }, reviewStatus);
         }, stateStore,
       });
     }
@@ -1471,13 +1473,11 @@ async function executeDeliveryCommand(
             || observed.request.headRepository !== submit.request.repository
             || observed.request.headRef !== member.ref?.replace(/^refs\/heads\//u, "")
             || observed.request.headSha !== headSha) return { status: "refused" as const };
-          const checked = await evaluateReviewReadiness({
-            schemaVersion: 1, treeRoot: submit.treeRoot,
-            target: { repository: submit.request.repository, pullRequest: Number(member.changeRequest.changeRequestId), headSha },
-            pullRequest: { repository: submit.request.repository, number: Number(member.changeRequest.changeRequestId), state: "open", headBranch: observed.request.headRef, headSha },
-            vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId, workUnitSlug: plan.workUnitId },
-          }, { deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd }) });
-          return { status: checked.state === "ready" ? "ready" as const : "refused" as const };
+          return assessDeliveryLandingReviewReadiness({
+            repository: submit.request.repository,
+            headRef: observed.request.headRef,
+            headSha,
+          }, reviewStatus);
         },
         releaseLock: async (deliverableId) => {
           const member = current.value.members.find((candidate) => candidate.deliverableId === deliverableId);
@@ -1721,6 +1721,7 @@ async function executeDeliveryCommand(
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const treeRoot = parsed.treeRoot;
     const memberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd });
+    const reviewStatus = createReviewStatusPort({ cwd, exec });
     const readiness = {
       assess: async (input: {
         planId: string; deliverableId: string; workUnitId: string; repository: string;
@@ -1751,8 +1752,14 @@ async function executeDeliveryCommand(
             workUnitSlug: input.workUnitId,
           },
         }, { deliveryMemberLookup: memberLookup });
-        return checked.state === "ready"
-          ? { status: "ready" as const, settledReviewState: "ready" }
+        if (checked.state !== "ready") return { status: "refused" as const };
+        const reviewed = await assessDeliveryLandingReviewReadiness({
+          repository: input.repository,
+          headRef: observed.request.headRef,
+          headSha: input.head,
+        }, reviewStatus);
+        return reviewed.status === "ready"
+          ? { status: "ready" as const, settledReviewState: "settled" }
           : { status: "refused" as const };
       },
     };
