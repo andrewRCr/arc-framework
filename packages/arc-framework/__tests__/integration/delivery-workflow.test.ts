@@ -119,7 +119,7 @@ describe("packaged delivery workflow", () => {
       /preparation request[\s\S]*no[\s\S]*position facts[\s\S]*handler freshly reobserves position[\s\S]*singleton effect/iu,
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
-    expect(reviewSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
+    expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
     const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
     const refreshExecute = reviewSection.indexOf("arc delivery refresh execute", refreshPlan);
     const refreshAdopt = reviewSection.indexOf("arc delivery refresh adopt", refreshPlan);
@@ -214,13 +214,15 @@ describe("packaged delivery workflow", () => {
     const nativeObserve = packaged.indexOf("arc delivery native observe");
     const nativeSelect = packaged.indexOf("arc delivery native land-select", nativeObserve);
     const nativeUnlink = packaged.indexOf("arc delivery native unlink", nativeSelect);
+    const nativeReviewStatus = packaged.indexOf("arc review status", nativeSelect);
     const nativePrepare = packaged.indexOf("arc delivery native land-prepare", nativeSelect);
     const nativeInterlock = packaged.indexOf("`integration-interlock`", nativePrepare);
     const nativeSubmit = packaged.indexOf("arc delivery native land-submit", nativeInterlock);
     const nativeStatus = packaged.indexOf("arc delivery native land-status", nativeSubmit);
     expect(nativeObserve).toBeLessThan(nativeSelect);
     expect(nativeSelect).toBeLessThan(nativeUnlink);
-    expect(nativeSelect).toBeLessThan(nativePrepare);
+    expect(nativeSelect).toBeLessThan(nativeReviewStatus);
+    expect(nativeReviewStatus).toBeLessThan(nativePrepare);
     expect(nativePrepare).toBeLessThan(nativeInterlock);
     expect(nativeInterlock).toBeLessThan(nativeSubmit);
     expect(nativeSubmit).toBeLessThan(nativeStatus);
