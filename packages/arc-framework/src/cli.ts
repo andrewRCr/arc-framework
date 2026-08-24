@@ -764,6 +764,13 @@ const delivery = program
   .command("delivery")
   .description("Author, compose, and manage delivery plans");
 
+const deliveryAuthoring = delivery.command("authoring").description("Resolve deterministic authoring locators");
+deliveryAuthoring.command("locate").description("Resolve exact candidate refs and detached gate paths")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("authoring-locate", { ...opts, input }, context)
+  )));
+
 delivery.command("entry").description("Inspect the operator-invoked delivery entry route")
   .command("inspect").description("Read authoritative delivery intent and binding facts")
   .option("--input <path>", "Strict attended judgment JSON path, or - for standard input")

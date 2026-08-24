@@ -25,8 +25,9 @@ describe("packaged delivery workflow", () => {
     expect(JSON.parse(recipe).include_files).toContain("system/workflows/arc/supplemental/deliver-stack.md");
     expect(classifyFile("system/workflows/arc/supplemental/deliver-stack.md")).toBe("Framework");
     expect(packaged).toContain("arc delivery eligibility prepare");
-    expect(packaged).toContain("refs/arc/delivery-candidates/{planId}/{chunkKey}");
-    expect(packaged).toContain("use detached worktrees for project gates");
+    expect(packaged).toContain("arc delivery authoring locate");
+    expect(packaged).not.toContain("refs/arc/delivery-candidates/{planId}/{chunkKey}");
+    expect(packaged).toMatch(/returned private candidate ref[\s\S]*returned[\s\S]*detached gate path/iu);
     expect(packaged).not.toContain("refs/heads/cut/");
     expect(packaged).not.toContain("arc delivery materialize");
     expect(packaged).toContain("arc delivery land prepare");

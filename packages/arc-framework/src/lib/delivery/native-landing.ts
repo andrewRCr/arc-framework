@@ -609,6 +609,14 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     | { readonly status: "published" | "adopted" }
     | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
   >;
+  readonly rewriteLocalRef: (input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }) => Promise<
+    | { readonly status: "rewritten" | "adopted" }
+    | { readonly status: "refused"; readonly reason?: string }
+  >;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<ReconcileLinkedNativeDeliverySuffixResult> {
   const operation = input.before.value.activeOperation;
@@ -760,6 +768,32 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       recommendedActionText:
         "Keep the reservation and rerun `arc delivery native land-status` to reobserve the provider result.",
     };
+  }
+  for (const [index, observed] of observedMembers.entries()) {
+    const before = beforeSuffix[index];
+    if (before?.ref === null || before?.ref === undefined || before.ref !== observed.ref
+      || before.coordinates === null) {
+      return {
+        status: "blocked",
+        reason: "local-ref-subject-mismatch",
+        recommendedActionText:
+          "Keep the reservation and restore the exact local member-ref subject before retrying settlement.",
+      };
+    }
+    if (before.coordinates.head === observed.coordinates.head) continue;
+    const rewritten = await dependencies.rewriteLocalRef({
+      ref: before.ref,
+      beforeHead: before.coordinates.head,
+      requestedHead: observed.coordinates.head,
+    });
+    if (rewritten.status === "refused") {
+      return {
+        status: "blocked",
+        reason: `local-ref-${rewritten.reason ?? "refused"}`,
+        recommendedActionText:
+          "Keep the reservation and restore the exact local member ref before retrying settlement.",
+      };
+    }
   }
   const terminal = input.landed.value.members.at(-1);
   const highest = observedMembers.at(-1);

@@ -1067,47 +1067,14 @@ pre-release posture clears development state rather than migrating it. The retir
 work-unit identity as input rather than resolving through the active work unit, because after archival no active
 meta exists and that resolution shape is the exact defect the retired terminal attach shipped.
 
-### `[ ]` **8.1 Reap member refs, authoring candidates, and gate checkouts at teardown**
+### `[x]` **8.1 Reap member refs, authoring candidates, and gate checkouts at teardown**
 
 - _Goal:_ A completed delivery leaves no member refs, authoring candidate refs, or gate checkouts behind, on
   either side.
 
-- _Context:_ The first field delivery left six candidate refs and six gate worktrees with no cleanup driver, hand
-  reaped once. That deferral is not restated here: the authoring stage that materializes candidate refs and gate
-  checkouts survives, so reaping them is in scope. First-class member branches make the local side real, so
-  teardown reaps both sides plus the authoring candidates and ARC-owned gate checkouts. Removing a physical
-  member ref does not erase its exact ref, change-request, or coordinate binding from active delivery state.
-
-- _Shape:_ Residue is derived, never recorded. The deterministic authoring-candidate namespace is ARC-reserved;
-  candidate-ref cleanup authority is the conjunction of that namespace, exact plan/member identity, and expected
-  candidate head, never an unrecorded claim about which process created it. Gate checkout paths derive
-  deterministically from the same identities. Before removal the driver validates the exact path, expected
-  candidate ref or head, detached state, and clean worktree. A candidate ref outside the reserved namespace or at
-  another head remains intact and surfaces. The driver never discovers ownership by HEAD coincidence and adds no
-  checkout or ref-ownership registry.
-
-- _Amended 2026-08-24 after the pre-implementation audit:_ Before mutation, the typed closeout driver requires each
-  present exact candidate-ref / derived gate-path pair to agree on head, validates the registered checkout as
-  detached and clean, and reserves those heads as transient intent in the existing `teardown` operation's narrow
-  `closeout-residue` mode. Retry consumes that reservation after either destructive half completes; a mismatched
-  pair remains intact, while a pair already absent before reservation is an idempotent no-op. Local member refs
-  advance by exact compare-and-swap whenever an accepted rematerialization, provider refresh, or native settlement
-  advances the corresponding remote/state coordinate, leaving the retained current head authoritative for
-  two-sided member-ref deletion. No candidate inventory, creation provenance, or ownership registry persists after
-  cleanup.
-
-    - Build `test-first` (one behavior at a time):
-        - Teardown removes local and remote member refs for a landed member
-        - Teardown removes the exact expected candidate ref in the ARC-reserved namespace
-        - Teardown removes the exact gate checkout at the derived ARC-owned path
-        - Teardown retains the landed member's exact binding in active delivery state
-        - A candidate ref outside the reserved namespace or at a mismatched head is left alone and surfaced
-        - A checkout at another path or with the wrong ref, head, or attached state is left alone and surfaced
-        - A dirty gate checkout surfaces rather than being force-removed
-        - A checkout sharing the expected HEAD by coincidence is never reaped
-        - A crash after either candidate-ref or gate-worktree removal resumes from the exact closeout reservation
-        - Local member refs remain exact after every supported accepted member-head movement
-        - Reaping is idempotent across a repeated run
+- _Outcome:_ Delivery authoring now receives its private candidate refs and detached gate paths from one typed
+  locator. Accepted head movements keep local refs exact; member teardown deletes both sides; and closeout reaping
+  reserves paired candidate heads before exact, idempotent ref/worktree removal while retaining state bindings.
 
 ### `[ ]` **8.2 Retire the completed plan and state pair under an explicit work-unit identity**
 

@@ -749,6 +749,8 @@ describe("delivery landing", () => {
                     action: "retarget" as const,
                   },
                 }
+              : entry.kind === "teardown"
+                ? { ...common, kind: "teardown" as const, mode: "member" as const, candidateHeads: [] }
               : common;
       const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, request);
       if (reserved.status !== "reserved") throw new Error(`fixture must reserve ${entry.kind}`);
@@ -849,6 +851,8 @@ describe("delivery landing", () => {
     const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
       operationId: "operation-highest-teardown",
       kind: "teardown",
+      mode: "member",
+      candidateHeads: [],
       affectedDeliverableIds: [highest.deliverableId],
       expectedStateRevision: 7,
       before: snapshot,

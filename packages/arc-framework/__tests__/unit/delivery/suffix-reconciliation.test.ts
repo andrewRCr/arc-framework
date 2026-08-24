@@ -74,8 +74,11 @@ function reservedProviderRefreshFixture() {
 
 describe("delivery suffix reconciliation", () => {
   it("reserves an observed refresh before settling the terminal top and one final state", async () => {
-    const { plan, state, affected, observed } = providerRefreshFixture();
+    const { plan, state, affected, before, observed } = providerRefreshFixture();
     const events: string[] = [];
+    const localHeads = new Map(before.members.flatMap((member) => (
+      member.ref === null || member.coordinates === null ? [] : [[member.ref, member.coordinates.head] as const]
+    )));
     const absorbed = { head: "a".repeat(40), tree: "b".repeat(40) };
     const input = {
       plan,
@@ -100,6 +103,16 @@ describe("delivery suffix reconciliation", () => {
         events.push("publish");
         return { status: "published" as const };
       },
+      rewriteLocalRef: async ({ ref, beforeHead, requestedHead }: {
+        ref: string; beforeHead: string; requestedHead: string;
+      }) => {
+        const current = localHeads.get(ref);
+        if (current === requestedHead) return { status: "adopted" as const };
+        if (current !== beforeHead) return { status: "refused" as const };
+        localHeads.set(ref, requestedHead);
+        events.push(`local:${ref}`);
+        return { status: "rewritten" as const };
+      },
       stateStore: { publish: async (_planId: string, value: DeliveryStateV1, revision: number) => {
         events.push(value.activeOperation === null ? "final" : "reserve");
         return { status: "ok" as const, value: { revision: revision + 1, value } };
@@ -109,8 +122,11 @@ describe("delivery suffix reconciliation", () => {
 
     expect(events).toEqual([
       "observe", ...affected.map((id) => `prove:${id}`), "reserve",
-      "reobserve", ...affected.map((id) => `prove:${id}`), "absorb", "publish", "final",
+      "reobserve", ...affected.map((id) => `prove:${id}`),
+      ...before.members.map((member) => `local:${member.ref}`), "absorb", "publish", "final",
     ]);
+    expect(before.members.map((member) => member.ref === null ? null : localHeads.get(member.ref)))
+      .toEqual(observed.members.map((member) => member.coordinates?.head));
     expect(result).toMatchObject({
       status: "applied",
       state: {
@@ -140,6 +156,7 @@ describe("delivery suffix reconciliation", () => {
         proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
         absorbTop: async () => ({ status: "absorbed", ...absorbed }),
         publishTop: async () => ({ status: publication }),
+        rewriteLocalRef: async () => ({ status: "adopted" }),
         stateStore: { publish: async (_planId, value, revision) => ({
           status: "ok", value: { revision: revision + 1, value },
         }) },
@@ -173,6 +190,7 @@ describe("delivery suffix reconciliation", () => {
         topEffects.push("publish");
         return { status: "published" as const };
       },
+      rewriteLocalRef: async () => ({ status: "rewritten" as const }),
       stateStore: { publish: async (_planId: string, value: DeliveryStateV1) => {
         finalStates.push(value);
         return { status: "ok" as const, value: { revision: 9, value } };
@@ -223,6 +241,7 @@ describe("delivery suffix reconciliation", () => {
       proveContribution: async () => ({
         status: "accepted" as const, proof: "mechanical-reapply" as const,
       }),
+      rewriteLocalRef: async () => ({ status: "rewritten" as const }),
     };
     await expect(settleReservedDeliverySuffixRefresh({
       ...common,
@@ -267,6 +286,7 @@ describe("delivery suffix reconciliation", () => {
         topEffects();
         return { status: "published" as const };
       },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite local refs"); },
       stateStore: { publish: stateWrites },
     };
     await expect(adoptExternalDeliverySuffixRefresh({
@@ -309,6 +329,7 @@ describe("delivery suffix reconciliation", () => {
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       absorbTop: async () => ({ status: "absorbed", ...absorbed }),
       publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
       stateStore: { publish: async (_planId, value, revision) => ({
         status: "ok", value: { revision: revision + 1, value },
       }) },

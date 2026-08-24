@@ -695,6 +695,7 @@ describe("native delivery landing", () => {
       proveContribution: vi.fn(),
       absorbTop: vi.fn(),
       publishTop: vi.fn(),
+      rewriteLocalRef: vi.fn(),
       stateStore,
     })).resolves.toMatchObject({
       status: "applied",
@@ -816,6 +817,7 @@ describe("native delivery landing", () => {
         tree: "f".repeat(40),
       }),
       publishTop: vi.fn().mockResolvedValue({ status: "published" }),
+      rewriteLocalRef: vi.fn().mockResolvedValue({ status: "rewritten" }),
       stateStore,
     })).resolves.toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     expect(proof).toHaveBeenCalledOnce();
@@ -902,6 +904,9 @@ describe("native delivery landing", () => {
     const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
     let topPublished = false;
     let publishCount = 0;
+    const localHeads = new Map(bound.members.slice(1, -1).map((member) => [
+      member.ref!, member.coordinates!.head,
+    ]));
 
     const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
@@ -930,6 +935,13 @@ describe("native delivery landing", () => {
         topPublished = true;
         return { status: "published" as const };
       },
+      rewriteLocalRef: async ({ ref, beforeHead, requestedHead }) => {
+        const current = localHeads.get(ref);
+        if (current === requestedHead) return { status: "adopted" as const };
+        if (current !== beforeHead) return { status: "refused" as const };
+        localHeads.set(ref, requestedHead);
+        return { status: "rewritten" as const };
+      },
       stateStore: { publish: async (_id, value, expectedRevision) => {
         publishCount += 1;
         if (publishCount > 1 || provedHeads.size !== 2 || !topPublished || expectedRevision !== 2) {
@@ -954,6 +966,7 @@ describe("native delivery landing", () => {
       },
     });
     expect(publishCount).toBe(1);
+    expect([...localHeads.values()]).toEqual(["a".repeat(40), "c".repeat(40)]);
 
     await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
@@ -967,6 +980,7 @@ describe("native delivery landing", () => {
         : { status: "accepted", proof: "mechanical-reapply" },
       absorbTop: async () => { throw new Error("rejected suffix reached top absorption"); },
       publishTop: async () => { throw new Error("rejected suffix reached top publication"); },
+      rewriteLocalRef: async () => { throw new Error("rejected suffix reached local ref rewrite"); },
       stateStore: {
         publish: async () => { throw new Error("rejected suffix reached state publication"); },
       },

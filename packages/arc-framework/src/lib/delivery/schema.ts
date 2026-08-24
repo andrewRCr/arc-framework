@@ -261,6 +261,13 @@ export const DeliveryHostEffectIdentityV1Schema = z.strictObject({
 });
 export type DeliveryHostEffectIdentityV1 = z.infer<typeof DeliveryHostEffectIdentityV1Schema>;
 
+/** Transient exact candidate head retained only while closeout residue is being reaped. */
+export const DeliveryCandidateCleanupHeadV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  head: DeliveryGitObjectIdSchema.nullable(),
+});
+export type DeliveryCandidateCleanupHeadV1 = z.infer<typeof DeliveryCandidateCleanupHeadV1Schema>;
+
 /** One crash-recoverable reservation for an external delivery mutation. */
 export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   DeliveryOperationCommonV1Schema.extend({
@@ -272,6 +279,11 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("teardown"),
+    mode: z.enum(["member", "closeout-residue"]),
+    candidateHeads: z.array(DeliveryCandidateCleanupHeadV1Schema).refine(
+      (heads) => new Set(heads.map(({ deliverableId }) => deliverableId)).size === heads.length,
+      "candidate cleanup heads must be distinct",
+    ),
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("publish"),

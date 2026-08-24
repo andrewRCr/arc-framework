@@ -10,7 +10,10 @@ import { handleDeliveryExecution } from "../../src/handlers/delivery-execution.j
 import type { RawGitExec } from "../../src/lib/change-facts.js";
 import { absorbGitDeliveryChain } from "../../src/lib/delivery/chain-absorption.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
-import { publishDeliveryTopRef } from "../../src/lib/delivery/git-materialization.js";
+import {
+  publishDeliveryTopRef,
+  rewriteDeliveryLocalRef,
+} from "../../src/lib/delivery/git-materialization.js";
 import {
   applyDeliveryLanding,
   prepareDeliveryLanding,
@@ -272,6 +275,11 @@ function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typ
       readonly beforeHead: string;
       readonly requestedHead: string;
     }) => publishDeliveryTopRef({ exec: fixture.gitExec, remote: "origin", ...input }),
+    rewriteLocalRef: (input: {
+      readonly ref: string;
+      readonly beforeHead: string;
+      readonly requestedHead: string;
+    }) => rewriteDeliveryLocalRef({ exec: fixture.gitExec, ...input }),
     stateStore,
   };
 }

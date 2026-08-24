@@ -75,7 +75,10 @@ export async function teardownLandedDeliveryMember(input: {
   readonly repository: string;
   readonly protectedTargetRef: string;
   readonly host: Pick<DeliveryHostPort, "readRequest">;
-  deleteRef(input: { readonly ref: string; readonly expectedHead: string }): Promise<{
+  deleteLocalRef(input: { readonly ref: string; readonly expectedHead: string }): Promise<{
+    readonly status: "deleted" | "adopted" | "refused";
+  }>;
+  deleteRemoteRef(input: { readonly ref: string; readonly expectedHead: string }): Promise<{
     readonly status: "deleted" | "adopted" | "refused";
   }>;
   readonly stateStore: StateWriter;
@@ -117,6 +120,8 @@ export async function teardownLandedDeliveryMember(input: {
     const reserved = reserveDeliveryOperation(input.current, input.plan, {
       operationId: crypto.randomUUID(),
       kind: "teardown",
+      mode: "member",
+      candidateHeads: [],
       affectedDeliverableIds: [member.deliverableId],
       expectedStateRevision: input.current.revision,
       before,
@@ -131,6 +136,7 @@ export async function teardownLandedDeliveryMember(input: {
   } else {
     const active = validateDeliveryActiveOperation(input.current);
     if (active.status !== "valid" || active.operation.kind !== "teardown"
+      || active.operation.mode !== "member"
       || active.operation.affectedDeliverableIds.length !== 1
       || active.operation.affectedDeliverableIds[0] !== member.deliverableId
       || canonicalize(active.operation.before) !== canonicalize(before)
@@ -139,8 +145,12 @@ export async function teardownLandedDeliveryMember(input: {
     }
     persistedReservation = input.current;
   }
-  const deletion = await input.deleteRef({ ref: member.ref, expectedHead: member.coordinates.head });
-  if (deletion.status === "refused") {
+  const localDeletion = await input.deleteLocalRef({ ref: member.ref, expectedHead: member.coordinates.head });
+  if (localDeletion.status === "refused") {
+    return { status: "blocked", reason: "delete-refused", reservation: persistedReservation };
+  }
+  const remoteDeletion = await input.deleteRemoteRef({ ref: member.ref, expectedHead: member.coordinates.head });
+  if (remoteDeletion.status === "refused") {
     return { status: "blocked", reason: "delete-refused", reservation: persistedReservation };
   }
   const finalRequest = await input.host.readRequest(input.repository, member.changeRequest);

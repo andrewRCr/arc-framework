@@ -29,11 +29,20 @@ describe("landed delivery teardown", () => {
   it("reserves and deletes exact residue while retaining the member bindings", async () => {
     const { plan, state, facts, first, request } = fixture();
     const writes: typeof state[] = [];
-    const deleteRef = vi.fn(async () => ({ status: "deleted" as const }));
+    let localPresent = true;
+    let remotePresent = true;
     const result = await teardownLandedDeliveryMember({
       plan, current: { revision: 4, value: state }, facts, deliverableId: first.deliverableId,
       repository: "owner/repo", protectedTargetRef: "refs/heads/main",
-      host: { readRequest: async () => ({ status: "observed", request }) }, deleteRef,
+      host: { readRequest: async () => ({ status: "observed", request }) },
+      deleteLocalRef: async () => {
+        localPresent = false;
+        return { status: "deleted" };
+      },
+      deleteRemoteRef: async () => {
+        remotePresent = false;
+        return { status: "deleted" };
+      },
       stateStore: { publish: async (_id, value, revision) => {
         writes.push(value as typeof state);
         return { status: "ok", value: { revision: revision + 1, value } };
@@ -42,7 +51,7 @@ describe("landed delivery teardown", () => {
     expect(result).toMatchObject({ status: "torn-down", state: { value: { activeOperation: null } } });
     if (result.status !== "torn-down") return;
     expect(result.state.value.members[0]).toEqual(first);
-    expect(deleteRef).toHaveBeenCalledWith({ ref: first.ref, expectedHead: request.headSha });
+    expect({ localPresent, remotePresent }).toEqual({ localPresent: false, remotePresent: false });
     expect(writes).toHaveLength(2);
   });
 
@@ -52,6 +61,8 @@ describe("landed delivery teardown", () => {
     const reserved = reserveDeliveryOperation({ revision: 4, value: state }, plan, {
       operationId: "operation-teardown",
       kind: "teardown",
+      mode: "member",
+      candidateHeads: [],
       affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 4,
       before: snapshot,
@@ -59,7 +70,8 @@ describe("landed delivery teardown", () => {
     });
     if (reserved.status !== "reserved") throw new Error("fixture must reserve teardown");
     const writes: typeof state[] = [];
-    const deleteRef = vi.fn(async () => ({ status: "deleted" as const }));
+    let localPresent = true;
+    let remotePresent = true;
     const result = await teardownLandedDeliveryMember({
       plan,
       current: { revision: 5, value: reserved.state },
@@ -68,7 +80,14 @@ describe("landed delivery teardown", () => {
       repository: "owner/repo",
       protectedTargetRef: "refs/heads/main",
       host: { readRequest: async () => ({ status: "observed", request }) },
-      deleteRef,
+      deleteLocalRef: async () => {
+        localPresent = false;
+        return { status: "deleted" };
+      },
+      deleteRemoteRef: async () => {
+        remotePresent = false;
+        return { status: "deleted" };
+      },
       stateStore: { publish: async (_id, value, revision) => {
         writes.push(value as typeof state);
         return { status: "ok", value: { revision: revision + 1, value } };
@@ -79,7 +98,7 @@ describe("landed delivery teardown", () => {
       state: { value: { activeOperation: null } },
       nextAction: "continue",
     });
-    expect(deleteRef).toHaveBeenCalledWith({ ref: first.ref, expectedHead: request.headSha });
+    expect({ localPresent, remotePresent }).toEqual({ localPresent: false, remotePresent: false });
     expect(writes).toHaveLength(1);
   });
 
@@ -112,6 +131,8 @@ describe("landed delivery teardown", () => {
       const reserved = reserveDeliveryOperation({ revision: 4, value: state }, plan, {
         operationId: `operation-${topCase.nextAction}`,
         kind: "teardown",
+        mode: "member",
+        candidateHeads: [],
         affectedDeliverableIds: [highest.deliverableId],
         expectedStateRevision: 4,
         before: snapshot,
@@ -136,7 +157,8 @@ describe("landed delivery teardown", () => {
                 baseRef: highest.ref!.replace("refs/heads/", ""), state: topCase.state, draft: true,
               },
             } },
-        deleteRef: async () => ({ status: "deleted" }),
+        deleteLocalRef: async () => ({ status: "deleted" }),
+        deleteRemoteRef: async () => ({ status: "deleted" }),
         stateStore: { publish: async (_id, value, revision) => {
           writes.push(value as typeof state);
           return { status: "ok", value: { revision: revision + 1, value } };
@@ -164,17 +186,20 @@ describe("landed delivery teardown", () => {
         status: "observed",
         request: { ...request, headSha: `${request.headSha.slice(0, -1)}0` },
       }) },
-      deleteRef: async () => ({ status: "adopted" }),
+      deleteLocalRef: async () => ({ status: "adopted" }),
+      deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
     await expect(teardownLandedDeliveryMember({
       ...common,
       host: { readRequest: async () => ({ status: "observed", request: { ...request, state: "open" as const } }) },
-      deleteRef: async () => ({ status: "adopted" }),
+      deleteLocalRef: async () => ({ status: "adopted" }),
+      deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
     await expect(teardownLandedDeliveryMember({
       ...common, deliverableId: state.members[1]!.deliverableId,
       host: { readRequest: async () => ({ status: "observed", request }) },
-      deleteRef: async () => ({ status: "adopted" }),
+      deleteLocalRef: async () => ({ status: "adopted" }),
+      deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "member-not-landed" });
     expect(publish).not.toHaveBeenCalled();
   });
@@ -189,7 +214,8 @@ describe("landed delivery teardown", () => {
       host: { readRequest: async () => (++reads === 1
         ? { status: "observed", request }
         : { status: "refused", reason: "unavailable" }) },
-      deleteRef: async () => ({ status: "adopted" }),
+      deleteLocalRef: async () => ({ status: "adopted" }),
+      deleteRemoteRef: async () => ({ status: "adopted" }),
       stateStore: { publish: async (_id, value, revision) => {
         published.push(value as typeof state);
         return { status: "ok", value: { revision: revision + 1, value } };
@@ -207,7 +233,8 @@ describe("landed delivery teardown", () => {
       plan, current: { revision: 4, value: state }, facts, deliverableId: first.deliverableId,
       repository: "owner/repo", protectedTargetRef: "refs/heads/main",
       host: { readRequest: async () => ({ status: "observed", request }) },
-      deleteRef: async () => ({ status: "refused" }),
+      deleteLocalRef: async () => ({ status: "adopted" }),
+      deleteRemoteRef: async () => ({ status: "refused" }),
       stateStore: { publish: async (_id, value, revision) => ({
         status: "ok", value: { revision: revision + 1, value },
       }) },
@@ -255,7 +282,8 @@ describe("landed delivery teardown", () => {
         }
         return { status: "observed", request: topRequest };
       } },
-      deleteRef: async () => ({ status: "deleted" }),
+      deleteLocalRef: async () => ({ status: "deleted" }),
+      deleteRemoteRef: async () => ({ status: "deleted" }),
       stateStore: { publish: async (_id, value, revision) => ({
         status: "ok", value: { revision: revision + 1, value },
       }) },

@@ -6,6 +6,7 @@ import { canonicalize } from "../kernel/index.js";
 import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
+  DeliveryCandidateCleanupHeadV1Schema,
   DeliveryLandEffectV1Schema,
   DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
@@ -34,7 +35,15 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       mode: z.enum(["review-fix", "provider-adoption"]),
     }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("teardown") }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("teardown"),
+      mode: z.enum(["member", "closeout-residue"]),
+      candidateHeads: z.array(DeliveryCandidateCleanupHeadV1Schema).refine(
+        (heads) => new Set(heads.map(({ deliverableId }) => deliverableId)).size === heads.length,
+        "candidate cleanup heads must be distinct",
+      ),
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
@@ -209,6 +218,17 @@ export function validateDeliveryActiveOperation(
     || canonicalize(operation.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
     return { status: "blocked", reason: "state-invalid" };
   }
+  if (operation.kind === "teardown") {
+    const candidateIds = operation.candidateHeads.map(({ deliverableId }) => deliverableId);
+    const allStateIds = parsedState.data.members.map(({ deliverableId }) => deliverableId);
+    if ((operation.mode === "member"
+      && (operation.affectedDeliverableIds.length !== 1 || candidateIds.length !== 0))
+      || (operation.mode === "closeout-residue"
+        && (canonicalize(operation.affectedDeliverableIds) !== canonicalize(allStateIds)
+          || canonicalize(candidateIds) !== canonicalize(allStateIds)))) {
+      return { status: "blocked", reason: "state-invalid" };
+    }
+  }
   if (current.revision !== operation.stateRevision + 1
     || operation.boundPlanDigest !== parsedState.data.boundPlan.planDigest
     || canonicalize(snapshotFromState(parsedState.data, operation.affectedDeliverableIds))
@@ -320,6 +340,20 @@ export function reserveDeliveryOperation(
     || canonicalize(parsedRequest.data.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
     return { status: "refused", reason: "member-sequence-invalid" };
   }
+  if (parsedRequest.data.kind === "teardown") {
+    const candidateIds = parsedRequest.data.candidateHeads.map(({ deliverableId }) => deliverableId);
+    if (parsedRequest.data.mode === "member") {
+      if (parsedRequest.data.affectedDeliverableIds.length !== 1 || candidateIds.length !== 0) {
+        return { status: "refused", reason: "operation-invalid" };
+      }
+    } else {
+      const allIds = plan.members.map(({ deliverableId }) => deliverableId);
+      if (canonicalize(parsedRequest.data.affectedDeliverableIds) !== canonicalize(allIds)
+        || canonicalize(candidateIds) !== canonicalize(allIds)) {
+        return { status: "refused", reason: "operation-invalid" };
+      }
+    }
+  }
   if (canonicalize(snapshotFromState(parsedState.data, parsedRequest.data.affectedDeliverableIds))
     !== canonicalize(parsedRequest.data.before)) {
     return { status: "refused", reason: "before-state-mismatch" };
@@ -336,7 +370,11 @@ export function reserveDeliveryOperation(
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
       ...(parsedRequest.data.kind === "rewrite" || parsedRequest.data.kind === "land"
+        || parsedRequest.data.kind === "teardown"
         ? { mode: parsedRequest.data.mode }
+        : {}),
+      ...(parsedRequest.data.kind === "teardown"
+        ? { candidateHeads: parsedRequest.data.candidateHeads }
         : {}),
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
         || parsedRequest.data.kind === "top-remedy"

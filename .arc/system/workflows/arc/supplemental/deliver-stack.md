@@ -47,12 +47,16 @@ The inspection is read-only. It never treats the presence of prose as delivery j
 
 ## Validate and publish
 
-Prepare the complete explicit candidate chain:
+Resolve the complete plan's exact disposable authoring locators:
 
-Keep disposable candidates outside `refs/heads/`: record each authored cut under
-`refs/arc/delivery-candidates/{planId}/{chunkKey}` and use detached worktrees for project gates. Do not leave
-ordinary slash-prefixed local branches or branched worktrees for these cuts — ARC may interpret them as work-unit
-loci or cleanup residue. The private refs are identity-free locators only and grant no delivery authority.
+```bash
+arc delivery authoring locate - --json
+```
+
+Record each authored cut at its returned private candidate ref and run project gates in the matching returned
+detached gate path. Do not leave ordinary local branches or branched worktrees for these cuts — ARC may interpret
+them as work-unit loci or cleanup residue. The private refs are identity-free locators only and grant no delivery
+authority.
 
 ```bash
 arc delivery eligibility prepare - --json

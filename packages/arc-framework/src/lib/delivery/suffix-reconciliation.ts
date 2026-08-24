@@ -171,6 +171,14 @@ interface ProviderAdoptionSettlementDependencies {
     | { readonly status: "published" | "adopted" }
     | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
   >;
+  readonly rewriteLocalRef: (input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }) => Promise<
+    | { readonly status: "rewritten" | "adopted" }
+    | { readonly status: "refused"; readonly reason?: string }
+  >;
   readonly stateStore: StateWriter;
 }
 
@@ -209,6 +217,22 @@ export async function settleReservedDeliverySuffixRefresh(input: {
   }
   const refusal = await proveProviderMovements(movements, input.proveContribution);
   if (refusal !== null) return { ...refusal, status: "blocked" };
+
+  for (const movement of movements) {
+    if (movement.before.ref === null || movement.after.ref !== movement.before.ref
+      || movement.before.coordinates === null || movement.after.coordinates === null) {
+      return { status: "blocked", reason: "local-ref-subject-mismatch" };
+    }
+    if (movement.before.coordinates.head === movement.after.coordinates.head) continue;
+    const rewritten = await input.rewriteLocalRef({
+      ref: movement.before.ref,
+      beforeHead: movement.before.coordinates.head,
+      requestedHead: movement.after.coordinates.head,
+    });
+    if (rewritten.status === "refused") {
+      return { status: "blocked", reason: `local-ref-${rewritten.reason ?? "refused"}` };
+    }
+  }
 
   const terminal = active.state.members.at(-1);
   const highestMember = observation.snapshot.members.at(-1);
@@ -426,6 +450,7 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
     proveContribution: input.proveContribution,
     absorbTop: input.absorbTop,
     publishTop: input.publishTop,
+    rewriteLocalRef: input.rewriteLocalRef,
     stateStore: input.stateStore,
   });
 }

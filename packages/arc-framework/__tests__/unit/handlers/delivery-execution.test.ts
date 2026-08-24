@@ -20,6 +20,29 @@ function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
 }
 
 describe("delivery execution handler", () => {
+  it("preserves deterministic authoring locators through a strict read-only verb", async () => {
+    const plan = deliveryStackPlanFixture();
+    const locators = plan.members.map((member) => ({
+      deliverableId: member.deliverableId,
+      candidateRef: `refs/arc/delivery-candidates/${plan.planId}/${member.chunkKey}`,
+      gatePath: `/repo/.git/arc/delivery-gates/${plan.planId}/${member.chunkKey}`,
+    }));
+    const write = vi.fn();
+    await handleDeliveryExecution("authoring-locate", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({ planId: plan.planId })),
+      execute: vi.fn().mockResolvedValue({ status: "located", planId: plan.planId, locators }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery authoring locate",
+      status: "located",
+      planId: plan.planId,
+      locators,
+    });
+  });
+
   it("preserves a prepared service result through the strict verb envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const snapshot = {

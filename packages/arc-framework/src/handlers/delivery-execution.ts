@@ -32,10 +32,12 @@ import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-p
 import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import {
   deleteDeliveryRemoteRef,
+  deleteDeliveryLocalRef,
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
   publishDeliveryTopRef,
-  rewriteDeliveryRemoteRef,
+  rewriteDeliveryLocalRef,
+  rewriteDeliveryMemberRef,
 } from "../lib/delivery/git-materialization.js";
 import {
   bindInitialDeliveryRef,
@@ -57,6 +59,7 @@ import {
   routeDeliveryPosition,
 } from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { deriveDeliveryResidueLocators } from "../lib/delivery/residue-reaping.js";
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
@@ -133,6 +136,7 @@ import { resolveGitCandidateBaseRevision } from "../lib/work-unit/git-candidate-
 import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { releaseMergeLock } from "../scripts/review-gate/merge-lock.js";
@@ -194,6 +198,7 @@ const PublishSchema = MaterializeSchema.extend({
   }),
 });
 const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: DeliveryPositionFactsV1Schema });
+const AuthoringLocateSchema = z.strictObject({ planId: DeliveryPlanIdSchema });
 const ReconcileSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -337,6 +342,7 @@ const RefreshAdoptSchema = z.strictObject({
 });
 
 const RequestSchemas = {
+  "authoring-locate": AuthoringLocateSchema,
   "eligibility-prepare": PrepareSchema,
   "eligibility-close": CloseSchema,
   publish: PublishSchema,
@@ -411,6 +417,15 @@ const ResultSchema = z.union([
   DeliveryRecoveryResultV1Schema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
+  z.strictObject({
+    status: z.literal("located"),
+    planId: DeliveryPlanIdSchema,
+    locators: z.array(z.strictObject({
+      deliverableId: DeliveryCanonicalDigestSchema,
+      candidateRef: z.string().min(1),
+      gatePath: z.string().min(1),
+    })),
+  }),
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("prepared"), presentation: PreparedLandingSchema }),
@@ -565,6 +580,7 @@ export const deliveryExecutionCommandInputPolicyDeclarations = Object.keys(Reque
 })) satisfies readonly CommandInputDeclaration[];
 
 function executionPath(command: DeliveryExecutionCommand): string {
+  if (command.startsWith("authoring-")) return `delivery authoring ${command.slice("authoring-".length)}`;
   if (command.startsWith("eligibility-")) return `delivery eligibility ${command.slice("eligibility-".length)}`;
   if (command.startsWith("land-")) return `delivery land ${command.slice("land-".length)}`;
   if (command.startsWith("native-")) return `delivery native ${command.slice("native-".length)}`;
@@ -801,6 +817,20 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  if (command === "authoring-locate") {
+    const parsed = AuthoringLocateSchema.parse(request);
+    const planRead = await planStore.readCurrent(parsed.planId);
+    if (planRead.status !== "ok" || planRead.value === null) {
+      return { status: "refused", reason: "delivery-plan-unavailable" };
+    }
+    const locators = deriveDeliveryResidueLocators(
+      planRead.value,
+      await resolveGitCommonDir(exec, cwd),
+    );
+    return locators.status === "derived"
+      ? { status: "located", planId: parsed.planId, locators: locators.locators }
+      : { status: "refused", reason: locators.reason };
+  }
   const settleAppliedNativeLanding = (
     plan: z.infer<typeof DeliveryPlanV1Schema>,
     before: { readonly revision: number; readonly value: DeliveryStateV1 },
@@ -833,6 +863,7 @@ async function executeDeliveryCommand(
       proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
       absorbTop: (input) => absorbGitDeliveryChain({ exec: rawExec, ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote, ...input }),
+      rewriteLocalRef: (input) => rewriteDeliveryLocalRef({ exec, ...input }),
       stateStore,
     });
   };
@@ -1130,6 +1161,9 @@ async function executeDeliveryCommand(
       }) => absorbGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
       publishTop: (input: { ref: string; beforeHead: string; requestedHead: string }) => (
         publishDeliveryTopRef({ exec, remote: adopt.remote, ...input })
+      ),
+      rewriteLocalRef: (input: { ref: string; beforeHead: string; requestedHead: string }) => (
+        rewriteDeliveryLocalRef({ exec, ...input })
       ),
       stateStore,
     });
@@ -2195,7 +2229,7 @@ async function executeDeliveryCommand(
             });
             return { status: checked.status };
           },
-          rewriteRef: (effect) => rewriteDeliveryRemoteRef({ exec, remote: parsed.remote, ...effect }),
+          rewriteRef: (effect) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...effect }),
           observeResult: async () => {
             const observed = await observeDeliveryRemoteRef(exec, parsed.remote, memberRef);
             return observed.status === "observed" && observed.head === requestedCoordinates.head
@@ -2249,7 +2283,7 @@ async function executeDeliveryCommand(
         });
         return { status: checked.status };
       },
-      rewriteRef: (input) => rewriteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
+      rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...input }),
       observeResult: async () => {
         const member = parsed.requested.members[0];
         const observed = await observeDeliveryEligibilityRef(exec, parsed.candidateRef);
@@ -2301,7 +2335,8 @@ async function executeDeliveryCommand(
       repository: parsed.repository,
       protectedTargetRef: parsed.protectedTargetRef,
       host: new GhDeliveryHostPort(hostedGhRunner),
-      deleteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
+      deleteLocalRef: (input) => deleteDeliveryLocalRef({ exec, ...input }),
+      deleteRemoteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
       stateStore,
   });
 }

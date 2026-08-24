@@ -24,7 +24,7 @@ type SnapshotOperationRequest = Extract<DeliveryOperationReservationRequestV1, {
 type SnapshotOperationOverrides = {
   readonly operationId?: string;
   readonly kind?: SnapshotOperationRequest["kind"];
-  readonly mode?: "review-fix" | "provider-adoption";
+  readonly mode?: "review-fix" | "provider-adoption" | "member" | "closeout-residue";
   readonly affectedDeliverableIds?: string[];
   readonly expectedStateRevision?: number;
   readonly before?: DeliveryOperationSnapshotV1;
@@ -74,8 +74,12 @@ function operationRequest(
     requested,
   };
   const kind = overrides.kind ?? "rewrite";
-  return kind === "rewrite"
-    ? { ...common, kind, mode: overrides.mode ?? "review-fix" }
+  if (kind === "rewrite") {
+    const mode = overrides.mode;
+    return { ...common, kind, mode: mode === "provider-adoption" ? mode : "review-fix" };
+  }
+  return kind === "teardown"
+    ? { ...common, kind, mode: "member", candidateHeads: [] }
     : { ...common, kind };
 }
 
@@ -194,7 +198,10 @@ describe("reserveDeliveryOperation", () => {
           activeOperation: {
             operationId: request.operationId,
             kind,
-            ...(request.kind === "rewrite" ? { mode: request.mode } : {}),
+            ...(request.kind === "rewrite" || request.kind === "teardown"
+              ? { mode: request.mode }
+              : {}),
+            ...(request.kind === "teardown" ? { candidateHeads: request.candidateHeads } : {}),
             affectedDeliverableIds: request.affectedDeliverableIds,
             stateRevision: STATE_REVISION,
             boundPlanDigest: plan.planDigest,
@@ -293,6 +300,52 @@ describe("reserveDeliveryOperation", () => {
       { revision: STATE_REVISION, value: state },
       plan,
       land,
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
+
+    const teardown = operationRequest(state, { kind: "teardown" });
+    if (teardown.kind !== "teardown") throw new Error("fixture must create teardown");
+    const { mode: teardownMode, candidateHeads, ...teardownWithoutMode } = teardown;
+    void teardownMode;
+    void candidateHeads;
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      teardown,
+    )).toMatchObject({
+      status: "reserved",
+      state: { activeOperation: { kind: "teardown", mode: "member", candidateHeads: [] } },
+    });
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      teardownWithoutMode,
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
+
+    const allIds = state.members.map((member) => member.deliverableId);
+    const allMembers = stateSnapshot(state, allIds);
+    const closeout = {
+      ...teardown,
+      mode: "closeout-residue" as const,
+      affectedDeliverableIds: allIds,
+      before: allMembers,
+      requested: allMembers,
+      candidateHeads: allIds.map((deliverableId, index) => ({
+        deliverableId,
+        head: index === 0 ? "d".repeat(40) : null,
+      })),
+    };
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      closeout,
+    )).toMatchObject({
+      status: "reserved",
+      state: { activeOperation: { kind: "teardown", mode: "closeout-residue" } },
+    });
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      { ...closeout, candidateHeads: closeout.candidateHeads.slice(0, -1) },
     )).toEqual({ status: "refused", reason: "operation-invalid" });
   });
 
@@ -569,6 +622,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
     const teardownBefore = stateSnapshot(landed.state, request.affectedDeliverableIds);
     const teardownRequest = operationRequest(landed.state, {
       kind: "teardown",
+      mode: "member",
       expectedStateRevision: STATE_REVISION + 2,
       before: teardownBefore,
       requested: {
@@ -682,6 +736,7 @@ describe("reconcileDeliveryOperation", () => {
     const before = stateSnapshot(state, [state.members[0]!.deliverableId]);
     const request = operationRequest(state, {
       kind: "teardown",
+      mode: "member",
       before,
       requested: before,
     });

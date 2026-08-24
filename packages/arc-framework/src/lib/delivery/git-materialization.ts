@@ -5,13 +5,17 @@ import { normalizeGitRejection } from "../git/process-error.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const absentObjectId = "0".repeat(40);
+const candidateRef = /^refs\/arc\/delivery-candidates\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 type DeliveryLocalRefObservation =
   | { readonly status: "absent" }
   | { readonly status: "observed"; readonly head: string }
   | { readonly status: "refused"; readonly reason: "malformed" | "unavailable" };
 
-async function observeDeliveryLocalRef(exec: GitExec, ref: string): Promise<DeliveryLocalRefObservation> {
+export async function observeDeliveryLocalRef(
+  exec: GitExec,
+  ref: string,
+): Promise<DeliveryLocalRefObservation> {
   const args = ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`];
   try {
     const { stdout } = await exec("git", args);
@@ -26,6 +30,102 @@ async function observeDeliveryLocalRef(exec: GitExec, ref: string): Promise<Deli
       ? { status: "absent" }
       : { status: "refused", reason: "unavailable" };
   }
+}
+
+/** Advance one local delivery ref only from its exact prior head. */
+export async function rewriteDeliveryLocalRef(input: {
+  readonly exec: GitExec;
+  readonly ref: string;
+  readonly beforeHead: string;
+  readonly requestedHead: string;
+}): Promise<
+  | { readonly status: "rewritten" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+> {
+  if (!objectId.test(input.beforeHead) || !objectId.test(input.requestedHead)
+    || !input.ref.startsWith("refs/heads/delivery/")) {
+    return { status: "refused", reason: "malformed" };
+  }
+  const before = await observeDeliveryLocalRef(input.exec, input.ref);
+  if (before.status === "refused") return before;
+  if (before.status === "absent") return { status: "refused", reason: "collision" };
+  if (before.head === input.requestedHead) return { status: "adopted" };
+  if (before.head !== input.beforeHead) return { status: "refused", reason: "collision" };
+  try {
+    await input.exec("git", ["update-ref", input.ref, input.requestedHead, input.beforeHead]);
+  } catch {
+    const afterFailure = await observeDeliveryLocalRef(input.exec, input.ref);
+    if (afterFailure.status === "observed" && afterFailure.head === input.requestedHead) {
+      return { status: "adopted" };
+    }
+    return {
+      status: "refused",
+      reason: afterFailure.status === "refused" ? afterFailure.reason : "collision",
+    };
+  }
+  const after = await observeDeliveryLocalRef(input.exec, input.ref);
+  return after.status === "observed" && after.head === input.requestedHead
+    ? { status: "rewritten" }
+    : {
+        status: "refused",
+        reason: after.status === "refused" ? after.reason : "collision",
+      };
+}
+
+/** Delete one local delivery ref only at its exact observed head. */
+export async function deleteDeliveryLocalRef(input: {
+  readonly exec: GitExec;
+  readonly ref: string;
+  readonly expectedHead: string;
+}): Promise<
+  | { readonly status: "deleted" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+> {
+  return deleteExactLocalRef(input, input.ref.startsWith("refs/heads/delivery/"));
+}
+
+/** Delete one exact private authoring candidate, never an ordinary branch or foreign private ref. */
+export async function deleteDeliveryCandidateRef(input: {
+  readonly exec: GitExec;
+  readonly ref: string;
+  readonly expectedHead: string;
+}): Promise<
+  | { readonly status: "deleted" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+> {
+  return deleteExactLocalRef(input, candidateRef.test(input.ref));
+}
+
+async function deleteExactLocalRef(input: {
+  readonly exec: GitExec;
+  readonly ref: string;
+  readonly expectedHead: string;
+}, allowedRef: boolean): Promise<
+  | { readonly status: "deleted" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+> {
+  if (!objectId.test(input.expectedHead) || !allowedRef) return { status: "refused", reason: "malformed" };
+  const before = await observeDeliveryLocalRef(input.exec, input.ref);
+  if (before.status === "refused") return before;
+  if (before.status === "absent") return { status: "adopted" };
+  if (before.head !== input.expectedHead) return { status: "refused", reason: "collision" };
+  try {
+    await input.exec("git", ["update-ref", "-d", input.ref, input.expectedHead]);
+  } catch {
+    const afterFailure = await observeDeliveryLocalRef(input.exec, input.ref);
+    if (afterFailure.status === "absent") return { status: "adopted" };
+    return {
+      status: "refused",
+      reason: afterFailure.status === "refused" ? afterFailure.reason : "collision",
+    };
+  }
+  const after = await observeDeliveryLocalRef(input.exec, input.ref);
+  return after.status === "absent"
+    ? { status: "deleted" }
+    : {
+        status: "refused",
+        reason: after.status === "refused" ? after.reason : "collision",
+      };
 }
 
 async function publishDeliveryLocalRef(input: {
@@ -224,6 +324,39 @@ export async function rewriteDeliveryRemoteRef(input: {
   return after.status === "observed" && after.head === input.requestedHead
     ? { status: "rewritten" }
     : { status: "refused", reason: after.status === "refused" ? "unavailable" : "stale-lease" };
+}
+
+/** Advance matching remote and local delivery refs under one retained operation. */
+export async function rewriteDeliveryMemberRef(input: {
+  readonly exec: GitExec;
+  readonly remote: string;
+  readonly ref: string;
+  readonly beforeHead: string;
+  readonly requestedHead: string;
+}): Promise<
+  | { readonly status: "rewritten" | "adopted" }
+  | {
+      readonly status: "refused";
+      readonly reason: "collision" | "stale-lease" | "malformed" | "unavailable";
+    }
+> {
+  if (!objectId.test(input.beforeHead) || !objectId.test(input.requestedHead)
+    || !input.ref.startsWith("refs/heads/delivery/")) {
+    return { status: "refused", reason: "malformed" };
+  }
+  const localBefore = await observeDeliveryLocalRef(input.exec, input.ref);
+  if (localBefore.status === "refused") return localBefore;
+  if (localBefore.status === "absent"
+    || (localBefore.head !== input.beforeHead && localBefore.head !== input.requestedHead)) {
+    return { status: "refused", reason: "collision" };
+  }
+  const remote = await rewriteDeliveryRemoteRef(input);
+  if (remote.status === "refused") return remote;
+  const local = await rewriteDeliveryLocalRef(input);
+  if (local.status === "refused") return local;
+  return remote.status === "rewritten" || local.status === "rewritten"
+    ? { status: "rewritten" }
+    : { status: "adopted" };
 }
 
 /** Delete one remote ref only at its exact observed head, or adopt exact absence. */
