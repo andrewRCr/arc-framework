@@ -75,7 +75,7 @@ describe("delivery terminal recovery", () => {
       `${nativeMergeHead}:refs/heads/native-merge-result`,
       `${externalTargetHead}:refs/heads/external-target`,
     ];
-    if (input.triggerPresent) branchPushes.push(`${triggerHead}:refs/heads/member-1`);
+    if (input.triggerPresent) branchPushes.push(`${triggerHead}:refs/heads/delivery/member-1`);
     await git(repository, ["push", "origin", ...branchPushes]);
 
     const state = DeliveryStateV1Schema.parse({
@@ -87,7 +87,7 @@ describe("delivery terminal recovery", () => {
       target: { ref: "refs/heads/main", coordinates: { head: targetHead, tree } },
       members: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
-        ref: `refs/heads/member-${index + 1}`,
+        ref: index === 0 ? "refs/heads/delivery/member-1" : "refs/heads/member-2",
         changeRequest: { providerId: "github", changeRequestId: String(401 + index) },
         coordinates: index === 0
           ? { base: targetHead, head: triggerHead, tree }
@@ -103,6 +103,8 @@ describe("delivery terminal recovery", () => {
       const reserved = reserveDeliveryOperation({ revision, value: state }, plan, {
         operationId: "teardown-recovery",
         kind: "teardown",
+        mode: "member",
+        candidateHeads: [],
         affectedDeliverableIds: [trigger.deliverableId],
         expectedStateRevision: revision,
         before: snapshot,
@@ -146,7 +148,11 @@ describe("delivery terminal recovery", () => {
       state: stateValue,
       merged: stateValue === "closed",
       draft: stateValue === "open",
-      head: { ref: `member-${member}`, sha: requestHead, repo: { full_name: "owner/repo" } },
+      head: {
+        ref: member === 1 ? "delivery/member-1" : "member-2",
+        sha: requestHead,
+        repo: { full_name: "owner/repo" },
+      },
       base: { ref: base, repo: { full_name: "owner/repo" } },
       merge_commit_sha: stateValue === "closed" ? mergeCommitSha ?? nativeMergeHead : null,
     });
@@ -163,7 +169,7 @@ describe("delivery terminal recovery", () => {
       "  repos/owner/repo/pulls/402)",
       "    case \"$*\" in",
       "      *--method*PATCH*) : > \"$ARC_FAKE_GH_MARKER\"; printf '{}\\n' ;;",
-      `      *) if [ -f "$ARC_FAKE_GH_MARKER" ]; then printf '%s\\n' '${request(402, 2, terminalHead, "open", "main")}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "member-1")}'; fi ;;`,
+      `      *) if [ -f "$ARC_FAKE_GH_MARKER" ]; then printf '%s\\n' '${request(402, 2, terminalHead, "open", "main")}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "delivery/member-1")}'; fi ;;`,
       "    esac",
       "    ;;",
       "  repos/owner/repo/git/ref/heads/main)",
@@ -222,7 +228,7 @@ describe("delivery terminal recovery", () => {
           headSha: terminal.coordinates!.head,
           triggerRef: trigger.ref!,
           triggerHeadSha: trigger.coordinates!.head,
-          fromBaseRef: "member-1",
+          fromBaseRef: "delivery/member-1",
           protectedBaseRef: "main",
           action: "retarget",
         },
@@ -374,7 +380,7 @@ describe("delivery terminal recovery", () => {
       value: DeliveryStateV1;
     };
     expect(restored.value.members[0]).toMatchObject({
-      ref: "refs/heads/member-1",
+      ref: "refs/heads/delivery/member-1",
       coordinates: { head: fixture.triggerHead },
       changeRequest: { providerId: "github", changeRequestId: "401" },
     });
@@ -433,7 +439,7 @@ describe("delivery terminal recovery", () => {
       kind: "teardown",
       affectedDeliverableIds: [plan.members[0]!.deliverableId],
     });
-    await expect(git(repository, ["ls-remote", "--exit-code", "origin", "refs/heads/member-1"]))
+    await expect(git(repository, ["ls-remote", "--exit-code", "origin", "refs/heads/delivery/member-1"]))
       .resolves.toContain(fixture.triggerHead);
 
     const facts = {
@@ -454,7 +460,7 @@ describe("delivery terminal recovery", () => {
       })}\n`,
       { env: fixture.env },
     );
-    expect(teardown.exitCode, teardown.stderr).toBe(0);
+    expect(teardown.exitCode, `${teardown.stderr}\n${teardown.stdout}`).toBe(0);
     expect(JSON.parse(teardown.stdout)).toMatchObject({
       command: "delivery teardown",
       status: "torn-down",

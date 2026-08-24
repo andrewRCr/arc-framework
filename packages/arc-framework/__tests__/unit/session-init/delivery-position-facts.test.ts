@@ -505,6 +505,8 @@ describe("session-init delivery position facts", () => {
     const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
       operationId: "teardown-1",
       kind: "teardown",
+      mode: "member",
+      candidateHeads: [],
       affectedDeliverableIds: [member.deliverableId],
       expectedStateRevision: 7,
       before,
