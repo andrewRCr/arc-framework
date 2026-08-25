@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:a88e9ef41269a25d4341d5b3c1ce4acea4727a165f7154d9eff7d6041dccdf1b`
+- **Candidate:** `sha256:55d498be778b2b9260a21da74f5b1e50a2ee585b4125af1adffd6fec6293a1dd`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** Candidate review pending — resume integration review
 
 - **PR URL:** [none]
 - **Completed:** [none]
