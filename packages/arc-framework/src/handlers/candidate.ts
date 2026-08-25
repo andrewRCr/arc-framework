@@ -12,14 +12,16 @@ import {
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import {
+  DeliveryReviewMemberVehicleSchema,
+  sameDeliveryReviewMemberVehicle,
+} from "../lib/delivery/review-vehicle.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   CandidateApplicabilityResolutionInputSchema,
   CandidateApplicabilityResolutionResultSchema,
   resolveCandidateApplicability,
-  type CandidateApplicabilityResolutionInput,
-  type CandidateApplicabilityResolutionResult,
 } from "../lib/work-unit/candidate-applicability-resolution.js";
 import {
   CandidateRecordVersionConflictError,
@@ -32,6 +34,16 @@ import {
   collectGitCandidateTarget,
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
+import { RepositoryDeliveryMemberLookup } from
+  "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { projectGitReviewContributionApplicability } from
+  "../scripts/review-gate/policy/git-review-contribution-applicability.js";
+import {
+  ReviewApplicabilityResolutionCommandInputSchema,
+  ReviewApplicabilityResolutionResultSchema,
+  resolveReviewApplicability,
+  reviewApplicabilityResolutionInputFromCommand,
+} from "../scripts/review-gate/policy/review-applicability-resolution.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const COMMAND_PATH = "candidate applicability resolve";
@@ -39,6 +51,18 @@ const CandidateApplicabilityResolveCommandInputSchema = z.strictObject({
   name: SlugSchema,
   input: z.string().min(1),
 });
+
+const CandidateApplicabilityCommandInputSchema = z.union([
+  CandidateApplicabilityResolutionInputSchema,
+  ReviewApplicabilityResolutionCommandInputSchema,
+]);
+type CandidateApplicabilityCommandInput = z.infer<typeof CandidateApplicabilityCommandInputSchema>;
+
+const CandidateApplicabilityCommandResultSchema = z.union([
+  CandidateApplicabilityResolutionResultSchema,
+  ReviewApplicabilityResolutionResultSchema,
+]);
+type CandidateApplicabilityCommandResult = z.infer<typeof CandidateApplicabilityCommandResultSchema>;
 
 export const candidateCommandInputRegistration = {
   commandPath: COMMAND_PATH,
@@ -93,9 +117,9 @@ async function readStdin(): Promise<string> {
 async function executeCandidateApplicabilityResolution(
   root: string,
   name: string,
-  input: CandidateApplicabilityResolutionInput,
+  input: CandidateApplicabilityCommandInput,
   interaction?: InteractionContext,
-): Promise<CandidateApplicabilityResolutionResult> {
+): Promise<CandidateApplicabilityCommandResult> {
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
   const git = createGitExec(interaction?.subprocess);
@@ -119,36 +143,82 @@ async function executeCandidateApplicabilityResolution(
     exec: git,
     revision: await readObjectId("HEAD^{commit}"),
   });
+  const writeRecord = async (
+    record: Parameters<typeof writeCandidateRecord>[2],
+    expectedVersion: string,
+  ): Promise<"written" | "version-conflict"> => {
+    try {
+      await writeCandidateRecord(root, name, record, expectedVersion);
+      return "written";
+    } catch (error) {
+      if (error instanceof CandidateRecordVersionConflictError) return "version-conflict";
+      throw error;
+    }
+  };
 
-  const resolution = await resolveCandidateApplicability({
-    readRecord: () => readCandidateRecordVersioned(root, name),
-    currentTarget,
-    currentBase,
-    projectApplicability: (request) => projectGitCandidateApplicability({
-      request,
-      exec: rawGit,
-      observeEndpoints: async () => {
-        const [candidateHead, baseHead] = await Promise.all([
-          readObjectId("HEAD^{commit}"),
-          currentBase(),
-        ]);
-        return { candidateHead, baseHead };
-      },
-    }),
-    writeRecord: async (record, expectedVersion) => {
-      try {
-        await writeCandidateRecord(root, name, record, expectedVersion);
-        return "written";
-      } catch (error) {
-        if (error instanceof CandidateRecordVersionConflictError) return "version-conflict";
-        throw error;
-      }
-    },
-  }, input);
-  if ((resolution.state !== "resolved" && resolution.state !== "exact-replay")
-    || resolution.nextAction !== "continue") {
-    return resolution;
+  let resolution: CandidateApplicabilityCommandResult;
+  if ("kind" in input) {
+    if (input.offer.workUnitId !== name) {
+      throw new Error("Review applicability offer belongs to a different work unit.");
+    }
+    const request = reviewApplicabilityResolutionInputFromCommand(input);
+    const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: root, exec: git });
+    resolution = await resolveReviewApplicability({
+      readRecord: () => readCandidateRecordVersioned(root, name),
+      projectApplicability: (selector) => projectGitReviewContributionApplicability({
+        selector,
+        exec: rawGit,
+        observeEndpoints: async () => {
+          if (selector.currentVehicle !== undefined) {
+            const member = await memberLookup.resolveMemberByHead(selector.currentVehicle.head);
+            if (member.status !== "resolved") {
+              throw new Error("Current delivery-member applicability coordinates are unavailable.");
+            }
+            const actualVehicle = DeliveryReviewMemberVehicleSchema.parse({
+              kind: "delivery-member",
+              planId: member.member.planId,
+              deliverableId: member.member.deliverableId,
+              workUnitId: member.member.workUnitId,
+              head: member.member.head,
+            });
+            if (!sameDeliveryReviewMemberVehicle(selector.currentVehicle, actualVehicle)) {
+              throw new Error("Current delivery-member applicability coordinates changed.");
+            }
+            return { head: member.member.head, base: member.member.base };
+          }
+          const [head, base] = await Promise.all([
+            readObjectId("HEAD^{commit}"),
+            currentBase(),
+          ]);
+          return { head, base };
+        },
+      }),
+      writeRecord,
+    }, request);
+  } else {
+    resolution = await resolveCandidateApplicability({
+      readRecord: () => readCandidateRecordVersioned(root, name),
+      currentTarget,
+      currentBase,
+      projectApplicability: (request) => projectGitCandidateApplicability({
+        request,
+        exec: rawGit,
+        observeEndpoints: async () => {
+          const [candidateHead, baseHead] = await Promise.all([
+            readObjectId("HEAD^{commit}"),
+            currentBase(),
+          ]);
+          return { candidateHead, baseHead };
+        },
+      }),
+      writeRecord,
+    }, input);
   }
+  if (resolution.state !== "resolved" && resolution.state !== "exact-replay") return resolution;
+  const stagesSelection = resolution.mode === "candidate-applicability-resolve"
+    ? resolution.nextAction === "continue"
+    : resolution.nextAction === "continue" || resolution.nextAction === "request-review";
+  if (!stagesSelection) return resolution;
   const recordPath = resolveCandidateRecordRelativePath(name);
   await git("git", ["add", "--", recordPath], { cwd: root });
   const staged = (await git("git", ["diff", "--cached", "--name-only", "--", recordPath], {
@@ -164,7 +234,7 @@ export interface CandidateApplicabilityResolveHandlerDependencies {
   execute(
     root: string,
     name: string,
-    input: CandidateApplicabilityResolutionInput,
+    input: CandidateApplicabilityCommandInput,
     interaction?: InteractionContext,
   ): Promise<unknown>;
   write(text: string): void;
@@ -183,7 +253,7 @@ function defaultDependencies(): CandidateApplicabilityResolveHandlerDependencies
 
 function emit(
   deps: CandidateApplicabilityResolveHandlerDependencies,
-  result: CandidateApplicabilityResolutionResult,
+  result: CandidateApplicabilityCommandResult,
 ): void {
   deps.write(`${JSON.stringify(result)}\n`);
   if (result.state !== "resolved" && result.state !== "exact-replay") deps.setExitCode(1);
@@ -218,9 +288,9 @@ export async function handleCandidateApplicabilityResolve(
     }));
     return;
   }
-  let request: CandidateApplicabilityResolutionInput;
+  let request: CandidateApplicabilityCommandInput;
   try {
-    request = CandidateApplicabilityResolutionInputSchema.parse(
+    request = CandidateApplicabilityCommandInputSchema.parse(
       JSON.parse(await deps.readText(commandInput.data.input)),
     );
   } catch {
@@ -245,7 +315,7 @@ export async function handleCandidateApplicabilityResolve(
     }));
     return;
   }
-  const parsed = CandidateApplicabilityResolutionResultSchema.safeParse(executed);
+  const parsed = CandidateApplicabilityCommandResultSchema.safeParse(executed);
   emit(deps, parsed.success ? parsed.data : CandidateApplicabilityResolutionResultSchema.parse({
     schemaVersion: 1,
     mode: "candidate-applicability-resolve",
