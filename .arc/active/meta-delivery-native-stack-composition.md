@@ -1,8 +1,8 @@
 # Metadata: delivery-native-stack-composition
 
-| **State**     | **Owner** | **Branch**                               | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                               | **Class** | **Priority** |
+| --------- | --------- | ---------------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:37e9feea5b4bfdeee67574d392ba77e072322d9e2bce1c9bc06098d9dbc2d001`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** [none]
+- **Next Task:** Task 1.8.R.a — Model parent task roles and verification scopes
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** [none]
 
 - **PR URL:** [none]
 - **Completed:** [none]

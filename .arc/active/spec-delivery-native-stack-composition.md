@@ -805,6 +805,22 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   validation adds **no new phases**. Members
   bind per task (`memberTaskIds`), never per phase, so a member spanning several phases simply closes in the last
   one its range reaches.
+- **D7.2b Scope-typed task roles — amended 2026-08-25 after self-delivery exposed D7.2a's type mismatch.** D7.2a's
+  workaround is superseded: a member close-out performs verification work and is represented as such. The ordered
+  parent inventory classifies every task as `implementation` or `verification`; a verification role carries an
+  open scope value. This work unit establishes `member` and `work-unit`. The existing member close-out suffix is
+  the `member`-scope signal, while the sole parent after the exact terminal `Verification` phase is the
+  `work-unit`-scope task. The terminal structural guarantees remain exact: one parent follows that phase, exactly
+  one `work-unit` verifier exists, and it is never member-assigned.
+
+  The canonical and authoring task inventories carry one ordered `parents` sequence. Every parent records its role;
+  assignable implementation and non-work-unit verification parents also carry the semantic digest of their required
+  `_Goal:_`, while the terminal work-unit verifier carries no invented Goal digest. Coverage, ordering, task-derived
+  segmentation, member fingerprints, authoring resolution, and plan revalidation consume this classification.
+  `member` verification participates in the existing member-partition semantics exactly like implementation work;
+  only `work-unit` scope is ineligible. Refusals name the work-unit scope rather than treating every verification
+  task as terminal. The canonical plan digest therefore changes shape; unpublished development plan/state records
+  are regenerated in place, with no compatibility reader or migration family.
 - **D7.3 Criteria slices are task-list structure with one authority.** The Success Criteria section groups by
   member under plain `###` subheadings, plus one cross-member seam group carrying the standard items. Each member's
   closing task walks its group; the closeout pass walks the seams. Assignment follows "the earliest boundary whose
@@ -1215,6 +1231,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   remove on retry. No cross-namespace transaction, receipt, tombstone, archive, new operation kind, autonomous
   recovery workflow, or compatibility reader is added; workflow prose invokes the verb and dispatches only on its
   typed, CLI-precomposed result.
+- **D9.8 Executable public position read — amended 2026-08-25 after self-delivery reached the first landing loop.**
+  `arc delivery position` takes only the canonical plan identity plus repository and remote locators. The public
+  handler reads the bound plan/state and composes fresh Git and host facts through the existing provider-neutral
+  observation port before invoking the pure position router. Caller-authored facts remain an internal unit-test
+  seam, never workflow input or public mutation authority. Observation failure returns a typed
+  `position-unavailable` refusal; an active operation retains the ordinary `operation-active` route into
+  reconciliation rather than advancing from projected state. `deliver-stack.md` supplies the locators and
+  dispatches only the returned route. The GitHub implementation remains one adapter at the handler composition
+  boundary; no provider field enters plan/state or the core position service.
 
 ### D10 — Doctrine surfaces
 
@@ -1733,6 +1758,15 @@ added.
     final version-checked write complete. GitHub registration remains raw API and provider push porcelain is never
     authoritative; external operator refresh plus `delivery-refresh-adopt` remains supported (Goal 5, D5.9,
     D6.12).
+29. The ordered task inventory classifies each parent by role and verification scope. Member-scope verification
+    tasks remain member-assignable and participate in the existing contiguous coverage semantics; exactly one
+    work-unit-scope verifier remains terminal and unassigned. Canonical plans, authoring snapshots, coverage,
+    fingerprints, and refusal vocabulary consume that classification, with development records regenerated rather
+    than read through a compatibility alias (D7.2b).
+30. `arc delivery position` derives fresh facts from the canonical plan/state plus repository and remote locators,
+    through a provider adapter at the handler boundary. Workflows never author observation facts; unavailable
+    observation and active-operation recovery remain typed stops, while a clean bound delivery returns the exact
+    next member, teardown, or terminal route (D9.8).
 
 ## Open Questions
 

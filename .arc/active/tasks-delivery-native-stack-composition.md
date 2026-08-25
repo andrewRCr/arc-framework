@@ -194,7 +194,7 @@ copy together.
 - _Outcome:_ The installation recipe, Configurable classifier, self-hosting manifest, and init/update contract tests
   now carry `validate-criteria.md`; the package and project method bodies begin aligned.
 
-### `[x]` **1.8 Close delivery member 1** — validate criteria at member scope
+### `[ ]` **1.8 Close delivery member 1** — validate criteria at member scope
 
 - _Goal:_ Member 1's criteria group is walked at its own boundary, over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -230,6 +230,26 @@ copy together.
       surfaces have matching package/project coverage; validation refuses empty, interleaved, or order-departing
       ranges; and the authored-partition carrier preserves one complete logical pass. Both Heavy adversarial passes
       were consumed, and every confirmed finding was resolved.
+
+- _Forward amendment (2026-08-25):_ The close-out above performs member-scope verification but the canonical
+  delivery inventory records it as implementation. Replace that workaround with ordered role/scope classification
+  while preserving the exact terminal work-unit verifier and existing member-partition semantics.
+
+    - `[ ]` **1.8.R.a Model parent task roles and verification scopes**
+
+        - Build `test-first` across inventory extraction, canonical/authoring schemas, coverage, plan construction,
+          task- and branch-derived authoring, composition, handlers, fixtures, and refusal surfaces.
+        - Classify the existing member close-out form as `verification/member`, the sole terminal parent as
+          `verification/work-unit`, and every other current parent as `implementation`; keep future scope values
+          schema-open without adding segment identity or planning doctrine.
+        - Regenerate unpublished canonical delivery development records against the new digest shape rather than
+          adding a compatibility reader.
+
+    - `[ ]` **1.8.R.b Revalidate the amended Member 1 boundary**
+
+        - Run the complete Member 1 criteria walk over the original evidence plus the role/scope amendment, retaining
+          prior reports for unchanged loci and recording fresh coverage of the canonical-plan and current-delivery
+          regeneration seams.
 
 ## **Phase 2:** Structural contribution identity
 
@@ -917,7 +937,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1104,6 +1124,24 @@ structural guarantee rather than operator discipline.
                   attended fallback are unchanged; the 143-test recovery set found no cross-boundary regression.
                 - _Summary:_ six met, one intentionally superseded, zero unresolved. The Heavy member companion had
                   already converged at its two-pass cap; Success Criteria markers remain for terminal verification.
+
+        - _Forward amendment (2026-08-25):_ Self-delivery reached a public `delivery position` command whose strict
+          request still required agent-authored observation facts. Compose those facts inside the handler from the
+          plan/state and repository locators, leaving the pure router and provider adapter boundary intact.
+
+        - `[ ]` **6.11.R.g Compose fresh facts for the public position read**
+
+            - Build `test-first` around the public request schema and real handler path: clean exact position,
+              observation refusal, and active-operation recovery.
+            - Accept only plan, repository, and remote locators; reuse the existing bounded Git/host observer and
+              keep provider-specific behavior behind its handler-composed adapter.
+            - Update both shipped `deliver-stack.md` copies to supply those locators and dispatch the returned typed
+              route without serializing facts.
+
+        - `[ ]` **6.11.R.h Revalidate the executable position seam**
+
+            - Rerun the Member 6 criteria walk over the bounded public-command amendment and current bound delivery,
+              retaining earlier refresh/native evidence for unchanged loci.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -1386,7 +1424,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 849 test files passed
   with one skipped (10,886 tests passed with one skipped), the package build, and diff hygiene all passed. The final
@@ -1429,6 +1467,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   reopened execution, and Task 6.11.R.f revalidates the recovery return edge before terminal verification and a
   replacement Candidate root.
 
+- _Reopened 2026-08-25 for forward design amendments:_ Tasks 1.8.R.a-b replace the member-verification type
+  workaround with scoped task roles; Tasks 6.11.R.g-h make the public position route self-observing. Preserve prior
+  evidence for unchanged loci, then rerun the amended member boundaries, cross-member seams, union coherence,
+  quality gates, and work-unit review over the new Candidate root.
+
 ---
 
 ## Success Criteria
@@ -1444,6 +1487,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   that interleave or depart from member order. The central adversarial method may use a stable authored partition
   for two or three contract-closed group reviews plus a fresh seam-and-aggregate review, preserving one complete
   logical pass without 1:1 member fan-out or satisfying the stronger `review-chunking` carrier.
+
+- `[ ]` The ordered delivery task inventory classifies every parent as implementation or scoped verification.
+  Member-scope verification remains member-assignable under the existing partition semantics; exactly one
+  work-unit-scope verifier remains terminal and unassigned. Canonical plan and authoring schemas, coverage,
+  fingerprints, composition, handlers, and regenerated development records all consume that classification.
 
 ### Member 2 — `contribution-identity`
 
@@ -1545,6 +1593,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   terminal top and private candidates before the final state write, and retains external operator adoption as a
   fallback. GitHub registration remains raw API, provider push porcelain is never authoritative, and every
   uncertain or conflicting result stops without suffix-only state adoption.
+
+- `[ ]` The public delivery-position command composes fresh Git and host facts from canonical plan/state plus
+  repository and remote locators through the existing adapter boundary. Workflow callers never author observation
+  facts; unavailable observation and active-operation recovery remain typed stops.
 
 ### Member 7 — `review-fan-out`
 
