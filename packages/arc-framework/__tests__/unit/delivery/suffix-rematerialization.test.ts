@@ -61,6 +61,8 @@ describe("delivery suffix rematerialization", () => {
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
+      finalCandidate: terminal.coordinates!,
+      lifecyclePaths: [],
     }, {
       adoptTop: async () => ({ status: "adopted", head: adoptedHead, tree: terminal.coordinates!.tree }),
       publishTop: async () => ({ status: "published" }),
@@ -100,6 +102,8 @@ describe("delivery suffix rematerialization", () => {
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
+      finalCandidate: terminal.coordinates!,
+      lifecyclePaths: [],
     }, {
       adoptTop: async () => ({ status: "adopted", head: "9".repeat(40), tree: terminal.coordinates!.tree }),
       publishTop: async () => ({ status: "published" }),
@@ -128,6 +132,8 @@ describe("delivery suffix rematerialization", () => {
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
+      finalCandidate: terminal.coordinates!,
+      lifecyclePaths: [],
     }, {
       adoptTop: async () => { throw new Error("must not create another adoption"); },
       publishTop: async () => ({ status: "adopted" }),
