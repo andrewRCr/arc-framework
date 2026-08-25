@@ -8,6 +8,7 @@ import {
   CandidateManagedRecordV1Schema,
   CandidateSubjectDeltaSchema,
   CandidateVerificationApplicabilitySchema,
+  candidateReviewResponses,
   createCandidateReviewResponseEvidence,
   diffCandidateSubjectSnapshots,
   type CandidateManagedRecordV1,
@@ -177,14 +178,11 @@ export type CandidateDeltaVerificationProjection = z.infer<typeof CandidateDelta
 export function projectCandidateDeltaVerification(input: {
   record: CandidateManagedRecordV1;
   current: z.input<typeof CandidateLineageTargetSchema>;
+  oldTarget: z.input<typeof CandidateLineageTargetSchema>;
 }): CandidateDeltaVerificationProjection {
   const record = CandidateManagedRecordV1Schema.parse(input.record);
   const current = CandidateLineageTargetSchema.parse(input.current);
-  const lastResponse = record.responses.at(-1);
-  const oldTarget = lastResponse?.newTarget ?? {
-    revision: record.attestation.baseRevision,
-    subject: record.subject,
-  };
+  const oldTarget = CandidateLineageTargetSchema.parse(input.oldTarget);
   return CandidateDeltaVerificationProjectionSchema.parse({
     schemaVersion: 1,
     candidateId: record.attestation.candidateId,
@@ -193,7 +191,7 @@ export function projectCandidateDeltaVerification(input: {
     delta: diffCandidateSubjectSnapshots(oldTarget.subject, current.subject),
     priorEvidenceRefs: [
       record.attestation.verificationEvidenceRef,
-      ...record.responses.flatMap(({ verificationEvidenceRefs }) => verificationEvidenceRefs),
+      ...candidateReviewResponses(record).flatMap(({ verificationEvidenceRefs }) => verificationEvidenceRefs),
       ...record.lineageAttestations.map(({ verificationEvidenceRef }) => verificationEvidenceRef),
     ],
     allowedApplicability: ["targeted", "focused", "full"],

@@ -231,6 +231,7 @@ export async function reserveNativeDeliveryLanding(input: {
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: input.operationId,
     kind: "land",
+    mode: "native",
     affectedDeliverableIds: ids,
     expectedStateRevision: input.current.revision,
     before: snapshot,
@@ -270,7 +271,8 @@ export async function submitReservedNativeDeliveryMerge(input: {
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<SubmitReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
-  if (operation === null || operation.kind !== "land" || operation.operationId !== input.operationId
+  if (operation === null || operation.kind !== "land" || operation.mode !== "native"
+    || operation.operationId !== input.operationId
     || operation.effect.repository !== input.request.repository
     || operation.effect.changeRequestId !== input.request.topChangeRequestId
     || operation.effect.headSha !== input.request.topHeadSha || operation.effect.strategy !== "merge") {
@@ -335,10 +337,51 @@ export type DeliveryNativeEffectFacts =
   | { readonly outcome: "partial-landed"; readonly affectedDeliverableIds: readonly string[] }
   | { readonly outcome: "ambiguous" };
 
+export type DeliveryNativeEffectClassification =
+  | { readonly status: "applied"; readonly snapshot: DeliveryOperationSnapshotV1 }
+  | { readonly status: "not-applied" }
+  | { readonly status: "partial-landed"; readonly affectedDeliverableIds: readonly string[] }
+  | { readonly status: "ambiguous" };
+
+/**
+ * Classify terminal provider state together with exact selected-member facts.
+ *
+ * @param observation - Persisted provider effect observation.
+ * @param facts - Exact selected-member landing facts.
+ * @returns The only safe adoption, retry, partial, or ambiguous classification.
+ */
+export function classifyDeliveryNativeEffect(
+  observation: DeliveryNativeMergeObservation,
+  facts: DeliveryNativeEffectFacts,
+): DeliveryNativeEffectClassification {
+  if (facts.outcome === "partial-landed") {
+    return { status: "partial-landed", affectedDeliverableIds: facts.affectedDeliverableIds };
+  }
+  if (observation.status === "failed" && facts.outcome === "none-landed") {
+    return { status: "not-applied" };
+  }
+  if (observation.status === "merged" && facts.outcome === "all-landed") {
+    return { status: "applied", snapshot: facts.snapshot };
+  }
+  return { status: "ambiguous" };
+}
+
 export type ReconcileReservedNativeDeliveryMergeResult =
   | { readonly status: "pending"; readonly recommendedActionText: string }
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-  | { readonly status: "retryable"; readonly recommendedActionText: string }
+  | {
+      readonly status: "retryable";
+      readonly transition: "cleared";
+      readonly action: "delivery-native-land-select";
+      readonly selector: {
+        readonly planId: string;
+        readonly operationKind: "land";
+        readonly operationId: string;
+        readonly affectedDeliverableIds: readonly string[];
+        readonly mode: "native";
+      };
+      readonly recommendedActionText: string;
+    }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
 /** Poll one persisted identity and reconcile only a complete exact authoritative result. */
@@ -352,7 +395,8 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<ReconcileReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
-  if (operation === null || operation.kind !== "land" || operation.effectIdentity === null) {
+  if (operation === null || operation.kind !== "land" || operation.mode !== "native"
+    || operation.effectIdentity === null) {
     return { status: "blocked", reason: "effect-identity-missing", recommendedActionText: "Resolve submission-before-persist from fresh host facts; do not submit again." };
   }
   if (operation.effect.repository !== input.request.repository
@@ -367,19 +411,51 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   if (polled.status === "pending") {
     return { status: "pending", recommendedActionText: "Keep the reservation and poll the persisted asynchronous effect identity." };
   }
-  if (polled.status !== "merged") {
+  if (polled.status !== "merged" && polled.status !== "failed") {
     return { status: "blocked", reason: polled.status === "refused" ? polled.reason : polled.status, recommendedActionText: "Keep the reservation and resolve the native effect before further landing." };
   }
   const facts = await dependencies.observeEffect();
-  if (facts.outcome === "none-landed") {
-    return { status: "retryable", recommendedActionText: "Return to prepare and obtain a new interlock before retrying the authoritatively non-applied effect." };
+  const classification = classifyDeliveryNativeEffect(polled, facts);
+  if (classification.status === "not-applied") {
+    const reconciled = reconcileDeliveryOperation(input.current, { outcome: "not-applied" });
+    if (reconciled.status !== "retry") {
+      return { status: "blocked", reason: "ambiguous-result", recommendedActionText: "Keep the reservation; the terminal native result could not be cleared safely." };
+    }
+    const published = await dependencies.stateStore.publish(input.planId, {
+      ...input.current.value,
+      activeOperation: null,
+    }, input.current.revision);
+    return published.status === "ok"
+      ? {
+          status: "retryable",
+          transition: "cleared",
+          action: "delivery-native-land-select",
+          selector: {
+            planId: input.planId,
+            operationKind: "land",
+            operationId: operation.operationId,
+            affectedDeliverableIds: operation.affectedDeliverableIds,
+            mode: "native",
+          },
+          recommendedActionText:
+            "Rerun `arc delivery native land-select` for the exact native landing reservation subject.",
+        }
+      : { status: "blocked", reason: "state-conflict", recommendedActionText: "Re-read state; never overwrite a competing native-effect reconciliation." };
   }
-  if (facts.outcome !== "all-landed") {
-    return { status: "blocked", reason: facts.outcome, recommendedActionText: "Keep the reservation; partial or ambiguous native effects require explicit recovery." };
+  if (classification.status === "partial-landed") {
+    return { status: "blocked", reason: "partial-landed", recommendedActionText: "Keep the reservation; partial native effects require explicit recovery." };
+  }
+  if (classification.status === "ambiguous") {
+    return { status: "blocked", reason: "ambiguous-result", recommendedActionText: "Keep the reservation; contradictory or ambiguous native effects require explicit recovery." };
   }
   const reconciled = reconcileDeliveryOperation(input.current, {
     outcome: "applied",
-    observation: { kind: "land", effect: operation.effect, outcome: "applied", snapshot: facts.snapshot },
+    observation: {
+      kind: "land",
+      effect: operation.effect,
+      outcome: "applied",
+      snapshot: classification.snapshot,
+    },
   });
   if (reconciled.status !== "adopt") {
     return {
@@ -412,7 +488,8 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<ReconcileLinkedNativeDeliverySuffixResult> {
   const operation = input.before.value.activeOperation;
-  const landedId = operation?.kind === "land" && operation.affectedDeliverableIds.length === 1
+  const landedId = operation?.kind === "land" && operation.mode === "native"
+    && operation.affectedDeliverableIds.length === 1
     ? operation.affectedDeliverableIds[0]
     : undefined;
   const landedIndex = landedId === undefined
@@ -423,7 +500,9 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   }
   const next = input.landed.value.members[landedIndex + 1];
   const oldNext = input.before.value.members[landedIndex + 1];
-  const oldPredecessor = operation?.kind === "land" ? operation.before.members[0]?.coordinates : null;
+  const oldPredecessor = operation?.kind === "land" && operation.mode === "native"
+    ? operation.before.members[0]?.coordinates
+    : null;
   const target = input.landed.value.target;
   if (next?.ref === null || next?.ref === undefined || next.changeRequest === null || oldNext?.coordinates === null
     || oldNext?.coordinates === undefined || oldPredecessor === null || oldPredecessor === undefined

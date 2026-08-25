@@ -93,6 +93,52 @@ describe("session-init delivery position facts", () => {
     expect(dependencies.exec).not.toHaveBeenCalled();
   });
 
+  it("proves a merged retained head locally after its remote ref is deleted", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(401 + index) },
+      })),
+    };
+    const retained = state.members[0]!;
+    const dependencies = exactDependencies(state);
+    const retainedBranch = retained.ref!.replace(/^refs\/heads\//u, "");
+    dependencies.remoteHeads = Object.fromEntries(
+      Object.entries(dependencies.remoteHeads).filter(([branch]) => branch !== retainedBranch),
+    );
+    dependencies.localCommits = Object.fromEntries(
+      Object.entries(dependencies.localCommits).filter(([head]) => head !== retained.coordinates!.head),
+    );
+    dependencies.host.readRequest.mockImplementation(async (_repository, binding) => {
+      const member = state.members.find((candidate) => (
+        candidate.changeRequest?.changeRequestId === binding.changeRequestId
+      ))!;
+      return {
+        status: "observed" as const,
+        request: {
+          binding,
+          repository: "owner/repository",
+          headRepository: "owner/repository",
+          headRef: member.ref!.replace(/^refs\/heads\//u, ""),
+          headSha: member.coordinates!.head,
+          baseRef: state.target!.ref.replace(/^refs\/heads\//u, ""),
+          state: binding.changeRequestId === "401" ? "merged" as const : "open" as const,
+          draft: true,
+        },
+      };
+    });
+
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
+      .resolves.toMatchObject({
+        status: "observed",
+        facts: { landedDeliverableIds: [retained.deliverableId] },
+      });
+    expect(dependencies.exec).toHaveBeenCalled();
+  });
+
   it("recognizes a fully torn-down nonterminal prefix while leaving the terminal unlanded", async () => {
     const plan = deliveryStackPlanFixture();
     const initial = deliveryStateFixture(plan);
@@ -132,6 +178,7 @@ describe("session-init delivery position facts", () => {
     const reserved = reserveDeliveryOperation({ revision: 3, value: state }, plan, {
       operationId: "rewrite-1",
       kind: "rewrite",
+      mode: "provider-adoption",
       affectedDeliverableIds: [state.members[0]!.deliverableId],
       expectedStateRevision: 3,
       before,
@@ -237,6 +284,7 @@ describe("session-init delivery position facts", () => {
     const land = reserveDeliveryOperation({ revision: 5, value: publishedState }, plan, {
       operationId: "land-1",
       kind: "land",
+      mode: "sequential",
       affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 5,
       before: landBefore,
@@ -261,6 +309,14 @@ describe("session-init delivery position facts", () => {
         operationObservation: { outcome: "not-applied" },
         projectedState: { activeOperation: null },
       });
+    const landOperation = land.state.activeOperation;
+    if (landOperation?.kind !== "land") throw new Error("fixture must reserve landing");
+    const nativeLand: DeliveryStateV1 = {
+      ...land.state,
+      activeOperation: { ...landOperation, mode: "native" },
+    };
+    await expect(observeRepositoryDeliveryPosition(plan, nativeLand, 6, landDeps))
+      .resolves.toEqual({ status: "refused" });
 
     const mergedCoordinates = { head: "a".repeat(40), tree: "b".repeat(40) };
     const mergedState = {
@@ -294,5 +350,167 @@ describe("session-init delivery position facts", () => {
           members: mergedState.members,
         },
       });
+  });
+
+  it("classifies a reserved top remedy as applied, retryable, or ambiguous from exact request facts", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const bindings = initial.members.map((_, index) => ({
+      providerId: "github", changeRequestId: String(401 + index),
+    }));
+    const state = {
+      ...initial,
+      target: { ...initial.target!, ref: "refs/heads/main" },
+      members: initial.members.map((member, index) => ({ ...member, changeRequest: bindings[index]! })),
+    };
+    const top = state.members.at(-1)!;
+    const before = { target: state.target, members: [top] };
+    const effect = {
+      providerId: "github",
+      repository: "owner/repository",
+      changeRequestId: top.changeRequest!.changeRequestId,
+      headRef: top.ref!.replace(/^refs\/heads\//u, ""),
+      headSha: top.coordinates!.head,
+      triggerRef: state.members.at(-2)!.ref!,
+      triggerHeadSha: state.members.at(-2)!.coordinates!.head,
+      fromBaseRef: "member-1",
+      protectedBaseRef: "main",
+      action: "retarget" as const,
+    };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "top-remedy-1",
+      kind: "top-remedy",
+      affectedDeliverableIds: [top.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested: before,
+      effect,
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const requestFor = (changeRequestId: string, topBaseRef: string) => ({
+      status: "observed" as const,
+      request: {
+        binding: { providerId: "github", changeRequestId },
+        repository: "owner/repository",
+        headRepository: "owner/repository",
+        headRef: changeRequestId === effect.changeRequestId
+          ? effect.headRef : state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
+        headSha: changeRequestId === effect.changeRequestId
+          ? effect.headSha : state.members[0]!.coordinates!.head,
+        baseRef: changeRequestId === effect.changeRequestId ? topBaseRef : "main",
+        state: changeRequestId === effect.changeRequestId ? "open" as const : "merged" as const,
+        draft: true,
+      },
+    });
+    const triggerBranch = effect.triggerRef.replace(/^refs\/heads\//u, "");
+    for (const [baseRef, outcome] of [["main", "applied"], ["member-1", "not-applied"]] as const) {
+      const dependencies = exactDependencies(state);
+      dependencies.remoteHeads = Object.fromEntries(
+        Object.entries(dependencies.remoteHeads).filter(([branch]) => branch !== triggerBranch),
+      );
+      dependencies.localCommits = Object.fromEntries(
+        Object.entries(dependencies.localCommits).filter(([head]) => head !== effect.triggerHeadSha),
+      );
+      dependencies.host.readRequest.mockImplementation(async (_repository, binding) => (
+        requestFor(binding.changeRequestId, baseRef)
+      ));
+      await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, dependencies))
+        .resolves.toMatchObject({
+          status: "observed",
+          operationObservation: { outcome },
+          projectedState: { activeOperation: null },
+        });
+    }
+    const ambiguous = exactDependencies(state);
+    ambiguous.remoteHeads = Object.fromEntries(
+      Object.entries(ambiguous.remoteHeads).filter(([branch]) => branch !== triggerBranch),
+    );
+    ambiguous.localCommits = Object.fromEntries(
+      Object.entries(ambiguous.localCommits).filter(([head]) => head !== effect.triggerHeadSha),
+    );
+    ambiguous.host.readRequest.mockImplementation(async (_repository, binding) => (
+      requestFor(binding.changeRequestId, binding.changeRequestId === effect.changeRequestId ? "release" : "main")
+    ));
+    await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, ambiguous))
+      .resolves.toEqual({ status: "refused" });
+  });
+
+  it("classifies retained-binding teardown from the physical ref outcome", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(401 + index) },
+      })),
+    };
+    const member = state.members[0]!;
+    const before = { target: state.target, members: [member] };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "teardown-1",
+      kind: "teardown",
+      affectedDeliverableIds: [member.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested: before,
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    const requestFor = (changeRequestId: string) => {
+      const requestedMember = state.members.find((candidate) => (
+        candidate.changeRequest?.changeRequestId === changeRequestId
+      ))!;
+      return {
+        status: "observed" as const,
+        request: {
+          binding: requestedMember.changeRequest!,
+          repository: "owner/repository",
+          headRepository: "owner/repository",
+          headRef: requestedMember.ref!.replace(/^refs\/heads\//u, ""),
+          headSha: requestedMember.coordinates!.head,
+          baseRef: state.target!.ref.replace(/^refs\/heads\//u, ""),
+          state: changeRequestId === "401" ? "merged" as const : "open" as const,
+          draft: true,
+        },
+      };
+    };
+    const present = exactDependencies(state);
+    present.host.readRequest.mockImplementation(async (_repository, binding) => (
+      requestFor(binding.changeRequestId)
+    ));
+    await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, present))
+      .resolves.toMatchObject({
+        status: "observed",
+        operationObservation: { outcome: "not-applied" },
+        projectedState: { activeOperation: null },
+      });
+
+    const absent = exactDependencies(state);
+    const branch = member.ref!.replace(/^refs\/heads\//u, "");
+    absent.remoteHeads = Object.fromEntries(
+      Object.entries(absent.remoteHeads).filter(([candidate]) => candidate !== branch),
+    );
+    absent.localCommits = Object.fromEntries(
+      Object.entries(absent.localCommits).filter(([head]) => head !== member.coordinates!.head),
+    );
+    absent.host.readRequest.mockImplementation(async (_repository, binding) => (
+      requestFor(binding.changeRequestId)
+    ));
+    await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, absent))
+      .resolves.toMatchObject({
+        status: "observed",
+        operationObservation: { outcome: "applied", snapshot: before },
+        projectedState: { activeOperation: null },
+      });
+
+    const moved = exactDependencies(state);
+    moved.remoteHeads[branch] = "f".repeat(40);
+    moved.host.readRequest.mockImplementation(async (_repository, binding) => (
+      requestFor(binding.changeRequestId)
+    ));
+    await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, moved))
+      .resolves.toEqual({ status: "refused" });
   });
 });

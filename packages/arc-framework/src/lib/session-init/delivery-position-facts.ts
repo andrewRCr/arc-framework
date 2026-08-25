@@ -15,6 +15,11 @@ import type {
   DeliveryStateV1,
 } from "../delivery/schema.js";
 import type { DeliveryPositionObservation } from "./delivery-position.js";
+import {
+  classifyDeliveryTopRemedyObservation,
+  matchesDeliveryTopRemedyTrigger,
+} from "../delivery/top-remedy.js";
+import { matchesDeliveryTeardownRequest } from "../delivery/teardown.js";
 
 interface DeliveryPositionFactsDependencies {
   readonly exec: GitExec;
@@ -26,6 +31,26 @@ interface DeliveryPositionFactsDependencies {
 }
 
 type RequestState = "open" | "merged" | "closed" | null;
+
+async function retainedCommitIsAvailable(
+  ref: string,
+  coordinates: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>,
+  dependencies: DeliveryPositionFactsDependencies,
+): Promise<boolean> {
+  const recorded = dependencies.localCommits[coordinates.head];
+  if (recorded !== undefined) return recorded;
+  const prefix = "refs/heads/";
+  if (!ref.startsWith(prefix) || dependencies.remoteHeads[ref.slice(prefix.length)] !== undefined) return false;
+  const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+    ...options,
+    cwd: dependencies.cwd,
+    objectAccess: "local-only",
+  });
+  const observed = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+  return observed !== null
+    && observed.head === coordinates.head
+    && observed.tree === coordinates.tree;
+}
 
 async function observeTarget(
   target: DeliveryOperationSnapshotV1["target"],
@@ -66,7 +91,7 @@ async function observeMember(
     const remoteHead = dependencies.remoteHeads[branch];
     if (requestState === "merged") {
       if (requestHead !== member.coordinates.head
-        || dependencies.localCommits[member.coordinates.head] !== true
+        || !await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies)
         || (remoteHead !== undefined && remoteHead !== member.coordinates.head)) {
         return { exact: false, requestState: null };
       }
@@ -137,6 +162,7 @@ async function observeOperation(
       };
     } else return null;
   } else if (operation.kind === "land") {
+    if (operation.mode !== "sequential") return null;
     const request = await dependencies.host.readRequest(dependencies.repository, {
       providerId: operation.effect.providerId,
       changeRequestId: operation.effect.changeRequestId,
@@ -160,6 +186,49 @@ async function observeOperation(
         },
       };
     } else return null;
+  } else if (operation.kind === "top-remedy") {
+    const trigger = state.members.at(-2);
+    const prefix = "refs/heads/";
+    if (!matchesDeliveryTopRemedyTrigger(operation.effect, trigger)
+      || !operation.effect.triggerRef.startsWith(prefix)
+      || dependencies.remoteHeads[operation.effect.triggerRef.slice(prefix.length)] !== undefined
+      || trigger?.coordinates === null || trigger?.coordinates === undefined
+      || !await retainedCommitIsAvailable(operation.effect.triggerRef, trigger.coordinates, dependencies)) return null;
+    const request = await dependencies.host.readRequest(operation.effect.repository, {
+      providerId: operation.effect.providerId,
+      changeRequestId: operation.effect.changeRequestId,
+    });
+    if (request.status !== "observed") return null;
+    observation = classifyDeliveryTopRemedyObservation(
+      operation.effect, request.request, operation.requested,
+    );
+  } else if (operation.kind === "teardown") {
+    const member = operation.before.members[0];
+    const targetRef = operation.before.target?.ref;
+    if (member === undefined || member.ref === null || member.changeRequest === null
+      || member.coordinates === null || targetRef === undefined) return null;
+    const request = await dependencies.host.readRequest(dependencies.repository, member.changeRequest);
+    if (request.status !== "observed") return null;
+    if (!matchesDeliveryTeardownRequest({
+      request: request.request,
+      repository: dependencies.repository,
+      protectedTargetRef: targetRef,
+      member,
+    })) {
+      observation = { outcome: "ambiguous" };
+    } else {
+      const prefix = "refs/heads/";
+      if (!member.ref.startsWith(prefix)) return null;
+      const remoteHead = dependencies.remoteHeads[member.ref.slice(prefix.length)];
+      if (remoteHead === member.coordinates.head) {
+        observation = { outcome: "not-applied" };
+      } else if (remoteHead === undefined
+        && await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies)) {
+        observation = { outcome: "applied", snapshot: operation.requested };
+      } else {
+        observation = { outcome: "ambiguous" };
+      }
+    }
   } else if (await snapshotIsCurrent(operation.requested, dependencies)) {
     observation = operation.requested;
   } else if (await snapshotIsCurrent(operation.before, dependencies)) {

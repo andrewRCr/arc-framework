@@ -144,7 +144,7 @@ import {
   readCandidateRecordVersioned,
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
-import { projectCandidateCurrentness } from "../lib/work-unit/candidate-attestation.js";
+import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
 import { resolveLastCompletedTask } from "../lib/task-list/cursor.js";
 import {
   readSubmissionBoundaryVersioned,
@@ -1828,23 +1828,29 @@ export async function handlePublish(
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
+  const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
     const record = await readCandidateRecord(base.cwd, target);
     if (record === null) return null;
-    const current = await collectGitCandidateTarget({
+    const effective = await projectGitCandidateEffectiveTarget({
       cwd: base.cwd,
       name: target,
       baseBranch: settings["branch.base"],
+      record,
       exec: base.io.exec,
+      rawExec: rawGit,
     });
-    const currentness = projectCandidateCurrentness({ record, current });
+    const candidateSubjectDigest = effective.state === "current"
+      ? effective.recognizedTarget.subject.subjectDigest
+      : effective.state === "changed" || effective.state === "staged-change"
+        ? effective.currentTarget.subject.subjectDigest
+        : effective.currentTarget.subjectDigest;
     return {
       record,
-      current,
       candidateId: record.attestation.candidateId,
-      candidateSubjectDigest: current.subject.subjectDigest,
-      candidateCurrent: currentness.status === "current"
-        && currentness.convergenceVerification === "satisfied",
+      candidateSubjectDigest,
+      candidateCurrent: effective.state === "current"
+        && effective.convergenceVerification === "satisfied",
     };
   };
   const candidate = await readCandidateAuthorization();
@@ -2618,6 +2624,14 @@ export async function handleAttest(
       name: slug,
       baseBranch: settings["branch.base"],
       exec: base.io.exec,
+    }),
+    effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
+      cwd: base.cwd,
+      name: slug,
+      baseBranch: settings["branch.base"],
+      record,
+      exec: base.io.exec,
+      rawExec: createRawGitExec(base.cwd),
     }),
     publish: async (publication) => {
       const recordPath = await writeCandidateRecord(

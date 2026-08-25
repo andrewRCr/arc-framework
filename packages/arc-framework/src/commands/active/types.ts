@@ -12,6 +12,7 @@ import type { PlanningWorkflow } from "../../lib/active/current-workflow-consist
 import type { Slug } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type { IntegrationBoundaryLocus } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import type { CandidateTargetProjector } from "../../lib/work-unit/candidate-effective-target.js";
 
 export {
   PrioritySchema,
@@ -182,6 +183,8 @@ export type ActiveResult = ActiveStatusResult | ActiveSessionInitResult;
 
 export interface ActiveStatusOptions {
   cwd: string;
+  exec?: GitExec;
+  projectCandidateTarget?: CandidateTargetProjector;
 }
 
 /**
@@ -209,4 +212,5 @@ export interface ActiveSessionInitOptions {
    * branch-pattern fallback tier of session-type inference (orphan case).
    */
   exec: GitExec;
+  projectCandidateTarget?: CandidateTargetProjector;
 }
