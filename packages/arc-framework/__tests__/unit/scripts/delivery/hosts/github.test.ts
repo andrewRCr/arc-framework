@@ -277,6 +277,46 @@ describe("GhDeliveryHostPort", () => {
     }
   });
 
+  it("applies each terminal remedy through one exact pull-request PATCH", async () => {
+    for (const [action, tail] of [
+      ["retarget", []],
+      ["reopen-and-retarget", ["-f", "state=open"]],
+    ] as const) {
+      const calls: string[][] = [];
+      const port = new GhDeliveryHostPort({ run: async (args) => {
+        calls.push(args);
+        return { stdout: "{}", stderr: "" };
+      } });
+      await expect(port.applyTopRemedy({
+        providerId: "github",
+        repository,
+        changeRequestId: "401",
+        headRef: "delivery/example/first",
+        headSha,
+        triggerRef: "refs/heads/delivery/example/previous",
+        triggerHeadSha: "b".repeat(40),
+        fromBaseRef: "delivery/example/previous",
+        protectedBaseRef: "main",
+        action,
+      })).resolves.toEqual({ status: "submitted" });
+      expect(calls).toEqual([[
+        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "base=main", ...tail,
+      ]]);
+    }
+    await expect(new GhDeliveryHostPort(runner({})).applyTopRemedy({
+      providerId: "other",
+      repository,
+      changeRequestId: "401",
+      headRef: "delivery/example/first",
+      headSha,
+      triggerRef: "refs/heads/delivery/example/previous",
+      triggerHeadSha: "b".repeat(40),
+      fromBaseRef: "delivery/example/previous",
+      protectedBaseRef: "main",
+      action: "retarget",
+    })).resolves.toEqual({ status: "refused", reason: "malformed" });
+  });
+
   it("normalizes the protected target head and tree without guessing", async () => {
     const targetRunner: HostedProcessRunner = {
       run: async (args) => args[1]?.includes("git/ref/") === true

@@ -11,10 +11,19 @@ import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
-  projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../lib/work-unit/candidate-attestation.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import {
+  projectEffectiveCandidateCurrentness,
+  type CandidateEffectiveCurrentnessProjection,
+  type CandidateEffectiveTargetProjection,
+} from "../../lib/work-unit/candidate-effective-target.js";
+import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
+import {
+  projectGitCandidateEffectiveTarget,
+  resolveGitCandidateTargetBase,
+} from "../../lib/work-unit/git-candidate-effective-target.js";
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
 import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
@@ -59,7 +68,9 @@ import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 
 interface CachedCandidate {
   record: CandidateManagedRecordV1;
-  current: Awaited<ReturnType<typeof collectGitCandidateTarget>>;
+  recordVersion: string;
+  effective: CandidateEffectiveTargetProjection;
+  currentness: CandidateEffectiveCurrentnessProjection;
 }
 
 export type IntegrationLifecycleReadFs = NonNullable<
@@ -257,6 +268,8 @@ export function createIntegrationCheckpointDependencies(input: {
     return settingsPromise;
   };
   const candidates = new Map<string, Promise<CachedCandidate | null>>();
+  const candidateBaseRevisions = new Map<string, string>();
+  const rawGit = createRawGitExec(input.cwd);
   let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
   const identity = () => {
     identityPromise ??= resolveIdentity({ exec: input.exec });
@@ -275,22 +288,40 @@ export function createIntegrationCheckpointDependencies(input: {
       };
     },
   };
-  const candidate = (workUnit: string): Promise<CachedCandidate | null> => {
-    let value = candidates.get(workUnit);
+  const candidate = (workUnit: string, baseRevision?: string): Promise<CachedCandidate | null> => {
+    const boundBase = candidateBaseRevisions.get(workUnit);
+    if (baseRevision !== undefined) {
+      if (boundBase !== undefined && boundBase !== baseRevision) {
+        throw new Error("The authoritative Candidate base changed during checkpoint composition.");
+      }
+      candidateBaseRevisions.set(workUnit, baseRevision);
+    }
+    const effectiveBase = baseRevision ?? boundBase;
+    const cacheKey = `${workUnit}\0${effectiveBase ?? "materialized"}`;
+    let value = candidates.get(cacheKey);
     if (value === undefined) {
       value = (async () => {
-        const record = await readCandidateRecord(input.cwd, workUnit);
-        if (record === null) return null;
+        const versioned = await readCandidateRecordVersioned(input.cwd, workUnit);
+        if (versioned.record === null || versioned.version === null) return null;
+        const record = versioned.record;
         const config = await settings();
-        const current = await collectGitCandidateTarget({
+        const effective = await projectGitCandidateEffectiveTarget({
           cwd: input.cwd,
           name: workUnit,
           baseBranch: config.settings["branch.base"],
+          baseRevision: effectiveBase,
+          record,
           exec: input.exec,
+          rawExec: rawGit,
         });
-        return { record, current };
+        return {
+          record,
+          recordVersion: versioned.version,
+          effective,
+          currentness: projectEffectiveCandidateCurrentness(effective),
+        };
       })();
-      candidates.set(workUnit, value);
+      candidates.set(cacheKey, value);
     }
     return value;
   };
@@ -324,9 +355,9 @@ export function createIntegrationCheckpointDependencies(input: {
         return { status: "unavailable", detail: "The delivery drift overlap is unavailable." };
       }
       try {
-        const value = await candidate(workUnit);
-        const currentness = value === null ? null : projectCandidateCurrentness(value);
-        if (currentness?.status !== "current") {
+        const value = await candidate(workUnit, drift.baseOid ?? undefined);
+        const currentness = value?.currentness ?? null;
+        if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
           return { status: "unavailable", detail: "The current delivery Candidate is unavailable." };
         }
         const terminal = records.state.members.at(-1);
@@ -349,15 +380,13 @@ export function createIntegrationCheckpointDependencies(input: {
         const predecessorPaths = firstCoordinate == null
           ? []
           : await readDiffPaths(input.cwd, firstCoordinate.base, highestCoordinate.head);
-        return classifyDeliveryTerminalDrift({
-          terminalDeliverableId: terminal.deliverableId,
-          driftPaths: [...new Set([
-            ...drift.overlap.substantivePaths,
-            ...drift.overlap.regenerablePaths,
-          ])],
+        const classified = classifyDeliveryTerminalDrift({
+          substantivePaths: drift.overlap.substantivePaths,
+          regenerablePaths: drift.overlap.regenerablePaths,
           residualPaths,
           predecessorPaths,
         });
+        return classified;
       } catch (error) {
         return {
           status: "unavailable",
@@ -377,24 +406,78 @@ export function createIntegrationCheckpointDependencies(input: {
         snapshot.fs,
       );
     },
-    readCandidate: async (workUnit) => {
-      const value = await candidate(workUnit);
-      return value === null ? null : projectCandidateCurrentness(value);
+    readCandidate: async (workUnit, baseRevision) => {
+      const value = await candidate(workUnit, baseRevision);
+      return value?.currentness ?? null;
     },
-    composeDelivery: async ({ workUnit, candidate: currentness }) => {
+    composeCandidateApplicabilityResolutionSelector: async (workUnit, decision) => {
+      const value = await candidate(workUnit, decision.currentBase);
+      if (value === null || value.effective.state !== "decision-required") {
+        throw new Error("The Candidate applicability decision is no longer current.");
+      }
+      const config = await settings();
+      const currentTarget = await collectGitCandidateTarget({
+        cwd: input.cwd,
+        name: workUnit,
+        baseBranch: config.settings["branch.base"],
+        baseRevision: decision.currentBase,
+        exec: input.exec,
+        revision: decision.currentTarget.revision,
+      });
+      const priorTarget = reduceCandidateDurableBaseline(value.record).target;
+      if (priorTarget.revision !== decision.baselineTarget.revision
+        || priorTarget.subject.subjectDigest !== decision.baselineTarget.subjectDigest
+        || currentTarget.subject.subjectDigest !== decision.currentTarget.subjectDigest) {
+        throw new Error("The Candidate applicability selector changed during checkpoint composition.");
+      }
+      return {
+        schemaVersion: 1,
+        expectedRecordVersion: value.recordVersion,
+        candidateId: decision.candidateId,
+        priorTarget,
+        currentTarget,
+        currentBase: decision.currentBase,
+        projectionDigest: decision.projectionDigest,
+        residualDigest: decision.residualDigest,
+      };
+    },
+    readCandidatePublication: async (workUnit, baseRevision) => {
+      const [value, publicationBoundary] = await Promise.all([
+        candidate(workUnit, baseRevision),
+        boundary(workUnit),
+      ]);
+      if (value === null || value.effective.state !== "current") {
+        throw new Error("The current Candidate publication subject is unavailable.");
+      }
+      const publicLocus = publicationBoundary?.locus === "publication-pending"
+        || publicationBoundary?.locus === "hosted-review-pending";
+      return publicationBoundary !== null
+        && publicLocus
+        && publicationBoundary.candidateId === value.effective.candidateId
+        && publicationBoundary.candidateSubjectDigest
+          === value.effective.recognizedTarget.subject.subjectDigest
+        ? { status: "current" }
+        : { status: "refresh-required" };
+    },
+    composeDelivery: async ({ workUnit, candidate: currentness, baseRevision }) => {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);
       if (records.status === "unbound") return { status: "not-applicable" };
       if (records.status === "unavailable") throw new Error("The delivery terminal records are unavailable.");
       const [value, publicationBoundary, config] = await Promise.all([
-        candidate(workUnit),
+        candidate(workUnit, baseRevision),
         boundary(workUnit),
         settings(),
       ]);
       if (value === null || publicationBoundary === null) {
         throw new Error("The delivery Candidate publication boundary is unavailable.");
       }
+      if (value.effective.state !== "current"
+        || value.effective.recognizedTarget.revision !== currentness.recognizedRevision) {
+        throw new Error("The delivery Candidate effective target changed during checkpoint composition.");
+      }
       if (publicationBoundary.candidateId !== currentness.candidateId
-        || publicationBoundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+        || publicationBoundary.candidateSubjectDigest
+          !== value.effective.recognizedTarget.subject.subjectDigest) {
         throw new Error("The delivery publication boundary belongs to a different Candidate.");
       }
       const configuredBase = config.settings["branch.base"];
@@ -403,6 +486,27 @@ export function createIntegrationCheckpointDependencies(input: {
       if (terminal?.ref === null || terminal?.ref === undefined
         || terminal.changeRequest === null || terminal.coordinates === null) {
         throw new Error("The delivery top has no exact retained binding.");
+      }
+      const predecessorRef = members.at(-2)?.ref;
+      if (terminal.coordinates.head !== currentness.recognizedRevision) {
+        const currentTop = await resolveChangeRequest({
+          headRef: branchName(terminal.ref),
+          headSha: currentness.recognizedRevision,
+          baseRef: configuredBase,
+          acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+            ? []
+            : [branchName(predecessorRef)],
+        }, changeRequestPort);
+        if (currentTop.state !== "open"
+          || String(currentTop.candidate.number) !== terminal.changeRequest.changeRequestId) {
+          throw new Error("The current delivery top request does not match its retained binding.");
+        }
+        return {
+          status: "terminal-rebind-required",
+          nextAction: "reconcile-delivery-state",
+          planId: records.plan.planId,
+          repository: currentTop.targetRef.repository,
+        };
       }
       const landings: Array<{ deliverableId: string; head: string }> = [];
       for (const [index, member] of members.slice(0, -1).entries()) {
@@ -424,7 +528,6 @@ export function createIntegrationCheckpointDependencies(input: {
         }
         landings.push({ deliverableId: member.deliverableId, head: member.coordinates.head });
       }
-      const predecessorRef = members.at(-2)?.ref;
       const topResolution = await resolveChangeRequest({
         headRef: branchName(terminal.ref),
         headSha: terminal.coordinates.head,
@@ -491,9 +594,13 @@ export function createIntegrationCheckpointDependencies(input: {
         })
       )));
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
-      const mergeBase = (await input.exec("git", [
-        "merge-base", currentness.recognizedRevision, configuredBase,
-      ], { cwd: input.cwd, objectAccess: "local-only" })).stdout.trim();
+      const mergeBase = await resolveGitCandidateTargetBase({
+        cwd: input.cwd,
+        revision: currentness.recognizedRevision,
+        baseBranch: configuredBase,
+        baseRevision,
+        exec: input.exec,
+      });
       const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase);
       if (candidateCoordinate === null || predecessorCoordinate === null) {
         throw new Error("The delivery terminal delta coordinates are unavailable.");
@@ -534,9 +641,14 @@ export function createIntegrationCheckpointDependencies(input: {
         boundary(workUnit),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
+      if (value.effective.state !== "current"
+        || value.effective.recognizedTarget.revision !== currentness.recognizedRevision) {
+        throw new Error("The effective Candidate target changed during checkpoint composition.");
+      }
       if (publicationBoundary === null) throw new Error("The durable publication boundary is unavailable.");
       if (publicationBoundary.candidateId !== value.record.attestation.candidateId
-        || publicationBoundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+        || publicationBoundary.candidateSubjectDigest
+          !== value.effective.recognizedTarget.subject.subjectDigest) {
         throw new Error("The durable publication boundary belongs to a different Candidate subject.");
       }
       if (publicationBoundary.locus !== "publication-pending"
@@ -554,7 +666,7 @@ export function createIntegrationCheckpointDependencies(input: {
         workUnit,
         branch: changeRequest.targetRef.headRef,
         candidateId: value.record.attestation.candidateId,
-        candidateSubjectDigest: value.current.subject.subjectDigest,
+        candidateSubjectDigest: value.effective.recognizedTarget.subject.subjectDigest,
         reservation: publicationBoundary.reservation,
         terminus: publicationBoundary.terminus,
         changeRequest: {
@@ -591,8 +703,7 @@ export function createIntegrationCheckpointDependencies(input: {
       const checks = aggregateChecks(
         await checksPort.readRequiredChecks(repository, changeRequest.candidate.number, signal),
       );
-      const lastResponse = value.record.responses.at(-1);
-      const fromRevision = lastResponse?.newTarget.revision ?? value.record.attestation.baseRevision;
+      const fromRevision = value.effective.durableBaselineTarget.revision;
       return CheckpointReadyCompositionSchema.parse({
         approvedHead: currentness.recognizedRevision,
         candidateTailDiff: {

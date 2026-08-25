@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
 import {
+  candidateReviewResponses,
   createCandidateAttestation,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
   projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
@@ -253,13 +255,10 @@ function dependencies(records: ReturnType<typeof fixture>) {
     now: () => "2026-07-23T21:00:00Z",
     readCandidateLineage: async () => {
       const record = candidateRecord();
-      return {
-        workUnit: "example",
-        record,
-        recordVersion: canonicalDigest(record),
-        current: { revision: records.target.headSha, subject: record.subject },
-        unstagedReviewablePaths: [],
-      };
+      return candidateLineageBinding(records, record, {
+        revision: records.target.headSha,
+        subject: record.subject,
+      });
     },
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
     stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
@@ -291,8 +290,64 @@ function candidateRecord(): CandidateManagedRecordV1 {
       verificationEvidenceRef: "verification://root",
     }),
     subject: rootSubject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
+  };
+}
+
+function effectiveCurrent(
+  record: CandidateManagedRecordV1,
+  target: { revision: string; subject: ReturnType<typeof candidateSubject> },
+) {
+  const baseline = reduceCandidateDurableBaseline(record);
+  const implementationChanged = baseline.implementationChanged
+    || baseline.target.subject.subjectDigest !== target.subject.subjectDigest;
+  return {
+    schemaVersion: 1 as const,
+    mode: "candidate-effective-target" as const,
+    state: "current" as const,
+    nextAction: "continue" as const,
+    candidateId: record.attestation.candidateId,
+    durableBaselineTarget: baseline.target,
+    recognizedTarget: target,
+    recognition: { kind: "durable" as const },
+    implementationChanged,
+    convergenceVerification: implementationChanged ? "pending" as const : "satisfied" as const,
+  };
+}
+
+function effectiveChanged(
+  record: CandidateManagedRecordV1,
+  currentTarget: { revision: string; subject: ReturnType<typeof candidateSubject> },
+) {
+  const baseline = reduceCandidateDurableBaseline(record);
+  return {
+    schemaVersion: 1 as const,
+    mode: "candidate-effective-target" as const,
+    state: "changed" as const,
+    nextAction: "establish-new-root" as const,
+    candidateId: record.attestation.candidateId,
+    durableBaselineTarget: baseline.target,
+    currentTarget,
+    projectionDigest: digest("projection"),
+    residualDigest: digest("residual"),
+    selectedBy: "author-1",
+  };
+}
+
+function candidateLineageBinding(
+  records: ReturnType<typeof fixture>,
+  record: CandidateManagedRecordV1,
+  current: { revision: string; subject: ReturnType<typeof candidateSubject> },
+) {
+  return {
+    workUnit: "example",
+    record,
+    recordVersion: canonicalDigest(record),
+    reviewed: effectiveCurrent(record, { revision: records.target.headSha, subject: record.subject }),
+    effective: effectiveCurrent(record, current),
+    current,
+    unstagedReviewablePaths: [],
   };
 }
 
@@ -326,11 +381,8 @@ function lineageDependencies(
       }),
     }),
     readCandidateLineage: async () => ({
-      workUnit: "example",
-      record,
+      ...candidateLineageBinding(records, record, current),
       recordVersion,
-      current,
-      unstagedReviewablePaths: [],
     }),
     appendCandidateResponse: async (input) => {
       appends.push(input);
@@ -761,9 +813,11 @@ describe("review response command", () => {
     });
     const lineage = await deps.readCandidateLineage(records.target);
     if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    const current = { revision: currentTarget.headSha, subject: candidateSubject("changed") };
     deps.readCandidateLineage = async () => ({
       ...lineage,
-      current: { revision: currentTarget.headSha, subject: candidateSubject("changed") },
+      current,
+      effective: effectiveChanged(lineage.record, current),
     });
     deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
 
@@ -800,9 +854,11 @@ describe("review response command", () => {
     });
     const lineage = await deps.readCandidateLineage(records.target);
     if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    const current = { revision: currentTarget.headSha, subject: lineage.record.subject };
     deps.readCandidateLineage = async () => ({
       ...lineage,
-      current: { revision: currentTarget.headSha, subject: lineage.record.subject },
+      current,
+      effective: effectiveCurrent(lineage.record, current),
     });
 
     await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
@@ -1051,7 +1107,7 @@ describe("verified-fix Candidate settlement", () => {
     });
 
     expect(appends).toHaveLength(1);
-    const [response] = appends[0]?.record.responses ?? [];
+    const [response] = appends[0] === undefined ? [] : candidateReviewResponses(appends[0].record);
     expect(response).toMatchObject({
       candidateId: record.attestation.candidateId,
       dispositionId: request.dispositions.dispositionSet.dispositionSetId,
@@ -1102,7 +1158,7 @@ describe("verified-fix Candidate settlement", () => {
       expectedRecordVersion: canonicalDigest(record),
       record: {
         subject: record.subject,
-        responses: [expect.objectContaining({ implementationChanged: false })],
+        transitions: [expect.objectContaining({ implementationChanged: false })],
       },
     });
   });
@@ -1121,13 +1177,7 @@ describe("verified-fix Candidate settlement", () => {
     });
     const advanced = appends[0]?.record;
     if (advanced === undefined) throw new Error("expected an appended Candidate record");
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: advanced,
-      recordVersion: canonicalDigest(advanced),
-      current,
-      unstagedReviewablePaths: [],
-    });
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
 
     await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
       state: "candidate-current",
@@ -1148,13 +1198,7 @@ describe("verified-fix Candidate settlement", () => {
     await respondToReviewCommand(request, deps);
     const advanced = appends[0]?.record;
     if (advanced === undefined) throw new Error("expected an appended Candidate record");
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: advanced,
-      recordVersion: canonicalDigest(advanced),
-      current,
-      unstagedReviewablePaths: [],
-    });
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
 
     await expect(respondToReviewCommand({
       ...request,
@@ -1169,7 +1213,7 @@ describe("verified-fix Candidate settlement", () => {
     const request = verifiedFixRequest(records);
     await respondToReviewCommand(request, deps);
     const advanced = appends[0]?.record;
-    const response = advanced?.responses[0];
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
     if (advanced === undefined || response === undefined) {
       throw new Error("expected an appended Candidate response");
     }
@@ -1186,15 +1230,9 @@ describe("verified-fix Candidate settlement", () => {
     });
     const conflicting = {
       ...advanced,
-      responses: [conflictingResponse],
+      transitions: [conflictingResponse],
     };
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: conflicting,
-      recordVersion: canonicalDigest(conflicting),
-      current,
-      unstagedReviewablePaths: [],
-    });
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, conflicting, current);
 
     await expect(respondToReviewCommand(request, deps)).rejects.toThrow("replay conflicts");
   });
@@ -1204,13 +1242,7 @@ describe("verified-fix Candidate settlement", () => {
     const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
     const { deps, record } = lineageDependencies(records, current);
     let persisted = record;
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: persisted,
-      recordVersion: canonicalDigest(persisted),
-      current,
-      unstagedReviewablePaths: [],
-    });
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, persisted, current);
     deps.appendCandidateResponse = async ({ record: next }) => {
       persisted = next;
       throw new Error("git add failed after record write");

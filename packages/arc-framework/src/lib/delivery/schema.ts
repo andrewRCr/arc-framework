@@ -139,7 +139,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
 export type DeliveryPlanAuthoringInputV1 = z.infer<typeof DeliveryPlanAuthoringInputV1Schema>;
 
 const PositiveSafeIntegerSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
-const DeliveryGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+export const DeliveryGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 
 /** Exact destination objects observed for one selected target ref. */
 export const DeliveryTargetCoordinatesV1Schema = z.strictObject({
@@ -216,6 +216,21 @@ export const DeliveryLandEffectV1Schema = z.strictObject({
 });
 export type DeliveryLandEffectV1 = z.infer<typeof DeliveryLandEffectV1Schema>;
 
+/** Exact, explicitly selected repair of the retained terminal change request. */
+export const DeliveryTopRemedyEffectV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  repository: DeliveryOpaqueIdSchema,
+  changeRequestId: DeliveryOpaqueIdSchema,
+  headRef: DeliveryOpaqueIdSchema,
+  headSha: DeliveryGitObjectIdSchema,
+  triggerRef: DeliveryOpaqueIdSchema,
+  triggerHeadSha: DeliveryGitObjectIdSchema,
+  fromBaseRef: DeliveryOpaqueIdSchema,
+  protectedBaseRef: DeliveryOpaqueIdSchema,
+  action: z.enum(["retarget", "reopen-and-retarget"]),
+});
+export type DeliveryTopRemedyEffectV1 = z.infer<typeof DeliveryTopRemedyEffectV1Schema>;
+
 export const DeliveryHostEffectIdentityV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
   effectId: DeliveryOpaqueIdSchema,
@@ -229,6 +244,7 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("rewrite"),
+    mode: z.enum(["review-fix", "provider-adoption"]),
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("teardown"),
@@ -239,8 +255,13 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("land"),
+    mode: z.enum(["sequential", "native"]),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),
+  }),
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("top-remedy"),
+    effect: DeliveryTopRemedyEffectV1Schema,
   }),
 ]);
 export type DeliveryActiveOperationV1 = z.infer<typeof DeliveryActiveOperationV1Schema>;

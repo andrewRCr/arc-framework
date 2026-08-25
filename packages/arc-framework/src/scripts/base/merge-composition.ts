@@ -35,6 +35,17 @@ async function hasUnmergedEntries(exec: GitExec, cwd: string): Promise<boolean> 
   })).stdout.trim() !== "";
 }
 
+async function resolveParents(exec: GitExec, cwd: string, commitOid: string): Promise<string[]> {
+  const fields = (await exec("git", ["rev-list", "--parents", "-n", "1", commitOid], {
+    cwd,
+    objectAccess: "local-only",
+  })).stdout.trim().split(/\s+/u);
+  if (fields.shift() !== commitOid || fields.some((field) => !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(field))) {
+    throw new Error("Git returned malformed merge-parent evidence.");
+  }
+  return fields;
+}
+
 /**
  * Bind one repository worktree and configured base branch to the merge reducer.
  *
@@ -67,9 +78,10 @@ export function createBaseMergePort(input: {
       }
       return resolveOid(input.exec, input.cwd, `${remoteBaseRef}^{commit}`);
     },
-    containsBase: async (baseOid) => {
+    refreshHead: () => resolveOid(input.exec, input.cwd, "HEAD"),
+    isAncestor: async (ancestorOid, descendantOid) => {
       try {
-        await input.exec("git", ["merge-base", "--is-ancestor", baseOid, "HEAD"], {
+        await input.exec("git", ["merge-base", "--is-ancestor", ancestorOid, descendantOid], {
           cwd: input.cwd,
           objectAccess: "local-only",
         });
@@ -79,16 +91,22 @@ export function createBaseMergePort(input: {
         throw error;
       }
     },
-    mergeAppendOnly: async (baseOid) => {
+    mergeAppendOnly: async (baseOid, headOid) => {
       const status = (await input.exec("git", ["status", "--porcelain=v1"], {
         cwd: input.cwd,
         objectAccess: "local-only",
       })).stdout;
       if (status !== "") throw new Error("The candidate worktree must be clean before merging its base.");
       const before = await resolveOid(input.exec, input.cwd, "HEAD");
+      if (before !== headOid) return { status: "head-moved", actualHead: before };
       try {
-        await input.exec("git", ["merge", "--no-edit", baseOid], { cwd: input.cwd });
-        return "merged";
+        await input.exec("git", ["merge", "--no-ff", "--no-edit", baseOid], { cwd: input.cwd });
+        const after = await resolveOid(input.exec, input.cwd, "HEAD");
+        const parents = await resolveParents(input.exec, input.cwd, after);
+        if (parents.length !== 2 || parents[0] !== headOid || parents[1] !== baseOid) {
+          throw new Error("Git created a merge commit with unexpected parents.");
+        }
+        return { status: "merged", headOid: after };
       } catch (error) {
         if (!await mergeInProgress(input.exec, input.cwd)) throw error;
         const contentConflict = await hasUnmergedEntries(input.exec, input.cwd);
@@ -105,7 +123,7 @@ export function createBaseMergePort(input: {
           throw new Error("Git could not restore the pre-merge candidate state.", { cause: error });
         }
         if (!contentConflict) throw error;
-        return "conflict";
+        return { status: "conflict" };
       }
     },
   };

@@ -12,6 +12,7 @@ import {
   DeliveryOperationSnapshotV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
+  DeliveryTopRemedyEffectV1Schema,
   type DeliveryActiveOperationV1,
   type DeliveryOperationSnapshotV1,
   type DeliveryPlanV1,
@@ -27,13 +28,24 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("materialize") }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("rewrite") }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("rewrite"),
+      mode: z.enum(["review-fix", "provider-adoption"]),
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("teardown") }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("land"), effect: DeliveryLandEffectV1Schema }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("land"),
+      mode: z.enum(["sequential", "native"]),
+      effect: DeliveryLandEffectV1Schema,
+    }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("top-remedy"), effect: DeliveryTopRemedyEffectV1Schema }),
 ]);
 export type DeliveryOperationReservationRequestV1 = z.infer<
   typeof DeliveryOperationReservationRequestV1Schema
@@ -52,6 +64,12 @@ const DeliveryHostAssignedObservationV1Schema = z.discriminatedUnion("kind", [
     outcome: z.literal("applied"),
     snapshot: DeliveryOperationSnapshotV1Schema,
   }),
+  z.strictObject({
+    kind: z.literal("top-remedy"),
+    effect: DeliveryTopRemedyEffectV1Schema,
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
 ]);
 
 const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
@@ -62,14 +80,27 @@ const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outc
   z.strictObject({ outcome: z.literal("not-applied") }),
   z.strictObject({ outcome: z.literal("ambiguous") }),
 ]);
+const DeliveryTeardownReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
+  z.strictObject({
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
+  z.strictObject({ outcome: z.literal("not-applied") }),
+  z.strictObject({ outcome: z.literal("ambiguous") }),
+]);
 /** Host-assigned observation used to reconcile an interrupted publish or land. */
 export type DeliveryHostReconciliationObservationV1 = z.infer<
   typeof DeliveryHostReconciliationObservationV1Schema
 >;
+/** Physical outcome used when teardown intentionally retains its exact logical snapshot. */
+export type DeliveryTeardownReconciliationObservationV1 = z.infer<
+  typeof DeliveryTeardownReconciliationObservationV1Schema
+>;
 /** Exact observation accepted by delivery-operation reconciliation. */
 export type DeliveryOperationReconciliationObservationV1 =
   | DeliveryOperationSnapshotV1
-  | DeliveryHostReconciliationObservationV1;
+  | DeliveryHostReconciliationObservationV1
+  | DeliveryTeardownReconciliationObservationV1;
 
 /** Closed failures while reserving the single delivery-operation slot. */
 export type ReserveDeliveryOperationFailure =
@@ -304,7 +335,11 @@ export function reserveDeliveryOperation(
       boundPlanDigest: plan.planDigest,
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
+      ...(parsedRequest.data.kind === "rewrite" || parsedRequest.data.kind === "land"
+        ? { mode: parsedRequest.data.mode }
+        : {}),
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
+        || parsedRequest.data.kind === "top-remedy"
         ? { effect: parsedRequest.data.effect }
         : {}),
       ...(parsedRequest.data.kind === "land" ? { effectIdentity: null } : {}),
@@ -328,7 +363,8 @@ export function attachDeliveryOperationEffectIdentity(
   if (active.status === "blocked") {
     return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
   }
-  if (active.operation.kind !== "land" || active.operation.operationId !== operationId) {
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.operationId !== operationId) {
     return { status: "refused", reason: "wrong-operation" };
   }
   const parsedIdentity = DeliveryHostEffectIdentityV1Schema.safeParse(identity);
@@ -385,7 +421,8 @@ export function acceptDeliveryOperationResult(
 ): AcceptDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   const parsedHost = hostAssigned ? DeliveryHostAssignedObservationV1Schema.safeParse(observed) : null;
   if (hostAssigned && (parsedHost === null || !parsedHost.success
     || parsedHost.data.kind !== active.operation.kind
@@ -418,7 +455,25 @@ export function reconcileDeliveryOperation(
 ): ReconcileDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  if (active.operation.kind === "teardown") {
+    const parsedTeardown = DeliveryTeardownReconciliationObservationV1Schema.safeParse(observed);
+    if (!parsedTeardown.success) return { status: "blocked", reason: "observed-facts-invalid" };
+    if (parsedTeardown.data.outcome === "not-applied") {
+      return { status: "retry", operationId: active.operation.operationId };
+    }
+    if (parsedTeardown.data.outcome === "ambiguous") {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    if (canonicalize(parsedTeardown.data.snapshot) !== canonicalize(active.operation.requested)) {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    const next = applyObservedSnapshot(active.state, parsedTeardown.data.snapshot);
+    return next === null
+      ? { status: "blocked", reason: "state-invalid" }
+      : { status: "adopt", state: next };
+  }
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   if (hostAssigned) {
     const parsedHost = DeliveryHostReconciliationObservationV1Schema.safeParse(observed);
     if (!parsedHost.success) return { status: "blocked", reason: "observed-facts-invalid" };
@@ -447,7 +502,8 @@ function acceptHostReconciliation(
   active: Extract<ValidateDeliveryActiveOperationResult, { readonly status: "valid" }>,
   observed: z.infer<typeof DeliveryHostAssignedObservationV1Schema>,
 ): ReconcileDeliveryOperationResult {
-  if ((active.operation.kind !== "publish" && active.operation.kind !== "land")
+  if ((active.operation.kind !== "publish" && active.operation.kind !== "land"
+      && active.operation.kind !== "top-remedy")
     || observed.kind !== active.operation.kind
     || canonicalize(observed.effect) !== canonicalize(active.operation.effect)
     || !matchesHostAssignedResult(active.operation, observed.snapshot)) {
