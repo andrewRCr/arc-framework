@@ -15,18 +15,28 @@ import {
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 import type { DeliveryOperationSnapshotV1 } from "./schema.js";
-import type { DeliveryContributionProofResult } from "./contribution-proof.js";
+import type {
+  DeliveryContributionProofResult,
+  DeliveryContributionRefusal,
+} from "./contribution-proof.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
 /** Post-observation reserve result for a uniquely recognized suffix movement. */
 export type ReserveObservedSuffixRetargetResult =
   | { readonly status: "reserved"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | DeliveryContributionRefusal
   | {
       readonly status: "refused";
-      readonly reason: "position-mismatch" | "request-mismatch" | "contribution-mismatch" | "reservation-refused"
+      readonly reason: "position-mismatch" | "request-mismatch" | "reservation-refused"
         | "state-conflict";
     };
+
+type BlockedContributionRefusal = DeliveryContributionRefusal extends infer Refusal
+  ? Refusal extends { readonly status: "refused" }
+    ? Omit<Refusal, "status"> & { readonly status: "blocked" }
+    : never
+  : never;
 
 /** Recognize, prove, and post-reserve one host-initiated first-suffix retarget. */
 export async function reserveObservedSuffixRetarget(input: {
@@ -53,9 +63,8 @@ export async function reserveObservedSuffixRetarget(input: {
     || host.request.binding.changeRequestId !== requestedMember.changeRequest.changeRequestId
     || host.request.headRef !== shortHeadRef || host.request.headSha !== requestedMember.coordinates.head
     || host.request.baseRef !== shortBaseRef) return { status: "refused", reason: "request-mismatch" };
-  if ((await input.proveContribution()).status !== "accepted") {
-    return { status: "refused", reason: "contribution-mismatch" };
-  }
+  const proof = await input.proveContribution();
+  if (proof.status !== "accepted") return proof;
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
     kind: "rewrite",
@@ -81,14 +90,14 @@ export async function reconcileReservedSuffixRetarget(input: {
 }): Promise<
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
   | { readonly status: "retryable" }
-  | { readonly status: "blocked"; readonly reason: "contribution-mismatch" | "ambiguous" | "state-conflict" }
+  | BlockedContributionRefusal
+  | { readonly status: "blocked"; readonly reason: "ambiguous" | "state-conflict" }
 > {
   const reconciled = reconcileDeliveryOperation(input.current, input.observed);
   if (reconciled.status === "retry") return { status: "retryable" };
   if (reconciled.status !== "adopt") return { status: "blocked", reason: "ambiguous" };
-  if ((await input.proveContribution()).status !== "accepted") {
-    return { status: "blocked", reason: "contribution-mismatch" };
-  }
+  const proof = await input.proveContribution();
+  if (proof.status !== "accepted") return { ...proof, status: "blocked" };
   const persisted = await input.stateStore.publish(input.planId, reconciled.state, input.current.revision);
   return persisted.status === "ok"
     ? { status: "applied", state: persisted.value }
@@ -114,7 +123,18 @@ export async function executeDeliverySuffixRewrite(input: {
   readonly stateStore: StateWriter;
 }): Promise<
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-  | { readonly status: "refused"; readonly reason: string }
+  | DeliveryContributionRefusal
+  | {
+      readonly status: "refused";
+      readonly reason:
+        | "position-mismatch"
+        | "lifecycle-contribution"
+        | "reservation-refused"
+        | "state-conflict"
+        | "precondition-mismatch"
+        | "rewrite-refused"
+        | "ambiguous-result";
+    }
 > {
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.deliverableId);
   const requestedMember = input.requested.members[0];
@@ -159,8 +179,9 @@ export async function executeDeliverySuffixRewrite(input: {
   });
   if (rewritten.status === "refused") return { status: "refused", reason: "rewrite-refused" };
   const observed = await input.observeResult();
-  if (input.contributionMode !== "selected-change" && (await input.proveContribution()).status !== "accepted") {
-    return { status: "refused", reason: "contribution-mismatch" };
+  if (input.contributionMode !== "selected-change") {
+    const proof = await input.proveContribution();
+    if (proof.status !== "accepted") return proof;
   }
   const accepted = acceptDeliveryOperationResult(persistedReservation.value, observed);
   if (accepted.status !== "applied") return { status: "refused", reason: "ambiguous-result" };
