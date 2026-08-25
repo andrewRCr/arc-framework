@@ -35,6 +35,7 @@ function dependencies() {
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
         repository: "owner/repo",
+        stackPosition: "top",
         state: "validated",
         nextAction: "use-method",
         method: "merge",
@@ -87,10 +88,11 @@ function dependencies() {
       nextAction: "complete",
       checks: [],
     }),
-    resolveMergeMethod: async () => ({
+    resolveMergeMethod: async (_repository, stackPosition) => ({
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
       repository: "owner/repo",
+      stackPosition,
       state: "validated",
       nextAction: "use-method",
       method: "merge",
@@ -355,12 +357,13 @@ describe("integration merge", () => {
 
   it("rejects merge-method policy resolved for a different repository", async () => {
     const { value, state } = dependencies();
-    value.resolveMergeMethod = async (repository) => {
+    value.resolveMergeMethod = async (repository, stackPosition) => {
       expect(repository).toBe("owner/repo");
       return {
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
         repository: "other/repo",
+        stackPosition,
         state: "validated",
         nextAction: "use-method",
         method: "merge",
@@ -404,6 +407,7 @@ describe("integration merge", () => {
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
         repository: "owner/repo",
+        stackPosition: "top",
         state: "validated",
         nextAction: "use-method",
         method: "squash",

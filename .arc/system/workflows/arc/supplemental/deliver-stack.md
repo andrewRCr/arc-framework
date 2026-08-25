@@ -124,8 +124,9 @@ follows its returned `nextAction`. A `retryable` result dispatches only one of t
   `arc delivery publish` against the retained reservation.
 - `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
   `arc delivery rematerialize`.
-- `retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and
-  `mode: provider-adoption` reruns `arc delivery native observe`.
+- `retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and
+  `mode: provider-adoption` reruns `arc delivery refresh adopt` with the exact `operationId`; the CLI derives the
+  reserved suffix rather than accepting the selector's affected IDs as request authority.
 - `retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential` reruns
   `arc delivery land prepare` and requires a new integration interlock before apply.
 - `retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native` reruns
@@ -141,17 +142,24 @@ let the named ordinary verb reobserve and prepare every other input; workflow pr
 recovery policy. Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous
 result, stops with its reason rendered.
 
-Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
+Only after every request ID exists, compose the exact non-terminal native-link request without `optIn` and invoke:
 
 ```bash
 arc delivery native link - --json
 ```
 
-The CLI receives the explicit opt-in and exact plan/state-derived non-terminal member set; the terminal is never
-registered. A one-member delivery has no registration set and skips this verb. `linked` continues only after a fresh
-exact host observation. An opt-out `unlinked` result makes zero native host calls and enters the ordinary singleton
-path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the explicit unlink verb; `refused`
-stops. On the linked path, refresh presentation facts before every landing:
+Only `decision-required` continues. Render both texts verbatim — `recommendedOptInText` and
+`recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
+After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
+
+```bash
+arc delivery native link - --json
+```
+
+The terminal is never registered. A one-member delivery has no registration set and skips both invocations. `linked`
+continues only after a fresh exact host observation. An opt-out `unlinked` result makes zero native host calls and
+enters the ordinary singleton path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the
+explicit unlink verb; `refused` stops. On the linked path, refresh presentation facts before every landing:
 
 ```bash
 arc delivery native observe - --json
@@ -167,8 +175,9 @@ Immediately after the fresh native observation, select the service-owned arm:
 arc delivery native land-select - --json
 ```
 
-The selector derives the exact plan-ordered non-terminal remainder from current plan/state facts. An `unlinked` arm
-or a preceding `downgrade-required` result invokes the presentation-only degradation verb:
+The selector request carries no member coordinates. It derives the exact plan-ordered non-terminal remainder from
+current plan/state facts before fresh provider observation. An `unlinked` arm or a preceding
+`downgrade-required` result invokes the presentation-only degradation verb:
 
 ```bash
 arc delivery native unlink - --json
@@ -198,17 +207,21 @@ arc delivery native land-status - --json
 ```
 
 For ordinary polling after submission, use `land-status`. `pending` retains the reservation and polls the same
-persisted effect identity again. After a restart or interruption, invoke the general recovery verb instead:
+persisted effect identity again. After a restart or interruption, invoke `land-status` with the same exact request;
+it also recovers a synchronous merged result whose effect identity was never assigned. The general recovery verb
+delegates an active native reservation to that same status-and-settlement path:
 
 ```bash
 arc delivery reconcile - --json
 ```
 
 Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
-effect and exact `none-landed` observation, returns to preparation and a new interlock. A missing identity, `pending`,
-`partial-landed`, unavailable, expired, contradictory, or ambiguous result stops with the reservation intact. An
-applied `linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof,
-before new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
+effect and exact `none-landed` observation, returns to preparation and a new interlock. `pending`, `partial-landed`,
+unavailable, expired, contradictory, or ambiguous results stop with the reservation intact. A suffix reconciliation
+refusal likewise retains that reservation; rerun `land-status` to reobserve and settle it without resubmitting. An
+`applied` result is returned only after a `linked-single` result settles the complete recognized suffix-retarget path,
+including contribution proof before new-head review admission, or a `linked-atomic` result performs its final
+no-suffix state write.
 
 ## Review and land the current member
 
@@ -247,6 +260,12 @@ The apply request carries the prepared presentation and repository locators, not
 reobserves the exact selection and readiness before lock release and again before merge, then accepts only the
 matching merged request, target, and contribution.
 
+A semantic `native-stack-required` result is not a stale-suffix refresh. Only its returned
+`retryable / cleared / delivery-native-land-select` transition, with `operationKind: land` and `mode: sequential`,
+continues: invoke `arc delivery native land-select`, which freshly observes the canonical remaining chain, then
+return through native preparation and a new integration interlock. If exact no-effect proof or the version-checked
+clear fails, stop with the sequential reservation retained; do not infer refresh or ordinary landing preparation.
+
 Do not advance until the effect and any remaining suffix reconciliation settle. A `retryable` result returns to
 land prepare and a new integration interlock; it never reuses approval. A blocked or ambiguous result runs the
 typed reconcile route and stops when that route does not settle:
@@ -254,6 +273,36 @@ typed reconcile route and stops when that route does not settle:
 ```bash
 arc delivery reconcile - --json
 ```
+
+When landing refuses for a genuine conflict, `native-stale-suffix` requirement, or host up-to-date policy — or when
+the operator explicitly chooses a refresh — plan from current canonical state. `native-stack-required` never enters
+this arm; it follows the semantic native-selection transition above.
+
+```bash
+arc delivery refresh plan - --json
+```
+
+The request carries only the plan and repository locators plus that exact trigger. Only `refresh-required`
+continues. Render its exact `plannedSuffix`, mechanics, and `recommendedActionText` before the operator refreshes
+that registered set through the provider UI or porcelain. The external refresh is unreserved: ARC has no provider
+mutation operation while it runs, and the terminal top remains outside it. After the external operation settles,
+adopt only a fresh complete observation:
+
+```bash
+arc delivery refresh adopt - --json
+```
+
+The request carries only the plan and repository locators; the CLI derives the remaining suffix. Before reserving,
+the verb freshly observes the complete exact suffix and proves every changed contribution. It then reserves
+`rewrite / provider-adoption` against the old and observed suffixes, reobserves and reproves that exact result,
+absorbs the refreshed predecessor into the terminal top append-only, lease-publishes the top, and installs the
+target, suffix, and terminal coordinates in one final state transition. It never records suffix-only state.
+
+`applied` returns to `arc delivery position`. A refusal before reservation leaves no operation. A blocked result
+after reservation retains it; follow the returned `delivery-refresh-adopt` selector and rerun this verb with the
+exact `operationId`. Recovery recognizes an already-created local merge and already-published top before retrying
+the final state transition. Any other retryable result follows its precomposed action, and every refused or blocked
+result stops without adopting ambiguous movement. Base movement alone never invokes this arm.
 
 Apply review fixes to the freshly authored suffix, run the ordinary project gates for every candidate, then invoke
 the composed rematerialization service with only the exact selected-member IDs and raw candidate locators:

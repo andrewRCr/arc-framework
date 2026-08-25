@@ -1039,6 +1039,7 @@ const MERGE_METHOD: Extract<MergeMethodResolveResult, { state: "validated" }> = 
   schemaVersion: 1,
   mode: "review-merge-method-resolve",
   repository: "owner/repo",
+  stackPosition: "non-delivery",
   state: "validated",
   nextAction: "use-method",
   method: "squash",

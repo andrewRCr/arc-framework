@@ -44,6 +44,8 @@ describe("packaged delivery workflow", () => {
     expect(packaged).toContain("arc delivery native land-prepare");
     expect(packaged).toContain("arc delivery native land-submit");
     expect(packaged).toContain("arc delivery native land-status");
+    expect(packaged).toContain("arc delivery refresh plan");
+    expect(packaged).toContain("arc delivery refresh adopt");
     expect(packaged).toContain("opt-out `unlinked` result makes zero native host calls");
     const materializeSection = section(packaged, "Validate and publish");
     const nativeSection = section(packaged, "Select and execute the native landing arm");
@@ -62,8 +64,20 @@ describe("packaged delivery workflow", () => {
     expect(materializeSection.indexOf("arc delivery publish")).toBeLessThan(
       materializeSection.indexOf("arc delivery native link"),
     );
+    const disclosureRead = materializeSection.indexOf("arc delivery native link");
+    const disclosure = materializeSection.indexOf("`decision-required`", disclosureRead);
+    const optedRequest = materializeSection.indexOf("arc delivery native link", disclosureRead + 1);
+    expect(disclosureRead).toBeLessThan(disclosure);
+    expect(disclosure).toBeLessThan(optedRequest);
+    expect(materializeSection).toContain("`recommendedOptInText`");
+    expect(materializeSection).toContain("`recommendedOptOutText`");
+    expect(materializeSection).toMatch(/render both texts verbatim[\s\S]*set `optIn`/iu);
+    expect(materializeSection).not.toContain("review applicability must be re-evaluated");
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
     expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
+    expect(nativeSection).toMatch(
+      /selector request carries no member coordinates[\s\S]*current plan\/state facts[\s\S]*provider observation/iu,
+    );
     expect(nativeSection).not.toContain("only the plan, request, and remote locators");
     expect(packaged).toContain("never enters the delivery plan or state");
     expect(packaged).toContain("integrate-work-unit.md");
@@ -73,7 +87,27 @@ describe("packaged delivery workflow", () => {
     expect(prepare).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(apply);
     expect(reviewSection).toMatch(/retryable[\s\S]*prepare[\s\S]*new integration interlock/iu);
+    expect(reviewSection).toMatch(
+      /native-stack-required[\s\S]*delivery-native-land-select[\s\S]*mode: sequential[\s\S]*canonical remaining chain/iu,
+    );
+    expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(reviewSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
+    const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
+    const refreshAdopt = reviewSection.indexOf("arc delivery refresh adopt", refreshPlan);
+    const refreshTail = reviewSection.slice(refreshPlan, reviewSection.indexOf("arc delivery rematerialize"));
+    expect(refreshPlan).toBeLessThan(refreshAdopt);
+    expect(refreshTail).toMatch(/external refresh is unreserved[\s\S]*no provider\s+mutation operation/iu);
+    expect(refreshTail).toMatch(
+      /Before reserving[\s\S]*observes the complete exact suffix[\s\S]*proves every changed contribution/iu,
+    );
+    expect(refreshTail).toMatch(
+      /provider-adoption[\s\S]*reobserves and reproves[\s\S]*absorbs[\s\S]*lease-publishes[\s\S]*one final state/iu,
+    );
+    expect(refreshTail).toMatch(/never records suffix-only state/iu);
+    expect(refreshTail).toMatch(
+      /blocked result[\s\S]*retains it[\s\S]*delivery-refresh-adopt[\s\S]*exact `operationId`/iu,
+    );
+    expect(refreshTail).toMatch(/already-created local merge[\s\S]*already-published top/iu);
     const rematerialize = reviewSection.indexOf("arc delivery rematerialize");
     const teardown = reviewSection.indexOf("arc delivery teardown", rematerialize);
     const mutationTail = reviewSection.slice(rematerialize, teardown);
@@ -95,7 +129,7 @@ describe("packaged delivery workflow", () => {
       "retryable / cleared / delivery-publish` with `operationKind: materialize",
       "retryable / preserved / delivery-publish` with `operationKind: publish",
       "retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix",
-      "retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and",
+      "retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and",
       "retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential",
       "retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native",
       "retryable / preserved / delivery-teardown` with `operationKind: teardown",
@@ -103,7 +137,7 @@ describe("packaged delivery workflow", () => {
     ]) {
       expect(recoverySection).toContain(arm);
     }
-    expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery native observe/iu);
+    expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery refresh adopt/iu);
     expect(recoverySection).toMatch(
       /planId[\s\S]*operationId[\s\S]*affectedDeliverableIds[\s\S]*operationKind[\s\S]*narrow `mode`/u,
     );
@@ -127,7 +161,8 @@ describe("packaged delivery workflow", () => {
     expect(nativeSubmit).toBeLessThan(nativeStatus);
     expect(nativeSection).toMatch(/exact member\/head set[\s\S]*residual race/iu);
     expect(nativeSection).toMatch(/ordinary polling[\s\S]*land-status/iu);
-    expect(nativeSection).toMatch(/restart or interruption[\s\S]*arc delivery reconcile/iu);
+    expect(nativeSection).toMatch(/restart or interruption[\s\S]*land-status/iu);
+    expect(nativeSection).toMatch(/suffix reconciliation[\s\S]*reservation[\s\S]*land-status/iu);
     expect(nativeSection).toMatch(/terminal `failed`[\s\S]*exact `none-landed`[\s\S]*new\s+interlock/iu);
     expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);
     expect(nativeSection).toMatch(/linked-single[\s\S]*contribution proof[\s\S]*new-head review/iu);

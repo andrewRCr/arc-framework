@@ -15,6 +15,43 @@ function port(policy: Record<"merge" | "rebase" | "squash", boolean>): MergeMeth
 }
 
 describe("merge-method resolution", () => {
+  it("forces an intermediate stack member to a merge commit", async () => {
+    await expect(resolveMergeMethod("squash", port({
+      merge: true,
+      rebase: true,
+      squash: true,
+    }), undefined, "intermediate")).resolves.toMatchObject({
+      state: "validated",
+      method: "merge",
+      stackPosition: "intermediate",
+    });
+  });
+
+  it("preserves the intermediate position in a disallowed-method remedy", async () => {
+    await expect(resolveMergeMethod("squash", port({
+      merge: false,
+      rebase: false,
+      squash: true,
+    }), undefined, "intermediate")).resolves.toMatchObject({
+      state: "blocked",
+      reason: "method-disallowed",
+      configuredMethod: "squash",
+      allowedMethods: ["squash"],
+      detail: "Intermediate stack members require merge commits.",
+      remedy: {
+        argv: [
+          "arc",
+          "review",
+          "merge-method",
+          "resolve",
+          "--stack-position",
+          "intermediate",
+          "--json",
+        ],
+      },
+    });
+  });
+
   it("validates an allowed configured method with a policy fingerprint", async () => {
     await expect(resolveMergeMethod("squash", port({
       merge: true,
@@ -26,8 +63,21 @@ describe("merge-method resolution", () => {
       state: "validated",
       nextAction: "use-method",
       method: "squash",
+      stackPosition: "non-delivery",
       allowedMethods: ["merge", "squash"],
       policyFingerprint: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+    });
+  });
+
+  it("keeps the configured repository-policy method for the stack top", async () => {
+    await expect(resolveMergeMethod("squash", port({
+      merge: true,
+      rebase: false,
+      squash: true,
+    }), undefined, "top")).resolves.toMatchObject({
+      state: "validated",
+      method: "squash",
+      stackPosition: "top",
     });
   });
 
@@ -67,5 +117,15 @@ describe("merge-method resolution", () => {
     expect(first).toMatchObject({ state: "validated" });
     expect(second).toMatchObject({ state: "validated" });
     expect(first.policyFingerprint).not.toBe(second.policyFingerprint);
+  });
+
+  it("binds stack position into the policy fingerprint", async () => {
+    const policy = port({ merge: true, rebase: true, squash: true });
+    const top = await resolveMergeMethod("merge", policy, undefined, "top");
+    const intermediate = await resolveMergeMethod("merge", policy, undefined, "intermediate");
+
+    expect(top).toMatchObject({ state: "validated", method: "merge" });
+    expect(intermediate).toMatchObject({ state: "validated", method: "merge" });
+    expect(top.policyFingerprint).not.toBe(intermediate.policyFingerprint);
   });
 });

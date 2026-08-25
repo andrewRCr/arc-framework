@@ -19,6 +19,15 @@ import {
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
+const mergePolicyFor = (repository: string) => ({
+  repository,
+  stackPosition: "intermediate",
+  method: "merge",
+  allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
+  policyFingerprint: `sha256:${"a".repeat(64)}`,
+} as const);
+const mergePolicy = mergePolicyFor("andrewRCr/arc-framework");
+
 function boundState() {
   const plan = deliveryPlanFixture();
   const state = deliveryStateFixture(plan);
@@ -49,6 +58,7 @@ function facts(state: DeliveryStateV1): DeliveryPositionFactsV1 {
 
 function boundaries(state: DeliveryStateV1) {
   const member = state.members[0]!;
+  const mergeResult = { head: "d".repeat(40), tree: "e".repeat(40) };
   let merged = false;
   const observeRequest = vi.fn(async () => ({
     status: "observed" as const,
@@ -61,6 +71,7 @@ function boundaries(state: DeliveryStateV1) {
       baseRef: "main",
       state: merged ? "merged" as const : "open" as const,
       draft: true,
+      mergeCommitSha: merged ? mergeResult.head : null,
     },
   }));
   const mergeRequest = vi.fn(async () => {
@@ -74,7 +85,7 @@ function boundaries(state: DeliveryStateV1) {
     mergeRequest,
     observeTarget: vi.fn(async () => ({
       status: "observed" as const,
-      coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+      coordinates: { head: "f".repeat(40), tree: "a".repeat(40) },
     })),
   };
   return {
@@ -83,6 +94,7 @@ function boundaries(state: DeliveryStateV1) {
     readiness: { assess: vi.fn(async () => ({ status: "ready" as const, settledReviewState: "settled" })) },
     lock: { release: vi.fn(async () => ({ status: "not-configured" as const })) },
     observation: {
+      revalidateMergePolicy: vi.fn(async () => ({ status: "exact" as const })),
       observeSelection: vi.fn(async () => ({
         status: "observed" as const,
         facts: facts(state),
@@ -96,9 +108,40 @@ function boundaries(state: DeliveryStateV1) {
           }],
         },
       })),
+      observeLandedResult: vi.fn(async () => ({
+        predecessor: state.target!.coordinates!,
+        member: mergeResult,
+      })),
       proveLandedContribution: vi.fn(async () => ({ status: "accepted" as const, proof: "tree-equality" as const })),
     },
   };
+}
+
+async function preparedBoundLanding() {
+  const { plan, state } = boundState();
+  const deps = boundaries(state);
+  const records: Array<{ revision: number; value: DeliveryStateV1 }> = [];
+  const prepared = await prepareDeliveryLanding({
+    plan,
+    current: { revision: 7, value: state },
+    facts: facts(state),
+    selectedDeliverableId: state.members[0]!.deliverableId,
+    repository: "andrewRCr/arc-framework",
+    baseRef: "refs/heads/main",
+    targetRef: "refs/heads/main",
+    mergePolicy,
+    releaseMergeLock: false,
+    stateStore: { publish: async (_planId, value) => {
+      const current = { revision: 8, value };
+      records.push(current);
+      return { status: "ok" as const, value: current };
+    } },
+    host: deps.host,
+    readiness: deps.readiness,
+  });
+  const current = records[0];
+  if (prepared.status !== "prepared" || current === undefined) throw new Error("fixture must prepare");
+  return { plan, state, deps, prepared, current };
 }
 
 describe("delivery landing", () => {
@@ -114,7 +157,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "squash",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: {
         publish: async (_planId, value) => {
@@ -128,7 +171,10 @@ describe("delivery landing", () => {
     expect(result.status).toBe("prepared");
     expect(deps.readiness.assess).toHaveBeenCalledOnce();
     expect(deps.mergeRequest).not.toHaveBeenCalled();
-    expect(persisted[0]?.activeOperation?.kind).toBe("land");
+    expect(persisted[0]?.activeOperation).toMatchObject({
+      kind: "land",
+      effect: { strategy: "merge", mergePolicy },
+    });
   });
 
   it("refuses terminal and non-unique request selections", async () => {
@@ -141,7 +187,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge" as const,
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
       host: deps.host,
@@ -162,7 +208,7 @@ describe("delivery landing", () => {
     expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
-  it("reobserves after approval, performs one head-matched merge, and records the actual target", async () => {
+  it("records the exact merge result when the protected target advances after landing", async () => {
     const { plan, state } = boundState();
     const deps = boundaries(state);
     let reservedRecord: { revision: number; value: DeliveryStateV1 } | null = null;
@@ -174,7 +220,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "rebase",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: {
         publish: async (_planId, value) => {
@@ -225,7 +271,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: { publish: async (_planId, value) => {
         const record = { revision: 8, value };
@@ -258,7 +304,106 @@ describe("delivery landing", () => {
     expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
-  it("refuses mismatched post-merge request, target, or contribution evidence", async () => {
+  it("clears an exactly unapplied stacked-member refusal into canonical native selection", async () => {
+    const { plan, deps, prepared, current } = await preparedBoundLanding();
+    const writes: DeliveryStateV1[] = [];
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: { publish: async (_planId, value) => {
+        writes.push(value);
+        return { status: "ok" as const, value: { revision: 9, value } };
+      } },
+      host: {
+        ...deps.host,
+        mergeRequest: async () => ({ status: "refused", reason: "native-stack-required" }),
+      },
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: deps.observation,
+    })).resolves.toEqual({
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-native-land-select",
+      selector: {
+        planId: plan.planId,
+        operationId: current.value.activeOperation!.operationId,
+        affectedDeliverableIds: current.value.activeOperation!.affectedDeliverableIds,
+        operationKind: "land",
+        mode: "sequential",
+      },
+      recommendedActionText:
+        "Rerun `arc delivery native land-select`; it will freshly observe the canonical remaining stack.",
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.activeOperation).toBeNull();
+    expect(current.value.activeOperation).not.toBeNull();
+  });
+
+  it("retains a stacked-member refusal when exact non-application is ambiguous", async () => {
+    const { plan, deps, prepared, current } = await preparedBoundLanding();
+    const exact = await deps.observation.observeSelection();
+    let observations = 0;
+    const persisted: DeliveryStateV1[] = [];
+
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: { publish: async (_planId, value) => {
+        persisted.push(value);
+        return { status: "ok" as const, value: { revision: 9, value } };
+      } },
+      host: {
+        ...deps.host,
+        mergeRequest: async () => ({ status: "refused", reason: "native-stack-required" }),
+      },
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: {
+        ...deps.observation,
+        observeSelection: async () => ++observations < 3
+          ? exact
+          : { status: "refused" as const },
+      },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "operation-result-ambiguous",
+      recommendedActionText:
+        "Retain the sequential reservation; the semantic native refusal could not be proved not applied.",
+    });
+    expect(persisted).toHaveLength(0);
+    expect(current.value.activeOperation).not.toBeNull();
+  });
+
+  it("retains a stacked-member refusal when the version-checked clear collides", async () => {
+    const { plan, deps, prepared, current } = await preparedBoundLanding();
+
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: {
+        publish: async () => ({ status: "refused" as const, reason: "version-conflict" as const }),
+      },
+      host: {
+        ...deps.host,
+        mergeRequest: async () => ({ status: "refused", reason: "native-stack-required" }),
+      },
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: deps.observation,
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "retry-state-persistence-failed",
+      recommendedActionText:
+        "Retain and reconcile the sequential reservation; native-selection transition persistence failed.",
+    });
+    expect(current.value.activeOperation).not.toBeNull();
+  });
+
+  it("refuses mismatched post-merge request, merge result, or contribution evidence", async () => {
     const { plan, state } = boundState();
     const preparedDeps = boundaries(state);
     let current: { revision: number; value: DeliveryStateV1 } | null = null;
@@ -270,7 +415,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: { publish: async (_planId, value) => {
         current = { revision: 8, value };
@@ -301,19 +446,16 @@ describe("delivery landing", () => {
       observation: changedRequest.observation,
     })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
 
-    const missingTarget = boundaries(state);
+    const missingResult = boundaries(state);
     await expect(applyDeliveryLanding({
       plan,
       current,
       approved: prepared.presentation,
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
-      host: {
-        ...missingTarget.host,
-        observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
-      },
-      readiness: missingTarget.readiness,
-      lock: missingTarget.lock,
-      observation: missingTarget.observation,
+      host: missingResult.host,
+      readiness: missingResult.readiness,
+      lock: missingResult.lock,
+      observation: { ...missingResult.observation, observeLandedResult: async () => null },
     })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
 
     const refusedContribution = boundaries(state);
@@ -352,7 +494,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: true,
       stateStore: { publish: async (_planId, value) => {
         const record = { revision: 8, value };
@@ -364,6 +506,22 @@ describe("delivery landing", () => {
     });
     const [current] = records;
     if (prepared.status !== "prepared" || current === undefined) throw new Error("fixture must prepare");
+    const policyMoved = boundaries(state);
+    await expect(applyDeliveryLanding({
+      plan,
+      current,
+      approved: prepared.presentation,
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+      host: policyMoved.host,
+      readiness: policyMoved.readiness,
+      lock: policyMoved.lock,
+      observation: {
+        ...policyMoved.observation,
+        revalidateMergePolicy: async () => ({ status: "refused" as const }),
+      },
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    expect(policyMoved.mergeRequest).not.toHaveBeenCalled();
+
     await expect(applyDeliveryLanding({
       plan,
       current,
@@ -401,7 +559,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: true,
       stateStore: { publish: async (_planId, value) => {
         current = { revision: 8, value };
@@ -458,7 +616,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: { publish: async (_planId, value) => {
         const current = { revision: 8, value };
@@ -527,8 +685,8 @@ describe("delivery landing", () => {
         text: "Rerun `arc delivery rematerialize` for the exact review-fix reservation subject.",
       },
       {
-        kind: "rewrite", mode: "provider-adoption", action: "delivery-native-observe", transition: "cleared",
-        text: "Rerun `arc delivery native observe` for the exact provider-adoption reservation subject.",
+        kind: "rewrite", mode: "provider-adoption", action: "delivery-refresh-adopt", transition: "preserved",
+        text: "Rerun `arc delivery refresh adopt` for the exact provider-adoption reservation subject.",
       },
       {
         kind: "land", mode: "sequential", action: "delivery-land-prepare", transition: "cleared",
@@ -575,6 +733,7 @@ describe("delivery landing", () => {
                 providerId: "github", repository: "o/r", changeRequestId: "41",
                 headSha: "4".repeat(40), baseRef: "main", targetRef: "refs/heads/main",
                 strategy: "merge" as const,
+                mergePolicy: mergePolicyFor("o/r"),
               },
             }
           : entry.kind === "rewrite"
@@ -658,6 +817,7 @@ describe("delivery landing", () => {
         baseRef: "main",
         targetRef: "refs/heads/main",
         strategy: "merge",
+        mergePolicy: mergePolicyFor("owner/repo"),
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture must reserve native landing");
@@ -754,7 +914,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: { publish: async (_planId, value) => {
         current = { revision: 8, value };
@@ -790,7 +950,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: { publish: async (_planId, value) => {
         current = { revision: 8, value };
@@ -851,6 +1011,7 @@ describe("delivery landing", () => {
         baseRef: "main",
         targetRef: "refs/heads/main",
         strategy: "merge",
+        mergePolicy: mergePolicyFor("owner/repo"),
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture must reserve native landing");
@@ -898,7 +1059,7 @@ describe("delivery landing", () => {
       repository: "andrewRCr/arc-framework",
       baseRef: "refs/heads/main",
       targetRef: "refs/heads/main",
-      mergeStrategy: "merge",
+      mergePolicy,
       releaseMergeLock: false,
       stateStore: { publish: async (_planId, value) => {
         const record = { revision: 8, value };

@@ -4,7 +4,10 @@ import { z } from "zod";
 
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
 import { RequiredCheckSchema, type ChecksAwaitResult } from "../review-gate/checks-await.js";
-import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import type {
+  MergeMethodResolveResult,
+  MergeMethodStackPosition,
+} from "../review-gate/merge-method.js";
 import {
   MergeLockTransitionRequestSchema,
   type MergeLockTransitionRequest,
@@ -254,7 +257,7 @@ export interface IntegrationMergeDependencies {
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
   createLockRequest(target?: IntegrationMergeTarget): Promise<MergeLockTransitionRequest>;
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
-  resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
+  resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   readConfiguredBase(): Promise<string>;
   readFinalDrift(): Promise<Pick<BaseDriftResult, "verdict">>;
   mergePinned(target: IntegrationMergeTarget, method: "merge" | "rebase" | "squash"): Promise<{ state: string }>;
@@ -417,10 +420,14 @@ export async function mergeIntegration(
       }, dependencies, target);
     }
 
-    const mergeMethod = await dependencies.resolveMergeMethod(target.repository);
+    const mergeMethod = await dependencies.resolveMergeMethod(
+      target.repository,
+      checkpoint.mergeMethod.stackPosition,
+    );
     if (
       mergeMethod.state !== "validated"
       || mergeMethod.repository?.toLowerCase() !== target.repository.toLowerCase()
+      || mergeMethod.stackPosition !== checkpoint.mergeMethod.stackPosition
       || mergeMethod.method !== checkpoint.mergeMethod.method
       || mergeMethod.policyFingerprint !== checkpoint.mergeMethod.policyFingerprint
     ) {

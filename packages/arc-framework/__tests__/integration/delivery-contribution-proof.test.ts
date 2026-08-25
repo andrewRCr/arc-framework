@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../src/lib/change-facts.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
+import { observeGitDeliveryLandingResult } from "../../src/lib/delivery/git-landing-result.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
@@ -17,6 +19,75 @@ afterEach(async () => {
 });
 
 describe("delivery contribution proof against Git", () => {
+  it("derives the actual landing predecessor for merge, squash, and rebase results", async () => {
+    const repository = await createTempRepoCore({ prefix: "arc-delivery-landing-result-" });
+    roots.push(repository);
+    const run = async (args: string[]): Promise<string> => (
+      await execFileAsync("git", args, { cwd: repository })
+    ).stdout.trim();
+    const coordinate = async (head: string) => ({
+      head,
+      tree: await run(["rev-parse", `${head}^{tree}`]),
+    });
+    const exec: GitExec = async (command, args, options) => {
+      const result = await execFileAsync(command, [...args], {
+        cwd: options?.cwd ?? repository,
+      });
+      return { stdout: result.stdout, stderr: result.stderr };
+    };
+
+    await writeFile(join(repository, "base.txt"), "base\n", "utf8");
+    await run(["add", "base.txt"]);
+    await run(["commit", "-m", "base"]);
+    const base = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "member"]);
+    await writeFile(join(repository, "feature-a.txt"), "a\n", "utf8");
+    await run(["add", "feature-a.txt"]);
+    await run(["commit", "-m", "feature a"]);
+    await writeFile(join(repository, "feature-b.txt"), "b\n", "utf8");
+    await run(["add", "feature-b.txt"]);
+    await run(["commit", "-m", "feature b"]);
+    const member = await run(["rev-parse", "HEAD"]);
+    const beforeMember = { base, ...await coordinate(member) };
+
+    await run(["checkout", "-b", "ambient", base]);
+    await writeFile(join(repository, "ambient.txt"), "ambient\n", "utf8");
+    await run(["add", "ambient.txt"]);
+    await run(["commit", "-m", "ambient"]);
+    const ambient = await run(["rev-parse", "HEAD"]);
+
+    await run(["checkout", "-b", "merge-result", ambient]);
+    await run(["merge", "--no-ff", "-m", "merge member", member]);
+    const mergeResult = await run(["rev-parse", "HEAD"]);
+
+    await run(["checkout", "-b", "squash-result", ambient]);
+    await run(["merge", "--squash", member]);
+    await run(["commit", "-m", "squash member"]);
+    const squashResult = await run(["rev-parse", "HEAD"]);
+
+    await run(["checkout", "-b", "rebase-result", member]);
+    await run(["rebase", "--onto", ambient, base]);
+    const rebaseResult = await run(["rev-parse", "HEAD"]);
+
+    for (const [strategy, resultHead] of [
+      ["merge", mergeResult],
+      ["squash", squashResult],
+      ["rebase", rebaseResult],
+    ] as const) {
+      await expect(observeGitDeliveryLandingResult({
+        exec,
+        cwd: repository,
+        remote: ".",
+        resultHead,
+        strategy,
+        beforeMember,
+      })).resolves.toEqual({
+        predecessor: await coordinate(ambient),
+        member: await coordinate(resultHead),
+      });
+    }
+  });
+
   it("accepts an exact contribution mechanically reapplied onto a changed predecessor", async () => {
     const repository = await createTempRepoCore({ prefix: "arc-delivery-contribution-" });
     roots.push(repository);
