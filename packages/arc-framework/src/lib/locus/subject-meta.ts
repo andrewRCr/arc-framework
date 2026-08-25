@@ -16,6 +16,7 @@ import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   parseCandidateManagedRecord,
 } from "../work-unit/candidate-attestation.js";
+import type { CandidateTargetProjector } from "../work-unit/candidate-effective-target.js";
 import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
@@ -38,6 +39,7 @@ export interface SubjectMetaIO {
   pathExists(path: string): Promise<boolean>;
   realpath(path: string): Promise<string>;
   lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
+  projectCandidateTarget: CandidateTargetProjector;
 }
 
 export type SubjectMetaProjection =
@@ -126,8 +128,15 @@ export async function projectCheckoutSubjectMeta(options: {
       if (candidateRecord === null || candidateRecord.attestation.candidateId !== record.candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");
       }
-      candidateSubjectDigest = candidateRecord.responses.at(-1)?.newTarget.subject.subjectDigest
-        ?? candidateRecord.subject.subjectDigest;
+      const effective = await options.io.projectCandidateTarget({
+        cwd: options.cwd,
+        name: options.subjectKey,
+        record: candidateRecord,
+      });
+      if (effective.state !== "current") {
+        throw new Error(`Candidate target requires ${effective.nextAction}.`);
+      }
+      candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
     } catch (error) {
       return {
         kind: "unresolved",

@@ -21,6 +21,10 @@ describe("prepublication workflow boundary", () => {
       expect(integrate).not.toContain("arc review local prepare -");
       expect(integrate).toContain("**When to use:** `active/meta-{name}.md` shows `**State:** Integrating`");
       expect(integrate).toContain("### 1) Push the branch and open the PR");
+      const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
+      const correctionPublish = integrate.indexOf("arc publish {name} --json", reconcileStep);
+      expect(reconcileStep).toBeGreaterThan(-1);
+      expect(correctionPublish).toBeGreaterThan(reconcileStep);
 
       const prepare = await readFile(
         resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
@@ -165,10 +169,12 @@ describe("prepublication workflow boundary", () => {
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/archive-work-unit.md"), "utf8"),
       ]);
 
-      const cleanRestart = integrate.indexOf("`clean` restarts this step without a commit");
+      const cleanContinuation = integrate.indexOf("`clean` continues to the checkpoint below");
+      const appliedRestart = integrate.indexOf("Restart this step. The correction changed the head");
       const readyCheckpoint = integrate.indexOf("On `ready / request-approval`");
-      expect(cleanRestart).toBeGreaterThan(-1);
-      expect(readyCheckpoint).toBeGreaterThan(cleanRestart);
+      expect(cleanContinuation).toBeGreaterThan(-1);
+      expect(appliedRestart).toBeGreaterThan(cleanContinuation);
+      expect(readyCheckpoint).toBeGreaterThan(appliedRestart);
       expect(integrate).toContain("Context: meta-{name}.md (integration)");
       expect(integrate).not.toContain("Context: meta-{name}.md (integration reconcile)");
       expect(archive).toContain("per `integrate-work-unit.md` Steps 5–7");

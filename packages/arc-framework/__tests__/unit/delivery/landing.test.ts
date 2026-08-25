@@ -2,12 +2,21 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   applyDeliveryLanding,
+  DeliveryRecoveryResultV1Schema,
+  DeliveryRecoveryRerunV1Schema,
   prepareDeliveryLanding,
   reconcileDeliveryExecution,
 } from "../../../src/lib/delivery/landing.js";
+import {
+  attachDeliveryOperationEffectIdentity,
+  reserveDeliveryOperation,
+} from "../../../src/lib/delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
-import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 function boundState() {
@@ -202,6 +211,51 @@ describe("delivery landing", () => {
       expect(applied.state.value.activeOperation).toBeNull();
       expect(applied.state.value.members[0]!.coordinates).toEqual(state.members[0]!.coordinates);
     }
+  });
+
+  it("does not consume a native reservation through sequential landing", async () => {
+    const { plan, state } = boundState();
+    const deps = boundaries(state);
+    const records: Array<{ revision: number; value: DeliveryStateV1 }> = [];
+    const prepared = await prepareDeliveryLanding({
+      plan,
+      current: { revision: 7, value: state },
+      facts: facts(state),
+      selectedDeliverableId: state.members[0]!.deliverableId,
+      repository: "andrewRCr/arc-framework",
+      baseRef: "refs/heads/main",
+      targetRef: "refs/heads/main",
+      mergeStrategy: "merge",
+      releaseMergeLock: false,
+      stateStore: { publish: async (_planId, value) => {
+        const record = { revision: 8, value };
+        records.push(record);
+        return { status: "ok" as const, value: record };
+      } },
+      host: deps.host,
+      readiness: deps.readiness,
+    });
+    const current = records[0];
+    if (prepared.status !== "prepared" || current === undefined
+      || current.value.activeOperation?.kind !== "land") throw new Error("fixture must prepare");
+    const native = {
+      ...current,
+      value: {
+        ...current.value,
+        activeOperation: { ...current.value.activeOperation, mode: "native" as const },
+      },
+    };
+    await expect(applyDeliveryLanding({
+      plan,
+      current: native,
+      approved: prepared.presentation,
+      stateStore: { publish: vi.fn() },
+      host: deps.host,
+      readiness: deps.readiness,
+      lock: deps.lock,
+      observation: deps.observation,
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
   it("refuses mismatched post-merge request, target, or contribution evidence", async () => {
@@ -428,11 +482,264 @@ describe("delivery landing", () => {
       } },
     })).resolves.toEqual({
       status: "retryable",
-      guidance: "Prepare the exact landing again and re-fire its integration interlock.",
+      transition: "cleared",
+      action: "delivery-land-prepare",
+      selector: {
+        planId: plan.planId,
+        operationKind: "land",
+        operationId: current.value.activeOperation!.operationId,
+        affectedDeliverableIds: current.value.activeOperation!.affectedDeliverableIds,
+        mode: "sequential",
+      },
+      recommendedActionText:
+        "Rerun `arc delivery land prepare` for the exact sequential landing reservation subject.",
     });
     expect(retryStates).toHaveLength(1);
     expect(retryStates[0]?.activeOperation).toBeNull();
     expect(JSON.stringify(current.value)).not.toMatch(/approval|reviewVerdict/u);
+  });
+
+  it("maps every exact non-application to one typed rerun and its preserve-or-clear transition", async () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const member = state.members[0]!;
+    const before = { target: state.target, members: [member] };
+    const requested = {
+      ...before,
+      members: [{
+        ...member,
+        coordinates: member.coordinates === null
+          ? null
+          : { ...member.coordinates, head: "e".repeat(40) },
+      }],
+    };
+    const cases = [
+      {
+        kind: "publish", action: "delivery-publish", transition: "preserved",
+        text: "Rerun `arc delivery publish` for the exact publish reservation subject.",
+      },
+      {
+        kind: "materialize", action: "delivery-publish", transition: "cleared",
+        text: "Rerun `arc delivery publish` for the exact materialization reservation subject.",
+      },
+      {
+        kind: "rewrite", mode: "review-fix", action: "delivery-rematerialize", transition: "cleared",
+        text: "Rerun `arc delivery rematerialize` for the exact review-fix reservation subject.",
+      },
+      {
+        kind: "rewrite", mode: "provider-adoption", action: "delivery-native-observe", transition: "cleared",
+        text: "Rerun `arc delivery native observe` for the exact provider-adoption reservation subject.",
+      },
+      {
+        kind: "land", mode: "sequential", action: "delivery-land-prepare", transition: "cleared",
+        text: "Rerun `arc delivery land prepare` for the exact sequential landing reservation subject.",
+      },
+      {
+        kind: "land", mode: "native", action: "delivery-native-land-select", transition: "cleared",
+        text: "Rerun `arc delivery native land-select` for the exact native landing reservation subject.",
+      },
+      {
+        kind: "teardown", action: "delivery-teardown", transition: "preserved",
+        text: "Rerun `arc delivery teardown` for the exact teardown reservation subject.",
+      },
+      {
+        kind: "top-remedy", action: "delivery-top-remedy", transition: "cleared",
+        text: "Rerun `arc delivery top-remedy` for the exact top-remedy reservation subject.",
+      },
+    ] as const;
+    for (const entry of cases) {
+      const operationId = `operation-${entry.kind}-${"mode" in entry ? entry.mode : "exact"}`;
+      const common = {
+        operationId,
+        kind: entry.kind,
+        affectedDeliverableIds: [member.deliverableId],
+        expectedStateRevision: 7,
+        before,
+        requested,
+      };
+      const request = entry.kind === "publish"
+        ? {
+            ...common,
+            kind: "publish" as const,
+            effect: {
+              providerId: "github", repository: "o/r", headRef: "member-1",
+              headSha: "4".repeat(40), baseRef: "main", draft: true,
+            },
+          }
+        : entry.kind === "land"
+          ? {
+              ...common,
+              kind: "land" as const,
+              mode: entry.mode,
+              effect: {
+                providerId: "github", repository: "o/r", changeRequestId: "41",
+                headSha: "4".repeat(40), baseRef: "main", targetRef: "refs/heads/main",
+                strategy: "merge" as const,
+              },
+            }
+          : entry.kind === "rewrite"
+            ? { ...common, kind: "rewrite" as const, mode: entry.mode }
+            : entry.kind === "top-remedy"
+              ? {
+                  ...common,
+                  kind: "top-remedy" as const,
+                  effect: {
+                    providerId: "github", repository: "o/r", changeRequestId: "42",
+                    headRef: "member-2", headSha: "5".repeat(40), triggerRef: "refs/heads/member-1",
+                    triggerHeadSha: "4".repeat(40), fromBaseRef: "member-1", protectedBaseRef: "main",
+                    action: "retarget" as const,
+                  },
+                }
+              : common;
+      const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, request);
+      if (reserved.status !== "reserved") throw new Error(`fixture must reserve ${entry.kind}`);
+      const attached = entry.kind === "land" && entry.mode === "native"
+        ? attachDeliveryOperationEffectIdentity(
+            { revision: 8, value: reserved.state },
+            operationId,
+            { providerId: "github", effectId: "native-effect-1" },
+          )
+        : null;
+      if (attached?.status === "refused") throw new Error("fixture must attach native effect identity");
+      const current = attached === null
+        ? { revision: 8, value: reserved.state }
+        : { revision: 9, value: attached.state };
+      const writes: DeliveryStateV1[] = [];
+      const hostAssigned = entry.kind === "publish" || entry.kind === "land" || entry.kind === "top-remedy";
+      const result = await reconcileDeliveryExecution({
+        planId: plan.planId,
+        current,
+        observation: { observe: async () => ({
+          status: "observed" as const,
+          value: hostAssigned || entry.kind === "teardown" ? { outcome: "not-applied" } : before,
+        }) },
+        stateStore: { publish: async (_planId, value) => {
+          writes.push(value);
+          return { status: "ok" as const, value: { revision: 9, value } };
+        } },
+      });
+      expect(DeliveryRecoveryRerunV1Schema.parse(result)).toEqual({
+        status: "retryable",
+        transition: entry.transition,
+        action: entry.action,
+        selector: {
+          planId: plan.planId,
+          operationKind: entry.kind,
+          operationId,
+          affectedDeliverableIds: [member.deliverableId],
+          ...(entry.kind === "rewrite" || entry.kind === "land" ? { mode: entry.mode } : {}),
+        },
+        recommendedActionText: entry.text,
+      });
+      expect(writes).toHaveLength(entry.transition === "cleared" ? 1 : 0);
+      if (writes.length === 1) expect(writes[0]?.activeOperation).toBeNull();
+      else expect(current.value.activeOperation).not.toBeNull();
+    }
+  });
+
+  it("does not clear an identity-less native landing from a none-landed observation", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const members = state.members.slice(0, -1);
+    const snapshot = { target: state.target, members };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "operation-native-without-identity",
+      kind: "land",
+      mode: "native",
+      affectedDeliverableIds: members.map((member) => member.deliverableId),
+      expectedStateRevision: 7,
+      before: snapshot,
+      requested: snapshot,
+      effect: {
+        providerId: "github",
+        repository: "owner/repo",
+        changeRequestId: "102",
+        headSha: members.at(-1)!.coordinates!.head,
+        baseRef: "main",
+        targetRef: "refs/heads/main",
+        strategy: "merge",
+      },
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve native landing");
+    const publish = vi.fn(async (_planId, value: DeliveryStateV1) => ({
+      status: "ok" as const,
+      value: { revision: 9, value },
+    }));
+
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: {
+        observe: async () => ({ status: "observed" as const, value: { outcome: "not-applied" as const } }),
+      },
+      stateStore: { publish },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "native-effect-ambiguous",
+      recommendedActionText: "The native effect has no persisted identity; retain the reservation and do not resubmit.",
+    });
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("returns the observed terminal continuation after adopting a highest-member teardown", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const highest = state.members.at(-2)!;
+    const snapshot = { target: state.target, members: [highest] };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "operation-highest-teardown",
+      kind: "teardown",
+      affectedDeliverableIds: [highest.deliverableId],
+      expectedStateRevision: 7,
+      before: snapshot,
+      requested: snapshot,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve teardown");
+    const top = {
+      status: "ready" as const,
+      request: {
+        binding: { providerId: "github", changeRequestId: "103" },
+        repository: "owner/repo",
+        headRef: "member-3",
+        headSha: "6".repeat(40),
+        baseRef: "main",
+        state: "open" as const,
+      },
+    };
+    const missingTopWrite = vi.fn();
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: { observe: async () => ({
+        status: "observed" as const,
+        value: { outcome: "applied" as const, snapshot },
+      }) },
+      stateStore: { publish: missingTopWrite },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "top-observation-unavailable",
+      recommendedActionText: "Top observation is unavailable; retain the highest teardown reservation.",
+    });
+    expect(missingTopWrite).not.toHaveBeenCalled();
+
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: { observe: async () => ({
+        status: "observed" as const,
+        value: { outcome: "applied" as const, snapshot },
+        continuation: { nextAction: "terminal-checkpoint" as const, top },
+      }) },
+      stateStore: { publish: async (_planId, value) => ({
+        status: "ok" as const,
+        value: { revision: 9, value },
+      }) },
+    })).resolves.toEqual({
+      status: "applied",
+      state: { revision: 9, value: { ...reserved.state, activeOperation: null } },
+      nextAction: "terminal-checkpoint",
+      top,
+    });
   });
 
   it("blocks when a proven non-applied reservation cannot be cleared durably", async () => {
@@ -457,16 +764,18 @@ describe("delivery landing", () => {
       readiness: deps.readiness,
     });
     if (current === null) throw new Error("fixture must reserve");
+    const reservedCurrent = current as { revision: number; value: DeliveryStateV1 };
     await expect(reconcileDeliveryExecution({
       planId: plan.planId,
-      current,
+      current: reservedCurrent,
       observation: { observe: async () => ({ status: "observed" as const, value: { outcome: "not-applied" } }) },
       stateStore: { publish: async () => ({ status: "refused" as const, reason: "version-conflict" as const }) },
     })).resolves.toEqual({
       status: "blocked",
       reason: "retry-state-persistence-failed",
-      guidance: "Retry-state persistence failed; retain and reconcile the reservation.",
+      recommendedActionText: "Retry-state persistence failed; retain and reconcile the reservation.",
     });
+    expect(reservedCurrent.value.activeOperation).not.toBeNull();
   });
 
   it("blocks unavailable recovery evidence and retains the reservation", async () => {
@@ -504,7 +813,7 @@ describe("delivery landing", () => {
       status: "blocked",
       reason: "contribution-conflicted",
       paths: ["shared.txt"],
-      guidance: "The reserved operation result is unavailable; retain the reservation.",
+      recommendedActionText: "The reserved operation result is unavailable; retain the reservation.",
     });
     await expect(reconcileDeliveryExecution({
       planId: plan.planId,
@@ -517,8 +826,64 @@ describe("delivery landing", () => {
     })).resolves.toEqual({
       status: "blocked",
       reason: "observation-unavailable",
-      guidance: "The reserved operation result is unavailable; retain the reservation.",
+      recommendedActionText: "The reserved operation result is unavailable; retain the reservation.",
     });
+  });
+
+  it("retains native pending, ambiguous, and partial observations as informative stops", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const members = state.members.slice(0, -1);
+    const snapshot = { target: state.target, members };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "operation-native-recovery",
+      kind: "land",
+      mode: "native",
+      affectedDeliverableIds: members.map((member) => member.deliverableId),
+      expectedStateRevision: 7,
+      before: snapshot,
+      requested: snapshot,
+      effect: {
+        providerId: "github",
+        repository: "owner/repo",
+        changeRequestId: "103",
+        headSha: state.members.at(-1)!.coordinates!.head,
+        baseRef: "main",
+        targetRef: "refs/heads/main",
+        strategy: "merge",
+      },
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve native landing");
+    const current = { revision: 8, value: reserved.state };
+    const cases = [
+      { status: "refused" as const, reason: "native-effect-pending" as const },
+      { status: "refused" as const, reason: "native-effect-ambiguous" as const },
+      {
+        status: "refused" as const,
+        reason: "native-effect-partial" as const,
+        affectedDeliverableIds: [members[0]!.deliverableId],
+      },
+    ];
+    for (const observation of cases) {
+      const publish = vi.fn();
+      const result = await reconcileDeliveryExecution({
+        planId: plan.planId,
+        current,
+        observation: { observe: async () => observation },
+        stateStore: { publish },
+      });
+      expect(DeliveryRecoveryResultV1Schema.parse(result)).toEqual({
+        ...observation,
+        status: "blocked",
+        recommendedActionText: "The reserved operation result is unavailable; retain the reservation.",
+      });
+      expect(publish).not.toHaveBeenCalled();
+      expect(current.value.activeOperation).toMatchObject({
+        operationId: "operation-native-recovery",
+        kind: "land",
+        mode: "native",
+      });
+    }
   });
 
   it("adopts only an exact host-assigned recovery result and reports persistence failure", async () => {
@@ -586,7 +951,7 @@ describe("delivery landing", () => {
     })).resolves.toEqual({
       status: "blocked",
       reason: "operation-result-ambiguous",
-      guidance: "The reserved operation result is ambiguous; inspect it explicitly.",
+      recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
     });
 
     await expect(reconcileDeliveryExecution({
@@ -607,7 +972,7 @@ describe("delivery landing", () => {
     })).resolves.toEqual({
       status: "blocked",
       reason: "result-persistence-failed",
-      guidance: "Result persistence failed; retain and reconcile the reservation.",
+      recommendedActionText: "Result persistence failed; retain and reconcile the reservation.",
     });
   });
 });

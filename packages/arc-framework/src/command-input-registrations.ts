@@ -11,6 +11,10 @@ import { infrastructureCommandInputPolicyDeclarations } from "./command-input-in
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
 import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
+  candidateCommandInputPolicyDeclarations,
+  candidateCommandInputRegistration,
+} from "./handlers/candidate.js";
+import {
   checkCommitMessageInputPolicyDeclarations,
   checkCommitMessageInputRegistration,
 } from "./handlers/check/commit-msg-cli.js";
@@ -87,6 +91,7 @@ export const commandInputRegistrations = [
   initCommandInputRegistration,
   joinCommandInputRegistration,
   checkCommitMessageInputRegistration,
+  candidateCommandInputRegistration,
   configValidateCommandInputRegistration,
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
@@ -116,6 +121,7 @@ export const commandInputRegistrations = [
 export const commandInputPolicyDeclarations = [
   ...activeCommandInputPolicyDeclarations,
   ...baseCommandInputPolicyDeclarations,
+  ...candidateCommandInputPolicyDeclarations,
   ...checkCommitMessageInputPolicyDeclarations,
   ...configCommandInputPolicyDeclarations,
   ...errandCommandInputPolicyDeclarations,

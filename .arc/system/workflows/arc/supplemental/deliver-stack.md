@@ -114,6 +114,33 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
+Follow the typed result. `applied / read-position` returns to `arc delivery position`; any other `applied` result
+follows its returned `nextAction`. A `retryable` result dispatches only one of these exact
+`transition / action / selector` arms:
+
+- `retryable / cleared / delivery-publish` with `operationKind: materialize` reruns
+  `arc delivery publish`.
+- `retryable / preserved / delivery-publish` with `operationKind: publish` revalidates and retries
+  `arc delivery publish` against the retained reservation.
+- `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
+  `arc delivery rematerialize`.
+- `retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and
+  `mode: provider-adoption` reruns `arc delivery native observe`.
+- `retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential` reruns
+  `arc delivery land prepare` and requires a new integration interlock before apply.
+- `retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native` reruns
+  `arc delivery native land-select`; any selected landing returns through preparation and a new interlock.
+- `retryable / preserved / delivery-teardown` with `operationKind: teardown` revalidates and retries
+  `arc delivery teardown` against the retained reservation.
+- `retryable / cleared / delivery-top-remedy` with `operationKind: top-remedy` reruns
+  `arc delivery top-remedy`.
+
+For every arm, use the returned selector's exact `planId`, `operationId`, `affectedDeliverableIds`, `operationKind`,
+and narrow `mode` when present as the authoritative reservation subject. Render `recommendedActionText` verbatim and
+let the named ordinary verb reobserve and prepare every other input; workflow prose infers neither a selector nor a
+recovery policy. Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous
+result, stops with its reason rendered.
+
 Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
 
 ```bash
@@ -170,12 +197,18 @@ arc delivery native land-submit - --json
 arc delivery native land-status - --json
 ```
 
-Dispatch only on the typed result. `pending` retains the reservation; after a restart, invoke `land-status` with
-only the plan, request, and remote locators rather than submitting again. The service resolves the persisted effect
-identity from delivery state. `retryable` / `none-landed` returns to preparation and a new interlock.
-`partial-landed`, unavailable, expired, or ambiguous results stop with the reservation intact. An applied
-`linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof, before
-new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
+For ordinary polling after submission, use `land-status`. `pending` retains the reservation and polls the same
+persisted effect identity again. After a restart or interruption, invoke the general recovery verb instead:
+
+```bash
+arc delivery reconcile - --json
+```
+
+Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
+effect and exact `none-landed` observation, returns to preparation and a new interlock. A missing identity, `pending`,
+`partial-landed`, unavailable, expired, contradictory, or ambiguous result stops with the reservation intact. An
+applied `linked-single` result must settle the existing recognized suffix-retarget path, including contribution proof,
+before new-head review admission. An applied `linked-atomic` result has no remaining non-terminal suffix.
 
 ## Review and land the current member
 
@@ -185,8 +218,11 @@ Read the next action from:
 arc delivery position - --json
 ```
 
-For a non-terminal member, run the existing review sequence with the exact delivery-member vehicle returned by the
-CLI:
+Dispatch only on its typed route. `review-member` enters the review and landing path below with the returned
+`selectedDeliverableId`. `teardown-member` skips review and landing and enters the teardown path below with its
+exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. Every refusal stops.
+
+For `review-member`, run the existing review sequence with the exact delivery-member vehicle returned by the CLI:
 
 ```json
 {"kind":"delivery-member","planId":"<planId>","deliverableId":"<deliverableId>","workUnitSlug":"<workUnitSlug>"}
@@ -245,13 +281,25 @@ After a member is authoritatively landed and its request is merged or closed, re
 arc delivery teardown - --json
 ```
 
+The request carries the position result's exact `selectedDeliverableId` plus the current plan, repository, protected
+target, remote, and freshly observed position facts. This makes `teardown-member` idempotent after reconciliation;
+never select a member from prose or provider order.
+
 The CLI retains the exact member binding, deletes the proven remote branch, and, after the highest non-terminal
 member, immediately reobserves the top request. Follow only its returned `nextAction`:
 
 - `continue` returns to the position read for the next member.
 - `terminal-checkpoint` enters the ordinary [`integrate-work-unit.md`][integrate-work-unit] workflow.
-- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Do not sequence or repair
-  the request in workflow prose.
+- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Await explicit user direction
+  for that exact action; do not sequence or repair the request in workflow prose. After that explicit direction,
+  invoke the reserved mutation surface with the current plan ID and returned repository, protected base, and action:
+
+```bash
+arc delivery top-remedy - --json
+```
+
+The command freshly rederives the terminal position and exact remedy before reserving and mutating. Follow only its
+returned `terminal-checkpoint`; a refusal or blocked result stops with any persisted reservation intact.
 
 ## Terminal handoff
 

@@ -263,9 +263,9 @@ vi.mock("../../../src/lib/work-unit/verbs/attest.js", async (orig) => ({
   ...(await orig<typeof import("../../../src/lib/work-unit/verbs/attest.js")>()),
   runAttest: (...a: unknown[]) => mockRunAttest(...a),
 }));
-const mockProjectCandidateCurrentness = vi.fn();
-vi.mock("../../../src/lib/work-unit/candidate-attestation.js", () => ({
-  projectCandidateCurrentness: (...a: unknown[]) => mockProjectCandidateCurrentness(...a),
+const mockProjectGitCandidateEffectiveTarget = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-candidate-effective-target.js", () => ({
+  projectGitCandidateEffectiveTarget: (...a: unknown[]) => mockProjectGitCandidateEffectiveTarget(...a),
 }));
 const mockReadSubmissionBoundaryVersioned = vi.fn();
 const mockWriteSubmissionBoundary = vi.fn();
@@ -429,7 +429,15 @@ beforeEach(() => {
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
   mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
-  mockProjectCandidateCurrentness.mockReturnValue({ status: "current", convergenceVerification: "satisfied" });
+  mockProjectGitCandidateEffectiveTarget.mockResolvedValue({
+    state: "current",
+    candidateId,
+    recognizedTarget: {
+      revision: "a".repeat(40),
+      subject: { subjectDigest: `sha256:${"b".repeat(64)}` },
+    },
+    convergenceVerification: "satisfied",
+  });
   mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: "boundary-version" });
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
   mockRunPublish.mockResolvedValue({
