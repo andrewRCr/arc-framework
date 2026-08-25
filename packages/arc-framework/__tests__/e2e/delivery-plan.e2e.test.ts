@@ -346,6 +346,15 @@ describe("arc delivery", () => {
       "  repos/owner/repo)",
       "    printf '%s\\n' '{\"allow_merge_commit\":true,\"allow_rebase_merge\":true,\"allow_squash_merge\":true}'",
       "    ;;",
+      "  repos/owner/repo/branches/*)",
+      "    printf '%s\\n' '{\"protection\":null}'",
+      "    ;;",
+      "  repos/owner/repo/git/ref/heads/main)",
+      `    printf '%s\\n' '{"object":{"sha":"${baseHead}"}}'`,
+      "    ;;",
+      `  repos/owner/repo/git/commits/${baseHead})`,
+      `    printf '%s\\n' '{"tree":{"sha":"${baseTree}"}}'`,
+      "    ;;",
       "  repos/owner/repo/stacks)",
       `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedStackResponse}'; else printf '%s\\n' '${stackResponse}'; fi`,
       "    ;;",
@@ -376,6 +385,43 @@ describe("arc delivery", () => {
       mergeAction: "direct",
       explicitAtomic: false,
     };
+
+    const nativeRefreshDefault = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        trigger: { kind: "operator-choice" },
+        remote: "origin",
+      })}\n`,
+      { env },
+    );
+    expect(nativeRefreshDefault.exitCode, `${nativeRefreshDefault.stderr}\n${nativeRefreshDefault.stdout}`).toBe(0);
+    expect(JSON.parse(nativeRefreshDefault.stdout)).toMatchObject({
+      status: "refresh-required",
+      mechanics: "provider-invoked",
+      plannedSuffix: nativeMembers.map(({ deliverableId }) => deliverableId),
+    });
+
+    const externalFallback = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        trigger: { kind: "operator-choice" },
+        mechanics: "operator-initiated",
+        remote: "origin",
+      })}\n`,
+      { env },
+    );
+    expect(externalFallback.exitCode, `${externalFallback.stderr}\n${externalFallback.stdout}`).toBe(0);
+    expect(JSON.parse(externalFallback.stdout)).toMatchObject({
+      status: "refresh-required",
+      mechanics: "operator-initiated",
+      plannedSuffix: nativeMembers.map(({ deliverableId }) => deliverableId),
+    });
 
     const singleton = await runArcWithStdin(
       ["delivery", "native", "land-select", "-", "--json"],
