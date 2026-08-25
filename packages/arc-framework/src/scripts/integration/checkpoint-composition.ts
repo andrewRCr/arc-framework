@@ -626,12 +626,13 @@ export function createIntegrationCheckpointDependencies(input: {
         }),
       });
     },
-    resolveMergeMethod: async (repository) => {
+    resolveMergeMethod: async (repository, stackPosition) => {
       const config = await settings();
       return resolveMergeMethod(
         MergeMethodSchema.parse(config.settings["merge.strategy"]),
         createGhMergeMethodPolicyPort(hostedGhRunner),
         repository,
+        stackPosition,
       );
     },
     composeReady: async ({ workUnit, lifecycle, candidate: currentness, delivery }) => {
