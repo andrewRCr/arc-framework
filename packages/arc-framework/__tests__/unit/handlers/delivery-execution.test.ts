@@ -147,6 +147,91 @@ describe("delivery execution handler", () => {
     expect(executeExit).toHaveBeenCalledWith(1);
   });
 
+  it("preserves an operator refresh plan through its strict command envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const plannedSuffix = plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId);
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-plan", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        trigger: { kind: "landing-refused", reason: "host-up-to-date" },
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "refresh-required",
+        mechanics: "operator-initiated",
+        plannedSuffix,
+        recommendedActionText: "Refresh the exact registered suffix, then adopt its observed result.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery refresh plan",
+      status: "refresh-required",
+      mechanics: "operator-initiated",
+      plannedSuffix,
+    });
+  });
+
+  it("preserves refresh adoption while deriving the suffix behind the strict request boundary", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const execute = vi.fn().mockResolvedValue({
+      status: "applied",
+      state: { revision: 3, value: state },
+    });
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh adopt",
+      status: "applied",
+      state: { revision: 3, value: state },
+    });
+  });
+
+  it("rejects caller-authored refresh member identity and observations", async () => {
+    const plan = deliveryStackPlanFixture();
+    const execute = vi.fn();
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        affectedDeliverableIds: plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId),
+        observation: { target: null, members: [] },
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery refresh adopt",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
   it("preserves the native none-landed retry envelope", async () => {
     const recommendedActionText = "Return to prepare and obtain a new interlock before retrying.";
     const write = vi.fn();
@@ -176,6 +261,144 @@ describe("delivery execution handler", () => {
       recommendedActionText,
     });
     expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("surfaces native registration consequences before opt-in", async () => {
+    const plan = deliveryStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const members = fixture.members.slice(0, -1).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: String(41 + index),
+      headRef: `member-${index + 1}`,
+      headSha: member.coordinates?.head,
+      baseRef: index === 0 ? "main" : `member-${index}`,
+      headRepository: "owner/repo",
+    }));
+    let output = "";
+
+    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        repository: "owner/repo",
+        members,
+      })),
+      write: (text) => { output = text; },
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(output)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native link",
+      status: "decision-required",
+      recommendedOptInText:
+        "Opt in for one attended atomic landing decision over the complete remaining non-terminal set and "
+        + "reviewer-facing stack UI for that set. Provider refreshes may rewrite registered heads, so review "
+        + "applicability must be re-evaluated before exact-head review can carry; the top remains outside that "
+        + "UI and native retarget machinery.",
+      recommendedOptOutText:
+        "Decline for zero native-registration host calls and the complete sequential unlinked executor. This "
+        + "avoids provider-initiated rewrites, but strict up-to-date protection may still require head-rewriting "
+        + "refreshes on either route.",
+      recommendedActionText:
+        "Choose native registration or unlinked delivery, then resubmit this exact request with optIn true or false.",
+    });
+  });
+
+  it("accepts a plan-bound native registration request", async () => {
+    const plan = deliveryStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const exactMembers = fixture.members.slice(0, -1).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: String(41 + index),
+      headRef: `member-${index + 1}`,
+      headSha: member.coordinates?.head,
+      baseRef: index === 0 ? "main" : `member-${index}`,
+      headRepository: "owner/repo",
+    }));
+    let output = "";
+
+    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        repository: "owner/repo",
+        members: exactMembers,
+        optIn: true,
+      })),
+      execute: async (command, request) => {
+        const candidate = request as {
+          readonly planId?: unknown;
+          readonly protectedBaseRef?: unknown;
+          readonly repository?: unknown;
+          readonly members?: unknown;
+          readonly optIn?: unknown;
+        };
+        return command === "native-link"
+          && candidate.planId === plan.planId
+          && candidate.protectedBaseRef === "refs/heads/main"
+          && candidate.repository === "owner/repo"
+          && JSON.stringify(candidate.members) === JSON.stringify(exactMembers)
+          && candidate.optIn === true
+          ? {
+            status: "unlinked",
+            recommendedActionText: "Continue through the complete unlinked executor.",
+          }
+          : { status: "refused", reason: "unexpected-request" };
+      },
+      write: (text) => { output = text; },
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(output)).toMatchObject({ status: "unlinked" });
+  });
+
+  it("accepts state-bound native selection and rejects caller-authored member coordinates", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const request = {
+      planId: plan.planId,
+      facts: {
+        target: state.target,
+        members: state.members,
+        landedDeliverableIds: [],
+      },
+      repository: "owner/repo",
+      mergeAction: "direct",
+      explicitAtomic: false,
+    };
+    const execute = vi.fn().mockResolvedValue({
+      status: "blocked",
+      reason: "unsupported",
+      recommendedActionText: "Use the complete unlinked landing route.",
+    });
+    const acceptedWrite = vi.fn();
+
+    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write: acceptedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(JSON.parse(acceptedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "blocked",
+      reason: "unsupported",
+    });
+
+    const rejectedExecute = vi.fn();
+    const rejectedWrite = vi.fn();
+    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({ ...request, members: state.members.slice(0, -1) })),
+      execute: rejectedExecute,
+      write: rejectedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(rejectedExecute).not.toHaveBeenCalled();
+    expect(JSON.parse(rejectedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
   });
 
   it("exposes the explicit terminal remedy as a strict typed command", async () => {
@@ -419,12 +642,16 @@ describe("delivery execution handler", () => {
         action: "delivery-rematerialize",
       },
       {
-        operationKind: "rewrite", mode: "provider-adoption", transition: "cleared",
-        action: "delivery-native-observe",
+        operationKind: "rewrite", mode: "provider-adoption", transition: "preserved",
+        action: "delivery-refresh-adopt",
       },
       { operationKind: "land", mode: "sequential", transition: "cleared", action: "delivery-land-prepare" },
       {
         operationKind: "land", mode: "native", transition: "cleared",
+        action: "delivery-native-land-select",
+      },
+      {
+        operationKind: "land", mode: "sequential", transition: "cleared",
         action: "delivery-native-land-select",
       },
       { operationKind: "teardown", transition: "preserved", action: "delivery-teardown" },

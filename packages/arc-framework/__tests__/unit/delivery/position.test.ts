@@ -5,6 +5,7 @@ import {
   deriveDeliveryPosition,
   recognizeDeliverySuffixRetarget,
   resolveDeliveryPredecessorHead,
+  routeDeliveryPosition,
   type DeliveryPositionFactsV1,
 } from "../../../src/lib/delivery/position.js";
 import { deriveDeliveryPlanDigest } from "../../../src/lib/delivery/plan.js";
@@ -71,6 +72,24 @@ describe("deriveDeliveryPosition", () => {
         firstUnlanded: null,
         boundSuffix: [],
       },
+    });
+  });
+
+  it("discloses append-only target movement without obligating a suffix refresh", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+
+    expect(routeDeliveryPosition(plan, state, {
+      ...positionFacts(state),
+      targetMovement: "append-only",
+    })).toMatchObject({
+      status: "position",
+      nextAction: "review-member",
+      selectedDeliverableId: plan.members[0]!.deliverableId,
+      plannedSuffix: [plan.members[0]!.deliverableId],
+      recommendedActionText:
+        "Base movement alone obligates no refresh. Continue append-only until a landing refusal or explicit "
+        + "operator choice requires the exact registered suffix.",
     });
   });
 

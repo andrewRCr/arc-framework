@@ -14,7 +14,12 @@ import {
   CandidateApplicabilityResolutionSelectorSchema,
   type CandidateApplicabilityResolutionSelector,
 } from "../../lib/work-unit/candidate-applicability-resolution.js";
-import { MergeMethodSchema, type MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import {
+  MergeMethodSchema,
+  MergeMethodStackPositionSchema,
+  type MergeMethodResolveResult,
+  type MergeMethodStackPosition,
+} from "../review-gate/merge-method.js";
 import { RequiredCheckStatusSchema } from "../review-gate/status.js";
 import {
   CanonicalSettlementPlanSchema,
@@ -152,6 +157,7 @@ export const ValidatedMergeMethodSchema = z.strictObject({
   schemaVersion: z.literal(1),
   mode: z.literal("review-merge-method-resolve"),
   repository: z.string().min(1),
+  stackPosition: MergeMethodStackPositionSchema,
   state: z.literal("validated"),
   nextAction: z.literal("use-method"),
   method: MergeMethodSchema,
@@ -164,9 +170,10 @@ const BlockedMergeMethodSchema = z.strictObject({
   schemaVersion: z.literal(1),
   mode: z.literal("review-merge-method-resolve"),
   repository: z.string().min(1).nullable(),
+  stackPosition: MergeMethodStackPositionSchema,
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
-  reason: z.enum(["method-disallowed", "policy-unreadable"]),
+  reason: z.enum(["invalid-input", "method-disallowed", "policy-unreadable"]),
   configuredMethod: MergeMethodSchema,
   allowedMethods: z.array(MergeMethodSchema),
   policyFingerprint: DigestSchema.optional(),
@@ -489,7 +496,7 @@ export interface IntegrationCheckpointDependencies {
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
     baseRevision: string;
   }): Promise<DeliveryCheckpointArmResult>;
-  resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
+  resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   composeReady(input: {
     workUnit: string;
     lifecycle: IntegrationLifecycleSummary;
@@ -818,9 +825,14 @@ export async function checkpointIntegration(
     ) {
       throw new Error("ready composition does not bind the exact satisfied Candidate head");
     }
-    const mergeMethod = await dependencies.resolveMergeMethod(composition.statusSummary.changeRequest.repository);
+    const stackPosition = delivery.status === "ready" ? "top" : "non-delivery";
+    const mergeMethod = await dependencies.resolveMergeMethod(
+      composition.statusSummary.changeRequest.repository,
+      stackPosition,
+    );
     if (mergeMethod.state !== "validated"
-      || mergeMethod.repository?.toLowerCase() !== composition.statusSummary.changeRequest.repository.toLowerCase()) {
+      || mergeMethod.repository?.toLowerCase() !== composition.statusSummary.changeRequest.repository.toLowerCase()
+      || mergeMethod.stackPosition !== stackPosition) {
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "blocked",

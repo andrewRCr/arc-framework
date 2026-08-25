@@ -235,10 +235,11 @@ export function createIntegrationMergeDependencies(input: {
         sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
       },
     }),
-    resolveMergeMethod: async (repository) => resolveMergeMethod(
+    resolveMergeMethod: async (repository, stackPosition) => resolveMergeMethod(
       MergeMethodSchema.parse((await settings()).settings["merge.strategy"]),
       createGhMergeMethodPolicyPort(hostedGhRunner),
       repository,
+      stackPosition,
     ),
     readConfiguredBase: async () => (await readConfigSettings(input.cwd)).settings["branch.base"],
     readFinalDrift: async () => {
