@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 
-describe("delivery lifecycle attachment ownership", () => {
-  it("keeps planning, private review, and terminal integration attachments in their lifecycle phases", async () => {
+describe("delivery lifecycle composition ownership", () => {
+  it("keeps planning, private review, and terminal checkpoint composition in their lifecycle phases", async () => {
     const [generate, prepare, integrate] = await Promise.all([
       readFile(join(ROOT, "packages/arc-framework/arc/system/workflows/arc/generate-tasks.template.md"), "utf8"),
       readFile(join(
@@ -29,10 +29,9 @@ describe("delivery lifecycle attachment ownership", () => {
       expect(match.index).toBeGreaterThan(phaseTwo);
     }
 
-    const attachment = "Invoke the typed delivery terminal post-merge attachment exactly once";
-    const attachmentIndex = integrate.indexOf(attachment);
-    expect(integrate.split(attachment)).toHaveLength(2);
-    expect(attachmentIndex).toBeGreaterThan(phaseTwo);
-    expect(attachmentIndex).toBeLessThan(integrate.indexOf("arc user close", attachmentIndex));
+    expect(integrate).not.toContain("arc delivery terminal attach");
+    const checkpoint = integrate.indexOf("arc integrate checkpoint {name} --json");
+    expect(checkpoint).toBeGreaterThan(phaseTwo);
+    expect(checkpoint).toBeLessThan(integrate.indexOf("arc user close", checkpoint));
   });
 });

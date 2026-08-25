@@ -38,8 +38,8 @@ export function resolveDeliveryPredecessorHead(
   if (memberIndex === 0) return targetHead;
   const previous = facts.members[memberIndex - 1];
   if (previous === undefined) return null;
-  if (previous.coordinates !== null) return previous.coordinates.head;
-  return facts.landedDeliverableIds.includes(previous.deliverableId) ? targetHead : null;
+  if (facts.landedDeliverableIds.includes(previous.deliverableId)) return targetHead;
+  return previous.coordinates?.head ?? null;
 }
 
 /** Current labels derived from plan order, state bindings, and host facts. */

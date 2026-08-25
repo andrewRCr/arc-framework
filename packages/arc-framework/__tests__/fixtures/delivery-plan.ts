@@ -18,6 +18,16 @@ export function deliveryStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1
   return buildDeliveryPlanFixture(planId, "stack-to-main");
 }
 
+/** Construct a valid stack plan with caller-selected member titles. */
+export function deliveryStackPlanWithMemberTitlesFixture(titles: readonly string[]): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(defaultPlanId, "stack-to-main", titles.length, titles);
+}
+
+/** Construct a valid independently-landable one-member stack plan. */
+export function deliverySingleMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 1);
+}
+
 /** Construct a valid independently-landable three-member stack plan. */
 export function deliveryThreeMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
   return buildDeliveryPlanFixture(planId, "stack-to-main", 3);
@@ -32,6 +42,7 @@ function buildDeliveryPlanFixture(
   planId: string,
   projection: "wu-integration-target" | "stack-to-main",
   memberCount = 2,
+  memberTitles: readonly string[] = ["First member", "Second member", "Third member", "Fourth member"],
 ): DeliveryPlanV1 {
   const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
@@ -61,7 +72,7 @@ function buildDeliveryPlanFixture(
     projection: { kind: projection },
     members: assignableParents.map(({ taskId }, index) => ({
       chunkKey: ["first", "second", "third", "fourth"][index],
-      title: `${["First", "Second", "Third", "Fourth"][index]} member`,
+      title: memberTitles[index],
       contract: `Publish the ${["first", "second", "third", "fourth"][index]} contract.`,
       taskIds: [taskId],
       designElementIds: index === 0 ? ["detailed:state-contract"] : [],

@@ -301,10 +301,7 @@ export async function applyDeliveryLanding(input: {
   if (proof.status !== "accepted") return proof;
   const observed: DeliveryOperationSnapshotV1 = {
     target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
-    members: operation.before.members.map((entry) => ({
-      ...entry,
-      coordinates: { base: beforeTarget.head, head: target.coordinates.head, tree: target.coordinates.tree },
-    })),
+    members: operation.before.members,
   };
   const accepted = acceptDeliveryOperationResult(input.current, {
     kind: "land",
