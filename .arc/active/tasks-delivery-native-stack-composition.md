@@ -434,7 +434,7 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
   observation. The shipped workflow validates both presentation forms first and routes optional non-terminal native
   registration only after every request ID exists; opt-out and one-member paths make no registration call.
 
-### `[ ]` **4.5 Extend the window-time mutation loop with its mechanical tail**
+### `[x]` **4.5 Extend the window-time mutation loop with its mechanical tail**
 
 - _Goal:_ A review fix during the landing window recuts the suffix, re-adopts it, rebinds state, and re-verifies
   only the members whose contribution actually changed — all riding the finding-disposition approval that
@@ -470,28 +470,14 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
   whole suffix even when an exact native-stack presentation can perform the dependent mechanical refresh. D5.8
   preserves that implementation as the exact unregistered fallback and adds the provider-neutral linked route.
 
-    - `[ ]` **4.5.R Route an approved review fix through the current delivery presentation**
+    - `[x]` **4.5.R Route an approved review fix through the current delivery presentation**
 
-        - Derive the canonical remaining chain and selected member from plan/state, then use the existing
-          native-stack observation port to choose exact registered or exact unregistered execution
-        - For registered delivery, validate and lease-publish only one clean selected-member candidate, persist its
-          new baseline under a distinct selected-change recovery mode, and return the exact affected suffix plus a
-          provider-neutral external-refresh continuation
-        - Reuse provider-refresh adoption for the mechanically moved suffix and admit zero provider movements only
-          when terminal-top absorption remains owed
-        - Keep full rematerialization for exact unregistered delivery, document that the approved fix reaches the
-          top authoring locus before candidate cutting, and preserve the originating eligibility refusal reason
-        - Reconcile selected-change interruption to the selected-member publish action without adding provider-
-          specific durable state or provider submission machinery
-        - Re-author the integration doctrine and both delivery-workflow copies around the typed route
-        - Build `test-first` (one behavior at a time):
-            - Exact registered observation selects single-member publication; exact unregistered selects full recut
-            - Partial, incoherent, unavailable, malformed, ambiguous, and unsupported observation refuse pre-mutation
-            - The selected candidate is clean, exact, lifecycle-safe, and extends the current bound member
-            - Only the selected member ref and coordinate move before external refresh
-            - Zero provider movement settles only a stale terminal predecessor through top absorption
-            - Interrupted selected publication returns its distinct exact rerun action
-            - Full-rematerialization eligibility refusals retain their exact reason at the CLI boundary
+        - Exact registered presentation now publishes only the selected member before provider-native dependent-
+          suffix refresh; exact unregistered presentation retains the complete rematerialization route.
+        - Every uncertain presentation stops, selected publication is exact and recoverable, and zero provider
+          movement settles only the still-owed terminal-top absorption.
+        - Provider refusal before reservation now supports an attended external-refresh replan into the existing
+          adoption lifecycle without automatic fallback, provider-specific state, or publication delegation.
 
         - _Forward amendment (2026-08-25):_ D5.9 supersedes the external-refresh continuation above. Exact
           registered delivery must route directly into ARC-triggered provider-native refresh execution after the
@@ -931,7 +917,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -981,13 +967,12 @@ structural guarantee rather than operator discipline.
   adds one criterion and intentionally supersedes the external-only clause in criterion 2, so the member boundary
   requires a fresh scoped walk after Task 6.3.R.
 
-    - `[ ]` **6.11.R Revalidate provider-native refresh and the amended Member 6 boundary**
+    - `[x]` **6.11.R Revalidate provider-native refresh and the amended Member 6 boundary**
 
-        - Run `validate-criteria` at member scope over `Success Criteria > Member 6 —
-          refresh-and-native-landing`, using the amended Member 6 diff and cumulative tree
-        - Record criterion 2 as intentionally superseded by D5.9, carry the unchanged prior evidence only after
-          regression checking, and establish fresh evidence for criterion 7
-        - Offer the Heavy-class fresh-context adversarial companion over the same amended member slice
+        - The amended member report binds the original Member 6 union, D5.9, and the exact fallback repair; it
+          resolves six criteria as met and criterion 2 as intentionally superseded.
+        - The Heavy fresh-context companion completed two full-rubric passes, with the confirmed fallback finding
+          repaired and pass two returning no findings.
 
         - _Forward amendment (2026-08-25):_ The live withdrawal needed to execute this revision exposed that
           `reopen` could return only to Candidate preparation, where the now-stale Candidate blocked recovery before
@@ -1004,10 +989,78 @@ structural guarantee rather than operator discipline.
             - Unit and built-CLI coverage pin the transition, exact provider calls, stale-Candidate session recovery,
               seed emission, and a ready recovery audit; the live work unit completed the same reopen and audit path.
 
-        - `[ ]` **6.11.R.b Run the amended Member 6 criteria walk**
+        - `[x]` **6.11.R.b Run the amended Member 6 criteria walk**
 
-            - Execute the scoped revalidation and companion-offer contract recorded above after the lifecycle repair
-              is approved and committed
+            - _Primary criteria report:_
+                - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                - _Span:_ original Task 6 first-parent commit union from `f4db64870` through `2fae38462`; exact D5.9
+                  amendment `5471bdfbe..74ced41be`; and fallback repair patch
+                  `a124aa4a7207d9b14d8ffa80a6db5dae748a4d1f` over `01e9b6c5e`. Reachability is `01e9b6c5e` plus that
+                  exact worktree patch. Boundary-order deviation: D5.9 / Task 6.3.R landed after the original member
+                  boundary in a coupled amendment with Task 4.5.R; the cumulative tree was inspected without
+                  absorbing unrelated later work into the Member 6 diff.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                  _Evidence:_ current refresh planning still leaves append-only protected-base movement advisory and
+                  requires a refusal or explicit operator choice before emitting the exact remaining suffix.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                  _Evidence:_ D5.9 intentionally supersedes the external-only invocation clause. The external
+                  observation/adoption route remains executable through an attended `operator-initiated` replan,
+                  retaining fresh proof, terminal-top settlement, and one final suffix-plus-top state write.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                  _Evidence:_ native landing still observes and structurally reconciles the complete rewritten
+                  remainder before admitting any refreshed coordinate.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                  _Evidence:_ semantic no-effect still version-clears only the exact sequential reservation into
+                  state-derived native selection over the canonical remaining chain; stale-suffix refresh remains
+                  distinct.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                  _Evidence:_ raw-API registration still derives exactly the non-terminal chain, excludes the
+                  dependent top during observation, and degrades a singleton registered remainder to the unlinked
+                  route without host access.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                  _Evidence:_ native-link still returns the review-invalidation tradeoff before opt-in, while decline
+                  remains an accepted zero-host-call path.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                  _Evidence:_ provider-invoked execution prepares only an exact complete or dependent suffix in an
+                  isolated adapter using official checkout/view/rebase mechanics, imports and proves private
+                  candidates, persists `rewrite/provider-refresh` before bottom-up lease publication, resumes only an
+                  exact contiguous published prefix, and blocks every missing, foreign, or non-prefix observation.
+                  Settlement reobserves and reproves the complete suffix, absorbs and publishes the excluded top,
+                  cleans the private candidates, and only then writes suffix and top coordinates together. Native
+                  registration remains raw API, no provider push porcelain is invoked, and an explicit attended
+                  replan now reaches external adoption after pre-reservation provider refusal while registered
+                  planning remains provider-invoked by default.
+                - _Summary:_ six met, one intentionally superseded, zero unresolved. Fresh regression evidence is
+                  137 passing focused tests across refresh planning, registration, native landing, semantic fallback,
+                  native preparation, reserved execution, partial publication, review-fix routing, command
+                  composition, and workflow ordering, plus the real built-CLI fallback scenario. Success Criteria
+                  markers remain unchanged for terminal verification.
+                - _Adversarial companion:_ Heavy pass one returned two major findings. Primary source verification
+                  dropped the quiet-target-window claim because concurrent target movement refuses before reservation
+                  and retries without requiring a delivery freeze. The confirmed missing external-fallback selection
+                  was repaired as the attended replan above. Fresh pass two reran the complete seven-criterion rubric,
+                  re-attacked both prior findings and the repair, and returned no findings; the Heavy loop converged
+                  cleanly at its two-pass cap.
+
+        - _Forward amendment (2026-08-25):_ The accepted companion exposed one real routing gap rather than a refresh
+          safety defect. Restore an attended, provider-neutral external-fallback selection, then rerun the complete
+          Member 6 walk and the Heavy companion's second pass before closing this report.
+
+        - `[x]` **6.11.R.c Restore the executable external refresh fallback**
+
+            - Refresh planning accepts an explicit `operator-initiated` selection while exact registered delivery
+              remains `provider-invoked` by default.
+            - A pre-reservation provider refusal now stops unchanged and offers an attended replan into the existing
+              external-refresh and `delivery refresh adopt` lifecycle, with no automatic fallback or durable state.
+            - Built-CLI and workflow regressions prove the default, explicit fallback, and executable transition.
+
+        - `[x]` **6.11.R.d Revalidate the repaired Member 6 boundary**
+
+            - The complete scoped walk resolves six criteria as met and one as intentionally superseded over the
+              original Member 6 union, D5.9 amendment, and exact fallback patch.
+            - Heavy pass two reran all seven criteria with both prior findings and the repair, returned no findings,
+              and converged cleanly at the class-scaled cap.
+            - Every Success Criteria marker remains unchanged for terminal verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 

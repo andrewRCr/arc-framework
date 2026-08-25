@@ -359,6 +359,7 @@ const RefreshPlanSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
   trigger: RefreshTriggerSchema,
+  mechanics: z.literal("operator-initiated").optional(),
   remote: z.string().min(1).default("origin"),
 });
 const RefreshAdoptSchema = z.strictObject({
@@ -1420,10 +1421,11 @@ async function executeDeliveryCommand(
         landedPrefix: derived.subject.landedPrefix,
         trigger: {
           ...planRequest.trigger,
-          mechanics: (await observeReviewFixPresentation(plan, current.value, planRequest.repository)).status
-              === "registered"
-            ? "provider-invoked"
-            : "operator-initiated",
+          mechanics: planRequest.mechanics
+            ?? ((await observeReviewFixPresentation(plan, current.value, planRequest.repository)).status
+                === "registered"
+              ? "provider-invoked"
+              : "operator-initiated"),
         },
         providerMovement: stable ? "stable" : "ambiguous",
       });

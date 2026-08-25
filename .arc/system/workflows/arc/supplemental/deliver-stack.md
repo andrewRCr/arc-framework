@@ -341,9 +341,12 @@ this arm; it follows the semantic native-selection transition above.
 arc delivery refresh plan - --json
 ```
 
-The request carries only the plan and repository locators plus that exact trigger. Only `refresh-required`
-continues. Render its exact `plannedSuffix`, mechanics, and `recommendedActionText`. `provider-invoked` submits the
-same plan and repository locators with `{ "kind": "complete-remainder" }` as `scope` to:
+The request carries only the plan and repository locators plus that exact trigger. With no `mechanics` selection, an
+exact registered presentation selects `provider-invoked`; other exact presentation selects `operator-initiated`.
+Supply `"mechanics": "operator-initiated"` only when the operator explicitly selects the external fallback. Only
+`refresh-required` continues. Render its exact `plannedSuffix`, mechanics, and `recommendedActionText`.
+`provider-invoked` submits the same plan and repository locators with `{ "kind": "complete-remainder" }` as `scope`
+to:
 
 ```bash
 arc delivery refresh execute - --json
@@ -356,7 +359,8 @@ the terminal top, removes the private candidates, and clears the reservation onl
 `applied` returns to `arc delivery position`. A `retryable` result with a retained reservation reruns this verb with
 only its exact `operationId`; all-before retries the whole changed vector, a contiguous requested prefix resumes its
 untouched tail, and any other mixed or unavailable observation stops. A refusal before reservation leaves canonical
-refs and state unchanged.
+refs and state unchanged. Stop; if the operator selects the external fallback, rerun refresh planning with the same
+subject and trigger plus `"mechanics": "operator-initiated"`, then follow the returned external-adoption arm.
 
 `operator-initiated` is the external fallback. The operator refreshes the disclosed registered set through the
 provider UI or supported procedure. That external refresh is unreserved: ARC has no provider mutation operation

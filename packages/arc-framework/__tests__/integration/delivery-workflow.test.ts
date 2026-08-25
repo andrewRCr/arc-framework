@@ -105,6 +105,9 @@ describe("packaged delivery workflow", () => {
       /provider-invoked[\s\S]*refresh execute[\s\S]*provider-refresh[\s\S]*bottom-up[\s\S]*terminal top/iu,
     );
     expect(refreshTail).toMatch(/contiguous requested prefix[\s\S]*untouched tail/iu);
+    expect(refreshTail).toMatch(
+      /refusal before reservation[\s\S]*operator selects the external fallback[\s\S]*mechanics[\s\S]*operator-initiated/iu,
+    );
     expect(refreshTail).toMatch(/external refresh is unreserved[\s\S]*no provider\s+mutation operation/iu);
     expect(refreshTail).toMatch(
       /Before reserving[\s\S]*observes the complete exact suffix[\s\S]*proves every changed contribution/iu,
