@@ -394,6 +394,12 @@ const ContainmentRefusalSchema = z.strictObject({
   reason: z.enum(["containment-conflicted", "containment-diverged"]),
   paths: z.array(z.string()),
 });
+const DeliveryLifecycleContributionRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("lifecycle-contribution"),
+  deliverableId: DeliveryCanonicalDigestSchema,
+  paths: z.array(z.string()),
+});
 const BlockedContributionRefusalSchema = z.strictObject({
   status: z.literal("blocked"),
   reason: ContributionPathReasonSchema,
@@ -551,6 +557,7 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("pending"), recommendedActionText: z.string().min(1) }),
   ContributionRefusalSchema,
   ContainmentRefusalSchema,
+  DeliveryLifecycleContributionRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({
     status: z.literal("refused"),

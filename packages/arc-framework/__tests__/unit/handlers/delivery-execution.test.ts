@@ -840,6 +840,50 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves lifecycle-contribution refusal evidence through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const deliverableId = plan.members[0]!.deliverableId;
+    const paths = [
+      ".arc/backlog/planned/example/draft-example.md",
+      ".arc/backlog/planned/example/meta-example.md",
+    ];
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        topRef: "refs/heads/feat/example",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+          checkoutPath: `/tmp/candidate-${index + 1}`,
+        })),
+        remote: "origin",
+        ...publicationFields(plan),
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "lifecycle-contribution",
+        deliverableId,
+        paths,
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery publish",
+      status: "refused",
+      reason: "lifecycle-contribution",
+      deliverableId,
+      paths,
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
   it("preserves chain-containment refusal paths through the strict result envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const request = JSON.stringify({
