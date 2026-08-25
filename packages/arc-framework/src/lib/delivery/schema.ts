@@ -234,6 +234,19 @@ export const DeliveryPublishEffectV1Schema = z.strictObject({
 });
 export type DeliveryPublishEffectV1 = z.infer<typeof DeliveryPublishEffectV1Schema>;
 
+/** Live repository-policy decision bound to one intermediate delivery mutation. */
+export const DeliveryMergePolicyBindingV1Schema = z.strictObject({
+  repository: DeliveryOpaqueIdSchema,
+  stackPosition: z.literal("intermediate"),
+  method: z.literal("merge"),
+  allowedMethods: z.array(z.enum(["merge", "rebase", "squash"])).min(1).refine(
+    (methods) => new Set(methods).size === methods.length && methods.includes("merge"),
+    "allowed methods must be distinct and include merge",
+  ),
+  policyFingerprint: DeliveryCanonicalDigestSchema,
+});
+export type DeliveryMergePolicyBindingV1 = z.infer<typeof DeliveryMergePolicyBindingV1Schema>;
+
 export const DeliveryLandEffectV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
   repository: DeliveryOpaqueIdSchema,
@@ -241,7 +254,16 @@ export const DeliveryLandEffectV1Schema = z.strictObject({
   headSha: DeliveryGitObjectIdSchema,
   baseRef: DeliveryOpaqueIdSchema,
   targetRef: DeliveryOpaqueIdSchema,
-  strategy: z.enum(["merge", "rebase", "squash"]),
+  strategy: z.literal("merge"),
+  mergePolicy: DeliveryMergePolicyBindingV1Schema,
+}).superRefine((effect, context) => {
+  if (effect.repository !== effect.mergePolicy.repository) {
+    context.addIssue({
+      code: "custom",
+      path: ["mergePolicy", "repository"],
+      message: "merge policy repository must match the landing effect repository",
+    });
+  }
 });
 export type DeliveryLandEffectV1 = z.infer<typeof DeliveryLandEffectV1Schema>;
 

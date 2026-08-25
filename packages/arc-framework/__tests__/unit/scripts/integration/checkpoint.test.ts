@@ -79,10 +79,11 @@ function dependencies(): IntegrationCheckpointDependencies {
     },
     readCandidatePublication: async () => ({ status: "current" as const }),
     composeDelivery: async () => ({ status: "not-applicable" }),
-    resolveMergeMethod: async () => ({
+    resolveMergeMethod: async (_repository, stackPosition) => ({
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
       repository: "owner/repo",
+      stackPosition,
       state: "validated",
       nextAction: "use-method",
       method: "merge",
@@ -432,6 +433,7 @@ describe("integration checkpoint", () => {
           mergeMethod: {
             state: "validated",
             method: "merge",
+            stackPosition: "non-delivery",
             policyFingerprint: digest("d"),
           },
           interlockSurface: {
@@ -448,12 +450,13 @@ describe("integration checkpoint", () => {
   it("blocks merge-method policy resolved for a different repository", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
-    deps.resolveMergeMethod = async (repository) => {
+    deps.resolveMergeMethod = async (repository, stackPosition) => {
       expect(repository).toBe("owner/repo");
       return {
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
         repository: "other/repo",
+        stackPosition,
         state: "validated",
         nextAction: "use-method",
         method: "merge",
@@ -598,7 +601,11 @@ describe("integration checkpoint", () => {
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
-      .resolves.toMatchObject({ state: "ready", nextAction: "request-approval" });
+      .resolves.toMatchObject({
+        state: "ready",
+        nextAction: "request-approval",
+        payload: { mergeMethod: { stackPosition: "top" } },
+      });
   });
 
   it("blocks an implementation-changing lineage without its converged full attestation", async () => {
