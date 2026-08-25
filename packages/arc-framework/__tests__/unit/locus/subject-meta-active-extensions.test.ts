@@ -289,6 +289,47 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
+  it("does not require Candidate currentness while an Active subject is back in task execution", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const projector = vi.fn(async () => {
+      throw new Error("execution recovery must not project Candidate authority");
+    });
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** [none]
+- **Next Action:** Continue reopened work
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projector },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "execution",
+      workflow: "process-task-loop",
+      taskCursor: { status: "found", cursor: { section: { id: "1.1" }, leaf: { id: "1.1" } } },
+      integrationBoundary: null,
+    });
+    expect(projector).not.toHaveBeenCalled();
+  });
+
   it("preserves the exact durable Active prepublication boundary on recovery", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
