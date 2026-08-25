@@ -489,6 +489,7 @@ program
   .command("reopen [slug]")
   .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
   .option("--keep-pr", "Convert the PR to a draft instead of closing it")
+  .option("--task <task>", "Return to an exact reopened task instead of Candidate preparation")
   .action(withInteractionContext(
     {},
     (context, slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts, context),

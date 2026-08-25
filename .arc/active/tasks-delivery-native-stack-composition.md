@@ -989,6 +989,26 @@ structural guarantee rather than operator discipline.
           regression checking, and establish fresh evidence for criterion 7
         - Offer the Heavy-class fresh-context adversarial companion over the same amended member slice
 
+        - _Forward amendment (2026-08-25):_ The live withdrawal needed to execute this revision exposed that
+          `reopen` could return only to Candidate preparation, where the now-stale Candidate blocked recovery before
+          the reopened task could run. Repair the demonstrated lifecycle discontinuity before revalidating Member 6.
+
+        - `[x]` **6.11.R.a Return substantial integration rework to exact task execution**
+
+            - `arc reopen --task` now restores the exact task orientation and `process-task-loop`, while the ordinary
+              no-task withdrawal still resumes Candidate preparation.
+            - Candidate currentness now governs `Integrating` and Active Candidate preparation only, so a retained
+              stale Candidate cannot block or authorize reopened task execution.
+            - The withdrawal guard now observes one exact request instead of sweeping authored pull requests, while
+              retaining fail-closed unavailable and merged results.
+            - Unit and built-CLI coverage pin the transition, exact provider calls, stale-Candidate session recovery,
+              seed emission, and a ready recovery audit; the live work unit completed the same reopen and audit path.
+
+        - `[ ]` **6.11.R.b Run the amended Member 6 criteria walk**
+
+            - Execute the scoped revalidation and companion-offer contract recorded above after the lifecycle repair
+              is approved and committed
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
