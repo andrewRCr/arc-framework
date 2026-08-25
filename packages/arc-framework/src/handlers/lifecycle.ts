@@ -145,7 +145,10 @@ import {
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
-import { resolveLastCompletedTask } from "../lib/task-list/cursor.js";
+import {
+  resolveLastCompletedTask,
+  resolveTaskListCursor,
+} from "../lib/task-list/cursor.js";
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
@@ -2587,6 +2590,7 @@ export async function handleAttest(
     return;
   }
   let lastCompleted: string | null = null;
+  let taskListClosed = false;
   const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
   if (taskListPath !== null) {
     try {
@@ -2595,6 +2599,7 @@ export async function handleAttest(
       if (terminal.status === "found") {
         lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
       }
+      taskListClosed = resolveTaskListCursor(taskList).status === "no-open-task";
     } catch {
       // Candidate attestation does not become unavailable solely because the
       // human-orientation cursor cannot be refreshed from its task list.
@@ -2681,6 +2686,9 @@ export async function handleAttest(
       }
       if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
         orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
+      }
+      if (taskListClosed && priorMeta.nextTask !== null) {
+        orientation["Next Task"] = "[none]";
       }
       metaContent = Object.keys(orientation).length === 0
         ? withCandidate

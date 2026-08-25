@@ -1,6 +1,6 @@
 /** Real-CLI coverage for Candidate proposal publication. */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -42,7 +42,7 @@ async function createAttestFixture(): Promise<string> {
       "",
       "- **Current Workflow:** [none]",
       "- **Last Completed:** verification",
-      "- **Next Task:** [none]",
+      "- **Next Task:** Task 1.1 — Verification complete",
       "- **Blockers:** [none]",
       "",
       "- **Next Action:** verification complete",
@@ -88,6 +88,7 @@ describe("arc attest", () => {
     expect(meta).toMatch(/- \*\*Candidate:\*\* `sha256:[0-9a-f]{64}`/u);
     expect(meta).toContain("- **Current Workflow:** `prepare-work-unit`");
     expect(meta).toContain("- **Last Completed:** Task 1.1 — Verification complete");
+    expect(meta).toContain("- **Next Task:** [none]");
     const record = JSON.parse(await readFile(
       join(repository, ".arc", "system", ".internal", "candidates", "example.json"),
       "utf8",
@@ -101,6 +102,39 @@ describe("arc attest", () => {
       ".arc/system/.internal/candidates/example.boundary.json",
       ".arc/system/.internal/candidates/example.json",
     ]);
+  });
+
+  it.each([
+    ["an executable task remains open", async (root: string) => {
+      await writeFile(
+        join(root, ".arc", "active", "tasks-example.md"),
+        "# Task List: Example\n\n## **Phase 1:** Verification\n\n### `[ ]` **1.1 Verification open**\n",
+      );
+    }],
+    ["the task list is malformed", async (root: string) => {
+      await writeFile(
+        join(root, ".arc", "active", "tasks-example.md"),
+        "# Task List: Example\n\n- `[x]` **1.1 Invalid root task**\n",
+      );
+    }],
+    ["the task list is missing", async (root: string) => {
+      await rm(join(root, ".arc", "active", "tasks-example.md"));
+    }],
+    ["the metadata carries no task-list binding", async (root: string) => {
+      const metaPath = join(root, ".arc", "active", "meta-example.md");
+      const meta = await readFile(metaPath, "utf8");
+      await writeFile(metaPath, meta.replace("- **Task List:** `tasks-example.md`", "- **Task List:** [none]"));
+    }],
+  ] as const)("preserves Next Task when %s", async (_label, arrange) => {
+    repository = await createAttestFixture();
+    await arrange(repository);
+    await git(repository, ["add", "-A"]);
+
+    const result = await runArc(["attest", "example", "--json"], repository);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    const meta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
+    expect(meta).toContain("- **Next Task:** Task 1.1 — Verification complete");
   });
 
   it.each([
