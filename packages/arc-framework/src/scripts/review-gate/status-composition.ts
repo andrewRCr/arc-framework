@@ -5,7 +5,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
   resolveGitCandidateTargetBase,
@@ -13,10 +13,14 @@ import {
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
+  type DeliveryDischargeTargetLookup,
   type DeliveryMemberLookup,
 } from "./core/delivery-member-lookup.js";
 import { resolveReviewSubject } from "./core/review-subject.js";
-import { createHostedReservationDischargeReader } from "./policy/hosted-reservation-discharge.js";
+import {
+  createHostedReservationDischargeReader,
+  resolveHostedReservationTargets,
+} from "./policy/hosted-reservation-discharge.js";
 import {
   resolveChangeRequest,
   type ChangeRequestTargetRef,
@@ -26,10 +30,11 @@ import { aggregateChecks } from "./checks-await.js";
 import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
-import type {
-  ReviewStatusObservation,
-  ReviewStatusPort,
-  RoutedReviewObligation,
+import {
+  composeDeliveryReviewObligation,
+  type ReviewStatusObservation,
+  type ReviewStatusPort,
+  type RoutedReviewObligation,
 } from "./status.js";
 
 async function readBasePosition(input: {
@@ -73,7 +78,7 @@ export async function readRoutedObligation(
   exec: GitExec,
   target: ChangeRequestTargetRef,
   pullRequest: number,
-  memberLookup: DeliveryMemberLookup = new RepositoryDeliveryMemberLookup({ cwd, exec }),
+  memberLookup: DeliveryMemberLookup & DeliveryDischargeTargetLookup = new RepositoryDeliveryMemberLookup({ cwd, exec }),
   currentBaseRevision?: string,
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
@@ -93,10 +98,11 @@ export async function readRoutedObligation(
     if (boundary === null) {
       return { state: "blocked", detail: "The publication boundary is unavailable." };
     }
-    const record = await readCandidateRecord(cwd, workUnit);
-    if (record === null) {
+    const versionedRecord = await readCandidateRecordVersioned(cwd, workUnit);
+    if (versionedRecord.record === null || versionedRecord.version === null) {
       return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
     }
+    const record = versionedRecord.record;
     const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"];
     const candidateHead = subject.member?.candidateHead ?? target.headSha;
     const targetBase = await resolveGitCandidateTargetBase({
@@ -130,11 +136,55 @@ export async function readRoutedObligation(
     if (reservation === null) {
       return { state: "settled", detail: "No hosted review was reserved across publication." };
     }
-    const discharge = await createHostedReservationDischargeReader({ cwd, exec })({
+    const readDischarge = createHostedReservationDischargeReader({ cwd, exec });
+    if (reservation.target.kind === "delivery") {
+      const resolution = await resolveHostedReservationTargets({
+        workUnitId: workUnit,
+        reservation,
+        singleton: {
+          repository: target.repository,
+          pullRequest,
+          headSha: target.headSha,
+          baseRevision: record.attestation.baseRevision,
+        },
+        delivery: memberLookup,
+      });
+      if (resolution.status !== "resolved" || resolution.kind !== "delivery") {
+        return { state: "blocked", detail: "The retained delivery-member review targets are unavailable." };
+      }
+      const deliveryTargets = resolution.targets.flatMap((memberTarget) => (
+        memberTarget.vehicle === undefined ? [] : [{ ...memberTarget, vehicle: memberTarget.vehicle }]
+      ));
+      if (deliveryTargets.length !== resolution.targets.length) {
+        return { state: "blocked", detail: "The retained delivery-member review selectors are unavailable." };
+      }
+      const discharges = await Promise.all(deliveryTargets.map((memberTarget) => readDischarge({
+        reservation,
+        baseRevision: memberTarget.baseRevision,
+        approvedHead: memberTarget.headSha,
+        changeRequest: {
+          repository: memberTarget.repository,
+          pullRequest: memberTarget.pullRequest,
+        },
+        vehicle: memberTarget.vehicle,
+        candidate: record,
+      })));
+      return composeDeliveryReviewObligation({
+        targets: deliveryTargets,
+        discharges,
+        applicabilityContext: {
+          workUnitId: workUnit,
+          expectedRecordVersion: versionedRecord.version,
+          candidateId: record.attestation.candidateId,
+        },
+      });
+    }
+    const discharge = await readDischarge({
       reservation,
       baseRevision: record.attestation.baseRevision,
       approvedHead: target.headSha,
       changeRequest: { repository: target.repository, pullRequest },
+      candidate: record,
     });
     return discharge.discharged
       ? { state: "settled", detail: discharge.detail }

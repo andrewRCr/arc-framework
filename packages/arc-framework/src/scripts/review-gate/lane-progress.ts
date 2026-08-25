@@ -179,6 +179,7 @@ export async function recordHostedAwaitAttempt(
     consumedPass: outcome === "clean" || outcome === "findings",
     hosted: {
       target: handle.target,
+      ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,
       actorIdentity: input.actorIdentity,
@@ -217,6 +218,7 @@ export async function recordHostedRequestUnavailableAttempt(
     consumedPass: false,
     hosted: {
       target: input.request.target,
+      ...(input.request.vehicle?.kind === "delivery-member" ? { vehicle: input.request.vehicle } : {}),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,
       actorIdentity: input.actorIdentity,

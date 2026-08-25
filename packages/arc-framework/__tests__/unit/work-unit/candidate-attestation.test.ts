@@ -228,6 +228,49 @@ describe("Candidate attestation", () => {
 });
 
 describe("Candidate lineage currentness", () => {
+  it("stores either review-applicability choice without changing the durable Candidate target", () => {
+    const root = attestation();
+    const selector = {
+      schemaVersion: 1,
+      repositoryId: "repository-1",
+      repository: "owner/repository",
+      pullRequest: 42,
+      lane: "standard",
+      sourceId: "codex-pr",
+      priorAttemptId: "attempt-prior",
+      priorHead: SHA_A,
+      currentHead: SHA_B,
+      priorBase: SHA_C,
+      currentBase: SHA_D,
+    };
+    for (const choice of ["covered", "review-required"] as const) {
+      const record = CandidateManagedRecordV1Schema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: root,
+        subject: snapshot(),
+        transitions: [{
+          transitionKind: "review-applicability-selection",
+          schemaVersion: 1,
+          semanticsVersion: "candidate-attestation/v1",
+          candidateId: root.candidateId,
+          selector,
+          projectionDigest: canonicalDigest({ projection: "review" }),
+          residualDigest: canonicalDigest({ residual: "review" }),
+          selectedBy: "andrew",
+          selectedAt: "2026-08-23T12:00:00.000Z",
+          choice,
+        }],
+        lineageAttestations: [],
+      });
+
+      expect(projectCandidateCurrentness({
+        record,
+        current: { revision: SHA_A, subject: snapshot() },
+      })).toMatchObject({ status: "current", recognizedRevision: SHA_A });
+    }
+  });
+
   it("advances the durable baseline through an exact covered applicability selection", () => {
     const root = attestation();
     const carried = snapshot(canonicalDigest({ source: "covered-base-carry" }));
