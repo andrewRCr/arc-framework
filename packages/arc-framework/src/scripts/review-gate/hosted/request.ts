@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
+import type { DeliveryMemberLookup } from "../core/delivery-member-lookup.js";
 import { StandardReviewObligationProjectionSchema } from
   "../policy/standard-review-projection-schema.js";
 
@@ -36,6 +37,20 @@ export const HostedErrandRequestVehicleSchema = z.strictObject({
 });
 export type HostedErrandRequestVehicle = z.infer<typeof HostedErrandRequestVehicleSchema>;
 
+export const HostedDeliveryMemberRequestVehicleSchema = z.strictObject({
+  kind: z.literal("delivery-member"),
+  planId: z.string().trim().min(1),
+  deliverableId: z.string().trim().min(1),
+  head: GitHubObjectIdSchema,
+});
+export type HostedDeliveryMemberRequestVehicle = z.infer<typeof HostedDeliveryMemberRequestVehicleSchema>;
+
+export const HostedRequestVehicleSchema = z.discriminatedUnion("kind", [
+  HostedErrandRequestVehicleSchema,
+  HostedDeliveryMemberRequestVehicleSchema,
+]);
+export type HostedRequestVehicle = z.infer<typeof HostedRequestVehicleSchema>;
+
 export const HostedErrandProgressBindingSchema = z.strictObject({
   kind: z.literal("errand"),
   key: z.string().trim().min(1),
@@ -68,7 +83,7 @@ export const HostedRequestEnvelopeSchema = z.strictObject({
   target: HostedTargetSchema,
   provider: HostedProviderIdSchema,
   coverage: HostedReviewCoverageSchema,
-  vehicle: HostedErrandRequestVehicleSchema.optional(),
+  vehicle: HostedRequestVehicleSchema.optional(),
 });
 export type HostedRequestEnvelope = z.infer<typeof HostedRequestEnvelopeSchema>;
 
@@ -89,6 +104,36 @@ export interface HostedReviewAdapter {
     appId?: string;
   };
   request(target: HostedTarget, coverage: HostedReviewCoverage): Promise<HostedRequestOutcome>;
+}
+
+function resolveErrandBinding(
+  vehicle: HostedErrandRequestVehicle,
+  binding: HostedErrandProgressBinding | undefined,
+): HostedErrandProgressBinding {
+  const resolved = HostedErrandProgressBindingSchema.parse(binding);
+  if (canonicalize(vehicle.standardReview) !== canonicalize(resolved.standardReview)) {
+    throw new Error("Hosted Errand progress binding does not match the requested standard-review obligation.");
+  }
+  return resolved;
+}
+
+async function validateDeliveryMemberBinding(
+  vehicle: HostedDeliveryMemberRequestVehicle,
+  targetHead: string,
+  lookup: DeliveryMemberLookup | undefined,
+): Promise<void> {
+  if (vehicle.head !== targetHead) {
+    throw new Error("Hosted delivery-member binding does not match the requested exact head.");
+  }
+  if (lookup === undefined) throw new Error("Hosted delivery-member binding is unavailable.");
+  const resolution = await lookup.resolveMemberByHead(vehicle.head);
+  if (resolution.status === "unavailable") throw new Error("Hosted delivery-member binding is unavailable.");
+  if (resolution.status === "unbound") throw new Error("Hosted delivery-member binding is unbound.");
+  if (resolution.member.planId !== vehicle.planId
+    || resolution.member.deliverableId !== vehicle.deliverableId
+    || resolution.member.head !== vehicle.head) {
+    throw new Error("Hosted delivery-member binding does not match the requested member.");
+  }
 }
 
 const HostedRequestResultBaseShape = {
@@ -139,15 +184,19 @@ export async function requestHostedReview(
   dependencies: {
     adapters: readonly HostedReviewAdapter[];
     errandBinding?: HostedErrandProgressBinding;
+    deliveryMemberLookup?: DeliveryMemberLookup;
   },
 ): Promise<HostedRequestResult> {
   const request = HostedRequestEnvelopeSchema.parse(input);
-  const errandBinding = request.vehicle === undefined
-    ? undefined
-    : HostedErrandProgressBindingSchema.parse(dependencies.errandBinding);
-  if (request.vehicle !== undefined
-    && canonicalize(request.vehicle.standardReview) !== canonicalize(errandBinding?.standardReview)) {
-    throw new Error("Hosted Errand progress binding does not match the requested standard-review obligation.");
+  let errandBinding: HostedErrandProgressBinding | undefined;
+  if (request.vehicle?.kind === "errand") {
+    errandBinding = resolveErrandBinding(request.vehicle, dependencies.errandBinding);
+  } else if (request.vehicle?.kind === "delivery-member") {
+    await validateDeliveryMemberBinding(
+      request.vehicle,
+      request.target.headSha,
+      dependencies.deliveryMemberLookup,
+    );
   }
   const attemptedProviders = [request.provider];
   const resultBase = {

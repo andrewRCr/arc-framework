@@ -10,6 +10,7 @@ import {
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   projectHostedReservationDischarge,
+  resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 
@@ -97,6 +98,52 @@ function progress(
 }
 
 describe("hosted reservation discharge", () => {
+  it("keeps the singleton target for a non-delivery work unit", async () => {
+    const singleton = { ...target(oid("a")), baseRevision: oid("0") };
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "ordinary",
+      singleton,
+      delivery: { resolveDischargeTargets: async () => ({ status: "unbound" }) },
+    })).resolves.toEqual({ status: "resolved", kind: "singleton", targets: [singleton] });
+  });
+
+  it("derives one exact target per retained delivery binding", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      singleton: { ...target(oid("f")), baseRevision: oid("0") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [
+            {
+              planId: "plan-1", deliverableId: "member-1", workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "41", base: oid("1"), head: oid("a"),
+            },
+            {
+              planId: "plan-1", deliverableId: "member-2", workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "42", base: oid("2"), head: oid("b"),
+            },
+          ],
+        }),
+      },
+    })).resolves.toEqual({
+      status: "resolved",
+      kind: "delivery",
+      targets: [
+        { repository: "arc-framework/example", pullRequest: 41, baseRevision: oid("1"), headSha: oid("a") },
+        { repository: "arc-framework/example", pullRequest: 42, baseRevision: oid("2"), headSha: oid("b") },
+      ],
+    });
+  });
+
+  it("contains an unavailable delivery read without falling back to a single target", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      singleton: { ...target(oid("a")), baseRevision: oid("0") },
+      delivery: { resolveDischargeTargets: async () => ({ status: "unavailable" }) },
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
   it("retains only the ordered fallback span beginning at the selected source", () => {
     expect(reservation("codex-pr", ["coderabbit-pr", "codex-pr"]).sources).toEqual(["codex-pr"]);
     expect(() => reservation("codex-pr", ["coderabbit-pr"]))
