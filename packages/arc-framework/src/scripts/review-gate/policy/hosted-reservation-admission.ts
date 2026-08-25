@@ -1,10 +1,42 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
 
+import {
+  sameDeliveryReviewMemberVehicle,
+  type DeliveryReviewMemberVehicle,
+} from "../../../lib/delivery/review-vehicle.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+import type { ReviewApplicabilityConsumerAction } from "./review-applicability-authority.js";
 
 interface ReservationAttempt {
   sourceId: string;
   outcome: string;
+}
+
+interface HostedTargetAttempt extends ReservationAttempt {
+  hosted?: {
+    target: { repository: string; pullRequest: number; headSha: string };
+    vehicle?: DeliveryReviewMemberVehicle;
+  };
+}
+
+/**
+ * Select only source progress recorded for one exact hosted target and optional delivery member.
+ *
+ * @param input - Lane attempts plus the exact host coordinates and optional member selector.
+ * @returns Source outcomes admissible as ordering evidence for that exact target.
+ */
+export function hostedReservationAttemptsForTarget(input: {
+  attempts: readonly HostedTargetAttempt[];
+  target: { repository: string; pullRequest: number; headSha: string };
+  vehicle?: DeliveryReviewMemberVehicle;
+}): ReservationAttempt[] {
+  return input.attempts.filter((attempt) => (
+    attempt.hosted !== undefined
+    && attempt.hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
+    && attempt.hosted.target.pullRequest === input.target.pullRequest
+    && attempt.hosted.target.headSha === input.target.headSha
+    && sameDeliveryReviewMemberVehicle(input.vehicle, attempt.hosted.vehicle)
+  )).map(({ sourceId, outcome }) => ({ sourceId, outcome }));
 }
 
 /**
@@ -99,12 +131,32 @@ export function assertHostedReservationAdmission(input: {
   repository: string;
   headSha: string;
   targetKind: "change-set" | "delivery-member";
+  vehicle?: DeliveryReviewMemberVehicle;
   boundary: { candidateId: string; candidateSubjectDigest: string | null };
   candidate: { candidateId: string; subjectDigest: string; headSha: string };
   attempts: readonly ReservationAttempt[];
+  applicabilityAction?: ReviewApplicabilityConsumerAction;
 }): void {
+  if (input.applicabilityAction === "retain-prior-attempt") {
+    throw new Error("Hosted review capacity is not admissible while the prior attempt remains applicable.");
+  }
+  if (input.applicabilityAction === "stop") {
+    throw new Error("Hosted review capacity is not admissible while contribution applicability is unresolved.");
+  }
   if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()) {
     throw new Error("Hosted review target does not match the carried standard-review reservation.");
+  }
+  if (input.targetKind === "delivery-member") {
+    const marker = input.reservation.target;
+    if (marker.kind !== "delivery"
+      || input.vehicle === undefined
+      || input.vehicle.planId !== marker.planId
+      || input.vehicle.workUnitId !== marker.workUnitId
+      || input.vehicle.head !== input.headSha) {
+      throw new Error("Hosted delivery-member target does not match the carried reservation vehicle.");
+    }
+  } else if (input.reservation.target.kind !== "pinned-head") {
+    throw new Error("Hosted change-set target does not match the carried reservation vehicle.");
   }
   // The caller supplies only a Candidate already proven current. Candidate review binds its current
   // host head directly; a delivery member instead arrives through the exact-head reverse lookup, while
