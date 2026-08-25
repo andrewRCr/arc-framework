@@ -511,6 +511,7 @@ export async function handleStatus(
       slug,
       state: query.state,
       worktreePath: operationalReadPath,
+      exec,
     });
     const warnings = [
       ...composed.qualityFacts.warnings.map(renderInFlightWarning),
@@ -1489,7 +1490,7 @@ export async function handleStatus(
     user: (id) => runUserStatus({ cwd, io, identity: id }),
     extensions: () => runExtensionsStatus({ cwd }),
     config: () => runConfigStatus({ cwd }),
-    active: () => runActiveStatus({ cwd }),
+    active: () => runActiveStatus({ cwd, exec }),
   };
   const result = await runStatus({ identity, role, probes });
 
@@ -1598,6 +1599,7 @@ async function resolveSlugOperationalBoundary(options: {
   slug: string;
   state: SlugStateQuery["state"];
   worktreePath: string | undefined;
+  exec: GitExec;
 }): Promise<{
   integrationBoundary: IntegrationBoundaryLocus | null;
   warnings: string[];
@@ -1615,7 +1617,7 @@ async function resolveSlugOperationalBoundary(options: {
       ],
     };
   }
-  const active = await runActiveStatus({ cwd: options.worktreePath });
+  const active = await runActiveStatus({ cwd: options.worktreePath, exec: options.exec });
   const expectedFilename = `meta-${options.slug}.md`;
   const matches = active.candidates.filter((candidate) => candidate.filename === expectedFilename);
   const candidate = matches.length === 1 ? matches[0] : undefined;

@@ -135,6 +135,7 @@ describe("derived locus evidence", () => {
         pathExists: async () => false,
         realpath: async (path) => path,
         lstat: async () => ({ isSymbolicLink: () => false }),
+        projectCandidateTarget: async () => { throw new Error("unexpected Candidate read"); },
       },
     });
 

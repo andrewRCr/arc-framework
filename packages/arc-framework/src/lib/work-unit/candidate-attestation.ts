@@ -59,6 +59,7 @@ export const CandidateVerificationApplicabilitySchema = z.enum(["targeted", "foc
 export type CandidateVerificationApplicability = z.infer<typeof CandidateVerificationApplicabilitySchema>;
 
 export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
+  transitionKind: z.literal("review-response"),
   schemaVersion: z.literal(1),
   semanticsVersion: CandidateSemanticsSchema,
   candidateId: CandidateCanonicalDigestSchema,
@@ -73,6 +74,48 @@ export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
   implementationChanged: z.boolean(),
 });
 export type CandidateReviewResponseEvidenceV1 = z.infer<typeof CandidateReviewResponseEvidenceV1Schema>;
+
+const CandidateApplicabilitySelectionCommon = {
+  transitionKind: z.literal("applicability-selection"),
+  schemaVersion: z.literal(1),
+  semanticsVersion: CandidateSemanticsSchema,
+  candidateId: CandidateCanonicalDigestSchema,
+  priorTarget: CandidateLineageTargetSchema,
+  currentTarget: CandidateLineageTargetSchema,
+  projectionDigest: CandidateCanonicalDigestSchema,
+  residualDigest: CandidateCanonicalDigestSchema,
+  selectedBy: z.string().trim().min(1),
+};
+export const CandidateApplicabilitySelectionV1Schema = z.discriminatedUnion("choice", [
+  z.strictObject({
+    ...CandidateApplicabilitySelectionCommon,
+    choice: z.literal("covered"),
+  }),
+  z.strictObject({
+    ...CandidateApplicabilitySelectionCommon,
+    choice: z.literal("targeted-check"),
+    targetedEvidenceRef: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    ...CandidateApplicabilitySelectionCommon,
+    choice: z.literal("changed"),
+  }),
+]);
+export type CandidateApplicabilitySelectionV1 = z.infer<typeof CandidateApplicabilitySelectionV1Schema>;
+
+export const CandidateLineageTransitionV1Schema = z.discriminatedUnion("transitionKind", [
+  CandidateReviewResponseEvidenceV1Schema,
+  CandidateApplicabilitySelectionV1Schema,
+]);
+export type CandidateLineageTransitionV1 = z.infer<typeof CandidateLineageTransitionV1Schema>;
+
+/** Select the approved review-response arm from an ordered Candidate transition sequence. */
+export function candidateReviewResponses(
+  record: Pick<CandidateManagedRecordV1, "transitions">,
+): CandidateReviewResponseEvidenceV1[] {
+  return record.transitions.filter((transition): transition is CandidateReviewResponseEvidenceV1 =>
+    transition.transitionKind === "review-response");
+}
 
 export const CandidateLineageAttestationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -90,7 +133,7 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
   semanticsVersion: CandidateSemanticsSchema,
   attestation: CandidateAttestationV1Schema,
   subject: CandidateSubjectSnapshotSchema,
-  responses: z.array(CandidateReviewResponseEvidenceV1Schema),
+  transitions: z.array(CandidateLineageTransitionV1Schema),
   lineageAttestations: z.array(CandidateLineageAttestationV1Schema),
 }).superRefine((record, context) => {
   const validateSubject = (subject: CandidateSubjectSnapshot, path: (string | number)[]) => {
@@ -125,40 +168,54 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
     subject: record.subject,
   };
   const recognizedSubjects = new Set([record.subject.subjectDigest]);
-  for (const [index, response] of record.responses.entries()) {
-    validateSubject(response.oldTarget.subject, ["responses", index, "oldTarget", "subject"]);
-    validateSubject(response.newTarget.subject, ["responses", index, "newTarget", "subject"]);
-    if (response.candidateId !== record.attestation.candidateId) {
-      context.addIssue({ code: "custom", path: ["responses", index, "candidateId"], message: "must match the attestation" });
-    }
-    const { responseId, ...responseFields } = response;
-    if (responseId !== canonicalDigest({ domain: "arc.candidate.review-response/v1", ...responseFields })) {
+  for (const [index, transition] of record.transitions.entries()) {
+    if (transition.candidateId !== record.attestation.candidateId) {
       context.addIssue({
         code: "custom",
-        path: ["responses", index, "responseId"],
-        message: "must match the canonical response payload",
+        path: ["transitions", index, "candidateId"],
+        message: "must match the attestation",
       });
     }
-    // Operational-only revisions are intentionally absent from the reviewable
-    // lineage. A response may therefore start from a later revision than the
-    // preceding record, but it must start from the exact recognized subject.
-    if (response.oldTarget.subject.subjectDigest !== priorTarget.subject.subjectDigest) {
+    if (transition.transitionKind === "review-response") {
+      validateSubject(transition.oldTarget.subject, ["transitions", index, "oldTarget", "subject"]);
+      validateSubject(transition.newTarget.subject, ["transitions", index, "newTarget", "subject"]);
+      const { responseId, ...responseFields } = transition;
+      if (responseId !== canonicalDigest({ domain: "arc.candidate.review-response/v1", ...responseFields })) {
+        context.addIssue({
+          code: "custom",
+          path: ["transitions", index, "responseId"],
+          message: "must match the canonical response payload",
+        });
+      }
+      const changed = candidateSubjectsDiffer(transition.oldTarget.subject, transition.newTarget.subject);
+      if (transition.implementationChanged !== changed) {
+        context.addIssue({
+          code: "custom",
+          path: ["transitions", index, "implementationChanged"],
+          message: "must match the canonical reviewable-subject delta",
+        });
+      }
+      // The response write verifies its exact old target against the effective
+      // Candidate projection. Once approved, that evidence is authoritative for
+      // re-anchoring after an intentionally ephemeral machine carry.
+      priorTarget = transition.newTarget;
+      recognizedSubjects.add(transition.oldTarget.subject.subjectDigest);
+      recognizedSubjects.add(transition.newTarget.subject.subjectDigest);
+      continue;
+    }
+    validateSubject(transition.priorTarget.subject, ["transitions", index, "priorTarget", "subject"]);
+    validateSubject(transition.currentTarget.subject, ["transitions", index, "currentTarget", "subject"]);
+    if (!candidateTargetsEqual(transition.priorTarget, priorTarget)) {
       context.addIssue({
         code: "custom",
-        path: ["responses", index, "oldTarget"],
-        message: "must continue the preceding Candidate lineage subject",
+        path: ["transitions", index, "priorTarget"],
+        message: "must continue the durable Candidate target",
       });
     }
-    const changed = candidateSubjectsDiffer(response.oldTarget.subject, response.newTarget.subject);
-    if (response.implementationChanged !== changed) {
-      context.addIssue({
-        code: "custom",
-        path: ["responses", index, "implementationChanged"],
-        message: "must match the canonical reviewable-subject delta",
-      });
+    if (transition.choice !== "changed") {
+      priorTarget = transition.currentTarget;
+      recognizedSubjects.add(transition.currentTarget.subject.subjectDigest);
     }
-    priorTarget = response.newTarget;
-    recognizedSubjects.add(response.newTarget.subject.subjectDigest);
   }
   for (const [index, attestation] of record.lineageAttestations.entries()) {
     validateSubject(attestation.target.subject, ["lineageAttestations", index, "target", "subject"]);
@@ -288,6 +345,7 @@ export function createCandidateReviewResponseEvidence(
   input: CreateCandidateReviewResponseEvidenceInput,
 ): CandidateReviewResponseEvidenceV1 {
   const fields = {
+    transitionKind: "review-response" as const,
     schemaVersion: 1 as const,
     semanticsVersion: "candidate-attestation/v1" as const,
     candidateId: input.candidateId,
@@ -346,6 +404,44 @@ export type CandidateCurrentnessProjection =
       nextAction: "Run full work-unit verification to establish a new Candidate lineage root.";
     };
 
+export interface CandidateDurableBaselineProjection {
+  candidateId: string;
+  target: CandidateLineageTarget;
+  implementationChanged: boolean;
+  selectedChange: CandidateApplicabilitySelectionV1 | null;
+}
+
+/** Reduce the storage-neutral Candidate root and ordered authority transitions to one durable baseline. */
+export function reduceCandidateDurableBaseline(
+  input: CandidateManagedRecordV1,
+): CandidateDurableBaselineProjection {
+  const record = CandidateManagedRecordV1Schema.parse(input);
+  let target: CandidateLineageTarget = {
+    revision: record.attestation.baseRevision,
+    subject: record.subject,
+  };
+  let implementationChanged = false;
+  let selectedChange: CandidateApplicabilitySelectionV1 | null = null;
+  for (const transition of record.transitions) {
+    if (transition.transitionKind === "review-response") {
+      target = transition.newTarget;
+      implementationChanged ||= transition.implementationChanged;
+      selectedChange = null;
+      continue;
+    }
+    if (!candidateTargetsEqual(transition.priorTarget, target)) {
+      throw new Error("Candidate applicability selection does not continue the durable target");
+    }
+    if (transition.choice === "changed") {
+      selectedChange = transition;
+      continue;
+    }
+    target = transition.currentTarget;
+    selectedChange = null;
+  }
+  return { candidateId: record.attestation.candidateId, target, implementationChanged, selectedChange };
+}
+
 /**
  * Reduce approved response evidence to the recognized Candidate head and compare it with current content.
  *
@@ -358,17 +454,9 @@ export function projectCandidateCurrentness(input: {
 }): CandidateCurrentnessProjection {
   const record = CandidateManagedRecordV1Schema.parse(input.record);
   const current = CandidateLineageTargetSchema.parse(input.current);
-  let revision = record.attestation.baseRevision;
-  let subject = record.subject;
-  let implementationChanged = false;
-  for (const response of record.responses) {
-    if (response.oldTarget.subject.subjectDigest !== subject.subjectDigest) {
-      return blockedProjection(record.attestation.candidateId, revision, current, subject);
-    }
-    revision = response.newTarget.revision;
-    subject = response.newTarget.subject;
-    implementationChanged ||= response.implementationChanged;
-  }
+  const baseline = reduceCandidateDurableBaseline(record);
+  const { revision, subject } = baseline.target;
+  const { implementationChanged } = baseline;
   if (current.subject.subjectDigest !== subject.subjectDigest) {
     return blockedProjection(record.attestation.candidateId, revision, current, subject);
   }
@@ -443,4 +531,9 @@ function candidateSubjectsDiffer(
 ): boolean {
   const delta = diffCandidateSubjectSnapshots(left, right);
   return delta.added.length > 0 || delta.removed.length > 0 || delta.changed.length > 0;
+}
+
+function candidateTargetsEqual(left: CandidateLineageTarget, right: CandidateLineageTarget): boolean {
+  return left.revision === right.revision
+    && left.subject.subjectDigest === right.subject.subjectDigest;
 }

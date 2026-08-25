@@ -6,11 +6,12 @@ import { parseMetaRecord, toMetaRecord } from "../../../lib/active/meta-reader.j
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
+import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
-import { projectCandidateCurrentness } from "../../../lib/work-unit/candidate-attestation.js";
+import { candidateReviewResponses } from "../../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../../lib/work-unit/git-candidate-subject.js";
+import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
@@ -55,6 +56,7 @@ export function createPrePublicationCompositionDependencies(input: {
     return (await settingsPromise).settings;
   };
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const rawGit = createRawGitExec(input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
   let repositoryIdPromise: Promise<string> | null = null;
@@ -68,26 +70,35 @@ export function createPrePublicationCompositionDependencies(input: {
       const name = SlugSchema.parse(workUnit);
       const record = await readCandidateRecord(input.cwd, name);
       if (record === null) return { status: "missing" };
-      const current = await collectGitCandidateTarget({
+      const effective = await projectGitCandidateEffectiveTarget({
         cwd: input.cwd,
         name,
         baseBranch: (await settings())["branch.base"],
+        record,
         exec: input.exec,
+        rawExec: rawGit,
       });
-      const currentness = projectCandidateCurrentness({ record, current });
-      if (currentness.status === "blocked") return { status: "blocked", reason: currentness.nextAction };
+      if (effective.state !== "current") {
+        const reason = effective.state === "changed" || effective.state === "staged-change"
+          ? "Run full work-unit verification to establish a new Candidate lineage root."
+          : effective.state === "decision-required"
+            ? `${effective.selectionOfferText}\n${effective.recommendedActionText}`
+            : `Candidate applicability could not recognize the current target (${effective.nextAction}).`;
+        return { status: "blocked", reason };
+      }
       return {
         status: "current",
-        candidateId: currentness.candidateId,
-        headSha: currentness.recognizedRevision,
-        subjectDigest: current.subject.subjectDigest,
-        implementationChanged: currentness.implementationChanged,
-        convergenceVerification: currentness.convergenceVerification,
+        candidateId: effective.candidateId,
+        headSha: effective.recognizedTarget.revision,
+        subjectDigest: effective.recognizedTarget.subject.subjectDigest,
+        implementationChanged: effective.implementationChanged,
+        convergenceVerification: effective.convergenceVerification,
         lineageHeadShas: [...new Set([
           record.attestation.baseRevision,
-          ...record.responses.flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
+          ...candidateReviewResponses(record)
+            .flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
           ...record.lineageAttestations.map((attestation) => attestation.target.revision),
-          currentness.recognizedRevision,
+          effective.recognizedTarget.revision,
         ])],
       };
     },
