@@ -85,11 +85,15 @@ describe("delivery terminal handoff", () => {
   it("exposes the terminal only after exact absorption and residual contribution proof", async () => {
     await expect(assessDeliveryTerminalReadiness({
       absorption: { status: "already-absorbed" }, terminalUnbound: true,
-      proveResidual: async () => ({ status: "accepted", proof: "aggregate-patch" }),
+      proveResidual: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
     })).resolves.toEqual({ status: "terminal-ready" });
     await expect(assessDeliveryTerminalReadiness({
       absorption: { status: "already-absorbed" }, terminalUnbound: true,
-      proveResidual: async () => ({ status: "refused", reason: "contribution-mismatch" }),
+      proveResidual: async () => ({
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: ["feature.txt"],
+      }),
     })).resolves.toEqual({ status: "blocked", reason: "residual-mismatch" });
   });
 
@@ -108,7 +112,7 @@ describe("delivery terminal handoff", () => {
       repository: "owner/repo", retainedControlRef: "refs/heads/feat/control", retainedControlHead: f.controlAfter.head,
       landedDeliverableIds: f.plan.members.slice(0, -1).map((m) => m.deliverableId),
       request, targetBefore: f.targetBefore, targetAfter: f.targetAfter,
-      proveResidual: async () => ({ status: "accepted" as const, proof: "aggregate-patch" as const }),
+      proveResidual: async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }),
       stateStore: { publish },
     };
     const adopted = await adoptDeliveryTerminalMerge(input);
@@ -142,7 +146,7 @@ describe("delivery terminal handoff", () => {
       retainedControlHead: f.controlAfter.head,
       landedDeliverableIds: f.plan.members.slice(0, -1).map((member) => member.deliverableId),
       request, targetBefore: f.targetBefore, targetAfter: f.targetAfter,
-      proveResidual: async () => ({ status: "accepted", proof: "aggregate-patch" }),
+      proveResidual: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish },
     })).resolves.toEqual({ status: "blocked", reason: "state-conflict" });
     expect(publish).toHaveBeenCalledWith(f.plan.planId, expect.objectContaining({ activeOperation: null }), 8);
