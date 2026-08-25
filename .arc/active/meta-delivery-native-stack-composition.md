@@ -11,7 +11,7 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:55d498be778b2b9260a21da74f5b1e50a2ee585b4125af1adffd6fec6293a1dd`
+- **Candidate:** `sha256:e6fdd8e092bd9361e73912f174cd4eb32e66ba6cefdb46418091a25fab52b65d`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
