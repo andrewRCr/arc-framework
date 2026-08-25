@@ -15,7 +15,10 @@ import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
 import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
-import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+import type {
+  StandardReviewReservationTarget,
+  StandardReviewReservationV1,
+} from "./integration-boundary-locus.js";
 
 /** Per-lane scope, invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
@@ -97,6 +100,11 @@ export type TargetRead =
   | { status: "resolved"; target: ReviewPolicyTarget }
   | { status: "refused"; reason: string };
 
+/** Exact reservation marker selected from current singleton or delivery authority. */
+export type ReservationTargetRead =
+  | { status: "resolved"; target: StandardReviewReservationTarget }
+  | { status: "refused"; reason: string };
+
 /**
  * The immutable review target, or why the checkout cannot produce one.
  *
@@ -118,6 +126,10 @@ export interface PrePublicationCompositionDependencies {
   readCandidate(workUnit: string): Promise<CandidateRead>;
   readAssurance(workUnit: string): Promise<AssuranceRead>;
   resolveTarget(headSha: string): Promise<TargetRead>;
+  readReservationTarget(
+    workUnit: string,
+    singleton: { repository: string; headSha: string },
+  ): Promise<ReservationTargetRead>;
   deriveImmutableTarget(): Promise<ImmutableTargetRead>;
   readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
   readLaneProgress(
@@ -307,6 +319,13 @@ export async function composePrePublicationReviewRequest(
       reason: "The resolved review target does not identify the Candidate head.",
     };
   }
+  const reservationTarget = await dependencies.readReservationTarget(input.workUnit, {
+    repository: target.repository,
+    headSha: target.headSha,
+  });
+  if (reservationTarget.status === "refused") {
+    return { status: "refused", reason: reservationTarget.reason };
+  }
   const immutable = await dependencies.deriveImmutableTarget();
   if (immutable.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
     return {
@@ -395,6 +414,7 @@ export async function composePrePublicationReviewRequest(
     schemaVersion: 1,
     workUnit: input.workUnit,
     candidateId: candidate.candidateId,
+    reservationTarget: reservationTarget.target,
     target: immutable.status === "resolved" ? immutable.target : null,
     selfReview: input.selfReview === "settled"
       ? "settled"

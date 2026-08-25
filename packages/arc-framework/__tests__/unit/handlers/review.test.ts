@@ -1578,6 +1578,11 @@ describe("handleReviewPrePublication", () => {
     schemaVersion: 1 as const,
     workUnit: "example",
     candidateId: `sha256:${"c".repeat(64)}`,
+    reservationTarget: {
+      kind: "pinned-head" as const,
+      repository: target.repository,
+      headSha: target.headSha,
+    },
     selfReview: "inactive" as const,
     frontline: lane("frontline", []),
     standard: lane("standard", ["codex-pr"]),

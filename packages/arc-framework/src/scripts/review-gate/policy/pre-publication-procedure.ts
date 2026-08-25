@@ -32,6 +32,7 @@ import {
   PublishCandidateActionSchema,
   RunConvergenceVerificationActionSchema,
   RunSelfReviewActionSchema,
+  StandardReviewReservationTargetSchema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
   type StandardReviewReservationV1,
@@ -53,6 +54,7 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
+  reservationTarget: StandardReviewReservationTargetSchema,
   /**
    * The immutable review target composed from repository state, or `null` when it is not derivable.
    *
@@ -73,6 +75,13 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
 }).superRefine((request, context) => {
   if (!samePolicyTarget(request.frontline.target, request.standard.target)) {
     context.addIssue({ code: "custom", path: ["standard", "target"], message: "must match the frontline target" });
+  }
+  if (request.reservationTarget.repository.toLowerCase() !== request.standard.target.repository.toLowerCase()) {
+    context.addIssue({
+      code: "custom",
+      path: ["reservationTarget", "repository"],
+      message: "must match the standard review target repository",
+    });
   }
 });
 export type PrePublicationReviewRequest = z.infer<typeof PrePublicationReviewRequestSchema>;
@@ -329,18 +338,14 @@ function createStandardReviewReservation(
     semanticsVersion: "standard-review-reservation/v1" as const,
     candidateId: request.candidateId,
     sourceId,
-    target: {
-      repository: request.standard.target.repository,
-      headSha: request.standard.target.headSha,
-    },
+    target: request.reservationTarget,
     obligation: request.standard.standardReview,
   };
   return buildStandardReviewReservation({
     candidateId: fields.candidateId,
     sourceId: fields.sourceId,
     sources: request.standard.sources,
-    repository: fields.target.repository,
-    headSha: fields.target.headSha,
+    target: fields.target,
     obligation: fields.obligation,
   });
 }
