@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   validateReviewRequest,
   validateReviewRequirement,
@@ -154,6 +155,7 @@ const LaneAttemptOutcomeSchema = z.enum([
 ]);
 const HostedLaneAttemptBindingSchema = z.strictObject({
   target: HostedTargetSchema,
+  vehicle: DeliveryReviewMemberVehicleSchema.optional(),
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema,
   actorIdentity: IdentifierSchema,
@@ -178,6 +180,20 @@ const LaneAttemptSchema = z.strictObject({
         code: "custom",
         path: ["hosted", "target", "headSha"],
         message: "hosted and review targets must identify the same head",
+      });
+    }
+    if ((target.kind === "delivery-member") !== (attempt.hosted.vehicle !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["hosted", "vehicle"],
+        message: "hosted delivery-member targets require one exact delivery vehicle",
+      });
+    }
+    if (attempt.hosted.vehicle !== undefined && attempt.hosted.vehicle.head !== target.headSha) {
+      context.addIssue({
+        code: "custom",
+        path: ["hosted", "vehicle", "head"],
+        message: "hosted delivery vehicle must identify the review target head",
       });
     }
   } catch (error) {

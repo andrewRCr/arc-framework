@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
+import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
@@ -46,15 +47,27 @@ export const IntegrationBoundaryNextActionSchema = z.discriminatedUnion("kind", 
 ]);
 export type IntegrationBoundaryNextAction = z.infer<typeof IntegrationBoundaryNextActionSchema>;
 
+export const StandardReviewReservationTargetSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("pinned-head"),
+    repository: z.string().trim().min(1),
+    headSha: GitObjectIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery"),
+    repository: z.string().trim().min(1),
+    workUnitId: SlugSchema,
+    planId: DeliveryPlanIdSchema,
+  }),
+]);
+export type StandardReviewReservationTarget = z.infer<typeof StandardReviewReservationTargetSchema>;
+
 export const StandardReviewReservationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("standard-review-reservation/v1"),
   reservationId: CandidateIdSchema,
   sources: z.array(z.string().trim().min(1)).min(1),
-  target: z.strictObject({
-    repository: z.string().trim().min(1),
-    headSha: GitObjectIdSchema,
-  }),
+  target: StandardReviewReservationTargetSchema,
   obligation: StandardReviewObligationProjectionSchema,
 });
 export type StandardReviewReservationV1 = z.infer<typeof StandardReviewReservationV1Schema>;
@@ -337,14 +350,18 @@ export function recoverIntegratingBoundary(input: {
 }
 
 /** Create the exact hosted-first reservation carried across publication. */
-export function createStandardReviewReservation(input: {
+interface StandardReviewReservationInputBase {
   candidateId: string;
   sourceId: string;
   sources?: readonly string[];
-  repository: string;
-  headSha: string;
   obligation: z.input<typeof StandardReviewObligationProjectionSchema>;
-}): StandardReviewReservationV1 {
+}
+
+/** Create a reservation with an explicit vehicle or singleton pinned-head coordinates. */
+export function createStandardReviewReservation(input: StandardReviewReservationInputBase & (
+  | { target: z.input<typeof StandardReviewReservationTargetSchema> }
+  | { repository: string; headSha: string }
+)): StandardReviewReservationV1 {
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const sourceId = z.string().trim().min(1).parse(input.sourceId);
   const configuredSources = z.array(z.string().trim().min(1)).min(1).parse(input.sources ?? [sourceId]);
@@ -353,11 +370,18 @@ export function createStandardReviewReservation(input: {
     throw new Error("reserved source must belong to the ordered standard-review sources");
   }
   const sources = configuredSources.slice(selectedSourceIndex);
+  const target = "target" in input
+    ? StandardReviewReservationTargetSchema.parse(input.target)
+    : StandardReviewReservationTargetSchema.parse({
+        kind: "pinned-head",
+        repository: input.repository,
+        headSha: input.headSha,
+      });
   const fields = {
     schemaVersion: 1 as const,
     semanticsVersion: "standard-review-reservation/v1" as const,
     sources,
-    target: { repository: input.repository, headSha: input.headSha },
+    target,
     obligation: input.obligation,
   };
   return StandardReviewReservationV1Schema.parse({

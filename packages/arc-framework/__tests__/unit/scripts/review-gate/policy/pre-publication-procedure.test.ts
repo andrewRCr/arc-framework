@@ -219,6 +219,11 @@ function request(overrides: Record<string, unknown> = {}) {
     schemaVersion: 1,
     workUnit: "example",
     candidateId: `sha256:${"c".repeat(64)}`,
+    reservationTarget: {
+      kind: "pinned-head",
+      repository: target.repository,
+      headSha: target.headSha,
+    },
     selfReview: "pending",
     frontline: {
       schemaVersion: 1,
@@ -305,7 +310,7 @@ describe("projectPrePublicationReview", () => {
       reservation: {
         reservationId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
         sources: ["codex-pr", "delegated-agent"],
-        target: { repository: target.repository, headSha: target.headSha },
+        target: { kind: "pinned-head", repository: target.repository, headSha: target.headSha },
         obligation: standardReview,
       },
       nextAction: { kind: "publish-candidate" },

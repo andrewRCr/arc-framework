@@ -33,11 +33,50 @@ import type {
   CandidateRead,
   ImmutableTargetRead,
   PrePublicationCompositionDependencies,
+  ReservationTargetRead,
   TargetRead,
 } from "./pre-publication-request.js";
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Select the carried reservation marker from one coherent delivery-record read. */
+export function selectPrePublicationReservationTarget(input: {
+  workUnit: string;
+  singleton: { repository: string; headSha: string };
+  delivery:
+    | { status: "unbound" | "unavailable" }
+    | { status: "resolved"; planId: string; workUnitId: string };
+}): ReservationTargetRead {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  if (input.delivery.status === "unavailable") {
+    return {
+      status: "refused",
+      reason: "The pre-publication reservation target could not be resolved from delivery state.",
+    };
+  }
+  if (input.delivery.status === "resolved" && input.delivery.workUnitId !== workUnit) {
+    return {
+      status: "refused",
+      reason: "The resolved delivery plan does not belong to the requested work unit.",
+    };
+  }
+  if (input.delivery.status === "resolved") {
+    return {
+      status: "resolved",
+      target: {
+        kind: "delivery",
+        repository: input.singleton.repository,
+        planId: input.delivery.planId,
+        workUnitId: workUnit,
+      },
+    };
+  }
+  return {
+    status: "resolved",
+    target: { kind: "pinned-head", ...input.singleton },
+  };
 }
 
 /**
@@ -171,6 +210,17 @@ export function createPrePublicationCompositionDependencies(input: {
           headSha,
         },
       };
+    },
+
+    readReservationTarget: async (workUnit, singleton): Promise<ReservationTargetRead> => {
+      const delivery = await deliveryMemberLookup.resolveTerminalRecords(workUnit);
+      return selectPrePublicationReservationTarget({
+        workUnit,
+        singleton,
+        delivery: delivery.status === "resolved"
+          ? { status: "resolved", planId: delivery.plan.planId, workUnitId: delivery.plan.workUnitId }
+          : delivery,
+      });
     },
 
     deriveImmutableTarget: async (): Promise<ImmutableTargetRead> => {

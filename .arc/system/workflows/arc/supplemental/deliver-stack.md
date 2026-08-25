@@ -320,6 +320,53 @@ that selection from terminal branch movement. Every other refusal stops.
 For `review-member`, settle exact member review authority above with the returned `selectedDeliverableId`. Only its
 `settled / continue-reconcile` result returns here for ordinary landing preparation.
 
+```json
+{"kind":"delivery-member","planId":"<planId>","deliverableId":"<deliverableId>","workUnitSlug":"<workUnitSlug>"}
+```
+
+The vehicle binds the review to the exact head supplied by delivery; no second member-review verb or delivery-owned
+review evidence exists. Resolve its exact open change request and pass the resolver's `targetRef` to:
+
+```bash
+arc review status --target '{targetRef}' --json
+```
+
+Dispatch only on `nextAction`. `review-hosted-request` means pass the returned action unchanged to:
+
+```bash
+arc review hosted request -
+```
+
+On `requested / await`, pass the returned self-contained handle to:
+
+```bash
+arc review hosted await -
+```
+
+`pending / await` reuses that handle for one more bounded call; `pending / inspect-or-extend` stops with the request
+intact. Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
+finding settlement, execute the returned settlement plan in phase order through:
+
+```bash
+arc review hosted settle -
+```
+
+`resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice, and
+submits the returned `selectionAction` unchanged as `offer` beside that `selection` to:
+
+```bash
+arc candidate applicability resolve {workUnitId} -
+```
+
+Commit a returned `commit-selection`, then re-enter through `arc review status`. `continue` retains the earlier
+attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns and
+check/base movement return to their typed checkpoint; `upgrade` and every `stop` remain stops. After any concluded
+attempt, invoke status again. The CLI selects the next retained target; only `settled / continue-reconcile` with a
+typed discharge conjunction permits landing preparation.
+
+Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable, and settle findings through
+`review-triage` and `review-response` before preparing a landing.
+
 The preparation request carries that selection plus plan, repository, remote, target, lock, and tree locators — no
 position facts. The handler freshly reobserves position before preparing the singleton effect.
 
