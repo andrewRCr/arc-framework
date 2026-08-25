@@ -268,6 +268,48 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves contribution refusal evidence through the strict result envelope", async () => {
+    const request = JSON.stringify({
+      planId: "123e4567-e89b-42d3-a456-426614174000",
+      repository: "andrewRCr/arc-framework",
+      remote: "origin",
+    });
+    const blockedWrite = vi.fn();
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "blocked",
+        reason: "contribution-conflicted",
+        paths: ["shared.txt"],
+        guidance: "Resolve the conflicted contribution before retrying.",
+      }),
+      write: blockedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(blockedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["shared.txt"],
+    });
+
+    const refusedWrite = vi.fn();
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: ["feature.txt"],
+      }),
+      write: refusedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(refusedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "contribution-diverged",
+      paths: ["feature.txt"],
+    });
+  });
+
   it("accepts raw suffix locators without serialized proof or snapshots", async () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "refused", reason: "candidate-moved" });

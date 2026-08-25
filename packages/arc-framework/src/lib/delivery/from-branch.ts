@@ -9,6 +9,10 @@ import {
   type RawGitExec,
 } from "../change-facts.js";
 import { ChangeSetSchema } from "../change-facts.schema.js";
+import {
+  supportsMergeTreeWriteTree,
+  type MergeTreeCapabilityRefusalReason,
+} from "../git/merge-tree-capability.js";
 import { parseCommitMessage } from "../commit-check/parser.js";
 import {
   isTaskNonReferenceContext,
@@ -67,7 +71,7 @@ export type InspectDeliveryBranchRefusal = {
     | "divergence-boundary-missing"
     | "divergence-boundary-ambiguous"
     | "first-parent-history-malformed"
-    | "merge-tree-write-tree-unsupported"
+    | MergeTreeCapabilityRefusalReason
     | "ambient-purity-unproven"
     | "change-facts-unknown";
 };
@@ -244,8 +248,6 @@ export async function inspectDeliveryBranch(input: {
   const cumulativeSet = new Set<string>();
   const cumulativePaths: string[] = [];
   const steps: DeliveryBranchStep[] = [];
-  const capabilities = { mergeTreeWriteTree: null as boolean | null };
-
   for (const commit of commits) {
     let parents: string[];
     try {
@@ -266,7 +268,7 @@ export async function inspectDeliveryBranch(input: {
     if (changeSet.changeSet === "unknown") {
       return { status: "refused", reason: "change-facts-unknown" };
     }
-    const classification = await classifyStep(input.exec, commit, parents, base, capabilities);
+    const classification = await classifyStep(input.exec, commit, parents, base);
     if (classification.status === "refused") return classification;
     if (classification.value === "contribution") {
       for (const path of affectedPaths(changeSet.changes)) {
@@ -720,7 +722,6 @@ async function classifyStep(
   commit: string,
   parents: readonly string[],
   base: string,
-  capabilities: { mergeTreeWriteTree: boolean | null },
 ): Promise<
   | { readonly status: "classified"; readonly value: DeliveryBranchStep["classification"] }
   | { readonly status: "refused"; readonly reason: InspectDeliveryBranchRefusal["reason"] }
@@ -731,10 +732,7 @@ async function classifyStep(
   if (secondParent === undefined || !await isAncestor(exec, secondParent, base)) {
     return { status: "classified", value: "contribution" };
   }
-  if (capabilities.mergeTreeWriteTree === null) {
-    capabilities.mergeTreeWriteTree = await supportsMergeTreeWriteTree(exec, parents[0] ?? "");
-  }
-  if (!capabilities.mergeTreeWriteTree) {
+  if (!await supportsMergeTreeWriteTree(exec, parents[0])) {
     return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
   }
   try {
@@ -748,15 +746,6 @@ async function classifyStep(
       : { status: "refused", reason: "ambient-purity-unproven" };
   } catch {
     return { status: "refused", reason: "ambient-purity-unproven" };
-  }
-}
-
-async function supportsMergeTreeWriteTree(exec: RawGitExec, commit: string): Promise<boolean> {
-  try {
-    const output = await gitLines(exec, ["merge-tree", "--write-tree", commit, commit]);
-    return output.some((line) => /^[0-9a-f]{40,64}$/u.test(line));
-  } catch {
-    return false;
   }
 }
 
