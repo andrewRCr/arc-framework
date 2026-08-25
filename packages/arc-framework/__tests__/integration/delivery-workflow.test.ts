@@ -36,6 +36,7 @@ describe("packaged delivery workflow", () => {
     expect(packaged).not.toContain("arc delivery rewrite");
     expect(packaged).not.toContain("arc delivery terminal prepare");
     expect(packaged).toContain("arc delivery teardown");
+    expect(packaged).toContain("arc delivery top-remedy");
     expect(packaged).toContain("arc delivery native link");
     expect(packaged).toContain("arc delivery native observe");
     expect(packaged).toContain("arc delivery native unlink");
@@ -49,6 +50,10 @@ describe("packaged delivery workflow", () => {
     const reviewSection = section(packaged, "Review and land the current member");
     const terminalSection = section(packaged, "Terminal handoff");
     const terminalTail = packaged.slice(packaged.indexOf("arc delivery teardown"));
+    const recoverySection = materializeSection.slice(
+      materializeSection.indexOf("After interruption"),
+      materializeSection.indexOf("Only after every request ID exists"),
+    );
     expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
     expect(materializeSection).toContain("terminalPresentation");
     expect(materializeSection.indexOf("terminalPresentation")).toBeLessThan(
@@ -59,9 +64,7 @@ describe("packaged delivery workflow", () => {
     );
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
     expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
-    expect(nativeSection).toMatch(
-      /only the plan, request, and remote locators[\s\S]*effect\s+identity from delivery state/iu,
-    );
+    expect(nativeSection).not.toContain("only the plan, request, and remote locators");
     expect(packaged).toContain("never enters the delivery plan or state");
     expect(packaged).toContain("integrate-work-unit.md");
     const prepare = packaged.indexOf("arc delivery land prepare");
@@ -85,6 +88,28 @@ describe("packaged delivery workflow", () => {
     );
     expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
     expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
+    expect(terminalTail).toMatch(/explicit[\s\S]*arc delivery top-remedy[\s\S]*terminal-checkpoint/iu);
+    expect(recoverySection).toMatch(/applied \/ read-position[\s\S]*arc delivery position/iu);
+    expect(recoverySection).not.toContain("retryable / read-position");
+    for (const arm of [
+      "retryable / cleared / delivery-publish` with `operationKind: materialize",
+      "retryable / preserved / delivery-publish` with `operationKind: publish",
+      "retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix",
+      "retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and",
+      "retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential",
+      "retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native",
+      "retryable / preserved / delivery-teardown` with `operationKind: teardown",
+      "retryable / cleared / delivery-top-remedy` with `operationKind: top-remedy",
+    ]) {
+      expect(recoverySection).toContain(arm);
+    }
+    expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery native observe/iu);
+    expect(recoverySection).toMatch(
+      /planId[\s\S]*operationId[\s\S]*affectedDeliverableIds[\s\S]*operationKind[\s\S]*narrow `mode`/u,
+    );
+    expect(recoverySection).toMatch(/workflow prose infers neither a selector nor a[\s\S]*recovery policy/iu);
+    expect(recoverySection).toMatch(/unlisted action\/transition\/selector pairing[\s\S]*stops/iu);
+    expect(reviewSection).toMatch(/teardown-member[\s\S]*selectedDeliverableId[\s\S]*arc delivery teardown/iu);
     expect(terminalSection).not.toContain("`integration-interlock`");
     expect(packaged).not.toMatch(/if\s+.*(?:state|status)\s*==/iu);
     const nativeObserve = packaged.indexOf("arc delivery native observe");
@@ -101,8 +126,9 @@ describe("packaged delivery workflow", () => {
     expect(nativeInterlock).toBeLessThan(nativeSubmit);
     expect(nativeSubmit).toBeLessThan(nativeStatus);
     expect(nativeSection).toMatch(/exact member\/head set[\s\S]*residual race/iu);
-    expect(nativeSection).toMatch(/pending[\s\S]*restart[\s\S]*land-status/iu);
-    expect(nativeSection).toMatch(/none-landed[\s\S]*new\s+interlock/iu);
+    expect(nativeSection).toMatch(/ordinary polling[\s\S]*land-status/iu);
+    expect(nativeSection).toMatch(/restart or interruption[\s\S]*arc delivery reconcile/iu);
+    expect(nativeSection).toMatch(/terminal `failed`[\s\S]*exact `none-landed`[\s\S]*new\s+interlock/iu);
     expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);
     expect(nativeSection).toMatch(/linked-single[\s\S]*contribution proof[\s\S]*new-head review/iu);
     expect(nativeSection).toMatch(/The terminal\s+member is never included/u);

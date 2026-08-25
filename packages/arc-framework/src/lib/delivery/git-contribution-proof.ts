@@ -72,7 +72,7 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
   ];
   if (!(await Promise.all(coordinates.map(async (coordinate) => verifyCoordinate(input.exec, coordinate))))
     .every(Boolean)) return { status: "refused", reason: "contribution-endpoints-unverified" };
-  const comparison = compareDeliveryContribution(input);
+  const comparison = compareDeliveryContribution({ before: input.before, after: input.after });
   if (comparison.status === "accepted") return comparison;
   if (!await supportsMergeTreeWriteTree(input.exec, input.before.predecessor.head)) {
     return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
