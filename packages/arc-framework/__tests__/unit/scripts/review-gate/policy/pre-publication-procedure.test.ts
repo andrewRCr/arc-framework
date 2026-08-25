@@ -14,6 +14,7 @@ import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
   projectPublicationBoundary,
+  recoverIntegratingBoundary,
   recoverPublicationBoundary,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -125,6 +126,23 @@ describe("integration boundary locus", () => {
       ...carried,
       candidateSubjectDigest: currentSubjectDigest,
     });
+  });
+
+  it("recovers an exact Candidate-review boundary while the work unit remains Integrating", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const stored = projectCandidateReviewBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+    });
+
+    expect(recoverIntegratingBoundary({
+      stored,
+      workUnit: "example",
+      branch: "feat/example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+    })).toEqual(stored);
   });
 
   it("carries an Owner-accepted terminus through convergence resume and publication", () => {
