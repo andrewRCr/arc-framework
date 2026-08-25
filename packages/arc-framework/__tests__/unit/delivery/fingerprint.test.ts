@@ -14,7 +14,11 @@ function memberInput(
   return {
     title: "Record substrate",
     contract: "Publish the canonical delivery record.",
-    tasks: [{ taskId: "1.1", semanticDigest: canonicalDigest({ goal: "Original intent." }) }],
+    tasks: [{
+      taskId: "1.1",
+      semanticDigest: canonicalDigest({ goal: "Original intent." }),
+      role: { kind: "implementation" },
+    }],
     designElements: [{ elementId: "detailed:R1", semanticDigest: canonicalDigest({ text: "Requirement" }) }],
     mainlineLandability: "independently-landable",
     incidentSeams: [],
@@ -26,7 +30,11 @@ describe("deriveMemberSemanticFingerprint", () => {
   it("moves when a referenced task Goal digest moves", () => {
     const before = deriveMemberSemanticFingerprint(memberInput());
     const after = deriveMemberSemanticFingerprint(memberInput({
-      tasks: [{ taskId: "1.1", semanticDigest: canonicalDigest({ goal: "Changed intent." }) }],
+      tasks: [{
+        taskId: "1.1",
+        semanticDigest: canonicalDigest({ goal: "Changed intent." }),
+        role: { kind: "implementation" },
+      }],
     }));
 
     expect(after).not.toBe(before);
@@ -69,7 +77,11 @@ describe("deriveMemberSemanticFingerprint", () => {
   it.each([
     ["contract", { contract: "Publish a changed contract." }],
     ["task coverage", {
-      tasks: [{ taskId: "1.2", semanticDigest: canonicalDigest({ goal: "Original intent." }) }],
+      tasks: [{
+        taskId: "1.2",
+        semanticDigest: canonicalDigest({ goal: "Original intent." }),
+        role: { kind: "implementation" },
+      }],
     }],
     ["design coverage", {
       designElements: [{

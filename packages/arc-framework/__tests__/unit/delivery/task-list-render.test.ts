@@ -63,11 +63,23 @@ function plan(options: {
     },
     tasks: {
       inventoryDigest: digest("tasks"),
-      implementation: [
-        { taskId: "1.1", semanticDigest: digest("task-1") },
-        { taskId: "1.2", semanticDigest: digest("task-2") },
+      parents: [
+        {
+          taskId: "1.1",
+          semanticDigest: digest("task-1"),
+          role: { kind: "implementation" },
+        },
+        {
+          taskId: "1.2",
+          semanticDigest: digest("task-2"),
+          role: { kind: "implementation" },
+        },
+        {
+          taskId: "2.1",
+          semanticDigest: null,
+          role: { kind: "verification", scope: "work-unit" },
+        },
       ],
-      verificationTaskId: "2.1",
     },
     entry: "from-tasks",
     projection: { kind: options.projection ?? "stack-to-main" },
@@ -144,6 +156,12 @@ describe("delivery task-list projection", () => {
     expect(second.content).toContain("`1.1` (shared)");
     expect(second.content).toContain("- **Plan Revision:** `2`");
     expect(second.content).not.toContain("- **Plan Revision:** `1`");
+    expect(second.content).toContain(
+      "<!-- arc:delivery-plan:end -->\n\n## **Phase 1:** Build",
+    );
+    expect(second.content).not.toContain(
+      "<!-- arc:delivery-plan:end -->\n\n\n## **Phase 1:** Build",
+    );
   });
 
   it("refuses absent, duplicate, reversed, and partial replacement loci", () => {

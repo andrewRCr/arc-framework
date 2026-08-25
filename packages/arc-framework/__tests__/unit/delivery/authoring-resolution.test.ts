@@ -18,6 +18,14 @@ import type { ReachableReferenceTransition } from "../../../src/lib/work-unit/re
 
 function pair(originalWorkUnitId = "original-unit"): DeliveryAuthoringPair {
   const taskDigest = canonicalDigest({ goal: "Implement" });
+  const parents = [
+    { taskId: "1.1", semanticDigest: taskDigest, role: { kind: "implementation" as const } },
+    {
+      taskId: "2.1",
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
+  ];
   return {
     snapshot: createDeliveryAuthoringSnapshot({
       mapId: "authoring-map",
@@ -29,9 +37,8 @@ function pair(originalWorkUnitId = "original-unit"): DeliveryAuthoringPair {
         elements: [],
       },
       tasks: {
-        inventoryDigest: canonicalDigest([{ taskId: "1.1", semanticDigest: taskDigest }]),
-        implementation: [{ taskId: "1.1", semanticDigest: taskDigest }],
-        verificationTaskId: "2.1",
+        inventoryDigest: canonicalDigest(parents),
+        parents,
       },
       source: {
         entry: "from-tasks",

@@ -27,7 +27,11 @@ import {
   deriveUniqueDeliverableIds,
   resolveDeliveryPlanId,
 } from "./identity.js";
-import type { DeliveryTaskInventory } from "./task-inventory.js";
+import {
+  isDeliveryTaskAssignable,
+  isWorkUnitVerificationTask,
+  type DeliveryTaskInventory,
+} from "./task-inventory.js";
 import {
   DeliveryPlanV1Schema,
   type DeliveryPlanAuthoringInputV1,
@@ -70,7 +74,7 @@ export type DeliveryPlanIssueCode =
   | "plan-digest-mismatch"
   | "task-inventory-digest-mismatch"
   | "duplicate-task-id"
-  | "verification-task-in-implementation"
+  | "work-unit-verification-task-ambiguous"
   | "duplicate-artifact-id"
   | "duplicate-design-element-id"
   | "duplicate-member-chunk-key"
@@ -142,13 +146,9 @@ export const DeliveryPlanV1Codec: DeliveryPlanPayloadCodec<DeliveryPlanV1> = {
 export function constructDeliveryPlanRevision(
   input: ConstructDeliveryPlanRevisionInput,
 ): ConstructDeliveryPlanRevisionResult {
-  if (canonicalize({
-    implementation: input.authoring.tasks.implementation.map((task) => task.taskId),
-    verificationTaskId: input.authoring.tasks.verificationTaskId,
-  }) !== canonicalize({
-    implementation: input.taskInventory.implementation.map((task) => task.taskId),
-    verificationTaskId: input.taskInventory.verificationTaskId,
-  })) {
+  if (canonicalize(input.authoring.tasks.parents) !== canonicalize(
+    input.taskInventory.parents.map(({ taskId, role }) => ({ taskId, role })),
+  )) {
     return { status: "refused", issues: [{ code: "task-inventory-binding-mismatch" }] };
   }
   if (canonicalize({
@@ -199,7 +199,9 @@ export function constructDeliveryPlanRevision(
     });
   }
   const normalizedSeams = sortByCanonicalBytes(seams);
-  const taskById = new Map(input.taskInventory.implementation.map((task) => [task.taskId, task]));
+  const taskById = new Map(input.taskInventory.parents
+    .filter(isDeliveryTaskAssignable)
+    .map((task) => [task.taskId, task]));
   const designById = new Map(input.designInventory.elements.map((element) => [element.elementId, element]));
   const members: DeliveryPlanMemberV1[] = input.authoring.members.map((member, index) => {
     const deliverableId = deliverableIds[index];
@@ -247,8 +249,7 @@ export function constructDeliveryPlanRevision(
     },
     tasks: {
       inventoryDigest: input.taskInventory.inventoryDigest,
-      implementation: input.taskInventory.implementation.map((task) => ({ ...task })),
-      verificationTaskId: input.taskInventory.verificationTaskId,
+      parents: input.taskInventory.parents.map((task) => ({ ...task })),
     },
     entry: input.authoring.entry,
     projection: input.authoring.projection,
@@ -302,7 +303,7 @@ export function validateDeliveryPlanRecord(value: unknown): DeliveryPlanValidati
   if (deriveDeliveryPlanDigest(plan) !== plan.planDigest) {
     issues.push({ code: "plan-digest-mismatch", path: ["planDigest"] });
   }
-  if (canonicalDigest(plan.tasks.implementation) !== plan.tasks.inventoryDigest) {
+  if (canonicalDigest(plan.tasks.parents) !== plan.tasks.inventoryDigest) {
     issues.push({ code: "task-inventory-digest-mismatch", path: ["tasks", "inventoryDigest"] });
   }
 
@@ -316,15 +317,14 @@ export function validateDeliveryPlanRecord(value: unknown): DeliveryPlanValidati
   const taskCoverage = validateDeliveryTaskCoverage({
     entry: plan.entry,
     predecessorEntry: null,
-    implementationTaskIds: plan.tasks.implementation.map((task) => task.taskId),
-    verificationTaskId: plan.tasks.verificationTaskId,
+    tasks: plan.tasks.parents,
     memberTaskIds: plan.members.map((member) => member.taskIds),
   });
   const advisories = taskCoverage.status === "valid" ? taskCoverage.advisories : [];
   if (taskCoverage.status === "refused") {
     issues.push(...taskCoverage.issues.map((issue) => ({
       code: issue.kind,
-      ...(issue.kind === "uncovered-implementation-task" || issue.kind === "unknown-task-reference"
+      ...(issue.kind === "uncovered-assignable-task" || issue.kind === "unknown-task-reference"
         ? { path: ["tasks", issue.taskId] }
         : {}),
     })));
@@ -385,11 +385,15 @@ export function validateDeliveryPlanRevision(
 }
 
 function collectUniquenessIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]): void {
-  collectDuplicateIssue(plan.tasks.implementation.map((task) => task.taskId), "duplicate-task-id", issues);
-  if (plan.tasks.implementation.some((task) => task.taskId === plan.tasks.verificationTaskId)) {
+  collectDuplicateIssue(plan.tasks.parents.map((task) => task.taskId), "duplicate-task-id", issues);
+  const workUnitVerificationTasks = plan.tasks.parents.filter(isWorkUnitVerificationTask);
+  const terminalTask = plan.tasks.parents.at(-1);
+  if (workUnitVerificationTasks.length !== 1
+    || terminalTask === undefined
+    || !isWorkUnitVerificationTask(terminalTask)) {
     issues.push({
-      code: "verification-task-in-implementation",
-      path: ["tasks", "verificationTaskId"],
+      code: "work-unit-verification-task-ambiguous",
+      path: ["tasks", "parents"],
     });
   }
   collectDuplicateIssue(plan.design.artifacts.map((artifact) => artifact.artifactId), "duplicate-artifact-id", issues);
@@ -495,7 +499,9 @@ function collectProjectionIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue
 }
 
 function collectMemberFingerprintIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]): void {
-  const taskById = new Map(plan.tasks.implementation.map((task) => [task.taskId, task]));
+  const taskById = new Map(plan.tasks.parents
+    .filter(isDeliveryTaskAssignable)
+    .map((task) => [task.taskId, task]));
   const designById = new Map(plan.design.elements.map((element) => [element.elementId, element]));
   for (const [index, member] of plan.members.entries()) {
     const expected = deriveMemberSemanticFingerprint({
@@ -503,9 +509,10 @@ function collectMemberFingerprintIssues(plan: DeliveryPlanV1, issues: DeliveryPl
       contract: member.contract,
       tasks: member.taskIds.flatMap((taskId) => {
         const task = taskById.get(taskId);
-        return task === undefined ? [] : [{
+        return task === undefined || task.semanticDigest === null ? [] : [{
           taskId: task.taskId,
           semanticDigest: asCanonicalDigest(task.semanticDigest),
+          role: task.role,
         }];
       }),
       designElements: member.designElementIds.flatMap((elementId) => {

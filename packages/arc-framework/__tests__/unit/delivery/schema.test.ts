@@ -34,8 +34,14 @@ function validPlan(): Record<string, unknown> {
     },
     tasks: {
       inventoryDigest: digest,
-      implementation: [{ taskId: "1.1", semanticDigest: digest }],
-      verificationTaskId: "3.1",
+      parents: [
+        { taskId: "1.1", semanticDigest: digest, role: { kind: "implementation" } },
+        {
+          taskId: "3.1",
+          semanticDigest: null,
+          role: { kind: "verification", scope: "work-unit" },
+        },
+      ],
     },
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
@@ -64,8 +70,10 @@ function validAuthoringInput(): Record<string, unknown> {
       elements: [{ elementId: "detailed:R1" }],
     },
     tasks: {
-      implementation: [{ taskId: "1.1" }],
-      verificationTaskId: "3.1",
+      parents: [
+        { taskId: "1.1", role: { kind: "implementation" } },
+        { taskId: "3.1", role: { kind: "verification", scope: "work-unit" } },
+      ],
     },
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
@@ -221,7 +229,7 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
       [["design", "artifacts", 0, "revisionDigest"], digest],
       [["design", "elements", 0, "semanticDigest"], digest],
       [["tasks", "inventoryDigest"], digest],
-      [["tasks", "implementation", 0, "semanticDigest"], digest],
+      [["tasks", "parents", 0, "semanticDigest"], digest],
       [["members", 0, "deliverableId"], digest],
       [["members", 0, "semanticFingerprint"], digest],
     ];
@@ -238,6 +246,25 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
       expect(result.success).toBe(false);
       if (!result.success) expect(result.error.message).toContain(String(path.at(-1)));
     }
+  });
+
+  it("keeps verification scope schema-open while protecting semantic digests by role", () => {
+    const input = validAuthoringInput();
+    const parents = (input.tasks as { parents: Array<Record<string, unknown>> }).parents;
+    parents.splice(1, 0, {
+      taskId: "1.2",
+      role: { kind: "verification", scope: "future-boundary" },
+    });
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(true);
+
+    const plan = validPlan();
+    const planParents = (plan.tasks as { parents: Array<Record<string, unknown>> }).parents;
+    planParents[0]!.semanticDigest = null;
+    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+
+    planParents[0]!.semanticDigest = digest;
+    planParents[1]!.semanticDigest = digest;
+    expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
   });
 
   it("refuses derived seam incidence, ownership, identity, and fingerprints", () => {

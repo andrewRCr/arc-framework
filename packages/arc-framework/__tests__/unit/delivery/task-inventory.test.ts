@@ -77,7 +77,7 @@ describe("extractTaskGoalInventory", () => {
 });
 
 describe("buildDeliveryTaskInventory", () => {
-  it("binds the sole parent in the final Verification phase outside the implementation inventory", () => {
+  it("classifies implementation and the sole work-unit verification parent in task order", () => {
     const result = buildDeliveryTaskInventory(taskList([
       "- _Goal:_ Bind the implementation task.",
     ]));
@@ -85,13 +85,45 @@ describe("buildDeliveryTaskInventory", () => {
     expect(result).toMatchObject({
       status: "ok",
       inventory: {
-        implementation: [{ taskId: "1.1" }],
-        verificationTaskId: "2.1",
+        parents: [
+          { taskId: "1.1", role: { kind: "implementation" } },
+          {
+            taskId: "2.1",
+            semanticDigest: null,
+            role: { kind: "verification", scope: "work-unit" },
+          },
+        ],
       },
     });
   });
 
-  it("digests only normalized implementation task identities and Goal semantics", () => {
+  it("classifies the existing member close-out form as assignable member verification", () => {
+    const result = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Bind the implementation task.",
+    ]).replace(
+      "## **Phase 2:** Verification",
+      [
+        "### `[ ]` **1.2 Close delivery member 1** — validate criteria at member scope",
+        "",
+        "- _Goal:_ Record the member criteria report.",
+        "",
+        "## **Phase 2:** Verification",
+      ].join("\n"),
+    ));
+
+    expect(result).toMatchObject({
+      status: "ok",
+      inventory: {
+        parents: [
+          { taskId: "1.1", role: { kind: "implementation" } },
+          { taskId: "1.2", role: { kind: "verification", scope: "member" } },
+          { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
+        ],
+      },
+    });
+  });
+
+  it("digests only normalized parent identities, roles, and assignable Goal semantics", () => {
     const before = buildDeliveryTaskInventory(taskList([
       "- _Goal:_ Bind stable implementation intent.",
     ]));
@@ -100,7 +132,7 @@ describe("buildDeliveryTaskInventory", () => {
     ], {
       title: "Changed presentation title",
       peerLines: ["", "- _Note:_ Changed non-semantic context."],
-    }).replace("2.1 Verification", "2.2 Run verification"));
+    }));
 
     expect(before.status).toBe("ok");
     expect(after.status).toBe("ok");
@@ -108,7 +140,7 @@ describe("buildDeliveryTaskInventory", () => {
     expect(after.inventory.inventoryDigest).toBe(before.inventory.inventoryDigest);
   });
 
-  it("excludes verification Goal content from entries and the inventory digest", () => {
+  it("excludes work-unit verification Goal content from entries and the inventory digest", () => {
     const withoutGoal = buildDeliveryTaskInventory(taskList([
       "- _Goal:_ Bind stable implementation intent.",
     ]));
@@ -126,7 +158,7 @@ describe("buildDeliveryTaskInventory", () => {
     expect(withoutGoal.status).toBe("ok");
     expect(withGoal.status).toBe("ok");
     if (withoutGoal.status !== "ok" || withGoal.status !== "ok") return;
-    expect(withGoal.inventory.implementation).toHaveLength(1);
+    expect(withGoal.inventory.parents).toHaveLength(2);
     expect(withGoal.inventory.inventoryDigest).toBe(withoutGoal.inventory.inventoryDigest);
   });
 
@@ -166,11 +198,11 @@ describe("buildDeliveryTaskInventory", () => {
 
     expect(noParent).toEqual({
       status: "refused",
-      reason: "verification-task-ambiguous",
+      reason: "work-unit-verification-task-ambiguous",
     });
     expect(twoParents).toEqual({
       status: "refused",
-      reason: "verification-task-ambiguous",
+      reason: "work-unit-verification-task-ambiguous",
     });
   });
 

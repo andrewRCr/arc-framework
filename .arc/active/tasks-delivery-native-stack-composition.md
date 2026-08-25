@@ -8,7 +8,7 @@
 ## Delivery Plan
 
 - **Plan Revision:** `1`
-- **Plan Digest:** `sha256:6b1cff308d87a84276630923d7cd7e585f1a9a72798e17ec1fb206e7a154e260`
+- **Plan Digest:** `sha256:ac69e6b3f6b12c00d67f22486a17370791d2042f746b0cc90be8a0c79d6d6df8`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -235,15 +235,11 @@ copy together.
   delivery inventory records it as implementation. Replace that workaround with ordered role/scope classification
   while preserving the exact terminal work-unit verifier and existing member-partition semantics.
 
-    - `[ ]` **1.8.R.a Model parent task roles and verification scopes**
+    - `[x]` **1.8.R.a Model parent task roles and verification scopes**
 
-        - Build `test-first` across inventory extraction, canonical/authoring schemas, coverage, plan construction,
-          task- and branch-derived authoring, composition, handlers, fixtures, and refusal surfaces.
-        - Classify the existing member close-out form as `verification/member`, the sole terminal parent as
-          `verification/work-unit`, and every other current parent as `implementation`; keep future scope values
-          schema-open without adding segment identity or planning doctrine.
-        - Regenerate unpublished canonical delivery development records against the new digest shape rather than
-          adding a compatibility reader.
+        - Replaced singular task fields with ordered role/scope parents across extraction, schemas, coverage,
+          authoring, composition, fingerprints, handlers, and refusals; regenerated the live revision-1 plan and
+          revision-32 state with stable deliverable bindings, and made repeated projection renders idempotent.
 
     - `[ ]` **1.8.R.b Revalidate the amended Member 1 boundary**
 

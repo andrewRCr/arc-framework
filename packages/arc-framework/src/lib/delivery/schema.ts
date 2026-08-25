@@ -22,6 +22,40 @@ export const DeliveryArtifactBasenameSchema = z.string().min(1).refine(
   "must be a safe basename",
 );
 
+/** Semantic role assigned to one ordered parent task in a delivery inventory. */
+export const DeliveryTaskRoleV1Schema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("implementation") }),
+  z.strictObject({
+    kind: z.literal("verification"),
+    scope: NonEmptyTextSchema,
+  }),
+]);
+export type DeliveryTaskRoleV1 = z.infer<typeof DeliveryTaskRoleV1Schema>;
+
+/** Canonical parent task with its role-sensitive semantic digest. */
+export const DeliveryTaskInventoryParentV1Schema = z.strictObject({
+  taskId: ParentTaskIdSchema,
+  semanticDigest: DeliveryCanonicalDigestSchema.nullable(),
+  role: DeliveryTaskRoleV1Schema,
+}).superRefine((task, context) => {
+  const isWorkUnitVerification = task.role.kind === "verification"
+    && task.role.scope === "work-unit";
+  if (isWorkUnitVerification !== (task.semanticDigest === null)) {
+    context.addIssue({
+      code: "custom",
+      message: isWorkUnitVerification
+        ? "work-unit verification tasks must not carry a semantic digest"
+        : "assignable tasks must carry a semantic digest",
+      path: ["semanticDigest"],
+    });
+  }
+});
+
+const DeliveryPlanAuthoringTaskParentV1Schema = z.strictObject({
+  taskId: ParentTaskIdSchema,
+  role: DeliveryTaskRoleV1Schema,
+});
+
 const AuthoredDeliveryPlanMemberShape = {
   chunkKey: SlugSchema,
   title: NonEmptyTextSchema,
@@ -77,11 +111,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
   }),
   tasks: z.strictObject({
     inventoryDigest: DeliveryCanonicalDigestSchema,
-    implementation: z.array(z.strictObject({
-      taskId: ParentTaskIdSchema,
-      semanticDigest: DeliveryCanonicalDigestSchema,
-    })),
-    verificationTaskId: ParentTaskIdSchema,
+    parents: z.array(DeliveryTaskInventoryParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
   projection: z.discriminatedUnion("kind", [
@@ -105,8 +135,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
     elements: z.array(z.strictObject({ elementId: DeliveryOpaqueIdSchema })),
   }),
   tasks: z.strictObject({
-    implementation: z.array(z.strictObject({ taskId: ParentTaskIdSchema })),
-    verificationTaskId: ParentTaskIdSchema,
+    parents: z.array(DeliveryPlanAuthoringTaskParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
   projection: z.discriminatedUnion("kind", [
