@@ -23,16 +23,17 @@ to the registered package default.
 | self-review        | `true`          | Author-side aggregate diff preflight                |
 | frontline-review   | `false`         | Advisory distinct-context review before PR creation |
 
-**Loading model:** Method defaults and overrides always load on-demand at workflow trigger points. Session-init
-does not read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs
-generation, and authoring tooling, not by session-init. Workflow documents declare their method dependencies in
-frontmatter (`arc.methods`) — see [Workflow Authoring Strategy][workflow-authoring] and
-[Session Operations Strategy § Method and Extension Loading][session-ops-methods].
+**Loading model:** Method defaults and overrides always load on-demand at their fire-points. Session-init does not
+read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs generation,
+and authoring tooling, not by session-init. Workflows and methods declare only the methods their own bodies may fire
+in `arc.methods`; workflow declarations are roots, and method-owned declarations form a deduplicated transitive
+graph. A caller never redeclares its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring]
+and [Session Operations Strategy § Method and Extension Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
 
-## Method Dependencies
+## Related Methods
 
 Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
 when populating any `.override` section. Methods not listed here are independent.
@@ -52,6 +53,7 @@ when populating any `.override` section. Methods not listed here are independent
 | design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
 | testing-standards             | test-first                                                               | Planning/execution seam split              |
 | test-first                    | testing-standards                                                        | Planning/execution seam split              |
+| validate-criteria             | adversarial-review                                                       | Criteria walk and fresh-context companion  |
 
 ---
 

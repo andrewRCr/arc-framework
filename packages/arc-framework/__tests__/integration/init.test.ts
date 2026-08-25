@@ -309,6 +309,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "spec-review.md",
       "task-audit.md",
       "test-first.md",
+      "validate-criteria.md",
       "README.md",
     ];
     for (const name of methodFiles) {
@@ -354,6 +355,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
         "session-state", "spec-review", "task-audit", "test-first",
+        "validate-criteria",
       ];
       const extensionNames = [
         "post-context-load", "post-task-completion", "post-task-quality",

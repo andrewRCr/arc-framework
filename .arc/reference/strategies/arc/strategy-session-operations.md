@@ -39,7 +39,7 @@ ARC organizes agent context into three tiers based on when the content becomes r
 | ---- | -------------- | ------------------------------------ | --------------------------------------------------------- |
 | T1   | Constitutional | Session initialization               | Principles, identity, constraints, navigation             |
 | T2   | State          | Session initialization               | Work status, session notes, task overview                 |
-| T3   | Procedural     | On-demand at workflow trigger points | Method defaults/overrides, strategies, detailed workflows |
+| T3   | Procedural     | On-demand at declared fire-points    | Method defaults/overrides, strategies, detailed workflows |
 
 **T1 — Constitutional.** Content that governs all agent behavior regardless of the session's
 work. Always loaded at session start.
@@ -252,19 +252,20 @@ initiates the activity.
 
 ## Method and Extension Loading
 
-**Declaration mechanism.** Workflow frontmatter declares method and extension dependencies — see
-[Workflow Authoring Strategy][workflow-authoring] for the schema. The frontmatter's `arc.methods` /
-`arc.extensions` arrays are the load contract; in-step markdown links remain as reader navigation but do not
-constitute the trigger.
+**Declaration mechanism.** Each workflow or method declares only the methods its own body may fire; workflows also
+declare their extension checks. Workflow declarations root a deduplicated transitive method graph, so a workflow
+never repeats its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring] for the schema. The
+frontmatter's `arc.methods` / `arc.extensions` arrays are the load contract; in-step markdown links remain as reader
+navigation but do not constitute the trigger.
 
 ### Per-file Frontmatter Schema
 
 Methods and extensions live as per-file entries under `system/methods/` and `system/extensions/`, each with a
 fixed YAML frontmatter block. The schema has two consumers: session-init reads the `active` field on each
 `system/extensions/*.md` file via a single `grep` to produce the **active-extensions list** (see
-§ Session-Init Consumption); the framework-repo CI audit reads the directories and workflow frontmatter to
-enforce corpus-wide coverage. Method frontmatter is not consumed at init — method bodies always load at
-workflow trigger.
+§ Session-Init Consumption); the framework-repo CI audit reads the directories plus workflow and method
+frontmatter to enforce corpus-wide reachability and dependency-graph integrity. Method frontmatter is not consumed
+at init — method bodies load at their direct consumer's fire-point.
 
 **Method schema** (`system/methods/<name>.md`):
 
@@ -272,6 +273,9 @@ workflow trigger.
 ---
 name: <method-name>
 description: <one-line operational purpose>
+arc:                              # optional; omit when the method fires no methods
+  methods:
+    - <method-name>
 related:
   - <related-method-name>
 override-active: false
@@ -296,6 +300,8 @@ active: false
 - `name` — method or extension name; must match the file basename (e.g., `issue-triage.md` registers
   `issue-triage`)
 - `description` — one-line operational purpose. What it does, not where it fires
+- `arc.methods` — methods this method's default or override body may fire. Declare the union across both bodies;
+  the actual dependency loads only when execution reaches its fire-point. Callers do not redeclare these entries
 - `related` — array of coupled method or extension names within the same kind. Overriding one should prompt
   review of the others. Omit when empty
 - `override-active` (methods only) — `true` when the file's override body is populated; `false` when the
@@ -310,12 +316,11 @@ active: false
   produce the active-extensions list (see § Session-Init Consumption). Fire-point directives consult the
   list by name and skip invocation for extensions not on it
 
-**Why no `workflow` field:** The workflow→method/extension trigger contract lives in workflow frontmatter
-(`arc.methods` / `arc.extensions`) — that's the mechanical coverage guarantee enforced by the framework-repo
-CI audit. The reverse index (method→workflows) is centralized in this strategy's "Method classification by
-trigger" table, which stays readable when methods fire from multiple workflows. A per-file `workflow` field
-would duplicate that info, would be lossy when methods fan out (e.g., `session-state` fires at both
-session-init and session-handoff), and has no mechanical consumer — so it's omitted.
+**Why no `workflow` field:** Workflow frontmatter roots the method graph and owns extension triggers; method
+frontmatter adds only its direct method dependencies. The reverse index (method→workflows) is centralized in this
+strategy's "Method classification by trigger" table, which stays readable when methods fire from multiple
+workflows. A per-file `workflow` field would duplicate that info, would be lossy when methods fan out (e.g.,
+`session-state` fires at both session-init and session-handoff), and has no mechanical consumer — so it's omitted.
 
 ### Per-file Body Conventions
 
@@ -359,10 +364,11 @@ targets resolve via paths relative to the file's directory (`system/methods/` or
 
 Methods and extensions have asymmetric init-time treatment.
 
-**Methods — no init read.** Method bodies (`.override` + `.default`) always load at the workflow trigger
-point declared in the calling workflow's `arc.methods` frontmatter. Session-init does not inspect
-`override-active` — the agent-side compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method and extension
-loading) plus reliable workflow-declared triggers make init-time override-presence surfacing unnecessary.
+**Methods — no init read.** Method bodies (`.override` + `.default`) load at the direct workflow or method
+fire-point declared in that consumer's `arc.methods` frontmatter. Workflow declarations root the transitive graph;
+method declarations carry their own dependencies. Session-init does not inspect `override-active` — the agent-side
+compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method and extension loading) plus declared fire-points make
+init-time override-presence surfacing unnecessary.
 
 **Extensions — minimal init enumeration.** Session-init consumes the **active-extensions list** from the
 composite `arc status --session-init --json` probe (see § Probe pattern). Internally, the probe enumerates

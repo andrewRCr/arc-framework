@@ -51,9 +51,10 @@ activate an activity; they describe override content and composition.
 
 ### On-demand loading
 
-Method content loads when a workflow reaches the relevant operation, not at session start. Workflows declare their
-dependencies in `arc.methods`; the agent reads the method file at that trigger and applies its default or configured
-override.
+Method content loads when its direct consumer reaches the relevant operation, not at session start. Workflows and
+methods declare only the methods their own bodies may fire in `arc.methods`; workflow declarations root the
+deduplicated transitive graph, so callers do not repeat their methods' dependencies. The agent reads each method at
+its fire-point and applies its default or configured override.
 
 ### Reviewer guidance delivery
 

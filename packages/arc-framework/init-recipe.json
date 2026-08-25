@@ -93,6 +93,7 @@
     "system/methods/spec-review.md",
     "system/methods/task-audit.md",
     "system/methods/test-first.md",
+    "system/methods/validate-criteria.md",
     "system/methods/README.md",
     "system/.internal/scripts/arc-lib.sh",
     "system/.internal/scripts/confirm-live-change-pair.sh",

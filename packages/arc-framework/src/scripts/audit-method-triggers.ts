@@ -2,9 +2,9 @@
  * Reliable-trigger audit for method/extension coverage.
  *
  * Enumerates methods and extensions from the per-file directories and verifies
- * each has at least one declaration in a workflow's YAML frontmatter
- * (`arc.methods` / `arc.extensions`). Fails CI with per-entry diagnostics on
- * any gap.
+ * each is reachable from a workflow's YAML frontmatter (`arc.methods` /
+ * `arc.extensions`) through direct declarations or method-owned dependencies.
+ * Fails CI with per-entry diagnostics on any gap or broken dependency graph.
  *
  * Runs against the package-source copy only; drift vs. `.arc/` is caught by
  * the framework-sync test.
@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { resolveRepoRoot } from "./repo-root.js";
 import { walkMarkdown } from "../lib/fs/walk-markdown.js";
 import { parseFrontmatter } from "../lib/frontmatter/index.js";
+import { parseMethodFrontmatter } from "../lib/frontmatter/method.js";
 import {
   ACTIVATABLE_METHOD_REGISTRY,
   isActivatableMethodName,
@@ -40,6 +41,8 @@ export interface CoverageMaps {
   extensions: Map<string, string[]>;
   /** Workflows whose frontmatter could not be parsed. */
   parseDiagnostics: string[];
+  /** Workflow declarations that do not resolve to a registered entry. */
+  declarationDiagnostics: string[];
 }
 
 /** Final audit outcome. */
@@ -193,6 +196,7 @@ export function buildCoverageMap(
   for (const name of methodNames) methods.set(name, []);
   for (const name of extensionNames) extensions.set(name, []);
   const parseDiagnostics: string[] = [];
+  const declarationDiagnostics: string[] = [];
   for (const wf of workflows) {
     const decl = parseWorkflowFrontmatter(wf.content);
     if (decl.parseError !== undefined) {
@@ -202,13 +206,106 @@ export function buildCoverageMap(
       continue;
     }
     for (const m of decl.methods) {
-      methods.get(m)?.push(wf.path);
+      const declaredBy = methods.get(m);
+      if (declaredBy === undefined) {
+        declarationDiagnostics.push(`Workflow "${wf.path}" declares unknown method "${m}" in arc.methods.`);
+      } else {
+        declaredBy.push(wf.path);
+      }
     }
     for (const e of decl.extensions) {
-      extensions.get(e)?.push(wf.path);
+      const declaredBy = extensions.get(e);
+      if (declaredBy === undefined) {
+        declarationDiagnostics.push(`Workflow "${wf.path}" declares unknown extension "${e}" in arc.extensions.`);
+      } else {
+        declaredBy.push(wf.path);
+      }
     }
   }
-  return { methods, extensions, parseDiagnostics };
+  return { methods, extensions, parseDiagnostics, declarationDiagnostics };
+}
+
+interface MethodDependencyGraph {
+  dependencies: Map<string, string[]>;
+  diagnostics: string[];
+}
+
+function readMethodDependencyGraph(methodsDir: string, methodNames: string[]): MethodDependencyGraph {
+  const dependencies = new Map<string, string[]>();
+  const diagnostics: string[] = [];
+  const registered = new Set(methodNames);
+
+  for (const name of methodNames) {
+    const parsed = parseMethodFrontmatter(readFileSync(join(methodsDir, `${name}.md`), "utf8"), name);
+    if (parsed.frontmatter === undefined) {
+      diagnostics.push(`Method "${name}" has invalid frontmatter: ${parsed.errors.join("; ")}.`);
+      dependencies.set(name, []);
+      continue;
+    }
+    const declared = [...new Set(parsed.frontmatter.arc?.methods ?? [])];
+    dependencies.set(name, declared);
+    for (const dependency of declared) {
+      if (!registered.has(dependency)) {
+        diagnostics.push(`Method "${name}" declares unknown method "${dependency}" in arc.methods.`);
+      }
+    }
+  }
+
+  diagnostics.push(...findMethodDependencyCycles(dependencies, registered));
+  return { dependencies, diagnostics };
+}
+
+function findMethodDependencyCycles(
+  dependencies: ReadonlyMap<string, readonly string[]>,
+  registered: ReadonlySet<string>,
+): string[] {
+  const state = new Map<string, "visiting" | "visited">();
+  const stack: string[] = [];
+  const cycles = new Set<string>();
+
+  const visit = (name: string): void => {
+    state.set(name, "visiting");
+    stack.push(name);
+    for (const dependency of dependencies.get(name) ?? []) {
+      if (!registered.has(dependency)) continue;
+      if (state.get(dependency) === "visiting") {
+        const cycleStart = stack.indexOf(dependency);
+        const path = [...stack.slice(cycleStart), dependency];
+        cycles.add(`Method dependency cycle: ${path.join(" -> ")}.`);
+      } else if (state.get(dependency) !== "visited") {
+        visit(dependency);
+      }
+    }
+    stack.pop();
+    state.set(name, "visited");
+  };
+
+  for (const name of [...registered].sort()) {
+    if (state.get(name) === undefined) visit(name);
+  }
+  return [...cycles].sort();
+}
+
+function resolveTransitiveMethodCoverage(
+  direct: ReadonlyMap<string, readonly string[]>,
+  dependencies: ReadonlyMap<string, readonly string[]>,
+): Map<string, string[]> {
+  const resolved = new Map([...direct].map(([name, workflows]) => [name, [...workflows]]));
+  for (const [root, workflows] of direct) {
+    for (const workflow of workflows) {
+      const pending = [root];
+      const visited = new Set<string>();
+      while (pending.length > 0) {
+        const current = pending.pop();
+        if (current === undefined || visited.has(current)) continue;
+        visited.add(current);
+        const files = resolved.get(current);
+        if (files !== undefined && !files.includes(workflow)) files.push(workflow);
+        for (const dependency of dependencies.get(current) ?? []) pending.push(dependency);
+      }
+    }
+  }
+  return resolved;
 }
 
 /**
@@ -221,7 +318,7 @@ export const WIRING_PENDING: ReadonlySet<string> = new Set<string>();
 
 /** Format a diagnostic for a method missing its workflow declaration. */
 export function formatMethodDiagnostic(name: string): string {
-  return `Method "${name}" has no workflow declaration. Add ${name} to some workflow's arc.methods frontmatter field.`;
+  return `Method "${name}" is not reachable from a workflow declaration. Add ${name} to the arc.methods field of a direct consumer.`;
 }
 
 /** Format a diagnostic for a declared method still listed as wiring-pending. */
@@ -258,8 +355,15 @@ export async function audit(
     content: readFileSync(p, "utf8"),
   }));
   const cov = buildCoverageMap(methodNames, extensionNames, workflows);
-  const diagnostics: string[] = [...cov.parseDiagnostics, ...auditPushExtensionCoverage(workflows)];
-  for (const [name, files] of cov.methods) {
+  const graph = readMethodDependencyGraph(methodsDir, methodNames);
+  const methods = resolveTransitiveMethodCoverage(cov.methods, graph.dependencies);
+  const diagnostics: string[] = [
+    ...cov.parseDiagnostics,
+    ...cov.declarationDiagnostics,
+    ...graph.diagnostics,
+    ...auditPushExtensionCoverage(workflows),
+  ];
+  for (const [name, files] of methods) {
     if (files.length === 0) {
       if (!wiringPending.has(name)) diagnostics.push(formatMethodDiagnostic(name));
     } else if (wiringPending.has(name)) {
@@ -290,7 +394,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   process.stdout.write(
-    "audit-method-triggers: all methods and extensions have workflow declarations\n",
+    "audit-method-triggers: method graph and extension declarations are reachable and valid\n",
   );
 }
 
