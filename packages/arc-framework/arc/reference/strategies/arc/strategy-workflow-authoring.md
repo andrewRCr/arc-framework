@@ -60,7 +60,8 @@ When a workflow fires a method or extension, declare it in the workflow's frontm
 `arc.extensions` array. The declaration is an **index of what the workflow may fire**, not a load instruction:
 the content loads when the workflow reaches the fire-point that invokes it, per DEV-RULES.ARC § Method and
 extension loading. The body's fire-point is the trigger — a callout, a signature block, an extension marker, or
-an in-step method link — and the declaration is what makes that trigger resolvable.
+an invocation-marking in-step method link — and the declaration is what makes that trigger resolvable. A link used
+only to navigate to related material is not a fire-point.
 
 Loading at the fire-point is what makes declaring cheap: a workflow may declare content it reaches only on some
 paths without every entry through that workflow paying for it. So declare by what the workflow may fire, never

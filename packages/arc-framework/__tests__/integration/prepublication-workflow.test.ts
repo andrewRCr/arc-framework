@@ -78,7 +78,6 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop).toContain("    - validate-criteria");
       expect(taskLoop).not.toContain("    - adversarial-review");
       expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");
-      expect(taskLoop).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
       const coherentUnit = taskLoop.indexOf("2. **Coherent unit completion:**");
       const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
       const reportAndStop = taskLoop.indexOf("4. **Report and stop:**");
@@ -87,6 +86,12 @@ describe("prepublication workflow boundary", () => {
       expect(reportAndStop).toBeGreaterThan(memberBoundary);
       expect(taskLoop.slice(coherentUnit, memberBoundary))
         .toContain("last task assigned to a delivery member");
+      const memberBoundarySection = taskLoop.slice(memberBoundary, reportAndStop);
+      const criteriaWalk = memberBoundarySection.indexOf("member's criteria walk");
+      const memberValidation = memberBoundarySection.indexOf("validate-criteria:");
+      expect(criteriaWalk).toBeGreaterThan(-1);
+      expect(memberBoundarySection).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
+      expect(memberValidation).toBeGreaterThan(criteriaWalk);
       const unresolvedBranch = taskLoop.indexOf("**Unresolved member-report branch:**");
       const resolvedBranch = taskLoop.indexOf("**Resolved completion branch:**");
       expect(unresolvedBranch).toBeGreaterThan(memberBoundary);

@@ -233,9 +233,11 @@ states the reason, while the workflow fire-points own the actual re-read step.
 
 When a large target already has a stable authored partition — delivery-plan members, review chunks, criteria groups,
 or equivalent contract-closed boundaries — the primary may use an authored-partition carrier mode as an advisory
-attention aid. Assign at most two or three contract-closed groups to fresh reviewers, each with the complete rubric
-for its scope, then run one fresh seam-and-aggregate reviewer over the complete union. The aggregate verifies full
-coverage and cross-group seams; every call together remains one logical pass.
+attention aid. Bundle the partition into at most two or three contract-closed group sets. For each scoped reviewer,
+serialize its exact assigned group set, corresponding artifact slice, and complete rubric for that scope. Then run
+one fresh seam-and-aggregate reviewer over the complete union. The aggregate consumes every scoped report plus the
+authored partition's complete coverage facts, verifies full coverage and cross-group seams, and emits the
+whole-target result; every call together remains one logical pass.
 
 This carrier does not invent or automatically derive partitions, create 1:1 member fan-out, persist state, add a CLI
 surface, or add an interlock. Without a stable authored partition, use one whole-target reviewer. It does not satisfy
