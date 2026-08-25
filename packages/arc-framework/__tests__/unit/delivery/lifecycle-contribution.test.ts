@@ -58,7 +58,7 @@ describe("CurrentDeliveryLifecycleContributionPathSource", () => {
       workUnitId: "example",
       activeMetaPath: validateManagedPath(".arc/active/meta-example.md"),
       protectedBaseRef: "refs/heads/main",
-      controlRef: "refs/heads/feat/example",
+      topRef: "refs/heads/feat/example",
     })).resolves.toEqual({
       workUnitArtifacts: [
         ".arc/active/meta-example.md",
@@ -88,10 +88,10 @@ describe("CurrentDeliveryLifecycleContributionPathSource", () => {
 });
 
 describe("compareNormalizedDeliveryTree", () => {
-  it("matches when the candidate equals the lifecycle-normalized control tree", () => {
+  it("matches when the candidate equals the lifecycle-normalized top tree", () => {
     const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
     const protectedBase = new Map([["lifecycle.md", blob("base")]]);
-    const control = new Map([
+    const top = new Map([
       ["kept.md", blob("same")],
       ["lifecycle.md", blob("control")],
     ]);
@@ -102,7 +102,7 @@ describe("compareNormalizedDeliveryTree", () => {
 
     expect(compareNormalizedDeliveryTree({
       protectedBase,
-      control,
+      top,
       finalCandidate,
       lifecyclePaths: ["lifecycle.md"],
     })).toEqual({ status: "match" });
@@ -114,7 +114,7 @@ describe("compareNormalizedDeliveryTree", () => {
 
     expect(compareNormalizedDeliveryTree({
       protectedBase: new Map(),
-      control: new Map([["lifecycle.md", lifecycleEntry]]),
+      top: new Map([["lifecycle.md", lifecycleEntry]]),
       finalCandidate: new Map([["lifecycle.md", lifecycleEntry]]),
       lifecyclePaths: ["lifecycle.md"],
     })).toEqual({
@@ -128,7 +128,7 @@ describe("compareNormalizedDeliveryTree", () => {
   it("reports dropped, invented, and mismatched entries distinctly after lifecycle normalization", () => {
     const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
     const protectedBase = new Map([["lifecycle.md", blob("base")]]);
-    const control = new Map([
+    const top = new Map([
       ["kept.md", blob("same")],
       ["dropped.md", blob("drop")],
       ["mismatched.md", blob("expected")],
@@ -143,7 +143,7 @@ describe("compareNormalizedDeliveryTree", () => {
 
     expect(compareNormalizedDeliveryTree({
       protectedBase,
-      control,
+      top,
       finalCandidate,
       lifecyclePaths: ["lifecycle.md"],
     })).toEqual({
