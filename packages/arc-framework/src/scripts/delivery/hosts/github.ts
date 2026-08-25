@@ -6,11 +6,13 @@ import type {
   DeliveryHostOpenRequest,
   DeliveryHostPort,
   DeliveryHostRequestObservation,
+  DeliveryTopRemedyHostPort,
 } from "../../../lib/delivery/host.js";
 import type {
   DeliveryChangeRequestV1,
   DeliveryLandEffectV1,
   DeliveryPublishEffectV1,
+  DeliveryTopRemedyEffectV1,
 } from "../../../lib/delivery/schema.js";
 import { HostedProcessError, type HostedProcessRunner } from "../../review-gate/hosted/gh-process.js";
 import type {
@@ -99,7 +101,7 @@ function exactObservation(
 }
 
 /** GitHub observations and mutations through the existing bounded `gh` runner. */
-export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStackPort,
+export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHostPort, DeliveryNativeStackPort,
   DeliveryNativeStackUnlinkPort, DeliveryNativeMergeHostPort {
   constructor(private readonly runner: HostedProcessRunner) {}
 
@@ -320,6 +322,28 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryNativeStack
       return { status: "submitted" };
     } catch {
       return { status: "refused", reason: "unavailable" };
+    }
+  }
+
+  async applyTopRemedy(effect: DeliveryTopRemedyEffectV1): Promise<DeliveryHostMutationResult> {
+    const parts = effect.repository.split("/");
+    if (effect.providerId !== "github" || parts.length !== 2 || parts.some((part) => part === "")
+      || !/^[1-9][0-9]*$/u.test(effect.changeRequestId)
+      || effect.protectedBaseRef.startsWith("refs/") || effect.protectedBaseRef === "") {
+      return { status: "refused", reason: "malformed" };
+    }
+    try {
+      await this.runner.run([
+        "api", `repos/${effect.repository}/pulls/${effect.changeRequestId}`,
+        "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
+        ...(effect.action === "reopen-and-retarget" ? ["-f", "state=open"] : []),
+      ]);
+      return { status: "submitted" };
+    } catch (error) {
+      return {
+        status: "refused",
+        reason: error instanceof HostedProcessError && error.httpStatus === 422 ? "malformed" : "unavailable",
+      };
     }
   }
 

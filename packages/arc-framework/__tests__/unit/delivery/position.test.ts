@@ -318,6 +318,7 @@ describe("recognizeDeliverySuffixRetarget", () => {
       activeOperation: {
         operationId: "rewrite",
         kind: "rewrite",
+        mode: "provider-adoption",
         affectedDeliverableIds: [state.members[1]!.deliverableId],
         stateRevision: 1,
         boundPlanDigest: plan.planDigest,

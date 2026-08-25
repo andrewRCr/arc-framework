@@ -71,6 +71,7 @@ import {
   type DeliveryTransferExportOptions,
   type DeliveryTransferImportOptions,
 } from "./handlers/delivery-transfer.js";
+import { handleCandidateApplicabilityResolve } from "./handlers/candidate.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -566,6 +567,22 @@ program
     (context, name: string, opts: AttestOptions) => handleAttest(name, opts, context),
   ));
 
+const candidate = program
+  .command("candidate")
+  .description("Resolve Candidate lineage transitions");
+
+const candidateApplicability = candidate
+  .command("applicability")
+  .description("Classify and bind Candidate applicability");
+
+candidateApplicability
+  .command("resolve <name> <input>")
+  .description("Re-derive and bind one exact applicability selection")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, name: string, input: string) => handleCandidateApplicabilityResolve(name, input, context),
+  ));
+
 program
   .command("repoint-design <event>")
   .description(
@@ -710,6 +727,7 @@ baseCmd
   .command("merge")
   .description("Merge one checkpointed base revision append-only")
   .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
+  .requiredOption("--expected-head <oid>", "Exact Candidate head approved by the checkpoint")
   .requiredOption("--json", "Emit the typed merge outcome as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -838,10 +856,15 @@ delivery.command("rematerialize").description("Reclose and rewrite one complete 
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("rematerialize", { ...opts, input }, context)
   )));
-delivery.command("teardown").description("Retire one proven-landed member ref and binding")
+delivery.command("teardown").description("Retire one proven-landed member ref while retaining its binding")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("teardown", { ...opts, input }, context)
+  )));
+delivery.command("top-remedy").description("Apply one explicitly selected terminal request remedy")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("top-remedy", { ...opts, input }, context)
   )));
 
 delivery

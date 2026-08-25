@@ -4,6 +4,8 @@ import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { GitExec } from "../lib/git/exec.js";
+import { createRawGitExec } from "../lib/io-context.js";
+import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
   acquireDerivedLocusEvidence,
   createDerivedLocusEvidenceIO,
@@ -59,6 +61,14 @@ export async function runDerivedLocusStateProbe(
       pathExists: (path) => access(path).then(() => true, () => false),
       realpath,
       lstat,
+      projectCandidateTarget: ({ cwd, name, record }) => projectGitCandidateEffectiveTarget({
+        cwd,
+        name,
+        baseBranch: options.baseBranch,
+        record,
+        exec: options.exec,
+        rawExec: createRawGitExec(cwd),
+      }),
     },
   });
 }

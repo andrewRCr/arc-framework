@@ -241,7 +241,7 @@ describe("native delivery landing", () => {
       baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", affectedDeliverableIds: ids,
+      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -275,7 +275,44 @@ describe("native delivery landing", () => {
     expect(record.value.activeOperation).toBeNull();
   });
 
-  it("retains the reservation for pending, none-landed, partial, and unavailable effects", async () => {
+  it("does not submit a sequential reservation through native landing", async () => {
+    const state = deliveryStateFixture(plan);
+    const member = state.members[0]!;
+    const snapshot = { target: state.target, members: [member] };
+    const effect = {
+      providerId: "github", repository: "o/r", changeRequestId: "41", headSha: member.coordinates!.head,
+      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+    } as const;
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "operation-1", kind: "land", mode: "sequential",
+      affectedDeliverableIds: [member.deliverableId], expectedStateRevision: 1,
+      before: snapshot, requested: snapshot, effect,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const host = {
+      submitNativeMerge: vi.fn().mockResolvedValue({ status: "submitted", effectIdentity: "uuid-1" }),
+      observeNativeMerge: vi.fn(),
+    };
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: { revision: 2, value: reserved.state },
+      operationId: "operation-1",
+      request: {
+        repository: "o/r", topChangeRequestId: "41", topHeadSha: member.coordinates!.head,
+        mergeAction: "direct_merge", mergeMethod: "merge",
+      },
+    }, {
+      host,
+      stateStore: { publish: vi.fn() },
+      reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
+      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
+      observeEffect: vi.fn(),
+    })).resolves.toMatchObject({ status: "blocked", reason: "reservation-mismatch" });
+    expect(host.submitNativeMerge).not.toHaveBeenCalled();
+  });
+
+  it("retains pending, contradictory, partial, and unavailable native effects", async () => {
     const state = deliveryStateFixture(plan);
     const ids = state.members.slice(0, -1).map((member) => member.deliverableId);
     const snapshot = { target: state.target, members: state.members.slice(0, -1) };
@@ -284,7 +321,7 @@ describe("native delivery landing", () => {
       baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", affectedDeliverableIds: ids,
+      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -315,7 +352,7 @@ describe("native delivery landing", () => {
     await expect(reconcileReservedNativeDeliveryMerge(
       { planId: plan.planId, current: record, request },
       { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "none-landed" }) },
-    )).resolves.toMatchObject({ status: "retryable" });
+    )).resolves.toMatchObject({ status: "blocked", reason: "ambiguous-result" });
     await expect(reconcileReservedNativeDeliveryMerge(
       { planId: plan.planId, current: record, request },
       { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "partial-landed", affectedDeliverableIds: [ids[0]] }) },
@@ -326,6 +363,68 @@ describe("native delivery landing", () => {
       { host, stateStore, observeEffect: vi.fn() },
     )).resolves.toMatchObject({ status: "blocked", reason: "unavailable" });
     expect(stateStore.publish).not.toHaveBeenCalled();
+
+    host.observeNativeMerge.mockResolvedValue({ status: "failed" });
+    await expect(reconcileReservedNativeDeliveryMerge(
+      { planId: plan.planId, current: record, request },
+      { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot }) },
+    )).resolves.toMatchObject({ status: "blocked", reason: "ambiguous-result" });
+    expect(stateStore.publish).not.toHaveBeenCalled();
+  });
+
+  it("clears only a persisted failed effect with exact none-landed facts", async () => {
+    const state = deliveryStateFixture(plan);
+    const ids = state.members.slice(0, -1).map((member) => member.deliverableId);
+    const snapshot = { target: state.target, members: state.members.slice(0, -1) };
+    const effect = {
+      providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
+      baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
+    } as const;
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
+      expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const attached = attachDeliveryOperationEffectIdentity(
+      { revision: 2, value: reserved.state }, "operation-1", { providerId: "github", effectId: "uuid-1" },
+    );
+    if (attached.status === "refused") throw new Error("fixture identity attachment failed");
+    const record = { revision: 3, value: attached.state };
+    const stateStore = { publish: vi.fn(async (_id, value) => ({
+      status: "ok" as const,
+      value: { revision: 4, value },
+    })) };
+    const request = {
+      repository: "o/r", topChangeRequestId: "42", topHeadSha: "b".repeat(40),
+      mergeAction: "direct_merge" as const, mergeMethod: "merge" as const,
+    };
+    const host = {
+      submitNativeMerge: vi.fn(),
+      observeNativeMerge: vi.fn().mockResolvedValue({ status: "failed" }),
+    };
+
+    await expect(reconcileReservedNativeDeliveryMerge(
+      { planId: plan.planId, current: record, request },
+      { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "none-landed" }) },
+    )).resolves.toEqual({
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-native-land-select",
+      selector: {
+        planId: plan.planId,
+        operationKind: "land",
+        operationId: "operation-1",
+        affectedDeliverableIds: ids,
+        mode: "native",
+      },
+      recommendedActionText:
+        "Rerun `arc delivery native land-select` for the exact native landing reservation subject.",
+    });
+    expect(stateStore.publish).toHaveBeenCalledWith(
+      plan.planId,
+      expect.objectContaining({ activeOperation: null }),
+      record.revision,
+    );
   });
 
   it("adopts an immediate merged response only from fresh all-landed facts", async () => {
@@ -337,7 +436,7 @@ describe("native delivery landing", () => {
       baseRef: "main", targetRef: "refs/heads/main", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land",
+      operationId: "operation-1", kind: "land", mode: "native",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
@@ -389,7 +488,7 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: bound }, plan, {
-      operationId: "operation-1", kind: "land", affectedDeliverableIds: [first.deliverableId],
+      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 1, before: beforeSnapshot, requested: beforeSnapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
