@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../src/lib/delivery/review-vehicle.js";
 import {
   LaneProgressStateSchema,
   type ReviewOperationState,
@@ -215,6 +217,14 @@ const handle = {
     createdAt: "2026-08-15T11:00:00Z",
   },
 };
+const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
+  kind: "delivery-member",
+  planId: "123e4567-e89b-12d3-a456-426614174000",
+  deliverableId: `sha256:${"9".repeat(64)}`,
+  workUnitId: "example",
+  head: objectId("c"),
+});
+const deliveryHandle = { ...handle, vehicle: deliveryVehicle };
 const hostedReviewTarget = createReviewTarget({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
@@ -245,18 +255,49 @@ const hostedContext = {
   requirement: hostedRequirement,
   actorIdentity: "github-user-1",
 };
+const deliveryHostedReviewTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "delivery-member",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: objectId("a"),
+  diffBaseTree: objectId("b"),
+  headSha: objectId("c"),
+  headTree: objectId("d"),
+});
+const deliveryHostedRequirement = createReviewRequirement({
+  target: deliveryHostedReviewTarget,
+  projection: {
+    obligation: "required",
+    reasons: ["sensitive-change-set"],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"e".repeat(64)}`,
+    retrigger: "full-final",
+    count: 1,
+  },
+  acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
+  initialAdmission: "automatic",
+});
+if (deliveryHostedRequirement === null) throw new Error("expected delivery hosted review requirement");
+const deliveryHostedContext = {
+  reviewTarget: deliveryHostedReviewTarget,
+  requirement: deliveryHostedRequirement,
+  actorIdentity: "github-user-1",
+};
 
 describe("hosted await lane recording", () => {
   it("durably records safe request-time unavailability for fallback after restart", async () => {
     const store = createStore();
     const state = await recordHostedRequestUnavailableAttempt(store, {
       repositoryId: "repo-1",
-      ...hostedContext,
+      ...deliveryHostedContext,
       request: {
         schemaVersion: 1,
         target: handle.target,
         provider: "coderabbit-pr",
         coverage: "complete",
+        vehicle: deliveryVehicle,
       },
       result: {
         schemaVersion: 1,
@@ -273,7 +314,7 @@ describe("hosted await lane recording", () => {
     expect(state.attempts).toEqual([expect.objectContaining({
       sourceId: "coderabbit-pr",
       outcome: "rate-limited",
-      hosted: expect.objectContaining({ target: handle.target }),
+      hosted: expect.objectContaining({ target: handle.target, vehicle: deliveryVehicle }),
     })]);
     expect(state.completedPasses).toBe(0);
   });
@@ -295,6 +336,25 @@ describe("hosted await lane recording", () => {
       outcome: "rate-limited",
     })]);
     expect(state?.completedPasses).toBe(0);
+  });
+
+  it("retains a delivery selector on the concluded hosted attempt", async () => {
+    const store = createStore();
+    const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: deliveryHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    expect(state?.attempts[0]?.hosted).toMatchObject({ vehicle: deliveryVehicle });
   });
 
   it("consumes a pass only for a verdict-bearing outcome", async () => {
