@@ -279,15 +279,6 @@ vi.mock("../../../src/lib/work-unit/verbs/reopen.js", () => ({
   runReopen: (...a: unknown[]) => mockRunReopen(...a),
 }));
 
-// The `gh`-backed PR source feeds the `pr-unmerged` guard input; the factory returns
-// the source fn, so handler tests drive merge state (and gh-failure degradation) by
-// resolving / rejecting that fn.
-const mockPrSource = vi.fn();
-const mockCreateGhWorkUnitPrSource = vi.fn();
-vi.mock("../../../src/lib/session-init/work-unit-pr-source.js", () => ({
-  createGhWorkUnitPrSource: (...a: unknown[]) => mockCreateGhWorkUnitPrSource(...a),
-}));
-
 // The slug→state resolver feeds the handler's impact-plan composition; keep the
 // rest of the resolver real (the dispatch core's `deriveState` rides on it).
 const mockResolveSlugState = vi.fn();
@@ -448,8 +439,6 @@ beforeEach(() => {
     boundary: { ...boundary, mode: "integration-boundary", locus: "publication-pending" },
   });
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
-  mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
-  mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
   mockReadFile.mockResolvedValue('{"schemaVersion":1}');
   mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
     status: "current",
@@ -1306,18 +1295,29 @@ describe("handlePublish", () => {
 
 describe("handleReopen", () => {
   it("reopens an unmerged WU, forwarding the resolved merge fact and the default close mode", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
     await handleReopen("foo", {});
     expect(mockRunReopen).toHaveBeenCalledTimes(1);
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo", prMerged: false, withdrawMode: "close" });
+    expect(mockIoExec).toHaveBeenCalledWith("gh", ["pr", "view", "feat/foo", "--json", "state"]);
   });
 
   it("forwards the draft withdrawal mode under --keep-pr", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
     await handleReopen("foo", { keepPr: true });
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ withdrawMode: "draft" });
   });
 
+  it("forwards an exact reopened task orientation", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
+    await handleReopen("foo", { task: "Task 6.11.R — Revalidate the amended member boundary" });
+    expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({
+      nextTask: "Task 6.11.R — Revalidate the amended member boundary",
+    });
+  });
+
   it("forwards a merged PR fact and surfaces the resulting rejection", async () => {
-    mockPrSource.mockResolvedValueOnce(new Map([["feat/foo", { merged: true }]]));
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"MERGED"}\n', stderr: "" });
     mockRunReopen.mockResolvedValueOnce({ status: "rejected", reason: "the PR has already merged — back out via a new WU." });
     await handleReopen("foo", {});
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ prMerged: true });
@@ -1326,7 +1326,7 @@ describe("handleReopen", () => {
   });
 
   it("forwards an undefined merge fact when gh is unavailable, surfacing the guard's refusal", async () => {
-    mockPrSource.mockRejectedValueOnce(new Error("gh: command not found"));
+    mockIoExec.mockRejectedValueOnce(new Error("gh: command not found"));
     mockRunReopen.mockResolvedValueOnce({
       status: "rejected",
       reason: "the PR's merge state can't be confirmed (`gh`/remote unavailable) — resolve it and retry.",
@@ -1340,6 +1340,7 @@ describe("handleReopen", () => {
   });
 
   it("defaults a bare invocation to the current worktree's WU", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
     await handleReopen(undefined, {});
     expect(mockRunReopen).toHaveBeenCalledTimes(1);
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
