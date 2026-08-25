@@ -5,8 +5,12 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
-import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import {
+  resolveAcceptableDeliveryBaseRefs,
+  type DeliveryMemberLookup,
+} from "./core/delivery-member-lookup.js";
+import { resolveReviewSubject } from "./core/review-subject.js";
 import { createHostedReservationDischargeReader } from "./policy/hosted-reservation-discharge.js";
 import {
   resolveChangeRequest,
@@ -15,6 +19,7 @@ import {
 import { createGhChangeRequestResolutionPort } from "./hosts/github/change-request.js";
 import { aggregateChecks } from "./checks-await.js";
 import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
+import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
 import type {
   ReviewStatusObservation,
@@ -63,11 +68,20 @@ export async function readRoutedObligation(
   exec: GitExec,
   target: ChangeRequestTargetRef,
   pullRequest: number,
+  memberLookup: DeliveryMemberLookup = new RepositoryDeliveryMemberLookup({ cwd, exec }),
 ): Promise<RoutedReviewObligation> {
-  const workUnit = branchToWorkUnitSlug(target.headRef);
-  if (workUnit === null) {
+  const subject = await resolveReviewSubject({
+    headRef: target.headRef,
+    headSha: target.headSha,
+    memberLookup,
+  });
+  if (subject.status === "unavailable") {
+    return { state: "blocked", detail: "The delivery member's owning work unit is unavailable." };
+  }
+  if (subject.status === "unbound") {
     return { state: "blocked", detail: "The target branch does not identify a work unit." };
   }
+  const workUnit = subject.workUnitId;
   try {
     const boundary = await readSubmissionBoundary(cwd, workUnit);
     if (boundary === null) {
@@ -113,11 +127,17 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
     observe: async (target) => {
       try {
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
+        const memberLookup = new RepositoryDeliveryMemberLookup(input);
         const baseRef = (await readConfigSettings(input.cwd)).settings["branch.base"];
         const refs = await changeRequestPort.readHeadRef(target.headRef);
         const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
         const resolution = await resolveChangeRequest(
-          { headRef: target.headRef, headSha: target.headSha, baseRef },
+          {
+            headRef: target.headRef,
+            headSha: target.headSha,
+            baseRef,
+            acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(memberLookup, target.headSha),
+          },
           changeRequestPort,
         );
         const base = await readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha });
@@ -140,6 +160,7 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
           input.exec,
           target,
           resolution.candidate.number,
+          memberLookup,
         );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const repository = await checksPort.resolveRepository();

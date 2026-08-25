@@ -6,6 +6,8 @@ export interface DeliveryMemberBinding {
   readonly deliverableId: string;
   readonly workUnitId: string;
   readonly base: string;
+  readonly baseRef: string | null;
+  readonly headRef: string | null;
   readonly head: string;
   readonly isFinalMember: boolean;
 }
@@ -30,4 +32,42 @@ export type DeliveryMemberLookupResult =
  */
 export interface DeliveryMemberLookup {
   resolveMemberByHead(headObjectId: string): Promise<DeliveryMemberLookupResult>;
+}
+
+/** One retained member target available to hosted-review discharge. */
+export interface DeliveryDischargeTargetBinding {
+  readonly planId: string;
+  readonly deliverableId: string;
+  readonly workUnitId: string;
+  readonly ref: string | null;
+  readonly providerId: string;
+  readonly changeRequestId: string;
+  readonly base: string;
+  readonly head: string;
+}
+
+/** Closed read of every currently bound member for one work unit. */
+export type DeliveryDischargeTargetLookupResult =
+  | { readonly status: "resolved"; readonly targets: readonly DeliveryDischargeTargetBinding[] }
+  | { readonly status: "unbound" }
+  | { readonly status: "unavailable" };
+
+/** Read-only delivery target enumeration used by hosted-review discharge. */
+export interface DeliveryDischargeTargetLookup {
+  resolveDischargeTargets(workUnitId: string): Promise<DeliveryDischargeTargetLookupResult>;
+}
+
+/** Resolve the additional change-request base admitted by one bound delivery head. */
+export async function resolveAcceptableDeliveryBaseRefs(
+  lookup: DeliveryMemberLookup,
+  headObjectId: string,
+): Promise<readonly string[]> {
+  try {
+    const resolution = await lookup.resolveMemberByHead(headObjectId);
+    return resolution.status === "resolved" && resolution.member.baseRef !== null
+      ? [resolution.member.baseRef]
+      : [];
+  } catch {
+    return [];
+  }
 }
