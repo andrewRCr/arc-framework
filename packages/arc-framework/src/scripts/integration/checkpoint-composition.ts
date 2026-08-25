@@ -47,6 +47,7 @@ import {
   resolveMergeMethod,
 } from "../review-gate/merge-method.js";
 import {
+  allHostedReservationTargetsDischarged,
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
@@ -559,6 +560,7 @@ export function createIntegrationCheckpointDependencies(input: {
       };
       const targetResolution = await resolveHostedReservationTargets({
         workUnitId: workUnit,
+        reservation: publicationBoundary.reservation,
         singleton: {
           repository: top.repository,
           pullRequest: topResolution.candidate.number,
@@ -591,6 +593,8 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision: target.baseRevision,
           approvedHead: target.headSha,
           changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+          ...(target.vehicle === undefined ? {} : { vehicle: target.vehicle }),
+          candidate: value.record,
         })
       )));
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
@@ -616,7 +620,7 @@ export function createIntegrationCheckpointDependencies(input: {
         publication: { candidateId: publicationBoundary.candidateId, head: currentness.recognizedRevision },
         top,
         review: {
-          status: discharges.every((discharge) => discharge.discharged) ? "discharged" : "outstanding",
+          status: allHostedReservationTargetsDischarged(discharges) ? "discharged" : "outstanding",
           targets: reviewTargets,
         },
         readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),
@@ -688,6 +692,7 @@ export function createIntegrationCheckpointDependencies(input: {
               repository: changeRequest.targetRef.repository,
               pullRequest: changeRequest.candidate.number,
             },
+            candidate: value.record,
           });
       const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
         && !discharge.discharged;
