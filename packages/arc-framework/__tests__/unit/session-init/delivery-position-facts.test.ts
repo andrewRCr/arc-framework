@@ -266,13 +266,7 @@ describe("session-init delivery position facts", () => {
     const mergedState = {
       ...publishedState,
       target: { ...publishedState.target!, coordinates: mergedCoordinates },
-      members: [{
-        ...publishedState.members[0]!,
-        coordinates: {
-          base: publishedState.members[0]!.coordinates!.base,
-          ...mergedCoordinates,
-        },
-      }, ...publishedState.members.slice(1)],
+      members: publishedState.members,
     };
     const mergedDeps = exactDependencies(mergedState);
     mergedDeps.remoteHeads[effect.headRef] = effect.headSha;

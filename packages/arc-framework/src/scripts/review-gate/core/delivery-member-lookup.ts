@@ -1,5 +1,7 @@
 /** Host-neutral read from an exact head to the delivery member it is bound to. */
 
+import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../lib/delivery/schema.js";
+
 /** One delivery member authoritatively bound to the requested head. */
 export interface DeliveryMemberBinding {
   readonly planId: string;
@@ -55,6 +57,17 @@ export type DeliveryDischargeTargetLookupResult =
 /** Read-only delivery target enumeration used by hosted-review discharge. */
 export interface DeliveryDischargeTargetLookup {
   resolveDischargeTargets(workUnitId: string): Promise<DeliveryDischargeTargetLookupResult>;
+}
+
+/** Closed read of the exact plan and active state needed by terminal integration. */
+export type DeliveryTerminalRecordLookupResult =
+  | { readonly status: "resolved"; readonly plan: DeliveryPlanV1; readonly state: DeliveryStateV1 }
+  | { readonly status: "unbound" }
+  | { readonly status: "unavailable" };
+
+/** Read-only delivery record composition used by the integration checkpoint. */
+export interface DeliveryTerminalRecordLookup {
+  resolveTerminalRecords(workUnitId: string): Promise<DeliveryTerminalRecordLookupResult>;
 }
 
 /** Resolve the additional change-request base admitted by one bound delivery head. */
