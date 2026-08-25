@@ -44,6 +44,28 @@ function parse(text: string): unknown {
   }
 }
 
+function requiresNativeStackMerge(error: unknown): boolean {
+  if (!(error instanceof HostedProcessError) || error.httpStatus !== 422) return false;
+  const detail = `${error.message}\n${error.stderr}\n${error.stdout}`;
+  return /\bstack(?:ed)?\b/iu.test(detail)
+    && /(?:merge-async|asynchronous merge|stack merge)/iu.test(detail);
+}
+
+function isDependentNativeRequest(
+  value: unknown,
+  requestedIds: ReadonlySet<string>,
+  highestHeadRef: string,
+): boolean {
+  const request = record(value);
+  const head = record(request?.head);
+  const base = record(request?.base);
+  return request !== null && Number.isSafeInteger(request.number) && (request.number as number) > 0
+    && !requestedIds.has(String(request.number))
+    && typeof head?.ref === "string" && head.ref !== ""
+    && typeof head.sha === "string" && objectId.test(head.sha)
+    && base?.ref === highestHeadRef;
+}
+
 function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const request = record(value);
   const head = record(request?.head);
@@ -54,10 +76,13 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
   const state = request?.state;
   const merged = request?.merged;
   const mergedAt = request?.merged_at;
+  const mergeCommitSha = request?.merge_commit_sha;
   if (request === null || !Number.isSafeInteger(number) || (number as number) <= 0
     || (state !== "open" && state !== "closed")
     || (merged !== undefined && typeof merged !== "boolean")
     || (mergedAt !== undefined && mergedAt !== null && (typeof mergedAt !== "string" || mergedAt === ""))
+    || (mergeCommitSha !== undefined && mergeCommitSha !== null
+      && (typeof mergeCommitSha !== "string" || !objectId.test(mergeCommitSha)))
     || typeof request.draft !== "boolean"
     || typeof head?.ref !== "string" || head.ref === ""
     || typeof head.sha !== "string" || !objectId.test(head.sha)
@@ -73,6 +98,7 @@ function normalizeRequest(value: unknown): DeliveryHostChangeRequest | null {
     baseRef: base.ref,
     state: merged === true || typeof mergedAt === "string" ? "merged" : state,
     draft: request.draft,
+    mergeCommitSha: typeof mergeCommitSha === "string" ? mergeCommitSha : null,
   };
 }
 
@@ -124,12 +150,20 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
         if (!Number.isSafeInteger(number) || typeof base?.ref !== "string" || base.ref === ""
           || !Array.isArray(requests)) return { status: "malformed" };
         const firstMember = input.members[0];
-        let exact = requests.length === input.members.length && base.ref === firstMember?.baseRef;
+        const highestMember = input.members.at(-1);
+        const requestedIds = new Set(input.members.map((member) => member.changeRequestId));
+        const dependentIndexes = highestMember === undefined ? [] : requests.flatMap((request, index) => (
+          isDependentNativeRequest(request, requestedIds, highestMember.headRef) ? [index] : []
+        ));
+        const comparedRequests = dependentIndexes.length === 1
+          ? requests.filter((_, index) => index !== dependentIndexes[0])
+          : requests;
+        let exact = comparedRequests.length === input.members.length && base.ref === firstMember?.baseRef;
         if (base.ref !== firstMember?.baseRef && firstMember !== undefined) {
           affected.add(firstMember.deliverableId);
         }
         for (const [index, member] of input.members.entries()) {
-          const request = record(requests[index]);
+          const request = record(comparedRequests[index]);
           const head = record(request?.head);
           const requestBase = record(request?.base);
           const matchesMember = String(request?.number) === member.changeRequestId
@@ -218,6 +252,9 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
       }
       if (error instanceof HostedProcessError && error.httpStatus === 404) {
         return { status: "refused", reason: "unsupported" };
+      }
+      if (requiresNativeStackMerge(error)) {
+        return { status: "refused", reason: "native-stack-required" };
       }
       return { status: "refused", reason: "unavailable" };
     }
@@ -313,15 +350,16 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
   async mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMutationResult> {
     if (effect.providerId !== "github") return { status: "refused", reason: "malformed" };
     try {
-      const strategyFlag = effect.strategy === "merge" ? "--merge"
-        : effect.strategy === "rebase" ? "--rebase" : "--squash";
       await this.runner.run([
         "pr", "merge", effect.changeRequestId, "--repo", effect.repository,
-        "--match-head-commit", effect.headSha, strategyFlag,
+        "--match-head-commit", effect.headSha, "--merge",
       ]);
       return { status: "submitted" };
-    } catch {
-      return { status: "refused", reason: "unavailable" };
+    } catch (error) {
+      return {
+        status: "refused",
+        reason: requiresNativeStackMerge(error) ? "native-stack-required" : "unavailable",
+      };
     }
   }
 

@@ -248,6 +248,7 @@ describe("arc delivery", () => {
     const initial = deliveryStateFixture(plan);
     const state = {
       ...initial,
+      target: { ...initial.target!, ref: "refs/heads/main" },
       members: initial.members.map((member, index) => ({
         ...member,
         changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
@@ -342,6 +343,9 @@ describe("arc delivery", () => {
       "  view)",
       "    printf '%s\\n' '{\"nameWithOwner\":\"owner/repo\",\"defaultBranchRef\":{\"name\":\"main\"}}'",
       "    ;;",
+      "  repos/owner/repo)",
+      "    printf '%s\\n' '{\"allow_merge_commit\":true,\"allow_rebase_merge\":true,\"allow_squash_merge\":true}'",
+      "    ;;",
       "  repos/owner/repo/stacks)",
       `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedStackResponse}'; else printf '%s\\n' '${stackResponse}'; fi`,
       "    ;;",
@@ -369,10 +373,8 @@ describe("arc delivery", () => {
         landedDeliverableIds: [],
       },
       repository: "owner/repo",
-      mergeStrategy: "merge",
       mergeAction: "direct",
       explicitAtomic: false,
-      members: nativeMembers,
     };
 
     const singleton = await runArcWithStdin(
