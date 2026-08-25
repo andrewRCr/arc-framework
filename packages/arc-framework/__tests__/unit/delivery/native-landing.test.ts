@@ -410,7 +410,7 @@ describe("native delivery landing", () => {
     })) };
     const next = landed.members[1]!;
     const moved = { head: "a".repeat(40), tree: "b".repeat(40) };
-    const proof = vi.fn().mockResolvedValue({ status: "accepted", proof: "aggregate-patch" });
+    const proof = vi.fn().mockResolvedValue({ status: "accepted", proof: "mechanical-reapply" });
     await expect(reconcileLinkedNativeDeliverySuffix({
       plan,
       before: { revision: 2, value: reserved.state },
