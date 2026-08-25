@@ -210,6 +210,27 @@ describe("exact-head change-request resolution", () => {
     }))).resolves.toMatchObject({ state: "blocked", reason: "base-mismatch" });
   });
 
+  it("accepts a caller-resolved delivery-member base", async () => {
+    await expect(resolveChangeRequest({
+      ...request,
+      acceptableBaseRefs: ["delivery/plan-1/member-1"],
+    }, port({
+      listByHead: async () => [candidate({ baseRefName: "delivery/plan-1/member-1" })],
+    }))).resolves.toMatchObject({
+      state: "open",
+      candidate: { number: 42, baseRefName: "delivery/plan-1/member-1" },
+    });
+  });
+
+  it("still blocks an unrelated base when delivery-member bases are admitted", async () => {
+    await expect(resolveChangeRequest({
+      ...request,
+      acceptableBaseRefs: ["delivery/plan-1/member-1"],
+    }, port({
+      listByHead: async () => [candidate({ baseRefName: "release" })],
+    }))).resolves.toMatchObject({ state: "blocked", reason: "base-mismatch" });
+  });
+
   it("selects the configured-base request when another base is also visible", async () => {
     await expect(resolveChangeRequest(request, port({
       listByHead: async () => [

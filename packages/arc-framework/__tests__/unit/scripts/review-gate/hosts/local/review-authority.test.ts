@@ -17,9 +17,11 @@ const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMember
   deliverableId: DELIVERABLE_ID,
   workUnitId: "review-surface-binding",
   base: "b".repeat(40),
+  baseRef: "main",
   head: MEMBER_HEAD,
   isFinalMember: false,
   ...overrides,
+  headRef: overrides.headRef === undefined ? "delivery/stack-1/member-1" : overrides.headRef,
 });
 
 const lookupOf = (result: DeliveryMemberLookupResult): DeliveryMemberLookup => ({

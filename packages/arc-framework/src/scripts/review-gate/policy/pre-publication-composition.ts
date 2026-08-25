@@ -12,7 +12,9 @@ import { projectCandidateCurrentness } from "../../../lib/work-unit/candidate-at
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../../lib/work-unit/git-candidate-subject.js";
 import { resolveChangeRequest } from "../change-request.js";
+import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
+import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../hosts/local/frontline-source-preferences.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import {
@@ -54,6 +56,7 @@ export function createPrePublicationCompositionDependencies(input: {
   };
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
+  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
@@ -147,6 +150,7 @@ export function createPrePublicationCompositionDependencies(input: {
         headRef,
         headSha,
         baseRef: (await settings())["branch.base"],
+        acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(deliveryMemberLookup, headSha),
       }, port);
       return {
         status: "resolved",
