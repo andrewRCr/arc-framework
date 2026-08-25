@@ -2,7 +2,11 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { deliveryPlanFixture, deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliveryStackPlanFixture,
+  deliveryStackPlanWithMemberTitlesFixture,
+} from "../../fixtures/delivery-plan.js";
 import {
   closeDeliveryEligibility,
   executeWithFreshDeliveryEligibility,
@@ -10,6 +14,7 @@ import {
   verifyDeliveryCandidateCheckout,
   type DeliveryEligibilityDependencies,
 } from "../../../src/lib/delivery/eligibility.js";
+import { resolveDeliveryMemberPresentations } from "../../../src/lib/delivery/materialization.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -47,7 +52,7 @@ describe("prepareDeliveryEligibility", () => {
     const result = await prepareDeliveryEligibility({
       plan: deliveryPlanFixture(),
       protectedBaseRef: "main",
-      controlRef: "control",
+      topRef: "control",
       candidates: [],
       lifecyclePaths: [],
     }, deps);
@@ -60,7 +65,7 @@ describe("prepareDeliveryEligibility", () => {
     const result = await prepareDeliveryEligibility({
       plan: deliveryStackPlanFixture(),
       protectedBaseRef: "main",
-      controlRef: "control",
+      topRef: "control",
       candidates: candidates(),
       lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
     }, dependencies());
@@ -70,7 +75,7 @@ describe("prepareDeliveryEligibility", () => {
       snapshot: {
         planRevision: 1,
         protectedBase: { ref: "main", head: oid("a"), tree: oid("1") },
-        control: { ref: "control", head: oid("d"), tree: oid("4") },
+        top: { ref: "control", head: oid("d"), tree: oid("4") },
         members: [
           { ref: "candidate/first", head: oid("b"), tree: oid("2") },
           { ref: "candidate/second", head: oid("c"), tree: oid("4") },
@@ -88,11 +93,30 @@ describe("prepareDeliveryEligibility", () => {
     const result = await prepareDeliveryEligibility({
       plan: deliveryStackPlanFixture(),
       protectedBaseRef: "main",
-      controlRef: "control",
+      topRef: "control",
       candidates: makeCandidates(),
       lifecyclePaths: [],
     }, dependencies());
     expect(result).toMatchObject({ status: "refused", reason });
+  });
+
+  it("keeps authoring candidates outside the published delivery namespace", async () => {
+    const plan = deliveryStackPlanFixture();
+    const direct = candidates().map((candidate, index) => index === 0
+      ? { ...candidate, ref: `refs/heads/delivery/${plan.workUnitId}/first` }
+      : candidate);
+
+    await expect(prepareDeliveryEligibility({
+      plan,
+      protectedBaseRef: "main",
+      topRef: "control",
+      candidates: direct,
+      lifecyclePaths: [],
+    }, dependencies())).resolves.toEqual({
+      status: "refused",
+      reason: "direct-delivery-ref",
+      deliverableId: plan.members[0]!.deliverableId,
+    });
   });
 
   it("names a candidate whose ancestry or lifecycle facts refuse", async () => {
@@ -100,7 +124,7 @@ describe("prepareDeliveryEligibility", () => {
     const deps = dependencies();
     deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
     await expect(prepareDeliveryEligibility({
-      plan, protectedBaseRef: "main", controlRef: "control", candidates: candidates(), lifecyclePaths: [],
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
     }, deps)).resolves.toEqual({
       status: "refused", reason: "wrong-predecessor", deliverableId: plan.members[0]!.deliverableId,
     });
@@ -110,7 +134,7 @@ describe("prepareDeliveryEligibility", () => {
       { status: "refused" as const, paths: ["meta.md", "notes.md"] as const }
     ));
     await expect(prepareDeliveryEligibility({
-      plan, protectedBaseRef: "main", controlRef: "control", candidates: candidates(),
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(),
       lifecyclePaths: ["meta.md", "notes.md"],
     }, lifecycleDeps)).resolves.toEqual({
       status: "refused", reason: "lifecycle-contribution", deliverableId: plan.members[0]!.deliverableId,
@@ -128,7 +152,7 @@ describe("prepareDeliveryEligibility", () => {
       ["candidate/second", { head: oid("c"), tree: oid("4") }],
     ]).get(ref) ?? null);
     await expect(prepareDeliveryEligibility({
-      plan, protectedBaseRef: "main", controlRef: "control", candidates: candidates(), lifecyclePaths: [],
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
     }, deps)).resolves.toEqual({
       status: "refused", reason: "empty-candidate", deliverableId: plan.members[0]!.deliverableId,
     });
@@ -136,6 +160,74 @@ describe("prepareDeliveryEligibility", () => {
 });
 
 describe("eligibility observation bracket", () => {
+  it("refuses malformed effective presentations before any publication mutation", async () => {
+    const malformed = deliveryStackPlanWithMemberTitlesFixture([
+      "Member title\nwith a second line",
+      "Second member",
+    ]);
+    const deps = dependencies();
+    deps.readCurrentPlan = vi.fn(async () => malformed);
+    const mutations = { refs: false, state: false, host: false };
+
+    const result = await executeWithFreshDeliveryEligibility({
+      planId: malformed.planId,
+      protectedBaseRef: "main",
+      topRef: "control",
+      candidates: candidates().map((candidate, index) => ({
+        ...candidate,
+        checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
+      })),
+    }, {
+      ...deps,
+      resolveOriginatingTopRef: async () => "control",
+      resolveLifecyclePaths: async () => [],
+      prepareMutation: async ({ plan: current }) => {
+        const presentations = resolveDeliveryMemberPresentations(current, current.members.slice(0, -1).map(
+          (member) => ({ deliverableId: member.deliverableId, summary: `Review ${member.title}.` }),
+        ));
+        return presentations.status === "resolved"
+          ? { status: "prepared" as const, value: presentations.value }
+          : presentations;
+      },
+      mutate: async () => {
+        mutations.refs = true;
+        mutations.state = true;
+        mutations.host = true;
+        return { status: "mutated" as const };
+      },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "presentation-mismatch" });
+    expect(mutations).toEqual({ refs: false, state: false, host: false });
+  });
+
+  it("refuses mutation when the requested top is not the repository-owned work-unit branch", async () => {
+    const deps = dependencies();
+    let mutated = false;
+
+    const result = await executeWithFreshDeliveryEligibility({
+      planId: deliveryStackPlanFixture().planId,
+      protectedBaseRef: "main",
+      topRef: "control",
+      candidates: candidates().map((candidate, index) => ({
+        ...candidate,
+        checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
+      })),
+    }, {
+      ...deps,
+      resolveOriginatingTopRef: async () => "refs/heads/feat/example",
+      resolveLifecyclePaths: async () => [],
+      prepareMutation: async () => ({ status: "prepared" as const, value: undefined }),
+      mutate: async () => {
+        mutated = true;
+        return { status: "mutated" as const };
+      },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "top-ref-mismatch" });
+    expect(mutated).toBe(false);
+  });
+
   it("refuses mutation when the current lifecycle path set moves during revalidation", async () => {
     const deps = dependencies();
     let readCount = 0;
@@ -144,14 +236,16 @@ describe("eligibility observation bracket", () => {
     const result = await executeWithFreshDeliveryEligibility({
       planId: deliveryStackPlanFixture().planId,
       protectedBaseRef: "main",
-      controlRef: "control",
+      topRef: "control",
       candidates: candidates().map((candidate, index) => ({
         ...candidate,
         checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
       })),
     }, {
       ...deps,
+      resolveOriginatingTopRef: async () => "control",
       resolveLifecyclePaths: async () => ++readCount === 1 ? ["meta.md"] : ["meta.md", "tasks.md"],
+      prepareMutation: async () => ({ status: "prepared" as const, value: undefined }),
       mutate: async () => {
         mutated = true;
         return { status: "mutated" as const };
@@ -172,14 +266,16 @@ describe("eligibility observation bracket", () => {
     await expect(executeWithFreshDeliveryEligibility({
       planId: deliveryStackPlanFixture().planId,
       protectedBaseRef: "main",
-      controlRef: "control",
+      topRef: "control",
       candidates: candidates().map((candidate, index) => ({
         ...candidate,
         checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
       })),
     }, {
       ...deps,
+      resolveOriginatingTopRef: async () => "control",
       resolveLifecyclePaths: async () => [],
+      prepareMutation: async () => ({ status: "prepared" as const, value: undefined }),
       mutate: async () => {
         mutated = true;
         return { status: "mutated" as const };
@@ -190,7 +286,7 @@ describe("eligibility observation bracket", () => {
 
   it("refuses a candidate checkout reported as tracked-dirty", async () => {
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, dependencies());
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
@@ -202,7 +298,7 @@ describe("eligibility observation bracket", () => {
 
   it("refuses unavailable candidate-checkout evidence", async () => {
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, dependencies());
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
@@ -219,7 +315,7 @@ describe("eligibility observation bracket", () => {
   it("closes only after exact completeness, plan/ref reobservation, and admissible bindings", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
@@ -232,7 +328,7 @@ describe("eligibility observation bracket", () => {
   it("refuses a non-terminal head bound to a foreign member", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
@@ -248,7 +344,7 @@ describe("eligibility observation bracket", () => {
   it("refuses a final candidate head bound to a foreign member", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
@@ -267,7 +363,7 @@ describe("eligibility observation bracket", () => {
   it("refuses moved source coordinates during close", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
@@ -286,13 +382,13 @@ describe("eligibility observation bracket", () => {
     const ancestryDeps = dependencies();
     ancestryDeps.readAncestry = vi.fn(async () => "unresolvable" as const);
     await expect(prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, ancestryDeps)).resolves.toMatchObject({ status: "refused", reason: "evidence-unavailable" });
 
     const bindingDeps = dependencies();
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, bindingDeps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
@@ -305,7 +401,7 @@ describe("eligibility observation bracket", () => {
   it("admits an exact same-member retry and refuses late plan or completeness drift", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({
-      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", controlRef: "control",
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
       candidates: candidates(), lifecyclePaths: [],
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
