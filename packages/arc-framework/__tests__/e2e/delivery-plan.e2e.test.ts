@@ -1309,7 +1309,7 @@ describe("arc delivery", () => {
     expect(verification.exitCode).toBe(1);
     expect(JSON.parse(verification.stdout)).toMatchObject({
       status: "refused",
-      reason: "verification-task-ineligible",
+      reason: "work-unit-verification-task-ineligible",
     });
   });
 
@@ -1338,8 +1338,14 @@ describe("arc delivery", () => {
       design: { artifacts: [{ artifactId: "spec.md", revisionDigest: DIGEST }], elements: [] },
       tasks: {
         inventoryDigest: DIGEST,
-        implementation: [{ taskId: "1.1", semanticDigest: DIGEST }],
-        verificationTaskId: "2.1",
+        parents: [
+          { taskId: "1.1", semanticDigest: DIGEST, role: { kind: "implementation" } },
+          {
+            taskId: "2.1",
+            semanticDigest: null,
+            role: { kind: "verification", scope: "work-unit" },
+          },
+        ],
       },
       source: {
         entry: "from-tasks",

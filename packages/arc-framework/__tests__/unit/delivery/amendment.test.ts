@@ -26,8 +26,12 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       ],
     },
     tasks: {
-      implementation: [{ taskId: "1.1" }, { taskId: "1.2" }, { taskId: "1.3" }],
-      verificationTaskId: "2.1",
+      parents: [
+        { taskId: "1.1", role: { kind: "implementation" } },
+        { taskId: "1.2", role: { kind: "implementation" } },
+        { taskId: "1.3", role: { kind: "implementation" } },
+        { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
+      ],
     },
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
@@ -97,17 +101,33 @@ function constructPlan(
     }],
   });
   if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const implementation = [
-    { taskId: "1.1", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.1"] ?? "First" }) },
-    { taskId: "1.2", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.2"] ?? "Second" }) },
-    { taskId: "1.3", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.3"] ?? "Third" }) },
+  const parents = [
+    {
+      taskId: "1.1",
+      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.1"] ?? "First" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.2",
+      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.2"] ?? "Second" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.3",
+      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.3"] ?? "Third" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "2.1",
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
   ];
   const result = constructDeliveryPlanRevision({
     authoring,
     taskInventory: {
-      inventoryDigest: canonicalDigest(implementation),
-      implementation,
-      verificationTaskId: "2.1",
+      inventoryDigest: canonicalDigest(parents),
+      parents,
     },
     designInventory: design.inventory,
     predecessor,
