@@ -2,6 +2,7 @@
 
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
+import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import { readLaneProgress, type LaneProgressProjection } from "../lane-progress.js";
@@ -13,6 +14,55 @@ type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded"
 export interface HostedReservationDischarge {
   discharged: boolean;
   detail: string;
+}
+
+/** One exact hosted target and its contribution span base. */
+export interface HostedReservationTarget {
+  readonly repository: string;
+  readonly pullRequest: number;
+  readonly headSha: string;
+  readonly baseRevision: string;
+}
+
+/** Contained target derivation for singleton and delivery review obligations. */
+export type HostedReservationTargetResolution =
+  | {
+    readonly status: "resolved";
+    readonly kind: "singleton" | "delivery";
+    readonly targets: readonly HostedReservationTarget[];
+  }
+  | { readonly status: "unavailable"; readonly targets: readonly [] };
+
+/** Derive the current hosted-review targets without persisting a target list. */
+export async function resolveHostedReservationTargets(input: {
+  readonly workUnitId: string;
+  readonly singleton: HostedReservationTarget;
+  readonly delivery: DeliveryDischargeTargetLookup;
+}): Promise<HostedReservationTargetResolution> {
+  try {
+    const resolved = await input.delivery.resolveDischargeTargets(input.workUnitId);
+    if (resolved.status === "unbound") {
+      return { status: "resolved", kind: "singleton", targets: [input.singleton] };
+    }
+    if (resolved.status === "unavailable") return { status: "unavailable", targets: [] };
+    const targets: HostedReservationTarget[] = [];
+    for (const binding of resolved.targets) {
+      if (!/^[1-9][0-9]*$/u.test(binding.changeRequestId)) {
+        return { status: "unavailable", targets: [] };
+      }
+      const pullRequest = Number(binding.changeRequestId);
+      if (!Number.isSafeInteger(pullRequest)) return { status: "unavailable", targets: [] };
+      targets.push({
+        repository: input.singleton.repository,
+        pullRequest,
+        headSha: binding.head,
+        baseRevision: binding.base,
+      });
+    }
+    return { status: "resolved", kind: "delivery", targets };
+  } catch {
+    return { status: "unavailable", targets: [] };
+  }
 }
 
 /**

@@ -31,6 +31,7 @@ export const ChangeRequestResolveCliInputSchema = z.object({
 
 export const ChangeRequestResolveInputSchema = ChangeRequestResolveCliInputSchema.extend({
   baseRef: z.string().trim().min(1),
+  acceptableBaseRefs: z.array(z.string().trim().min(1)).readonly().optional(),
 }).strict();
 export type ChangeRequestResolveInput = z.infer<typeof ChangeRequestResolveInputSchema>;
 
@@ -77,9 +78,11 @@ function classifyCandidates(
   targetRef: ChangeRequestTargetRef,
   candidates: readonly ChangeRequestCandidate[],
   baseRef: string,
+  acceptableBaseRefs: readonly string[],
 ): ChangeRequestResolveResult {
   const base = { schemaVersion: 1, mode: "review-change-request-resolve", targetRef } as const;
-  const matching = candidates.filter((candidate) => candidate.baseRefName === baseRef);
+  const acceptedBases = new Set([baseRef, ...acceptableBaseRefs]);
+  const matching = candidates.filter((candidate) => acceptedBases.has(candidate.baseRefName));
   if (candidates.length > 0 && matching.length === 0) {
     return {
       ...base,
@@ -167,11 +170,13 @@ export async function resolveChangeRequest(
       };
     }
     const byRef = await port.listByHead(repository, request.headRef);
-    if (byRef.length !== 0) return classifyCandidates(targetRef, byRef, request.baseRef);
+    const acceptableBaseRefs = request.acceptableBaseRefs ?? [];
+    if (byRef.length !== 0) return classifyCandidates(targetRef, byRef, request.baseRef, acceptableBaseRefs);
     return classifyCandidates(
       targetRef,
       await port.searchByHeadSha(repository, request.headSha),
       request.baseRef,
+      acceptableBaseRefs,
     );
   } catch (error) {
     return {

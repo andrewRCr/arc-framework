@@ -6,12 +6,20 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   DeliveryStateV1Schema,
+  type DeliveryPlanV1,
   type DeliveryStateV1,
 } from "../../src/lib/delivery/schema.js";
-import { RepositoryDeliveryStateStore } from "../../src/lib/delivery/local-stores.js";
+import {
+  RepositoryDeliveryPlanStore,
+  RepositoryDeliveryStateStore,
+} from "../../src/lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { RepositoryDeliveryMemberLookup } from "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { resolveReviewHeadRef } from "../../src/scripts/review-gate/core/review-subject.js";
+import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
@@ -42,11 +50,20 @@ async function writeStateRecord(cwd: string, recordName: string, content: string
   await writeFile(join(stateDirectory(cwd), recordName), content, "utf8");
 }
 
-async function publish(cwd: string, value: DeliveryStateV1): Promise<void> {
+async function publish(cwd: string, value: DeliveryStateV1, expectedRevision = 0): Promise<void> {
   const store = new RepositoryDeliveryStateStore(
     new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd),
   );
-  const published = await store.publish(value.planId, value, 0);
+  const published = await store.publish(value.planId, value, expectedRevision);
+  expect(published.status).toBe("ok");
+}
+
+async function publishPlan(cwd: string, plan: DeliveryPlanV1): Promise<void> {
+  const store = new RepositoryDeliveryPlanStore(
+    new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd),
+    DeliveryPlanV1Codec,
+  );
+  const published = await store.publishCurrent(plan.planId, plan, null);
   expect(published.status).toBe("ok");
 }
 
@@ -63,10 +80,10 @@ function state(options: {
     planId,
     workUnitId: options.workUnitId ?? "delivery-plan-record",
     boundPlan: { planRevision: 1, planDigest: canonicalDigest({ planId, revision: 1 }) },
-    target: null,
+    target: { ref: "refs/heads/main", coordinates: null },
     members: heads.map((head, index) => ({
       deliverableId: canonicalDigest({ member: index, planId }),
-      ref: `opaque-member-${index}`,
+      ref: `refs/heads/delivery/example/member-${index}`,
       changeRequest: null,
       coordinates: { base: BASE, head, tree: TREE },
     })),
@@ -75,6 +92,39 @@ function state(options: {
 }
 
 describe("repository delivery member lookup", () => {
+  it("re-derives every retained bound member target on each read", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    initial.members[0]!.changeRequest = { providerId: "github", changeRequestId: "41" };
+    initial.members[1]!.ref = null;
+    await publishPlan(cwd, plan);
+    await publish(cwd, initial);
+
+    await expect(lookup.resolveDischargeTargets(plan.workUnitId)).resolves.toMatchObject({
+      status: "resolved",
+      targets: [{ deliverableId: plan.members[0]!.deliverableId, changeRequestId: "41" }],
+    });
+
+    const rebound = structuredClone(initial);
+    rebound.members[1]!.changeRequest = { providerId: "github", changeRequestId: "42" };
+    await publish(cwd, rebound, 1);
+
+    await expect(lookup.resolveDischargeTargets(plan.workUnitId)).resolves.toMatchObject({
+      status: "resolved",
+      targets: [
+        { deliverableId: plan.members[0]!.deliverableId, changeRequestId: "41" },
+        { deliverableId: plan.members[1]!.deliverableId, ref: null, changeRequestId: "42" },
+      ],
+    });
+  });
+
+  it("reports an absent delivery work unit as authoritatively unbound", async () => {
+    const { lookup } = await repository();
+    await expect(lookup.resolveDischargeTargets("ordinary-work-unit"))
+      .resolves.toEqual({ status: "unbound" });
+  });
+
   it("resolves a bound head to its owning plan, member, work unit, and recorded commits", async () => {
     const { cwd, lookup } = await repository();
     const current = state({ heads: [FIRST_HEAD, SECOND_HEAD] });
@@ -87,10 +137,23 @@ describe("repository delivery member lookup", () => {
         deliverableId: current.members[0]!.deliverableId,
         workUnitId: "delivery-plan-record",
         base: BASE,
+        baseRef: "main",
+        headRef: "delivery/example/member-0",
         head: FIRST_HEAD,
         isFinalMember: false,
       },
     });
+  });
+
+  it("selects the retained member branch while running from the originating checkout", async () => {
+    const { cwd, lookup } = await repository();
+    await publish(cwd, state({ heads: [FIRST_HEAD, SECOND_HEAD] }));
+
+    const resolved = await lookup.resolveMemberByHead(FIRST_HEAD);
+    expect(resolved.status).toBe("resolved");
+    if (resolved.status !== "resolved") return;
+    expect(resolveReviewHeadRef("feat/delivery-plan-record", resolved.member))
+      .toBe("delivery/example/member-0");
   });
 
   it("answers unbound for a head no member holds, distinct from unavailable", async () => {
@@ -106,7 +169,7 @@ describe("repository delivery member lookup", () => {
 
     await expect(lookup.resolveMemberByHead(SECOND_HEAD)).resolves.toMatchObject({
       status: "resolved",
-      member: { isFinalMember: true },
+      member: { baseRef: "delivery/example/member-0", isFinalMember: true },
     });
     await expect(lookup.resolveMemberByHead(FIRST_HEAD)).resolves.toMatchObject({
       status: "resolved",
