@@ -15,11 +15,13 @@ import {
 } from "./position.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type {
+  DeliveryContributionEndpoints,
   DeliveryContributionProofResult,
   DeliveryContributionRefusal,
 } from "./contribution-proof.js";
 import type {
   DeliveryLandEffectV1,
+  DeliveryMergePolicyBindingV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
   DeliveryStateV1,
@@ -75,8 +77,8 @@ export const DeliveryRecoveryRerunV1Schema = z.union([
   }),
   z.strictObject({
     ...DeliveryRecoveryRerunCommonV1Shape,
-    transition: z.literal("cleared"),
-    action: z.literal("delivery-native-observe"),
+    transition: z.literal("preserved"),
+    action: z.literal("delivery-refresh-adopt"),
     selector: z.strictObject({
       ...DeliveryRecoverySelectorCommonV1Shape,
       operationKind: z.literal("rewrite"),
@@ -101,6 +103,16 @@ export const DeliveryRecoveryRerunV1Schema = z.union([
       ...DeliveryRecoverySelectorCommonV1Shape,
       operationKind: z.literal("land"),
       mode: z.literal("native"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-native-land-select"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("land"),
+      mode: z.literal("sequential"),
     }),
   }),
   z.strictObject({
@@ -251,6 +263,9 @@ export interface DeliveryLandingLockPort {
 
 /** Repository-derived facts acquired at each landing mutation boundary. */
 export interface DeliveryLandingObservationPort {
+  revalidateMergePolicy(binding: DeliveryMergePolicyBindingV1): Promise<
+    { readonly status: "exact" | "refused" }
+  >;
   observeSelection(): Promise<
     | {
         readonly status: "observed";
@@ -259,11 +274,15 @@ export interface DeliveryLandingObservationPort {
       }
     | { readonly status: "refused" }
   >;
-  proveLandedContribution(input: {
-    readonly beforeTarget: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+  observeLandedResult(input: {
+    readonly mergeCommitSha: string;
+    readonly strategy: "merge" | "rebase" | "squash";
     readonly beforeMember: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>;
-    readonly afterTarget: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
-  }): Promise<DeliveryContributionProofResult>;
+  }): Promise<{
+    readonly predecessor: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+    readonly member: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
+  } | null>;
+  proveLandedContribution(input: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
 }
 
 type DeliveryLandingRefusal =
@@ -342,7 +361,7 @@ export async function prepareDeliveryLanding(input: {
   readonly repository: string;
   readonly baseRef: string;
   readonly targetRef: string;
-  readonly mergeStrategy: "merge" | "rebase" | "squash";
+  readonly mergePolicy: DeliveryMergePolicyBindingV1;
   readonly releaseMergeLock: boolean;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
   readonly host: DeliveryHostPort;
@@ -384,7 +403,8 @@ export async function prepareDeliveryLanding(input: {
     headSha: member.coordinates.head,
     baseRef: input.baseRef.replace(/^refs\/heads\//u, ""),
     targetRef: input.targetRef,
-    strategy: input.mergeStrategy,
+    strategy: input.mergePolicy.method,
+    mergePolicy: input.mergePolicy,
   };
   const operationId = crypto.randomUUID();
   const requested = {
@@ -413,7 +433,7 @@ export async function prepareDeliveryLanding(input: {
       head: member.coordinates.head,
       repository: input.repository,
       changeRequestId: request.changeRequestId,
-      mergeStrategy: input.mergeStrategy,
+      mergeStrategy: input.mergePolicy.method,
       settledReviewState: readiness.settledReviewState,
       consequence: `Merge delivery member ${member.deliverableId} at exact head ${member.coordinates.head}.`,
       releaseMergeLock: input.releaseMergeLock,
@@ -434,7 +454,7 @@ export async function applyDeliveryLanding(input: {
 }): Promise<{ readonly status: "landed"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
   readonly status: "refused";
   readonly reason: "landing-refused";
-} | DeliveryContributionRefusal> {
+} | DeliveryContributionRefusal | DeliveryRecoveryResultV1> {
   const operation = input.current.value.activeOperation;
   if (operation?.kind !== "land" || operation.mode !== "sequential"
     || operation.operationId !== input.approved.operationId
@@ -469,6 +489,17 @@ export async function applyDeliveryLanding(input: {
         head: memberHead,
       })).status === "ready";
   };
+  const proveNotApplied = async (): Promise<boolean> => {
+    const fresh = await input.observation.observeSelection();
+    return fresh.status === "observed"
+      && checkDeliveryOperationPrecondition(input.current, fresh.snapshot).status === "ready"
+      && (await exactOpenRequest({
+        host: input.host,
+        repository: input.approved.repository,
+        member,
+        baseRef: `refs/heads/${operation.effect.baseRef}`,
+      })).status === "exact";
+  };
   if (!(await observeReady())) return landingRefused();
   if (input.approved.releaseMergeLock
     && (await input.lock.release({
@@ -476,7 +507,47 @@ export async function applyDeliveryLanding(input: {
       changeRequestId: input.approved.changeRequestId,
     })).status === "refused") return landingRefused();
   if (!(await observeReady())) return landingRefused();
-  if ((await input.host.mergeRequest(operation.effect)).status !== "submitted") return landingRefused();
+  if ((await input.observation.revalidateMergePolicy(operation.effect.mergePolicy)).status !== "exact") {
+    return landingRefused();
+  }
+  const submitted = await input.host.mergeRequest(operation.effect);
+  if (submitted.status !== "submitted") {
+    if (submitted.reason !== "native-stack-required") return landingRefused();
+    if (!(await proveNotApplied())) {
+      return {
+        status: "blocked",
+        reason: "operation-result-ambiguous",
+        recommendedActionText:
+          "Retain the sequential reservation; the semantic native refusal could not be proved not applied.",
+      };
+    }
+    const cleared = await input.stateStore.publish(input.plan.planId, {
+      ...input.current.value,
+      activeOperation: null,
+    }, input.current.revision);
+    if (cleared.status !== "ok") {
+      return {
+        status: "blocked",
+        reason: "retry-state-persistence-failed",
+        recommendedActionText:
+          "Retain and reconcile the sequential reservation; native-selection transition persistence failed.",
+      };
+    }
+    return {
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-native-land-select",
+      selector: {
+        planId: input.plan.planId,
+        operationId: operation.operationId,
+        affectedDeliverableIds: operation.affectedDeliverableIds,
+        operationKind: "land",
+        mode: "sequential",
+      },
+      recommendedActionText:
+        "Rerun `arc delivery native land-select`; it will freshly observe the canonical remaining stack.",
+    };
+  }
   const merged = member.changeRequest === null
     ? { status: "refused" as const }
     : await input.host.readRequest(input.approved.repository, member.changeRequest);
@@ -487,19 +558,24 @@ export async function applyDeliveryLanding(input: {
     || member.ref === null || merged.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
     || merged.request.headSha !== operation.effect.headSha
     || merged.request.baseRef !== operation.effect.baseRef) return landingRefused();
-  const target = await input.host.observeTarget(input.approved.repository, operation.effect.targetRef);
-  if (target.status !== "observed") return landingRefused();
   const memberCoordinates = member.coordinates;
   const beforeTarget = operation.before.target?.coordinates;
-  if (beforeTarget === null || beforeTarget === undefined) return landingRefused();
-  const proof = await input.observation.proveLandedContribution({
-    beforeTarget,
+  const mergeCommitSha = merged.request.mergeCommitSha;
+  if (beforeTarget === null || beforeTarget === undefined || mergeCommitSha === null
+    || mergeCommitSha === undefined) return landingRefused();
+  const landed = await input.observation.observeLandedResult({
+    mergeCommitSha,
+    strategy: operation.effect.strategy,
     beforeMember: memberCoordinates,
-    afterTarget: target.coordinates,
+  });
+  if (landed === null) return landingRefused();
+  const proof = await input.observation.proveLandedContribution({
+    before: { predecessor: beforeTarget, member: memberCoordinates },
+    after: landed,
   });
   if (proof.status !== "accepted") return proof;
   const observed: DeliveryOperationSnapshotV1 = {
-    target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
+    target: { ref: operation.effect.targetRef, coordinates: landed.member },
     members: operation.before.members,
   };
   const accepted = acceptDeliveryOperationResult(input.current, {
@@ -551,11 +627,11 @@ function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
           }
         : {
             status: "retryable",
-            transition: "cleared",
-            action: "delivery-native-observe",
+            transition: "preserved",
+            action: "delivery-refresh-adopt",
             selector: { ...selector, operationKind: "rewrite", mode: "provider-adoption" },
             recommendedActionText:
-              "Rerun `arc delivery native observe` for the exact provider-adoption reservation subject.",
+              "Rerun `arc delivery refresh adopt` for the exact provider-adoption reservation subject.",
           };
     case "teardown":
       return {

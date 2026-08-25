@@ -13,6 +13,7 @@ import {
 } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   closeDeliveryEligibility,
   executeWithFreshDeliveryEligibility,
@@ -28,6 +29,7 @@ import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lif
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import {
   deleteDeliveryRemoteRef,
   observeDeliveryRemoteRef,
@@ -46,20 +48,24 @@ import {
   type DeliveryPublicationPresentations,
 } from "../lib/delivery/materialization.js";
 import { adoptGitDeliveryChain } from "../lib/delivery/chain-adoption.js";
+import { absorbGitDeliveryChain } from "../lib/delivery/chain-absorption.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
   DeliveryPositionFactsV1Schema,
   deriveDeliveryPosition,
   resolveDeliveryPredecessorHead,
+  routeDeliveryPosition,
 } from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
+  DeliveryMergePolicyBindingV1Schema,
   DeliveryOperationSnapshotV1Schema,
   DeliveryPlanIdSchema,
   DeliveryPlanV1Schema,
   DeliveryStateV1Schema,
+  type DeliveryMergePolicyBindingV1,
   type DeliveryStateV1,
 } from "../lib/delivery/schema.js";
 import {
@@ -69,8 +75,17 @@ import {
   reconcileDeliveryExecution,
 } from "../lib/delivery/landing.js";
 import {
+  adoptExternalDeliverySuffixRefresh,
   executeDeliverySuffixRewrite,
+  settleReservedDeliverySuffixRefresh,
+  type DeliveryProviderRefreshMovement,
 } from "../lib/delivery/suffix-reconciliation.js";
+import {
+  deriveDeliveryProviderRefreshSubject,
+  observeDeliveryProviderRefresh,
+  type DeliveryProviderRefreshSubject,
+} from "../lib/delivery/provider-refresh-observation.js";
+import { planDeliverySuffixRefresh } from "../lib/delivery/refresh.js";
 import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
@@ -89,13 +104,15 @@ import {
   rebindDeliveryTerminalCoordinates,
 } from "../lib/delivery/terminal-integration.js";
 import {
+  composeDeliveryNativeStackLinkDecision,
   degradeNativeDeliveryStack,
-  linkDeliveryNativeStack,
+  deriveDeliveryNativeTarget,
+  linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
 } from "../lib/delivery/native-stack.js";
 import {
-  classifyDeliveryNativeEffect,
   deriveNativeDeliveryMemberChain,
+  deriveNativeDeliveryRegisteredRemainder,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
   reserveNativeDeliveryLanding,
@@ -104,7 +121,7 @@ import {
   type DeliveryNativeEffectFacts,
 } from "../lib/delivery/native-landing.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { validateManagedPath } from "../lib/kernel/index.js";
+import { canonicalize, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
@@ -120,6 +137,8 @@ import type { GitExec } from "../lib/git/exec.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { releaseMergeLock } from "../scripts/review-gate/merge-lock.js";
 import { evaluateReviewReadiness } from "../scripts/review-gate/readiness.js";
+import { MergeMethodSchema, resolveMergeMethod } from "../scripts/review-gate/merge-method.js";
+import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import { defaultMergeLockPort } from "./review.js";
@@ -199,7 +218,6 @@ const LandPrepareSchema = z.strictObject({
   repository: z.string().min(1),
   baseRef: RefSchema,
   targetRef: RefSchema,
-  mergeStrategy: z.enum(["merge", "rebase", "squash"]),
   releaseMergeLock: z.boolean(),
   treeRoot: z.string().min(1),
 });
@@ -257,8 +275,10 @@ const NativeObserveSchema = z.strictObject({
   members: z.array(NativeMemberSchema).min(1),
 });
 const NativeLinkSchema = NativeObserveSchema.extend({
-  members: z.array(NativeMemberSchema).min(2),
-  optIn: z.boolean(),
+  planId: DeliveryPlanIdSchema,
+  protectedBaseRef: RefSchema,
+  members: z.array(NativeMemberSchema).min(1),
+  optIn: z.boolean().optional(),
 });
 const NativeLandingMemberSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
@@ -269,10 +289,8 @@ const NativeSelectSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   facts: DeliveryPositionFactsV1Schema,
   repository: z.string().min(1),
-  mergeStrategy: z.enum(["merge", "rebase", "squash"]),
   mergeAction: z.enum(["direct", "queue"]),
   explicitAtomic: z.boolean(),
-  members: z.array(NativeMemberSchema).min(1),
 });
 const NativeSelectionSchema = z.strictObject({
   status: z.literal("selected"),
@@ -291,12 +309,31 @@ const NativeMergeRequestSchema = z.strictObject({
 });
 const NativeSubmitSchema = z.strictObject({
   planId: DeliveryPlanIdSchema, operationId: z.string().min(1), request: NativeMergeRequestSchema,
-  treeRoot: z.string().min(1),
+  treeRoot: z.string().min(1), remote: z.string().min(1).default("origin"),
 });
 const NativeStatusSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   request: NativeMergeRequestSchema,
   remote: z.string().min(1).default("origin"),
+});
+const RefreshTriggerSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("landing-refused"),
+    reason: z.enum(["conflict", "native-stale-suffix", "host-up-to-date"]),
+  }),
+  z.strictObject({ kind: z.literal("operator-choice") }),
+]);
+const RefreshPlanSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  trigger: RefreshTriggerSchema,
+  remote: z.string().min(1).default("origin"),
+});
+const RefreshAdoptSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  operationId: z.string().min(1).optional(),
 });
 
 const RequestSchemas = {
@@ -318,6 +355,8 @@ const RequestSchemas = {
   "native-land-prepare": NativePrepareSchema,
   "native-land-submit": NativeSubmitSchema,
   "native-land-status": NativeStatusSchema,
+  "refresh-plan": RefreshPlanSchema,
+  "refresh-adopt": RefreshAdoptSchema,
 } as const;
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
@@ -357,6 +396,7 @@ const DeliveryHostRequestSchema = z.strictObject({
   headSha: GitObjectIdSchema,
   baseRef: z.string().min(1),
   state: z.enum(["open", "merged", "closed"]),
+  mergeCommitSha: GitObjectIdSchema.nullable().optional(),
 });
 const DeliveryTopReadySchema = z.strictObject({
   status: z.literal("ready"),
@@ -391,6 +431,8 @@ const ResultSchema = z.union([
     position: z.unknown(),
     nextAction: z.string().min(1),
     selectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+    plannedSuffix: z.array(DeliveryCanonicalDigestSchema).optional(),
+    recommendedActionText: z.string().min(1).optional(),
   }),
   z.strictObject({
     status: z.literal("applied"),
@@ -413,6 +455,17 @@ const ResultSchema = z.union([
     nextAction: z.literal("read-position").optional(),
   }),
   z.strictObject({ status: z.literal("retryable"), recommendedActionText: z.string().min(1) }),
+  z.strictObject({
+    status: z.literal("disclosed"),
+    plannedSuffix: z.array(DeliveryCanonicalDigestSchema),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("refresh-required"),
+    mechanics: z.literal("operator-initiated"),
+    plannedSuffix: z.array(DeliveryCanonicalDigestSchema).min(1),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   BlockedContributionRefusalSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
@@ -445,6 +498,12 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("unregistered") }),
   z.strictObject({ status: z.enum(["partial", "incoherent"]), affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema) }),
   z.strictObject({ status: z.enum(["unsupported", "unavailable", "malformed", "ambiguous"]) }),
+  z.strictObject({
+    status: z.literal("decision-required"),
+    recommendedOptInText: z.string().min(1),
+    recommendedOptOutText: z.string().min(1),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("linked"), stackNumber: z.number().int().positive(), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("unlinked"), recommendedActionText: z.string().min(1) }),
   z.strictObject({ status: z.literal("downgrade-required"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
@@ -456,6 +515,11 @@ const ResultSchema = z.union([
   ContainmentRefusalSchema,
   DeliveryLifecycleContributionRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.string().min(1),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
 ]);
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
@@ -511,6 +575,7 @@ function executionPath(command: DeliveryExecutionCommand): string {
   if (command.startsWith("eligibility-")) return `delivery eligibility ${command.slice("eligibility-".length)}`;
   if (command.startsWith("land-")) return `delivery land ${command.slice("land-".length)}`;
   if (command.startsWith("native-")) return `delivery native ${command.slice("native-".length)}`;
+  if (command.startsWith("refresh-")) return `delivery refresh ${command.slice("refresh-".length)}`;
   return `delivery ${command}`;
 }
 
@@ -608,10 +673,12 @@ async function observeNativeDeliveryEffect(
   state: DeliveryStateV1,
   repository: string,
   operation: Extract<NonNullable<DeliveryStateV1["activeOperation"]>, { kind: "land" }>,
+  exec: GitExec,
+  cwd: string,
+  remote: string,
 ): Promise<DeliveryNativeEffectFacts> {
-  const target = await host.observeTarget(repository, operation.effect.targetRef);
-  if (target.status !== "observed") return { outcome: "ambiguous" };
   const merged: string[] = [];
+  const landedResults: Array<NonNullable<Awaited<ReturnType<typeof observeGitDeliveryLandingResult>>>> = [];
   for (const [index, entry] of operation.before.members.entries()) {
     const member = state.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
     const prior = operation.before.members[index - 1];
@@ -640,27 +707,89 @@ async function observeNativeDeliveryEffect(
       return { outcome: "ambiguous" };
     }
     if (observed.request.state === "merged") {
+      if (observed.request.mergeCommitSha === null || observed.request.mergeCommitSha === undefined) {
+        return { outcome: "ambiguous" };
+      }
+      const landedResult = await observeGitDeliveryLandingResult({
+        exec,
+        cwd,
+        remote,
+        resultHead: observed.request.mergeCommitSha,
+        strategy: "merge",
+        beforeMember: entry.coordinates,
+      });
+      if (landedResult === null) return { outcome: "ambiguous" };
+      const previous = landedResults.at(-1);
+      if (previous !== undefined && landedResult.predecessor.head !== previous.member.head) {
+        return { outcome: "ambiguous" };
+      }
       merged.push(entry.deliverableId);
+      landedResults.push(landedResult);
     }
   }
   if (merged.length === 0) return { outcome: "none-landed" };
   if (merged.length !== operation.before.members.length) {
     return { outcome: "partial-landed", affectedDeliverableIds: merged };
   }
+  const targetBefore = operation.before.target?.coordinates;
+  const firstResult = landedResults[0];
+  const finalResult = landedResults.at(-1);
+  if (targetBefore === null || targetBefore === undefined || firstResult === undefined || finalResult === undefined) {
+    return { outcome: "ambiguous" };
+  }
+  const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+    ...options,
+    cwd,
+    objectAccess: "local-only",
+  });
+  if (await readAncestry(localOnlyExec, targetBefore.head, firstResult.predecessor.head) !== "ancestor") {
+    return { outcome: "ambiguous" };
+  }
   return {
     outcome: "all-landed",
     snapshot: {
-      target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
-      members: operation.before.members.map((entry) => ({
-        ...entry,
-        coordinates: {
-          base: entry.coordinates?.base ?? target.coordinates.head,
-          head: target.coordinates.head,
-          tree: target.coordinates.tree,
-        },
-      })),
+      target: { ref: operation.effect.targetRef, coordinates: finalResult.member },
+      members: operation.before.members,
     },
   };
+}
+
+async function resolveIntermediateDeliveryMergePolicy(
+  cwd: string,
+  repository: string,
+): Promise<DeliveryMergePolicyBindingV1 | null> {
+  try {
+    const config = await readConfigSettings(cwd);
+    const configured = MergeMethodSchema.safeParse(config.settings["merge.strategy"]);
+    if (config.warnings.length > 0 || !configured.success) return null;
+    const resolved = await resolveMergeMethod(
+      configured.data,
+      createGhMergeMethodPolicyPort(hostedGhRunner),
+      repository,
+      "intermediate",
+    );
+    if (resolved.state !== "validated") return null;
+    const binding = DeliveryMergePolicyBindingV1Schema.safeParse({
+      repository: resolved.repository,
+      stackPosition: resolved.stackPosition,
+      method: resolved.method,
+      allowedMethods: resolved.allowedMethods,
+      policyFingerprint: resolved.policyFingerprint,
+    });
+    return binding.success ? binding.data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function revalidateIntermediateDeliveryMergePolicy(
+  cwd: string,
+  binding: DeliveryMergePolicyBindingV1,
+): Promise<{ readonly status: "exact" | "refused" }> {
+  const current = await resolveIntermediateDeliveryMergePolicy(cwd, binding.repository);
+  return current !== null && canonicalize(current) === canonicalize(binding)
+    ? { status: "exact" }
+    : { status: "refused" };
 }
 
 async function executeDeliveryCommand(
@@ -668,12 +797,52 @@ async function executeDeliveryCommand(
   request: unknown,
   interaction?: InteractionContext,
 ): Promise<unknown> {
+  let nativeLinkRequest: z.infer<typeof NativeLinkSchema> | null = null;
+  if (command === "native-link") {
+    nativeLinkRequest = NativeLinkSchema.parse(request);
+    if (nativeLinkRequest.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
+  }
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
   const exec = createGitExec(interaction?.subprocess);
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  const settleAppliedNativeLanding = (
+    plan: z.infer<typeof DeliveryPlanV1Schema>,
+    before: { readonly revision: number; readonly value: DeliveryStateV1 },
+    landed: { readonly revision: number; readonly value: DeliveryStateV1 },
+    repository: string,
+    protectedTargetRef: string,
+    remote: string,
+  ) => {
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const rawExec = createRawGitExec(cwd);
+    return reconcileLinkedNativeDeliverySuffix({
+      plan,
+      before,
+      landed,
+      repository,
+      protectedTargetRef,
+    }, {
+      observeRequest: (binding) => host.readRequest(repository, binding),
+      observeRef: async (ref) => {
+        const remoteRef = await observeDeliveryRemoteRef(exec, remote, ref);
+        if (remoteRef.status !== "observed") return null;
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", remote, remoteRef.head]);
+        } catch {
+          return null;
+        }
+        const observed = await observeDeliveryEligibilityRef(exec, remoteRef.head);
+        return observed?.head === remoteRef.head ? observed : null;
+      },
+      proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
+      absorbTop: (input) => absorbGitDeliveryChain({ exec: rawExec, ...input }),
+      publishTop: (input) => publishDeliveryTopRef({ exec, remote, ...input }),
+      stateStore,
+    });
+  };
   const resolveMemberReadOnly = (head: string) => (
     stateStore.resolveMemberReadOnly({ selector: { kind: "head", objectId: head } })
   );
@@ -763,7 +932,35 @@ async function executeDeliveryCommand(
       }
     }
     const observed = await observeRepositoryDeliveryPosition(plan, current.value, current.revision, {
-      exec, cwd, host, repository, remoteHeads, localCommits,
+      exec,
+      cwd,
+      host,
+      repository,
+      remoteHeads,
+      localCommits,
+      materializeTarget: async (coordinates) => {
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", remote, coordinates.head]);
+        } catch {
+          return false;
+        }
+        const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
+          ...options,
+          cwd,
+          objectAccess: "local-only",
+        });
+        const local = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+        return local?.head === coordinates.head && local.tree === coordinates.tree;
+      },
+      observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
+        observeGitDeliveryLandingResult({
+          exec, cwd, remote, resultHead: mergeCommitSha, strategy, beforeMember,
+        })
+      ),
+      proveContribution: (endpoints) => proveGitDeliveryContribution({
+        exec: createRawGitExec(cwd),
+        ...endpoints,
+      }),
     });
     if (observed.status !== "observed") return observed;
     for (const deliverableId of operation?.affectedDeliverableIds ?? []) {
@@ -776,13 +973,250 @@ async function executeDeliveryCommand(
     return observed;
   };
 
-  if (command === "native-observe" || command === "native-link" || command === "native-unlink") {
+  const localOnlyExec: GitExec = (commandName, args, options) => exec(commandName, args, {
+    ...options,
+    cwd,
+    objectAccess: "local-only",
+  });
+  const observeRefreshCoordinates = async (head: string) => {
+    const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, head);
+    return coordinates?.head === head ? coordinates : null;
+  };
+  const observeProviderRefresh = async (
+    subject: DeliveryProviderRefreshSubject,
+    repository: string,
+    remote: string,
+  ) => {
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    return observeDeliveryProviderRefresh({ subject, repository }, {
+      observeRequest: (observedRepository, binding) => host.readRequest(observedRepository, binding),
+      observeTarget: async (observedRepository, ref) => {
+        const observed = await host.observeTarget(observedRepository, ref);
+        if (observed.status !== "observed") return { status: "refused" as const };
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", remote, observed.coordinates.head]);
+        } catch {
+          return { status: "refused" as const };
+        }
+        const coordinates = await observeRefreshCoordinates(observed.coordinates.head);
+        return coordinates !== null && canonicalize(coordinates) === canonicalize(observed.coordinates)
+          ? { status: "observed" as const, coordinates }
+          : { status: "refused" as const };
+      },
+      observeRef: async (ref) => {
+        const observed = await observeDeliveryRemoteRef(exec, remote, ref);
+        if (observed.status !== "observed") return null;
+        try {
+          await exec("git", ["fetch", "--no-write-fetch-head", remote, observed.head]);
+        } catch {
+          return null;
+        }
+        return observeRefreshCoordinates(observed.head);
+      },
+      readAncestry: async (ancestor, descendant) => {
+        const result = await readAncestry(localOnlyExec, ancestor, descendant);
+        return result === "ancestor" || result === "not-ancestor" ? result : null;
+      },
+    });
+  };
+  const proveProviderRefreshMovement = async (movement: DeliveryProviderRefreshMovement) => {
+    const beforeMember = movement.before.coordinates;
+    const afterMember = movement.after.coordinates;
+    if (beforeMember === null || afterMember === null) {
+      return { status: "refused" as const, reason: "contribution-endpoints-unverified" as const };
+    }
+    const [beforePredecessor, afterPredecessor] = await Promise.all([
+      observeRefreshCoordinates(beforeMember.base),
+      observeRefreshCoordinates(afterMember.base),
+    ]);
+    if (beforePredecessor === null || afterPredecessor === null) {
+      return { status: "refused" as const, reason: "contribution-endpoints-unverified" as const };
+    }
+    return proveGitDeliveryContribution({
+      exec: createRawGitExec(cwd),
+      before: { predecessor: beforePredecessor, member: beforeMember },
+      after: { predecessor: afterPredecessor, member: afterMember },
+    });
+  };
+  const reservedRefreshSubject = (
+    plan: z.infer<typeof DeliveryPlanV1Schema>,
+    state: z.infer<typeof DeliveryStateV1Schema>,
+  ): DeliveryProviderRefreshSubject | null => {
+    const operation = state.activeOperation;
+    if (operation?.kind !== "rewrite" || operation.mode !== "provider-adoption") return null;
+    const start = plan.members.findIndex(
+      ({ deliverableId }) => deliverableId === operation.affectedDeliverableIds[0],
+    );
+    const plannedSuffix = start < 0
+      ? []
+      : plan.members.slice(start, -1).map(({ deliverableId }) => deliverableId);
+    const beforeIds = operation.before.members.map(({ deliverableId }) => deliverableId);
+    if (canonicalize(plannedSuffix) !== canonicalize(operation.affectedDeliverableIds)
+      || canonicalize(beforeIds) !== canonicalize(operation.affectedDeliverableIds)) return null;
+    return {
+      landedPrefix: plan.members.slice(0, start).map(({ deliverableId }) => deliverableId),
+      affectedDeliverableIds: operation.affectedDeliverableIds,
+      before: operation.before,
+    };
+  };
+
+  if (command === "refresh-plan" || command === "refresh-adopt") {
+    const parsed = (command === "refresh-plan" ? RefreshPlanSchema : RefreshAdoptSchema).parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return {
+        status: "refused",
+        reason: "delivery-unavailable",
+        recommendedActionText: "Restore canonical delivery plan and state before refreshing.",
+      };
+    }
+    const plan = planRead.value;
+    const current = stateRead.value;
+    if (command === "refresh-plan") {
+      const planRequest = RefreshPlanSchema.parse(parsed);
+      const derived = deriveDeliveryProviderRefreshSubject({ plan, state: current.value });
+      if (derived.status === "refused") {
+        return {
+          ...derived,
+          recommendedActionText: "Restore one exact bound non-terminal suffix before planning refresh.",
+        };
+      }
+      const observed = await observeProviderRefresh(derived.subject, planRequest.repository, planRequest.remote);
+      if (observed.status === "refused") {
+        return planDeliverySuffixRefresh({
+          plan,
+          landedPrefix: derived.subject.landedPrefix,
+          trigger: { ...planRequest.trigger, mechanics: "operator-initiated" },
+          providerMovement: observed.reason === "target-rewritten" ? "target-rewritten" : "ambiguous",
+        });
+      }
+      const stable = derived.subject.before.members.every((member, index) => {
+        const after = observed.observation.snapshot.members[index];
+        return after !== undefined && after.deliverableId === member.deliverableId
+          && after.coordinates?.head === member.coordinates?.head
+          && after.coordinates?.tree === member.coordinates?.tree;
+      });
+      return planDeliverySuffixRefresh({
+        plan,
+        landedPrefix: derived.subject.landedPrefix,
+        trigger: { ...planRequest.trigger, mechanics: "operator-initiated" },
+        providerMovement: stable ? "stable" : "ambiguous",
+      });
+    }
+
+    const adopt = RefreshAdoptSchema.parse(parsed);
+    const providerAdoptionResult = <Result extends {
+      readonly status: string;
+      readonly reason?: string;
+      readonly paths?: readonly string[];
+    }>(result: Result) => {
+      if (result.status !== "blocked") return result;
+      if (result.paths !== undefined) {
+        return {
+          ...result,
+          reason: result.reason === "content-conflict" ? "contribution-conflicted" : result.reason,
+          guidance: "Resolve the listed paths, then rerun refresh adoption with the reservation retained.",
+        };
+      }
+      return {
+        ...result,
+        guidance: "Restore exact provider and terminal-top state, then rerun refresh adoption.",
+      };
+    };
+    const refreshSettlementDependencies = (subject: DeliveryProviderRefreshSubject) => ({
+      observeResult: () => observeProviderRefresh(subject, adopt.repository, adopt.remote),
+      proveContribution: proveProviderRefreshMovement,
+      absorbTop: (input: {
+        topRef: string;
+        top: { head: string; tree: string };
+        highestMember: { head: string; tree: string };
+      }) => absorbGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
+      publishTop: (input: { ref: string; beforeHead: string; requestedHead: string }) => (
+        publishDeliveryTopRef({ exec, remote: adopt.remote, ...input })
+      ),
+      stateStore,
+    });
+    const active = current.value.activeOperation;
+    if (active !== null) {
+      if (active.kind !== "rewrite" || active.mode !== "provider-adoption"
+        || adopt.operationId !== active.operationId) {
+        return {
+          status: "refused",
+          reason: "operation-mismatch",
+          recommendedActionText: "Use the exact provider-adoption recovery selector from delivery reconcile.",
+        };
+      }
+      const subject = reservedRefreshSubject(plan, current.value);
+      if (subject === null) {
+        return {
+          status: "refused",
+          reason: "position-mismatch",
+          recommendedActionText: "Restore the reserved suffix subject before provider adoption.",
+        };
+      }
+      const reconciled = await settleReservedDeliverySuffixRefresh({
+        plan,
+        current,
+        ...refreshSettlementDependencies(subject),
+      });
+      return providerAdoptionResult(reconciled);
+    }
+    if (adopt.operationId !== undefined) {
+      return {
+        status: "refused",
+        reason: "operation-mismatch",
+        recommendedActionText: "Omit operationId when adopting an externally initiated refresh.",
+      };
+    }
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state: current.value });
+    if (derived.status === "refused") {
+      return {
+        ...derived,
+        recommendedActionText: "Restore one exact bound non-terminal suffix before refresh adoption.",
+      };
+    }
+    const adopted = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current,
+      affectedDeliverableIds: derived.subject.affectedDeliverableIds,
+      ...refreshSettlementDependencies(derived.subject),
+    });
+    return providerAdoptionResult(adopted);
+  }
+
+  if (command === "native-observe" || command === "native-unlink") {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     return command === "native-observe"
       ? observeDeliveryNativeStack(NativeObserveSchema.parse(request), host)
-      : command === "native-link"
-        ? linkDeliveryNativeStack(NativeLinkSchema.parse(request), host)
-        : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
+      : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
+  }
+  if (command === "native-link") {
+    const parsed = nativeLinkRequest ?? NativeLinkSchema.parse(request);
+    if (parsed.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return {
+        status: "refused",
+        reason: "delivery-unavailable",
+        recommendedActionText: "Restore canonical delivery state before native registration.",
+      };
+    }
+    return linkPlannedDeliveryNativeStack({
+      plan: planRead.value,
+      state: stateRead.value.value,
+      repository: parsed.repository,
+      baseRef: parsed.protectedBaseRef,
+      members: parsed.members,
+      optIn: parsed.optIn,
+    }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-land-select") {
     const parsed = NativeSelectSchema.parse(request);
@@ -794,19 +1228,60 @@ async function executeDeliveryCommand(
     if (position.status !== "derived") {
       return { status: "blocked", reason: position.reason, recommendedActionText: "Refresh exact delivery position before selecting a landing arm." };
     }
+    const target = deriveDeliveryNativeTarget(stateRead.value.value);
+    const firstRemaining = planRead.value.members[position.position.landedPrefix.length];
+    if (target.status !== "resolved" || firstRemaining === undefined
+      || position.position.landedPrefix.length >= planRead.value.members.length - 1) {
+      return {
+        status: "blocked",
+        reason: "protected-target-mismatch",
+        recommendedActionText: "Use the exact protected target bound in current delivery state.",
+      };
+    }
+    const expectedChain = deriveNativeDeliveryRegisteredRemainder({
+      plan: planRead.value,
+      state: stateRead.value.value,
+      firstDeliverableId: firstRemaining.deliverableId,
+      repository: parsed.repository,
+      baseRef: target.baseRef,
+    });
+    if (expectedChain.status === "refused") {
+      return {
+        status: "blocked",
+        reason: expectedChain.reason,
+        recommendedActionText: "Restore the exact canonical non-terminal remainder before selecting an arm.",
+      };
+    }
     const host = new GhDeliveryHostPort(hostedGhRunner);
-    const observation = await observeDeliveryNativeStack({ repository: parsed.repository, members: parsed.members }, host);
+    const observation = await observeDeliveryNativeStack({
+      repository: parsed.repository,
+      members: expectedChain.members,
+    }, host);
     if (observation.status === "refused") {
       return { status: "blocked", reason: observation.reason, recommendedActionText: "Repair the exact native-stack input before selecting a landing arm." };
+    }
+    const mergePolicy = observation.status === "registered"
+      ? await resolveIntermediateDeliveryMergePolicy(cwd, parsed.repository)
+      : null;
+    if (observation.status === "registered" && mergePolicy === null) {
+      return {
+        status: "blocked",
+        reason: "merge-policy-unavailable",
+        recommendedActionText: "Restore readable repository merge policy before selecting a native landing arm.",
+      };
     }
     return selectNativeDeliveryLandingArm({
       plan: planRead.value,
       landedPrefix: position.position.landedPrefix,
       observation,
-      mergeStrategy: parsed.mergeStrategy,
+      mergeStrategy: mergePolicy?.method ?? "merge",
       mergeAction: parsed.mergeAction,
       explicitAtomic: parsed.explicitAtomic,
-      members: parsed.members.map(({ deliverableId, changeRequestId, headSha }) => ({ deliverableId, changeRequestId, headSha })),
+      members: expectedChain.members.map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId,
+        changeRequestId,
+        headSha,
+      })),
     });
   }
   if (command === "native-land-prepare" || command === "native-land-submit" || command === "native-land-status") {
@@ -834,10 +1309,18 @@ async function executeDeliveryCommand(
           recommendedActionText: "Refresh the exact plan-ordered member bindings before preparing again.",
         };
       }
+      const mergePolicy = await resolveIntermediateDeliveryMergePolicy(cwd, prepare.repository);
+      if (mergePolicy === null) {
+        return {
+          status: "blocked",
+          reason: "merge-policy-unavailable",
+          recommendedActionText: "Restore readable repository merge policy before preparing a native landing.",
+        };
+      }
       return reserveNativeDeliveryLanding({
         plan, current, operationId: prepare.operationId, facts: prepare.facts,
         selection: prepare.selection, repository: prepare.repository, baseRef: prepare.baseRef,
-        targetRef: prepare.targetRef,
+        targetRef: prepare.targetRef, mergePolicy,
       }, {
         readiness: async (member) => {
           const bound = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
@@ -867,7 +1350,7 @@ async function executeDeliveryCommand(
     if (command === "native-land-submit") {
       const submit = NativeSubmitSchema.parse(parsed);
       const operation = current.value.activeOperation;
-      return submitReservedNativeDeliveryMerge({
+      const nativeResult = await submitReservedNativeDeliveryMerge({
         planId: submit.planId, current, operationId: submit.operationId, request: submit.request,
       }, {
         host, stateStore,
@@ -875,18 +1358,12 @@ async function executeDeliveryCommand(
           if (operation?.kind !== "land" || operation.mode !== "native") {
             return { status: "refused" as const };
           }
-          const selectedMembers = [];
-          for (const entry of operation.before.members) {
-            if (entry.coordinates === null || entry.changeRequest === null) return { status: "refused" as const };
-            selectedMembers.push({
-              deliverableId: entry.deliverableId,
-              changeRequestId: entry.changeRequest.changeRequestId,
-              headSha: entry.coordinates.head,
-            });
-          }
-          const expectedChain = deriveNativeDeliveryMemberChain({
+          const firstDeliverableId = operation.affectedDeliverableIds[0];
+          if (firstDeliverableId === undefined) return { status: "refused" as const };
+          const expectedChain = deriveNativeDeliveryRegisteredRemainder({
+            plan,
             state: current.value,
-            selectedMembers,
+            firstDeliverableId,
             repository: submit.request.repository,
             baseRef: operation.effect.baseRef,
           });
@@ -925,10 +1402,29 @@ async function executeDeliveryCommand(
           }, defaultMergeLockPort(cwd));
           return { status: released.state === "blocked" ? "refused" as const : released.state === "released" ? "released" as const : "not-configured" as const };
         },
+        revalidateMergePolicy: (binding) => revalidateIntermediateDeliveryMergePolicy(cwd, binding),
         observeEffect: async () => operation?.kind === "land" && operation.mode === "native"
-          ? observeNativeDeliveryEffect(host, current.value, submit.request.repository, operation)
+          ? observeNativeDeliveryEffect(
+              host, current.value, submit.request.repository, operation, exec, cwd, submit.remote,
+            )
           : { outcome: "ambiguous" as const },
       });
+      if (nativeResult.status !== "applied") return nativeResult;
+      if (operation === null || operation.kind !== "land" || operation.mode !== "native") {
+        return {
+          status: "blocked",
+          reason: "reservation-mismatch",
+          recommendedActionText: "Restore the exact native landing reservation before suffix reconciliation.",
+        };
+      }
+      return settleAppliedNativeLanding(
+        plan,
+        current,
+        { revision: current.revision, value: nativeResult.projected },
+        submit.request.repository,
+        operation.effect.targetRef,
+        submit.remote,
+      );
     }
     const status = NativeStatusSchema.parse(parsed);
     const operation = current.value.activeOperation;
@@ -937,32 +1433,19 @@ async function executeDeliveryCommand(
     }
     const nativeResult = await reconcileReservedNativeDeliveryMerge({ planId: status.planId, current, request: status.request }, {
       host, stateStore,
-      observeEffect: () => observeNativeDeliveryEffect(host, current.value, status.request.repository, operation),
+      observeEffect: () => observeNativeDeliveryEffect(
+        host, current.value, status.request.repository, operation, exec, cwd, status.remote,
+      ),
     });
     if (nativeResult.status !== "applied") return nativeResult;
-    const rawExec = createRawGitExec(cwd);
-    return reconcileLinkedNativeDeliverySuffix({
+    return settleAppliedNativeLanding(
       plan,
-      before: current,
-      landed: nativeResult.state,
-      repository: status.request.repository,
-      protectedTargetRef: operation.effect.targetRef,
-    }, {
-      observeRequest: (binding) => host.readRequest(status.request.repository, binding),
-      observeRef: async (ref) => {
-        const remoteRef = await observeDeliveryRemoteRef(exec, status.remote, ref);
-        if (remoteRef.status !== "observed") return null;
-        try {
-          await exec("git", ["fetch", "--no-write-fetch-head", status.remote, remoteRef.head]);
-        } catch {
-          return null;
-        }
-        const observed = await observeDeliveryEligibilityRef(exec, remoteRef.head);
-        return observed?.head === remoteRef.head ? observed : null;
-      },
-      proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
-      stateStore,
-    });
+      current,
+      { revision: current.revision, value: nativeResult.projected },
+      status.request.repository,
+      operation.effect.targetRef,
+      status.remote,
+    );
   }
 
   if (command === "eligibility-prepare") {
@@ -1137,28 +1620,7 @@ async function executeDeliveryCommand(
     if (plan.status !== "ok" || plan.value === null || state.status !== "ok" || state.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
-    const position = deriveDeliveryPosition(plan.value, state.value.value, parsed.facts);
-    if (position.status !== "derived") return { status: "refused", reason: position.reason };
-    const terminal = plan.value.members.at(-1);
-    if (position.position.firstUnlanded === null || plan.value.members.length === 1) {
-      return { status: "position", position: position.position, nextAction: "terminal-handoff" };
-    }
-    if (position.position.firstUnlanded === terminal?.deliverableId) {
-      const highest = plan.value.members.at(-2);
-      if (highest === undefined) return { status: "refused", reason: "position-mismatch" };
-      return {
-        status: "position",
-        position: position.position,
-        nextAction: "teardown-member",
-        selectedDeliverableId: highest.deliverableId,
-      };
-    }
-    return {
-      status: "position",
-      position: position.position,
-      nextAction: "review-member",
-      selectedDeliverableId: position.position.firstUnlanded,
-    };
+    return routeDeliveryPosition(plan.value, state.value.value, parsed.facts);
   }
   if (command === "land-prepare" || command === "land-apply") {
     const parsed = (command === "land-prepare" ? LandPrepareSchema : LandApplySchema).parse(request);
@@ -1208,6 +1670,10 @@ async function executeDeliveryCommand(
     };
     if (command === "land-prepare") {
       const prepare = LandPrepareSchema.parse(parsed);
+      const mergePolicy = await resolveIntermediateDeliveryMergePolicy(cwd, prepare.repository);
+      if (mergePolicy === null) {
+        return { status: "refused", reason: "merge-policy-unavailable" };
+      }
       return prepareDeliveryLanding({
         plan,
         current: stateRead.value,
@@ -1216,7 +1682,7 @@ async function executeDeliveryCommand(
         repository: prepare.repository,
         baseRef: prepare.baseRef,
         targetRef: prepare.targetRef,
-        mergeStrategy: prepare.mergeStrategy,
+        mergePolicy,
         releaseMergeLock: prepare.releaseMergeLock,
         stateStore,
         host,
@@ -1254,6 +1720,7 @@ async function executeDeliveryCommand(
       readiness,
       lock,
       observation: {
+        revalidateMergePolicy: (binding) => revalidateIntermediateDeliveryMergePolicy(cwd, binding),
         observeSelection: async () => {
           const observed = await observePosition(plan, current, apply.approved.repository, apply.remote);
           const member = observed.status === "observed"
@@ -1266,10 +1733,14 @@ async function executeDeliveryCommand(
             } }
             : { status: "refused" as const };
         },
-        proveLandedContribution: (coordinates) => proveGitDeliveryContribution({
+        observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
+          observeGitDeliveryLandingResult({
+            exec, cwd, remote: apply.remote, resultHead: mergeCommitSha, strategy, beforeMember,
+          })
+        ),
+        proveLandedContribution: (endpoints) => proveGitDeliveryContribution({
           exec: createRawGitExec(cwd),
-          before: { predecessor: coordinates.beforeTarget, member: coordinates.beforeMember },
-          after: { predecessor: coordinates.beforeTarget, member: coordinates.afterTarget },
+          ...endpoints,
         }),
       },
     });
@@ -1378,6 +1849,59 @@ async function executeDeliveryCommand(
       } catch {
         return { status: "refused", reason: "terminal-rebind-unavailable" };
       }
+    }
+    const activeOperation = currentState.value.activeOperation;
+    if (activeOperation.kind === "rewrite" && activeOperation.mode === "provider-adoption") {
+      return {
+        status: "retryable",
+        transition: "preserved",
+        action: "delivery-refresh-adopt",
+        selector: {
+          planId: parsed.planId,
+          operationId: activeOperation.operationId,
+          affectedDeliverableIds: activeOperation.affectedDeliverableIds,
+          operationKind: "rewrite",
+          mode: "provider-adoption",
+        },
+        recommendedActionText:
+          "Rerun `arc delivery refresh adopt` with the exact provider-adoption reservation selector.",
+      };
+    }
+    if (activeOperation.kind === "land" && activeOperation.mode === "native") {
+      const host = new GhDeliveryHostPort(hostedGhRunner);
+      const nativeRequest = {
+        repository: parsed.repository,
+        topChangeRequestId: activeOperation.effect.changeRequestId,
+        topHeadSha: activeOperation.effect.headSha,
+        mergeAction: "direct_merge" as const,
+        mergeMethod: "merge" as const,
+      };
+      const nativeResult = await reconcileReservedNativeDeliveryMerge({
+        planId: parsed.planId,
+        current: currentState,
+        request: nativeRequest,
+      }, {
+        host,
+        stateStore,
+        observeEffect: () => observeNativeDeliveryEffect(
+          host,
+          currentState.value,
+          parsed.repository,
+          activeOperation,
+          exec,
+          cwd,
+          parsed.remote,
+        ),
+      });
+      if (nativeResult.status !== "applied") return nativeResult;
+      return settleAppliedNativeLanding(
+        currentPlan,
+        currentState,
+        { revision: currentState.revision, value: nativeResult.projected },
+        parsed.repository,
+        activeOperation.effect.targetRef,
+        parsed.remote,
+      );
     }
     return reconcileDeliveryExecution({
       planId: parsed.planId,
@@ -1496,61 +2020,6 @@ async function executeDeliveryCommand(
               : { status: "observed" as const, value: { outcome: "ambiguous" as const } };
           }
           if (operation.kind === "land") {
-            if (operation.mode === "native") {
-              if (parsed.repository !== operation.effect.repository || operation.effect.strategy !== "merge") {
-                return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
-              }
-              if (operation.effectIdentity === null) {
-                return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
-              }
-              const host = new GhDeliveryHostPort(hostedGhRunner);
-              const polled = await host.observeNativeMerge({
-                repository: operation.effect.repository,
-                topChangeRequestId: operation.effect.changeRequestId,
-                topHeadSha: operation.effect.headSha,
-                mergeAction: "direct_merge",
-                mergeMethod: "merge",
-                effectIdentity: operation.effectIdentity.effectId,
-              });
-              if (polled.status === "pending") {
-                return { status: "refused" as const, reason: "native-effect-pending" as const };
-              }
-              if (polled.status !== "merged" && polled.status !== "failed") {
-                return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
-              }
-              const effect = await observeNativeDeliveryEffect(
-                host,
-                currentState.value,
-                parsed.repository,
-                operation,
-              );
-              const classification = classifyDeliveryNativeEffect(polled, effect);
-              if (classification.status === "partial-landed") {
-                return {
-                  status: "refused" as const,
-                  reason: "native-effect-partial" as const,
-                  affectedDeliverableIds: classification.affectedDeliverableIds,
-                };
-              }
-              if (classification.status === "ambiguous") {
-                return { status: "refused" as const, reason: "native-effect-ambiguous" as const };
-              }
-              if (classification.status === "not-applied") {
-                return { status: "observed" as const, value: { outcome: "not-applied" as const } };
-              }
-              return {
-                status: "observed" as const,
-                value: {
-                  outcome: "applied" as const,
-                  observation: {
-                    kind: "land" as const,
-                    effect: operation.effect,
-                    outcome: "applied" as const,
-                    snapshot: classification.snapshot,
-                  },
-                },
-              };
-            }
             const beforeMember = operation.before.members[0];
             if (beforeMember === undefined || beforeMember.changeRequest === null
               || beforeMember.coordinates === null) {
@@ -1580,20 +2049,27 @@ async function executeDeliveryCommand(
             if (request.request.state !== "merged") {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            const target = await host.observeTarget(parsed.repository, operation.effect.targetRef);
             const beforeTarget = operation.before.target?.coordinates;
-            if (target.status !== "observed" || beforeTarget === null || beforeTarget === undefined) {
+            const mergeCommitSha = request.request.mergeCommitSha;
+            if (beforeTarget === null || beforeTarget === undefined || mergeCommitSha === null
+              || mergeCommitSha === undefined) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            try {
-              await exec("git", ["fetch", "--no-write-fetch-head", parsed.remote, target.coordinates.head]);
-            } catch {
+            const landed = await observeGitDeliveryLandingResult({
+              exec,
+              cwd,
+              remote: parsed.remote,
+              resultHead: mergeCommitSha,
+              strategy: operation.effect.strategy,
+              beforeMember: beforeMember.coordinates,
+            });
+            if (landed === null) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
             const proof = await proveGitDeliveryContribution({
               exec: createRawGitExec(cwd),
               before: { predecessor: beforeTarget, member: beforeMember.coordinates },
-              after: { predecessor: beforeTarget, member: target.coordinates },
+              after: landed,
             });
             if (proof.status !== "accepted") return proof;
             return {
@@ -1605,15 +2081,8 @@ async function executeDeliveryCommand(
                   effect: operation.effect,
                   outcome: "applied",
                   snapshot: {
-                    target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
-                    members: operation.before.members.map((member) => ({
-                      ...member,
-                      coordinates: member.coordinates === null ? null : {
-                        base: member.coordinates.base,
-                        head: target.coordinates.head,
-                        tree: target.coordinates.tree,
-                      },
-                    })),
+                    target: { ref: operation.effect.targetRef, coordinates: landed.member },
+                    members: operation.before.members,
                   },
                 },
               },

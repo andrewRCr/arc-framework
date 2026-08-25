@@ -29,6 +29,7 @@ function composition() {
       schemaVersion: 1 as const,
       mode: "review-merge-method-resolve" as const,
       repository: "owner/repo",
+      stackPosition: "non-delivery" as const,
       state: "validated" as const,
       nextAction: "use-method" as const,
       method: "merge" as const,

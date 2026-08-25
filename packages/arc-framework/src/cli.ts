@@ -825,6 +825,17 @@ deliveryNative.command("land-status").description("Poll and reconcile one persis
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("native-land-status", { ...opts, input }, context)
   )));
+const deliveryRefresh = delivery.command("refresh").description("Plan and adopt one provider-refreshed suffix");
+deliveryRefresh.command("plan").description("Plan the exact operator-refreshed registered suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("refresh-plan", { ...opts, input }, context)
+  )));
+deliveryRefresh.command("adopt").description("Observe, prove, and adopt one externally refreshed suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("refresh-adopt", { ...opts, input }, context)
+  )));
 delivery.command("position").description("Derive the exact current delivery position")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
@@ -1496,6 +1507,11 @@ reviewCmd
   .description("Configured merge-method operations")
   .command("resolve")
   .description("Validate the configured method against live repository policy")
+  .option(
+    "--stack-position <position>",
+    "Merge-method stack position (non-delivery, intermediate, or top)",
+    "non-delivery",
+  )
   .requiredOption("--json", "Emit a typed JSON result")
   .action((options: ReviewMergeMethodResolveOptions) => handleReviewMergeMethodResolve(options));
 
