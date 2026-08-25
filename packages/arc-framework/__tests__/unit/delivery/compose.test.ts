@@ -73,22 +73,26 @@ describe("delivery composition checks", () => {
     ];
     expect(validateDeliveryCompositionCoverage({
       entry: "from-tasks",
-      implementationTaskIds: ["1.1", "1.2", "1.3"],
-      verificationTaskId: "2.1",
+      tasks: ["1.1", "1.2", "1.3"].map((taskId) => ({
+        taskId,
+        role: { kind: "implementation" as const },
+      })),
       members,
     })).toEqual({
       status: "refused",
-      issues: [{ kind: "uncovered-implementation-task", taskId: "1.2" }],
+      issues: [{ kind: "uncovered-assignable-task", taskId: "1.2" }],
     });
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",
-      implementationTaskIds: ["1.1", "1.2", "1.3"],
-      verificationTaskId: "2.1",
+      tasks: ["1.1", "1.2", "1.3"].map((taskId) => ({
+        taskId,
+        role: { kind: "implementation" as const },
+      })),
       members,
     })).toEqual({
       status: "valid",
       advisories: [{
-        kind: "uncovered-implementation-task",
+        kind: "uncovered-assignable-task",
         taskId: "1.2",
         adjacentMemberChunkKey: "first",
       }],
@@ -98,8 +102,10 @@ describe("delivery composition checks", () => {
   it("accepts fully covered authored tasks without advisories", () => {
     expect(validateDeliveryCompositionCoverage({
       entry: "from-tasks",
-      implementationTaskIds: ["1.1", "1.2"],
-      verificationTaskId: "2.1",
+      tasks: ["1.1", "1.2"].map((taskId) => ({
+        taskId,
+        role: { kind: "implementation" as const },
+      })),
       members: [
         { chunkKey: "first", taskIds: ["1.1"] },
         { chunkKey: "second", taskIds: ["1.2"] },
@@ -110,8 +116,7 @@ describe("delivery composition checks", () => {
   it("refuses a member with no closing task even when all tasks are covered elsewhere", () => {
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",
-      implementationTaskIds: ["1.1"],
-      verificationTaskId: "2.1",
+      tasks: [{ taskId: "1.1", role: { kind: "implementation" } }],
       members: [
         { chunkKey: "attributed", taskIds: ["1.1"] },
         { chunkKey: "review-fixes", taskIds: [] },
