@@ -200,7 +200,7 @@ describe("delivery landing", () => {
         coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
       });
       expect(applied.state.value.activeOperation).toBeNull();
-      expect(applied.state.value.members[0]!.coordinates?.base).toBe(state.target!.coordinates!.head);
+      expect(applied.state.value.members[0]!.coordinates).toEqual(state.members[0]!.coordinates);
     }
   });
 

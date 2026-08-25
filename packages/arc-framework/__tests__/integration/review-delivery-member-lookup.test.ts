@@ -92,6 +92,27 @@ function state(options: {
 }
 
 describe("repository delivery member lookup", () => {
+  it("returns one coherent plan and state for terminal integration", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    const current = deliveryStateFixture(plan);
+    await publishPlan(cwd, plan);
+    await publish(cwd, current);
+
+    await expect(lookup.resolveTerminalRecords(plan.workUnitId)).resolves.toEqual({
+      status: "resolved",
+      plan,
+      state: current,
+    });
+  });
+
+  it("reports a work unit without a terminal delivery record as unbound", async () => {
+    const { lookup } = await repository();
+
+    await expect(lookup.resolveTerminalRecords("ordinary-work-unit"))
+      .resolves.toEqual({ status: "unbound" });
+  });
+
   it("re-derives every retained bound member target on each read", async () => {
     const { cwd, lookup } = await repository();
     const plan = deliveryPlanFixture();

@@ -4,6 +4,21 @@ import { handleDeliveryExecution } from "../../../src/handlers/delivery-executio
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
+function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
+  return {
+    repository: "andrewRCr/arc-framework",
+    draft: true,
+    presentations: plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    })),
+    terminalPresentation: {
+      title: "feat(delivery): publish the work unit",
+      body: "## Summary\n\nPublish the complete work unit.",
+    },
+  };
+}
+
 describe("delivery execution handler", () => {
   it("preserves a prepared service result through the strict verb envelope", async () => {
     const plan = deliveryStackPlanFixture();
@@ -13,7 +28,7 @@ describe("delivery execution handler", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
-      control: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
+      top: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
       members: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 1}`,
@@ -29,7 +44,7 @@ describe("delivery execution handler", () => {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         protectedBaseRef: "refs/heads/main",
-        controlRef: "refs/heads/control",
+        topRef: "refs/heads/control",
         candidates: snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
         lifecyclePaths: snapshot.lifecyclePaths,
       })),
@@ -45,6 +60,32 @@ describe("delivery execution handler", () => {
       snapshot,
     });
     expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects the retired control-ref spelling at the eligibility boundary", async () => {
+    const plan = deliveryStackPlanFixture();
+    const execute = vi.fn();
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-prepare", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        plan,
+        protectedBaseRef: "refs/heads/main",
+        controlRef: "refs/heads/feat/example",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+        })),
+        lifecyclePaths: [],
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
   });
 
   it("rejects malformed input before execution and invalid service output at the boundary", async () => {
@@ -142,7 +183,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn().mockResolvedValue({ status: "materialized" });
     const write = vi.fn();
 
-    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         snapshot: {
@@ -151,7 +192,7 @@ describe("delivery execution handler", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
-          control: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
+          top: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
           members: plan.members.map((member, index) => ({
             deliverableId: member.deliverableId,
             ref: `refs/heads/candidate-${index + 1}`,
@@ -168,7 +209,7 @@ describe("delivery execution handler", () => {
     });
 
     expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
-      command: "delivery materialize",
+      command: "delivery publish",
       status: "refused",
       reason: "invalid-command-input",
     });
@@ -179,17 +220,18 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const write = vi.fn();
 
-    await handleDeliveryExecution("materialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
-        controlRef: "refs/heads/control",
+        topRef: "refs/heads/control",
         candidates: plan.members.map((member, index) => ({
           deliverableId: member.deliverableId,
           ref: `refs/heads/candidate-${index + 1}`,
           checkoutPath: `/tmp/candidate-${index + 1}`,
         })),
         remote: "origin",
+        ...publicationFields(plan),
       })),
       execute: vi.fn().mockResolvedValue({ status: "refused", reason: "checkout-moved" }),
       write,
@@ -197,18 +239,18 @@ describe("delivery execution handler", () => {
     });
 
     expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
-      command: "delivery materialize",
+      command: "delivery publish",
       status: "refused",
       reason: "checkout-moved",
     });
   });
 
-  it("requires structured reviewer presentation when publishing delivery members", async () => {
+  it("requires complete non-terminal and ordinary terminal presentations before publication", async () => {
     const plan = deliveryStackPlanFixture();
     const baseRequest = {
       planId: plan.planId,
       protectedBaseRef: "refs/heads/main",
-      controlRef: "refs/heads/control",
+      topRef: "refs/heads/control",
       candidates: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 1}`,
@@ -217,6 +259,11 @@ describe("delivery execution handler", () => {
       repository: "andrewRCr/arc-framework",
       draft: true,
       remote: "origin",
+      presentations: plan.members.slice(0, -1).map((member) => ({
+        deliverableId: member.deliverableId,
+        summary: `Review ${member.title}.`,
+        changes: [{ topic: "Boundary", description: "Adds the concrete reviewer-facing change." }],
+      })),
     };
     const rejected = vi.fn();
     const rejectedWrite = vi.fn();
@@ -236,11 +283,10 @@ describe("delivery execution handler", () => {
     await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         ...baseRequest,
-        presentations: plan.members.slice(0, -1).map((member) => ({
-          deliverableId: member.deliverableId,
-          summary: `Review ${member.title}.`,
-          changes: [{ topic: "Boundary", description: "Adds the concrete reviewer-facing change." }],
-        })),
+        terminalPresentation: {
+          title: "feat(delivery): publish the work unit",
+          body: "## Summary\n\nPublish the complete work unit.",
+        },
       })),
       execute: accepted,
       write: vi.fn(),
@@ -310,6 +356,84 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves lifecycle-contribution refusal evidence through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const deliverableId = plan.members[0]!.deliverableId;
+    const paths = [
+      ".arc/backlog/planned/example/draft-example.md",
+      ".arc/backlog/planned/example/meta-example.md",
+    ];
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        topRef: "refs/heads/feat/example",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+          checkoutPath: `/tmp/candidate-${index + 1}`,
+        })),
+        remote: "origin",
+        ...publicationFields(plan),
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "lifecycle-contribution",
+        deliverableId,
+        paths,
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery publish",
+      status: "refused",
+      reason: "lifecycle-contribution",
+      deliverableId,
+      paths,
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("preserves chain-containment refusal paths through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const request = JSON.stringify({
+      planId: plan.planId,
+      protectedBaseRef: "refs/heads/main",
+      topRef: "refs/heads/feat/example",
+      candidates: plan.members.map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: `refs/heads/candidate-${index + 1}`,
+        checkoutPath: `/tmp/candidate-${index + 1}`,
+      })),
+      remote: "origin",
+      ...publicationFields(plan),
+    });
+    const write = vi.fn();
+
+    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "containment-diverged",
+        paths: ["feature.txt"],
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "containment-diverged",
+      paths: ["feature.txt"],
+    });
+  });
+
   it("accepts raw suffix locators without serialized proof or snapshots", async () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "refused", reason: "candidate-moved" });
@@ -318,7 +442,7 @@ describe("delivery execution handler", () => {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
-        controlRef: "refs/heads/control",
+        topRef: "refs/heads/control",
         candidates: plan.members.map((member, index) => ({
           deliverableId: member.deliverableId,
           ref: `refs/heads/candidate-${index + 1}`,
@@ -339,31 +463,41 @@ describe("delivery execution handler", () => {
     });
   });
 
-  it("accepts only terminal repository locators at the command boundary", async () => {
-    const prepare = vi.fn().mockResolvedValue({ status: "terminal-ready" });
+  it("returns the typed after-fix verification route from rematerialization", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const changed = plan.members[0]!.deliverableId;
+    const execute = vi.fn().mockResolvedValue({
+      status: "rematerialized",
+      state: { revision: 8, value: state },
+      contributionVerdicts: [{ deliverableId: changed, contribution: "changed", proof: "selected-change" }],
+      nextAction: "verify-review-fix",
+      verification: { memberDeliverableIds: [changed], tier1Required: true },
+    });
     const write = vi.fn();
-    await handleDeliveryExecution("terminal-prepare", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        topRef: "refs/heads/control",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+          checkoutPath: `/tmp/candidate-${index + 1}`,
+        })),
+        selectedDeliverableIds: [changed],
         repository: "andrewRCr/arc-framework",
         remote: "origin",
-        controlRef: "refs/heads/feat/example",
-        controlCheckoutPath: "/tmp/control",
-        protectedTargetRef: "refs/heads/main",
-      })), execute: prepare, write, setExitCode: vi.fn(),
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
     });
-    expect(prepare).toHaveBeenCalledOnce();
-    expect(JSON.parse(write.mock.calls[0]?.[0] as string).status).toBe("terminal-ready");
-
-    const attach = vi.fn().mockResolvedValue({ status: "not-applicable" });
-    await handleDeliveryExecution("terminal-attach", { input: "-", json: true }, undefined, {
-      readText: vi.fn().mockResolvedValue(JSON.stringify({
-        workUnitId: "example",
-        repository: "andrewRCr/arc-framework",
-        remote: "origin",
-        retainedControlRef: "refs/heads/feat/example",
-        changeRequestId: "401",
-      })), execute: attach, write: vi.fn(), setExitCode: vi.fn(),
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "rematerialized",
+      nextAction: "verify-review-fix",
+      verification: { memberDeliverableIds: [changed], tier1Required: true },
     });
-    expect(attach).toHaveBeenCalledOnce();
   });
+
 });

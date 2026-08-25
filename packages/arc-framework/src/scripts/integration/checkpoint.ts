@@ -15,6 +15,8 @@ import {
   CheckpointInterlockSurfaceSchema,
   composeCheckpointInterlockSurface,
 } from "./interlock-surface.js";
+import type { DeliveryCheckpointArmResult } from "./delivery-checkpoint.js";
+import type { DeliveryTerminalDriftResult } from "../../lib/delivery/terminal-integration.js";
 import {
   SpineRemedySchema,
   checkpointResumeArgv,
@@ -227,6 +229,14 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     reason: z.literal("composition-unavailable"),
     payload: z.strictObject({ detail: z.string().min(1) }),
   }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("blocked"),
+    nextAction: z.enum(["stop", "retarget", "reopen-and-retarget", "verify-terminal-member"]),
+    reason: z.literal("delivery-terminal-blocked"),
+    remedy: SpineRemedySchema,
+    payload: z.custom<Extract<DeliveryCheckpointArmResult, { readonly status: "blocked" }>>(),
+  }),
 ]);
 
 /** The blocked reasons the checkpoint refuses with — derived from the refusal union itself. */
@@ -280,6 +290,11 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
   "composition-unavailable": (workUnit) => spineRemedy(
     "The ready composition binds the exact satisfied Candidate head.",
     "Resolve the reported composition failure, then re-run",
+    checkpointResumeArgv(workUnit),
+  ),
+  "delivery-terminal-blocked": (workUnit) => spineRemedy(
+    "A delivery Candidate reaches integration only through its exact terminal claim and member-review conjunction.",
+    "Apply the returned delivery remedy or resolve its reported evidence, then re-run",
     checkpointResumeArgv(workUnit),
   ),
 };
@@ -376,14 +391,24 @@ export function checkpointOperationRefusal(workUnit: string, detail: string): In
 
 export interface IntegrationCheckpointDependencies {
   readDrift(workUnit: string): Promise<BaseDriftResult>;
+  classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<
+    | { readonly status: "not-applicable" }
+    | { readonly status: "unavailable"; readonly detail: string }
+    | DeliveryTerminalDriftResult
+  >;
   readReconcileHost(workUnit: string, drift: BaseDriftResult): Promise<ReconcileHostFact>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
   readCandidate(workUnit: string): Promise<CandidateCurrentnessProjection | null>;
+  composeDelivery(input: {
+    workUnit: string;
+    candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
+  }): Promise<DeliveryCheckpointArmResult>;
   resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
   composeReady(input: {
     workUnit: string;
     lifecycle: IntegrationLifecycleSummary;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
+    delivery: Extract<DeliveryCheckpointArmResult, { status: "not-applicable" | "ready" }>;
   }): Promise<CheckpointReadyComposition>;
   composeSettlementPlan(input: {
     workUnit: string;
@@ -438,6 +463,40 @@ export async function checkpointIntegration(
   };
   const drift = await dependencies.readDrift(request.workUnit);
   if (drift.verdict === "reconcile") {
+    const deliveryDrift = await dependencies.classifyDeliveryDrift(request.workUnit, drift);
+    if (deliveryDrift.status === "unavailable") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "delivery-terminal-blocked",
+        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        payload: {
+          status: "blocked",
+          nextAction: "stop",
+          reason: "drift-classification-unavailable",
+          detail: deliveryDrift.detail,
+        },
+      });
+    }
+    if (deliveryDrift.status === "verify-member" || deliveryDrift.status === "refused") {
+      const nextAction = deliveryDrift.status === "verify-member" ? deliveryDrift.nextAction : "stop";
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction,
+        reason: "delivery-terminal-blocked",
+        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        payload: {
+          status: "blocked",
+          nextAction,
+          reason: deliveryDrift.status === "verify-member" ? "residual-overlap" : deliveryDrift.reason,
+          ...(deliveryDrift.status === "verify-member"
+            ? { deliverableId: deliveryDrift.deliverableId, paths: deliveryDrift.paths }
+            : { paths: deliveryDrift.paths }),
+        },
+      });
+    }
     const safety = reconcileSafety(
       drift,
       ReconcileHostFactSchema.parse(await dependencies.readReconcileHost(request.workUnit, drift)),
@@ -514,10 +573,22 @@ export async function checkpointIntegration(
     });
   }
   try {
+    const delivery = await dependencies.composeDelivery({ workUnit: request.workUnit, candidate });
+    if (delivery.status === "blocked") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: delivery.nextAction,
+        reason: "delivery-terminal-blocked",
+        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        payload: delivery,
+      });
+    }
     const composition = CheckpointReadyCompositionSchema.parse(await dependencies.composeReady({
       workUnit: request.workUnit,
       lifecycle,
       candidate,
+      delivery,
     }));
     const hostedReview = composition.requirementSummary.requirements
       .find(({ id }) => id === HOSTED_REVIEW_REQUIREMENT_ID);

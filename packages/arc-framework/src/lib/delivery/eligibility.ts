@@ -22,7 +22,7 @@ export interface DeliveryEligibilitySnapshot {
   readonly planRevision: number;
   readonly planDigest: string;
   readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
-  readonly control: DeliveryEligibilityCoordinates & { readonly ref: string };
+  readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
   readonly members: readonly DeliveryEligibilityMember[];
   readonly lifecyclePaths: readonly string[];
 }
@@ -38,7 +38,7 @@ export interface DeliveryEligibilityDependencies {
   }): Promise<{ readonly status: "ok" } | { readonly status: "refused"; readonly paths: readonly string[] }>;
   compareNormalizedCompleteness(input: {
     readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
-    readonly control: DeliveryEligibilityCoordinates & { readonly ref: string };
+    readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
     readonly finalCandidate: DeliveryEligibilityMember;
     readonly lifecyclePaths: readonly string[];
   }): Promise<
@@ -64,6 +64,7 @@ export interface DeliveryEligibilityRefusal {
     | "extra-candidate"
     | "duplicate-candidate"
     | "reordered-candidate"
+    | "direct-delivery-ref"
     | "candidate-unavailable"
     | "wrong-predecessor"
     | "empty-candidate"
@@ -77,6 +78,7 @@ export interface DeliveryEligibilityRefusal {
     | "evidence-unavailable"
     | "source-moved"
     | "plan-moved"
+    | "top-ref-mismatch"
     | "head-already-bound";
   readonly deliverableId?: string;
   /** Every mismatching lifecycle-contribution path; present only for `lifecycle-contribution` refusals. */
@@ -84,12 +86,18 @@ export interface DeliveryEligibilityRefusal {
 }
 
 /** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
-export interface FreshDeliveryEligibilityMutationDependencies<Result>
+export interface FreshDeliveryEligibilityMutationDependencies<Prepared, Result, PreparationRefusal>
 extends DeliveryEligibilityDependencies {
+  resolveOriginatingTopRef(plan: DeliveryPlanV1): Promise<string | null>;
   resolveLifecyclePaths(plan: DeliveryPlanV1): Promise<readonly string[] | null>;
+  prepareMutation(input: {
+    readonly plan: DeliveryPlanV1;
+    readonly snapshot: DeliveryEligibilitySnapshot;
+  }): Promise<{ readonly status: "prepared"; readonly value: Prepared } | PreparationRefusal>;
   mutate(input: {
     readonly plan: DeliveryPlanV1;
     readonly snapshot: DeliveryEligibilitySnapshot;
+    readonly prepared: Prepared;
   }): Promise<Result>;
 }
 
@@ -100,19 +108,28 @@ extends DeliveryEligibilityDependencies {
  * @param deps - Current plan/lifecycle readers, mechanical observers, and the guarded mutation
  * @returns The mutation result, or the first refusal before mutation begins
  */
-export async function executeWithFreshDeliveryEligibility<Result>(input: {
+export async function executeWithFreshDeliveryEligibility<
+  Prepared,
+  Result,
+  PreparationRefusal extends { readonly status: "refused" },
+>(input: {
   readonly planId: string;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly memberOffset?: number;
   readonly candidates: readonly {
     readonly deliverableId: string;
     readonly ref: string;
     readonly checkoutPath: string;
   }[];
-}, deps: FreshDeliveryEligibilityMutationDependencies<Result>): Promise<Result | DeliveryEligibilityRefusal> {
+}, deps: FreshDeliveryEligibilityMutationDependencies<Prepared, Result, PreparationRefusal>): Promise<
+  Result | PreparationRefusal | DeliveryEligibilityRefusal
+> {
   const plan = await deps.readCurrentPlan(input.planId);
   if (plan === null) return { status: "refused", reason: "plan-moved" };
+  const originatingTopRef = await deps.resolveOriginatingTopRef(plan);
+  if (originatingTopRef === null) return { status: "refused", reason: "evidence-unavailable" };
+  if (originatingTopRef !== input.topRef) return { status: "refused", reason: "top-ref-mismatch" };
   const lifecyclePaths = await deps.resolveLifecyclePaths(plan);
   if (lifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
   const eligible = await revalidateDeliveryEligibilityForMutation({
@@ -121,6 +138,8 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
     lifecyclePaths,
   }, deps);
   if (eligible.status !== "eligible") return eligible;
+  const prepared = await deps.prepareMutation({ plan, snapshot: eligible.snapshot });
+  if (prepared.status === "refused") return prepared;
   const currentLifecyclePaths = await deps.resolveLifecyclePaths(plan);
   if (currentLifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
   const normalizedCurrentPaths = [...new Set(currentLifecyclePaths)].sort(byteSort);
@@ -128,13 +147,16 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
     || normalizedCurrentPaths.some((path, index) => path !== eligible.snapshot.lifecyclePaths[index])) {
     return { status: "refused", reason: "lifecycle-paths-moved" };
   }
-  return deps.mutate({ plan, snapshot: eligible.snapshot });
+  if (await deps.resolveOriginatingTopRef(plan) !== input.topRef) {
+    return { status: "refused", reason: "top-ref-mismatch" };
+  }
+  return deps.mutate({ plan, snapshot: eligible.snapshot, prepared: prepared.value });
 }
 
 async function revalidateDeliveryEligibilityForMutation(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly candidates: readonly {
     readonly deliverableId: string;
     readonly ref: string;
@@ -166,7 +188,7 @@ async function revalidateDeliveryEligibilityForMutation(input: {
 export async function prepareDeliveryEligibility(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly memberOffset?: number;
   readonly candidates: readonly { readonly deliverableId: string; readonly ref: string }[];
   readonly lifecyclePaths: readonly string[];
@@ -192,15 +214,25 @@ export async function prepareDeliveryEligibility(input: {
   if (input.candidates.some((candidate, index) => candidate.deliverableId !== expectedMembers[index]?.deliverableId)) {
     return { status: "refused", reason: "reordered-candidate" };
   }
+  const directDeliveryCandidate = input.candidates.find((candidate) => (
+    candidate.ref.startsWith("refs/heads/delivery/")
+  ));
+  if (directDeliveryCandidate !== undefined) {
+    return {
+      status: "refused",
+      reason: "direct-delivery-ref",
+      deliverableId: directDeliveryCandidate.deliverableId,
+    };
+  }
 
   const observed = await Promise.all([
     deps.observeRef(input.protectedBaseRef),
-    deps.observeRef(input.controlRef),
+    deps.observeRef(input.topRef),
     ...input.candidates.map((candidate) => deps.observeRef(candidate.ref)),
   ]);
   const protectedBase = observed[0];
-  const control = observed[1];
-  if (protectedBase === null || control === null) return { status: "refused", reason: "evidence-unavailable" };
+  const top = observed[1];
+  if (protectedBase === null || top === null) return { status: "refused", reason: "evidence-unavailable" };
   const members: DeliveryEligibilityMember[] = [];
   for (const [index, candidate] of input.candidates.entries()) {
     const coordinates = observed[index + 2];
@@ -244,7 +276,7 @@ export async function prepareDeliveryEligibility(input: {
       planRevision: input.plan.planRevision,
       planDigest: input.plan.planDigest,
       protectedBase: { ref: input.protectedBaseRef, ...protectedBase },
-      control: { ref: input.controlRef, ...control },
+      top: { ref: input.topRef, ...top },
       members,
       lifecyclePaths: [...new Set(input.lifecyclePaths)].sort(byteSort),
     },
@@ -286,7 +318,7 @@ export async function closeDeliveryEligibility(
   if (finalCandidate === undefined) return { status: "refused", reason: "candidate-unavailable" };
   const completeness = await deps.compareNormalizedCompleteness({
     protectedBase: snapshot.protectedBase,
-    control: snapshot.control,
+    top: snapshot.top,
     finalCandidate,
     lifecyclePaths: snapshot.lifecyclePaths,
   });
@@ -298,7 +330,7 @@ export async function closeDeliveryEligibility(
         : `completeness-${completeness.reason}`,
     };
   }
-  const refs = [snapshot.protectedBase, snapshot.control, ...snapshot.members];
+  const refs = [snapshot.protectedBase, snapshot.top, ...snapshot.members];
   const currentRefs = await Promise.all(refs.map((entry) => deps.observeRef(entry.ref)));
   for (const [index, entry] of currentRefs.entries()) {
     const expected = refs[index];

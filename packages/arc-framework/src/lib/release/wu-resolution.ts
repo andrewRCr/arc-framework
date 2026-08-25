@@ -37,11 +37,13 @@ export interface ResolveActiveWuOptions {
  * `path` is relative to `cwd` and matches the active-status reader's
  * shape. `name` is parsed from the meta filename; it is the empty string
  * for the lite layout (`status.md` directly under the active root), which
- * carries no parseable WU name.
+ * carries no parseable WU name. `branch` is the repository-owned identity
+ * recorded by that meta.
  */
 export interface ResolvedWu {
   path: string;
   name: string;
+  branch: string | null;
 }
 
 export type WuResolution =
@@ -79,7 +81,7 @@ export async function resolveActiveWu(
   const candidate = reader.candidates[0];
   if (!candidate) return { status: "none" };
   const name = parseNameFromPath(candidate.path);
-  return { status: "resolved", path: candidate.path, name };
+  return { status: "resolved", path: candidate.path, name, branch: candidate.branch };
 }
 
 /**
