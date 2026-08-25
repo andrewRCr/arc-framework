@@ -65,7 +65,7 @@ async function terminalProjection(landingBatches: readonly (readonly string[])[]
       verificationEvidenceRef: "verification://candidate",
     }),
     subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   };
   const candidate = projectCandidateCurrentness({
