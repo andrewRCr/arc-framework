@@ -417,7 +417,7 @@ const ContributionRefusalSchema = z.strictObject({
 });
 const ContainmentRefusalSchema = z.strictObject({
   status: z.literal("refused"),
-  reason: z.enum(["containment-conflicted", "containment-diverged"]),
+  reason: z.literal("containment-diverged"),
   paths: z.array(z.string()),
 });
 const DeliveryLifecycleContributionRefusalSchema = z.strictObject({
@@ -1863,6 +1863,8 @@ async function executeDeliveryCommand(
         let adoptedMaterialization = derived.value;
         const highestMember = nonTerminalMembers.at(-1);
         if (highestMember !== undefined) {
+          const finalCandidate = snapshot.members.at(-1);
+          if (finalCandidate === undefined) return { status: "refused" as const, reason: "projection-invalid" };
           materialized = await materializeBoundDeliveryChain({
             plan, materialization: derived.value, stateStore, refs,
           });
@@ -1872,6 +1874,8 @@ async function executeDeliveryCommand(
             topRef: parsed.topRef,
             commonBase: snapshot.protectedBase,
             highestMember: { head: highestMember.head, tree: highestMember.tree },
+            finalCandidate,
+            lifecyclePaths: snapshot.lifecyclePaths,
             top: snapshot.top,
           });
           if (adoption.status !== "adopted") return adoption;
@@ -2576,6 +2580,8 @@ async function executeDeliveryCommand(
       rematerialized,
       commonBase: snapshot.protectedBase,
       topRef: parsed.topRef,
+      finalCandidate: snapshot.members.at(-1),
+      lifecyclePaths: snapshot.lifecyclePaths,
     }, {
       adoptTop: (input) => adoptGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote: parsed.remote, ...input }),
