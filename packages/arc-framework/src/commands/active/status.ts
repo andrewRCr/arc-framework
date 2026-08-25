@@ -46,7 +46,7 @@ import { projectGitCandidateEffectiveTarget } from
 import {
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
-  recoverPublicationBoundary,
+  recoverIntegratingBoundary,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
@@ -388,7 +388,7 @@ async function projectCandidateIntegrationBoundary(
   if (candidate.state === "Integrating") {
     const stored = await readSubmissionBoundary(cwd, slug);
     if (candidate.branch === null) return candidate;
-    const recovered = recoverPublicationBoundary({
+    const recovered = recoverIntegratingBoundary({
       stored,
       workUnit: slug,
       branch: candidate.branch,

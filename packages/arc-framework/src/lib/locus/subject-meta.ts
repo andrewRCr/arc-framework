@@ -30,7 +30,7 @@ import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.j
 import {
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
-  recoverPublicationBoundary,
+  recoverIntegratingBoundary,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -154,7 +154,7 @@ export async function projectCheckoutSubjectMeta(options: {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
       readFile: (path) => options.io.readFile(path),
     });
-    integrationBoundary = record.branch === null ? null : recoverPublicationBoundary({
+    integrationBoundary = record.branch === null ? null : recoverIntegratingBoundary({
       stored,
       workUnit: options.subjectKey,
       branch: record.branch,

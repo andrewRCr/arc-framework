@@ -1217,6 +1217,14 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   reachable tree. The new vertical proof covers plan-only reservation, publication transition, integration
   dispatch, first-member state binding, and hosted fan-out in order; a fresh closure pass found all three amendment
   findings closed.
+- _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
+  and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
+  integration workflow and load set, and the runtime phase contract admits those bounded loci without granting member
+  or gate checkouts recovery authority. Three regressions failed first and then passed (96 focused tests).
+  The live `npx arc status --session-init --write-compaction-seed --json` probe wrote a seed, and
+  `npx arc recover audit --json` returned `ready` with an exact integration frame. Markdown and ARC contracts,
+  TypeScript and shell lint, both typechecks, the production build, and the full suite passed (10,852 tests with one
+  skipped).
 
 ---
 

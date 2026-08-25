@@ -376,6 +376,13 @@ attestation semantics.
   This is an intentional scope reduction: residual overlap may now cost whole-work-unit verification instead of the
   terminal-only optimization D3.6 promised. It preserves the complete safe route and exact-head authority while
   avoiding new Candidate-lineage semantics and recovery machinery for a rare optimization path.
+  **Amended 2026-08-24 after self-integration exposed an unrecoverable interval:** Candidate renewal does not move
+  the work unit out of `Integrating`. While its exact current Candidate carries a review or convergence locus, both
+  session projectors preserve that locus and continue to select the integration session and workflow; the existing
+  publish-ready transition still projects the publication locus. Compaction recovery therefore restores the
+  originating work-unit checkout and integration load set throughout review and convergence. A stale, mismatched, or
+  unavailable Candidate or boundary still refuses rather than fabricating a resume point. Delivery-member and gate
+  checkouts remain operation inputs and gain no session or recovery authority.
 - **D3.10 Judgment-bounded Candidate applicability — amended 2026-08-22 after ordinary team base movement made
   D3.9's whole-work-unit default disproportionate.** This amendment supersedes only D3.9's rule that every changed
   Candidate subject pays whole-work-unit verification. The base-plus-head compare-and-set, ordinary post-merge

@@ -883,18 +883,23 @@ function phaseAcceptsBoundary(
   boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
   completedRecovery = false,
 ): boolean {
+  const candidateLoci = [
+    "candidate-review-pending",
+    "candidate-fix-pending",
+    "candidate-convergence-verification-pending",
+    "candidate-publish-ready",
+  ];
   if (sessionType === "prepublication") {
-    return boundary !== null && [
-      "candidate-review-pending",
-      "candidate-fix-pending",
-      "candidate-convergence-verification-pending",
-      "candidate-publish-ready",
-    ].includes(boundary.locus);
+    return boundary !== null && candidateLoci.includes(boundary.locus);
   }
   if (sessionType === "integration") {
     return completedRecovery
       ? boundary === null
-      : boundary !== null && ["publication-pending", "hosted-review-pending"].includes(boundary.locus);
+      : boundary !== null && [
+        ...candidateLoci,
+        "publication-pending",
+        "hosted-review-pending",
+      ].includes(boundary.locus);
   }
   return boundary === null;
 }

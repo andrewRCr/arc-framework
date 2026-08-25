@@ -12,6 +12,7 @@ import {
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
+  projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -245,6 +246,53 @@ describe("checkout subject active-extension seam", () => {
 
     expect(result.kind).toBe("resolved");
     if (result.kind === "resolved") expect(result.integrationBoundary).toEqual(recoveredBoundary);
+  });
+
+  it("keeps an Integrating re-root recoverable while pre-publication review is pending", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId, subjectDigest } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "integrate-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
   });
 
   it("projects a Candidate-bearing Active subject as prepublication", async () => {

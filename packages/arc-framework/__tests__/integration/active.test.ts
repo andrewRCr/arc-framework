@@ -21,6 +21,7 @@ import {
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
+  projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { stubGitExec } from "../helpers/integration.js";
@@ -1141,6 +1142,41 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     });
 
     expect(result.integrationBoundary).toEqual(recoveredBoundary);
+  });
+
+  it("keeps an Integrating re-root in the integration session while Candidate review is pending", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Integrating",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "integrate-work-unit",
+      }),
+    );
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "foo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+    });
+    const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
+    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(boundary));
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+
+    expect(result).toMatchObject({
+      resolution: "single",
+      sessionType: "integration",
+      currentWorkflow: "integrate-work-unit",
+      integrationBoundary: boundary,
+    });
   });
 
   it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {
