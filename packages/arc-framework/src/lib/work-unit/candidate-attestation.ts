@@ -8,6 +8,7 @@ import {
   sortByCanonicalBytes,
 } from "../canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
+import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";
 
 const CandidateSemanticsSchema = z.literal("candidate-attestation/v1");
 const CandidateCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -103,9 +104,26 @@ export const CandidateApplicabilitySelectionV1Schema = z.discriminatedUnion("cho
 ]);
 export type CandidateApplicabilitySelectionV1 = z.infer<typeof CandidateApplicabilitySelectionV1Schema>;
 
+export const CandidateReviewApplicabilitySelectionV1Schema = z.strictObject({
+  transitionKind: z.literal("review-applicability-selection"),
+  schemaVersion: z.literal(1),
+  semanticsVersion: CandidateSemanticsSchema,
+  candidateId: CandidateCanonicalDigestSchema,
+  selector: ReviewContributionApplicabilitySelectorSchema,
+  projectionDigest: CandidateCanonicalDigestSchema,
+  residualDigest: CandidateCanonicalDigestSchema,
+  selectedBy: z.string().trim().min(1),
+  selectedAt: z.iso.datetime({ offset: true }),
+  choice: z.enum(["covered", "review-required"]),
+});
+export type CandidateReviewApplicabilitySelectionV1 = z.infer<
+  typeof CandidateReviewApplicabilitySelectionV1Schema
+>;
+
 export const CandidateLineageTransitionV1Schema = z.discriminatedUnion("transitionKind", [
   CandidateReviewResponseEvidenceV1Schema,
   CandidateApplicabilitySelectionV1Schema,
+  CandidateReviewApplicabilitySelectionV1Schema,
 ]);
 export type CandidateLineageTransitionV1 = z.infer<typeof CandidateLineageTransitionV1Schema>;
 
@@ -115,6 +133,14 @@ export function candidateReviewResponses(
 ): CandidateReviewResponseEvidenceV1[] {
   return record.transitions.filter((transition): transition is CandidateReviewResponseEvidenceV1 =>
     transition.transitionKind === "review-response");
+}
+
+/** Select target-neutral review-applicability authority from an ordered Candidate sequence. */
+export function candidateReviewApplicabilitySelections(
+  record: Pick<CandidateManagedRecordV1, "transitions">,
+): CandidateReviewApplicabilitySelectionV1[] {
+  return record.transitions.filter((transition): transition is CandidateReviewApplicabilitySelectionV1 =>
+    transition.transitionKind === "review-applicability-selection");
 }
 
 export const CandidateLineageAttestationV1Schema = z.strictObject({
@@ -168,6 +194,7 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
     subject: record.subject,
   };
   const recognizedSubjects = new Set([record.subject.subjectDigest]);
+  const reviewApplicabilityKeys = new Set<string>();
   for (const [index, transition] of record.transitions.entries()) {
     if (transition.candidateId !== record.attestation.candidateId) {
       context.addIssue({
@@ -201,6 +228,23 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
       priorTarget = transition.newTarget;
       recognizedSubjects.add(transition.oldTarget.subject.subjectDigest);
       recognizedSubjects.add(transition.newTarget.subject.subjectDigest);
+      continue;
+    }
+    if (transition.transitionKind === "review-applicability-selection") {
+      const authorityKey = canonicalize({
+        candidateId: transition.candidateId,
+        selector: transition.selector,
+        projectionDigest: transition.projectionDigest,
+        residualDigest: transition.residualDigest,
+      });
+      if (reviewApplicabilityKeys.has(authorityKey)) {
+        context.addIssue({
+          code: "custom",
+          path: ["transitions", index],
+          message: "duplicates an exact review-applicability authority binding",
+        });
+      }
+      reviewApplicabilityKeys.add(authorityKey);
       continue;
     }
     validateSubject(transition.priorTarget.subject, ["transitions", index, "priorTarget", "subject"]);
@@ -429,6 +473,7 @@ export function reduceCandidateDurableBaseline(
       selectedChange = null;
       continue;
     }
+    if (transition.transitionKind === "review-applicability-selection") continue;
     if (!candidateTargetsEqual(transition.priorTarget, target)) {
       throw new Error("Candidate applicability selection does not continue the durable target");
     }
