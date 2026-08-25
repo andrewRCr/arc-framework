@@ -107,13 +107,14 @@ describe("handleReviewMergeMethodResolve", () => {
   it("emits the live validation result for the configured method", async () => {
     const write = vi.fn();
     const readConfiguredMethod = vi.fn(async () => "squash" as const);
-    await handleReviewMergeMethodResolve({ json: true }, {
+    await handleReviewMergeMethodResolve({ json: true, stackPosition: "top" }, {
       resolveRoot: () => "/repo",
       readConfiguredMethod,
-      resolve: async (method) => ({
+      resolve: async (method, stackPosition) => ({
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
         repository: "owner/repo",
+        stackPosition,
         state: "validated",
         nextAction: "use-method",
         method,
@@ -127,6 +128,7 @@ describe("handleReviewMergeMethodResolve", () => {
       state: "validated",
       nextAction: "use-method",
       method: "squash",
+      stackPosition: "top",
     });
     expect(readConfiguredMethod).toHaveBeenCalledWith("/repo");
   });
@@ -145,8 +147,37 @@ describe("handleReviewMergeMethodResolve", () => {
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
       state: "blocked",
       reason: "policy-unreadable",
+      stackPosition: "non-delivery",
       configuredMethod: null,
       allowedMethods: [],
+    });
+  });
+
+  it("fails closed on an invalid stack position", async () => {
+    const write = vi.fn();
+    await handleReviewMergeMethodResolve({ json: true, stackPosition: "middle" }, {
+      resolveRoot: () => "/repo",
+      readConfiguredMethod: async () => "merge",
+      resolve: async (_method, stackPosition) => ({
+        schemaVersion: 1,
+        mode: "review-merge-method-resolve",
+        repository: "owner/repo",
+        stackPosition,
+        state: "validated",
+        nextAction: "use-method",
+        method: "merge",
+        allowedMethods: ["merge"],
+        policyFingerprint: `sha256:${"a".repeat(64)}`,
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "blocked",
+      reason: "invalid-input",
+      stackPosition: "non-delivery",
+      detail: "Stack position must be non-delivery, intermediate, or top.",
     });
   });
 });
