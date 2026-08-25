@@ -59,7 +59,7 @@ export const LocalPrepareRequestSchema = z.strictObject({
   evaluatorIdentity: ReviewIdentifierSchema,
   routingFacts: LocalReviewRoutingInputSchema,
   freshnessMs: z.number().int().positive().optional(),
-  /** Exact head of the delivery member to review; absent reviews the control branch. */
+  /** Exact head of the delivery member to review; absent reviews the work-unit branch. */
   memberHeadObjectId: GitObjectIdSchema.optional(),
 });
 export type LocalPrepareRequest = z.infer<typeof LocalPrepareRequestSchema>;

@@ -128,7 +128,7 @@ describe("member-coordinate target derivation", () => {
     };
   }
 
-  /** A control branch two commits ahead of `main`, standing in for a two-member stack. */
+  /** A work-unit branch two commits ahead of `main`, standing in for a two-member stack. */
   async function createStack(): Promise<{
     root: string;
     predecessorSha: string;
