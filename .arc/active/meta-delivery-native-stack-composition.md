@@ -1,8 +1,8 @@
 # Metadata: delivery-native-stack-composition
 
-| **State** | **Owner** | **Branch**                               | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                               | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:37e9feea5b4bfdeee67574d392ba77e072322d9e2bce1c9bc06098d9dbc2d001`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — run pre-publication review
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
