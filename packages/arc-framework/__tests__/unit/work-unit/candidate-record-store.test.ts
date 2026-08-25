@@ -33,7 +33,7 @@ function record(): CandidateManagedRecordV1 {
       verificationEvidenceRef: "tasks-example.md#verification",
     }),
     subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   };
 }

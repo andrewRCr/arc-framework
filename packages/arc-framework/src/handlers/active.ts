@@ -91,7 +91,7 @@ export async function handleActiveStatus(
     return;
   }
 
-  const result = await runActiveStatus({ cwd });
+  const result = await runActiveStatus({ cwd, exec });
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;

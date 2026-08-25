@@ -1,34 +1,52 @@
 /** Pure identity proof for one delivery member across a predecessor-changing rewrite. */
 
-import type { MergeTreeCapabilityRefusalReason } from "../git/merge-tree-capability.js";
+import { z } from "zod";
 
-export interface DeliveryContributionCoordinate {
-  readonly head: string;
-  readonly tree: string;
-}
+const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 
-export interface DeliveryContributionEndpoints {
-  readonly before: {
-    readonly predecessor: DeliveryContributionCoordinate;
-    readonly member: DeliveryContributionCoordinate;
-  };
-  readonly after: {
-    readonly predecessor: DeliveryContributionCoordinate;
-    readonly member: DeliveryContributionCoordinate;
-  };
-}
+export const DeliveryContributionCoordinateSchema = z.strictObject({
+  head: ObjectIdSchema,
+  tree: ObjectIdSchema,
+});
+export type DeliveryContributionCoordinate = z.infer<typeof DeliveryContributionCoordinateSchema>;
 
-export type DeliveryContributionProofResult =
-  | { readonly status: "accepted"; readonly proof: "tree-equality" | "mechanical-reapply" }
-  | { readonly status: "refused"; readonly reason: "contribution-conflicted"; readonly paths: readonly string[] }
-  | { readonly status: "refused"; readonly reason: "contribution-diverged"; readonly paths: readonly string[] }
-  | {
-      readonly status: "refused";
-      readonly reason:
-        | "contribution-endpoints-unverified"
-        | "git-failure"
-        | MergeTreeCapabilityRefusalReason;
-    };
+export const DeliveryContributionEndpointsSchema = z.strictObject({
+  before: z.strictObject({
+    predecessor: DeliveryContributionCoordinateSchema,
+    member: DeliveryContributionCoordinateSchema,
+  }),
+  after: z.strictObject({
+    predecessor: DeliveryContributionCoordinateSchema,
+    member: DeliveryContributionCoordinateSchema,
+  }),
+});
+export type DeliveryContributionEndpoints = z.infer<typeof DeliveryContributionEndpointsSchema>;
+
+export const DeliveryContributionProofResultSchema = z.union([
+  z.strictObject({
+    status: z.literal("accepted"),
+    proof: z.enum(["tree-equality", "mechanical-reapply"]),
+  }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.literal("contribution-conflicted"),
+    paths: z.array(z.string()),
+  }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.literal("contribution-diverged"),
+    paths: z.array(z.string()),
+  }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.enum([
+      "contribution-endpoints-unverified",
+      "git-failure",
+      "merge-tree-write-tree-unsupported",
+    ]),
+  }),
+]);
+export type DeliveryContributionProofResult = z.infer<typeof DeliveryContributionProofResultSchema>;
 
 /** One typed refusal from delivery contribution proof. */
 export type DeliveryContributionRefusal = Extract<
@@ -45,8 +63,9 @@ export type DeliveryContributionComparison =
 export function compareDeliveryContribution(
   input: DeliveryContributionEndpoints,
 ): DeliveryContributionComparison {
-  if (input.before.predecessor.head === input.after.predecessor.head
-    && input.before.member.tree === input.after.member.tree) {
+  const endpoints = DeliveryContributionEndpointsSchema.parse(input);
+  if (endpoints.before.predecessor.head === endpoints.after.predecessor.head
+    && endpoints.before.member.tree === endpoints.after.member.tree) {
     return { status: "accepted", proof: "tree-equality" };
   }
   return { status: "reapply-required" };
