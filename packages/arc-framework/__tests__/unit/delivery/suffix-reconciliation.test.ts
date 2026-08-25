@@ -55,7 +55,7 @@ describe("delivery suffix reconciliation", () => {
           headSha: moved.coordinates!.head, baseRef: "main", state: "open", draft: true,
         },
       }) },
-      proveContribution: async () => ({ status: "accepted", proof: "aggregate-patch" }),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async (_planId, value) => {
         return { status: "ok", value: { revision: 8, value } };
       } },
@@ -90,9 +90,24 @@ describe("delivery suffix reconciliation", () => {
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
     await expect(reserveObservedSuffixRetarget({
       ...common,
-      host: { readRequest: async () => ({ status: "absent" as const }) },
-      proveContribution: async () => ({ status: "refused" as const, reason: "contribution-mismatch" as const }),
-    })).resolves.toMatchObject({ status: "refused" });
+      host: { readRequest: async () => ({
+        status: "observed" as const,
+        request: {
+          binding: moved.changeRequest!, repository: "andrewRCr/arc-framework",
+          headRepository: "andrewRCr/arc-framework", headRef: moved.ref!.replace("refs/heads/", ""),
+          headSha: moved.coordinates!.head, baseRef: "main", state: "open" as const, draft: true,
+        },
+      }) },
+      proveContribution: async () => ({
+        status: "refused" as const,
+        reason: "contribution-conflicted" as const,
+        paths: ["shared.txt"],
+      }),
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-conflicted",
+      paths: ["shared.txt"],
+    });
     expect(publish).not.toHaveBeenCalled();
   });
 
@@ -118,7 +133,7 @@ describe("delivery suffix reconciliation", () => {
       planId: plan.planId,
       current: reserved,
       observed,
-      proveContribution: async () => ({ status: "accepted", proof: "aggregate-patch" }),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async (_id, value) => ({ status: "ok", value: { revision: 9, value } }) },
     });
     expect(applied).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
@@ -126,13 +141,28 @@ describe("delivery suffix reconciliation", () => {
       planId: plan.planId,
       current: reserved,
       observed,
-      proveContribution: async () => ({ status: "accepted", proof: "aggregate-patch" }),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async () => ({ status: "refused", reason: "version-conflict" }) },
     })).resolves.toEqual({ status: "blocked", reason: "state-conflict" });
+    await expect(reconcileReservedSuffixRetarget({
+      planId: plan.planId,
+      current: reserved,
+      observed,
+      proveContribution: async () => ({
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: ["feature.txt"],
+      }),
+      stateStore: { publish: vi.fn() },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "contribution-diverged",
+      paths: ["feature.txt"],
+    });
     expect(reserved.value.activeOperation).not.toBeNull();
 
     const proveRetry = vi.fn(async () => ({
-      status: "refused" as const, reason: "contribution-mismatch" as const,
+      status: "refused" as const, reason: "git-failure" as const,
     }));
     await expect(reconcileReservedSuffixRetarget({
       planId: plan.planId,
@@ -168,7 +198,7 @@ describe("delivery suffix reconciliation", () => {
       revalidateLifecycle: async () => ({ status: "ok" }),
       rewriteRef,
       observeResult: async () => requested,
-      proveContribution: async () => ({ status: "accepted", proof: "aggregate-patch" }),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       stateStore: { publish: async (_id, value, revision) => {
         writes.push(value);
         return { status: "ok", value: { revision: revision + 1, value } };
@@ -177,6 +207,28 @@ describe("delivery suffix reconciliation", () => {
     expect(result).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     expect(writes).toHaveLength(2);
     expect(rewriteRef).toHaveBeenCalledOnce();
+
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested,
+      revalidateLifecycle: async () => ({ status: "ok" }),
+      rewriteRef: async () => ({ status: "rewritten" }),
+      observeResult: async () => requested,
+      proveContribution: async () => ({
+        status: "refused",
+        reason: "contribution-conflicted",
+        paths: ["shared.txt"],
+      }),
+      stateStore: { publish: async (_id, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-conflicted",
+      paths: ["shared.txt"],
+    });
   });
 
   it("stops an explicit rewrite before reservation or ref mutation when lifecycle contribution appears", async () => {
@@ -238,7 +290,7 @@ describe("delivery suffix reconciliation", () => {
       }],
     };
     const proveContribution = vi.fn(async () => ({
-      status: "refused" as const, reason: "contribution-mismatch" as const,
+      status: "refused" as const, reason: "git-failure" as const,
     }));
     const result = await executeDeliverySuffixRewrite({
       plan, current: { revision: 7, value: state }, deliverableId: member.deliverableId, requested,

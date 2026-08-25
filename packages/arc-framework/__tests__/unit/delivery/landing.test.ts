@@ -87,7 +87,7 @@ function boundaries(state: DeliveryStateV1) {
           }],
         },
       })),
-      proveLandedContribution: vi.fn(async () => ({ status: "accepted" as const })),
+      proveLandedContribution: vi.fn(async () => ({ status: "accepted" as const, proof: "tree-equality" as const })),
     },
   };
 }
@@ -245,7 +245,7 @@ describe("delivery landing", () => {
       readiness: changedRequest.readiness,
       lock: changedRequest.lock,
       observation: changedRequest.observation,
-    })).resolves.toEqual({ status: "refused" });
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
 
     const missingTarget = boundaries(state);
     await expect(applyDeliveryLanding({
@@ -260,7 +260,7 @@ describe("delivery landing", () => {
       readiness: missingTarget.readiness,
       lock: missingTarget.lock,
       observation: missingTarget.observation,
-    })).resolves.toEqual({ status: "refused" });
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
 
     const refusedContribution = boundaries(state);
     await expect(applyDeliveryLanding({
@@ -273,9 +273,17 @@ describe("delivery landing", () => {
       lock: refusedContribution.lock,
       observation: {
         ...refusedContribution.observation,
-        proveLandedContribution: async () => ({ status: "refused" as const }),
+        proveLandedContribution: async () => ({
+          status: "refused" as const,
+          reason: "contribution-conflicted" as const,
+          paths: ["shared.txt"],
+        }),
       },
-    })).resolves.toEqual({ status: "refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-conflicted",
+      paths: ["shared.txt"],
+    });
   });
 
   it("blocks approved identity or fresh readiness drift before any merge", async () => {
@@ -311,7 +319,7 @@ describe("delivery landing", () => {
       readiness: deps.readiness,
       lock: deps.lock,
       observation: deps.observation,
-    })).resolves.toEqual({ status: "refused" });
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
     expect(deps.mergeRequest).not.toHaveBeenCalled();
 
     await expect(applyDeliveryLanding({
@@ -323,7 +331,7 @@ describe("delivery landing", () => {
       readiness: { assess: async () => ({ status: "refused" as const }) },
       lock: deps.lock,
       observation: deps.observation,
-    })).resolves.toEqual({ status: "refused" });
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
     expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
@@ -367,7 +375,7 @@ describe("delivery landing", () => {
             : { status: "refused" as const };
         },
       },
-    })).resolves.toEqual({ status: "refused" });
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
     expect(deps.lock.release).toHaveBeenCalledOnce();
     expect(deps.mergeRequest).not.toHaveBeenCalled();
 
@@ -381,7 +389,7 @@ describe("delivery landing", () => {
       readiness: noMergedRequest.readiness,
       lock: noMergedRequest.lock,
       observation: noMergedRequest.observation,
-    })).resolves.toEqual({ status: "refused" });
+    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
   });
 
   it("clears a proven non-applied reservation and routes attended landing back through prepare", async () => {
@@ -456,6 +464,7 @@ describe("delivery landing", () => {
       stateStore: { publish: async () => ({ status: "refused" as const, reason: "version-conflict" as const }) },
     })).resolves.toEqual({
       status: "blocked",
+      reason: "retry-state-persistence-failed",
       guidance: "Retry-state persistence failed; retain and reconcile the reservation.",
     });
   });
@@ -485,10 +494,29 @@ describe("delivery landing", () => {
     await expect(reconcileDeliveryExecution({
       planId: plan.planId,
       current,
-      observation: { observe: async () => ({ status: "refused" as const }) },
+      observation: { observe: async () => ({
+        status: "refused" as const,
+        reason: "contribution-conflicted" as const,
+        paths: ["shared.txt"],
+      }) },
       stateStore: { publish: async () => { throw new Error("must retain reservation"); } },
     })).resolves.toEqual({
       status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["shared.txt"],
+      guidance: "The reserved operation result is unavailable; retain the reservation.",
+    });
+    await expect(reconcileDeliveryExecution({
+      planId: plan.planId,
+      current,
+      observation: { observe: async () => ({
+        status: "refused" as const,
+        reason: "observation-unavailable" as const,
+      }) },
+      stateStore: { publish: async () => { throw new Error("must retain reservation"); } },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "observation-unavailable",
       guidance: "The reserved operation result is unavailable; retain the reservation.",
     });
   });
@@ -557,6 +585,7 @@ describe("delivery landing", () => {
       stateStore: { publish: async () => { throw new Error("must retain reservation"); } },
     })).resolves.toEqual({
       status: "blocked",
+      reason: "operation-result-ambiguous",
       guidance: "The reserved operation result is ambiguous; inspect it explicitly.",
     });
 
@@ -577,6 +606,7 @@ describe("delivery landing", () => {
       stateStore: { publish: async () => ({ status: "refused" as const, reason: "version-conflict" as const }) },
     })).resolves.toEqual({
       status: "blocked",
+      reason: "result-persistence-failed",
       guidance: "Result persistence failed; retain and reconcile the reservation.",
     });
   });
