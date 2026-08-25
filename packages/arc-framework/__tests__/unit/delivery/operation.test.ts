@@ -110,6 +110,13 @@ function landEffect() {
     baseRef: "main",
     targetRef: "refs/heads/main",
     strategy: "merge",
+    mergePolicy: {
+      repository: "andrewRCr/arc-framework",
+      stackPosition: "intermediate",
+      method: "merge",
+      allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
+      policyFingerprint: `sha256:${"a".repeat(64)}`,
+    },
   } as const;
 }
 

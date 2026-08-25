@@ -10,16 +10,24 @@ import {
 } from "../delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../delivery/position.js";
 import type {
+  DeliveryMemberCoordinatesV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
   DeliveryStateV1,
+  DeliveryTargetCoordinatesV1,
 } from "../delivery/schema.js";
+import type {
+  DeliveryContributionEndpoints,
+  DeliveryContributionProofResult,
+} from "../delivery/contribution-proof.js";
+import type { DeliveryLandingResultCoordinates } from "../delivery/git-landing-result.js";
 import type { DeliveryPositionObservation } from "./delivery-position.js";
 import {
   classifyDeliveryTopRemedyObservation,
   matchesDeliveryTopRemedyTrigger,
 } from "../delivery/top-remedy.js";
 import { matchesDeliveryTeardownRequest } from "../delivery/teardown.js";
+import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
 
 interface DeliveryPositionFactsDependencies {
   readonly exec: GitExec;
@@ -28,6 +36,13 @@ interface DeliveryPositionFactsDependencies {
   readonly repository: string;
   readonly remoteHeads: Readonly<Record<string, string>>;
   readonly localCommits: Readonly<Record<string, boolean>>;
+  readonly materializeTarget: (coordinates: DeliveryTargetCoordinatesV1) => Promise<boolean>;
+  readonly observeLandedResult: (input: {
+    readonly mergeCommitSha: string;
+    readonly strategy: "merge" | "rebase" | "squash";
+    readonly beforeMember: DeliveryMemberCoordinatesV1;
+  }) => Promise<DeliveryLandingResultCoordinates | null>;
+  readonly proveContribution: (endpoints: DeliveryContributionEndpoints) => Promise<DeliveryContributionProofResult>;
 }
 
 type RequestState = "open" | "merged" | "closed" | null;
@@ -55,12 +70,21 @@ async function retainedCommitIsAvailable(
 async function observeTarget(
   target: DeliveryOperationSnapshotV1["target"],
   dependencies: DeliveryPositionFactsDependencies,
-): Promise<boolean> {
-  if (target === null) return true;
-  if (target.coordinates === null) return false;
+): Promise<"exact" | "append-only" | null> {
+  if (target === null) return "exact";
+  if (target.coordinates === null) return null;
   const observed = await dependencies.host.observeTarget(dependencies.repository, target.ref);
-  return observed.status === "observed"
-    && canonicalize(observed.coordinates) === canonicalize(target.coordinates);
+  if (observed.status !== "observed") return null;
+  if (canonicalize(observed.coordinates) === canonicalize(target.coordinates)) return "exact";
+  if (!await dependencies.materializeTarget(observed.coordinates)) return null;
+  const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+    ...options,
+    cwd: dependencies.cwd,
+    objectAccess: "local-only",
+  });
+  return await readAncestry(localOnlyExec, target.coordinates.head, observed.coordinates.head) === "ancestor"
+    ? "append-only"
+    : null;
 }
 
 async function observeMember(
@@ -122,7 +146,7 @@ async function snapshotIsCurrent(
   snapshot: DeliveryOperationSnapshotV1,
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<boolean> {
-  if (!(await observeTarget(snapshot.target, dependencies))) return false;
+  if (await observeTarget(snapshot.target, dependencies) !== "exact") return false;
   const observed = await Promise.all(snapshot.members.map((member) => (
     observeMember(member, dependencies)
   )));
@@ -171,8 +195,20 @@ async function observeOperation(
     if (request.request.state === "open") {
       observation = { outcome: "not-applied" };
     } else if (request.request.state === "merged") {
-      const target = await dependencies.host.observeTarget(dependencies.repository, operation.effect.targetRef);
-      if (target.status !== "observed") return null;
+      const beforeMember = operation.before.members[0]?.coordinates;
+      const beforeTarget = operation.before.target?.coordinates;
+      const mergeCommitSha = request.request.mergeCommitSha;
+      if (beforeMember === null || beforeMember === undefined || beforeTarget === null
+        || beforeTarget === undefined || mergeCommitSha === null || mergeCommitSha === undefined) return null;
+      const landed = await dependencies.observeLandedResult({
+        mergeCommitSha,
+        strategy: operation.effect.strategy,
+        beforeMember,
+      });
+      if (landed === null || (await dependencies.proveContribution({
+        before: { predecessor: beforeTarget, member: beforeMember },
+        after: landed,
+      })).status !== "accepted") return null;
       observation = {
         outcome: "applied",
         observation: {
@@ -180,7 +216,7 @@ async function observeOperation(
           effect: operation.effect,
           outcome: "applied",
           snapshot: {
-            target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
+            target: { ref: operation.effect.targetRef, coordinates: landed.member },
             members: operation.before.members,
           },
         },
@@ -248,7 +284,8 @@ async function observeFacts(
   state: DeliveryStateV1,
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<DeliveryPositionFactsV1 | null> {
-  if (!(await observeTarget(state.target, dependencies))) return null;
+  const targetMovement = await observeTarget(state.target, dependencies);
+  if (targetMovement === null) return null;
   const members = await Promise.all(state.members.map((member) => observeMember(member, dependencies)));
   if (members.some((member) => !member.exact)) return null;
 
@@ -276,6 +313,7 @@ async function observeFacts(
     target: state.target,
     members: state.members,
     landedDeliverableIds,
+    ...(targetMovement === "append-only" ? { targetMovement } : {}),
   };
 }
 

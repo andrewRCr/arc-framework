@@ -6,15 +6,21 @@ import {
   reserveDeliveryOperation,
 } from "./operation.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
-import type { DeliveryOperationSnapshotV1, DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
-import type { DeliveryNativeStackMember, DeliveryNativeStackObservation } from "./native-stack.js";
+import type {
+  DeliveryMergePolicyBindingV1,
+  DeliveryOperationSnapshotV1,
+  DeliveryPlanV1,
+  DeliveryStateV1,
+} from "./schema.js";
+import {
+  deriveDeliveryNativeTarget,
+  type DeliveryNativeStackMember,
+  type DeliveryNativeStackObservation,
+} from "./native-stack.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryContributionEndpoints, DeliveryContributionProofResult } from "./contribution-proof.js";
-import {
-  reconcileReservedSuffixRetarget,
-  reserveObservedSuffixRetarget,
-} from "./suffix-reconciliation.js";
+import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 
 export interface DeliveryNativeLandingMember {
   readonly deliverableId: string;
@@ -24,7 +30,10 @@ export interface DeliveryNativeLandingMember {
 
 export type DeriveNativeDeliveryMemberChainResult =
   | { readonly status: "derived"; readonly members: readonly DeliveryNativeStackMember[] }
-  | { readonly status: "refused"; readonly reason: "member-unbound" | "member-mismatch" };
+  | {
+      readonly status: "refused";
+      readonly reason: "member-unbound" | "member-mismatch" | "protected-target-mismatch";
+    };
 
 /** Derive the exact host chain from ordered selection plus current bound state. */
 export function deriveNativeDeliveryMemberChain(input: {
@@ -33,6 +42,10 @@ export function deriveNativeDeliveryMemberChain(input: {
   readonly repository: string;
   readonly baseRef: string;
 }): DeriveNativeDeliveryMemberChainResult {
+  const target = deriveDeliveryNativeTarget(input.state);
+  if (target.status !== "resolved" || input.baseRef.replace(/^refs\/heads\//u, "") !== target.baseRef) {
+    return { status: "refused", reason: "protected-target-mismatch" };
+  }
   const members: DeliveryNativeStackMember[] = [];
   const seen = new Set<string>();
   for (const selected of input.selectedMembers) {
@@ -53,11 +66,52 @@ export function deriveNativeDeliveryMemberChain(input: {
       changeRequestId: bound.changeRequest.changeRequestId,
       headRef: bound.ref.replace(/^refs\/heads\//u, ""),
       headSha: bound.coordinates.head,
-      baseRef: members.at(-1)?.headRef ?? input.baseRef.replace(/^refs\/heads\//u, ""),
+      baseRef: members.at(-1)?.headRef ?? target.baseRef,
       headRepository: input.repository,
     });
   }
   return { status: "derived", members };
+}
+
+/**
+ * Rebuild the provider observation subject beginning at one reserved landing member.
+ *
+ * @param input - Current plan/state bindings, the first reserved member, and host repository coordinates
+ * @returns The registered remainder in provider chain form or a closed binding refusal
+ */
+export function deriveNativeDeliveryRegisteredRemainder(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+  readonly firstDeliverableId: string;
+  readonly repository: string;
+  readonly baseRef: string;
+}): DeriveNativeDeliveryMemberChainResult {
+  const start = input.plan.members.findIndex(
+    (candidate) => candidate.deliverableId === input.firstDeliverableId,
+  );
+  if (start < 0 || start >= input.plan.members.length - 1) {
+    return { status: "refused", reason: "member-mismatch" };
+  }
+  const selectedMembers: DeliveryNativeLandingMember[] = [];
+  for (const planned of input.plan.members.slice(start, -1)) {
+    const member = input.state.members.find(
+      (candidate) => candidate.deliverableId === planned.deliverableId,
+    );
+    if (member?.changeRequest === null || member?.changeRequest === undefined || member.coordinates === null) {
+      return { status: "refused", reason: "member-unbound" };
+    }
+    selectedMembers.push({
+      deliverableId: member.deliverableId,
+      changeRequestId: member.changeRequest.changeRequestId,
+      headSha: member.coordinates.head,
+    });
+  }
+  return deriveNativeDeliveryMemberChain({
+    state: input.state,
+    selectedMembers,
+    repository: input.repository,
+    baseRef: input.baseRef,
+  });
 }
 
 export interface DeliveryNativeMergeRequest {
@@ -72,7 +126,10 @@ export type DeliveryNativeMergeSubmission =
   | { readonly status: "submitted" | "existing"; readonly effectIdentity: string }
   | { readonly status: "merged" }
   | { readonly status: "enqueued" }
-  | { readonly status: "refused"; readonly reason: "malformed" | "unavailable" | "unsupported" };
+  | {
+      readonly status: "refused";
+      readonly reason: "malformed" | "unavailable" | "unsupported" | "native-stack-required";
+    };
 
 export type DeliveryNativeMergeObservation =
   | { readonly status: "pending" | "merged" | "enqueued" | "failed" }
@@ -188,12 +245,22 @@ export async function reserveNativeDeliveryLanding(input: {
   readonly repository: string;
   readonly baseRef: string;
   readonly targetRef: string;
+  readonly mergePolicy: DeliveryMergePolicyBindingV1;
 }, dependencies: {
   readonly readiness: (member: DeliveryNativeLandingMember) => Promise<{ readonly status: "ready" | "refused" }>;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<ReserveNativeDeliveryLandingResult> {
   if (input.selection.arm === "unlinked") {
     return { status: "blocked", reason: "unlinked-arm", recommendedActionText: "Use the complete ordinary sequential landing service." };
+  }
+  const target = deriveDeliveryNativeTarget(input.current.value);
+  if (target.status !== "resolved" || input.targetRef !== target.targetRef
+    || input.baseRef !== target.baseRef) {
+    return {
+      status: "blocked",
+      reason: "protected-target-mismatch",
+      recommendedActionText: "Use the exact protected target bound in current delivery state.",
+    };
   }
   const position = deriveDeliveryPosition(input.plan, input.current.value, input.facts);
   if (position.status !== "derived" || position.position.firstUnlanded === null) {
@@ -240,6 +307,7 @@ export async function reserveNativeDeliveryLanding(input: {
       providerId: "github", repository: input.repository,
       changeRequestId: top.changeRequestId, headSha: top.headSha,
       baseRef: input.baseRef, targetRef: input.targetRef, strategy: "merge",
+      mergePolicy: input.mergePolicy,
     },
   });
   if (reserved.status === "refused") {
@@ -253,10 +321,10 @@ export async function reserveNativeDeliveryLanding(input: {
 
 export type SubmitReservedNativeDeliveryMergeResult =
   | { readonly status: "pending"; readonly effectIdentity: string; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | { readonly status: "applied"; readonly projected: DeliveryStateV1 }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
-/** Submit one already-reserved native effect and immediately CAS-attach the host identity. */
+/** Submit one reserved native effect, persisting only an async identity until final landing settlement. */
 export async function submitReservedNativeDeliveryMerge(input: {
   readonly planId: string;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -268,6 +336,9 @@ export async function submitReservedNativeDeliveryMerge(input: {
   readonly reobserveSelection: () => Promise<{ readonly status: "exact" | "refused" }>;
   readonly revalidate: (deliverableId: string, headSha: string) => Promise<{ readonly status: "ready" | "refused" }>;
   readonly releaseLock: (deliverableId: string) => Promise<{ readonly status: "released" | "not-configured" | "refused" }>;
+  readonly revalidateMergePolicy: (
+    binding: DeliveryMergePolicyBindingV1,
+  ) => Promise<{ readonly status: "exact" | "refused" }>;
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<SubmitReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
@@ -275,8 +346,13 @@ export async function submitReservedNativeDeliveryMerge(input: {
     || operation.operationId !== input.operationId
     || operation.effect.repository !== input.request.repository
     || operation.effect.changeRequestId !== input.request.topChangeRequestId
-    || operation.effect.headSha !== input.request.topHeadSha || operation.effect.strategy !== "merge") {
+    || operation.effect.headSha !== input.request.topHeadSha) {
     return { status: "blocked", reason: "reservation-mismatch", recommendedActionText: "Refresh the exact reserved member set before submission." };
+  }
+  const target = deriveDeliveryNativeTarget(input.current.value);
+  if (target.status !== "resolved" || operation.effect.targetRef !== target.targetRef
+    || operation.effect.baseRef !== target.baseRef) {
+    return { status: "blocked", reason: "protected-target-mismatch", recommendedActionText: "Restore the exact protected target binding before submission." };
   }
   if (operation.effectIdentity !== null) {
     return { status: "pending", effectIdentity: operation.effectIdentity.effectId, state: input.current };
@@ -290,6 +366,13 @@ export async function submitReservedNativeDeliveryMerge(input: {
       || (await dependencies.releaseLock(member.deliverableId)).status === "refused") {
       return { status: "blocked", reason: "fresh-set-refused", recommendedActionText: "Re-hold any released locks and return to prepare; the approval cannot be reused." };
     }
+  }
+  if ((await dependencies.revalidateMergePolicy(operation.effect.mergePolicy)).status !== "exact") {
+    return {
+      status: "blocked",
+      reason: "merge-policy-moved",
+      recommendedActionText: "Re-hold released locks and return to prepare under current repository merge policy.",
+    };
   }
   const submitted = await dependencies.host.submitNativeMerge(input.request);
   if (submitted.status === "enqueued") {
@@ -311,10 +394,7 @@ export async function submitReservedNativeDeliveryMerge(input: {
     if (reconciled.status !== "adopt") {
       return { status: "blocked", reason: "ambiguous-result", recommendedActionText: "Keep the reservation and reconcile the immediate host result explicitly." };
     }
-    const published = await dependencies.stateStore.publish(input.planId, reconciled.state, input.current.revision);
-    return published.status === "ok"
-      ? { status: "applied", state: published.value }
-      : { status: "blocked", reason: "state-conflict", recommendedActionText: "Re-read state before adopting the immediate host result." };
+    return { status: "applied", projected: reconciled.state };
   }
   if (submitted.status === "refused") {
     return { status: "blocked", reason: submitted.reason, recommendedActionText: "Keep the reservation and reobserve before any retry." };
@@ -368,7 +448,7 @@ export function classifyDeliveryNativeEffect(
 
 export type ReconcileReservedNativeDeliveryMergeResult =
   | { readonly status: "pending"; readonly recommendedActionText: string }
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | { readonly status: "applied"; readonly projected: DeliveryStateV1 }
   | {
       readonly status: "retryable";
       readonly transition: "cleared";
@@ -384,7 +464,7 @@ export type ReconcileReservedNativeDeliveryMergeResult =
     }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
-/** Poll one persisted identity and reconcile only a complete exact authoritative result. */
+/** Reobserve one reserved native effect and project only a complete exact authoritative result. */
 export async function reconcileReservedNativeDeliveryMerge(input: {
   readonly planId: string;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -395,27 +475,49 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
 }): Promise<ReconcileReservedNativeDeliveryMergeResult> {
   const operation = input.current.value.activeOperation;
-  if (operation === null || operation.kind !== "land" || operation.mode !== "native"
-    || operation.effectIdentity === null) {
+  if (operation === null || operation.kind !== "land" || operation.mode !== "native") {
     return { status: "blocked", reason: "effect-identity-missing", recommendedActionText: "Resolve submission-before-persist from fresh host facts; do not submit again." };
   }
   if (operation.effect.repository !== input.request.repository
     || operation.effect.changeRequestId !== input.request.topChangeRequestId
-    || operation.effect.headSha !== input.request.topHeadSha
-    || operation.effect.strategy !== input.request.mergeMethod) {
+    || operation.effect.headSha !== input.request.topHeadSha) {
     return { status: "blocked", reason: "reservation-mismatch", recommendedActionText: "Poll only the exact effect bound to the active reservation." };
   }
-  const polled = await dependencies.host.observeNativeMerge({
-    ...input.request, effectIdentity: operation.effectIdentity.effectId,
-  });
-  if (polled.status === "pending") {
-    return { status: "pending", recommendedActionText: "Keep the reservation and poll the persisted asynchronous effect identity." };
+  const target = deriveDeliveryNativeTarget(input.current.value);
+  if (target.status !== "resolved" || operation.effect.targetRef !== target.targetRef
+    || operation.effect.baseRef !== target.baseRef) {
+    return { status: "blocked", reason: "protected-target-mismatch", recommendedActionText: "Restore the exact protected target binding before reconciliation." };
   }
-  if (polled.status !== "merged" && polled.status !== "failed") {
-    return { status: "blocked", reason: polled.status === "refused" ? polled.reason : polled.status, recommendedActionText: "Keep the reservation and resolve the native effect before further landing." };
+  let classification: DeliveryNativeEffectClassification;
+  if (operation.effectIdentity === null) {
+    const facts = await dependencies.observeEffect();
+    if (facts.outcome === "all-landed") {
+      classification = { status: "applied", snapshot: facts.snapshot };
+    } else if (facts.outcome === "partial-landed") {
+      classification = {
+        status: "partial-landed",
+        affectedDeliverableIds: facts.affectedDeliverableIds,
+      };
+    } else {
+      return {
+        status: "blocked",
+        reason: facts.outcome === "none-landed" ? "submission-before-persist-unresolved" : "ambiguous-result",
+        recommendedActionText:
+          "Keep the reservation and resolve the synchronous native effect from fresh facts; do not submit again.",
+      };
+    }
+  } else {
+    const polled = await dependencies.host.observeNativeMerge({
+      ...input.request, effectIdentity: operation.effectIdentity.effectId,
+    });
+    if (polled.status === "pending") {
+      return { status: "pending", recommendedActionText: "Keep the reservation and poll the persisted asynchronous effect identity." };
+    }
+    if (polled.status !== "merged" && polled.status !== "failed") {
+      return { status: "blocked", reason: polled.status === "refused" ? polled.reason : polled.status, recommendedActionText: "Keep the reservation and resolve the native effect before further landing." };
+    }
+    classification = classifyDeliveryNativeEffect(polled, await dependencies.observeEffect());
   }
-  const facts = await dependencies.observeEffect();
-  const classification = classifyDeliveryNativeEffect(polled, facts);
   if (classification.status === "not-applied") {
     const reconciled = reconcileDeliveryOperation(input.current, { outcome: "not-applied" });
     if (reconciled.status !== "retry") {
@@ -464,17 +566,26 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
       recommendedActionText: "The observed result does not equal the exact authorized member set.",
     };
   }
-  const published = await dependencies.stateStore.publish(input.planId, reconciled.state, input.current.revision);
-  return published.status === "ok"
-    ? { status: "applied", state: published.value }
-    : { status: "blocked", reason: "state-conflict", recommendedActionText: "Re-read state; never overwrite a competing reconciliation." };
+  return { status: "applied", projected: reconciled.state };
 }
 
 export type ReconcileLinkedNativeDeliverySuffixResult =
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | {
+      readonly status: "blocked";
+      readonly reason: "contribution-conflicted" | "contribution-diverged";
+      readonly paths: readonly string[];
+      readonly guidance: string;
+    }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
-/** Reconcile the single next-member retarget through the existing contribution-proven rewrite path. */
+/**
+ * Reconcile the complete remaining registered suffix through the contribution-proven rewrite path.
+ *
+ * @param input - Exact pre-landing reservation, unpersisted landing projection, repository, and protected target.
+ * @param dependencies - Fresh observers, contribution arbiter, terminal absorber/publisher, and state writer.
+ * @returns The once-persisted reconciled suffix or a closed refusal preserving path evidence when available.
+ */
 export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly plan: DeliveryPlanV1;
   readonly before: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -485,90 +596,244 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly observeRequest: (binding: NonNullable<DeliveryStateV1["members"][number]["changeRequest"]>) => Promise<DeliveryHostRequestObservation>;
   readonly observeRef: (ref: string) => Promise<{ readonly head: string; readonly tree: string } | null>;
   readonly proveContribution: (endpoints: DeliveryContributionEndpoints) => Promise<DeliveryContributionProofResult>;
+  readonly absorbTop: (input: {
+    readonly topRef: string;
+    readonly top: { readonly head: string; readonly tree: string };
+    readonly highestMember: { readonly head: string; readonly tree: string };
+  }) => Promise<DeliveryChainAbsorptionResult>;
+  readonly publishTop: (input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }) => Promise<
+    | { readonly status: "published" | "adopted" }
+    | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+  >;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<ReconcileLinkedNativeDeliverySuffixResult> {
   const operation = input.before.value.activeOperation;
   const landedId = operation?.kind === "land" && operation.mode === "native"
-    && operation.affectedDeliverableIds.length === 1
-    ? operation.affectedDeliverableIds[0]
+    ? operation.affectedDeliverableIds.at(-1)
     : undefined;
   const landedIndex = landedId === undefined
     ? -1
     : input.plan.members.findIndex((member) => member.deliverableId === landedId);
-  if (landedIndex < 0 || landedIndex >= input.plan.members.length - 2) {
-    return { status: "applied", state: input.landed };
+  if (landedIndex < 0) {
+    return {
+      status: "blocked",
+      reason: "suffix-position-unavailable",
+      recommendedActionText: "Keep the reservation and restore the exact native landing subject.",
+    };
   }
-  const next = input.landed.value.members[landedIndex + 1];
-  const oldNext = input.before.value.members[landedIndex + 1];
-  const oldPredecessor = operation?.kind === "land" && operation.mode === "native"
-    ? operation.before.members[0]?.coordinates
-    : null;
+  if (landedIndex >= input.plan.members.length - 2) {
+    const published = await dependencies.stateStore.publish(
+      input.plan.planId,
+      input.landed.value,
+      input.landed.revision,
+    );
+    return published.status === "ok"
+      ? { status: "applied", state: published.value }
+      : {
+          status: "blocked",
+          reason: "state-conflict",
+          recommendedActionText: "Re-read state; never overwrite a competing native landing settlement.",
+        };
+  }
+  const suffixStart = landedIndex + 1;
+  const plannedSuffix = input.plan.members.slice(suffixStart, -1);
+  const landedSuffix = input.landed.value.members.slice(suffixStart, -1);
+  const beforeSuffix = input.before.value.members.slice(suffixStart, -1);
   const target = input.landed.value.target;
-  if (next?.ref === null || next?.ref === undefined || next.changeRequest === null || oldNext?.coordinates === null
-    || oldNext?.coordinates === undefined || oldPredecessor === null || oldPredecessor === undefined
-    || target === null || target.coordinates === null) {
-    return { status: "blocked", reason: "suffix-position-unavailable", recommendedActionText: "Keep the landed state and reconcile the first remaining member explicitly." };
+  if (target === null || target.coordinates === null || plannedSuffix.length === 0
+    || landedSuffix.length !== plannedSuffix.length || beforeSuffix.length !== plannedSuffix.length
+    || landedSuffix.some((member, index) => member.deliverableId !== plannedSuffix[index]?.deliverableId)
+    || beforeSuffix.some((member, index) => member.deliverableId !== plannedSuffix[index]?.deliverableId)) {
+    return {
+      status: "blocked",
+      reason: "suffix-position-unavailable",
+      recommendedActionText: "Keep the reservation and restore the complete remaining suffix.",
+    };
   }
-  const [observedRequest, observedRef] = await Promise.all([
-    dependencies.observeRequest(next.changeRequest),
-    dependencies.observeRef(next.ref),
-  ]);
-  if (observedRequest.status !== "observed" || observedRef === null
-    || observedRequest.request.state !== "open"
-    || observedRequest.request.repository !== input.repository
-    || observedRequest.request.headRepository !== input.repository
-    || observedRequest.request.headRef !== next.ref.replace(/^refs\/heads\//u, "")
-    || observedRequest.request.headSha !== observedRef.head
-    || observedRequest.request.baseRef !== input.protectedTargetRef.replace(/^refs\/heads\//u, "")) {
-    return { status: "blocked", reason: "suffix-request-mismatch", recommendedActionText: "Keep the landed state and reobserve the first remaining request before review." };
+  const observations = await Promise.all(landedSuffix.map(async (member, index) => {
+    const predecessor = index === 0 ? null : landedSuffix[index - 1];
+    if (member.ref === null || member.changeRequest === null || member.coordinates === null
+      || beforeSuffix[index]?.coordinates === null || beforeSuffix[index]?.coordinates === undefined
+      || (index > 0 && predecessor?.ref === null)) return null;
+    const [request, ref] = await Promise.all([
+      dependencies.observeRequest(member.changeRequest),
+      dependencies.observeRef(member.ref),
+    ]);
+    const expectedBaseRef = (index === 0 ? input.protectedTargetRef : predecessor?.ref)
+      ?.replace(/^refs\/heads\//u, "");
+    if (request.status !== "observed" || ref === null || expectedBaseRef === undefined
+      || request.request.state !== "open"
+      || request.request.repository !== input.repository
+      || request.request.headRepository !== input.repository
+      || request.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
+      || request.request.headSha !== ref.head
+      || request.request.baseRef !== expectedBaseRef) return null;
+    return { request: request.request, ref };
+  }));
+  if (observations.some((observation) => observation === null)) {
+    return {
+      status: "blocked",
+      reason: "suffix-request-mismatch",
+      recommendedActionText:
+        "Keep the reservation and rerun `arc delivery native land-status` to reobserve the complete suffix.",
+    };
   }
-  const moved = {
-    deliverableId: next.deliverableId,
-    ref: next.ref,
-    changeRequest: next.changeRequest,
-    coordinates: { base: target.coordinates.head, head: observedRef.head, tree: observedRef.tree },
-  };
-  const facts: DeliveryPositionFactsV1 = {
-    target,
-    members: input.landed.value.members.map((member, index) => index === landedIndex + 1 ? moved : ({
-      deliverableId: member.deliverableId,
-      ref: member.ref,
-      changeRequest: member.changeRequest,
-      coordinates: member.coordinates,
-    })),
-    landedDeliverableIds: input.plan.members.slice(0, landedIndex + 1).map((member) => member.deliverableId),
-  };
-  const contribution: DeliveryContributionEndpoints = {
-    before: {
-      predecessor: { head: oldPredecessor.head, tree: oldPredecessor.tree },
-      member: { head: oldNext.coordinates.head, tree: oldNext.coordinates.tree },
-    },
-    after: {
-      predecessor: { head: target.coordinates.head, tree: target.coordinates.tree },
-      member: { head: observedRef.head, tree: observedRef.tree },
-    },
-  };
-  const reserved = await reserveObservedSuffixRetarget({
-    plan: input.plan,
-    current: input.landed,
-    facts,
-    repository: input.repository,
-    protectedTargetRef: input.protectedTargetRef,
-    host: { readRequest: (_repository, binding) => dependencies.observeRequest(binding) },
-    proveContribution: () => dependencies.proveContribution(contribution),
-    stateStore: dependencies.stateStore,
+  const observedMembers = landedSuffix.flatMap((member, index) => {
+    const observation = observations[index];
+    const predecessor = index === 0 ? target.coordinates : observations[index - 1]?.ref;
+    return observation === null || observation === undefined || predecessor === null || predecessor === undefined
+      ? []
+      : [{
+          deliverableId: member.deliverableId,
+          ref: member.ref,
+          changeRequest: member.changeRequest,
+          coordinates: { base: predecessor.head, head: observation.ref.head, tree: observation.ref.tree },
+        }];
   });
-  if (reserved.status !== "reserved") {
-    return { status: "blocked", reason: reserved.reason, recommendedActionText: "Keep the landed state and resolve the recognized suffix retarget before review." };
+  if (observedMembers.length !== landedSuffix.length) {
+    return {
+      status: "blocked",
+      reason: "suffix-position-unavailable",
+      recommendedActionText: "Keep the reservation and restore complete observed suffix coordinates.",
+    };
   }
-  const settled = await reconcileReservedSuffixRetarget({
-    planId: input.plan.planId,
-    current: reserved.state,
-    observed: reserved.state.value.activeOperation?.requested,
-    proveContribution: () => dependencies.proveContribution(contribution),
-    stateStore: dependencies.stateStore,
-  });
-  return settled.status === "applied"
-    ? { status: "applied", state: settled.state }
-    : { status: "blocked", reason: settled.status === "blocked" ? settled.reason : "suffix-retry", recommendedActionText: "Settle the recognized suffix retarget before new-head review." };
+  let movementCount = 0;
+  for (const [index, observed] of observedMembers.entries()) {
+    const before = beforeSuffix[index];
+    if (before?.coordinates === null || before?.coordinates === undefined) {
+      return {
+        status: "blocked",
+        reason: "contribution-endpoints-unverified",
+        recommendedActionText:
+          "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+      };
+    }
+    if (before.coordinates.base === observed.coordinates.base
+      && before.coordinates.head === observed.coordinates.head
+      && before.coordinates.tree === observed.coordinates.tree) continue;
+    movementCount += 1;
+    const beforePredecessor = input.before.value.members[suffixStart + index - 1]?.coordinates;
+    const afterPredecessor = index === 0 ? target.coordinates : observedMembers[index - 1]?.coordinates;
+    if (beforePredecessor === null || beforePredecessor === undefined || afterPredecessor === undefined) {
+      return {
+        status: "blocked",
+        reason: "contribution-endpoints-unverified",
+        recommendedActionText:
+          "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+      };
+    }
+    const proof = await dependencies.proveContribution({
+      before: {
+        predecessor: { head: beforePredecessor.head, tree: beforePredecessor.tree },
+        member: { head: before.coordinates.head, tree: before.coordinates.tree },
+      },
+      after: {
+        predecessor: { head: afterPredecessor.head, tree: afterPredecessor.tree },
+        member: { head: observed.coordinates.head, tree: observed.coordinates.tree },
+      },
+    });
+    if (proof.status !== "accepted") {
+      return "paths" in proof
+        ? {
+            status: "blocked",
+            reason: proof.reason,
+            paths: proof.paths,
+            guidance:
+              "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+          }
+        : {
+            status: "blocked",
+            reason: proof.reason,
+            recommendedActionText:
+              "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+          };
+    }
+  }
+  if (movementCount === 0) {
+    return {
+      status: "blocked",
+      reason: "suffix-result-unchanged",
+      recommendedActionText:
+        "Keep the reservation and rerun `arc delivery native land-status` to reobserve the provider result.",
+    };
+  }
+  const terminal = input.landed.value.members.at(-1);
+  const highest = observedMembers.at(-1);
+  if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null || highest === undefined) {
+    return {
+      status: "blocked",
+      reason: "terminal-top-unavailable",
+      recommendedActionText: "Keep the reservation and restore the exact checked-out terminal top.",
+    };
+  }
+  let terminalCoordinates = terminal.coordinates;
+  if (terminal.coordinates.base !== highest.coordinates.head) {
+    const absorbed = await dependencies.absorbTop({
+      topRef: terminal.ref,
+      top: { head: terminal.coordinates.head, tree: terminal.coordinates.tree },
+      highestMember: { head: highest.coordinates.head, tree: highest.coordinates.tree },
+    });
+    if (absorbed.status !== "absorbed") {
+      return absorbed.reason === "content-conflict" && absorbed.paths !== undefined
+        ? {
+            status: "blocked",
+            reason: "contribution-conflicted",
+            paths: absorbed.paths,
+            guidance:
+              "Resolve the listed top absorption paths, then rerun `arc delivery native land-status`.",
+          }
+        : {
+            status: "blocked",
+            reason: absorbed.reason,
+            recommendedActionText:
+              "Keep the reservation and restore the exact terminal top before retrying native landing settlement.",
+          };
+    }
+    const publishedTop = await dependencies.publishTop({
+      ref: terminal.ref,
+      beforeHead: terminal.coordinates.head,
+      requestedHead: absorbed.head,
+    });
+    if (publishedTop.status === "refused") {
+      return {
+        status: "blocked",
+        reason: `top-publish-${publishedTop.reason}`,
+        recommendedActionText:
+          "Keep the reservation and restore the exact terminal remote ref before retrying settlement.",
+      };
+    }
+    terminalCoordinates = {
+      base: highest.coordinates.head,
+      head: absorbed.head,
+      tree: absorbed.tree,
+    };
+  }
+  const observedById = new Map(observedMembers.map((member) => [member.deliverableId, member]));
+  const projected: DeliveryStateV1 = {
+    ...input.landed.value,
+    members: input.landed.value.members.map((member, index) => {
+      if (index === input.landed.value.members.length - 1) {
+        return { ...member, coordinates: terminalCoordinates };
+      }
+      const observed = observedById.get(member.deliverableId);
+      return observed === undefined ? member : { ...member, ...observed };
+    }),
+    activeOperation: null,
+  };
+  const published = await dependencies.stateStore.publish(
+    input.plan.planId,
+    projected,
+    input.landed.revision,
+  );
+  return published.status === "ok"
+    ? { status: "applied", state: published.value }
+    : {
+        status: "blocked",
+        reason: "state-conflict",
+        recommendedActionText: "Re-read state; never overwrite a competing native landing settlement.",
+      };
 }
