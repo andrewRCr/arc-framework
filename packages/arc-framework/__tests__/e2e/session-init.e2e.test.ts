@@ -21,6 +21,7 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
+import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -531,6 +532,101 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
       .toContain(".arc/active/meta-foo.md");
     expect(envelope.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
+  });
+
+  it("reopens substantial integration work to an exact task and recovers without stale Candidate authority", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["switch", "-c", "feat/foo"]);
+
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      renderMetaFile("foo", {
+        state: "Integrating",
+        owner: "test-user",
+        branch: "feat/foo",
+        workClass: "Heavy",
+        priority: "P1",
+        taskList: "tasks-foo.md",
+        candidateId: `sha256:${"1".repeat(64)}`,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 9.1 — Complete verification",
+        nextAction: "Complete integration",
+      }),
+    );
+    await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Repair lifecycle recovery"));
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "integrating fixture"]);
+
+    const ghBin = join(tmpDir, ".git", "arc-test-bin");
+    const ghLog = join(ghBin, "gh.log");
+    await mkdir(ghBin, { recursive: true });
+    await writeFile(
+      join(ghBin, "gh"),
+      [
+        "#!/bin/sh",
+        "printf '%s\\n' \"$*\" >> \"$ARC_TEST_GH_LOG\"",
+        "if [ \"$1\" = pr ] && [ \"$2\" = view ]; then",
+        "  printf '%s\\n' '{\"state\":\"OPEN\",\"isDraft\":false}'",
+        "  exit 0",
+        "fi",
+        "if [ \"$1\" = pr ] && [ \"$2\" = ready ]; then exit 0; fi",
+        "exit 2",
+        "",
+      ].join("\n"),
+    );
+    await chmod(join(ghBin, "gh"), 0o755);
+    const env = {
+      ARC_TEST_GH_LOG: ghLog,
+      PATH: `${ghBin}:${process.env.PATH ?? ""}`,
+    };
+
+    const task = "Task 1.1 — Repair lifecycle recovery";
+    const reopened = await runArc(["reopen", "foo", "--keep-pr", "--task", task], tmpDir, { env });
+    expect(reopened.exitCode, reopened.stdout + reopened.stderr).toBe(0);
+
+    const meta = await readFile(join(activeDir, "meta-foo.md"), "utf8");
+    expect(meta).toContain("| `Active`");
+    expect(meta).toContain("- **Current Workflow:** [none]");
+    expect(meta).toContain(`- **Next Task:** ${task}`);
+    expect(await readFile(ghLog, "utf8")).toBe([
+      "pr view feat/foo --json state",
+      "pr view feat/foo --json state,isDraft",
+      "pr ready feat/foo --undo",
+      "",
+    ].join("\n"));
+
+    const seeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+      { env },
+    );
+    expect(seeded.exitCode, seeded.stdout + seeded.stderr).toBe(0);
+    const envelope = parseJsonEnvelope(seeded.stdout);
+    expect(envelope.derivedLocusState).toMatchObject({ ok: true });
+    expect(envelope.active).toMatchObject({
+      ok: true,
+      value: { currentWorkflow: "process-task-loop", sessionType: "execution" },
+    });
+
+    const recovered = await runArc(["status", "--recover", "--json"], tmpDir, { env });
+    expect(recovered.exitCode, recovered.stdout + recovered.stderr).toBe(0);
+    const recovery = parseJsonEnvelope(recovered.stdout);
+    expect(recovery.recoveryFrame).toMatchObject({
+      ok: true,
+      value: { workflow: "process-task-loop", sessionType: "execution" },
+    });
+    expect(recovery.taskCursor).toMatchObject({ ok: true, value: { status: "found" } });
+
+    const audited = await runArc(["recover", "audit", "--json"], tmpDir, { env });
+    expect(audited.exitCode, audited.stdout + audited.stderr).toBe(0);
+    expect(parseRecoverAuditReport(audited.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+    });
   });
 
   it("preserves terminal task evidence for an integrating work unit", async () => {

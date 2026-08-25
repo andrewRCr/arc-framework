@@ -38,6 +38,8 @@ export interface ReopenParams {
   prMerged?: boolean;
   /** How to withdraw the open PR — `close` (default) or `draft`. */
   withdrawMode?: PrWithdrawMode;
+  /** Exact reopened task orientation; absent resumes Candidate preparation. */
+  nextTask?: string;
 }
 
 /** The outcome of a `reopen` attempt — a rejection, or the re-activated meta path. */
@@ -59,12 +61,23 @@ export async function runReopen(
   ctx: ExecuteTransitionContext,
   params: ReopenParams,
 ): Promise<ReopenResult> {
-  const { name, prMerged, withdrawMode } = params;
+  const { name, prMerged, withdrawMode, nextTask } = params;
+  const executionTask = nextTask?.trim();
+  if (nextTask !== undefined && executionTask === "") {
+    return { status: "rejected", reason: "reopened task orientation must not be empty." };
+  }
+
+  const inputs = {
+    prMerged,
+    prWithdrawMode: withdrawMode ?? "close",
+    currentWorkflowOverride: executionTask === undefined ? undefined : "[none]",
+    softFields: { nextTask: executionTask ?? "[none]" },
+  };
 
   const outcome = await executeTransition(ctx, {
     verb: "reopen",
     slug: name,
-    inputs: { prMerged, prWithdrawMode: withdrawMode ?? "close" },
+    inputs,
   });
 
   let resolvedOutcome = outcome;
@@ -72,7 +85,7 @@ export async function runReopen(
     resolvedOutcome = await resumeTransitionFinalization(ctx, {
       verb: "reopen",
       slug: name,
-      inputs: { prMerged, prWithdrawMode: withdrawMode ?? "close" },
+      inputs,
       replayNonRoadmapSideEffects: true,
     }) ?? outcome;
   }
