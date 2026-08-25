@@ -107,12 +107,16 @@ open-ended defect tail: Phase 6 had been sliced horizontally by primitive and su
 scenario owned the complete refresh-adoption or semantic native-fallback transition. Local service, schema, handler,
 and workflow assertions could all pass while production composition remained absent.
 
-The forward correction keeps the provider/operator refresh external and unreserved, removes the fictitious
-ARC-issued provider mutation, and reuses `rewrite/provider-adoption` only after exact observed heads exist to own
-ARC's top absorption, publication, and final suffix-plus-top CAS. It also state-binds native selection and keeps
-`native-stack-required` distinct from the `native-stale-suffix` refresh trigger. Member 6 closeout now requires
-executable vertical lifecycle scenarios, including interruption boundaries, rather than accepting isolated
-primitive and workflow-string coverage.
+The first forward correction kept provider/operator refresh external and unreserved, removed the fictitious
+ARC-issued provider mutation, and reused `rewrite/provider-adoption` only after exact observed heads existed to own
+ARC's top absorption, publication, and final suffix-plus-top CAS. Self-delivery then exposed that this disposition
+had removed provider-native actuation from a work unit chartered to supply it. D5.9 restored official provider
+refresh mechanics behind an isolated preparation adapter while ARC retained reservation, proof, lease publication,
+recovery, top settlement, and state authority. External refresh and `rewrite/provider-adoption` remain an attended
+fallback, now explicitly selectable after a pre-reservation provider refusal. Native selection stays state-bound,
+and `native-stack-required` remains distinct from the `native-stale-suffix` refresh trigger. Member 6 closeout
+requires executable vertical lifecycle scenarios, including interruption boundaries, rather than accepting
+isolated primitive and workflow-string coverage.
 
 ## Hosted-review authority audit amendment
 

@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:1d1a55a190911fe194e53653a9135e1b17b9179ec2956741cd4fe63b0164221c`
+- **Candidate:** `sha256:37e9feea5b4bfdeee67574d392ba77e072322d9e2bce1c9bc06098d9dbc2d001`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 6.11.R — Revalidate provider-native refresh and the amended Member 6 boundary
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]

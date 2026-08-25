@@ -973,6 +973,8 @@ structural guarantee rather than operator discipline.
           resolves six criteria as met and criterion 2 as intentionally superseded.
         - The Heavy fresh-context companion completed two full-rubric passes, with the confirmed fallback finding
           repaired and pass two returning no findings.
+        - The reopened-execution return path now closes its exact `Next Task` only from a proven completed cursor;
+          focused real-CLI recovery coverage preserves every non-authoritative case.
 
         - _Forward amendment (2026-08-25):_ The live withdrawal needed to execute this revision exposed that
           `reopen` could return only to Candidate preparation, where the now-stale Candidate blocked recovery before
@@ -1061,6 +1063,47 @@ structural guarantee rather than operator discipline.
             - Heavy pass two reran all seven criteria with both prior findings and the repair, returned no findings,
               and converged cleanly at the class-scaled cap.
             - Every Success Criteria marker remains unchanged for terminal verification.
+
+        - _Forward amendment (2026-08-25):_ Terminal re-attestation exposed the incomplete return edge of the
+          reopened-execution repair: the Candidate and workflow projections advance, but the exact reopened
+          `Next Task` remains stale throughout Candidate preparation. Close that orientation only from a proven
+          no-open-task cursor, then revalidate the recovery seam before restoring terminal verification.
+
+        - `[x]` **6.11.R.e Close reopened execution orientation at Candidate attestation**
+
+            - Candidate attestation now clears `Next Task` only when the canonical task-list cursor proves
+              `no-open-task`; open, malformed, missing, unreadable, and unbound task-list evidence preserves the
+              existing orientation.
+            - The real CLI regression failed against the stale-field behavior, and the four preservation cases
+              failed against an over-broad clearing mutant before all eight attestation E2E cases passed.
+
+        - `[x]` **6.11.R.f Revalidate the recovery closure and amended Member 6 boundary**
+
+            - The six-file handler, reopen, session-init, local re-entry, attestation, and Candidate-lineage set
+              passed 143 tests over the completed return path. Targeted lint and both typechecks passed.
+            - _Primary criteria report:_
+                - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                - _Span:_ the exact Candidate-orientation source and E2E patch over `54a46388e`; reachability is the
+                  complete current tree. Boundary-order deviation: the post-terminal repair closes Task 6.11.R.a's
+                  recovery return edge and changes no delivery core, schema, provider, or workflow contract.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                  _Evidence:_ protected-base refresh planning and position routing are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                  _Evidence:_ D5.9 still supersedes only the external-only invocation clause, with attended external
+                  adoption retained.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                  _Evidence:_ native suffix reconciliation and structural proof are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                  _Evidence:_ state-derived native selection and exact no-effect fallback are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                  _Evidence:_ non-terminal registration and singleton degradation are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                  _Evidence:_ native-link disclosure and host-silent decline are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                  _Evidence:_ provider refresh preparation, reservation, publication, recovery, settlement, and
+                  attended fallback are unchanged; the 143-test recovery set found no cross-boundary regression.
+                - _Summary:_ six met, one intentionally superseded, zero unresolved. The Heavy member companion had
+                  already converged at its two-pass cap; Success Criteria markers remain for terminal verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -1343,15 +1386,18 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 10,848 tests with one
-  skipped, package build, and diff hygiene all passed; the focused review-fix slice passed 30 tests.
-- _Success criteria:_ 26 met. Eight member reports were carried without re-derivation; four cross-member seams and
-  union coherence were validated over diff `7a4699cba..d1f05b288` plus the staged amendment and its complete
-  reachable tree. The new vertical proof covers plan-only reservation, publication transition, integration
-  dispatch, first-member state binding, and hosted fan-out in order; a fresh closure pass found all three amendment
-  findings closed.
+- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 849 test files passed
+  with one skipped (10,886 tests passed with one skipped), the package build, and diff hygiene all passed. The final
+  seam/forcing slice passed 22 tests; the completed attestation-return path passed 143 focused recovery tests.
+- _Success criteria:_ 28 total: 27 met, one superseded, and none unresolved. Eight member reports were carried without
+  re-derivation; the terminal walk covered all five cross-member criteria and union coherence over diff
+  `0b8e87285..54a46388e`, the final staged repair, and the complete reachable tree. The plan-present, state-absent
+  production proof forces reservation, publication transition, integration dispatch, first-member state binding,
+  and hosted fan-out in order. A fresh-context Heavy companion returned clean; the later cursor-only attestation
+  repair changed no delivery seam and passed direct real-CLI, recovery, and full-suite verification. Provider refresh
+  is implemented and tested; no live provider-refresh exercise is claimed.
 - _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
   and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
   integration workflow and load set, and the runtime phase contract admits those bounded loci without granting member
@@ -1378,6 +1424,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - _Reopened 2026-08-25:_ D5.9 and Task 6.3.R change the verified union and supersede one recorded Member 6
   criterion disposition. Preserve the prior reports as evidence for unchanged loci, then rerun terminal seam,
   regression, union-coherence, quality-gate, and review checks after the fresh Member 6 report closes.
+
+- _Reopened 2026-08-25 after Candidate re-root:_ Task 6.11.R.e closes the stale `Next Task` left by completed
+  reopened execution, and Task 6.11.R.f revalidates the recovery return edge before terminal verification and a
+  replacement Candidate root.
 
 ---
 
@@ -1466,10 +1516,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[x]` A delivery completes while the protected base receives unrelated external landings throughout, with no
   freeze and no refresh obligated by base movement alone.
 
-- `[x]` An externally performed registered-suffix refresh is freshly observed and structurally proved member by
+- `[~]` An externally performed registered-suffix refresh is freshly observed and structurally proved member by
   member before ARC reserves only its own adoption settlement; the excluded terminal top then absorbs the refreshed
   predecessor by genuine content merge and is lease-published before suffix and top coordinates enter state
   together. ARC invokes no provider refresh mutation, and interruption never exposes suffix-only adoption.
+
+  **Superseded:** D5.9 replaces the external-only invocation clause with the provider-invoked path in criterion 7;
+  external adoption remains an attended fallback.
 
 - `[x]` A native landing that rewrites the entire remaining suffix reconciles every rewritten member by structural
   equivalence before admitting its new head to review.
@@ -1486,7 +1539,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[x]` Opting into native registration surfaces its review-invalidation consequence at the decision point, and
   declining it is a supported route that makes no host calls.
 
-- `[ ]` D5.9 supersedes criterion 2's external-only invocation clause. A provider-invoked refresh prepares and
+- `[x]` D5.9 supersedes criterion 2's external-only invocation clause. A provider-invoked refresh prepares and
   proves one exact registered suffix in an isolated adapter, reserves the complete requested result before remote
   mutation, lease-publishes bottom-up, resumes only an exact contiguous partial publication, settles the excluded
   terminal top and private candidates before the final state write, and retains external operator adoption as a
@@ -1532,7 +1585,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### Cross-member seams
 
-- `[ ]` An approved review fix routes from the canonical remaining chain's fresh provider presentation: exact
+- `[x]` An approved review fix routes from the canonical remaining chain's fresh provider presentation: exact
   registered delivery publishes only the selected member, delegates the mechanical suffix refresh, and adopts the
   result; exact unregistered delivery rematerializes from the updated top authoring locus. Uncertain presentation
   stops, zero provider movement is accepted only for owed top absorption, selected-change recovery is executable,
