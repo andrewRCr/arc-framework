@@ -98,6 +98,7 @@ export function assertHostedReservationAdmission(input: {
   provider: string;
   repository: string;
   headSha: string;
+  targetKind: "change-set" | "delivery-member";
   boundary: { candidateId: string; candidateSubjectDigest: string | null };
   candidate: { candidateId: string; subjectDigest: string; headSha: string };
   attempts: readonly ReservationAttempt[];
@@ -105,11 +106,12 @@ export function assertHostedReservationAdmission(input: {
   if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()) {
     throw new Error("Hosted review target does not match the carried standard-review reservation.");
   }
-  // The caller supplies only a Candidate already proven current. Approved responses advance its
-  // subject without changing its identity, so admission binds the lineage id and current host head.
+  // The caller supplies only a Candidate already proven current. Candidate review binds its current
+  // host head directly; a delivery member instead arrives through the exact-head reverse lookup, while
+  // this gate retains the originating Candidate's lineage authority without equating the two heads.
   if (input.boundary.candidateSubjectDigest === null
     || input.boundary.candidateId !== input.candidate.candidateId
-    || input.candidate.headSha !== input.headSha) {
+    || (input.targetKind === "change-set" && input.candidate.headSha !== input.headSha)) {
     throw new Error("Hosted review reservation does not match the current Candidate.");
   }
   const expected = firstAdmissibleHostedSource(input.reservation, input.attempts);
