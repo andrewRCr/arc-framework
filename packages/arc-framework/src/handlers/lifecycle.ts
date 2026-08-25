@@ -159,7 +159,6 @@ import {
   findMaterializableWorkUnits,
   type MaterializableWorkUnit,
 } from "../lib/session-init/materializable-work-units.js";
-import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
@@ -586,7 +585,10 @@ export const PublishCommandInputSchema = z.object({
   allowAdvisories: z.boolean().optional(),
   json: z.boolean().optional(),
 }).strict();
-export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({ keepPr: z.boolean().optional() });
+export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({
+  keepPr: z.boolean().optional(),
+  task: z.string().trim().min(1).optional(),
+});
 export const ArchiveCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   prUrl: z.string().trim().min(1).optional(),
@@ -718,7 +720,7 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "reopen",
     schema: ReopenCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "option.keep-pr": "keepPr" },
+    schemaFields: { "operand.slug": "slug", "option.keep-pr": "keepPr", "option.task": "task" },
   },
   { commandPath: "abandon", schema: AbandonCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
   {
@@ -1972,6 +1974,7 @@ export async function handlePublish(
 /** Options for `arc reopen`. */
 export interface ReopenOptions {
   keepPr?: boolean;
+  task?: string;
 }
 
 /**
@@ -1991,8 +1994,11 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
   }
   if (branch === null) return undefined;
   try {
-    const facts = await createGhWorkUnitPrSource(base.io.exec)([branch]);
-    return facts.get(branch)?.merged;
+    const observed = await base.io.exec("gh", ["pr", "view", branch, "--json", "state"]);
+    const parsed: unknown = JSON.parse(observed.stdout);
+    if (typeof parsed !== "object" || parsed === null || !("state" in parsed)) return undefined;
+    const state = parsed.state;
+    return typeof state === "string" ? state === "MERGED" : undefined;
   } catch {
     return undefined;
   }
@@ -2030,6 +2036,7 @@ export async function handleReopen(
     name: target,
     prMerged,
     withdrawMode: input.keepPr === true ? "draft" : "close",
+    nextTask: input.task,
   });
   if (result.status === "rejected") {
     refuse(result.reason);
