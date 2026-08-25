@@ -5,15 +5,18 @@ import type {
   CandidateManagedRecordV1,
 } from "../work-unit/candidate-attestation.js";
 import { CandidateManagedRecordV1Schema } from "../work-unit/candidate-attestation.js";
+import type { CandidateEffectiveTargetProjection } from "../work-unit/candidate-effective-target.js";
 import type {
   DeliveryContributionEndpoints,
   DeliveryContributionProofResult,
 } from "./contribution-proof.js";
 import type {
   DeliveryChangeRequestV1,
+  DeliveryMemberCoordinatesV1,
   DeliveryPlanV1,
   DeliveryStateV1,
 } from "./schema.js";
+import { DeliveryMemberCoordinatesV1Schema } from "./schema.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 export interface DeliveryTerminalLanding {
@@ -94,13 +97,100 @@ export interface DeliveryTerminalTopObservation {
   readonly state: "open" | "merged" | "closed";
 }
 
-export type DeliveryTerminalDriftResult =
-  | { readonly status: "reconcile"; readonly nextAction: "reconcile-base" }
+export interface DeliveryTerminalRebindTopObservation extends DeliveryTerminalTopObservation {
+  readonly headRepository: string;
+}
+
+export type DeliveryTerminalCoordinateRebindResult =
   | {
-      readonly status: "verify-member";
-      readonly nextAction: "verify-terminal-member";
-      readonly deliverableId: string;
-      readonly paths: readonly string[];
+      readonly status: "rebound";
+      readonly state: DeliveryStateV1;
+      readonly nextAction: "rerun-checkpoint";
+    }
+  | {
+      readonly status: "refused";
+      readonly reason:
+        | "candidate-not-current"
+        | "publication-boundary-unsettled"
+        | "publication-boundary-mismatch"
+        | "state-mismatch"
+        | "operation-active"
+        | "terminal-binding-missing"
+        | "candidate-coordinate-mismatch"
+        | "top-request-mismatch";
+    };
+
+/** Rebind only stale terminal coordinates from independently settled exact current facts. */
+export function rebindDeliveryTerminalCoordinates(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+  readonly candidate: CandidateEffectiveTargetProjection;
+  readonly publication: {
+    readonly settled: boolean;
+    readonly candidateId: string;
+    readonly candidateSubjectDigest: string | null;
+  };
+  readonly repository: string;
+  readonly request: DeliveryTerminalRebindTopObservation;
+  readonly coordinates: DeliveryMemberCoordinatesV1;
+}): DeliveryTerminalCoordinateRebindResult {
+  if (input.candidate.state !== "current") {
+    return { status: "refused", reason: "candidate-not-current" };
+  }
+  if (!input.publication.settled) {
+    return { status: "refused", reason: "publication-boundary-unsettled" };
+  }
+  if (input.publication.candidateId !== input.candidate.candidateId
+    || input.publication.candidateSubjectDigest
+      !== input.candidate.recognizedTarget.subject.subjectDigest) {
+    return { status: "refused", reason: "publication-boundary-mismatch" };
+  }
+  const validated = validateDeliveryStateAgainstPlan(input.state, input.plan);
+  if (validated.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
+    return { status: "refused", reason: "state-mismatch" };
+  }
+  if (validated.state.activeOperation !== null) {
+    return { status: "refused", reason: "operation-active" };
+  }
+  const terminalIndex = validated.state.members.length - 1;
+  const terminal = validated.state.members[terminalIndex];
+  const targetRef = validated.state.target?.ref;
+  if (terminal === undefined || terminal.ref === null || terminal.changeRequest === null
+    || terminal.coordinates === null || targetRef === undefined) {
+    return { status: "refused", reason: "terminal-binding-missing" };
+  }
+  const coordinates = DeliveryMemberCoordinatesV1Schema.safeParse(input.coordinates);
+  if (!coordinates.success
+    || coordinates.data.head !== input.candidate.recognizedTarget.revision) {
+    return { status: "refused", reason: "candidate-coordinate-mismatch" };
+  }
+  if (input.request.binding.providerId !== terminal.changeRequest.providerId
+    || input.request.binding.changeRequestId !== terminal.changeRequest.changeRequestId
+    || input.request.repository !== input.repository
+    || input.request.headRepository !== input.repository
+    || input.request.headRef !== terminal.ref.replace(/^refs\/heads\//u, "")
+    || input.request.headSha !== coordinates.data.head
+    || input.request.baseRef !== targetRef.replace(/^refs\/heads\//u, "")
+    || input.request.state !== "open") {
+    return { status: "refused", reason: "top-request-mismatch" };
+  }
+  return {
+    status: "rebound",
+    state: {
+      ...validated.state,
+      members: validated.state.members.map((member, index) => index === terminalIndex
+        ? { ...member, coordinates: coordinates.data }
+        : member),
+    },
+    nextAction: "rerun-checkpoint",
+  };
+}
+
+export type DeliveryTerminalDriftResult =
+  | {
+      readonly status: "reconcile";
+      readonly nextAction: "reconcile-base";
+      readonly safetyClass: "generic" | "residual-contained";
     }
   | {
       readonly status: "refused";
@@ -110,29 +200,28 @@ export type DeliveryTerminalDriftResult =
 
 /** Scope terminal-window drift against the residual rather than the whole Candidate union. */
 export function classifyDeliveryTerminalDrift(input: {
-  readonly terminalDeliverableId: string;
-  readonly driftPaths: readonly string[];
+  readonly substantivePaths: readonly string[];
+  readonly regenerablePaths: readonly string[];
   readonly residualPaths: readonly string[];
   readonly predecessorPaths: readonly string[];
 }): DeliveryTerminalDriftResult {
-  const intersect = (paths: readonly string[]): string[] => {
+  const driftPaths = [...new Set([...input.substantivePaths, ...input.regenerablePaths])];
+  const intersect = (source: readonly string[], paths: readonly string[]): string[] => {
     const candidates = new Set(paths);
-    return [...new Set(input.driftPaths.filter((path) => candidates.has(path)))].sort();
+    return [...new Set(source.filter((path) => candidates.has(path)))].sort();
   };
-  const predecessorOverlap = intersect(input.predecessorPaths);
+  const predecessorOverlap = intersect(driftPaths, input.predecessorPaths);
   if (predecessorOverlap.length > 0) {
     return { status: "refused", reason: "predecessor-overlap", paths: predecessorOverlap };
   }
-  const residualOverlap = intersect(input.residualPaths);
-  if (residualOverlap.length > 0) {
-    return {
-      status: "verify-member",
-      nextAction: "verify-terminal-member",
-      deliverableId: input.terminalDeliverableId,
-      paths: residualOverlap,
-    };
-  }
-  return { status: "reconcile", nextAction: "reconcile-base" };
+  const residualSubstantive = intersect(input.substantivePaths, input.residualPaths);
+  const residualContained = input.substantivePaths.length > 0
+    && residualSubstantive.length === new Set(input.substantivePaths).size;
+  return {
+    status: "reconcile",
+    nextAction: "reconcile-base",
+    safetyClass: residualContained ? "residual-contained" : "generic",
+  };
 }
 
 /** Require the protected base only at the freshly observed terminal instant. */
@@ -161,29 +250,6 @@ export function assessDeliveryTerminalTop(input: {
       protectedBaseRef: protectedBase,
     },
   };
-}
-
-/** Apply one explicitly selected failure remedy, then reassess only a fresh top observation. */
-export async function applyDeliveryTerminalTopRemedy(input: {
-  readonly publicationHead: string;
-  readonly remedy: DeliveryTerminalTopRemedy;
-  apply(remedy: DeliveryTerminalTopRemedy): Promise<{ readonly status: "submitted" | "refused" }>;
-  observe(): Promise<
-    | { readonly status: "observed"; readonly request: DeliveryTerminalTopObservation }
-    | { readonly status: "refused" }
-  >;
-}): Promise<DeliveryTerminalTopResult | { readonly status: "refused"; readonly reason: "remedy-application-refused" }> {
-  if ((await input.apply(input.remedy)).status !== "submitted") {
-    return { status: "refused", reason: "remedy-application-refused" };
-  }
-  const fresh = await input.observe();
-  if (fresh.status !== "observed") return { status: "refused", reason: "remedy-application-refused" };
-  return assessDeliveryTerminalTop({
-    terminal: true,
-    protectedBaseRef: input.remedy.protectedBaseRef,
-    publicationHead: input.publicationHead,
-    request: fresh.request,
-  });
 }
 
 /** Assert the publication binding and member-review conjunction over one composed terminal claim. */

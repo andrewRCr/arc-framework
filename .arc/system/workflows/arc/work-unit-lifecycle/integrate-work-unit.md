@@ -319,45 +319,15 @@ the merge.
 
 ### 10) Behind-base reconcile gate and merge
 
-Invoke the checkpoint:
-
-```bash
-arc integrate checkpoint {name} --json
-```
-
-`blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
-`reconcile / reconcile-base` enters this arm with the checkpoint's validated safety facts.
-
-Invoke `arc base merge --expected-base {payload.safety.baseOid} --json`.
-`base-moved / rerun-checkpoint` restarts this step. `blocked / stop` and `conflict / stop` stop before every later
-fire point. `skipped-clean / continue-reconcile` proceeds without a push. On `merged / run-quality-gates`, run
-Tier 1 gates, recompose the exact target, and make Step 2's disclosed review-applicability judgment. Run the
-resulting targeted, focused, or full review before continuing. Clearance never carries.
-
-For `merged / run-quality-gates` only, repeat the Step 1 push extension contract and release the push below.
-
-> [!CAUTION]
-> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
-
-After a head-changing push, rerun
-`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`, then invoke
-`arc review status --target '{targetRef}' --json` with its fresh `targetRef`. Follow only the typed action:
-`settled / continue-reconcile` proceeds; `review-required / run-review` returns through review applicability;
-`checks-pending / rerun-checkpoint` and `base-moved / rerun-checkpoint` both restart this step — the checkpoint
-tolerates non-green checks and the merge verb owns the required-checks wait;
-`blocked / stop` stops. Advisory receipts are not merge authority.
-
-Apply the current WU's exact reconcile:
+Apply the current WU's exact reconcile before composing a checkpoint:
 
 ```bash
 arc wu reconcile {name} --apply --json
 ```
 
 `pending` surfaces every advisory reference immediately and requires direction to retain them or a correction and
-rerun. `conflict` stops on its typed reason.
-
-`clean` restarts this step without a commit. On `applied`, run Tier 1 quality gates over the staged correction,
-then commit:
+rerun. `conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, run Tier 1
+over the staged correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -373,7 +343,103 @@ Repeat the Step 1 push extension contract.
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-Restart this step. The correction invalidates every prior clearance; rebuild from the new head.
+Restart this step. The correction changed the head, so no checkpoint evidence carries.
+
+Invoke the checkpoint:
+
+```bash
+arc integrate checkpoint {name} --json
+```
+
+The checkpoint reduces machine-proved `applicable` currentness internally, with no attended step. Follow every
+surfaced Candidate-applicability action exactly:
+
+- `candidate-applicability / rerun-checkpoint` restarts this step.
+- `candidate-applicability / stop` and `candidate-applicability / upgrade` render the typed result and stop. These
+  arms never offer an authority selection.
+- `candidate-applicability / request-authority` renders `payload.selectionOfferText`,
+  `payload.recommendedActionText`, and `payload.selectionPromptText` verbatim, then stops for the named authority's
+  explicit choice. Do not infer a selection from the recommendation.
+
+After an explicit `covered`, `targeted-check`, or `changed` choice, compose the strict input from
+`payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, first complete the bounded
+check and add its evidence reference. Then invoke `arc candidate applicability resolve {name} -` with that input.
+For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
+Candidate selection staged. Run Tier 1 over that correction, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): record Candidate applicability for {name}
+
+Context: meta-{name}.md (integration)
+```
+
+Repeat the Step 1 push extension contract.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. `resolved / continue` and `exact-replay / continue` mean that selection is already durable and
+restart without a redundant commit. Only `resolved / establish-new-root` or `exact-replay / establish-new-root` —
+produced by an explicit `changed` choice — follows ordinary scope selection, completed verification,
+`arc attest {name} --new-root --json`, and the ordinary attestation commit and push contracts before a checkpoint
+rerun. Every stale, conflicting, invalid, or unavailable resolution follows its typed next action without
+substituting a selection in prose.
+
+`candidate-publication-required / resume-pre-publication` renders `payload.recommendedActionText` verbatim and
+invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary
+pre-publication procedure. At `candidate-publish-ready`, invoke `arc publish {name} --json`; require its idempotent
+Integrating result, then complete the already-open Step 2 review for any carried reservation. Run Tier 1 over the
+exact new head and staged boundary correction, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): refresh publication boundary for {name}
+
+Context: meta-{name}.md (integration)
+```
+
+Repeat the Step 1 push extension contract.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. Ordinary review and publication settlement remain authoritative; Candidate applicability
+supplies neither verdict.
+
+`terminal-rebind-required / reconcile-delivery-state` invokes `arc delivery reconcile - --json` with
+`payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
+This reuses ordinary delivery reconciliation and adds no new operation.
+
+`blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
+
+`blocked` with `retarget` or `reopen-and-retarget` renders the returned reason and remedy, then stops for explicit
+direction to apply that exact remedy. On direction, invoke `remedy.argv` with `remedy.stdin` unchanged.
+`remedied / terminal-checkpoint` restarts this step; every other result stops.
+
+`reconcile / reconcile-base` enters the base-merge arm with the checkpoint's validated safety facts.
+
+Invoke
+`arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json`.
+`base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
+`head-contained-by-base / rerun-checkpoint` restart this step.
+`blocked / stop` and `conflict / stop` stop before every later fire point.
+`skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, run Tier 1
+over the exact merged head. These are the ordinary new-head automated checks; make no applicability or review
+judgment before the checkpoint classifies the exact target.
+
+For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. The checkpoint now owns Candidate applicability, ordinary publication settlement, delivery
+rebind, review status, and final readiness over the pushed exact head. Clearance never carries.
+Advisory receipts are not merge authority.
 
 On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.
 

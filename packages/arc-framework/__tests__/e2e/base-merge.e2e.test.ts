@@ -66,25 +66,113 @@ afterEach(async () => {
 });
 
 describe("arc base merge", () => {
+  it("rejects a moved checkpoint Candidate head without changing the worktree", async () => {
+    const { repo, newBase } = await fixture();
+    const featureHead = await git(repo, ["rev-parse", "HEAD"]);
+
+    const moved = await runArcNoTty([
+      "base",
+      "merge",
+      "--expected-base",
+      newBase,
+      "--expected-head",
+      "b".repeat(40),
+      "--json",
+    ], repo);
+
+    expect(moved.exitCode).toBe(0);
+    expect(JSON.parse(moved.stdout)).toMatchObject({
+      state: "head-moved",
+      expectedBase: newBase,
+      expectedHead: "b".repeat(40),
+      actualHead: featureHead,
+    });
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(featureHead);
+  });
+
+  it("does not merge when the checkpoint Candidate head is already contained by base", async () => {
+    const { repo, oldBase, newBase } = await fixture();
+    await git(repo, ["reset", "--hard", oldBase]);
+
+    const result = await runArcNoTty([
+      "base",
+      "merge",
+      "--expected-base",
+      newBase,
+      "--expected-head",
+      oldBase,
+      "--json",
+    ], repo);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      state: "head-contained-by-base",
+      nextAction: "rerun-checkpoint",
+      expectedBase: newBase,
+      expectedHead: oldBase,
+    });
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(oldBase);
+  });
+
   it("refreshes an explicit tracking ref, reports movement, then appends the approved base", async () => {
     const { repo, oldBase, newBase } = await fixture();
     const featureHead = await git(repo, ["rev-parse", "HEAD"]);
 
-    const moved = await runArcNoTty(["base", "merge", "--expected-base", oldBase, "--json"], repo);
+    const moved = await runArcNoTty([
+      "base",
+      "merge",
+      "--expected-base",
+      oldBase,
+      "--expected-head",
+      featureHead,
+      "--json",
+    ], repo);
     expect(moved.exitCode).toBe(0);
     expect(JSON.parse(moved.stdout)).toMatchObject({
       state: "base-moved",
       expectedBase: oldBase,
+      expectedHead: featureHead,
       actualBase: newBase,
     });
     expect(await git(repo, ["rev-parse", "refs/remotes/origin/main^{commit}"])).toBe(newBase);
     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(featureHead);
 
-    const merged = await runArcNoTty(["base", "merge", "--expected-base", newBase, "--json"], repo);
+    const merged = await runArcNoTty([
+      "base",
+      "merge",
+      "--expected-base",
+      newBase,
+      "--expected-head",
+      featureHead,
+      "--json",
+    ], repo);
     expect(merged.exitCode).toBe(0);
-    expect(JSON.parse(merged.stdout)).toMatchObject({ state: "merged", expectedBase: newBase });
+    const mergedResult = JSON.parse(merged.stdout) as { actualHead: string };
+    expect(mergedResult).toMatchObject({
+      state: "merged",
+      expectedBase: newBase,
+      expectedHead: featureHead,
+    });
+    expect((await git(repo, ["rev-list", "--parents", "-n", "1", mergedResult.actualHead])).split(" "))
+      .toEqual([mergedResult.actualHead, featureHead, newBase]);
     expect(await git(repo, ["merge-base", "--is-ancestor", featureHead, "HEAD"]).then(() => true)).toBe(true);
     expect(await git(repo, ["merge-base", "--is-ancestor", newBase, "HEAD"]).then(() => true)).toBe(true);
+
+    const clean = await runArcNoTty([
+      "base",
+      "merge",
+      "--expected-base",
+      newBase,
+      "--expected-head",
+      mergedResult.actualHead,
+      "--json",
+    ], repo);
+    expect(clean.exitCode).toBe(0);
+    expect(JSON.parse(clean.stdout)).toMatchObject({
+      state: "skipped-clean",
+      expectedBase: newBase,
+      expectedHead: mergedResult.actualHead,
+    });
   });
 
   it("returns typed refusals for an unreadable config and a missing remote base", async () => {
@@ -93,21 +181,40 @@ describe("arc base merge", () => {
     const config = await readFile(configPath, "utf8");
 
     await rm(configPath);
-    const unreadable = await runArcNoTty(["base", "merge", "--expected-base", newBase, "--json"], repo);
+    const featureHead = await git(repo, ["rev-parse", "HEAD"]);
+    const unreadable = await runArcNoTty([
+      "base",
+      "merge",
+      "--expected-base",
+      newBase,
+      "--expected-head",
+      featureHead,
+      "--json",
+    ], repo);
     expect(unreadable.exitCode).toBe(1);
     expect(JSON.parse(unreadable.stdout)).toMatchObject({
       state: "blocked",
       reason: "operational-failure",
       expectedBase: newBase,
+      expectedHead: featureHead,
     });
 
     await writeFile(configPath, config.replace("branch.base: main", "branch.base: missing"), "utf8");
-    const missing = await runArcNoTty(["base", "merge", "--expected-base", newBase, "--json"], repo);
+    const missing = await runArcNoTty([
+      "base",
+      "merge",
+      "--expected-base",
+      newBase,
+      "--expected-head",
+      featureHead,
+      "--json",
+    ], repo);
     expect(missing.exitCode).toBe(1);
     expect(JSON.parse(missing.stdout)).toMatchObject({
       state: "blocked",
       reason: "operational-failure",
       expectedBase: newBase,
+      expectedHead: featureHead,
     });
   });
 });

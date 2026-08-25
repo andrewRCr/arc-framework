@@ -7,10 +7,13 @@ import {
   CandidateLineageTargetSchema,
   createCandidateAttestation,
   createCandidateLineageAttestation,
-  projectCandidateCurrentness,
   type CandidateManagedRecordV1,
   type CandidateLineageTarget,
 } from "../candidate-attestation.js";
+import {
+  projectStagedCandidateCurrentness,
+  type CandidateEffectiveTargetProjection,
+} from "../candidate-effective-target.js";
 import type { VersionedCandidateRecord } from "../candidate-record-store.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
@@ -64,6 +67,7 @@ export interface AttestContext {
   verificationEvidenceRef(name: string): string;
   readRecord(name: string): Promise<VersionedCandidateRecord>;
   currentTarget(name: string): Promise<CandidateLineageTarget>;
+  effectiveTarget(name: string, record: CandidateManagedRecordV1): Promise<CandidateEffectiveTargetProjection>;
   publish(input: {
     name: string;
     record: CandidateManagedRecordV1;
@@ -96,7 +100,11 @@ export async function runAttest(
   const existing = await context.readRecord(name);
   if (existing.record !== null) {
     const record = CandidateManagedRecordV1Schema.parse(existing.record);
-    const currentness = projectCandidateCurrentness({ record, current });
+    const currentness = projectStagedCandidateCurrentness({
+      record,
+      staged: current,
+      committed: await context.effectiveTarget(name, record),
+    });
     if (currentness.status === "blocked") {
       if (params.newRoot !== true) {
         return {
@@ -172,7 +180,7 @@ async function establishRoot(
     semanticsVersion: "candidate-attestation/v1",
     attestation,
     subject: current.subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   });
   const published = await context.publish({

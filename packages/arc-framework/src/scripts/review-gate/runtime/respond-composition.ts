@@ -9,6 +9,7 @@ import {
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import { createRawGitExec } from "../../../lib/io-context.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../../../lib/work-unit/lifecycle-index.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
@@ -17,6 +18,14 @@ import {
   resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../../../lib/work-unit/candidate-record-store.js";
+import {
+  CandidateManagedRecordV1Schema,
+  type CandidateManagedRecordV1,
+} from "../../../lib/work-unit/candidate-attestation.js";
+import {
+  projectGitCandidateEffectiveTarget,
+  resolveGitCandidateTargetBase,
+} from "../../../lib/work-unit/git-candidate-effective-target.js";
 import {
   collectGitCandidateTarget,
   collectUnstagedReviewablePaths,
@@ -44,6 +53,7 @@ export function createRespondDependencies(input: {
   cwd: string;
 }): RespondCommandDependencies {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
@@ -55,25 +65,18 @@ export function createRespondDependencies(input: {
     readdir: (path) => readdir(path, { withFileTypes: true }),
     readFile: (path) => readFile(path, "utf8"),
   };
-  const recordCarriesRevision = (
-    record: Awaited<ReturnType<typeof readCandidateRecordVersioned>>["record"],
-    revision: string,
-  ) => record !== null && [
-    record.attestation.baseRevision,
-    ...record.responses.flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
-    ...record.lineageAttestations.map((attestation) => attestation.target.revision),
-  ].includes(revision);
-  const recordCarriesSubject = (
-    record: NonNullable<Awaited<ReturnType<typeof readCandidateRecordVersioned>>["record"]>,
-    subjectDigest: string,
-  ) => [
-    record.subject.subjectDigest,
-    ...record.responses.flatMap((response) => [
-      response.oldTarget.subject.subjectDigest,
-      response.newTarget.subject.subjectDigest,
-    ]),
-    ...record.lineageAttestations.map((attestation) => attestation.target.subject.subjectDigest),
-  ].includes(subjectDigest);
+  let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
+  const settings = async () => {
+    settingsPromise ??= readConfigSettings(input.cwd);
+    return (await settingsPromise).settings;
+  };
+  const transitionPrefixes = (record: CandidateManagedRecordV1): CandidateManagedRecordV1[] =>
+    Array.from({ length: record.transitions.length + 1 }, (_, length) =>
+      CandidateManagedRecordV1Schema.parse({
+        ...record,
+        transitions: record.transitions.slice(0, length),
+        lineageAttestations: [],
+      }));
   return {
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
@@ -147,41 +150,67 @@ export function createRespondDependencies(input: {
         workUnit: string;
         record: NonNullable<Awaited<ReturnType<typeof readCandidateRecordVersioned>>["record"]>;
         version: string;
+        reviewed: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>> & { state: "current" };
       }>;
+      const baseBranch = (await settings())["branch.base"];
+      const reviewedBase = await resolveGitCandidateTargetBase({
+        cwd: input.cwd,
+        revision: target.headSha,
+        baseBranch,
+        exec: input.exec,
+      });
       for (const workUnit of candidates) {
         const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit);
         if (record === null || version === null) continue;
-        const carriesTarget = recordCarriesRevision(record, target.headSha)
-          || recordCarriesSubject(record, (await collectGitCandidateTarget({
+        const projections = await Promise.all(transitionPrefixes(record).map(async (prefix) =>
+          projectGitCandidateEffectiveTarget({
             cwd: input.cwd,
             name: workUnit,
-            baseBranch: (await readConfigSettings(input.cwd)).settings["branch.base"],
-            revision: target.headSha,
+            baseBranch,
+            record: prefix,
             exec: input.exec,
-          })).subject.subjectDigest);
-        if (carriesTarget) {
-          matching.push({ workUnit, record, version });
+            rawExec: rawGit,
+            target: { revision: target.headSha, currentBase: reviewedBase },
+          })));
+        const reviewed = [...projections].reverse().find((projection) =>
+          projection.state === "current" && projection.recognizedTarget.revision === target.headSha);
+        if (reviewed?.state === "current") {
+          matching.push({ workUnit, record, version, reviewed });
         }
       }
       if (matching.length !== 1) return null;
       const selected = matching[0];
       if (selected === undefined) return null;
-      const { settings } = await readConfigSettings(input.cwd);
+      const currentSettings = await settings();
+      const [effective, current, unstagedReviewablePaths] = await Promise.all([
+        projectGitCandidateEffectiveTarget({
+          cwd: input.cwd,
+          name: selected.workUnit,
+          baseBranch: currentSettings["branch.base"],
+          record: selected.record,
+          exec: input.exec,
+          rawExec: rawGit,
+        }),
+        collectGitCandidateTarget({
+          cwd: input.cwd,
+          name: selected.workUnit,
+          baseBranch: currentSettings["branch.base"],
+          exec: input.exec,
+        }),
+        collectUnstagedReviewablePaths({
+          cwd: input.cwd,
+          name: selected.workUnit,
+          exec: input.exec,
+        }),
+      ]);
       return {
         workUnit: selected.workUnit,
         record: selected.record,
         recordVersion: selected.version,
-        current: await collectGitCandidateTarget({
-          cwd: input.cwd,
-          name: selected.workUnit,
-          baseBranch: settings["branch.base"],
-          exec: input.exec,
-        }),
-        unstagedReviewablePaths: await collectUnstagedReviewablePaths({
-          cwd: input.cwd,
-          name: selected.workUnit,
-          exec: input.exec,
-        }),
+        reviewed: selected.reviewed,
+        effective,
+        current,
+        unstagedReviewablePaths,
       };
     },
     // Staged like the record `attest` publishes: the Candidate's own projection never enters the

@@ -178,6 +178,58 @@ describe("delivery execution handler", () => {
     expect(setExitCode).not.toHaveBeenCalled();
   });
 
+  it("exposes the explicit terminal remedy as a strict typed command", async () => {
+    const state = deliveryStateFixture();
+    const terminal = state.members.at(-1)!;
+    const bound = {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(401 + index) },
+      })),
+    };
+    const execute = vi.fn().mockResolvedValue({
+      status: "remedied",
+      state: { revision: 9, value: bound },
+      nextAction: "terminal-checkpoint",
+      top: {
+        status: "ready",
+        request: {
+          binding: { providerId: "github", changeRequestId: "402" },
+          repository: "owner/repo",
+          headRef: terminal.ref!.replace("refs/heads/", ""),
+          headSha: terminal.coordinates!.head,
+          baseRef: "main",
+          state: "open",
+        },
+      },
+    });
+    const write = vi.fn();
+    await handleDeliveryExecution("top-remedy", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        action: "retarget",
+        repository: "owner/repo",
+        protectedBaseRef: "main",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).toHaveBeenCalledWith("top-remedy", {
+      planId: state.planId,
+      action: "retarget",
+      repository: "owner/repo",
+      protectedBaseRef: "main",
+      remote: "origin",
+    }, undefined);
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery top-remedy",
+      status: "remedied",
+      nextAction: "terminal-checkpoint",
+    });
+  });
+
   it("rejects a closed eligibility snapshot as materialization authority", async () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "materialized" });
@@ -311,6 +363,124 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
       status: "refused",
       reason: "invalid-command-input",
+    });
+  });
+
+  it("preserves the terminal-coordinate rebind and checkpoint rerun envelope", async () => {
+    const state = deliveryStateFixture(deliveryStackPlanFixture());
+    const terminalHead = "a".repeat(40);
+    const rebound = {
+      ...state,
+      members: state.members.map((member, index, members) => index === members.length - 1
+        ? {
+            ...member,
+            coordinates: { base: "b".repeat(40), head: terminalHead, tree: "c".repeat(40) },
+          }
+        : member),
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        repository: "owner/repo",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "rebound",
+        state: { revision: 9, value: rebound },
+        nextAction: "rerun-checkpoint",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery reconcile",
+      status: "rebound",
+      state: { revision: 9, value: rebound },
+      nextAction: "rerun-checkpoint",
+    });
+  });
+
+  it("serializes every recovery action-selector arm and rejects malformed pairings", async () => {
+    const plan = deliveryStackPlanFixture();
+    const affectedDeliverableIds = [plan.members[0]!.deliverableId];
+    const request = JSON.stringify({
+      planId: plan.planId,
+      repository: "andrewRCr/arc-framework",
+      remote: "origin",
+    });
+    const cases = [
+      { operationKind: "materialize", transition: "cleared", action: "delivery-publish" },
+      { operationKind: "publish", transition: "preserved", action: "delivery-publish" },
+      {
+        operationKind: "rewrite", mode: "review-fix", transition: "cleared",
+        action: "delivery-rematerialize",
+      },
+      {
+        operationKind: "rewrite", mode: "provider-adoption", transition: "cleared",
+        action: "delivery-native-observe",
+      },
+      { operationKind: "land", mode: "sequential", transition: "cleared", action: "delivery-land-prepare" },
+      {
+        operationKind: "land", mode: "native", transition: "cleared",
+        action: "delivery-native-land-select",
+      },
+      { operationKind: "teardown", transition: "preserved", action: "delivery-teardown" },
+      { operationKind: "top-remedy", transition: "cleared", action: "delivery-top-remedy" },
+    ] as const;
+    for (const [index, entry] of cases.entries()) {
+      const result = {
+        status: "retryable" as const,
+        transition: entry.transition,
+        action: entry.action,
+        selector: {
+          planId: plan.planId,
+          operationKind: entry.operationKind,
+          operationId: `operation-${index + 1}`,
+          affectedDeliverableIds,
+          ...(entry.operationKind === "rewrite" || entry.operationKind === "land"
+            ? { mode: entry.mode }
+            : {}),
+        },
+        recommendedActionText: `Rerun the exact ${entry.action} action.`,
+      };
+      const write = vi.fn();
+      await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+        readText: vi.fn().mockResolvedValue(request),
+        execute: vi.fn().mockResolvedValue(result),
+        write,
+        setExitCode: vi.fn(),
+      });
+      expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+        schemaVersion: 1,
+        command: "delivery reconcile",
+        ...result,
+      });
+    }
+
+    const write = vi.fn();
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "retryable",
+        transition: "preserved",
+        action: "delivery-teardown",
+        selector: {
+          planId: plan.planId,
+          operationKind: "materialize",
+          operationId: "operation-invalid",
+          affectedDeliverableIds,
+        },
+        recommendedActionText: "This action and selector do not match.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-service-result",
     });
   });
 
