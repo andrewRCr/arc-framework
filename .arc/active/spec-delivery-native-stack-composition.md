@@ -163,6 +163,23 @@ the later delivery state records the first external binding and is not the inten
   merge is the wrong instrument at adoption: merging equivalent content under independently authored histories is
   the v1 fourteen-conflict mechanism. **Absorption** (D5.2) is the genuine content merge, reserved for the case
   where the chain carries content the top lacks.
+- **D1.2a Forward amendment — 2026-08-24 self-delivery containment correction.** D1.2's prefix-reapplication
+  classifier is superseded. Reapplying the cumulative highest-member delta onto the already-final top false-refuses
+  whenever a later member legitimately edits an earlier member's path; the eight-member self-delivery reached that
+  supported case across 37 paths before the ancestry commit. Containment instead requires two exact facts already
+  owned by the freshly closed eligibility window: the final candidate descends from the highest non-terminal member,
+  and its complete tree equals the top after the lifecycle paths are normalized to the protected base. The adoption
+  primitive reobserves every coordinate, ancestry, and normalized tree entry before its exact ref CAS. A
+  non-ancestral candidate, normalized mismatch, malformed tree, or unavailable Git evidence refuses. The obsolete
+  merge-conflict arm leaves the adoption vocabulary; conflicts remain meaningful for contribution reapplication and
+  D5.2 absorption, where Git actually merges content.
+- **D1.2b Forward amendment — 2026-08-24 unpublished top progress.** Initial delivery publication may observe the
+  ordinary remote work-unit branch behind the exact pre-adoption top because `arc publish` records the lifecycle
+  transition without pushing implementation progress. Top publication accepts that observation only when Git proves
+  the remote head ancestral to the exact pre-adoption top, then performs the same plain non-force push of the adopted
+  head and reobserves it. Exact requested-head retries remain no-ops; unrelated, unreadable, or non-ancestral remote
+  movement remains a collision. This is the ordinary unpublished-progress case, not weaker lease or rewrite
+  semantics.
 - **D1.3 Append-only invariant.** The rejected construction — rewriting the work-unit branch to a residual-only
   unique range — would force-push a pushed session branch, violating the append-only contract and orphaning
   SHA-keyed user notes. It is excluded by construction, not by discipline.

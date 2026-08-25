@@ -1226,6 +1226,20 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   TypeScript and shell lint, both typechecks, the production build, and the full suite passed (10,852 tests with one
   skipped).
 
+- _Amended 2026-08-24 after the interrupted self-delivery publish exposed a containment false-refusal:_ the initial
+  publish materialized all seven non-terminal refs and then stopped before top adoption because the cumulative-prefix
+  reapplication guard conflicted with legitimate later-member edits across 37 paths. The correction classifies exact
+  ancestry from the highest non-terminal member to the final candidate plus exact final-candidate/top equality after
+  lifecycle normalization. It reobserves all coordinates and tree entries at the adoption boundary and retains typed
+  refusal for non-ancestry, divergence, and unavailable evidence. The overlapping-path regression failed first and
+  then passed; the focused containment, ancestry-adoption, and suffix-rematerialization slice passes 15 tests. Both
+  TypeScript typechecks and the complete Tier 3 gate pass (10,855 tests with one skipped). The same interrupted state
+  also proved the remote work-unit head (`afc405348`) ancestral to the exact unpublished top (`8008ba88a`), which the
+  old equality-only publisher would reject next. Top publication now admits only that proven ancestral case through
+  its existing plain push; its integration regression failed first and then passed. Applied to the exact
+  self-delivery coordinates (`0b8e87285` protected base, `08321ce46` highest member, `29989f152` final candidate,
+  `8008ba88a` top), the corrected classifier returns `contained` without moving a ref.
+
 ---
 
 ## Success Criteria

@@ -287,11 +287,15 @@ export async function completeDeliverySuffixMutationTail(input: {
   readonly rematerialized: DeliverySuffixRematerializedResult;
   readonly commonBase: DeliveryContributionCoordinate;
   readonly topRef: string;
+  readonly finalCandidate: DeliveryContributionCoordinate | undefined;
+  readonly lifecyclePaths: readonly string[];
 }, dependencies: {
   adoptTop(input: {
     readonly topRef: string;
     readonly commonBase: DeliveryContributionCoordinate;
     readonly highestMember: DeliveryContributionCoordinate;
+    readonly finalCandidate: DeliveryContributionCoordinate;
+    readonly lifecyclePaths: readonly string[];
     readonly top: DeliveryContributionCoordinate;
   }): Promise<DeliveryChainAdoptionResult>;
   publishTop(input: {
@@ -321,7 +325,7 @@ export async function completeDeliverySuffixMutationTail(input: {
   const highestMember = current.value.members.at(-2);
   if (current.value.activeOperation !== null || terminal?.coordinates === null || terminal?.ref === null
     || terminal === undefined || highestMember?.coordinates === null || highestMember === undefined
-    || terminal.ref !== input.topRef) {
+    || terminal.ref !== input.topRef || input.finalCandidate === undefined) {
     return { status: "refused", reason: "projection-invalid" };
   }
   const terminalCoordinates = terminal.coordinates;
@@ -333,6 +337,8 @@ export async function completeDeliverySuffixMutationTail(input: {
         topRef: input.topRef,
         commonBase: input.commonBase,
         highestMember: highestCoordinates,
+        finalCandidate: input.finalCandidate,
+        lifecyclePaths: input.lifecyclePaths,
         top: terminalCoordinates,
       });
   if (adoption.status !== "adopted") {

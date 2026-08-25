@@ -22,6 +22,37 @@ afterEach(async () => {
 });
 
 describe("delivery materialization against a bare remote", () => {
+  it("advances the top over ordinary unpublished local progress", async () => {
+    const repository = await createTempRepoCore({ prefix: "arc-delivery-top-progress-" });
+    roots.push(repository);
+    const remoteParent = await mkdtemp(join(tmpdir(), "arc-delivery-top-remote-"));
+    const remote = join(remoteParent, "remote.git");
+    roots.push(remoteParent);
+    await execFileAsync("git", ["init", "--bare", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repository });
+    const commit = async (path: string): Promise<string> => {
+      await writeFile(join(repository, path), `${path}\n`, "utf8");
+      await execFileAsync("git", ["add", path], { cwd: repository });
+      await execFileAsync("git", ["commit", "-m", path], { cwd: repository });
+      return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repository })).stdout.trim();
+    };
+    const remoteHead = await commit("remote.txt");
+    const topRef = "refs/heads/feat/example";
+    await execFileAsync("git", ["push", "origin", `${remoteHead}:${topRef}`], { cwd: repository });
+    const beforeHead = await commit("unpublished.txt");
+    const requestedHead = await commit("adoption.txt");
+    const exec: GitExec = async (command, args) => {
+      const result = await execFileAsync(command, args, { cwd: repository });
+      return { stdout: result.stdout, stderr: result.stderr };
+    };
+
+    await expect(publishDeliveryTopRef({
+      exec, remote: "origin", ref: topRef, beforeHead, requestedHead,
+    })).resolves.toEqual({ status: "published" });
+    const published = await execFileAsync("git", ["ls-remote", "--refs", "origin", topRef], { cwd: repository });
+    expect(published.stdout.trim()).toBe(`${requestedHead}\t${topRef}`);
+  });
+
   it("creates by exact lease, adopts retry, and refuses a different head", async () => {
     const repository = await createTempRepoCore({ prefix: "arc-delivery-materialize-" });
     roots.push(repository);

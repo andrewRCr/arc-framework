@@ -2,6 +2,7 @@
 
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
+import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const absentObjectId = "0".repeat(40);
@@ -266,7 +267,8 @@ export async function publishDeliveryTopRef(input: {
   const before = await observeDeliveryRemoteRef(input.exec, input.remote, input.ref);
   if (before.status === "refused") return before;
   if (before.status === "observed" && before.head === input.requestedHead) return { status: "adopted" };
-  if (before.status === "observed" && before.head !== input.beforeHead) {
+  if (before.status === "observed" && before.head !== input.beforeHead
+    && await readAncestry(input.exec, before.head, input.beforeHead) !== "ancestor") {
     return { status: "refused", reason: "collision" };
   }
   try {
