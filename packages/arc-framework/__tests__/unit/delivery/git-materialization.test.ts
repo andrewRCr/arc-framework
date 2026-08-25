@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   deleteDeliveryCandidateRef,
+  deleteDeliveryRefreshCandidateRef,
   deleteDeliveryLocalRef,
   deleteDeliveryRemoteRef,
   observeDeliveryRemoteRef,
+  observeDeliveryRefreshCandidateRefs,
   publishDeliveryMemberRef,
   publishDeliveryRemoteRef,
   publishDeliveryTopRef,
@@ -234,6 +236,39 @@ describe("delivery remote-ref leases", () => {
     await expect(deleteDeliveryCandidateRef({
       exec,
       ref: "refs/heads/not-a-candidate",
+      expectedHead: head,
+    })).resolves.toEqual({ status: "refused", reason: "malformed" });
+  });
+
+  it("enumerates and exact-head deletes only one plan's refresh candidates", async () => {
+    const planId = "123e4567-e89b-42d3-a456-426614174000";
+    const refreshRef = `refs/arc/delivery-refresh-candidates/${planId}/retired-member`;
+    let localHead: string | null = head;
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "for-each-ref") return { stdout: `${refreshRef} ${head}\n` };
+      if (args[0] === "rev-parse") {
+        if (localHead === null) {
+          throw Object.assign(new Error("missing"), { code: 1, exitCode: 1, stderr: "" });
+        }
+        return { stdout: `${localHead}\n` };
+      }
+      if (args[0] === "update-ref") {
+        if (args[2] !== refreshRef || args[3] !== localHead) throw new Error("stale local lease");
+        localHead = null;
+        return { stdout: "" };
+      }
+      throw new Error("unexpected git operation");
+    };
+
+    await expect(observeDeliveryRefreshCandidateRefs(exec, planId)).resolves.toEqual({
+      status: "observed",
+      candidates: [{ ref: refreshRef, head }],
+    });
+    await expect(deleteDeliveryRefreshCandidateRef({ exec, ref: refreshRef, expectedHead: head }))
+      .resolves.toEqual({ status: "deleted" });
+    await expect(deleteDeliveryRefreshCandidateRef({
+      exec,
+      ref: `refs/arc/delivery-refresh-candidates/${planId}/../foreign`,
       expectedHead: head,
     })).resolves.toEqual({ status: "refused", reason: "malformed" });
   });

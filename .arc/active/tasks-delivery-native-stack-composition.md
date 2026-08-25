@@ -434,7 +434,7 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
   observation. The shipped workflow validates both presentation forms first and routes optional non-terminal native
   registration only after every request ID exists; opt-out and one-member paths make no registration call.
 
-### `[x]` **4.5 Extend the window-time mutation loop with its mechanical tail**
+### `[ ]` **4.5 Extend the window-time mutation loop with its mechanical tail**
 
 - _Goal:_ A review fix during the landing window recuts the suffix, re-adopts it, rebinds state, and re-verifies
   only the members whose contribution actually changed — all riding the finding-disposition approval that
@@ -465,6 +465,38 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
         - Only members whose contribution changed under the recut re-verify
         - A member proved contribution-equivalent across the recut re-verifies nothing
         - Tier 1 gates re-run per the existing after-fix rule
+
+- _Forward amendment (2026-08-24):_ Self-delivery showed that the completed path always authors and rewrites the
+  whole suffix even when an exact native-stack presentation can perform the dependent mechanical refresh. D5.8
+  preserves that implementation as the exact unregistered fallback and adds the provider-neutral linked route.
+
+    - `[ ]` **4.5.R Route an approved review fix through the current delivery presentation**
+
+        - Derive the canonical remaining chain and selected member from plan/state, then use the existing
+          native-stack observation port to choose exact registered or exact unregistered execution
+        - For registered delivery, validate and lease-publish only one clean selected-member candidate, persist its
+          new baseline under a distinct selected-change recovery mode, and return the exact affected suffix plus a
+          provider-neutral external-refresh continuation
+        - Reuse provider-refresh adoption for the mechanically moved suffix and admit zero provider movements only
+          when terminal-top absorption remains owed
+        - Keep full rematerialization for exact unregistered delivery, document that the approved fix reaches the
+          top authoring locus before candidate cutting, and preserve the originating eligibility refusal reason
+        - Reconcile selected-change interruption to the selected-member publish action without adding provider-
+          specific durable state or provider submission machinery
+        - Re-author the integration doctrine and both delivery-workflow copies around the typed route
+        - Build `test-first` (one behavior at a time):
+            - Exact registered observation selects single-member publication; exact unregistered selects full recut
+            - Partial, incoherent, unavailable, malformed, ambiguous, and unsupported observation refuse pre-mutation
+            - The selected candidate is clean, exact, lifecycle-safe, and extends the current bound member
+            - Only the selected member ref and coordinate move before external refresh
+            - Zero provider movement settles only a stale terminal predecessor through top absorption
+            - Interrupted selected publication returns its distinct exact rerun action
+            - Full-rematerialization eligibility refusals retain their exact reason at the CLI boundary
+
+        - _Forward amendment (2026-08-25):_ D5.9 supersedes the external-refresh continuation above. Exact
+          registered delivery must route directly into ARC-triggered provider-native refresh execution after the
+          selected-member baseline is state-bound; external operator refresh plus adoption remains the supported
+          fallback. The core continuation stays provider-neutral and carries no provider command or stack field.
 
 ### `[x]` **4.6 Retire the control-branch vocabulary from the surfaces that survive**
 
@@ -797,6 +829,24 @@ structural guarantee rather than operator discipline.
   provider/operator refresh stays external and unreserved; `rewrite/provider-adoption` begins only after exact
   observation and proof, then owns ARC's top absorption/publication and the one final suffix-plus-top CAS.
 
+- _Forward amendment (2026-08-24):_ D5.8 also makes this adoption service the mechanical tail of a linked review
+  fix. Selected-member publication establishes the new state baseline first; external refresh then changes only
+  what the provider assigns, and adoption proves those movements plus the terminal-top settlement. This remains
+  provider-neutral core composition, with GitHub behavior confined to its existing adapter and operator surface.
+
+- _Forward amendment (2026-08-25):_ Self-delivery proved the external-only Member 6 audit disposition removed the
+  work unit's provider-native actuation capability. D5.9 restores that capability without changing registration
+  authority or importing provider commands into the core.
+
+    - `[x]` **6.3.R Restore reserved provider-native refresh execution**
+
+        - Added provider-neutral complete-remainder and dependent-suffix execution, with the GitHub adapter confined
+          to isolated official checkout, view, and rebase mechanics while ARC retains registration and publication.
+        - Exact preparation proof, durable `rewrite/provider-refresh`, bottom-up lease publication, partial-vector
+          recovery, terminal-top absorption, and one final state CAS now form the native refresh lifecycle.
+        - Registered review fixes route directly through `delivery refresh execute`; external adoption remains the
+          fallback, and preparation plus closeout reap stale private candidates by exact plan namespace.
+
 ### `[x]` **6.4 Route a registered stack natively and mint the `native-stack-required` refusal**
 
 - _Goal:_ A linked stack reaches the native lifecycle rather than the singleton merge path, and a stacked-member
@@ -881,7 +931,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -926,6 +976,18 @@ structural guarantee rather than operator discipline.
     - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
       _Evidence:_ the decision point discloses native review invalidation before opt-in, while opt-out is supported
       and host-silent. Success Criteria markers remain unchanged for terminal verification.
+
+- _Forward amendment (2026-08-25):_ The prior report remains evidence for the unchanged Member 6 criteria. D5.9
+  adds one criterion and intentionally supersedes the external-only clause in criterion 2, so the member boundary
+  requires a fresh scoped walk after Task 6.3.R.
+
+    - `[ ]` **6.11.R Revalidate provider-native refresh and the amended Member 6 boundary**
+
+        - Run `validate-criteria` at member scope over `Success Criteria > Member 6 —
+          refresh-and-native-landing`, using the amended Member 6 diff and cumulative tree
+        - Record criterion 2 as intentionally superseded by D5.9, carry the unchanged prior evidence only after
+          regression checking, and establish fresh evidence for criterion 7
+        - Offer the Heavy-class fresh-context adversarial companion over the same amended member slice
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -1208,7 +1270,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 10,848 tests with one
   skipped, package build, and diff hygiene all passed; the focused review-fix slice passed 30 tests.
@@ -1239,6 +1301,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   its existing plain push; its integration regression failed first and then passed. Applied to the exact
   self-delivery coordinates (`0b8e87285` protected base, `08321ce46` highest member, `29989f152` final candidate,
   `8008ba88a` top), the corrected classifier returns `contained` without moving a ref.
+
+- _Reopened 2026-08-25:_ D5.9 and Task 6.3.R change the verified union and supersede one recorded Member 6
+  criterion disposition. Preserve the prior reports as evidence for unchanged loci, then rerun terminal seam,
+  regression, union-coherence, quality-gate, and review checks after the fresh Member 6 report closes.
 
 ---
 
@@ -1347,6 +1413,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[x]` Opting into native registration surfaces its review-invalidation consequence at the decision point, and
   declining it is a supported route that makes no host calls.
 
+- `[ ]` D5.9 supersedes criterion 2's external-only invocation clause. A provider-invoked refresh prepares and
+  proves one exact registered suffix in an isolated adapter, reserves the complete requested result before remote
+  mutation, lease-publishes bottom-up, resumes only an exact contiguous partial publication, settles the excluded
+  terminal top and private candidates before the final state write, and retains external operator adoption as a
+  fallback. GitHub registration remains raw API, provider push porcelain is never authoritative, and every
+  uncertain or conflicting result stops without suffix-only state adoption.
+
 ### Member 7 — `review-fan-out`
 
 - `[x]` A carried hosted-review reservation resumes on every member pull request at its exact head, and the
@@ -1385,6 +1458,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
 
 ### Cross-member seams
+
+- `[ ]` An approved review fix routes from the canonical remaining chain's fresh provider presentation: exact
+  registered delivery publishes only the selected member, delegates the mechanical suffix refresh, and adopts the
+  result; exact unregistered delivery rematerializes from the updated top authoring locus. Uncertain presentation
+  stops, zero provider movement is accepted only for owed top absorption, selected-change recovery is executable,
+  exact eligibility refusals survive, and provider-specific data stays outside plan, state, and core contracts.
 
 - `[x]` A unique authoritative canonical Delivery Plan selects stacked delivery before state exists. The
   pre-publication reservation carries its delivery marker from plan-only evidence, and ordinary integration

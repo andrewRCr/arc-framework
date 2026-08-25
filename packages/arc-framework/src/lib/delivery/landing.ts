@@ -77,12 +77,32 @@ export const DeliveryRecoveryRerunV1Schema = z.union([
   }),
   z.strictObject({
     ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("cleared"),
+    action: z.literal("delivery-review-fix-publish"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("rewrite"),
+      mode: z.literal("selected-change"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
     transition: z.literal("preserved"),
     action: z.literal("delivery-refresh-adopt"),
     selector: z.strictObject({
       ...DeliveryRecoverySelectorCommonV1Shape,
       operationKind: z.literal("rewrite"),
       mode: z.literal("provider-adoption"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("preserved"),
+    action: z.literal("delivery-refresh-execute"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("rewrite"),
+      mode: z.literal("provider-refresh"),
     }),
   }),
   z.strictObject({
@@ -626,14 +646,32 @@ function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
             recommendedActionText:
               "Rerun `arc delivery rematerialize` for the exact review-fix reservation subject.",
           }
-        : {
-            status: "retryable",
-            transition: "preserved",
-            action: "delivery-refresh-adopt",
-            selector: { ...selector, operationKind: "rewrite", mode: "provider-adoption" },
-            recommendedActionText:
-              "Rerun `arc delivery refresh adopt` for the exact provider-adoption reservation subject.",
-          };
+        : operation.mode === "selected-change"
+          ? {
+              status: "retryable",
+              transition: "cleared",
+              action: "delivery-review-fix-publish",
+              selector: { ...selector, operationKind: "rewrite", mode: "selected-change" },
+              recommendedActionText:
+                "Rerun `arc delivery review-fix publish` for the exact selected-member reservation subject.",
+            }
+          : operation.mode === "provider-adoption"
+            ? {
+                status: "retryable",
+                transition: "preserved",
+                action: "delivery-refresh-adopt",
+                selector: { ...selector, operationKind: "rewrite", mode: "provider-adoption" },
+                recommendedActionText:
+                  "Rerun `arc delivery refresh adopt` for the exact provider-adoption reservation subject.",
+              }
+            : {
+                status: "retryable",
+                transition: "preserved",
+                action: "delivery-refresh-execute",
+                selector: { ...selector, operationKind: "rewrite", mode: "provider-refresh" },
+                recommendedActionText:
+                  "Rerun `arc delivery refresh execute` for the exact provider-refresh reservation subject.",
+              };
     case "teardown":
       return {
         status: "retryable",

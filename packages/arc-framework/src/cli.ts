@@ -838,16 +838,34 @@ deliveryNative.command("land-status").description("Poll and reconcile one persis
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("native-land-status", { ...opts, input }, context)
   )));
-const deliveryRefresh = delivery.command("refresh").description("Plan and adopt one provider-refreshed suffix");
+const deliveryRefresh = delivery.command("refresh")
+  .description("Plan, execute, or adopt one provider-refreshed suffix");
 deliveryRefresh.command("plan").description("Plan the exact operator-refreshed registered suffix")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("refresh-plan", { ...opts, input }, context)
   )));
+deliveryRefresh.command("execute").description("Prepare and publish one provider-native suffix refresh")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("refresh-execute", { ...opts, input }, context)
+  )));
 deliveryRefresh.command("adopt").description("Observe, prove, and adopt one externally refreshed suffix")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("refresh-adopt", { ...opts, input }, context)
+  )));
+const deliveryReviewFix = delivery.command("review-fix")
+  .description("Route and publish one approved delivery-member review fix");
+deliveryReviewFix.command("plan").description("Select linked publication or complete rematerialization")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-plan", { ...opts, input }, context)
+  )));
+deliveryReviewFix.command("publish").description("Publish one selected member before provider-native suffix refresh")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-publish", { ...opts, input }, context)
   )));
 delivery.command("position").description("Derive the exact current delivery position")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")

@@ -129,9 +129,14 @@ follows its returned `nextAction`. A `retryable` result dispatches only one of t
   `arc delivery publish` against the retained reservation.
 - `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
   `arc delivery rematerialize`.
+- `retryable / cleared / delivery-review-fix-publish` with `operationKind: rewrite` and
+  `mode: selected-change` reruns `arc delivery review-fix publish` from the returned selected-member subject.
 - `retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and
   `mode: provider-adoption` reruns `arc delivery refresh adopt` with the exact `operationId`; the CLI derives the
   reserved suffix rather than accepting the selector's affected IDs as request authority.
+- `retryable / preserved / delivery-refresh-execute` with `operationKind: rewrite` and
+  `mode: provider-refresh` reruns `arc delivery refresh execute` with the exact `operationId`; the CLI resumes the
+  retained publication vector and never asks the provider to prepare a second result.
 - `retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential` reruns
   `arc delivery land prepare` and requires a new integration interlock before apply.
 - `retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native` reruns
@@ -337,10 +342,26 @@ arc delivery refresh plan - --json
 ```
 
 The request carries only the plan and repository locators plus that exact trigger. Only `refresh-required`
-continues. Render its exact `plannedSuffix`, mechanics, and `recommendedActionText` before the operator refreshes
-that registered set through the provider UI or porcelain. The external refresh is unreserved: ARC has no provider
-mutation operation while it runs, and the terminal top remains outside it. After the external operation settles,
-adopt only a fresh complete observation:
+continues. Render its exact `plannedSuffix`, mechanics, and `recommendedActionText`. `provider-invoked` submits the
+same plan and repository locators with `{ "kind": "complete-remainder" }` as `scope` to:
+
+```bash
+arc delivery refresh execute - --json
+```
+
+The provider-neutral service derives the exact bound remainder from plan and state. Its adapter prepares the native
+refresh in an isolated repository, returns only exact candidate coordinates, and never publishes. ARC validates and
+proves that result, reserves `rewrite / provider-refresh`, lease-publishes the changed member refs bottom-up, settles
+the terminal top, removes the private candidates, and clears the reservation only with the final complete state.
+`applied` returns to `arc delivery position`. A `retryable` result with a retained reservation reruns this verb with
+only its exact `operationId`; all-before retries the whole changed vector, a contiguous requested prefix resumes its
+untouched tail, and any other mixed or unavailable observation stops. A refusal before reservation leaves canonical
+refs and state unchanged.
+
+`operator-initiated` is the external fallback. The operator refreshes the disclosed registered set through the
+provider UI or supported procedure. That external refresh is unreserved: ARC has no provider mutation operation
+while it runs, and the terminal top remains outside it. After the external operation settles, adopt only a fresh
+complete observation:
 
 ```bash
 arc delivery refresh adopt - --json
@@ -358,8 +379,34 @@ exact `operationId`. Recovery recognizes an already-created local merge and alre
 the final state transition. Any other retryable result follows its precomposed action, and every refused or blocked
 result stops without adopting ambiguous movement. Base movement alone never invokes this arm.
 
-Apply review fixes to the freshly authored suffix, run the ordinary project gates for every candidate, then invoke
-the composed rematerialization service with only the exact selected-member IDs and raw candidate locators:
+After an approved member-review fix is ready to apply, select the mutation route before authoring replacement
+candidates:
+
+```bash
+arc delivery review-fix plan - --json
+```
+
+Supply only the plan, repository, and selected-member locators. `planned / provider-refresh` means a fresh read found
+the canonical remaining chain exactly registered. Author the approved change on only the selected member's derived
+candidate ref, run its ordinary project gates, then invoke:
+
+```bash
+arc delivery review-fix publish - --json
+```
+
+The verb derives the candidate ref and lifecycle paths, requires its supplied checkout to be tracked-clean and exact,
+requires the candidate to extend the current bound member, reobserves exact registration immediately before mutation,
+then lease-publishes only that member under `rewrite / selected-change`.
+`execute-provider-refresh` carries the returned selected member as a `dependent-suffix` scope directly into
+`arc delivery refresh execute`; do not stop for another attended choice. The executor keeps that selected head fixed,
+prepares only its dependents, and still uses the same path when no dependent moves because terminal-top absorption is
+owed. Keep the returned verification selector across that continuation. External operator refresh plus
+`arc delivery refresh adopt` remains a fallback selected by refresh planning, not the registered review-fix default.
+
+`planned / rematerialize` means a fresh read found the canonical remaining chain exactly unregistered. Apply the
+approved fix to the top authoring locus first, cut the complete suffix from that updated content, and run the ordinary
+project gates for every candidate. Then invoke the composed fallback with the exact selected-member IDs and raw
+candidate locators:
 
 ```bash
 arc delivery rematerialize - --json
@@ -367,14 +414,18 @@ arc delivery rematerialize - --json
 
 The service recloses suffix eligibility and recomputes carried-contribution proof before every reserved rewrite.
 It executes in plan order, using each persisted result as the next predecessor; candidate movement or unselected
-contribution drift stops with the current reservation/state intact. Never invoke the low-level rewrite verb as an
-operator-assembled batch.
+contribution drift stops with the current reservation/state intact. Its exact eligibility refusal is authoritative;
+`completeness-mismatched` means the recut did not originate from top content carrying the approved fix. Never invoke
+the low-level rewrite verb as an operator-assembled batch.
 
-A successful `verify-review-fix` next action means the service has re-adopted the freshly recut suffix beneath the
-content-neutral top, published that exact top, and version-rebound the terminal state. Invoke
-[`validate-criteria`][validate-criteria] at member scope once for each ID in `memberDeliverableIds`; the list contains
-only contributions changed by the approved fix. An arbiter-accepted contribution-equivalent member, including a
-successful mechanical reapply after predecessor movement, is absent and re-verifies nothing. Then honor
+Every partial, incoherent, ambiguous, malformed, unsupported, or unavailable presentation stops before candidate
+authoring or mutation; do not infer linked or unlinked behavior from provider identity. Provider commands and UI are
+adapter/operator concerns, while the workflow carries only the provider-neutral route and affected suffix.
+
+After provider-refresh execution returns `applied`, or after the fallback returns `verify-review-fix`, invoke
+[`validate-criteria`][validate-criteria] at member scope once for each retained `memberDeliverableIds`. The linked
+selector contains the selected changed member; the fallback selector contains every contribution the arbiter found
+changed. An arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Then honor
 `tier1Required` by rerunning Tier 1 over the rebound top. These actions ride the same finding-disposition approval;
 do not add an interlock.
 

@@ -67,9 +67,11 @@ function closeoutFixture() {
       },
       gitCommonDir: "/repo/.git",
       residue: {
+        observeRefreshCandidates: async () => ({ status: "observed" as const, candidates: [] }),
         observeCandidate: async () => ({ status: "absent" as const }),
         observeGate: async () => ({ status: "absent" as const }),
         deleteCandidate: async () => { throw new Error("absent candidates must not be deleted"); },
+        deleteRefreshCandidate: async () => { throw new Error("absent refresh candidates must not be deleted"); },
         removeGate: async () => { throw new Error("absent gates must not be removed"); },
         deleteLocalMember: async ({ ref }: { ref: string }) => {
           localMembers.delete(ref);

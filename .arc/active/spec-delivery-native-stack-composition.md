@@ -136,6 +136,15 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   which replacing one current binding would remove the bridge needed to replay a later response.
 - No aggregate hosted-review surface across members. That remains `delivery-review-cardinality`'s demand-held
   question.
+- **Amended 2026-08-25 — provider-native refresh actuation enters scope after self-delivery exposed the
+  external-only gap.** The first non-goal no longer excludes ARC invoking an official provider refresh instrument
+  behind a narrow capability adapter. It continues to exclude an ARC-authored rebase or restack algorithm,
+  automatic conflict resolution, a temporary protected-base branch, provider porcelain for registration, and
+  delegation of authoritative publication to a provider submission command. The admitted capability prepares one
+  exact suffix privately, then ARC retains reservation, structural proof, lease publication, recovery, top
+  absorption, and state authority. External operator refresh plus observation remains a supported fallback. The
+  prompt was the supported registered-stack path: without actuation, ARC could identify the needed refresh but
+  still required the operator to perform the headline native-stack convenience manually.
 
 ## Proposed Design
 
@@ -620,6 +629,70 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   suffix-only state may publish before top settlement, and no new operation kind, provider capability, or durable
   proof record is introduced.
 
+- **D5.8 Review-fix routing follows the current delivery presentation — amended 2026-08-24 after self-delivery
+  exposed full-suffix duplication.** This amendment supersedes D4.5a's single-path treatment of every review fix
+  while preserving its complete rematerialization path as the exact unregistered fallback. Before authoring a
+  replacement suffix, ARC derives the remaining non-terminal chain from the canonical plan and state and observes
+  it through the native-stack provider port. An exact `registered` observation selects the linked route; an exact
+  `unregistered` observation selects complete rematerialization. Partial, incoherent, ambiguous, malformed,
+  unsupported, or unavailable presentation stops rather than guessing which mutation model applies. The core
+  contract names only selected-member publication, external mechanical suffix refresh, fresh observation, and
+  structural adoption. Provider-specific commands and UI remain adapter or operator concerns and never enter the
+  plan, state, or operation vocabulary.
+
+  The linked route validates one clean exact authoring candidate whose head extends the selected bound member,
+  excludes lifecycle contribution, and leaves every other bound member untouched. ARC lease-publishes that one
+  member and version-binds its new coordinate under `rewrite/selected-change`; it does not run the full-suffix
+  completeness comparison, because the provider-visible baseline is intentionally incomplete until the dependent
+  suffix refresh. After publication, the provider or operator mechanically refreshes the affected registered
+  suffix and the existing D5.7 adoption service proves and installs the observed result. When the selected member
+  is already the highest non-terminal member, zero provider head movement is valid only while the terminal top's
+  recorded predecessor is stale; adoption then performs the still-owed top absorption and final state write.
+
+  The unlinked route retains D4.5a's complete recut, but makes its existing authoring precondition explicit: the
+  approved fix first lands on the top authoring locus, then the complete suffix is cut from that updated content.
+  Eligibility refusals propagate their exact reason instead of collapsing a completeness mismatch into
+  `observation-unavailable`. Interrupted selected-member publication version-clears an exact not-applied
+  `rewrite/selected-change` reservation and returns a typed rerun of the selected-member publish verb; full
+  rematerialization and provider adoption retain their existing distinct recovery actions. No provider mutation
+  submission, provider-specific durable field, second operation kind, or migration reader is introduced.
+
+- **D5.9 ARC-triggered provider-native refresh — amended 2026-08-25 after self-delivery exposed the
+  external-only actuation gap.** This amendment supersedes D5.7's external-only rule and D5.8's external-refresh
+  continuation while preserving external refresh observation and adoption as a complete fallback. When refresh
+  planning selects `provider-invoked`, the core derives one exact current subject from plan and state and asks a
+  provider-neutral preparation capability for either the complete remaining registered suffix or the dependent
+  suffix above one already-published selected member. The capability receives exact target, ref, request, head,
+  tree, and predecessor coordinates; it returns only an exact proposed target-and-suffix snapshot or a closed
+  refusal. Provider stack identity and command output are routing evidence, never mutation authority.
+
+  The GitHub reference adapter prepares that proposal in a clean isolated repository. It imports the exact remote
+  stack, validates the provider view against the supplied subject, and invokes the official stack refresh
+  mechanics: target-and-suffix refresh includes the current protected target, while dependent-suffix refresh leaves
+  the selected member fixed and rewrites only members above it. A conflict or uncertain view stops inside the
+  isolated repository with no delivery reservation or canonical ref movement. Successful prepared objects are
+  imported under an ARC-owned private refresh-candidate namespace and revalidated for exact ref order, predecessor
+  chain, heads, trees, request bindings, and D4 contribution identity. Raw API remains the only registration path;
+  provider `link` and `push` porcelain remain excluded, so the adapter never gets publication authority.
+
+  Before the first remote member ref moves, ARC reserves `rewrite/provider-refresh` with the complete old and
+  requested snapshots and the exact affected suffix. It then lease-publishes member refs bottom-up and adopts each
+  local member ref at the same exact head. Recovery classifies the whole published vector: all-before retries from
+  the first member; one contiguous requested prefix followed by exact before heads is `partial-published` and
+  resumes only the untouched tail; all-requested continues settlement; any missing, third, or non-prefix result
+  preserves the reservation and stops as ambiguous. This is a refresh-specific refinement of the existing
+  operation reducer because the host offers no atomic multi-ref update.
+
+  After every suffix ref is exact, ARC reobserves and re-proves the provider presentation, genuinely absorbs the
+  refreshed predecessor into the excluded terminal top, lease-publishes the top, removes the exact private
+  refresh-candidate refs, and installs target, complete suffix, and terminal coordinates while clearing the
+  reservation in one final version-checked state write. Cleanup failure preserves the reservation and exact rerun;
+  no suffix-only state is admitted. A pre-reservation interruption may leave only ARC-owned private candidates,
+  which the next preparation or closeout reaps by exact plan namespace before proceeding. The ordinary rerun action
+  is `delivery-refresh-execute`; the existing external `delivery-refresh-adopt` action remains reserved for
+  externally assigned results. No new operation kind, durable record family, provider-specific plan/state field,
+  autonomous conflict repair, or compatibility reader is introduced.
+
 ### D6 — Native registration and landing
 
 - **D6.1 Routing.** Reobserve native registration before selecting the singleton arm. A linked stack routes through
@@ -701,6 +774,13 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   canonical plan/state before fresh host observation; caller-authored member coordinates never select or downgrade
   an arm. `native-stale-suffix` remains a D5.3 refresh trigger after an actual stale-suffix refusal. Ambiguous
   no-effect evidence or a competing state write retains the reservation and stops.
+- **D6.12 Porcelain boundary for refresh actuation — amended 2026-08-25.** D6.6 remains authoritative for
+  registration: ARC links only through the raw Stacks API because `gh stack link` may create requests and repair
+  bases. D5.9 narrows the refresh side of that decision. The GitHub adapter may use official `gh stack checkout`,
+  `view`, and `rebase` commands only inside its isolated preparation workspace, with exact provider-neutral inputs
+  and outputs around them. It never invokes `gh stack push`; ARC's existing Git lease primitives publish the
+  prepared result. Missing extension support, conflicts, malformed output, scope drift, or cleanup failure return
+  typed refusal rather than falling through to generic host mutation.
 
 ### D7 — Member-boundary verification
 
@@ -1405,6 +1485,12 @@ this substrate.
   decision that would otherwise incur the difference, so it carries its own consequence (D6.10).
 - Total ceremony must not exceed what a team on Graphite or GitHub native stacks performs for the same topology.
 
+**Ceremony budget — forward amendment (2026-08-24).** D5.8 supersedes the assumption that ARC authors a complete
+suffix and adds a top ancestry merge for every review fix. Under an exact registered presentation, ARC authors and
+publishes only the selected member, delegates the mechanical dependent rewrite, then uses D5.7's ordinary adoption
+and top absorption. The complete authoring recut and its content-neutral top re-adoption remain only on the exact
+unregistered fallback. This keeps the linked path at the provider-native baseline without weakening the fallback.
+
 **Coordination.** The review-applicability projection (D8.6) was captured as an Errand from an ordinary
 base-merge instance and is absorbed here. Re-reading it as its own capture directed surfaced design that clears
 the derivation floor — the arbiter choice, the head-keyed evidence interaction across consumers including the
@@ -1630,6 +1716,23 @@ added.
     stops. The first external member publication remains the state-binding event, and a vertical scenario begins
     plan-present/state-absent and proves plan-only reservation, the publication transition, integration dispatch,
     first member publication and state binding, then hosted member fan-out in that order (D1, D2.2, D8.1, D10.3).
+
+27. An approved review fix routes from one fresh provider-neutral observation of the canonical remaining chain.
+    Exact registered presentation publishes only the selected member under a distinct recoverable selected-change
+    reservation, delegates the dependent mechanical refresh, and completes through ordinary structural adoption;
+    a stale terminal predecessor may settle with zero provider head movement only by performing the still-owed top
+    absorption. Exact unregistered presentation keeps complete rematerialization after the fix reaches the top
+    authoring locus. Every uncertain presentation stops, exact eligibility refusals survive the command boundary,
+    and no provider-specific plan, state, operation, or core-service field is introduced (D5.8).
+
+28. D5.9 supersedes criterion 7's external-only invocation clause: a `provider-invoked` refresh prepares the exact
+    requested suffix in an isolated provider adapter, imports and proves its candidate heads, and reserves
+    `rewrite/provider-refresh` before any remote member ref moves. ARC lease-publishes the suffix bottom-up, resumes
+    an exact contiguous partial publication without replaying completed refs, refuses every missing, third, or
+    non-prefix result, and admits no suffix coordinate until top absorption, private-candidate cleanup, and the one
+    final version-checked write complete. GitHub registration remains raw API and provider push porcelain is never
+    authoritative; external operator refresh plus `delivery-refresh-adopt` remains supported (Goal 5, D5.9,
+    D6.12).
 
 ## Open Questions
 

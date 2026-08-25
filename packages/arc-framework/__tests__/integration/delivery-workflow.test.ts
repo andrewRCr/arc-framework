@@ -47,6 +47,8 @@ describe("packaged delivery workflow", () => {
     expect(packaged).toContain("arc delivery native land-status");
     expect(packaged).toContain("arc delivery refresh plan");
     expect(packaged).toContain("arc delivery refresh adopt");
+    expect(packaged).toContain("arc delivery review-fix plan");
+    expect(packaged).toContain("arc delivery review-fix publish");
     expect(packaged).toContain("opt-out `unlinked` result makes zero native host calls");
     const materializeSection = section(packaged, "Validate and publish");
     const nativeSection = section(packaged, "Select and execute the native landing arm");
@@ -94,9 +96,15 @@ describe("packaged delivery workflow", () => {
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
     const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
+    const refreshExecute = reviewSection.indexOf("arc delivery refresh execute", refreshPlan);
     const refreshAdopt = reviewSection.indexOf("arc delivery refresh adopt", refreshPlan);
     const refreshTail = reviewSection.slice(refreshPlan, reviewSection.indexOf("arc delivery rematerialize"));
-    expect(refreshPlan).toBeLessThan(refreshAdopt);
+    expect(refreshPlan).toBeLessThan(refreshExecute);
+    expect(refreshExecute).toBeLessThan(refreshAdopt);
+    expect(refreshTail).toMatch(
+      /provider-invoked[\s\S]*refresh execute[\s\S]*provider-refresh[\s\S]*bottom-up[\s\S]*terminal top/iu,
+    );
+    expect(refreshTail).toMatch(/contiguous requested prefix[\s\S]*untouched tail/iu);
     expect(refreshTail).toMatch(/external refresh is unreserved[\s\S]*no provider\s+mutation operation/iu);
     expect(refreshTail).toMatch(
       /Before reserving[\s\S]*observes the complete exact suffix[\s\S]*proves every changed contribution/iu,
@@ -118,6 +126,19 @@ describe("packaged delivery workflow", () => {
     expect(mutationTail).toMatch(/tier1Required[\s\S]*Tier 1/iu);
     expect(mutationTail).toMatch(/same finding-disposition approval/iu);
     expect(mutationTail).not.toContain("`integration-interlock`");
+    const reviewFixPlan = reviewSection.indexOf("arc delivery review-fix plan");
+    const reviewFixPublish = reviewSection.indexOf("arc delivery review-fix publish", reviewFixPlan);
+    expect(reviewFixPlan).toBeLessThan(reviewFixPublish);
+    expect(reviewFixPublish).toBeLessThan(rematerialize);
+    expect(reviewSection).toMatch(
+      /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
+    );
+    expect(reviewSection).toMatch(
+      /planned \/ rematerialize[\s\S]*top authoring locus[\s\S]*complete suffix/iu,
+    );
+    expect(reviewSection).toMatch(
+      /partial, incoherent, ambiguous, malformed, unsupported, or unavailable[\s\S]*stops/iu,
+    );
     expect(reviewSection.indexOf("arc delivery teardown")).toBeLessThan(
       packaged.indexOf("## Terminal handoff") - packaged.indexOf("## Review and land the current member"),
     );
@@ -130,7 +151,9 @@ describe("packaged delivery workflow", () => {
       "retryable / cleared / delivery-publish` with `operationKind: materialize",
       "retryable / preserved / delivery-publish` with `operationKind: publish",
       "retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix",
+      "retryable / cleared / delivery-review-fix-publish` with `operationKind: rewrite` and",
       "retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and",
+      "retryable / preserved / delivery-refresh-execute` with `operationKind: rewrite` and",
       "retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential",
       "retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native",
       "retryable / preserved / delivery-teardown` with `operationKind: teardown",
@@ -139,6 +162,7 @@ describe("packaged delivery workflow", () => {
       expect(recoverySection).toContain(arm);
     }
     expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery refresh adopt/iu);
+    expect(recoverySection).toMatch(/provider-refresh[\s\S]*arc delivery refresh execute/iu);
     expect(recoverySection).toMatch(
       /planId[\s\S]*operationId[\s\S]*affectedDeliverableIds[\s\S]*operationKind[\s\S]*narrow `mode`/u,
     );

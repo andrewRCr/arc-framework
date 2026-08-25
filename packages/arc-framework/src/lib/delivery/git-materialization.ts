@@ -3,10 +3,12 @@
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
+import { DeliveryPlanIdSchema } from "./schema.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const absentObjectId = "0".repeat(40);
 const candidateRef = /^refs\/arc\/delivery-candidates\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const refreshCandidateRef = /^refs\/arc\/delivery-refresh-candidates\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 type DeliveryLocalRefObservation =
   | { readonly status: "absent" }
@@ -95,6 +97,56 @@ export async function deleteDeliveryCandidateRef(input: {
   | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
 > {
   return deleteExactLocalRef(input, candidateRef.test(input.ref));
+}
+
+export type DeliveryRefreshCandidateRefObservation =
+  | {
+      readonly status: "observed";
+      readonly candidates: readonly { readonly ref: string; readonly head: string }[];
+    }
+  | { readonly status: "refused"; readonly reason: "malformed" | "unavailable" };
+
+/** Enumerate every exact ARC-owned refresh candidate under one validated delivery-plan namespace. */
+export async function observeDeliveryRefreshCandidateRefs(
+  exec: GitExec,
+  planId: string,
+): Promise<DeliveryRefreshCandidateRefObservation> {
+  if (!DeliveryPlanIdSchema.safeParse(planId).success) {
+    return { status: "refused", reason: "malformed" };
+  }
+  const prefix = `refs/arc/delivery-refresh-candidates/${planId}/`;
+  try {
+    const { stdout } = await exec("git", [
+      "for-each-ref",
+      "--format=%(refname) %(objectname)",
+      prefix,
+    ]);
+    const candidates: Array<{ ref: string; head: string }> = [];
+    for (const line of stdout.split("\n")) {
+      if (line === "") continue;
+      const [ref, head, ...tail] = line.split(" ");
+      if (ref === undefined || head === undefined || tail.length !== 0
+        || !ref.startsWith(prefix) || !refreshCandidateRef.test(ref) || !objectId.test(head)) {
+        return { status: "refused", reason: "malformed" };
+      }
+      candidates.push({ ref, head });
+    }
+    return { status: "observed", candidates };
+  } catch {
+    return { status: "refused", reason: "unavailable" };
+  }
+}
+
+/** Delete one exact refresh candidate without authority over any other local ref. */
+export async function deleteDeliveryRefreshCandidateRef(input: {
+  readonly exec: GitExec;
+  readonly ref: string;
+  readonly expectedHead: string;
+}): Promise<
+  | { readonly status: "deleted" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+> {
+  return deleteExactLocalRef(input, refreshCandidateRef.test(input.ref));
 }
 
 async function deleteExactLocalRef(input: {

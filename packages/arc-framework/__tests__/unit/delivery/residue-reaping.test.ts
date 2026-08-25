@@ -50,6 +50,7 @@ describe("delivery closeout residue", () => {
       current: { revision: 4, value: state },
       gitCommonDir: "/repo/.git",
     }, {
+      observeRefreshCandidates: async () => ({ status: "observed", candidates: [] }),
       observeCandidate: async (ref) => candidates.has(ref)
         ? { status: "observed", head: candidates.get(ref)! }
         : { status: "absent" },
@@ -61,6 +62,7 @@ describe("delivery closeout residue", () => {
         candidates.delete(ref);
         return { status: "deleted" };
       },
+      deleteRefreshCandidate: async () => { throw new Error("absent refresh candidates must not be deleted"); },
       removeGate: async ({ path, expectedHead }) => {
         if (gates.get(path) !== expectedHead) return { status: "refused" };
         gates.delete(path);
@@ -90,6 +92,70 @@ describe("delivery closeout residue", () => {
     expect(writes).toHaveLength(2);
   });
 
+  it("reaps every exact refresh candidate in the plan namespace before reserving closeout", async () => {
+    const { plan, state } = closeoutFixture();
+    const stale = new Map([
+      [`refs/arc/delivery-refresh-candidates/${plan.planId}/retired-member`, "7".repeat(40)],
+      [`refs/arc/delivery-refresh-candidates/${plan.planId}/current-member`, "8".repeat(40)],
+    ]);
+    const writes: DeliveryStateV1[] = [];
+    const result = await reapCompletedDeliveryResidue({
+      plan, current: { revision: 4, value: state }, gitCommonDir: "/repo/.git",
+    }, {
+      observeRefreshCandidates: async () => ({
+        status: "observed",
+        candidates: [...stale].map(([ref, head]) => ({ ref, head })),
+      }),
+      observeCandidate: async () => ({ status: "absent" }),
+      observeGate: async () => ({ status: "absent" }),
+      deleteRefreshCandidate: async ({ ref, expectedHead }) => {
+        if (stale.get(ref) !== expectedHead) return { status: "refused" };
+        stale.delete(ref);
+        return { status: "deleted" };
+      },
+      deleteCandidate: async () => { throw new Error("absent candidates must not be deleted"); },
+      removeGate: async () => { throw new Error("absent gates must not be removed"); },
+      deleteLocalMember: async () => ({ status: "adopted" }),
+      deleteRemoteMember: async () => ({ status: "adopted" }),
+      stateStore: { publish: async (_planId, value, revision) => {
+        writes.push(value);
+        return { status: "ok", value: { revision: revision + 1, value } };
+      } },
+    });
+
+    expect(result.status).toBe("reaped");
+    expect(stale.size).toBe(0);
+    expect(writes).toHaveLength(2);
+  });
+
+  it("blocks before a closeout reservation when exact refresh-candidate deletion refuses", async () => {
+    const { plan, state } = closeoutFixture();
+    const ref = `refs/arc/delivery-refresh-candidates/${plan.planId}/stale-member`;
+    let reserved = false;
+    const result = await reapCompletedDeliveryResidue({
+      plan, current: { revision: 4, value: state }, gitCommonDir: "/repo/.git",
+    }, {
+      observeRefreshCandidates: async () => ({
+        status: "observed",
+        candidates: [{ ref, head: "7".repeat(40) }],
+      }),
+      observeCandidate: async () => ({ status: "absent" }),
+      observeGate: async () => ({ status: "absent" }),
+      deleteRefreshCandidate: async () => ({ status: "refused" }),
+      deleteCandidate: async () => { throw new Error("must not delete"); },
+      removeGate: async () => { throw new Error("must not remove"); },
+      deleteLocalMember: async () => { throw new Error("must not delete member"); },
+      deleteRemoteMember: async () => { throw new Error("must not delete member"); },
+      stateStore: { publish: async () => {
+        reserved = true;
+        throw new Error("must not reserve");
+      } },
+    });
+
+    expect(result).toEqual({ status: "blocked", reason: "refresh-candidate-delete-refused" });
+    expect(reserved).toBe(false);
+  });
+
   it("leaves mismatched candidate/gate evidence intact before reservation", async () => {
     const { plan, state, locators } = closeoutFixture();
     const first = locators[0]!;
@@ -98,6 +164,7 @@ describe("delivery closeout residue", () => {
     const result = await reapCompletedDeliveryResidue({
       plan, current: { revision: 4, value: state }, gitCommonDir: "/repo/.git",
     }, {
+      observeRefreshCandidates: async () => ({ status: "observed", candidates: [] }),
       observeCandidate: async (ref) => candidates.has(ref)
         ? { status: "observed", head: candidates.get(ref)! }
         : { status: "absent" },
@@ -105,6 +172,7 @@ describe("delivery closeout residue", () => {
         ? { status: "observed", head: gates.get(path)! }
         : { status: "absent" },
       deleteCandidate: async () => { throw new Error("must not delete"); },
+      deleteRefreshCandidate: async () => { throw new Error("must not delete"); },
       removeGate: async () => { throw new Error("must not remove"); },
       deleteLocalMember: async () => { throw new Error("must not delete member"); },
       deleteRemoteMember: async () => { throw new Error("must not delete member"); },
@@ -128,6 +196,7 @@ describe("delivery closeout residue", () => {
     let persisted: { revision: number; value: DeliveryStateV1 } = { revision: 4, value: state };
     let failGateOnce = true;
     const dependencies = {
+      observeRefreshCandidates: async () => ({ status: "observed" as const, candidates: [] }),
       observeCandidate: async (ref: string) => candidates.has(ref)
         ? { status: "observed" as const, head: candidates.get(ref)! }
         : { status: "absent" as const },
@@ -139,6 +208,9 @@ describe("delivery closeout residue", () => {
         if (candidates.get(ref) !== expectedHead) return { status: "refused" as const };
         candidates.delete(ref);
         return { status: "deleted" as const };
+      },
+      deleteRefreshCandidate: async () => {
+        throw new Error("absent refresh candidates must not be deleted");
       },
       removeGate: async ({ path, expectedHead }: { path: string; expectedHead: string }) => {
         if (!gates.has(path)) return { status: "adopted" as const };

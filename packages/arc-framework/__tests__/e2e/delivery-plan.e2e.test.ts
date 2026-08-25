@@ -133,6 +133,9 @@ describe("arc delivery", () => {
     };
     const nonterminalRefs = state.members.slice(0, -1).map((member) => member.ref);
     for (const ref of nonterminalRefs) await git(repository, ["update-ref", ref, head]);
+    const staleRefreshCandidate =
+      `refs/arc/delivery-refresh-candidates/${plan.planId}/retired-member`;
+    await git(repository, ["update-ref", staleRefreshCandidate, head]);
     const origin = join(repository, "origin.git");
     await git(repository, ["init", "--bare", origin]);
     await git(repository, ["remote", "add", "origin", origin]);
@@ -197,6 +200,7 @@ describe("arc delivery", () => {
       await expect(git(repository, ["rev-parse", "--verify", ref])).rejects.toBeDefined();
       expect(await git(repository, ["ls-remote", "--refs", "origin", ref])).toBe("");
     }
+    await expect(git(repository, ["rev-parse", "--verify", staleRefreshCandidate])).rejects.toBeDefined();
     expect(await git(repository, ["rev-parse", "--verify", "refs/heads/main"])).toBe(head);
 
     const replay = await runArc([

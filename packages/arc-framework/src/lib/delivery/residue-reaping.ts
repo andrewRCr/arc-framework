@@ -27,6 +27,13 @@ export type DeliveryCandidateObservation =
   | { readonly status: "observed"; readonly head: string }
   | { readonly status: "refused"; readonly reason?: string };
 
+export type DeliveryRefreshCandidateObservation =
+  | {
+      readonly status: "observed";
+      readonly candidates: readonly { readonly ref: string; readonly head: string }[];
+    }
+  | { readonly status: "refused"; readonly reason?: string };
+
 export type DeliveryGateCheckoutObservation =
   | { readonly status: "absent" }
   | { readonly status: "observed"; readonly head: string }
@@ -156,9 +163,14 @@ export async function removeDeliveryGateCheckout(input: {
 }
 
 export interface DeliveryResidueReapingDependencies {
+  readonly observeRefreshCandidates: (planId: string) => Promise<DeliveryRefreshCandidateObservation>;
   readonly observeCandidate: (ref: string) => Promise<DeliveryCandidateObservation>;
   readonly observeGate: (path: string) => Promise<DeliveryGateCheckoutObservation>;
   readonly deleteCandidate: (input: {
+    readonly ref: string;
+    readonly expectedHead: string;
+  }) => Promise<ExactDeleteResult>;
+  readonly deleteRefreshCandidate: (input: {
     readonly ref: string;
     readonly expectedHead: string;
   }) => Promise<ExactDeleteResult>;
@@ -202,6 +214,28 @@ export async function reapCompletedDeliveryResidue(input: {
   if (derived.status === "refused") return { status: "blocked", reason: derived.reason };
   if (validateDeliveryStateAgainstPlan(input.current.value, input.plan).status === "refused") {
     return { status: "blocked", reason: "state-plan-mismatch" };
+  }
+
+  if (input.current.value.activeOperation !== null) {
+    const active = validateDeliveryActiveOperation(input.current);
+    if (active.status !== "valid" || active.operation.kind !== "teardown"
+      || active.operation.mode !== "closeout-residue") {
+      return { status: "blocked", reason: "reservation-mismatch" };
+    }
+  }
+
+  const refreshCandidates = await dependencies.observeRefreshCandidates(input.plan.planId);
+  if (refreshCandidates.status === "refused") {
+    return { status: "blocked", reason: "refresh-candidate-observation-refused" };
+  }
+  for (const candidate of refreshCandidates.candidates) {
+    const deleted = await dependencies.deleteRefreshCandidate({
+      ref: candidate.ref,
+      expectedHead: candidate.head,
+    });
+    if (deleted.status === "refused") {
+      return { status: "blocked", reason: "refresh-candidate-delete-refused" };
+    }
   }
 
   let reservation: DeliveryRevisionedRecord<DeliveryStateV1>;

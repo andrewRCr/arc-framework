@@ -13,6 +13,7 @@ import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contrib
 import {
   publishDeliveryTopRef,
   rewriteDeliveryLocalRef,
+  rewriteDeliveryMemberRef,
 } from "../../src/lib/delivery/git-materialization.js";
 import {
   applyDeliveryLanding,
@@ -28,6 +29,10 @@ import {
   observeDeliveryProviderRefresh,
   type DeliveryProviderRefreshSubject,
 } from "../../src/lib/delivery/provider-refresh-observation.js";
+import {
+  deriveDeliveryProviderRefreshCandidates,
+  executeDeliveryProviderRefresh,
+} from "../../src/lib/delivery/provider-refresh-execution.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "../../src/lib/delivery/position.js";
 import {
   DeliveryStateV1Schema,
@@ -285,6 +290,88 @@ function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typ
 }
 
 describe("member-six refresh adoption lifecycle", () => {
+  it("reserves and lease-publishes a prepared provider-native refresh before settling the top", async () => {
+    const fixture = await createRefreshFixture();
+    const memberRef = fixture.subject.before.members[0]!.ref!;
+    const originalMember = fixture.subject.before.members[0]!.coordinates!.head;
+    const observed = await fixture.observeRefresh();
+    if (observed.status !== "observed") throw new Error("prepared refresh observation must resolve");
+    await fixture.git([
+      "push",
+      `--force-with-lease=${memberRef}:${fixture.refreshedMember}`,
+      "origin",
+      `${originalMember}:${memberRef}`,
+    ]);
+    const candidates = deriveDeliveryProviderRefreshCandidates({
+      plan: fixture.plan,
+      before: fixture.subject.before,
+      requested: observed.observation.snapshot,
+    });
+    if (candidates.status !== "derived") throw new Error("refresh candidates must derive");
+    for (const candidate of candidates.candidates) {
+      await fixture.git(["update-ref", candidate.ref, candidate.head]);
+    }
+    const records = revisionStore(fixture.initial);
+    const events: string[] = [];
+    const result = await executeDeliveryProviderRefresh({
+      plan: fixture.plan,
+      current: fixture.initial,
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+    }, {
+      preparation: { prepare: async () => ({
+        status: "prepared",
+        observation: observed.observation,
+        candidates: candidates.candidates,
+      }) },
+      observePublishedHeads: async (snapshot) => Promise.all(snapshot.members.map(async (member) => {
+        const output = await fixture.git(["ls-remote", "--refs", "origin", member.ref!]);
+        return { deliverableId: member.deliverableId, head: output.split(/\s+/u)[0] ?? null };
+      })),
+      rewriteMemberRef: async (input) => {
+        events.push("publish-member");
+        return rewriteDeliveryMemberRef({ exec: fixture.gitExec, remote: "origin", ...input });
+      },
+      observeResult: fixture.observeRefresh,
+      proveContribution: fixture.proveMovement,
+      absorbTop: async (input) => {
+        events.push("absorb-top");
+        return absorbGitDeliveryChain({ exec: fixture.rawExec, ...input });
+      },
+      publishTop: async (input) => {
+        events.push("publish-top");
+        return publishDeliveryTopRef({ exec: fixture.gitExec, remote: "origin", ...input });
+      },
+      rewriteLocalRef: (input) => rewriteDeliveryLocalRef({ exec: fixture.gitExec, ...input }),
+      cleanupPreparedCandidates: async (prepared) => {
+        for (const candidate of prepared) {
+          await fixture.git(["update-ref", "-d", candidate.ref, candidate.head]);
+        }
+        events.push("cleanup");
+        return { status: "cleaned" };
+      },
+      stateStore: records.store,
+    });
+
+    expect(result).toMatchObject({
+      status: "applied",
+      state: {
+        value: {
+          activeOperation: null,
+          target: { coordinates: { head: fixture.advancedTarget } },
+          members: [
+            { coordinates: { head: fixture.refreshedMember } },
+            { coordinates: { base: fixture.refreshedMember } },
+          ],
+        },
+      },
+    });
+    expect(events).toEqual(["publish-member", "absorb-top", "publish-top", "cleanup"]);
+    for (const candidate of candidates.candidates) {
+      await expect(fixture.git(["rev-parse", "--verify", candidate.ref])).rejects.toThrow();
+    }
+  });
+
   for (const crashBoundary of ["local-merge", "remote-publication"] as const) {
     it(`recovers ${crashBoundary} interruption through the exact adoption selector`, async () => {
       const fixture = await createRefreshFixture();

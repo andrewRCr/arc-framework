@@ -72,6 +72,16 @@ applicability projections decide whether an earlier result still covers the new 
 needs review, or whether a fresh review is required. Delivery and singleton integration use the same authority
 boundary.
 
+An approved delivery-member review fix follows the presentation that currently exists. One fresh observation through
+the native-stack provider port selects only an exact registered or exact unregistered route. A registered remainder
+publishes the selected member alone, then invokes a provider-neutral refresh capability for the exact dependent
+suffix. The provider adapter prepares native rewritten commits in an isolated repository, while ARC retains
+reservation, contribution-proof, lease-publication, terminal-top, and recovery authority. An unregistered remainder
+recuts the complete suffix from top content that already carries the fix. External operator refresh followed by
+fresh structural adoption remains the fallback. Partial, incoherent, ambiguous, malformed, unsupported, or
+unavailable presentation stops. Provider-specific commands and UI stay behind adapters or operator procedure;
+delivery plan, state, operation, and core-service contracts retain only provider-neutral member and suffix identities.
+
 ## Terminal Integration Authority
 
 Immediately before merge, the integration checkpoint composes fresh Candidate applicability, publication settlement,
