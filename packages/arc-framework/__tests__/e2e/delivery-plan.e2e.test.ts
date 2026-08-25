@@ -67,9 +67,9 @@ describe("arc delivery", () => {
     await expect(runArc(["delivery", "plan", "abandon", "--help"], repository))
       .resolves.toMatchObject({ exitCode: 0 });
     for (const command of [
-      ["eligibility", "prepare"], ["eligibility", "close"], ["materialize"], ["publish"],
+      ["eligibility", "prepare"], ["eligibility", "close"], ["publish"],
       ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"],
-      ["terminal", "prepare"], ["terminal", "attach"], ["teardown"],
+      ["teardown"],
     ]) {
       const help = await runArc(["delivery", ...command, "--help"], repository);
       expect(help.exitCode, help.stderr).toBe(0);
@@ -111,9 +111,9 @@ describe("arc delivery", () => {
       const branch = await git(repository, ["branch", "--show-current"]);
       const head = await git(repository, ["rev-parse", "HEAD"]);
       const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-      const controlRef = "refs/heads/delivery-control";
+      const topRef = "refs/heads/delivery-control";
       const candidateRef = "refs/heads/delivery-candidate";
-      await git(repository, ["update-ref", controlRef, head]);
+      await git(repository, ["update-ref", topRef, head]);
       await git(repository, ["update-ref", candidateRef, head]);
 
       const deliveryRoot = join(repository, ".git", "arc", "delivery");
@@ -129,7 +129,7 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
-          control: { ref: controlRef, head, tree },
+          top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
             ref: candidateRef,
@@ -164,9 +164,9 @@ describe("arc delivery", () => {
       const branch = await git(repository, ["branch", "--show-current"]);
       const head = await git(repository, ["rev-parse", "HEAD"]);
       const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-      const controlRef = "refs/heads/delivery-control";
+      const topRef = "refs/heads/delivery-control";
       const candidateRef = "refs/heads/delivery-candidate";
-      await git(repository, ["update-ref", controlRef, head]);
+      await git(repository, ["update-ref", topRef, head]);
       await git(repository, ["update-ref", candidateRef, head]);
 
       const deliveryRoot = join(repository, ".git", "arc", "delivery");
@@ -183,7 +183,7 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
-          control: { ref: controlRef, head, tree },
+          top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
             ref: candidateRef,
@@ -223,9 +223,8 @@ describe("arc delivery", () => {
     const invocationsByWorkflow = workflows.map(
       (workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? [],
     );
-    for (const invocations of invocationsByWorkflow) {
-      expect(invocations.length).toBeGreaterThan(0);
-    }
+    expect(invocationsByWorkflow[0]?.length).toBeGreaterThan(0);
+    expect(invocationsByWorkflow[1]).toEqual([]);
     const invocations = invocationsByWorkflow.flat();
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);
@@ -508,178 +507,6 @@ describe("arc delivery", () => {
     );
     expect(degraded.exitCode, degraded.stderr).toBe(0);
     expect(JSON.parse(degraded.stdout)).toMatchObject({ status: "unlinked" });
-  });
-
-  it("reaches terminal readiness and idempotent attachment through the built CLI", async () => {
-    const targetHead = await git(repository, ["rev-parse", "HEAD"]);
-    const targetTree = await git(repository, ["rev-parse", `${targetHead}^{tree}`]);
-    await writeFile(join(repository, "terminal-contribution.txt"), "terminal contribution\n");
-    await git(repository, ["add", "--", "terminal-contribution.txt"]);
-    await git(repository, ["commit", "-m", "add terminal contribution"]);
-    const controlHead = await git(repository, ["rev-parse", "HEAD"]);
-    const controlTree = await git(repository, ["rev-parse", `${controlHead}^{tree}`]);
-    await git(repository, ["remote", "add", "origin", repository]);
-
-    const plan = deliveryFourMemberStackPlanFixture();
-    const initial = deliveryStateFixture(plan);
-    const state = {
-      ...initial,
-      target: {
-        ref: "refs/heads/protected",
-        coordinates: { head: targetHead, tree: targetTree },
-      },
-      members: initial.members.map((member) => ({
-        deliverableId: member.deliverableId,
-        ref: null,
-        changeRequest: null,
-        coordinates: null,
-      })),
-    };
-    const common = await gitCommonDir(repository);
-    const plans = join(common, "arc", "delivery", "plans");
-    const states = join(common, "arc", "delivery", "state");
-    await Promise.all([
-      mkdir(plans, { recursive: true }),
-      mkdir(states, { recursive: true }),
-      mkdir(join(repository, ".arc", "active"), { recursive: true }),
-    ]);
-    await Promise.all([
-      writeFile(join(plans, `${plan.planId}.json`), `${JSON.stringify(plan)}\n`),
-      writeFile(join(states, `${plan.planId}.json`), `${JSON.stringify({
-        schemaVersion: 1,
-        semanticsVersion: "delivery-state-store/v1",
-        planId: plan.planId,
-        revision: 1,
-        value: state,
-      })}\n`),
-      writeFile(join(repository, ".arc", "active", "meta-delivery-plan-record.md"), [
-        "# Metadata: delivery-plan-record",
-        "",
-        "- **State:** Integrating",
-        "- **Owner:** test-user",
-        "- **Branch:** main",
-        "- **Task List:** `tasks-delivery-plan-record.md`",
-        "",
-      ].join("\n")),
-    ]);
-
-    const terminalRequest = JSON.stringify({
-      number: 99,
-      state: "closed",
-      merged: true,
-      draft: false,
-      head: { ref: "main", sha: controlHead, repo: { full_name: "owner/repo" } },
-      base: { ref: "protected", repo: { full_name: "owner/repo" } },
-    });
-    const fakeBin = join(repository, "fake-bin");
-    const fakeGh = join(fakeBin, "gh");
-    await mkdir(fakeBin);
-    await writeFile(fakeGh, [
-      "#!/bin/sh",
-      "case \"$2\" in",
-      "  repos/owner/repo/pulls/99)",
-      `    printf '%s\\n' '${terminalRequest}'`,
-      "    ;;",
-      "  repos/owner/repo/git/ref/heads/protected)",
-      `    if [ "\${ARC_FAKE_GH_MODE:-before}" = "after" ]; then printf '%s\\n' '{"object":{"sha":"${controlHead}"}}'; else printf '%s\\n' '{"object":{"sha":"${targetHead}"}}'; fi`,
-      "    ;;",
-      `  repos/owner/repo/git/commits/${targetHead})`,
-      `    printf '%s\\n' '{"tree":{"sha":"${targetTree}"}}'`,
-      "    ;;",
-      `  repos/owner/repo/git/commits/${controlHead})`,
-      `    printf '%s\\n' '{"tree":{"sha":"${controlTree}"}}'`,
-      "    ;;",
-      "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
-      "esac",
-      "",
-    ].join("\n"));
-    await chmod(fakeGh, 0o755);
-    const env = { PATH: `${fakeBin}:${process.env.PATH ?? ""}` };
-
-    const prepared = await runArcWithStdin(
-      ["delivery", "terminal", "prepare", "-", "--json"],
-      repository,
-      `${JSON.stringify({
-        repository: "owner/repo",
-        remote: "origin",
-        controlRef: "refs/heads/main",
-        controlCheckoutPath: repository,
-        protectedTargetRef: "refs/heads/protected",
-      })}\n`,
-      { env },
-    );
-    expect(prepared.exitCode, prepared.stderr).toBe(0);
-    expect(JSON.parse(prepared.stdout)).toMatchObject({ status: "terminal-ready" });
-
-    const attachInput = `${JSON.stringify({
-      workUnitId: "delivery-plan-record",
-      repository: "owner/repo",
-      remote: "origin",
-      retainedControlRef: "refs/heads/main",
-      changeRequestId: "99",
-    })}\n`;
-    const attached = await runArcWithStdin(
-      ["delivery", "terminal", "attach", "-", "--json"],
-      repository,
-      attachInput,
-      { env: { ...env, ARC_FAKE_GH_MODE: "after" } },
-    );
-    expect(attached.exitCode, attached.stderr).toBe(0);
-    const attachedBody = JSON.parse(attached.stdout) as {
-      status: string;
-      state: { value: { target: unknown; members: unknown[] } };
-    };
-    expect(attachedBody).toMatchObject({
-      status: "attached",
-      state: {
-        value: {
-          target: { coordinates: { head: controlHead, tree: controlTree } },
-        },
-      },
-    });
-    expect(attachedBody.state.value.members.at(-1)).toMatchObject({
-      ref: "refs/heads/main",
-      changeRequest: { providerId: "github", changeRequestId: "99" },
-      coordinates: { base: targetHead, head: controlHead, tree: controlTree },
-    });
-
-    const repeated = await runArcWithStdin(
-      ["delivery", "terminal", "attach", "-", "--json"],
-      repository,
-      attachInput,
-      { env: { ...env, ARC_FAKE_GH_MODE: "after" } },
-    );
-    expect(repeated.exitCode, repeated.stderr).toBe(0);
-    expect(JSON.parse(repeated.stdout)).toMatchObject({ status: "already-attached" });
-  });
-
-  it("returns not-applicable for a swept ordinary work unit with no current delivery plan", async () => {
-    const completed = join(repository, ".arc", "completed", "2026-q3", "01_ordinary");
-    await mkdir(completed, { recursive: true });
-    await writeFile(join(completed, "meta-ordinary.md"), [
-      "# Metadata: ordinary",
-      "",
-      "- **State:** Shipped",
-      "- **Owner:** test-user",
-      "- **Branch:** [none]",
-      "- **Depends On:** [none]",
-      "",
-    ].join("\n"));
-
-    const result = await runArcWithStdin(
-      ["delivery", "terminal", "attach", "-", "--json"],
-      repository,
-      `${JSON.stringify({
-        workUnitId: "ordinary",
-        repository: "owner/repo",
-        remote: "origin",
-        retainedControlRef: "refs/heads/feat/ordinary",
-        changeRequestId: "99",
-      })}\n`,
-    );
-
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ status: "not-applicable" });
   });
 
   it("validates design input before writing task-derived authoring state", async () => {

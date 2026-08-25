@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
   prepareDeliverySuffixRematerialization,
   type DeliverySuffixRematerializationDependencies,
@@ -31,7 +32,7 @@ function fixture() {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: target.ref, ...target.coordinates! },
-    control: { ref: "refs/heads/feat/control", head: "d".repeat(40), tree: "e".repeat(40) },
+    top: { ref: "refs/heads/feat/control", head: "d".repeat(40), tree: "e".repeat(40) },
     members: [{ deliverableId: second.deliverableId, ref: "refs/heads/candidate/second", head: "a".repeat(40), tree: "b".repeat(40) }, {
       deliverableId: third.deliverableId, ref: "refs/heads/candidate/third", head: "c".repeat(40), tree: "d".repeat(40),
     }],
@@ -45,6 +46,96 @@ async function resolveCoordinate(head: string) {
 }
 
 describe("delivery suffix rematerialization", () => {
+  it("content-neutrally re-adopts the recut suffix and version-rebinds the terminal", async () => {
+    const { state } = fixture();
+    const highest = state.members.at(-2)!;
+    const terminal = state.members.at(-1)!;
+    const adoptedHead = "9".repeat(40);
+    const result = await completeDeliverySuffixMutationTail({
+      rematerialized: {
+        status: "rematerialized",
+        state: { revision: 7, value: state },
+        contributionVerdicts: [],
+        nextAction: "verify-review-fix",
+        verification: { memberDeliverableIds: [], tier1Required: true },
+      },
+      commonBase: state.target!.coordinates!,
+      topRef: terminal.ref!,
+    }, {
+      adoptTop: async () => ({ status: "adopted", head: adoptedHead, tree: terminal.coordinates!.tree }),
+      publishTop: async () => ({ status: "published" }),
+      publishState: async (_planId, value, expectedRevision) => expectedRevision === 7
+        ? { status: "ok", value: { revision: 8, value } }
+        : { status: "refused" },
+    });
+    expect(result).toMatchObject({
+      status: "rematerialized",
+      state: {
+        revision: 8,
+        value: {
+          members: expect.arrayContaining([{
+            ...terminal,
+            coordinates: {
+              base: highest.coordinates!.head,
+              head: adoptedHead,
+              tree: terminal.coordinates!.tree,
+            },
+          }]),
+        },
+      },
+      nextAction: "verify-review-fix",
+    });
+  });
+
+  it("refuses a stale writer at the terminal rebind", async () => {
+    const { state } = fixture();
+    const terminal = state.members.at(-1)!;
+    const result = await completeDeliverySuffixMutationTail({
+      rematerialized: {
+        status: "rematerialized",
+        state: { revision: 7, value: state },
+        contributionVerdicts: [],
+        nextAction: "verify-review-fix",
+        verification: { memberDeliverableIds: [], tier1Required: true },
+      },
+      commonBase: state.target!.coordinates!,
+      topRef: terminal.ref!,
+    }, {
+      adoptTop: async () => ({ status: "adopted", head: "9".repeat(40), tree: terminal.coordinates!.tree }),
+      publishTop: async () => ({ status: "published" }),
+      publishState: async () => ({ status: "refused" }),
+    });
+    expect(result).toEqual({ status: "refused", reason: "state-moved" });
+  });
+
+  it("adopts an already rebound top without creating another ancestry commit", async () => {
+    const { state } = fixture();
+    const highest = state.members.at(-2)!;
+    const terminal = state.members.at(-1)!;
+    const rebound = {
+      ...state,
+      members: state.members.map((member) => member.deliverableId === terminal.deliverableId
+        ? { ...member, coordinates: { ...member.coordinates!, base: highest.coordinates!.head } }
+        : member),
+    };
+    const result = await completeDeliverySuffixMutationTail({
+      rematerialized: {
+        status: "rematerialized",
+        state: { revision: 8, value: rebound },
+        contributionVerdicts: [],
+        nextAction: "verify-review-fix",
+        verification: { memberDeliverableIds: [], tier1Required: true },
+      },
+      commonBase: state.target!.coordinates!,
+      topRef: terminal.ref!,
+    }, {
+      adoptTop: async () => { throw new Error("must not create another adoption"); },
+      publishTop: async () => ({ status: "adopted" }),
+      publishState: async () => { throw new Error("must not rewrite exact state"); },
+    });
+    expect(result).toMatchObject({ status: "rematerialized", state: { revision: 8, value: rebound } });
+  });
+
   it("accepts a selected fix and requires every unselected suffix contribution to carry", async () => {
     const { plan, state, facts, snapshot, second } = fixture();
     const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }));
@@ -56,6 +147,18 @@ describe("delivery suffix rematerialization", () => {
     if (result.status !== "prepared") return;
     expect(result.rewrites).toHaveLength(1);
     expect(result.rewrites[0]?.requested.members[0]?.changeRequest).toEqual(second.changeRequest);
+    expect(result.contributionVerdicts).toEqual([
+      {
+        deliverableId: second.deliverableId,
+        contribution: "changed",
+        proof: "selected-change",
+      },
+      {
+        deliverableId: snapshot.members[1]!.deliverableId,
+        contribution: "equivalent",
+        proof: "mechanical-reapply",
+      },
+    ]);
     expect(proveCarried).toHaveBeenCalledOnce();
   });
 
@@ -72,7 +175,7 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
-      control: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
+      top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 2}`,
@@ -111,6 +214,13 @@ describe("delivery suffix rematerialization", () => {
       },
     });
     expect(result.status).toBe("rematerialized");
+    expect(result).toMatchObject({
+      nextAction: "verify-review-fix",
+      verification: {
+        memberDeliverableIds: [initial.members[1]!.deliverableId],
+        tier1Required: true,
+      },
+    });
     expect(seenRevisions).toEqual([7, 8]);
     expect(proveCarried).toHaveBeenCalledTimes(6);
   });
@@ -129,7 +239,7 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
-      control: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
+      top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
         ref: `refs/heads/candidate-${index + 2}`,
@@ -196,7 +306,7 @@ describe("delivery suffix rematerialization", () => {
   });
 
   it("refuses candidate movement and selection outside the exact suffix", async () => {
-    const { plan, state, facts, snapshot, second } = fixture();
+    const { plan, state, facts, snapshot, second, third } = fixture();
     const fresh = async () => ({ status: "observed" as const, plan, current: { revision: 7, value: state }, facts, snapshot });
     await expect(executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [second.deliverableId],
@@ -209,6 +319,15 @@ describe("delivery suffix rematerialization", () => {
     })).resolves.toEqual({ status: "refused", reason: "candidate-moved" });
     await expect(executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [state.members[0]!.deliverableId],
+    }, {
+      reobserve: fresh,
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply: async () => { throw new Error("must not apply"); },
+    })).resolves.toEqual({ status: "refused", reason: "selected-member-invalid" });
+    await expect(executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [third.deliverableId],
     }, {
       reobserve: fresh,
       reobserveCandidate: async () => true,
