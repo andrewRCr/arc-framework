@@ -1,9 +1,10 @@
-/** Byte-preserving Git acquisition for delivery contribution identity. */
+/** Git-backed structural identity proof for one carried delivery member. */
 
 import type { RawGitExec } from "../change-facts.js";
+import { supportsMergeTreeWriteTree } from "../git/merge-tree-capability.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import {
   compareDeliveryContribution,
-  encodeDeliveryContributionPatch,
   type DeliveryContributionCoordinate,
   type DeliveryContributionEndpoints,
   type DeliveryContributionProofResult,
@@ -32,23 +33,37 @@ async function verifyCoordinate(exec: RawGitExec, coordinate: DeliveryContributi
   }
 }
 
-async function isLinearRange(exec: RawGitExec, predecessor: string, member: string): Promise<boolean> {
+function mergeTreeResult(bytes: Uint8Array): string | null {
   try {
-    await exec(["merge-base", "--is-ancestor", predecessor, member], { objectAccess: "local-only" });
-    const result = await exec(["rev-list", "--parents", `${predecessor}..${member}`], {
-      objectAccess: "local-only",
-    });
-    const lines = text(result.stdout)?.split("\n").filter(Boolean) ?? [];
-    return lines.length > 0 && lines.every((line) => {
-      const fields = line.split(" ");
-      return fields.length === 2 && fields.every((field) => objectId.test(field));
-    });
+    const first = decoder.decode(bytes).split(/[\0\n]/u)[0];
+    return first !== undefined && objectId.test(first) ? first : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-/** Acquire and compare exact aggregate patches for four already-pinned Git endpoints. */
+function nulFields(bytes: Uint8Array): string[] | null {
+  try {
+    const decoded = decoder.decode(bytes);
+    if (decoded.length > 0 && !decoded.endsWith("\0")) return null;
+    return decoded.split("\0").filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+function pathList(bytes: Uint8Array): string[] | null {
+  const fields = nulFields(bytes);
+  return fields === null ? null : [...new Set(fields)].sort();
+}
+
+function conflictPaths(bytes: Uint8Array): string[] {
+  const fields = nulFields(bytes);
+  if (fields === null || fields[0] === undefined || !objectId.test(fields[0])) return [];
+  return [...new Set(fields.slice(1))].sort();
+}
+
+/** Reapply one pinned contribution and compare its structural result to the provider tree. */
 export async function proveGitDeliveryContribution(input: DeliveryContributionEndpoints & {
   readonly exec: RawGitExec;
 }): Promise<DeliveryContributionProofResult> {
@@ -56,35 +71,45 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
     input.before.predecessor, input.before.member, input.after.predecessor, input.after.member,
   ];
   if (!(await Promise.all(coordinates.map(async (coordinate) => verifyCoordinate(input.exec, coordinate))))
-    .every(Boolean)) return { status: "refused", reason: "patch-evidence-invalid" };
-  if (input.before.member.tree === input.after.member.tree) {
-    return compareDeliveryContribution(input);
+    .every(Boolean)) return { status: "refused", reason: "contribution-endpoints-unverified" };
+  const comparison = compareDeliveryContribution(input);
+  if (comparison.status === "accepted") return comparison;
+  if (!await supportsMergeTreeWriteTree(input.exec, input.before.predecessor.head)) {
+    return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
   }
-  const [beforeLinear, afterLinear] = await Promise.all([
-    isLinearRange(input.exec, input.before.predecessor.head, input.before.member.head),
-    isLinearRange(input.exec, input.after.predecessor.head, input.after.member.head),
-  ]);
-  if (!beforeLinear || !afterLinear) return { status: "refused", reason: "patch-evidence-invalid" };
+  const mergeArgs = [
+    "merge-tree",
+    "--write-tree",
+    "--merge-base", input.before.predecessor.head,
+    "--name-only",
+    "-z",
+    "--no-messages",
+    input.after.predecessor.head,
+    input.before.member.head,
+  ];
   try {
-    const formatResult = await input.exec(["rev-parse", "--show-object-format"]);
-    const objectFormat = text(formatResult.stdout);
-    if (objectFormat !== "sha1" && objectFormat !== "sha256") {
-      return { status: "refused", reason: "patch-evidence-invalid" };
+    const result = await input.exec(mergeArgs, { objectAccess: "local-only" });
+    const reappliedTree = mergeTreeResult(result.stdout);
+    if (reappliedTree === null) return { status: "refused", reason: "git-failure" };
+    if (reappliedTree === input.after.member.tree) {
+      return { status: "accepted", proof: "mechanical-reapply" };
     }
-    const args = (predecessor: string, member: string) => [
-      "diff", "--binary", "--full-index", "--no-renames", "--no-ext-diff",
-      "--src-prefix=a/", "--dst-prefix=b/", predecessor, member,
-    ];
-    const [beforePatch, afterPatch] = await Promise.all([
-      input.exec(args(input.before.predecessor.head, input.before.member.head), { objectAccess: "local-only" }),
-      input.exec(args(input.after.predecessor.head, input.after.member.head), { objectAccess: "local-only" }),
-    ]);
-    return compareDeliveryContribution({
-      ...input,
-      beforePatch: encodeDeliveryContributionPatch(objectFormat, beforePatch.stdout),
-      afterPatch: encodeDeliveryContributionPatch(objectFormat, afterPatch.stdout),
-    });
-  } catch {
-    return { status: "refused", reason: "patch-evidence-invalid" };
+    const difference = await input.exec([
+      "diff", "--name-only", "-z", "--no-renames", reappliedTree, input.after.member.tree,
+    ], { objectAccess: "local-only" });
+    const paths = pathList(difference.stdout);
+    return paths === null || paths.length === 0
+      ? { status: "refused", reason: "git-failure" }
+      : { status: "refused", reason: "contribution-diverged", paths };
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args: mergeArgs });
+    if (failure.kind === "nonzero-exit" && failure.exitCode === 1) {
+      return {
+        status: "refused",
+        reason: "contribution-conflicted",
+        paths: conflictPaths(Buffer.from(failure.stdout, "latin1")),
+      };
+    }
+    return { status: "refused", reason: "git-failure" };
   }
 }
