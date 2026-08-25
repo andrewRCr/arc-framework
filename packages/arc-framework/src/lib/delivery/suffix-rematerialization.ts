@@ -1,7 +1,8 @@
-/** Preparation of a complete review-fix suffix from the retained control branch. */
+/** Preparation of a complete review-fix suffix from the delivery top. */
 
 import { canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import { classifyDeliveryPlanAmendment, type DeliveryPlanAmendmentResult } from "./amendment.js";
+import type { DeliveryChainAdoptionResult } from "./chain-adoption.js";
 import type {
   DeliveryContributionCoordinate,
   DeliveryContributionEndpoints,
@@ -13,8 +14,8 @@ import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position
 import type {
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
-  DeliveryStateV1,
 } from "./schema.js";
+import { DeliveryStateV1Schema, type DeliveryStateV1 } from "./schema.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 
 /** One bound non-terminal ref that must be rewritten from the validated suffix. */
@@ -24,9 +25,32 @@ export interface DeliverySuffixRewritePlan {
   readonly requested: DeliveryOperationSnapshotV1;
 }
 
+/** Arbiter-backed contribution disposition used to scope review-fix verification. */
+export interface DeliverySuffixContributionVerdict {
+  readonly deliverableId: string;
+  readonly contribution: "changed" | "equivalent";
+  readonly proof: "selected-change" | "tree-equality" | "mechanical-reapply";
+}
+
+/** Successful suffix recut and its typed after-fix verification route. */
+export interface DeliverySuffixRematerializedResult {
+  readonly status: "rematerialized";
+  readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly contributionVerdicts: readonly DeliverySuffixContributionVerdict[];
+  readonly nextAction: "verify-review-fix";
+  readonly verification: {
+    readonly memberDeliverableIds: readonly string[];
+    readonly tier1Required: true;
+  };
+}
+
 /** Closed preparation result; no state or remote mutation occurs here. */
 export type PrepareDeliverySuffixRematerializationResult =
-  | { readonly status: "prepared"; readonly rewrites: readonly DeliverySuffixRewritePlan[] }
+  | {
+      readonly status: "prepared";
+      readonly rewrites: readonly DeliverySuffixRewritePlan[];
+      readonly contributionVerdicts: readonly DeliverySuffixContributionVerdict[];
+    }
   | { readonly status: "plan-amendment"; readonly disposition: DeliveryPlanAmendmentResult }
   | DeliveryContributionRefusal
   | {
@@ -112,12 +136,13 @@ export async function prepareDeliverySuffixRematerialization(input: {
     return { status: "refused", reason: "direct-delivery-ref" };
   }
   const selected = new Set(input.selectedDeliverableIds);
-  const suffixIds = new Set(suffix.map((member) => member.deliverableId));
+  const suffixIds = new Set(suffix.slice(0, -1).map((member) => member.deliverableId));
   if (selected.size === 0 || selected.size !== input.selectedDeliverableIds.length
     || input.selectedDeliverableIds.some((id) => !suffixIds.has(id))) {
     return { status: "refused", reason: "selected-member-invalid" };
   }
 
+  const acceptedProofs = new Map<string, "tree-equality" | "mechanical-reapply">();
   for (const [suffixIndex, candidate] of snapshot.members.entries()) {
     if (selected.has(candidate.deliverableId)) continue;
     const stateIndex = landedCount + suffixIndex;
@@ -136,6 +161,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
       after: { predecessor: afterPredecessor, member: candidate },
     });
     if (proof.status !== "accepted") return proof;
+    acceptedProofs.set(candidate.deliverableId, proof.proof);
   }
 
   const rewrites: DeliverySuffixRewritePlan[] = [];
@@ -159,14 +185,31 @@ export async function prepareDeliverySuffixRematerialization(input: {
       },
     });
   }
-  return { status: "prepared", rewrites };
+  return {
+    status: "prepared",
+    rewrites,
+    contributionVerdicts: snapshot.members.map((member) => {
+      if (selected.has(member.deliverableId)) return {
+        deliverableId: member.deliverableId,
+        contribution: "changed" as const,
+        proof: "selected-change" as const,
+      };
+      const proof = acceptedProofs.get(member.deliverableId);
+      if (proof === undefined) throw new Error("validated suffix lost its contribution proof");
+      return {
+        deliverableId: member.deliverableId,
+        contribution: "equivalent" as const,
+        proof,
+      };
+    }),
+  };
 }
 
 /** Reclose, reprove, and apply every non-terminal suffix rewrite in persisted order. */
 export async function executeFreshDeliverySuffixRematerialization(input: {
   readonly selectedDeliverableIds: readonly string[];
 }, dependencies: DeliverySuffixRematerializationDependencies): Promise<
-  | { readonly status: "rematerialized"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | DeliverySuffixRematerializedResult
   | DeliveryContributionRefusal
   | {
       readonly status: "refused";
@@ -186,6 +229,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
 > {
   let expectedState: DeliveryRevisionedRecord<DeliveryStateV1> | null = null;
   let rewriteOrder: readonly string[] | null = null;
+  let contributionVerdicts: readonly DeliverySuffixContributionVerdict[];
   let nextIndex = 0;
   for (;;) {
     const fresh = await dependencies.reobserve();
@@ -206,6 +250,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
     if (prepared.status !== "prepared") {
       return prepared.status === "refused" ? prepared : { status: "refused", reason: "plan-amendment" };
     }
+    contributionVerdicts = prepared.contributionVerdicts;
     const currentOrder = prepared.rewrites.map((rewrite) => rewrite.deliverableId);
     if (rewriteOrder === null) rewriteOrder = currentOrder;
     else if (canonicalize(currentOrder) !== canonicalize(rewriteOrder)) {
@@ -213,7 +258,18 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
     }
     const deliverableId = rewriteOrder[nextIndex];
     if (deliverableId === undefined) {
-      return { status: "rematerialized", state: expectedState ?? fresh.current };
+      return {
+        status: "rematerialized",
+        state: expectedState ?? fresh.current,
+        contributionVerdicts,
+        nextAction: "verify-review-fix",
+        verification: {
+          memberDeliverableIds: contributionVerdicts
+            .filter((verdict) => verdict.contribution === "changed")
+            .map((verdict) => verdict.deliverableId),
+          tier1Required: true,
+        },
+      };
     }
     const rewrite = prepared.rewrites.find((candidate) => candidate.deliverableId === deliverableId);
     if (rewrite === undefined || !(await dependencies.reobserveCandidate(rewrite))) {
@@ -224,4 +280,91 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
     expectedState = applied.state;
     nextIndex += 1;
   }
+}
+
+/** Complete the post-fix tail after suffix rewrites have converged. */
+export async function completeDeliverySuffixMutationTail(input: {
+  readonly rematerialized: DeliverySuffixRematerializedResult;
+  readonly commonBase: DeliveryContributionCoordinate;
+  readonly topRef: string;
+}, dependencies: {
+  adoptTop(input: {
+    readonly topRef: string;
+    readonly commonBase: DeliveryContributionCoordinate;
+    readonly highestMember: DeliveryContributionCoordinate;
+    readonly top: DeliveryContributionCoordinate;
+  }): Promise<DeliveryChainAdoptionResult>;
+  publishTop(input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }): Promise<{ readonly status: "published" | "adopted" } | { readonly status: "refused" }>;
+  publishState(
+    planId: string,
+    value: DeliveryStateV1,
+    expectedRevision: number,
+  ): Promise<
+    | { readonly status: "ok"; readonly value: DeliveryRevisionedRecord<DeliveryStateV1> }
+    | { readonly status: "refused" }
+  >;
+}): Promise<DeliverySuffixRematerializedResult | {
+  readonly status: "refused";
+  readonly reason:
+    | "projection-invalid"
+    | "adoption-refused"
+    | "content-changed"
+    | "top-publication-refused"
+    | "state-moved";
+}> {
+  const current = input.rematerialized.state;
+  const terminal = current.value.members.at(-1);
+  const highestMember = current.value.members.at(-2);
+  if (current.value.activeOperation !== null || terminal?.coordinates === null || terminal?.ref === null
+    || terminal === undefined || highestMember?.coordinates === null || highestMember === undefined
+    || terminal.ref !== input.topRef) {
+    return { status: "refused", reason: "projection-invalid" };
+  }
+  const terminalCoordinates = terminal.coordinates;
+  const highestCoordinates = highestMember.coordinates;
+  const alreadyRebound = terminalCoordinates.base === highestCoordinates.head;
+  const adoption = alreadyRebound
+    ? { status: "adopted" as const, head: terminalCoordinates.head, tree: terminalCoordinates.tree }
+    : await dependencies.adoptTop({
+        topRef: input.topRef,
+        commonBase: input.commonBase,
+        highestMember: highestCoordinates,
+        top: terminalCoordinates,
+      });
+  if (adoption.status !== "adopted") {
+    return { status: "refused", reason: "adoption-refused" };
+  }
+  if (adoption.tree !== terminalCoordinates.tree) return { status: "refused", reason: "content-changed" };
+  const publication = await dependencies.publishTop({
+    ref: input.topRef,
+    beforeHead: terminalCoordinates.head,
+    requestedHead: adoption.head,
+  });
+  if (publication.status === "refused") return { status: "refused", reason: "top-publication-refused" };
+  if (alreadyRebound) return input.rematerialized;
+
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...current.value,
+    members: current.value.members.map((member) => member.deliverableId === terminal.deliverableId
+      ? {
+          ...member,
+          coordinates: {
+            base: highestCoordinates.head,
+            head: adoption.head,
+            tree: adoption.tree,
+          },
+        }
+      : member),
+  });
+  if (!parsed.success) return { status: "refused", reason: "projection-invalid" };
+  const persisted = await dependencies.publishState(current.value.planId, parsed.data, current.revision);
+  if (persisted.status !== "ok" || persisted.value.revision !== current.revision + 1
+    || canonicalize(persisted.value.value) !== canonicalize(parsed.data)) {
+    return { status: "refused", reason: "state-moved" };
+  }
+  return { ...input.rematerialized, state: persisted.value };
 }

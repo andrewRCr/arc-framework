@@ -14,6 +14,8 @@ import type {
   DeliveryDischargeTargetLookupResult,
   DeliveryMemberLookup,
   DeliveryMemberLookupResult,
+  DeliveryTerminalRecordLookup,
+  DeliveryTerminalRecordLookupResult,
 } from "../../core/delivery-member-lookup.js";
 
 function branchName(ref: string | null): string | null {
@@ -22,7 +24,8 @@ function branchName(ref: string | null): string | null {
 }
 
 /** Delivery-member lookup backed by one repository's Git-common delivery state. */
-export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, DeliveryDischargeTargetLookup {
+export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, DeliveryDischargeTargetLookup,
+DeliveryTerminalRecordLookup {
   private readonly plans: RepositoryDeliveryPlanStore<DeliveryPlanV1>;
   private readonly store: RepositoryDeliveryStateStore;
 
@@ -110,6 +113,27 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, Del
           }];
         }),
       };
+    } catch {
+      return { status: "unavailable" };
+    }
+  }
+
+  /** Read the one coherent delivery plan and state for a work unit. */
+  async resolveTerminalRecords(workUnitId: string): Promise<DeliveryTerminalRecordLookupResult> {
+    try {
+      const plans = await this.plans.enumerateCurrentReadOnly();
+      if (plans.status === "refused") return { status: "unavailable" };
+      const matching = plans.value.filter((plan) => plan.workUnitId === workUnitId);
+      if (matching.length === 0) return { status: "unbound" };
+      const plan = matching.length === 1 ? matching[0] : undefined;
+      if (plan === undefined) return { status: "unavailable" };
+      const record = await this.store.read(plan.planId);
+      if (record.status === "refused") return { status: "unavailable" };
+      if (record.value === null) return { status: "unbound" };
+      const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
+      return coherence.status === "valid"
+        ? { status: "resolved", plan, state: coherence.state }
+        : { status: "unavailable" };
     } catch {
       return { status: "unavailable" };
     }

@@ -5,30 +5,29 @@ import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../../../..");
 
-describe("delivery terminal integration attachment", () => {
-  it("keeps package/project parity and places one total attachment between merge confirmation and close", async () => {
+describe("delivery terminal integration handoff", () => {
+  it("keeps package/project parity and one checkpoint interlock before merge and cleanup", async () => {
     const [packaged, installed] = await Promise.all([
       readFile(resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
       readFile(resolve(root, ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
     ]);
     expect(installed).toBe(packaged);
-    const attachment = "Invoke the typed delivery terminal post-merge attachment exactly once";
-    expect(packaged.split(attachment)).toHaveLength(2);
-    expect(packaged.split("arc delivery terminal attach - --json")).toHaveLength(2);
+    expect(packaged).not.toContain("arc delivery terminal attach");
+    expect(packaged.split("arc integrate checkpoint {name} --json")).toHaveLength(2);
+    expect(packaged.split("> `integration-interlock`: Stop after the ready evidence")).toHaveLength(2);
+    const checkpoint = packaged.indexOf("arc integrate checkpoint {name} --json");
+    const interlock = packaged.indexOf("> `integration-interlock`: Stop after the ready evidence", checkpoint);
     const merge = packaged.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
     const resume = packaged.indexOf("**Skip the merge when the PR is already merged**");
-    const attach = packaged.indexOf(attachment);
-    const close = packaged.indexOf("arc user close {name}", attach);
+    const close = packaged.indexOf("arc user close {name}", merge);
     const teardown = packaged.indexOf("arc teardown <wu-name>", close);
-    for (const position of [merge, resume, attach, close, teardown]) {
+    for (const position of [checkpoint, interlock, merge, resume, close, teardown]) {
       expect(position).toBeGreaterThan(-1);
     }
-    expect(merge).toBeLessThan(attach);
-    expect(resume).toBeLessThan(attach);
-    expect(attach).toBeLessThan(close);
+    expect(checkpoint).toBeLessThan(interlock);
+    expect(interlock).toBeLessThan(merge);
+    expect(merge).toBeLessThan(close);
+    expect(resume).toBeLessThan(close);
     expect(close).toBeLessThan(teardown);
-    expect(packaged.slice(attach, close)).toContain("workUnitId: {name}");
-    expect(packaged.slice(attach, close)).toMatch(/attached.*already-attached.*not-applicable.*blocked/su);
-    expect(packaged.slice(attach, close)).toMatch(/no reservation.*no authorization/su);
   });
 });
