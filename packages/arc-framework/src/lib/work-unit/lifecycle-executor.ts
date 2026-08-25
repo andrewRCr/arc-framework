@@ -87,6 +87,8 @@ export interface TransitionInputs {
   worktreeOp?: ReconcileWorkUnitWorktreeOp;
   /** Values for soft fields whose disposition is `"input"` — required when the field applies. */
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
+  /** Explicit destination-workflow override for a task-resuming lifecycle edge. */
+  currentWorkflowOverride?: string;
   /** The WU's resolved `Class` — the `class-resolved` guard input (`promote`). */
   class?: string;
   /** Persist a newly acquired Class in the relocated meta during promotion finalization. */
@@ -1063,7 +1065,8 @@ async function applyCurrentWorkflowField(
   inputs: TransitionInputs,
 ): Promise<string | null> {
   if (!softFieldsApply(record) || metaPath === null) return null;
-  const workflow = record.encodingUpdates.setCurrentWorkflowField
+  const workflow = inputs.currentWorkflowOverride
+    ?? record.encodingUpdates.setCurrentWorkflowField
     ?? (record.encodingUpdates.clearCurrentWorkflowField === true ? "[none]" : null);
   if (workflow === null) return null;
   await ctx.writeCurrentWorkflowField(effectiveMetaPath(record, metaPath, inputs), workflow);

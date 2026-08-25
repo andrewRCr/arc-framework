@@ -407,9 +407,9 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     guards: ["pr-unmerged"],
     encodingUpdates: { setPhase: true, setCurrentWorkflowField: "prepare-work-unit" },
     sideEffects: withRender("withdraw-pr"),
-    // Withdrawal back to Active clears the now-stale integration `Next Action`
-    // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `publish`.
-    softFields: { nextTask: "leave", nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
+    // Withdrawal back to Active clears the now-stale integration `Next Action`.
+    // An explicitly reopened task restores `Next Task` through caller input.
+    softFields: { nextTask: "input", nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
 
   // -- Location axis: park / resume (park is phase-polymorphic), promote / demote --

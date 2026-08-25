@@ -118,7 +118,9 @@ export async function projectCheckoutSubjectMeta(options: {
     };
   }
   let candidateSubjectDigest: string | null = null;
-  if (record.candidateId !== null && (record.state === "Active" || record.state === "Integrating")) {
+  const candidateAuthorityRequired = record.state === "Integrating"
+    || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
+  if (record.candidateId !== null && candidateAuthorityRequired) {
     try {
       const candidateContent = await options.io.readFile(join(
         options.cwd,
