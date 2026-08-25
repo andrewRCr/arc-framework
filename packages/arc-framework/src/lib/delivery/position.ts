@@ -12,6 +12,7 @@ import {
   type DeliveryPlanV1,
   type DeliveryStateV1,
 } from "./schema.js";
+import { planDeliverySuffixRefresh } from "./refresh.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 /** Fresh exact positions plus the host-derived landed member sequence. */
@@ -20,6 +21,7 @@ export const DeliveryPositionFactsV1Schema = DeliveryOperationSnapshotV1Schema.e
     (ids) => new Set(ids).size === ids.length,
     "landed deliverables must be distinct",
   ),
+  targetMovement: z.literal("append-only").optional(),
 });
 export type DeliveryPositionFactsV1 = z.infer<typeof DeliveryPositionFactsV1Schema>;
 
@@ -64,6 +66,18 @@ export type DeriveDeliveryPositionFailure =
 export type DeriveDeliveryPositionResult =
   | { readonly status: "derived"; readonly position: DeliveryPositionV1 }
   | { readonly status: "refused"; readonly reason: DeriveDeliveryPositionFailure };
+
+/** Workflow route derived from one exact current delivery position. */
+export type RouteDeliveryPositionResult =
+  | {
+      readonly status: "position";
+      readonly position: DeliveryPositionV1;
+      readonly nextAction: "review-member" | "teardown-member" | "terminal-handoff";
+      readonly selectedDeliverableId?: CanonicalDigest;
+      readonly plannedSuffix?: readonly string[];
+      readonly recommendedActionText?: string;
+    }
+  | { readonly status: "refused"; readonly reason: DeriveDeliveryPositionFailure | "position-mismatch" };
 
 /** Closed failures while checking whether one selected member may advance. */
 export type AssessDeliveryMemberReadinessFailure = DeriveDeliveryPositionFailure
@@ -155,6 +169,57 @@ export function deriveDeliveryPosition(
       firstUnlanded: firstUnlanded ?? null,
       boundSuffix,
     },
+  };
+}
+
+/** Derive the next workflow action from current plan, state, and fresh position facts. */
+export function routeDeliveryPosition(
+  plan: DeliveryPlanV1,
+  state: DeliveryStateV1,
+  facts: DeliveryPositionFactsV1,
+): RouteDeliveryPositionResult {
+  const derived = deriveDeliveryPosition(plan, state, facts);
+  if (derived.status !== "derived") return derived;
+  const refreshDisclosure = facts.targetMovement === "append-only"
+    ? planDeliverySuffixRefresh({
+        plan,
+        landedPrefix: derived.position.landedPrefix,
+        trigger: { kind: "base-moved" },
+        providerMovement: "stable",
+      })
+    : null;
+  const disclosedRefresh = refreshDisclosure?.status === "disclosed"
+    ? {
+        plannedSuffix: refreshDisclosure.plannedSuffix,
+        recommendedActionText: refreshDisclosure.recommendedActionText,
+      }
+    : {};
+  const terminal = plan.members.at(-1);
+  if (derived.position.firstUnlanded === null || plan.members.length === 1) {
+    return {
+      status: "position",
+      position: derived.position,
+      nextAction: "terminal-handoff",
+      ...disclosedRefresh,
+    };
+  }
+  if (derived.position.firstUnlanded === terminal?.deliverableId) {
+    const highest = plan.members.at(-2);
+    if (highest === undefined) return { status: "refused", reason: "position-mismatch" };
+    return {
+      status: "position",
+      position: derived.position,
+      nextAction: "teardown-member",
+      selectedDeliverableId: highest.deliverableId as CanonicalDigest,
+      ...disclosedRefresh,
+    };
+  }
+  return {
+    status: "position",
+    position: derived.position,
+    nextAction: "review-member",
+    selectedDeliverableId: derived.position.firstUnlanded,
+    ...disclosedRefresh,
   };
 }
 

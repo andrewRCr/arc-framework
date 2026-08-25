@@ -10,6 +10,8 @@ import {
 
 export const MergeMethodSchema = z.enum(["merge", "rebase", "squash"]);
 export type MergeMethod = z.infer<typeof MergeMethodSchema>;
+export const MergeMethodStackPositionSchema = z.enum(["non-delivery", "intermediate", "top"]);
+export type MergeMethodStackPosition = z.infer<typeof MergeMethodStackPositionSchema>;
 
 export interface MergeMethodPolicyPort {
   resolveRepository(): Promise<string>;
@@ -20,6 +22,7 @@ const MergeMethodResultBaseShape = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-merge-method-resolve"),
   repository: z.string().trim().min(1).nullable(),
+  stackPosition: MergeMethodStackPositionSchema,
 };
 
 export const MergeMethodResolveResultSchema = z.union([
@@ -35,7 +38,7 @@ export const MergeMethodResolveResultSchema = z.union([
     ...MergeMethodResultBaseShape,
     state: z.literal("blocked"),
     nextAction: z.literal("stop"),
-    reason: z.enum(["method-disallowed", "policy-unreadable"]),
+    reason: z.enum(["invalid-input", "method-disallowed", "policy-unreadable"]),
     configuredMethod: MergeMethodSchema.nullable(),
     allowedMethods: z.array(MergeMethodSchema),
     policyFingerprint: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
@@ -45,11 +48,20 @@ export const MergeMethodResolveResultSchema = z.union([
 ]);
 export type MergeMethodResolveResult = z.infer<typeof MergeMethodResolveResultSchema>;
 
-/** Resolve the configured merge method against current host policy. */
+/**
+ * Resolve the configured merge method against current host policy and stack position.
+ *
+ * @param configuredMethod - Project merge strategy.
+ * @param port - Repository and live host-policy boundary.
+ * @param expectedRepository - Optional caller-pinned repository coordinates.
+ * @param stackPosition - Delivery position that constrains the effective method.
+ * @returns A validated effective method with a position-bound policy fingerprint, or a closed refusal.
+ */
 export async function resolveMergeMethod(
   configuredMethod: MergeMethod,
   port: MergeMethodPolicyPort,
   expectedRepository?: string,
+  stackPosition: MergeMethodStackPosition = "non-delivery",
 ): Promise<MergeMethodResolveResult> {
   let repository: string | null = null;
   let policy: Record<MergeMethod, boolean>;
@@ -61,47 +73,65 @@ export async function resolveMergeMethod(
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
       repository,
+      stackPosition,
       state: "blocked",
       nextAction: "stop",
       reason: "policy-unreadable",
       configuredMethod,
       allowedMethods: [],
       detail: error instanceof Error ? error.message : String(error),
-      remedy: mergeMethodRemedy(),
+      remedy: mergeMethodRemedy(stackPosition),
     };
   }
   const allowedMethods = (["merge", "rebase", "squash"] as const).filter((method) => policy[method]);
-  const policyFingerprint = canonicalDigest({ repository, allowedMethods });
-  if (!allowedMethods.includes(configuredMethod)) {
+  const method = stackPosition === "intermediate" ? "merge" : configuredMethod;
+  const policyFingerprint = canonicalDigest({ repository, allowedMethods, stackPosition });
+  if (!allowedMethods.includes(method)) {
     return {
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
       repository,
+      stackPosition,
       state: "blocked",
       nextAction: "stop",
       reason: "method-disallowed",
       configuredMethod,
       allowedMethods,
       policyFingerprint,
-      remedy: mergeMethodRemedy(),
+      ...(stackPosition === "intermediate"
+        ? { detail: "Intermediate stack members require merge commits." }
+        : {}),
+      remedy: mergeMethodRemedy(stackPosition),
     };
   }
   return {
     schemaVersion: 1,
     mode: "review-merge-method-resolve",
     repository,
+    stackPosition,
     state: "validated",
     nextAction: "use-method",
-    method: configuredMethod,
+    method,
     allowedMethods,
     policyFingerprint,
   };
 }
 
-function mergeMethodRemedy(): SpineRemedy {
+function mergeMethodRemedy(stackPosition: MergeMethodStackPosition): SpineRemedy {
+  const argv = stackPosition === "non-delivery"
+    ? ["arc", "review", "merge-method", "resolve", "--json"]
+    : [
+        "arc",
+        "review",
+        "merge-method",
+        "resolve",
+        "--stack-position",
+        stackPosition,
+        "--json",
+      ];
   return spineRemedy(
     "The configured merge method must match readable repository policy.",
     "Align merge.strategy with repository policy, then re-run",
-    ["arc", "review", "merge-method", "resolve", "--json"],
+    argv,
   );
 }
