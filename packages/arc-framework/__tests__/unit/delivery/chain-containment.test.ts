@@ -5,82 +5,126 @@ import { classifyGitDeliveryChainContainment } from "../../../src/lib/delivery/c
 
 const oid = (character: string): string => character.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
+const tree = (entries: Readonly<Record<string, string>>): Uint8Array => bytes(
+  Object.entries(entries).map(([path, entryOid]) => `100644 blob ${entryOid}\t${path}\0`).join(""),
+);
+
+function exactExec(input: {
+  readonly coordinates: ReadonlyMap<string, string>;
+  readonly trees: ReadonlyMap<string, Uint8Array>;
+  readonly ancestral?: boolean;
+}): RawGitExec {
+  return async (args) => {
+    if (args[0] === "rev-parse" && args[1] === "--verify") {
+      return { stdout: bytes(`${args[2]?.replace(/\^\{commit\}$/u, "")}\n`) };
+    }
+    if (args[0] === "rev-parse") {
+      const head = args[1]?.replace(/\^\{tree\}$/u, "") ?? "";
+      return { stdout: bytes(`${input.coordinates.get(head) ?? ""}\n`) };
+    }
+    if (args[0] === "merge-base") {
+      if (input.ancestral !== false) return { stdout: bytes("") };
+      throw Object.assign(new Error("not ancestor"), { exitCode: 1 });
+    }
+    if (args[0] === "ls-tree") {
+      const observed = input.trees.get(args.at(-1) ?? "");
+      if (observed !== undefined) return { stdout: observed };
+    }
+    throw new Error(`unexpected Git call: ${args.join(" ")}`);
+  };
+}
 
 describe("delivery chain containment", () => {
-  it("returns a containment-specific result when reapplication leaves the top tree unchanged", async () => {
+  it("accepts exact normalized completeness across lifecycle paths", async () => {
     const commonBase = { head: oid("1"), tree: oid("2") };
     const member = { head: oid("3"), tree: oid("4") };
-    const top = { head: oid("5"), tree: oid("6") };
-    const trees = new Map([
+    const finalCandidate = { head: oid("5"), tree: oid("6") };
+    const top = { head: oid("7"), tree: oid("8") };
+    const coordinates = new Map([
       [commonBase.head, commonBase.tree],
       [member.head, member.tree],
+      [finalCandidate.head, finalCandidate.tree],
       [top.head, top.tree],
     ]);
-    const exec: RawGitExec = async (args) => {
-      if (args[0] === "rev-parse" && args[1] === "--verify") {
-        return { stdout: bytes(`${args[2]?.replace(/\^\{commit\}$/u, "")}\n`) };
-      }
-      if (args[0] === "rev-parse") {
-        const head = args[1]?.replace(/\^\{tree\}$/u, "") ?? "";
-        return { stdout: bytes(`${trees.get(head) ?? ""}\n`) };
-      }
-      if (args[0] === "merge-tree" && !args.includes("--name-only")) {
-        return { stdout: bytes(`${oid("7")}\n`) };
-      }
-      if (args[0] === "merge-tree") return { stdout: bytes(`${top.tree}\0`) };
-      throw new Error(`unexpected Git call: ${args.join(" ")}`);
-    };
+    const trees = new Map([
+      [commonBase.tree, tree({ "feature.txt": oid("a"), "meta.md": oid("b") })],
+      [finalCandidate.tree, tree({ "feature.txt": oid("c"), "meta.md": oid("b") })],
+      [top.tree, tree({ "feature.txt": oid("c"), "meta.md": oid("d") })],
+    ]);
 
     await expect(classifyGitDeliveryChainContainment({
-      exec, commonBase, highestMember: member, top,
+      exec: exactExec({ coordinates, trees }),
+      commonBase,
+      highestMember: member,
+      finalCandidate,
+      lifecyclePaths: ["meta.md"],
+      top,
     })).resolves.toEqual({ status: "contained" });
   });
 
-  it("keeps conflict and clean divergence paths in containment vocabulary", async () => {
+  it("returns exact normalized divergence paths", async () => {
     const commonBase = { head: oid("1"), tree: oid("2") };
     const member = { head: oid("3"), tree: oid("4") };
-    const top = { head: oid("5"), tree: oid("6") };
-    const coordinateOutput = (args: string[]): Uint8Array | null => {
-      const commit = args[1] === "--verify" ? args[2]?.replace(/\^\{commit\}$/u, "") : undefined;
-      if (commit !== undefined) return bytes(`${commit}\n`);
-      const head = args[1]?.replace(/\^\{tree\}$/u, "");
-      const tree = head === commonBase.head ? commonBase.tree : head === member.head ? member.tree : top.tree;
-      return head === undefined ? null : bytes(`${tree}\n`);
-    };
-    const execFor = (outcome: "conflict" | "diverged"): RawGitExec => async (args) => {
-      if (args[0] === "rev-parse") {
-        const stdout = coordinateOutput(args);
-        if (stdout !== null) return { stdout };
-      }
-      if (args[0] === "merge-tree" && !args.includes("--name-only")) {
-        return { stdout: bytes(`${oid("7")}\n`) };
-      }
-      if (args[0] === "merge-tree" && outcome === "conflict") {
-        throw Object.assign(new Error("conflict"), {
-          exitCode: 1,
-          stdout: `${oid("8")}\0shared.txt\0`,
-        });
-      }
-      if (args[0] === "merge-tree") return { stdout: bytes(`${oid("9")}\0`) };
-      if (args[0] === "diff") return { stdout: bytes("feature.txt\0") };
-      throw new Error(`unexpected Git call: ${args.join(" ")}`);
-    };
-    const containment = { commonBase, highestMember: member, top };
+    const finalCandidate = { head: oid("5"), tree: oid("6") };
+    const top = { head: oid("7"), tree: oid("8") };
+    const coordinates = new Map([
+      [commonBase.head, commonBase.tree],
+      [member.head, member.tree],
+      [finalCandidate.head, finalCandidate.tree],
+      [top.head, top.tree],
+    ]);
+    const trees = new Map([
+      [commonBase.tree, tree({})],
+      [finalCandidate.tree, tree({ "feature.txt": oid("a") })],
+      [top.tree, tree({ "feature.txt": oid("b") })],
+    ]);
 
-    await expect(classifyGitDeliveryChainContainment({ exec: execFor("conflict"), ...containment }))
-      .resolves.toEqual({ status: "refused", reason: "containment-conflicted", paths: ["shared.txt"] });
-    await expect(classifyGitDeliveryChainContainment({ exec: execFor("diverged"), ...containment }))
-      .resolves.toEqual({ status: "refused", reason: "containment-diverged", paths: ["feature.txt"] });
+    await expect(classifyGitDeliveryChainContainment({
+      exec: exactExec({ coordinates, trees }),
+      commonBase,
+      highestMember: member,
+      finalCandidate,
+      lifecyclePaths: [],
+      top,
+    })).resolves.toEqual({ status: "refused", reason: "containment-diverged", paths: ["feature.txt"] });
   });
 
-  it("returns a typed containment refusal when exact merge evidence is unavailable", async () => {
+  it("refuses a final candidate outside the highest-member ancestry", async () => {
+    const commonBase = { head: oid("1"), tree: oid("2") };
+    const member = { head: oid("3"), tree: oid("4") };
+    const finalCandidate = { head: oid("5"), tree: oid("6") };
+    const top = { head: oid("7"), tree: oid("8") };
+    const coordinates = new Map([
+      [commonBase.head, commonBase.tree],
+      [member.head, member.tree],
+      [finalCandidate.head, finalCandidate.tree],
+      [top.head, top.tree],
+    ]);
+
+    await expect(classifyGitDeliveryChainContainment({
+      exec: exactExec({ coordinates, trees: new Map(), ancestral: false }),
+      commonBase,
+      highestMember: member,
+      finalCandidate,
+      lifecyclePaths: [],
+      top,
+    })).resolves.toEqual({ status: "refused", reason: "containment-not-ancestral" });
+  });
+
+  it("returns a typed containment refusal when exact coordinate evidence is unavailable", async () => {
     const unavailable: RawGitExec = async () => { throw new Error("missing object"); };
     const commonBase = { head: oid("1"), tree: oid("2") };
     const member = { head: oid("3"), tree: oid("4") };
-    const top = { head: oid("5"), tree: oid("6") };
+    const finalCandidate = { head: oid("5"), tree: oid("6") };
+    const top = { head: oid("7"), tree: oid("8") };
 
     await expect(classifyGitDeliveryChainContainment({
-      exec: unavailable, commonBase, highestMember: member, top,
+      exec: unavailable,
+      commonBase,
+      highestMember: member,
+      finalCandidate,
+      lifecyclePaths: [],
+      top,
     })).resolves.toEqual({ status: "refused", reason: "containment-endpoints-unverified" });
   });
 });

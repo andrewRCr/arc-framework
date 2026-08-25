@@ -17,6 +17,57 @@ afterEach(async () => {
 });
 
 describe("delivery chain ancestry adoption", () => {
+  it("accepts a final candidate that legitimately edits an earlier member path", async () => {
+    const repository = await createTempRepoCore({ prefix: "arc-delivery-adopt-overlap-" });
+    roots.push(repository);
+    const git = async (args: string[]): Promise<string> => (
+      await execFileAsync("git", args, { cwd: repository })
+    ).stdout.trim();
+    await writeFile(join(repository, "shared.txt"), "base\n", "utf8");
+    await git(["add", "shared.txt"]);
+    await git(["commit", "-m", "base"]);
+    const base = await git(["rev-parse", "HEAD"]);
+
+    await git(["switch", "-c", "member"]);
+    await writeFile(join(repository, "shared.txt"), "member\n", "utf8");
+    await git(["add", "shared.txt"]);
+    await git(["commit", "-m", "member"]);
+    const member = await git(["rev-parse", "HEAD"]);
+
+    await git(["switch", "-c", "final-candidate"]);
+    await writeFile(join(repository, "shared.txt"), "terminal\n", "utf8");
+    await git(["add", "shared.txt"]);
+    await git(["commit", "-m", "terminal"]);
+    const finalCandidate = await git(["rev-parse", "HEAD"]);
+
+    await git(["switch", "-c", "feat/example", base]);
+    await writeFile(join(repository, "shared.txt"), "terminal\n", "utf8");
+    await git(["add", "shared.txt"]);
+    await git(["commit", "-m", "top"]);
+    const originalTop = await git(["rev-parse", "HEAD"]);
+    const coordinate = async (head: string) => ({ head, tree: await git(["rev-parse", `${head}^{tree}`]) });
+    const exec: RawGitExec = async (args) => {
+      const result = await execFileAsync("git", args, { cwd: repository, encoding: "buffer" });
+      return { stdout: new Uint8Array(result.stdout), stderr: new Uint8Array(result.stderr) };
+    };
+
+    const adopted = await adoptGitDeliveryChain({
+      exec,
+      topRef: "refs/heads/feat/example",
+      commonBase: await coordinate(base),
+      highestMember: await coordinate(member),
+      finalCandidate: await coordinate(finalCandidate),
+      lifecyclePaths: [],
+      top: await coordinate(originalTop),
+    });
+
+    expect(adopted.status).toBe("adopted");
+    if (adopted.status !== "adopted") return;
+    expect(adopted.tree).toBe((await coordinate(originalTop)).tree);
+    expect((await git(["rev-list", "--parents", "-n", "1", adopted.head])).split(" "))
+      .toEqual([adopted.head, originalTop, member]);
+  });
+
   it("keeps the top tree and ref while appending each contained member as ancestry", async () => {
     const repository = await createTempRepoCore({ prefix: "arc-delivery-adopt-" });
     roots.push(repository);
@@ -38,6 +89,11 @@ describe("delivery chain ancestry adoption", () => {
     await git(["add", "second.txt"]);
     await git(["commit", "-m", "member two"]);
     const memberTwo = await git(["rev-parse", "HEAD"]);
+    await git(["switch", "-c", "complete-candidate"]);
+    await writeFile(join(repository, "residual.txt"), "residual\n", "utf8");
+    await git(["add", "residual.txt"]);
+    await git(["commit", "-m", "complete candidate"]);
+    const completeCandidate = await git(["rev-parse", "HEAD"]);
 
     await git(["switch", "-c", "feat/example", base]);
     await writeFile(join(repository, "member.txt"), "member\n", "utf8");
@@ -59,6 +115,8 @@ describe("delivery chain ancestry adoption", () => {
       topRef,
       commonBase: await coordinate(base),
       highestMember: await coordinate(memberOne),
+      finalCandidate: await coordinate(completeCandidate),
+      lifecyclePaths: [],
       top: await coordinate(originalTop),
     });
     expect(first.status).toBe("adopted");
@@ -74,6 +132,8 @@ describe("delivery chain ancestry adoption", () => {
       topRef,
       commonBase: await coordinate(memberOne),
       highestMember: await coordinate(memberTwo),
+      finalCandidate: await coordinate(completeCandidate),
+      lifecyclePaths: [],
       top: { head: first.head, tree: first.tree },
     });
     expect(second.status).toBe("adopted");
@@ -84,7 +144,7 @@ describe("delivery chain ancestry adoption", () => {
       .toEqual([second.head, first.head, memberTwo]);
     expect(calls.some((args) => args.includes("--force") || args.includes("--force-with-lease"))).toBe(false);
 
-    await git(["switch", "-c", "member-three", memberTwo]);
+    await git(["switch", "-c", "member-three", completeCandidate]);
     await writeFile(join(repository, "missing.txt"), "missing\n", "utf8");
     await git(["add", "missing.txt"]);
     await git(["commit", "-m", "member three"]);
@@ -94,6 +154,8 @@ describe("delivery chain ancestry adoption", () => {
       topRef,
       commonBase: await coordinate(memberTwo),
       highestMember: await coordinate(memberThree),
+      finalCandidate: await coordinate(memberThree),
+      lifecyclePaths: [],
       top: { head: second.head, tree: second.tree },
     })).resolves.toEqual({
       status: "refused",
@@ -114,6 +176,8 @@ describe("delivery chain ancestry adoption", () => {
       topRef,
       commonBase: await coordinate(memberTwo),
       highestMember: await coordinate(memberThree),
+      finalCandidate: await coordinate(memberThree),
+      lifecyclePaths: [],
       top: { head: second.head, tree: second.tree },
     })).resolves.toEqual({
       status: "refused",
@@ -127,6 +191,8 @@ describe("delivery chain ancestry adoption", () => {
       topRef,
       commonBase: await coordinate(base),
       highestMember: await coordinate(memberOne),
+      finalCandidate: await coordinate(completeCandidate),
+      lifecyclePaths: [],
       top: await coordinate(originalTop),
     })).resolves.toEqual({ status: "refused", reason: "top-moved" });
     expect(await git(["rev-parse", topRef])).toBe(fabricated);
