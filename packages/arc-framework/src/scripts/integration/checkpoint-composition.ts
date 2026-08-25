@@ -6,6 +6,7 @@ import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-ada
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
+import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
@@ -15,6 +16,8 @@ import {
 } from "../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
+import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
+import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { resolveChangeRequest } from "../review-gate/change-request.js";
@@ -36,6 +39,7 @@ import {
 } from "../review-gate/merge-method.js";
 import {
   createHostedReservationDischargeReader,
+  resolveHostedReservationTargets,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
 import { projectPublicationBoundary } from "../review-gate/policy/integration-boundary-locus.js";
 import {
@@ -51,6 +55,7 @@ import {
 import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
+import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 
 interface CachedCandidate {
   record: CandidateManagedRecordV1;
@@ -89,6 +94,44 @@ async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd, objectAccess: "local-only" })).stdout.trim();
   if (!GitObjectIdSchema.safeParse(head).success) throw new Error("The current integration head is invalid.");
   return { branch, head };
+}
+
+function branchName(ref: string): string {
+  return ref.replace(/^refs\/heads\//u, "");
+}
+
+async function readCoordinate(exec: GitExec, cwd: string, head: string): Promise<{
+  readonly head: string;
+  readonly tree: string;
+} | null> {
+  try {
+    const [commit, tree] = await Promise.all([
+      exec("git", ["rev-parse", "--verify", `${head}^{commit}`], { cwd, objectAccess: "local-only" }),
+      exec("git", ["rev-parse", `${head}^{tree}`], { cwd, objectAccess: "local-only" }),
+    ]);
+    const resolvedHead = commit.stdout.trim();
+    const resolvedTree = tree.stdout.trim();
+    return resolvedHead === head
+      && GitObjectIdSchema.safeParse(resolvedTree).success
+      ? { head: resolvedHead, tree: resolvedTree }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readDiffPaths(
+  cwd: string,
+  fromRevision: string,
+  throughRevision: string,
+): Promise<string[]> {
+  const result = await createRawGitExec(cwd)([
+    "diff", "--name-only", "-z", "--no-renames", fromRevision, throughRevision, "--",
+  ], { objectAccess: "local-only" });
+  const output = new TextDecoder("utf-8", { fatal: true }).decode(result.stdout);
+  if (output === "") return [];
+  if (!output.endsWith("\0")) throw new Error("Git returned an unterminated path list.");
+  return output.slice(0, -1).split("\0");
 }
 
 async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
@@ -221,6 +264,8 @@ export function createIntegrationCheckpointDependencies(input: {
   };
   const composeLineageReview = createLineageReviewComposer(input);
   const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
+  const deliveryLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
+  const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const lifecycleStorage = input.lifecycleStorage ?? {
     readSnapshot: async () => {
       const { head } = await currentHead(input.exec, input.cwd);
@@ -249,6 +294,15 @@ export function createIntegrationCheckpointDependencies(input: {
     }
     return value;
   };
+  const boundaries = new Map<string, ReturnType<typeof readSubmissionBoundary>>();
+  const boundary = (workUnit: string) => {
+    let value = boundaries.get(workUnit);
+    if (value === undefined) {
+      value = readSubmissionBoundary(input.cwd, workUnit);
+      boundaries.set(workUnit, value);
+    }
+    return value;
+  };
 
   return {
     readDrift: async () => {
@@ -259,6 +313,57 @@ export function createIntegrationCheckpointDependencies(input: {
         mode: "authoritative",
         ...createCurrentBaseDriftAdapters(input.exec),
       });
+    },
+    classifyDeliveryDrift: async (workUnit, drift) => {
+      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      if (records.status === "unbound") return { status: "not-applicable" };
+      if (records.status === "unavailable") {
+        return { status: "unavailable", detail: "The delivery terminal records are unavailable." };
+      }
+      if (drift.overlap?.status !== "available") {
+        return { status: "unavailable", detail: "The delivery drift overlap is unavailable." };
+      }
+      try {
+        const value = await candidate(workUnit);
+        const currentness = value === null ? null : projectCandidateCurrentness(value);
+        if (currentness?.status !== "current") {
+          return { status: "unavailable", detail: "The current delivery Candidate is unavailable." };
+        }
+        const terminal = records.state.members.at(-1);
+        if (terminal === undefined) {
+          return { status: "unavailable", detail: "The delivery terminal member is unavailable." };
+        }
+        const nonTerminal = records.state.members.slice(0, -1);
+        const highestCoordinate = nonTerminal.at(-1)?.coordinates
+          ?? records.state.target?.coordinates
+          ?? null;
+        if (highestCoordinate === null) {
+          return { status: "unavailable", detail: "The delivery predecessor coordinate is unavailable." };
+        }
+        const residualPaths = await readDiffPaths(
+          input.cwd,
+          highestCoordinate.head,
+          currentness.recognizedRevision,
+        );
+        const firstCoordinate = nonTerminal[0]?.coordinates;
+        const predecessorPaths = firstCoordinate == null
+          ? []
+          : await readDiffPaths(input.cwd, firstCoordinate.base, highestCoordinate.head);
+        return classifyDeliveryTerminalDrift({
+          terminalDeliverableId: terminal.deliverableId,
+          driftPaths: [...new Set([
+            ...drift.overlap.substantivePaths,
+            ...drift.overlap.regenerablePaths,
+          ])],
+          residualPaths,
+          predecessorPaths,
+        });
+      } catch (error) {
+        return {
+          status: "unavailable",
+          detail: error instanceof Error ? error.message : String(error),
+        };
+      }
     },
     readReconcileHost: async () => readHostFact(input.exec, input.cwd),
     readLifecycle: async (workUnit) => {
@@ -276,6 +381,144 @@ export function createIntegrationCheckpointDependencies(input: {
       const value = await candidate(workUnit);
       return value === null ? null : projectCandidateCurrentness(value);
     },
+    composeDelivery: async ({ workUnit, candidate: currentness }) => {
+      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      if (records.status === "unbound") return { status: "not-applicable" };
+      if (records.status === "unavailable") throw new Error("The delivery terminal records are unavailable.");
+      const [value, publicationBoundary, config] = await Promise.all([
+        candidate(workUnit),
+        boundary(workUnit),
+        settings(),
+      ]);
+      if (value === null || publicationBoundary === null) {
+        throw new Error("The delivery Candidate publication boundary is unavailable.");
+      }
+      if (publicationBoundary.candidateId !== currentness.candidateId
+        || publicationBoundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+        throw new Error("The delivery publication boundary belongs to a different Candidate.");
+      }
+      const configuredBase = config.settings["branch.base"];
+      const members = records.state.members;
+      const terminal = members.at(-1);
+      if (terminal?.ref === null || terminal?.ref === undefined
+        || terminal.changeRequest === null || terminal.coordinates === null) {
+        throw new Error("The delivery top has no exact retained binding.");
+      }
+      const landings: Array<{ deliverableId: string; head: string }> = [];
+      for (const [index, member] of members.slice(0, -1).entries()) {
+        if (member.ref === null || member.changeRequest === null || member.coordinates === null) {
+          throw new Error(`Delivery member ${member.deliverableId} has no exact retained binding.`);
+        }
+        const predecessorRef = index === 0 ? records.state.target?.ref : members[index - 1]?.ref;
+        const resolved = await resolveChangeRequest({
+          headRef: branchName(member.ref),
+          headSha: member.coordinates.head,
+          baseRef: configuredBase,
+          acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+            ? []
+            : [branchName(predecessorRef)],
+        }, changeRequestPort);
+        if (resolved.state !== "merged-at-head"
+          || String(resolved.candidate.number) !== member.changeRequest.changeRequestId) {
+          throw new Error(`Delivery member ${member.deliverableId} is not merged at its exact bound head.`);
+        }
+        landings.push({ deliverableId: member.deliverableId, head: member.coordinates.head });
+      }
+      const predecessorRef = members.at(-2)?.ref;
+      const topResolution = await resolveChangeRequest({
+        headRef: branchName(terminal.ref),
+        headSha: terminal.coordinates.head,
+        baseRef: configuredBase,
+        acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+          ? []
+          : [branchName(predecessorRef)],
+      }, changeRequestPort);
+      if (topResolution.targetRef === null
+        || (topResolution.state !== "open"
+          && topResolution.state !== "closed-unmerged"
+          && topResolution.state !== "merged-at-head")) {
+        throw new Error("The delivery top request cannot be resolved at its exact bound head.");
+      }
+      if (String(topResolution.candidate.number) !== terminal.changeRequest.changeRequestId) {
+        throw new Error("The delivery top request does not match its retained binding.");
+      }
+      const top = {
+        binding: terminal.changeRequest,
+        repository: topResolution.targetRef.repository,
+        headRef: topResolution.candidate.headRefName,
+        headSha: topResolution.candidate.headRefOid,
+        baseRef: topResolution.candidate.baseRefName,
+        state: topResolution.state === "open"
+          ? "open" as const
+          : topResolution.state === "merged-at-head"
+            ? "merged" as const
+            : "closed" as const,
+      };
+      const targetResolution = await resolveHostedReservationTargets({
+        workUnitId: workUnit,
+        singleton: {
+          repository: top.repository,
+          pullRequest: topResolution.candidate.number,
+          headSha: terminal.coordinates.head,
+          baseRevision: terminal.coordinates.base,
+        },
+        delivery: deliveryLookup,
+      });
+      if (targetResolution.status !== "resolved" || targetResolution.kind !== "delivery"
+        || targetResolution.targets.length !== members.length) {
+        throw new Error("The delivery member review targets are unavailable.");
+      }
+      const reviewTargets = members.map((member, index) => {
+        const target = targetResolution.targets[index];
+        if (target === undefined || member.changeRequest === null || member.coordinates === null
+          || target.pullRequest !== Number(member.changeRequest.changeRequestId)
+          || target.headSha !== member.coordinates.head) {
+          throw new Error(`Delivery member ${member.deliverableId} has a mismatched review target.`);
+        }
+        return {
+          deliverableId: member.deliverableId,
+          providerId: member.changeRequest.providerId,
+          changeRequestId: member.changeRequest.changeRequestId,
+          head: member.coordinates.head,
+        };
+      });
+      const discharges = await Promise.all(targetResolution.targets.map(async (target) => (
+        readHostedReservationDischarge({
+          reservation: publicationBoundary.reservation,
+          baseRevision: target.baseRevision,
+          approvedHead: target.headSha,
+          changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+        })
+      )));
+      const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
+      const mergeBase = (await input.exec("git", [
+        "merge-base", currentness.recognizedRevision, configuredBase,
+      ], { cwd: input.cwd, objectAccess: "local-only" })).stdout.trim();
+      const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase);
+      if (candidateCoordinate === null || predecessorCoordinate === null) {
+        throw new Error("The delivery terminal delta coordinates are unavailable.");
+      }
+      return composeDeliveryCheckpointArm({
+        record: value.record,
+        candidate: currentness,
+        plan: records.plan,
+        state: records.state,
+        landings,
+        terminalDelta: { predecessor: predecessorCoordinate, member: candidateCoordinate },
+        protectedBaseRef: configuredBase,
+        publication: { candidateId: publicationBoundary.candidateId, head: currentness.recognizedRevision },
+        top,
+        review: {
+          status: discharges.every((discharge) => discharge.discharged) ? "discharged" : "outstanding",
+          targets: reviewTargets,
+        },
+        readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),
+        proveResidual: (endpoints) => proveGitDeliveryContribution({
+          exec: createRawGitExec(input.cwd),
+          ...endpoints,
+        }),
+      });
+    },
     resolveMergeMethod: async (repository) => {
       const config = await settings();
       return resolveMergeMethod(
@@ -284,19 +527,20 @@ export function createIntegrationCheckpointDependencies(input: {
         repository,
       );
     },
-    composeReady: async ({ workUnit, lifecycle, candidate: currentness }) => {
-      const [value, changeRequest, boundary] = await Promise.all([
+    composeReady: async ({ workUnit, lifecycle, candidate: currentness, delivery }) => {
+      const [value, changeRequest, publicationBoundary] = await Promise.all([
         candidate(workUnit),
         resolveOpenChangeRequest(input.exec, input.cwd),
-        readSubmissionBoundary(input.cwd, workUnit),
+        boundary(workUnit),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
-      if (boundary === null) throw new Error("The durable publication boundary is unavailable.");
-      if (boundary.candidateId !== value.record.attestation.candidateId
-        || boundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+      if (publicationBoundary === null) throw new Error("The durable publication boundary is unavailable.");
+      if (publicationBoundary.candidateId !== value.record.attestation.candidateId
+        || publicationBoundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
         throw new Error("The durable publication boundary belongs to a different Candidate subject.");
       }
-      if (boundary.locus !== "publication-pending" && boundary.locus !== "hosted-review-pending") {
+      if (publicationBoundary.locus !== "publication-pending"
+        && publicationBoundary.locus !== "hosted-review-pending") {
         throw new Error("The durable publication boundary has not entered public integration.");
       }
       const configuredBase = (await settings()).settings["branch.base"];
@@ -311,22 +555,27 @@ export function createIntegrationCheckpointDependencies(input: {
         branch: changeRequest.targetRef.headRef,
         candidateId: value.record.attestation.candidateId,
         candidateSubjectDigest: value.current.subject.subjectDigest,
-        reservation: boundary.reservation,
-        terminus: boundary.terminus,
+        reservation: publicationBoundary.reservation,
+        terminus: publicationBoundary.terminus,
         changeRequest: {
           repository: changeRequest.targetRef.repository,
           pullRequest: changeRequest.candidate.number,
         },
       });
-      const discharge = await readHostedReservationDischarge({
-        reservation: boundary.reservation,
-        baseRevision: value.record.attestation.baseRevision,
-        approvedHead: currentness.recognizedRevision,
-        changeRequest: {
-          repository: changeRequest.targetRef.repository,
-          pullRequest: changeRequest.candidate.number,
-        },
-      });
+      const discharge = delivery.status === "ready"
+        ? {
+            discharged: true,
+            detail: `Every derived delivery-member review is discharged (${delivery.checks.targets.length} checked).`,
+          }
+        : await readHostedReservationDischarge({
+            reservation: publicationBoundary.reservation,
+            baseRevision: value.record.attestation.baseRevision,
+            approvedHead: currentness.recognizedRevision,
+            changeRequest: {
+              repository: changeRequest.targetRef.repository,
+              pullRequest: changeRequest.candidate.number,
+            },
+          });
       const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
         && !discharge.discharged;
       const checksPort = createGhRequiredChecksPort(hostedGhRunner);

@@ -8,6 +8,7 @@ arc:
     - implementation-audit
     - review-triage
     - review-response
+    - validate-criteria
   extensions:
     - pre-push-review
     - pre-merge
@@ -44,7 +45,7 @@ dispatch the returned route; the workflow never parses headings, derives members
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
 
-## Validate and materialize
+## Validate and publish
 
 Prepare the complete explicit candidate chain:
 
@@ -64,21 +65,9 @@ same observation window:
 arc delivery eligibility close - --json
 ```
 
-A refusal stops without materialization. An eligible result closes the workflow-owned gate bracket but is never
-mutation input. Supply the plan ID plus the same candidate refs and checkout locators to:
-
-```bash
-arc delivery materialize - --json
-arc delivery publish - --json
-```
-
-These verbs resolve the current plan and lifecycle paths, rerun mechanical eligibility against the exact post-gate
-checkouts, and create or adopt guarded refs and requests in plan order. Set the publish input's `draft` flag from the
-configured `merge.lock` posture (`draft` ⇒ `true`) so every non-terminal request opens under the configured hold; the
-landing sequence releases that lock only after readiness.
-
-Before `publish`, load the delivery-member variant of [`template-pull-request.md`][template-pull-request] and author
-one `presentations` entry for every non-terminal deliverable ID:
+Before the first mutation, load both the ordinary and delivery-member forms of
+[`template-pull-request.md`][template-pull-request]. Author one `presentations` entry for every non-terminal
+deliverable ID plus the ordinary terminal request as `terminalPresentation`:
 
 ```json
 {
@@ -87,15 +76,34 @@ one `presentations` entry for every non-terminal deliverable ID:
     "summary": "{reviewer-facing purpose and outcome}",
     "changes": [{ "topic": "{concrete topic}", "description": "{specific output}" }],
     "designReference": "{accessible filename or URL}"
-  }]
+  }],
+  "terminalPresentation": {
+    "title": "{ordinary Conventional Commits pull-request title}",
+    "body": "{complete ordinary work-unit pull-request body}"
+  }
 }
 ```
 
-`summary` is required; `changes` and `designReference` are content-gated. The verb requires exact non-terminal
-coverage before mutation, derives titles from the canonical plan, and uses authored presentation only when creating
-a missing request. An exact existing request is adopted unchanged.
+`summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
+Supply that complete presentation set with the plan ID, repository locators, and the same candidate refs and checkout
+locators to the sole initial mutation verb:
 
-After interruption, rerun the candidate gates before invoking the mutation verbs again. Resume any persisted
+```bash
+arc delivery publish - --json
+```
+
+A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
+work-unit state, validates the complete presentation set, and reruns mechanical eligibility against the exact
+post-gate checkouts before the first ref push or host mutation. It then creates or adopts every member ref before
+opening any request: delivery refs in plan order, the content-neutral top adoption and ordinary top-branch push, then
+requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the originating branch
+over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request
+opens under the configured hold; the landing sequence releases that lock only after readiness. The verb derives
+non-terminal titles from the canonical plan and uses authored presentation only when creating a missing request; an
+exact existing request is adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact
+publication retry.
+
+After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:
 
 ```bash
@@ -106,13 +114,14 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
-After the exact chain exists, an operator may opt into native presentation:
+Only after every request ID exists, an operator may register the exact non-terminal chain for native presentation:
 
 ```bash
 arc delivery native link - --json
 ```
 
-The CLI receives the explicit opt-in and exact plan/state-derived member set. `linked` continues only after a fresh
+The CLI receives the explicit opt-in and exact plan/state-derived non-terminal member set; the terminal is never
+registered. A one-member delivery has no registration set and skips this verb. `linked` continues only after a fresh
 exact host observation. An opt-out `unlinked` result makes zero native host calls and enters the ordinary singleton
 path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the explicit unlink verb; `refused`
 stops. On the linked path, refresh presentation facts before every landing:
@@ -222,29 +231,34 @@ It executes in plan order, using each persisted result as the next predecessor; 
 contribution drift stops with the current reservation/state intact. Never invoke the low-level rewrite verb as an
 operator-assembled batch.
 
+A successful `verify-review-fix` next action means the service has re-adopted the freshly recut suffix beneath the
+content-neutral top, published that exact top, and version-rebound the terminal state. Invoke
+[`validate-criteria`][validate-criteria] at member scope once for each ID in `memberDeliverableIds`; the list contains
+only contributions changed by the approved fix. An arbiter-accepted contribution-equivalent member, including a
+successful mechanical reapply after predecessor movement, is absent and re-verifies nothing. Then honor
+`tier1Required` by rerunning Tier 1 over the rebound top. These actions ride the same finding-disposition approval;
+do not add an interlock.
+
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 
 ```bash
 arc delivery teardown - --json
 ```
 
-The CLI's returned `nextAction` selects the next member, reconciliation, or terminal handoff. Workflow prose does
-not implement a loop.
+The CLI retains the exact member binding, deletes the proven remote branch, and, after the highest non-terminal
+member, immediately reobserves the top request. Follow only its returned `nextAction`:
+
+- `continue` returns to the position read for the next member.
+- `terminal-checkpoint` enters the ordinary [`integrate-work-unit.md`][integrate-work-unit] workflow.
+- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Do not sequence or repair
+  the request in workflow prose.
 
 ## Terminal handoff
 
-Before delegating, derive the repository-owned terminal handoff:
-
-```bash
-arc delivery terminal prepare - --json
-```
-
-`blocked` stops. `absorbed` means the command applied the exact ordinary append-only base reconcile; run Tier 1 and
-rerun the command from fresh facts. Only `terminal-ready` delegates to the ordinary
-[`integrate-work-unit.md`][integrate-work-unit] workflow. Its existing integration interlock owns the terminal merge;
-do not fire a delivery interlock. Both fresh-merge and already-merged resume converge on the workflow's single
-post-merge delivery adoption call before close or teardown. Repeated adoption is idempotent, and an ordinary work
-unit returns `not-applicable`.
+On `terminal-checkpoint`, delegate to [`integrate-work-unit.md`][integrate-work-unit]. Its checkpoint composes the
+delivery arm from the current Candidate and retained member bindings, and its existing integration interlock owns the
+terminal merge. Do not fire a delivery interlock here.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
+[validate-criteria]: ../../../methods/validate-criteria.md

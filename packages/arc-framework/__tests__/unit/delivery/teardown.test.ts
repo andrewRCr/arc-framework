@@ -15,14 +15,14 @@ function fixture() {
   const facts = { target: state.target, members: state.members, landedDeliverableIds: [first.deliverableId] };
   const request = {
     binding: first.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
-    headRef: first.ref!.replace("refs/heads/", ""), headSha: "e".repeat(40), baseRef: "main",
+    headRef: first.ref!.replace("refs/heads/", ""), headSha: first.coordinates!.head, baseRef: "main",
     state: "merged" as const, draft: false,
   };
   return { plan, state, facts, first, request };
 }
 
 describe("landed delivery teardown", () => {
-  it("reserves, deletes exact residue, and atomically clears all member bindings", async () => {
+  it("reserves and deletes exact residue while retaining the member bindings", async () => {
     const { plan, state, facts, first, request } = fixture();
     const writes: typeof state[] = [];
     const deleteRef = vi.fn(async () => ({ status: "deleted" as const }));
@@ -37,10 +37,7 @@ describe("landed delivery teardown", () => {
     });
     expect(result).toMatchObject({ status: "torn-down", state: { value: { activeOperation: null } } });
     if (result.status !== "torn-down") return;
-    expect(result.state.value.members[0]).toEqual({
-      deliverableId: first.deliverableId, ref: null, changeRequest: null, coordinates: null,
-    });
-    expect(request.headSha).not.toBe(first.coordinates!.head);
+    expect(result.state.value.members[0]).toEqual(first);
     expect(deleteRef).toHaveBeenCalledWith({ ref: first.ref, expectedHead: request.headSha });
     expect(writes).toHaveLength(2);
   });
@@ -100,5 +97,61 @@ describe("landed delivery teardown", () => {
     });
     expect(result).toMatchObject({ status: "blocked", reason: "delete-refused" });
     if (result.status === "blocked") expect(result.reservation.value.activeOperation?.kind).toBe("teardown");
+  });
+
+  it("reobserves the top after highest-member deletion and reports automatic retarget", async () => {
+    const { plan, state: initial } = fixture();
+    const members = initial.members.map((member, index) => ({
+      ...member,
+      changeRequest: { providerId: "github", changeRequestId: String(101 + index) },
+    }));
+    const state = { ...initial, members };
+    const highest = members[1]!;
+    const top = members[2]!;
+    const memberRequest = {
+      binding: highest.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
+      headRef: highest.ref!.replace("refs/heads/", ""), headSha: highest.coordinates!.head,
+      baseRef: "main", state: "merged" as const, draft: false,
+    };
+    const topRequest = {
+      binding: top.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
+      headRef: top.ref!.replace("refs/heads/", ""), headSha: top.coordinates!.head,
+      baseRef: "main", state: "open" as const, draft: true,
+    };
+    const facts = {
+      target: state.target,
+      members: state.members,
+      landedDeliverableIds: members.slice(0, 2).map((member) => member.deliverableId),
+    };
+    let memberReads = 0;
+    const result = await teardownLandedDeliveryMember({
+      plan,
+      current: { revision: 4, value: state },
+      facts,
+      deliverableId: highest.deliverableId,
+      repository: "owner/repo",
+      protectedTargetRef: "refs/heads/main",
+      host: { readRequest: async (_repository, binding) => {
+        if (binding.changeRequestId === highest.changeRequest!.changeRequestId) {
+          memberReads += 1;
+          return { status: "observed", request: memberRequest };
+        }
+        return { status: "observed", request: topRequest };
+      } },
+      deleteRef: async () => ({ status: "deleted" }),
+      stateStore: { publish: async (_id, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+
+    expect(result).toMatchObject({
+      status: "torn-down",
+      nextAction: "terminal-checkpoint",
+      top: { status: "ready", request: { baseRef: "main" } },
+    });
+    if (result.status === "torn-down") {
+      expect(result.state.value.members[1]).toEqual(highest);
+    }
+    expect(memberReads).toBe(2);
   });
 });

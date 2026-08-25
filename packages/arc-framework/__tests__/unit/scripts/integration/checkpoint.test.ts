@@ -53,6 +53,7 @@ function dependencies(): IntegrationCheckpointDependencies {
       register: { kind: "attention", text: "Base moved." },
     }),
     readReconcileHost: async () => ({ state: "mergeable" }),
+    classifyDeliveryDrift: async () => ({ status: "not-applicable" }),
     readLifecycle: async () => ({
       workUnit: "example",
       storageVersion: oid("c"),
@@ -69,6 +70,7 @@ function dependencies(): IntegrationCheckpointDependencies {
       implementationChanged: false,
       convergenceVerification: "satisfied",
     }),
+    composeDelivery: async () => ({ status: "not-applicable" }),
     resolveMergeMethod: async () => ({
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
@@ -124,6 +126,59 @@ describe("integration checkpoint", () => {
           },
         },
       });
+  });
+
+  it("routes residual drift through terminal-member verification before base reconcile", async () => {
+    const deps = dependencies();
+    const events: string[] = [];
+    deps.classifyDeliveryDrift = async () => ({
+      status: "verify-member",
+      nextAction: "verify-terminal-member",
+      deliverableId: digest("d"),
+      paths: ["packages/arc-framework/src/terminal.ts"],
+    });
+    deps.readReconcileHost = async () => {
+      events.push("host-read");
+      return { state: "mergeable" };
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "verify-terminal-member",
+        reason: "delivery-terminal-blocked",
+        payload: {
+          reason: "residual-overlap",
+          deliverableId: digest("d"),
+          paths: ["packages/arc-framework/src/terminal.ts"],
+        },
+      });
+    expect(events).toEqual([]);
+  });
+
+  it("fails closed when delivery drift cannot be classified", async () => {
+    const deps = dependencies();
+    const events: string[] = [];
+    deps.classifyDeliveryDrift = async () => ({
+      status: "unavailable",
+      detail: "The delivery predecessor coordinate is unavailable.",
+    });
+    deps.readReconcileHost = async () => {
+      events.push("host-read");
+      return { state: "mergeable" };
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "delivery-terminal-blocked",
+        payload: {
+          reason: "drift-classification-unavailable",
+          detail: "The delivery predecessor coordinate is unavailable.",
+        },
+      });
+    expect(events).toEqual([]);
   });
 
   it("blocks as an unsafe reconcile when the host says the merge conflicts", async () => {
@@ -301,6 +356,75 @@ describe("integration checkpoint", () => {
         nextAction: "stop",
         reason: "merge-method-blocked",
       });
+  });
+
+  it("publishes a delivery terminal remedy without composing merge readiness", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const events: string[] = [];
+    deps.composeDelivery = async () => ({
+      status: "blocked",
+      nextAction: "retarget",
+      reason: "top-target-mismatch",
+      remedy: {
+        nextAction: "retarget",
+        repository: "owner/repo",
+        changeRequestId: "42",
+        protectedBaseRef: "main",
+      },
+    });
+    deps.composeReady = async (input) => {
+      events.push(`ready:${input.delivery.status}`);
+      throw new Error("must not compose merge readiness");
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "retarget",
+        reason: "delivery-terminal-blocked",
+        payload: { reason: "top-target-mismatch", remedy: { nextAction: "retarget" } },
+      });
+    expect(events).toEqual([]);
+  });
+
+  it("keeps the integration interlock after the delivery terminal checks pass", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const endpoints = {
+      before: {
+        predecessor: { head: oid("a"), tree: oid("b") },
+        member: { head: oid("c"), tree: oid("d") },
+      },
+      after: {
+        predecessor: { head: oid("a"), tree: oid("b") },
+        member: { head: oid("c"), tree: oid("d") },
+      },
+    };
+    deps.composeDelivery = async () => ({
+      status: "ready",
+      claim: {
+        status: "composed",
+        candidateId: digest("c"),
+        endpoints,
+        proof: { status: "accepted", proof: "tree-equality" },
+      },
+      checks: { status: "ready", candidateId: digest("c"), targets: [] },
+      top: {
+        status: "ready",
+        request: {
+          binding: { providerId: "github", changeRequestId: "42" },
+          repository: "owner/repo",
+          headRef: "feat/example",
+          headSha: oid("c"),
+          baseRef: "main",
+          state: "open",
+        },
+      },
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({ state: "ready", nextAction: "request-approval" });
   });
 
   it("blocks an implementation-changing lineage without its converged full attestation", async () => {

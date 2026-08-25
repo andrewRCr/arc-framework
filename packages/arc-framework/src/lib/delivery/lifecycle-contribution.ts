@@ -16,7 +16,7 @@ export interface DeliveryLifecycleContributionPathSource {
     readonly workUnitId: string;
     readonly activeMetaPath: ManagedPath;
     readonly protectedBaseRef?: string;
-    readonly controlRef?: string;
+    readonly topRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths>;
 }
 
@@ -53,7 +53,7 @@ export function compareDeliveryLifecycleContribution(_input: {
 /** Exact normalized completeness comparison for a final disposable candidate tree. */
 export function compareNormalizedDeliveryTree(input: {
   readonly protectedBase: DeliveryLifecycleTreeState;
-  readonly control: DeliveryLifecycleTreeState;
+  readonly top: DeliveryLifecycleTreeState;
   readonly finalCandidate: DeliveryLifecycleTreeState;
   readonly lifecyclePaths: readonly string[];
 }):
@@ -64,7 +64,7 @@ export function compareNormalizedDeliveryTree(input: {
       readonly inventedPaths: readonly string[];
       readonly mismatchedPaths: readonly string[];
     } {
-  const expected = new Map(input.control);
+  const expected = new Map(input.top);
   for (const path of input.lifecyclePaths) {
     const baseEntry = input.protectedBase.get(path);
     if (baseEntry == null) expected.delete(path);
@@ -114,7 +114,7 @@ implements DeliveryLifecycleContributionPathSource {
     readonly workUnitId: string;
     readonly activeMetaPath: ManagedPath;
     readonly protectedBaseRef?: string;
-    readonly controlRef?: string;
+    readonly topRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths> {
     const currentArtifacts = await listCurrentWuArtifactPaths(
       input.workUnitId,
@@ -123,10 +123,10 @@ implements DeliveryLifecycleContributionPathSource {
     );
     const refArtifacts = this.input.readArtifactsAtRef !== undefined
       && input.protectedBaseRef !== undefined
-      && input.controlRef !== undefined
+      && input.topRef !== undefined
       ? await Promise.all([
           this.input.readArtifactsAtRef(input.protectedBaseRef, input.workUnitId),
-          this.input.readArtifactsAtRef(input.controlRef, input.workUnitId),
+          this.input.readArtifactsAtRef(input.topRef, input.workUnitId),
         ])
       : [[], []] as const;
     const workUnitArtifacts = [...new Set([

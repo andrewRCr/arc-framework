@@ -13,6 +13,7 @@ import {
   type DeliveryPlanV1,
 } from "../../../src/lib/delivery/schema.js";
 import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
+import { deliverySingleMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 
 const planId = "123e4567-e89b-42d3-a456-426614174000";
 
@@ -314,11 +315,9 @@ describe("validateDeliveryPlanRevision", () => {
     expectIssue(redigest(plan), "uncovered-assignable-task");
   });
 
-  it("refuses stack projection cardinality and landability defects", () => {
-    const tooShort = structuredClone(constructedPlan());
-    tooShort.projection = { kind: "stack-to-main" };
-    tooShort.members = tooShort.members.slice(0, 1);
-    expectIssue(redigest(tooShort), "stack-member-count");
+  it("admits a one-member stack and refuses landability defects", () => {
+    expect(validateDeliveryPlanRevision(deliverySingleMemberStackPlanFixture(), null))
+      .toMatchObject({ status: "valid" });
 
     const notLandable = structuredClone(constructedPlan());
     notLandable.projection = { kind: "stack-to-main" };
