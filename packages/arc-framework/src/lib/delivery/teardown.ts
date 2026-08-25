@@ -5,15 +5,36 @@ import { acceptDeliveryOperationResult, reserveDeliveryOperation } from "./opera
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
+import {
+  assessDeliveryTerminalTop,
+  type DeliveryTerminalTopResult,
+} from "./terminal-integration.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
 export type TeardownLandedDeliveryMemberResult =
-  | { readonly status: "torn-down"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | {
+      readonly status: "torn-down";
+      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+      readonly nextAction: "continue";
+    }
+  | {
+      readonly status: "torn-down";
+      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+      readonly nextAction: "terminal-checkpoint" | "retarget" | "reopen-and-retarget";
+      readonly top: Extract<DeliveryTerminalTopResult, { readonly status: "ready" } | {
+        readonly reason: "top-target-mismatch";
+      }>;
+    }
   | { readonly status: "refused"; readonly reason: string }
   | {
       readonly status: "blocked";
-      readonly reason: "delete-refused" | "request-mismatch" | "ambiguous-result" | "state-conflict";
+      readonly reason:
+        | "delete-refused"
+        | "request-mismatch"
+        | "top-request-mismatch"
+        | "ambiguous-result"
+        | "state-conflict";
       readonly reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
     };
 
@@ -75,10 +96,7 @@ export async function teardownLandedDeliveryMember(input: {
       coordinates: member.coordinates,
     }],
   };
-  const requested = {
-    target: input.current.value.target,
-    members: [{ deliverableId: member.deliverableId, ref: null, changeRequest: null, coordinates: null }],
-  };
+  const requested = before;
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
     kind: "teardown",
@@ -105,6 +123,31 @@ export async function teardownLandedDeliveryMember(input: {
   }) || finalRequest.request.headSha !== initialRequest.request.headSha) {
     return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation.value };
   }
+  let top: Extract<DeliveryTerminalTopResult, { readonly status: "ready" } | {
+    readonly reason: "top-target-mismatch";
+  }> | null = null;
+  if (index === input.plan.members.length - 2) {
+    const terminal = input.current.value.members.at(-1);
+    if (terminal?.changeRequest === null || terminal?.changeRequest === undefined
+      || terminal.coordinates === null) {
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation.value };
+    }
+    const observedTop = await input.host.readRequest(input.repository, terminal.changeRequest);
+    if (observedTop.status !== "observed") {
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation.value };
+    }
+    const topDecision = assessDeliveryTerminalTop({
+      terminal: true,
+      protectedBaseRef: input.protectedTargetRef,
+      publicationHead: terminal.coordinates.head,
+      request: observedTop.request,
+    });
+    if (topDecision.status === "window-open"
+      || (topDecision.status === "refused" && topDecision.reason !== "top-target-mismatch")) {
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation.value };
+    }
+    top = topDecision;
+  }
   const accepted = acceptDeliveryOperationResult(persistedReservation.value, requested);
   if (accepted.status !== "applied") {
     return { status: "blocked", reason: "ambiguous-result", reservation: persistedReservation.value };
@@ -112,7 +155,11 @@ export async function teardownLandedDeliveryMember(input: {
   const persisted = await input.stateStore.publish(
     input.plan.planId, accepted.state, persistedReservation.value.revision,
   );
-  return persisted.status === "ok"
-    ? { status: "torn-down", state: persisted.value }
-    : { status: "blocked", reason: "state-conflict", reservation: persistedReservation.value };
+  if (persisted.status !== "ok") {
+    return { status: "blocked", reason: "state-conflict", reservation: persistedReservation.value };
+  }
+  if (top === null) return { status: "torn-down", state: persisted.value, nextAction: "continue" };
+  return top.status === "ready"
+    ? { status: "torn-down", state: persisted.value, nextAction: "terminal-checkpoint", top }
+    : { status: "torn-down", state: persisted.value, nextAction: top.remedy.nextAction, top };
 }

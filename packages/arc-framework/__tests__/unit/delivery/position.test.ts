@@ -33,9 +33,14 @@ function positionFacts(
 }
 
 describe("deriveDeliveryPosition", () => {
-  it("uses the target only for a coordinate-free predecessor already known landed", () => {
+  it("uses the target for a predecessor already known landed while retaining its bound coordinates", () => {
     const state = deliveryStateFixture();
     const first = state.members[0]!;
+    expect(resolveDeliveryPredecessorHead({
+      ...positionFacts(state),
+      landedDeliverableIds: [first.deliverableId],
+    }, 1)).toBe(state.target!.coordinates!.head);
+
     const facts = positionFacts(state);
     facts.members[0] = { ...facts.members[0]!, coordinates: null };
 
