@@ -15,6 +15,8 @@ import {
 import { awaitRequiredChecks } from "../review-gate/checks-await.js";
 import { evaluateReviewReadiness } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
+import { resolveAcceptableDeliveryBaseRefs } from
+  "../review-gate/core/delivery-member-lookup.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
 import { GhMergeLockPort } from "../review-gate/hosts/github/merge-lock.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
@@ -190,7 +192,15 @@ export function createIntegrationMergeDependencies(input: {
     },
     readMerged: async (target) => {
       const resolved = await resolveChangeRequest(
-        { headRef: target.headRef, headSha: target.headSha, baseRef: target.baseRef },
+        {
+          headRef: target.headRef,
+          headSha: target.headSha,
+          baseRef: target.baseRef,
+          acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(
+            deliveryMemberLookup,
+            target.headSha,
+          ),
+        },
         changeRequestPort,
       );
       return resolved.state === "merged-at-head"
