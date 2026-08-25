@@ -14,9 +14,17 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { gitExec } from "../../src/lib/io-context.js";
+import { runActiveStatus } from "../../src/commands/active.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import {
+  candidateReviewResponses,
+  reduceCandidateDurableBaseline,
+} from "../../src/lib/work-unit/candidate-attestation.js";
+import {
+  collectGitCandidateTarget,
+  resolveGitCandidateBaseRevision,
+} from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
   resolveSubmissionBoundaryPath,
@@ -277,7 +285,11 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
   const shipped = cadence === "with-integration";
   const dependencies: IntegrationCheckpointDependencies = {
     ...production,
-    readDrift: async (workUnit) => ({ ...await production.readDrift(workUnit), verdict: "clean" }),
+    readDrift: async (workUnit) => ({
+      ...await production.readDrift(workUnit),
+      verdict: "clean",
+      baseOid: await resolveGitCandidateBaseRevision({ cwd: root, baseBranch: "main", exec: gitExec }),
+    }),
     readLifecycle: async (workUnit) => ({
       workUnit,
       storageVersion: await git(root, ["rev-parse", "HEAD"]),
@@ -328,9 +340,8 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "unexplained implementation"]);
 
     await expect(checkpointOver(root)).resolves.toMatchObject({
-      state: "blocked",
-      reason: "candidate-unexplained-delta",
-      payload: { candidate: { delta: { changed: ["reviewed.txt"] } } },
+      state: "candidate-applicability",
+      payload: { state: "decision-required", paths: ["reviewed.txt"] },
     });
   });
 
@@ -364,8 +375,8 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "edit the archived task list"]);
 
     await expect(checkpointOver(root, "with-integration")).resolves.toMatchObject({
-      state: "blocked",
-      reason: "candidate-unexplained-delta",
+      state: "candidate-applicability",
+      payload: { state: "decision-required" },
     });
   });
 
@@ -403,6 +414,122 @@ describe("review-fix Candidate lineage", () => {
     })).rejects.toThrow(/collides with Candidate key/u);
   });
 
+  it("projects a mechanically carried Candidate as the effective pre-publication target", async () => {
+    const root = await createTempRepo("arc-candidate-effective-target-");
+    roots.push(root);
+    const initialized = await runArc(["init", "--yes", "--name", "example"], root);
+    expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "base\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\ncommon-10\n",
+      "utf8",
+    );
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "install ARC"]);
+    const localBase = await git(root, ["rev-parse", "main^{commit}"]);
+
+    await git(root, ["switch", "-c", "feat/example"]);
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", "meta-example.md"), META, "utf8");
+    await writeFile(
+      join(root, ".arc", "active", "tasks-example.md"),
+      "# Task List: Example\n\n- [x] Verification complete\n",
+      "utf8",
+    );
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "base\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\nfeature\n",
+      "utf8",
+    );
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "feature implementation"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["add", "-A"]);
+    await git(root, ["commit", "-m", "record candidate"]);
+
+    await git(root, ["switch", "main"]);
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "moved\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\ncommon-10\n",
+      "utf8",
+    );
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "move base"]);
+    const currentBase = await git(root, ["rev-parse", "HEAD^{commit}"]);
+    await git(root, ["switch", "feat/example"]);
+    await git(root, ["update-ref", "refs/remotes/origin/main", currentBase]);
+    await git(root, ["branch", "-f", "main", localBase]);
+    await git(root, ["merge", "--no-ff", currentBase, "-m", "merge base"]);
+    const mergedHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+    expect(await git(root, ["rev-parse", "main^{commit}"])).toBe(localBase);
+    expect(await git(root, ["rev-parse", "refs/remotes/origin/main^{commit}"])).toBe(currentBase);
+
+    const composition = createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec });
+    const candidate = await composition.readCandidate("example");
+    expect(candidate, JSON.stringify(candidate)).toMatchObject({
+      status: "current",
+      headSha: mergedHead,
+    });
+    await expect(createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec })
+      .readCandidate("example")).resolves.toMatchObject({
+        status: "current",
+        recognizedRevision: mergedHead,
+      });
+    await expect(checkpointOver(root)).resolves.not.toMatchObject({
+      reason: "candidate-unexplained-delta",
+    });
+    await expect(runActiveStatus({ cwd: root, exec: gitExec })).resolves.toMatchObject({
+      candidates: [{
+        integrationBoundary: {
+          candidateSubjectDigest: candidate.status === "current" ? candidate.subjectDigest : "unavailable",
+        },
+      }],
+    });
+    if (candidate.status !== "current") throw new Error("machine-carried Candidate was not current");
+    await expect(readRoutedObligation(root, gitExec, {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: mergedHead,
+    }, 42)).resolves.toMatchObject({
+      state: "blocked",
+      detail: "The publication boundary belongs to a different Candidate subject.",
+    });
+
+    const source = await reviewToFindings(root);
+    const dispositions = await approvedSet(root, source);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    await writeFile(
+      join(root, "reviewed.txt"),
+      "moved\ncommon-2\ncommon-3\ncommon-4\ncommon-5\ncommon-6\ncommon-7\ncommon-8\ncommon-9\nfixed\n",
+      "utf8",
+    );
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply approved fix"]);
+
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    const record = await readCandidateRecord(root, "example");
+    expect(candidateReviewResponses(record ?? { transitions: [] }).at(-1)?.oldTarget.revision).toBe(mergedHead);
+    await git(root, ["commit", "-m", "record verified response"]);
+    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })(
+      "example",
+      await git(root, ["rev-parse", "HEAD^{commit}"]),
+    )).resolves.toMatchObject({
+      dispositionIds: [dispositions.dispositionSet.dispositionSetId],
+    });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
   it("clears a Candidate no response can explain through a deliberately re-rooted lineage", async () => {
     const root = await fixture();
     const proposed = await runArc(["attest", "example", "--json"], root);
@@ -421,14 +548,14 @@ describe("review-fix Candidate lineage", () => {
       remedy: { argv: ["arc", "attest", "example", "--new-root"] },
     });
 
-    // The default re-attestation refuses and the checkpoint refuses with it, so the remedy has to name
-    // the escape rather than the invocation that just failed.
+    // The default re-attestation refuses while checkpoint exposes the bounded applicability decision.
+    // Re-rooting remains the explicit escape when the change is genuinely outside the Candidate.
     const refused = await runArc(["attest", "example", "--json"], root);
     expect(refused.exitCode).toBe(1);
     expect(JSON.parse(refused.stdout)).toMatchObject({ status: "blocked", candidateId: superseded });
     await expect(checkpointOver(root)).resolves.toMatchObject({
-      reason: "candidate-unexplained-delta",
-      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+      state: "candidate-applicability",
+      payload: { state: "decision-required", paths: ["reviewed.txt"] },
     });
 
     const rerooted = await runArc(["attest", "example", "--new-root", "--json"], root);
@@ -790,7 +917,7 @@ describe("review-fix Candidate lineage", () => {
     // The deferred set moves no implementation and therefore does not advance the Candidate lineage.
     // Its durable approval still authorizes one exact-target replay action at checkpoint settlement.
     const lineage = await readCandidateRecord(root, "example");
-    expect(lineage?.responses.map(({ dispositionId }) => dispositionId))
+    expect(lineage === null ? [] : candidateReviewResponses(lineage).map(({ dispositionId }) => dispositionId))
       .not.toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.dispositionIds).toHaveLength(2);
     expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
@@ -1128,8 +1255,9 @@ const OBLIGATION = {
 async function reserveHostedReview(root: string, approvedHead: string): Promise<void> {
   const record = await readCandidateRecord(root, "example");
   const candidateId = record?.attestation.candidateId;
-  const candidateSubjectDigest = record?.responses.at(-1)?.newTarget.subject.subjectDigest
-    ?? record?.subject.subjectDigest;
+  const candidateSubjectDigest = record === null
+    ? undefined
+    : reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
   expect(candidateId).toBeDefined();
   expect(candidateSubjectDigest).toBeDefined();
   const { version } = await readSubmissionBoundaryVersioned(root, "example");

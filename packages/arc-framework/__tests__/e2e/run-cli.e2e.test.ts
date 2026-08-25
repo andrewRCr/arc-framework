@@ -49,7 +49,7 @@ describe("runCli", () => {
       for (const args of [
         ["integrate", "checkpoint", "example", "--json"],
         ["integrate", "merge", "example", "--checkpoint", checkpoint, "--json"],
-        ["base", "merge", "--expected-base", oid, "--json"],
+        ["base", "merge", "--expected-base", oid, "--expected-head", oid, "--json"],
       ]) {
         const result = await runCli(args, { cwd });
         expect(result.exitCode).toBe(1);
@@ -59,7 +59,7 @@ describe("runCli", () => {
       for (const args of [
         ["integrate", "checkpoint", "example"],
         ["integrate", "merge", "example", "--checkpoint", checkpoint],
-        ["base", "merge", "--expected-base", oid],
+        ["base", "merge", "--expected-base", oid, "--expected-head", oid],
       ]) {
         const result = await runCli(args, { cwd });
         expect(result.exitCode).not.toBe(0);

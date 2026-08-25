@@ -5,6 +5,7 @@ import type {
   DeliveryLandEffectV1,
   DeliveryPublishEffectV1,
   DeliveryTargetCoordinatesV1,
+  DeliveryTopRemedyEffectV1,
 } from "./schema.js";
 
 /** One exact host request selected by repository, head, and base identity. */
@@ -36,6 +37,11 @@ export interface DeliveryHostOpenRequest {
 export type DeliveryHostMutationResult =
   | { readonly status: "submitted" }
   | { readonly status: "refused"; readonly reason: "queued" | "malformed" | "unavailable" };
+
+/** Failure-only mutation boundary kept separate from ordinary publication and landing. */
+export interface DeliveryTopRemedyHostPort {
+  applyTopRemedy(effect: DeliveryTopRemedyEffectV1): Promise<DeliveryHostMutationResult>;
+}
 
 /** Narrow host port used by materialization and ordinary landing. */
 export interface DeliveryHostPort {

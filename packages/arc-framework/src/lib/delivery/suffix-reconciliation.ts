@@ -68,6 +68,7 @@ export async function reserveObservedSuffixRetarget(input: {
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
     kind: "rewrite",
+    mode: "provider-adoption",
     affectedDeliverableIds: [recognized.deliverableId],
     expectedStateRevision: input.current.revision,
     before: recognized.before,
@@ -93,6 +94,10 @@ export async function reconcileReservedSuffixRetarget(input: {
   | BlockedContributionRefusal
   | { readonly status: "blocked"; readonly reason: "ambiguous" | "state-conflict" }
 > {
+  const operation = input.current.value.activeOperation;
+  if (operation?.kind !== "rewrite" || operation.mode !== "provider-adoption") {
+    return { status: "blocked", reason: "ambiguous" };
+  }
   const reconciled = reconcileDeliveryOperation(input.current, input.observed);
   if (reconciled.status === "retry") return { status: "retryable" };
   if (reconciled.status !== "adopt") return { status: "blocked", reason: "ambiguous" };
@@ -159,6 +164,7 @@ export async function executeDeliverySuffixRewrite(input: {
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
     kind: "rewrite",
+    mode: "review-fix",
     affectedDeliverableIds: [member.deliverableId],
     expectedStateRevision: input.current.revision,
     before,
