@@ -15,6 +15,8 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
   const trees = new Map(state.members.flatMap((member) => member.coordinates === null
     ? []
     : [[member.coordinates.head, member.coordinates.tree] as const]));
+  trees.set(targetCoordinates.head, targetCoordinates.tree);
+  const availableCommits = new Set(trees.keys());
   const exec = vi.fn(async (
     _command: string,
     args: readonly string[],
@@ -22,9 +24,14 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
   ) => {
     expect(options).toMatchObject({ cwd: "/repository", objectAccess: "local-only" });
     if (args[0] === "rev-parse" && args[2]?.endsWith("^{commit}")) {
-      return { stdout: `${args[2].slice(0, -"^{commit}".length)}\n`, stderr: "" };
+      const head = args[2].slice(0, -"^{commit}".length);
+      if (!availableCommits.has(head)) throw new Error("commit unavailable");
+      return { stdout: `${head}\n`, stderr: "" };
     }
     if (args[0] === "rev-list") return { stdout: `${args.at(-1)}\n`, stderr: "" };
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+      return { stdout: "", stderr: "" };
+    }
     if (args[0] === "rev-parse" && args[1]?.endsWith("^{tree}")) {
       return { stdout: `${trees.get(args[1].slice(0, -"^{tree}".length)) ?? ""}\n`, stderr: "" };
     }
@@ -42,6 +49,19 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
     cwd: "/repository",
     host,
     repository: "owner/repository",
+    materializeTarget: vi.fn(async (coordinates: { head: string; tree: string }) => {
+      trees.set(coordinates.head, coordinates.tree);
+      availableCommits.add(coordinates.head);
+      return true;
+    }),
+    observeLandedResult: vi.fn(async ({ mergeCommitSha }: { mergeCommitSha: string }) => ({
+      predecessor: targetCoordinates,
+      member: { head: mergeCommitSha, tree: trees.get(mergeCommitSha) ?? targetCoordinates.tree },
+    })),
+    proveContribution: vi.fn(async () => ({
+      status: "accepted" as const,
+      proof: "mechanical-reapply" as const,
+    })),
     remoteHeads: Object.fromEntries(state.members.flatMap((member) => (
       member.ref === null || member.coordinates === null
         ? []
@@ -71,6 +91,28 @@ describe("session-init delivery position facts", () => {
     });
     expect(dependencies.exec).toHaveBeenCalled();
     expect(dependencies.exec.mock.calls.some(([, args]) => args[0] === "ls-remote")).toBe(false);
+  });
+
+  it("keeps append-only protected-target movement readable without rebasing stored member facts", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const dependencies = exactDependencies(state);
+    const advancedTarget = {
+      status: "observed",
+      coordinates: { head: "f".repeat(40), tree: "e".repeat(40) },
+    } as const;
+    dependencies.host.observeTarget.mockResolvedValue(advancedTarget);
+
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
+      .resolves.toMatchObject({
+        status: "observed",
+        facts: {
+          target: state.target,
+          members: state.members,
+          landedDeliverableIds: [],
+          targetMovement: "append-only",
+        },
+      });
   });
 
   it("fails closed when a remote member head is unavailable", async () => {
@@ -297,6 +339,13 @@ describe("session-init delivery position facts", () => {
         baseRef: "main",
         targetRef: state.target!.ref,
         strategy: "merge",
+        mergePolicy: {
+          repository: "owner/repository",
+          stackPosition: "intermediate",
+          method: "merge",
+          allowedMethods: ["merge"],
+          policyFingerprint: `sha256:${"a".repeat(64)}`,
+        },
       },
     });
     expect(land.status).toBe("reserved");
@@ -338,7 +387,12 @@ describe("session-init delivery position facts", () => {
         baseRef: "main",
         state: "merged",
         draft: true,
+        mergeCommitSha: mergedCoordinates.head,
       },
+    });
+    mergedDeps.observeLandedResult.mockResolvedValue({
+      predecessor: publishedState.target!.coordinates!,
+      member: mergedCoordinates,
     });
     await expect(observeRepositoryDeliveryPosition(plan, land.state, 6, mergedDeps))
       .resolves.toMatchObject({
