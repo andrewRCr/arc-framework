@@ -23,6 +23,8 @@ import type { LaneProgressProjection } from "../../../../../src/scripts/review-g
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { selectPrePublicationReservationTarget } from
+  "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 
 const HEAD = "a".repeat(40);
 const PREPUBLICATION_HEAD = "b".repeat(40);
@@ -79,6 +81,10 @@ function dependencies(
     readCandidate: vi.fn(async () => currentCandidate),
     readAssurance: vi.fn(async () => resolvedAssurance),
     resolveTarget: vi.fn(async () => resolvedTarget),
+    readReservationTarget: vi.fn(async (_workUnit, singleton) => ({
+      status: "resolved" as const,
+      target: { kind: "pinned-head" as const, ...singleton },
+    })),
     deriveImmutableTarget: vi.fn(async () => immutableTarget),
     readOwnerTerminusAuthority: vi.fn(async () => ({
       status: "authorized" as const,
@@ -97,6 +103,49 @@ function dependencies(
 }
 
 describe("composePrePublicationReviewRequest", () => {
+  it("selects a delivery marker from one coherent bound plan", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: {
+        status: "resolved",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+        workUnitId: "example",
+      },
+    })).toEqual({
+      status: "resolved",
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+        workUnitId: "example",
+      },
+    });
+  });
+
+  it("refuses when delivery authority cannot establish the reservation target", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: { status: "unavailable" },
+    })).toEqual({
+      status: "refused",
+      reason: "The pre-publication reservation target could not be resolved from delivery state.",
+    });
+  });
+
+  it("refuses a resolved plan that belongs to a different work unit", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: {
+        status: "resolved",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+        workUnitId: "other",
+      },
+    })).toMatchObject({ status: "refused" });
+  });
+
   it("keeps a carried reservation's source order after an approved Candidate subject advance", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       readLanePolicy: async (lane) => lane === "frontline"
