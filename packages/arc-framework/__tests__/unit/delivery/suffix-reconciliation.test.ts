@@ -129,6 +129,24 @@ describe("delivery suffix reconciliation", () => {
     if (reservation.status !== "reserved") throw new Error("fixture must reserve");
     const reserved = reservation.state;
     const observed = reserved.value.activeOperation!.requested;
+    const wrongMode = {
+      ...reserved,
+      value: {
+        ...reserved.value,
+        activeOperation: {
+          ...reserved.value.activeOperation!,
+          kind: "rewrite" as const,
+          mode: "review-fix" as const,
+        },
+      },
+    };
+    await expect(reconcileReservedSuffixRetarget({
+      planId: plan.planId,
+      current: wrongMode,
+      observed,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      stateStore: { publish: async (_id, value) => ({ status: "ok", value: { revision: 9, value } }) },
+    })).resolves.toEqual({ status: "blocked", reason: "ambiguous" });
     const applied = await reconcileReservedSuffixRetarget({
       planId: plan.planId,
       current: reserved,

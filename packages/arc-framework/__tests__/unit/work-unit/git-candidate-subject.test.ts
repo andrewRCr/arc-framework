@@ -10,11 +10,13 @@ import {
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
+const CURRENT_BASE = "d".repeat(40);
 
 /** Collect over a staged change set, giving every present path its own content. */
 async function collectTarget(paths: readonly string[], contents: Readonly<Record<string, string>> = {}) {
   const exec: GitExec = async (_cmd, args) => {
     if (args[0] === "rev-parse") return { stdout: `${HEAD}\n` };
+    if (args[0] === "for-each-ref") return { stdout: `${BASE}\n` };
     if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
     if (args[0] === "diff") return { stdout: `${paths.join("\0")}\0` };
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
@@ -53,6 +55,7 @@ describe("Candidate subject classification", () => {
       cwd: "/repo",
       name: "example",
       baseBranch: "main",
+      baseRevision: BASE,
       revision,
       exec,
       readBlob: async (_cwd, ref) => {
@@ -63,10 +66,32 @@ describe("Candidate subject classification", () => {
 
     expect(target.revision).toBe(revision);
     expect(calls).toEqual([
-      ["merge-base", revision, "main"],
+      ["merge-base", revision, BASE],
       ["diff", "--name-only", "-z", BASE, revision, "--"],
     ]);
     expect(refs).toEqual([revision]);
+  });
+
+  it("collects the subject against an exact authoritative base revision", async () => {
+    const calls: string[][] = [];
+    const exec: GitExec = async (_cmd, args) => {
+      calls.push([...args]);
+      if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
+      if (args[0] === "diff") return { stdout: "reviewed.txt\0" };
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    await collectGitCandidateTarget({
+      cwd: "/repo",
+      name: "example",
+      baseBranch: "main",
+      baseRevision: CURRENT_BASE,
+      revision: HEAD,
+      exec,
+      readBlob: async () => new TextEncoder().encode("reviewed content"),
+    });
+
+    expect(calls[0]).toEqual(["merge-base", HEAD, CURRENT_BASE]);
   });
 
   it("separates reviewable content from the lifecycle writes that accompany it", async () => {

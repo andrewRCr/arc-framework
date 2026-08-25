@@ -24,11 +24,41 @@ export interface CollectGitCandidateTargetInput {
   cwd: string;
   name: string;
   baseBranch: string;
+  /** Exact authoritative base coordinate; otherwise use the best materialized configured-base ref. */
+  baseRevision?: string;
   exec: GitExec;
   /** An exact committed target to collect instead of the current index. */
   revision?: string;
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
   readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
+}
+
+/** Resolve the configured base from its materialized remote-tracking ref, falling back to the local branch. */
+export async function resolveGitCandidateBaseRevision(input: {
+  readonly cwd: string;
+  readonly baseBranch: string;
+  readonly exec: GitExec;
+}): Promise<string> {
+  const baseBranch = input.baseBranch.trim();
+  if (baseBranch === "") throw new Error("Candidate subject collection requires a configured base branch");
+  const options = { cwd: input.cwd, objectAccess: "local-only" as const };
+  const remoteBaseRef = `refs/remotes/origin/${baseBranch}`;
+  const remote = (await input.exec(
+    "git",
+    ["for-each-ref", "--format=%(objectname)", remoteBaseRef],
+    options,
+  )).stdout.trim();
+  if (remote !== "") {
+    const revisions = remote.split(/\r?\n/u);
+    if (revisions.length !== 1 || revisions[0] === undefined || !isGitObjectId(revisions[0])) {
+      throw new Error("Cannot resolve the materialized Candidate base revision");
+    }
+    return revisions[0];
+  }
+  const local = (await input.exec("git", ["rev-parse", "--verify", `${baseBranch}^{commit}`], options))
+    .stdout.trim();
+  if (!isGitObjectId(local)) throw new Error("Cannot resolve the Candidate base revision");
+  return local;
 }
 
 /**
@@ -138,7 +168,10 @@ export async function collectGitCandidateTarget(
   const head = input.revision
     ?? (await input.exec("git", ["rev-parse", "HEAD"], options)).stdout.trim();
   if (!isGitObjectId(head)) throw new Error("Cannot resolve the Candidate head revision");
-  const base = (await input.exec("git", ["merge-base", head, baseBranch], options)).stdout.trim();
+  const baseRevision = input.baseRevision
+    ?? await resolveGitCandidateBaseRevision({ cwd: input.cwd, baseBranch, exec: input.exec });
+  if (!isGitObjectId(baseRevision)) throw new Error("Cannot resolve the Candidate base revision");
+  const base = (await input.exec("git", ["merge-base", head, baseRevision], options)).stdout.trim();
   if (!isGitObjectId(base)) throw new Error("Cannot resolve the Candidate base revision");
   const changed = (await input.exec(
     "git",

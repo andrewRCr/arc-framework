@@ -12,6 +12,7 @@ describe("delivery terminal integration handoff", () => {
       readFile(resolve(root, ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
     ]);
     expect(installed).toBe(packaged);
+    expect(packaged).not.toContain("    - validate-criteria");
     expect(packaged).not.toContain("arc delivery terminal attach");
     expect(packaged.split("arc integrate checkpoint {name} --json")).toHaveLength(2);
     expect(packaged.split("> `integration-interlock`: Stop after the ready evidence")).toHaveLength(2);
@@ -29,5 +30,14 @@ describe("delivery terminal integration handoff", () => {
     expect(merge).toBeLessThan(close);
     expect(resume).toBeLessThan(close);
     expect(close).toBeLessThan(teardown);
+    const terminalRemedy = packaged.indexOf("`retarget` or `reopen-and-retarget`");
+    const remedyInvocation = packaged.indexOf("remedy.argv", terminalRemedy);
+    expect(packaged).not.toContain("`verify-terminal-member`");
+    const baseMerge = packaged.indexOf("arc base merge --expected-base", checkpoint);
+    for (const position of [terminalRemedy, remedyInvocation, baseMerge]) {
+      expect(position).toBeGreaterThan(-1);
+    }
+    expect(terminalRemedy).toBeLessThan(remedyInvocation);
+    expect(remedyInvocation).toBeLessThan(baseMerge);
   });
 });

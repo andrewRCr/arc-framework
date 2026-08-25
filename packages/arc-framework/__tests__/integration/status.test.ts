@@ -165,12 +165,12 @@ async function writeStatusFile(
   await writeFile(join(activeDir, filename), lines.join("\n"));
 }
 
-async function writeCandidate(root: string, slug: string): Promise<string> {
+async function writeCandidate(root: string, slug: string, revision = "a".repeat(40)): Promise<string> {
   const subject = createCandidateSubjectSnapshot([]);
   const attestation = createCandidateAttestation({
     workUnit: slug,
     subject,
-    baseRevision: "a".repeat(40),
+    baseRevision: revision,
     attestedBy: "andrew",
     attestedAt: "2026-08-19T00:00:00.000Z",
     verificationEvidenceRef: `tasks-${slug}.md#verification`,
@@ -182,7 +182,7 @@ async function writeCandidate(root: string, slug: string): Promise<string> {
     semanticsVersion: "candidate-attestation/v1",
     attestation,
     subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   }));
   return attestation.candidateId;
@@ -1245,7 +1245,13 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries a real Candidate prepublication locus through active, derived context, and load set", async () => {
-    const candidateId = await writeCandidate(fixture.root, "foo");
+    await execFileAsync("git", ["init", "--initial-branch=main"], { cwd: fixture.root });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: fixture.root });
+    await execFileAsync("git", ["config", "user.name", "Test"], { cwd: fixture.root });
+    await execFileAsync("git", ["add", "."], { cwd: fixture.root });
+    await execFileAsync("git", ["commit", "-m", "fixture"], { cwd: fixture.root });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: fixture.root });
+    const candidateId = await writeCandidate(fixture.root, "foo", stdout.trim());
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
