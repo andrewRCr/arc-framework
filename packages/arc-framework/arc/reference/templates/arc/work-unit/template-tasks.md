@@ -25,6 +25,9 @@ no field edit. The design is canonical for Scope (Will Do / Won't Do); the task 
 
 ## **Phase 1:** {Phase name}
 
+<!-- Include when a Delivery Plan is present; repeat for each member represented in this phase. -->
+**Delivery member:** {ordinal} — `{chunk-key}`
+
 _Purpose:_ {what this phase delivers and why this granularity}
 
 ### `[ ]` **1.1 {Subtaskless parent task title}**
@@ -57,8 +60,16 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
 ## Success Criteria
 
+<!-- With a Delivery Plan, group by member and finish with Cross-member seams. For a single-deliverable work unit,
+     omit the subgroup headings and keep the flat criterion list. Criterion checkboxes always stay at root indent. -->
+
+### Member {ordinal} — `{chunk-key}`
+
 - `[ ]` {Verifiable outcome derived from Scope "Will Do"}
 - `[ ]` {Another verifiable outcome}
+
+### Cross-member seams
+
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
 ```

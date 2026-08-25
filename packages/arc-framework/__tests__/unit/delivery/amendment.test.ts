@@ -205,7 +205,15 @@ describe("classifyDeliveryPlanAmendment", () => {
       .toEqual({ status: "accepted" });
 
     const unboundSuffix = successor(current, (authoring) => {
+      const secondTaskIds = authoring.members[1]!.taskIds;
+      const secondDesignElementIds = authoring.members[1]!.designElementIds;
+      const thirdTaskIds = authoring.members[2]!.taskIds;
+      const thirdDesignElementIds = authoring.members[2]!.designElementIds;
       [authoring.members[1], authoring.members[2]] = [authoring.members[2]!, authoring.members[1]!];
+      authoring.members[1]!.taskIds = secondTaskIds;
+      authoring.members[1]!.designElementIds = secondDesignElementIds;
+      authoring.members[2]!.taskIds = thirdTaskIds;
+      authoring.members[2]!.designElementIds = thirdDesignElementIds;
       authoring.members[2]!.contract = "Re-cut the unbound suffix.";
     });
     expect(classify({ current, proposed: unboundSuffix, bound: [firstId] }))
@@ -235,7 +243,7 @@ describe("classifyDeliveryPlanAmendment", () => {
 
     const movedCoverage = successor(current, (authoring) => {
       const movedTask = authoring.members[1]!.taskIds[0]!;
-      authoring.members[1]!.taskIds = [];
+      authoring.members[1]!.taskIds = [authoring.members[0]!.taskIds.at(-1)!];
       authoring.members[2]!.taskIds = [...authoring.members[2]!.taskIds, movedTask];
     });
     expect(classify({ current, proposed: movedCoverage, bound: [secondId] })).toEqual({

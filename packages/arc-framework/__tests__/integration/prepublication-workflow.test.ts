@@ -56,6 +56,46 @@ describe("prepublication workflow boundary", () => {
       .toContain("system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md");
     expect(recipe.include_files)
       .toContain("reference/templates/arc/work-unit/template-pull-request.md");
+    expect(recipe.include_files).toContain("system/methods/validate-criteria.md");
+  });
+
+  it("fires validate-criteria directly at work-unit and delivery-member boundaries", async () => {
+    for (const root of ROOTS) {
+      const [verification, taskLoop, validateCriteria] = await Promise.all([
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
+        readFile(resolve(root, root === ROOTS[0]
+          ? "system/workflows/arc/process-task-loop.template.md"
+          : "system/workflows/arc/process-task-loop.md"), "utf8"),
+        readFile(resolve(root, "system/methods/validate-criteria.md"), "utf8"),
+      ]);
+
+      expect(verification).toContain("    - validate-criteria");
+      expect(verification).not.toContain("    - adversarial-review");
+      expect(verification).toContain("validate-criteria:\n  scope:\n    kind: work-unit");
+      expect(verification).toContain("member-groups: recorded delivery-member criteria reports");
+      expect(verification).toContain("seams: task list's Cross-member seams group");
+      expect(verification).not.toContain("criteria: task list's complete Success Criteria section");
+      expect(taskLoop).toContain("    - validate-criteria");
+      expect(taskLoop).not.toContain("    - adversarial-review");
+      expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");
+      expect(taskLoop).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
+      const coherentUnit = taskLoop.indexOf("2. **Coherent unit completion:**");
+      const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
+      const reportAndStop = taskLoop.indexOf("4. **Report and stop:**");
+      expect(coherentUnit).toBeGreaterThan(-1);
+      expect(memberBoundary).toBeGreaterThan(coherentUnit);
+      expect(reportAndStop).toBeGreaterThan(memberBoundary);
+      expect(taskLoop.slice(coherentUnit, memberBoundary))
+        .toContain("last task assigned to a delivery member");
+      const unresolvedBranch = taskLoop.indexOf("**Unresolved member-report branch:**");
+      const resolvedBranch = taskLoop.indexOf("**Resolved completion branch:**");
+      expect(unresolvedBranch).toBeGreaterThan(memberBoundary);
+      expect(resolvedBranch).toBeGreaterThan(unresolvedBranch);
+      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).toContain("leave the closing task `[ ]`");
+      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toContain("Mark the task `[x]`");
+      expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
+      expect(validateCriteria).toContain("walk the seam group and union coherence");
+    }
   });
 
   it("ships every pull-request template reference at its resolved installed path", async () => {

@@ -120,7 +120,6 @@ describe("constructDeliveryPlanRevision", () => {
     const authoring = authoringInput();
     authoring.members[0]!.taskIds = ["1.2", "1.1"];
     authoring.members[0]!.designElementIds = ["detailed:R2", "detailed:R1"];
-    authoring.members[1]!.taskIds = [];
     authoring.members[1]!.designElementIds = [];
 
     const result = constructDeliveryPlanRevision(constructionInput({ authoring }));
@@ -171,7 +170,7 @@ describe("constructDeliveryPlanRevision", () => {
   it("carries retrofit coverage gaps as advisories", () => {
     const authoring = authoringInput();
     authoring.entry = "from-branch";
-    authoring.members[1]!.taskIds = [];
+    authoring.members[1]!.taskIds = ["1.1"];
 
     const result = constructDeliveryPlanRevision(constructionInput({ authoring }));
 
@@ -193,7 +192,6 @@ describe("validateDeliveryPlanRevision", () => {
   it("refuses a non-canonical set-like ordering", () => {
     const authoring = authoringInput();
     authoring.members[0]!.taskIds = ["1.2", "1.1"];
-    authoring.members[1]!.taskIds = [];
     const plan = structuredClone(constructedPlan(authoring));
     plan.members[0]!.taskIds = ["1.2", "1.1"];
 
@@ -255,10 +253,11 @@ describe("validateDeliveryPlanRevision", () => {
     expectIssue(redigest(plan), "seam-owner-mismatch");
   });
 
-  it("fires the declared task-coverage refinement", () => {
+  it("fires the declared task-coverage refinements", () => {
     const plan = structuredClone(constructedPlan());
     plan.members[1]!.taskIds = [];
 
+    expectIssue(redigest(plan), "member-task-order");
     expectIssue(redigest(plan), "uncovered-implementation-task");
   });
 

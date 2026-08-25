@@ -48,7 +48,7 @@ arc:                              # omit if this workflow loads no methods/exten
 
 **`arc:` namespace** (protected — mechanically enforced by CI):
 
-- `arc.methods` — array of method names the workflow loads
+- `arc.methods` — array of method names the workflow's own body may fire
 - `arc.extensions` — array of extension names the workflow checks
 - Names match the file basename in `system/methods/` / `system/extensions/`.
 
@@ -66,6 +66,10 @@ Loading at the fire-point is what makes declaring cheap: a workflow may declare 
 paths without every entry through that workflow paying for it. So declare by what the workflow may fire, never
 trimmed to what a typical run happens to reach.
 
+The same direct-consumer rule applies inside a method: its protected `arc.methods` field declares methods that its
+own default or override body may fire. A workflow never redeclares those dependencies. Workflow declarations root
+the deduplicated transitive graph, while each nested method still loads only when its direct fire-point is reached.
+
 **Mark every fire-point whose consumer is the executing session.** A declared entry with no fire-point in the
 body never loads. That is correct when a CLI verb carries the content on the workflow's behalf — a review lane's
 rubric reaches its evaluator through the runtime, never through the agent running the workflow — and it is a
@@ -73,12 +77,12 @@ defect when the workflow itself needs the content at a step it never marks. The 
 frontmatter, so the author distinguishes them by marking the fire-point.
 
 **Enforcement.** Pre-commit hooks validate schema shape and verify declared names resolve to real
-methods/extensions — both corpora. The corpus-wide coverage audit (every registered method and extension is
-declared by at least one workflow) runs in the framework repo's CI only; project workflows opt into whatever
-subset they need and carry no coverage requirement. Note what that audit does **not** check: it runs
-method → declared-somewhere, so it cannot tell a marked fire-point from a missing one. Reachability is the
-author's responsibility until a fire-point validator exists — the extension-side marker check is the shape it
-would take.
+methods/extensions — both corpora. The corpus-wide audit requires every registered method to be transitively
+reachable from a workflow root and every extension to have a workflow declaration; it also rejects missing method
+targets and dependency cycles. Project workflows opt into whatever subset they need and carry no coverage
+requirement. Note what that audit does **not** check: it cannot tell a marked fire-point from a missing one.
+Fire-point reachability remains the author's responsibility until a point validator exists — the extension-side
+marker check is the shape it would take.
 
 ---
 
