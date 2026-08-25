@@ -146,8 +146,29 @@ must match the current Candidate and carries the ordered sources and exact oblig
 to be `continue-pre-publication-review`, then invoke `integrationBoundary.nextAction.command`. Continue only from
 `ready / hosted-request`; the returned policy preserves the reservation without rerunning chunking or source
 ordering and supplies `policy.payload.sourceId` plus the authorized `policy.payload.pass`. Bind the open pull request
-to that reservation, then invoke `arc review hosted request -` with the returned source, exact opened target, and
-`coverage: complete`:
+to that reservation, resolve its exact current `targetRef`, and invoke:
+
+```bash
+arc review status --target '{targetRef}' --json
+```
+
+Dispatch only on `nextAction`. `review-hosted-request` means pass the returned action unchanged to:
+
+```bash
+arc review hosted request -
+```
+
+The action already carries the selected source, exact opened target, complete coverage, and any delivery-member
+vehicle. `resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice,
+and submits the returned `selectionAction` unchanged as `offer` beside that `selection` to:
+
+```bash
+arc candidate applicability resolve {workUnitId} -
+```
+
+Commit a returned `commit-selection`, then re-enter through `arc review status`. `continue` retains the earlier
+attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns,
+base movement, and pending checks return to their typed checkpoint; `upgrade` and every `stop` remain stops.
 
 - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing uses
   the project's configured bounded-call defaults.
@@ -178,6 +199,9 @@ non-pass outcomes retain the prior count.
   select the next configured source without consuming the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
   an uncertain request.
+
+After any concluded attempt, invoke `arc review status` again. The CLI selects the next retained target and source;
+only `settled / continue-reconcile` with the typed discharge conjunction advances to Phase 2.
 
 While a hosted await is live, speculative drafting of Completion Notes, Release Notes, and the cleanup plan is
 allowed when useful. Do not commit, push, archive, regenerate readiness, or destructively clean from that draft
