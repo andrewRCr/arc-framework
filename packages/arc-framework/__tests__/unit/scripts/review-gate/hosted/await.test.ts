@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../../src/lib/delivery/review-vehicle.js";
 import {
   HostedAwaitResultSchema,
   awaitHostedReview,
@@ -21,6 +23,16 @@ const handle: HostedRequestHandle = {
     url: "https://github.com/owner/repo/pull/42#issuecomment-1",
     createdAt: "2026-07-23T12:00:00.000Z",
   },
+};
+const deliveryHandle: HostedRequestHandle = {
+  ...handle,
+  vehicle: DeliveryReviewMemberVehicleSchema.parse({
+    kind: "delivery-member",
+    planId: "123e4567-e89b-12d3-a456-426614174000",
+    deliverableId: `sha256:${"d".repeat(64)}`,
+    workUnitId: "example",
+    head: HEAD,
+  }),
 };
 
 const CREATED_AT_MS = Date.parse(handle.artifact.createdAt);
@@ -165,6 +177,24 @@ describe("hosted review await", () => {
 
     expect(first.handle).toEqual(handle);
     expect(second.handle).toEqual(handle);
+  });
+
+  it("round-trips the exact delivery selector through a terminal await result", async () => {
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle: deliveryHandle,
+      timeoutMs: 500,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(() => Promise.resolve({
+        kind: "clean",
+        reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-2",
+      }))],
+    });
+
+    expect(result).toMatchObject({ state: "clean", handle: deliveryHandle });
   });
 
   it.each(["readHead", "observe"] as const)(
