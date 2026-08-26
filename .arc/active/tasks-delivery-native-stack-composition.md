@@ -1600,18 +1600,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 849 test files passed
-  with one skipped (10,886 tests passed with one skipped), the package build, and diff hygiene all passed. The final
-  seam/forcing slice passed 22 tests; the completed attestation-return path passed 143 focused recovery tests.
-- _Success criteria:_ 28 total: 27 met, one superseded, and none unresolved. Eight member reports were carried without
-  re-derivation; the terminal walk covered all five cross-member criteria and union coherence over diff
-  `0b8e87285..54a46388e`, the final staged repair, and the complete reachable tree. The plan-present, state-absent
+- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
+  with one skipped (10,913 tests passed with one skipped), the package build, and diff hygiene all passed. The final
+  delivery-focused settlement slice passed 104 tests across eight files, including both interruption regressions.
+- _Success criteria:_ 30 total: 28 met, two superseded, and none unresolved. Eight member reports were carried without
+  re-derivation; the terminal walk covered all five cross-member criteria and union coherence over merge base
+  `0b8e87285`, reachable head `bde9e6264`, and the final staged D1.2b/D5.9 settlement. The plan-present, state-absent
   production proof forces reservation, publication transition, integration dispatch, first-member state binding,
-  and hosted fan-out in order. A fresh-context Heavy companion returned clean; the later cursor-only attestation
-  repair changed no delivery seam and passed direct real-CLI, recovery, and full-suite verification. Provider refresh
-  is implemented and tested; no live provider-refresh exercise is claimed.
+  and hosted fan-out in order. The final fresh-context Heavy companion's two majors were source-confirmed and fixed:
+  exact same-highest publication retry and already-completed refresh-candidate cleanup now converge without changing
+  their durable subjects. No open material finding remains. Provider refresh is implemented and tested; no live
+  provider-refresh exercise is claimed.
 - _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
   and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
   integration workflow and load set, and the runtime phase contract admits those bounded loci without granting member
@@ -1656,13 +1657,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   rematerialization path after an append-only top advance while leaving ordinary position exact. Rerun Member 6 and
   terminal verification over the repaired union.
 
+- _Settled 2026-08-26 after final adversarial verification:_ exact same-highest ancestry adoption now returns the
+  existing top rather than synthesizing another commit behind a preserved terminal publish reservation. Provider
+  refresh cleanup reuses the exact ARC-owned ref deletion primitive, adopting prior absence and refusing foreign-head
+  movement. Real-Git adoption, partial/all-absent cleanup, and cleanup-complete/state-unwritten recovery regressions
+  pass; the complete Tier 3 gate passes with 10,913 tests and one skipped.
+
 ---
 
 ## Success Criteria
 
 ### Member 1 — `member-boundary-verification`
 
-- `[x]` Each planned member's task range closes with an ordinary implementation task that fires `validate-criteria`
+- `[~]` Each planned member's task range closes with an ordinary implementation task that fires `validate-criteria`
   at member scope over its group in the member-grouped Success Criteria section, adding no phases and leaving the
   single terminal verification task unassigned to any member. Success criteria remain marked only during the
   verification phase. The closeout pass walks the seam group and dispositions the member groups from recorded
@@ -1672,7 +1679,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   for two or three contract-closed group reviews plus a fresh seam-and-aggregate review, preserving one complete
   logical pass without 1:1 member fan-out or satisfying the stronger `review-chunking` carrier.
 
-- `[ ]` The ordered delivery task inventory classifies every parent as implementation or scoped verification.
+  **Superseded:** D7.2b replaces the implementation-task workaround with a member-scoped verification role while
+  preserving its cadence, member assignment, criteria slice, and the sole terminal work-unit verifier.
+
+- `[x]` The ordered delivery task inventory classifies every parent as implementation or scoped verification.
   Member-scope verification remains member-assignable under the existing partition semantics; exactly one
   work-unit-scope verifier remains terminal and unassigned. Canonical plan and authoring schemas, coverage,
   fingerprints, composition, handlers, and regenerated development records all consume that classification.
@@ -1778,7 +1788,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   fallback. GitHub registration remains raw API, provider push porcelain is never authoritative, and every
   uncertain or conflicting result stops without suffix-only state adoption.
 
-- `[ ]` The public delivery-position command composes fresh Git and host facts from canonical plan/state plus
+- `[x]` The public delivery-position command composes fresh Git and host facts from canonical plan/state plus
   repository and remote locators through the existing adapter boundary. Workflow callers never author observation
   facts; unavailable observation and active-operation recovery remain typed stops.
 

@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:37e9feea5b4bfdeee67574d392ba77e072322d9e2bce1c9bc06098d9dbc2d001`
+- **Candidate:** `sha256:d51515eeac590e2cc076e2b8945a51acbf44290eaf3c9859ba1cbfed5d0d106e`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 1.8.R.a — Model parent task roles and verification scopes
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
