@@ -405,7 +405,10 @@ describe("arc delivery position", () => {
     expect(JSON.parse(position.stdout)).toMatchObject({
       command: "delivery position",
       status: "refused",
-      reason: "position-unavailable",
+      reason: "review-fix-routing-required",
+      nextAction: "plan-review-fix",
+      recommendedActionText: "Select the delivery member that owns the approved correction, then run "
+        + "`arc delivery review-fix plan` before authoring or publishing replacement content.",
     });
 
     const reviewFix = await runArcWithStdin(
