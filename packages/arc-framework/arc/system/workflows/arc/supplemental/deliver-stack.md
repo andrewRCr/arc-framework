@@ -114,7 +114,9 @@ Supply only the plan, repository, and remote locators. The verb dispatches on th
 derives its Git, request, target, and contribution evidence itself; never serialize an operation observation into
 the request.
 
-Follow the typed result. `applied / read-position` returns to `arc delivery position`; any other `applied` result
+Follow the typed result. `applied / teardown-member` takes the returned `selectedDeliverableId` and immediately
+invokes `arc delivery teardown` with the existing plan, repository, protected-target, and remote locators before any
+ordinary position read. `applied / read-position` returns to `arc delivery position`; any other `applied` result
 follows its returned `nextAction`. A `retryable` result dispatches only one of these exact
 `transition / action / selector` arms:
 
