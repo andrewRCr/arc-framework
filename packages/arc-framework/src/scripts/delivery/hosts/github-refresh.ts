@@ -108,16 +108,25 @@ function nativeInput(
   return members.length === before.members.length ? { repository, members } : null;
 }
 
-function viewMatchesBefore(view: GhStackView, input: DeliveryNativeStackInput, before: DeliveryOperationSnapshotV1): boolean {
+function viewMatchesBefore(
+  view: GhStackView,
+  input: DeliveryNativeStackInput,
+  before: DeliveryOperationSnapshotV1,
+  targetHead: string,
+): boolean {
   const trunk = refName(before.target?.ref ?? null);
   return trunk !== null && view.trunk === trunk && view.branches.length === input.members.length
     && input.members.every((member, index) => {
       const branch = view.branches[index];
       const coordinates = before.members[index]?.coordinates;
+      const expectedBase = index === 0
+        ? targetHead
+        : before.members[index - 1]?.coordinates?.head;
       return branch !== undefined && coordinates !== null && coordinates !== undefined
+        && expectedBase !== undefined
         && branch.name === member.headRef
         && branch.head === coordinates.head
-        && branch.base === coordinates.base
+        && branch.base === expectedBase
         && String(branch.pr.number) === member.changeRequestId
         && branch.pr.state === "OPEN";
     });
@@ -247,29 +256,33 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
       const beforeView = decodeGhStackView(
         (await this.options.gh.run(["stack", "view", "--json"], { cwd: temporaryPath })).stdout,
       );
-      if (beforeView === null || !viewMatchesBefore(beforeView, registration, input.before)) {
+      const targetRef = input.before.target?.ref ?? null;
+      const targetName = refName(targetRef);
+      const localTarget = targetName === null
+        ? null
+        : await readCoordinates(this.options.git, temporaryPath, `refs/heads/${targetName}`);
+      if (beforeView === null || targetRef === null || targetName === null || localTarget === null
+        || !viewMatchesBefore(beforeView, registration, input.before, localTarget.head)) {
         result = { status: "refused", reason: "scope-mismatch" };
       } else {
-        const targetRef = input.before.target?.ref ?? null;
-        const targetName = refName(targetRef);
         const selectedId = input.scope.kind === "dependent-suffix"
           ? input.scope.selectedDeliverableId
           : input.before.members[0]?.deliverableId;
         const selectedIndex = input.before.members.findIndex(({ deliverableId }) => deliverableId === selectedId);
         const selectedBranch = registration.members[selectedIndex]?.headRef;
-        if (targetRef === null || targetName === null || selectedIndex < 0 || selectedBranch === undefined) {
+        if (selectedIndex < 0 || selectedBranch === undefined) {
           result = { status: "refused", reason: "scope-mismatch" };
         } else {
-          const localTarget = await readCoordinates(this.options.git, temporaryPath, `refs/heads/${targetName}`);
           const beforeTarget = input.before.target?.coordinates;
-          const targetMovement = localTarget !== null && beforeTarget !== null && beforeTarget !== undefined
+          const targetMovement = beforeTarget !== null && beforeTarget !== undefined
             && localTarget.head === beforeTarget.head
             ? "exact" as const
-            : localTarget !== null && beforeTarget !== null && beforeTarget !== undefined
+            : beforeTarget !== null && beforeTarget !== undefined
               && await isAncestor(this.options.git, temporaryPath, beforeTarget.head, localTarget.head)
               ? "append-only" as const
               : null;
-          if (targetMovement === null || (input.scope.kind === "dependent-suffix" && targetMovement !== "exact")) {
+          if (targetMovement === null
+            || (input.scope.kind === "dependent-suffix" && targetMovement !== "exact")) {
             result = { status: "refused", reason: "target-mismatch" };
           } else {
             await this.options.git("git", ["switch", "--", selectedBranch], { cwd: temporaryPath });
@@ -285,7 +298,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
               temporaryPath,
               `refs/heads/${targetName}`,
             );
-            if (afterView === null || localTarget === null || refreshedTarget === null
+            if (afterView === null || refreshedTarget === null
               || afterView.trunk !== targetName
               || refreshedTarget.head !== localTarget.head || refreshedTarget.tree !== localTarget.tree
               || afterView.branches.length !== input.before.members.length) {

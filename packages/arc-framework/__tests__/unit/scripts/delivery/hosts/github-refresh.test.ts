@@ -130,6 +130,9 @@ describe("GitHub provider refresh adapter", () => {
       ...fixture,
       members: fixture.members.map((member, index) => ({
         ...member,
+        coordinates: index === 0 && member.coordinates !== null
+          ? { ...member.coordinates, head: oid("a"), tree: oid("b") }
+          : member.coordinates,
         changeRequest: { providerId: "github", changeRequestId: String(500 + index) },
       })),
     };
@@ -148,15 +151,18 @@ describe("GitHub provider refresh adapter", () => {
       : oid(String(index + 7)));
     const afterTrees = before.members.map((_member, index) => oid(String(index + 3)));
     let drift = false;
+    let baseDrift = false;
     const asView = (after: boolean): GhStackView => ({
       trunk: targetName,
       currentBranch: before.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
       branches: before.members.map((member, index) => ({
         name: drift && index === 0 ? "delivery/unexpected" : member.ref!.replace(/^refs\/heads\//u, ""),
         head: after ? afterHeads[index]! : member.coordinates!.head,
-        base: after
-          ? index === 0 ? target.head : afterHeads[index - 1]!
-          : member.coordinates!.base,
+        base: baseDrift && index === 1
+          ? oid("f")
+          : after
+            ? index === 0 ? target.head : afterHeads[index - 1]!
+            : index === 0 ? target.head : before.members[index - 1]!.coordinates!.head,
         isCurrent: index === 0,
         isMerged: false,
         isQueued: false,
@@ -299,6 +305,14 @@ describe("GitHub provider refresh adapter", () => {
       scope: { kind: "complete-remainder" },
       before,
     })).resolves.toEqual({ status: "refused", reason: "scope-mismatch" });
+    drift = false;
+    baseDrift = true;
+    await expect(port.prepare({
+      plan,
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+      before,
+    })).resolves.toEqual({ status: "refused", reason: "scope-mismatch" });
   });
 
   it("cleans every candidate imported before a later import failure", async () => {
@@ -329,7 +343,9 @@ describe("GitHub provider refresh adapter", () => {
       branches: before.members.map((member, index) => ({
         name: member.ref!.replace(/^refs\/heads\//u, ""),
         head: after ? afterHeads[index]! : member.coordinates!.head,
-        base: after ? index === 0 ? target.head : afterHeads[index - 1]! : member.coordinates!.base,
+        base: after
+          ? index === 0 ? target.head : afterHeads[index - 1]!
+          : index === 0 ? target.head : before.members[index - 1]!.coordinates!.head,
         isCurrent: index === 0,
         isMerged: false,
         isQueued: false,
