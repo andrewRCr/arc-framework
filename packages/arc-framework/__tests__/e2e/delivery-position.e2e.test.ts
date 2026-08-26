@@ -14,10 +14,11 @@ import {
 } from "../../src/lib/delivery/local-stores.js";
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
+import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -38,7 +39,9 @@ function memberSnapshot(state: DeliveryStateV1, index: number) {
   };
 }
 
-async function positionFixture(activeOperation = false) {
+type ActiveOperationScenario = "review-fix" | "native" | "provider-refresh-partial";
+
+async function positionFixture(activeOperation?: ActiveOperationScenario) {
   const repository = await createTempRepo("arc-delivery-position-");
   const remote = await mkdtemp(join(tmpdir(), "arc-delivery-position-remote-"));
   roots.push(repository, remote);
@@ -61,14 +64,29 @@ async function positionFixture(activeOperation = false) {
   await git(repository, ["commit", "-m", "member two"]);
   const secondHead = await git(repository, ["rev-parse", "HEAD"]);
   const secondTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+  await writeFile(join(repository, "member-three.txt"), "member three\n");
+  await git(repository, ["add", "member-three.txt"]);
+  await git(repository, ["commit", "-m", "member three"]);
+  const thirdHead = await git(repository, ["rev-parse", "HEAD"]);
+  const thirdTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+  const refreshedFirstHead = await git(repository, [
+    "commit-tree", firstTree, "-p", targetHead, "-m", "refreshed member one",
+  ]);
+  const refreshedSecondHead = await git(repository, [
+    "commit-tree", secondTree, "-p", refreshedFirstHead, "-m", "refreshed member two",
+  ]);
+  const publishedFirstHead = activeOperation === "provider-refresh-partial"
+    ? refreshedFirstHead
+    : firstHead;
   await git(repository, [
     "push", "origin",
     `${targetHead}:refs/heads/main`,
-    `${firstHead}:refs/heads/member-1`,
+    `${publishedFirstHead}:refs/heads/member-1`,
     `${secondHead}:refs/heads/member-2`,
+    `${thirdHead}:refs/heads/member-3`,
   ]);
 
-  const plan = deliveryStackPlanFixture();
+  const plan = deliveryThreeMemberStackPlanFixture();
   const state = DeliveryStateV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-state/v1",
@@ -80,14 +98,20 @@ async function positionFixture(activeOperation = false) {
       {
         deliverableId: plan.members[0]!.deliverableId,
         ref: "refs/heads/member-1",
-        changeRequest: null,
+        changeRequest: { providerId: "github", changeRequestId: "401" },
         coordinates: { base: targetHead, head: firstHead, tree: firstTree },
       },
       {
         deliverableId: plan.members[1]!.deliverableId,
         ref: "refs/heads/member-2",
-        changeRequest: null,
+        changeRequest: { providerId: "github", changeRequestId: "402" },
         coordinates: { base: firstHead, head: secondHead, tree: secondTree },
+      },
+      {
+        deliverableId: plan.members[2]!.deliverableId,
+        ref: "refs/heads/member-3",
+        changeRequest: null,
+        coordinates: { base: secondHead, head: thirdHead, tree: thirdTree },
       },
     ],
     activeOperation: null,
@@ -98,7 +122,7 @@ async function positionFixture(activeOperation = false) {
   expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
   expect(await states.publish(plan.planId, state, 0)).toMatchObject({ status: "ok" });
 
-  if (activeOperation) {
+  if (activeOperation === "review-fix") {
     const before = { target: state.target, members: [memberSnapshot(state, 0)] };
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
       operationId: "interrupted-position-operation",
@@ -112,11 +136,81 @@ async function positionFixture(activeOperation = false) {
     expect(reserved.status).toBe("reserved");
     if (reserved.status !== "reserved") throw new Error("position fixture reservation refused");
     expect(await states.publish(plan.planId, reserved.state, 1)).toMatchObject({ status: "ok" });
+  } else if (activeOperation === "native") {
+    const members = state.members.slice(0, -1).map((_, index) => memberSnapshot(state, index));
+    const top = members.at(-1);
+    if (top?.changeRequest === null || top?.changeRequest === undefined || top.coordinates === null) {
+      throw new Error("position fixture native member must be fully bound");
+    }
+    const snapshot = { target: state.target, members };
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "interrupted-native-position-operation",
+      kind: "land",
+      mode: "native",
+      affectedDeliverableIds: members.map(({ deliverableId }) => deliverableId),
+      expectedStateRevision: 1,
+      before: snapshot,
+      requested: snapshot,
+      effect: {
+        providerId: "github",
+        repository: "owner/repo",
+        changeRequestId: top.changeRequest.changeRequestId,
+        headSha: top.coordinates.head,
+        baseRef: "main",
+        targetRef: "refs/heads/main",
+        strategy: "merge",
+        mergePolicy: {
+          repository: "owner/repo",
+          stackPosition: "intermediate",
+          method: "merge",
+          allowedMethods: ["merge"],
+          policyFingerprint: `sha256:${"a".repeat(64)}`,
+        },
+      },
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") throw new Error("position fixture native reservation refused");
+    expect(await states.publish(plan.planId, reserved.state, 1)).toMatchObject({ status: "ok" });
+  } else if (activeOperation === "provider-refresh-partial") {
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    if (derived.status !== "derived") throw new Error("position fixture refresh subject must derive");
+    const requested = {
+      target: derived.subject.before.target,
+      members: derived.subject.before.members.map((member, index) => ({
+        ...member,
+        coordinates: member.coordinates === null ? null : {
+          base: index === 0 ? targetHead : refreshedFirstHead,
+          head: index === 0 ? refreshedFirstHead : refreshedSecondHead,
+          tree: index === 0 ? firstTree : secondTree,
+        },
+      })),
+    };
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "interrupted-provider-refresh-position-operation",
+      kind: "rewrite",
+      mode: "provider-refresh",
+      affectedDeliverableIds: derived.subject.affectedDeliverableIds,
+      expectedStateRevision: 1,
+      before: derived.subject.before,
+      requested,
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") throw new Error("position fixture refresh reservation refused");
+    expect(await states.publish(plan.planId, reserved.state, 1)).toMatchObject({ status: "ok" });
   }
 
   const fakeBin = join(repository, "fake-bin");
   const fakeGh = join(fakeBin, "gh");
   await mkdir(fakeBin);
+  const request = (number: number, headRef: string, headSha: string, baseRef: string) => JSON.stringify({
+    number,
+    state: "open",
+    merged: false,
+    draft: true,
+    head: { ref: headRef, sha: headSha, repo: { full_name: "owner/repo" } },
+    base: { ref: baseRef, repo: { full_name: "owner/repo" } },
+    merge_commit_sha: null,
+  });
   await writeFile(fakeGh, [
     "#!/bin/sh",
     "if [ \"${ARC_FAKE_TARGET_UNAVAILABLE:-0}\" = \"1\" ]; then exit 1; fi",
@@ -126,6 +220,12 @@ async function positionFixture(activeOperation = false) {
     "    ;;",
     `  repos/owner/repo/git/commits/${targetHead})`,
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: targetTree } })}'`,
+    "    ;;",
+    "  repos/owner/repo/pulls/401)",
+    `    printf '%s\\n' '${request(401, "member-1", publishedFirstHead, "main")}'`,
+    "    ;;",
+    "  repos/owner/repo/pulls/402)",
+    `    printf '%s\\n' '${request(402, "member-2", secondHead, "member-1")}'`,
     "    ;;",
     "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
     "esac",
@@ -184,7 +284,7 @@ describe("arc delivery position", () => {
   });
 
   it("keeps a freshly recoverable active operation on the reconciliation route", async () => {
-    const fixture = await positionFixture(true);
+    const fixture = await positionFixture("review-fix");
     const result = await runArcWithStdin(
       ["delivery", "position", "-", "--json"],
       fixture.repository,
@@ -201,6 +301,54 @@ describe("arc delivery position", () => {
     await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
       status: "ok",
       value: { revision: 2, value: { activeOperation: { operationId: "interrupted-position-operation" } } },
+    });
+  });
+
+  it("routes an interrupted native landing to reconciliation before fresh observation", async () => {
+    const fixture = await positionFixture("native");
+    const result = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TARGET_UNAVAILABLE: "1" } },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery position",
+      status: "refused",
+      reason: "operation-active",
+    });
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
+      status: "ok",
+      value: {
+        revision: 2,
+        value: { activeOperation: { operationId: "interrupted-native-position-operation" } },
+      },
+    });
+  });
+
+  it("routes a partially published provider refresh to reconciliation before fresh observation", async () => {
+    const fixture = await positionFixture("provider-refresh-partial");
+    const result = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery position",
+      status: "refused",
+      reason: "operation-active",
+    });
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
+      status: "ok",
+      value: {
+        revision: 2,
+        value: { activeOperation: { operationId: "interrupted-provider-refresh-position-operation" } },
+      },
     });
   });
 });
