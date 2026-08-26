@@ -89,6 +89,23 @@ describe("packaged delivery workflow", () => {
     expect(prepare).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(apply);
     expect(reviewSection).toMatch(/retryable[\s\S]*prepare[\s\S]*new integration interlock/iu);
+    const positionRequest = reviewSection.indexOf(
+      '{"planId":"<planId>","repository":"<repositoryRef>","remote":"origin"}',
+    );
+    const positionRead = reviewSection.indexOf("arc delivery position - --json");
+    expect(positionRequest).toBeGreaterThan(-1);
+    expect(positionRequest).toBeLessThan(positionRead);
+    expect(reviewSection.slice(positionRequest, positionRead)).not.toContain("facts");
+    expect(reviewSection).toMatch(
+      /position - --json[\s\S]*Dispatch only on its typed route[\s\S]*review-member[\s\S]*teardown-member[\s\S]*terminal-handoff/u,
+    );
+    const positionDispatch = reviewSection.slice(
+      positionRead,
+      reviewSection.indexOf("For `review-member`", positionRead),
+    );
+    expect(positionDispatch).toMatch(
+      /operation-active[\s\S]*arc delivery reconcile - --json[\s\S]*Every other\s+refusal stops/u,
+    );
     expect(reviewSection).toMatch(
       /native-stack-required[\s\S]*delivery-native-land-select[\s\S]*mode: sequential[\s\S]*canonical remaining chain/iu,
     );

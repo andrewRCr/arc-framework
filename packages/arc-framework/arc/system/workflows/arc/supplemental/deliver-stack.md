@@ -230,7 +230,13 @@ no-suffix state write.
 
 ## Review and land the current member
 
-Read the next action from:
+Supply only the canonical plan identity and repository and remote locators:
+
+```json
+{"planId":"<planId>","repository":"<repositoryRef>","remote":"origin"}
+```
+
+Read the next action from fresh handler observation:
 
 ```bash
 arc delivery position - --json
@@ -238,7 +244,9 @@ arc delivery position - --json
 
 Dispatch only on its typed route. `review-member` enters the review and landing path below with the returned
 `selectedDeliverableId`. `teardown-member` skips review and landing and enters the teardown path below with its
-exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. Every refusal stops.
+exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. `operation-active` invokes
+`arc delivery reconcile - --json` with the same locators and follows the recovery dispatch above. Every other
+refusal stops.
 
 For `review-member`, run the existing review sequence with the exact delivery-member vehicle returned by the CLI:
 
