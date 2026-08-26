@@ -61,9 +61,11 @@ describe("delivery suffix rematerialization", () => {
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
+      top: { ref: terminal.ref!, head: terminal.coordinates!.head, tree: terminal.coordinates!.tree },
       finalCandidate: terminal.coordinates!,
       lifecyclePaths: [],
     }, {
+      readAncestry: async () => "ancestor",
       adoptTop: async () => ({ status: "adopted", head: adoptedHead, tree: terminal.coordinates!.tree }),
       publishTop: async () => ({ status: "published" }),
       publishState: async (_planId, value, expectedRevision) => expectedRevision === 7
@@ -89,6 +91,87 @@ describe("delivery suffix rematerialization", () => {
     });
   });
 
+  it("uses the fresh append-only top as the rematerialization lease and persisted content baseline", async () => {
+    const { state } = fixture();
+    const highest = state.members.at(-2)!;
+    const terminal = state.members.at(-1)!;
+    const liveTop = {
+      ref: terminal.ref!,
+      head: "8".repeat(40),
+      tree: "7".repeat(40),
+    };
+    const adoptedHead = "9".repeat(40);
+    const result = await completeDeliverySuffixMutationTail({
+      rematerialized: {
+        status: "rematerialized",
+        state: { revision: 7, value: state },
+        contributionVerdicts: [],
+        nextAction: "verify-review-fix",
+        verification: { memberDeliverableIds: [], tier1Required: true },
+      },
+      commonBase: state.target!.coordinates!,
+      topRef: terminal.ref!,
+      top: liveTop,
+      finalCandidate: terminal.coordinates!,
+      lifecyclePaths: [],
+    }, {
+      readAncestry: async () => "ancestor",
+      adoptTop: async (input) => input.top.head === liveTop.head && input.top.tree === liveTop.tree
+        ? { status: "adopted", head: adoptedHead, tree: liveTop.tree }
+        : { status: "refused", reason: "top-moved" },
+      publishTop: async (input) => input.beforeHead === liveTop.head
+        ? { status: "published" }
+        : { status: "refused" },
+      publishState: async (_planId, value, expectedRevision) => expectedRevision === 7
+        ? { status: "ok", value: { revision: 8, value } }
+        : { status: "refused" },
+    });
+    expect(result).toMatchObject({
+      status: "rematerialized",
+      state: {
+        revision: 8,
+        value: {
+          members: expect.arrayContaining([{
+            ...terminal,
+            coordinates: {
+              base: highest.coordinates!.head,
+              head: adoptedHead,
+              tree: liveTop.tree,
+            },
+          }]),
+        },
+      },
+    });
+  });
+
+  it("refuses rematerialization when the fresh top no longer descends from the retained binding", async () => {
+    const { state } = fixture();
+    const terminal = state.members.at(-1)!;
+    const result = await completeDeliverySuffixMutationTail({
+      rematerialized: {
+        status: "rematerialized",
+        state: { revision: 7, value: state },
+        contributionVerdicts: [],
+        nextAction: "verify-review-fix",
+        verification: { memberDeliverableIds: [], tier1Required: true },
+      },
+      commonBase: state.target!.coordinates!,
+      topRef: terminal.ref!,
+      top: { ref: terminal.ref!, head: "8".repeat(40), tree: "7".repeat(40) },
+      finalCandidate: terminal.coordinates!,
+      lifecyclePaths: [],
+    }, {
+      readAncestry: async () => "not-ancestor",
+      adoptTop: async () => ({ status: "adopted", head: "9".repeat(40), tree: "7".repeat(40) }),
+      publishTop: async () => ({ status: "published" }),
+      publishState: async (_planId, value) => ({
+        status: "ok",
+        value: { revision: 8, value },
+      }),
+    });
+    expect(result).toEqual({ status: "refused", reason: "adoption-refused" });
+  });
+
   it("refuses a stale writer at the terminal rebind", async () => {
     const { state } = fixture();
     const terminal = state.members.at(-1)!;
@@ -102,9 +185,11 @@ describe("delivery suffix rematerialization", () => {
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
+      top: { ref: terminal.ref!, head: terminal.coordinates!.head, tree: terminal.coordinates!.tree },
       finalCandidate: terminal.coordinates!,
       lifecyclePaths: [],
     }, {
+      readAncestry: async () => "ancestor",
       adoptTop: async () => ({ status: "adopted", head: "9".repeat(40), tree: terminal.coordinates!.tree }),
       publishTop: async () => ({ status: "published" }),
       publishState: async () => ({ status: "refused" }),
@@ -132,14 +217,62 @@ describe("delivery suffix rematerialization", () => {
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
+      top: { ref: terminal.ref!, head: terminal.coordinates!.head, tree: terminal.coordinates!.tree },
       finalCandidate: terminal.coordinates!,
       lifecyclePaths: [],
     }, {
+      readAncestry: async () => "ancestor",
       adoptTop: async () => { throw new Error("must not create another adoption"); },
       publishTop: async () => ({ status: "adopted" }),
       publishState: async () => { throw new Error("must not rewrite exact state"); },
     });
     expect(result).toMatchObject({ status: "rematerialized", state: { revision: 8, value: rebound } });
+  });
+
+  it("persists a moved live top even when predecessor absorption was already complete", async () => {
+    const { state } = fixture();
+    const highest = state.members.at(-2)!;
+    const terminal = state.members.at(-1)!;
+    const rebound = {
+      ...state,
+      members: state.members.map((member) => member.deliverableId === terminal.deliverableId
+        ? { ...member, coordinates: { ...member.coordinates!, base: highest.coordinates!.head } }
+        : member),
+    };
+    const liveTop = { ref: terminal.ref!, head: "8".repeat(40), tree: "7".repeat(40) };
+    const result = await completeDeliverySuffixMutationTail({
+      rematerialized: {
+        status: "rematerialized",
+        state: { revision: 8, value: rebound },
+        contributionVerdicts: [],
+        nextAction: "verify-review-fix",
+        verification: { memberDeliverableIds: [], tier1Required: true },
+      },
+      commonBase: state.target!.coordinates!,
+      topRef: terminal.ref!,
+      top: liveTop,
+      finalCandidate: terminal.coordinates!,
+      lifecyclePaths: [],
+    }, {
+      readAncestry: async () => "ancestor",
+      adoptTop: async () => { throw new Error("must not create another adoption"); },
+      publishTop: async () => ({ status: "adopted" }),
+      publishState: async (_planId, value, expectedRevision) => expectedRevision === 8
+        ? { status: "ok", value: { revision: 9, value } }
+        : { status: "refused" },
+    });
+    expect(result).toMatchObject({
+      status: "rematerialized",
+      state: {
+        revision: 9,
+        value: {
+          members: expect.arrayContaining([{
+            ...terminal,
+            coordinates: { base: highest.coordinates!.head, head: liveTop.head, tree: liveTop.tree },
+          }]),
+        },
+      },
+    });
   });
 
   it("accepts a selected fix and requires every unselected suffix contribution to carry", async () => {

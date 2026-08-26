@@ -375,10 +375,10 @@ const ReviewFixPlanSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
   repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
 });
 const ReviewFixPublishSchema = ReviewFixPlanSchema.extend({
   checkoutPath: z.string().min(1),
-  remote: z.string().min(1).default("origin"),
 });
 
 const RequestSchemas = {
@@ -992,6 +992,7 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
     repository: string,
     remote: string,
+    mode: "exact" | "review-fix" = "exact",
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const refs = new Set<string>();
@@ -1065,7 +1066,7 @@ async function executeDeliveryCommand(
         exec: createRawGitExec(cwd),
         ...endpoints,
       }),
-    });
+    }, mode === "review-fix" ? { terminalAuthoringMovement: "allow-append-only" } : {});
     if (observed.status !== "observed") return observed;
     for (const deliverableId of operation?.affectedDeliverableIds ?? []) {
       const index = observed.facts.members.findIndex((member) => member.deliverableId === deliverableId);
@@ -1165,12 +1166,21 @@ async function executeDeliveryCommand(
     };
   };
 
-  const observeReviewFixPresentation = async (
+  const observeReviewFixAuthority = async (
     plan: z.infer<typeof DeliveryPlanV1Schema>,
-    state: DeliveryStateV1,
+    current: { readonly revision: number; readonly value: DeliveryStateV1 },
     repository: string,
+    remote: string,
   ) => {
-    const subject = deriveDeliveryProviderRefreshSubject({ plan, state });
+    if (current.value.activeOperation !== null) {
+      return { status: "refused" as const, reason: "operation-active" as const };
+    }
+    const positioned = await observePosition(plan, current, repository, remote, "review-fix");
+    if (positioned.status !== "observed") {
+      return { status: "refused" as const, reason: "position-mismatch" as const };
+    }
+    const state = positioned.projectedState;
+    const subject = deriveDeliveryProviderRefreshSubject({ plan, state, facts: positioned.facts });
     const target = deriveDeliveryNativeTarget(state);
     const firstDeliverableId = subject.status === "derived"
       ? subject.subject.affectedDeliverableIds[0]
@@ -1186,7 +1196,14 @@ async function executeDeliveryCommand(
       baseRef: target.baseRef,
     });
     if (expectedChain.status === "refused") return expectedChain;
-    return observeDeliveryNativeStack({ repository, members: expectedChain.members }, new GhDeliveryHostPort(hostedGhRunner));
+    const observation = await observeDeliveryNativeStack(
+      { repository, members: expectedChain.members },
+      new GhDeliveryHostPort(hostedGhRunner),
+    );
+    if (observation.status === "refused") {
+      return { status: "refused" as const, reason: "position-mismatch" as const };
+    }
+    return { status: "observed" as const, facts: positioned.facts, observation };
   };
 
   if (command === "review-fix-plan" || command === "review-fix-publish") {
@@ -1205,10 +1222,10 @@ async function executeDeliveryCommand(
     }
     const plan = planRead.value;
     const current = stateRead.value;
-    const observation = await observeReviewFixPresentation(plan, current.value, parsed.repository);
-    if (observation.status === "refused") {
+    const authority = await observeReviewFixAuthority(plan, current, parsed.repository, parsed.remote);
+    if (authority.status === "refused") {
       return {
-        ...observation,
+        ...authority,
         recommendedActionText: "Restore the exact canonical remaining chain before routing the review fix.",
       };
     }
@@ -1216,8 +1233,9 @@ async function executeDeliveryCommand(
       return planDeliveryReviewFixRoute({
         plan,
         state: current.value,
+        facts: authority.facts,
         selectedDeliverableId: parsed.selectedDeliverableId,
-        observation,
+        observation: authority.observation,
       });
     }
 
@@ -1254,10 +1272,11 @@ async function executeDeliveryCommand(
     return publishSelectedDeliveryReviewFix({
       plan,
       current,
+      facts: authority.facts,
       selectedDeliverableId: publish.selectedDeliverableId,
       candidateRef: locator.candidateRef,
       expectedCandidateRef: locator.candidateRef,
-      observation,
+      observation: authority.observation,
     }, {
       inspectCandidate: () => inspectDeliveryCandidateCheckout(exec, publish.checkoutPath),
       observeCandidateRef: () => observeDeliveryEligibilityRef(exec, locator.candidateRef),
@@ -1271,10 +1290,9 @@ async function executeDeliveryCommand(
         });
         return { status: checked.status };
       },
-      reobservePresentation: async () => {
-        const observed = await observeReviewFixPresentation(plan, current.value, publish.repository);
-        return observed.status === "refused" ? { status: "unavailable" } : observed;
-      },
+      reobserveAuthority: () => observeReviewFixAuthority(
+        plan, current, publish.repository, publish.remote,
+      ),
       rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: publish.remote, ...input }),
       observePublishedMember: async ({ ref, head }) => {
         const observed = await observeDeliveryRemoteRef(exec, publish.remote, ref);
@@ -1304,9 +1322,34 @@ async function executeDeliveryCommand(
     }
     const plan = planRead.value;
     const current = stateRead.value;
+    const deriveIdleRefreshSubject = async (
+      observationMode: "exact" | "review-fix" = "exact",
+    ) => {
+      if (current.value.activeOperation !== null) {
+        return { status: "refused" as const, reason: "position-mismatch" as const };
+      }
+      const positioned = await observePosition(
+        plan,
+        current,
+        parsed.repository,
+        parsed.remote,
+        observationMode,
+      );
+      if (positioned.status !== "observed") {
+        return { status: "refused" as const, reason: "position-mismatch" as const };
+      }
+      const derived = deriveDeliveryProviderRefreshSubject({
+        plan,
+        state: positioned.projectedState,
+        facts: positioned.facts,
+      });
+      return derived.status === "derived"
+        ? { ...derived, facts: positioned.facts }
+        : derived;
+    };
     if (command === "refresh-plan") {
       const planRequest = RefreshPlanSchema.parse(parsed);
-      const derived = deriveDeliveryProviderRefreshSubject({ plan, state: current.value });
+      const derived = await deriveIdleRefreshSubject();
       if (derived.status === "refused") {
         return {
           ...derived,
@@ -1328,14 +1371,17 @@ async function executeDeliveryCommand(
           && after.coordinates?.head === member.coordinates?.head
           && after.coordinates?.tree === member.coordinates?.tree;
       });
+      const reviewFixAuthority = planRequest.mechanics === undefined
+        ? await observeReviewFixAuthority(plan, current, planRequest.repository, planRequest.remote)
+        : null;
       return planDeliverySuffixRefresh({
         plan,
         landedPrefix: derived.subject.landedPrefix,
         trigger: {
           ...planRequest.trigger,
           mechanics: planRequest.mechanics
-            ?? ((await observeReviewFixPresentation(plan, current.value, planRequest.repository)).status
-                === "registered"
+            ?? (reviewFixAuthority?.status === "observed"
+              && reviewFixAuthority.observation.status === "registered"
               ? "provider-invoked"
               : "operator-initiated"),
         },
@@ -1345,12 +1391,19 @@ async function executeDeliveryCommand(
 
     if (command === "refresh-execute") {
       const executeRequest = RefreshExecuteSchema.parse(parsed);
-      const subject = current.value.activeOperation === null
-        ? deriveDeliveryProviderRefreshSubject({ plan, state: current.value })
+      const idleSubject = current.value.activeOperation === null
+        ? await deriveIdleRefreshSubject(
+            executeRequest.scope?.kind === "dependent-suffix" ? "review-fix" : "exact",
+          )
+        : null;
+      const subject = idleSubject ?? (
+        current.value.activeOperation === null
+          ? { status: "refused" as const, reason: "position-mismatch" as const }
         : {
             status: "derived" as const,
             subject: reservedRefreshSubject(plan, current.value, "provider-refresh"),
-          };
+          }
+      );
       if (subject.status === "refused" || subject.subject === null) {
         return {
           status: "refused",
@@ -1376,6 +1429,7 @@ async function executeDeliveryCommand(
           ? {}
           : { scope: executeRequest.scope }),
         ...(executeRequest.operationId === undefined ? {} : { operationId: executeRequest.operationId }),
+        ...(idleSubject?.status === "derived" ? { facts: idleSubject.facts } : {}),
       }, {
         preparation,
         observePublishedHeads: async (snapshot) => {
@@ -1481,7 +1535,7 @@ async function executeDeliveryCommand(
         recommendedActionText: "Omit operationId when adopting an externally initiated refresh.",
       };
     }
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state: current.value });
+    const derived = await deriveIdleRefreshSubject();
     if (derived.status === "refused") {
       return {
         ...derived,
@@ -2442,7 +2496,17 @@ async function executeDeliveryCommand(
               },
             };
           }
-          const observed = await observePosition(currentPlan, currentState, parsed.repository, parsed.remote);
+          const observationMode = operation.kind === "rewrite"
+            && (operation.mode === "review-fix" || operation.mode === "selected-change")
+            ? "review-fix"
+            : "exact";
+          const observed = await observePosition(
+            currentPlan,
+            currentState,
+            parsed.repository,
+            parsed.remote,
+            observationMode,
+          );
           if (observed.status !== "observed" || observed.operationObservation === null) {
             return { status: "refused" as const, reason: "observation-unavailable" as const };
           }
@@ -2464,7 +2528,13 @@ async function executeDeliveryCommand(
         if (planRead.status !== "ok" || planRead.value === null
           || stateRead.status !== "ok" || stateRead.value === null
           || stateRead.value.value.activeOperation !== null) return { status: "refused" as const };
-        const position = await observePosition(planRead.value, stateRead.value, parsed.repository, parsed.remote);
+        const position = await observePosition(
+          planRead.value,
+          stateRead.value,
+          parsed.repository,
+          parsed.remote,
+          "review-fix",
+        );
         if (position.status !== "observed") return { status: "refused" as const };
         const landedCount = position.facts.landedDeliverableIds.length;
         const eligible = await executeWithFreshDeliveryEligibility({
@@ -2580,9 +2650,11 @@ async function executeDeliveryCommand(
       rematerialized,
       commonBase: snapshot.protectedBase,
       topRef: parsed.topRef,
+      top: snapshot.top,
       finalCandidate: snapshot.members.at(-1),
       lifecyclePaths: snapshot.lifecyclePaths,
     }, {
+      readAncestry: (ancestor, descendant) => readAncestry(localOnlyExec, ancestor, descendant),
       adoptTop: (input) => adoptGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote: parsed.remote, ...input }),
       publishState: (planId, value, expectedRevision) => stateStore.publish(planId, value, expectedRevision),
