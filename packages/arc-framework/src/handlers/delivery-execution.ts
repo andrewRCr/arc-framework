@@ -130,7 +130,10 @@ import {
   submitReservedNativeDeliveryMerge,
   type DeliveryNativeEffectFacts,
 } from "../lib/delivery/native-landing.js";
-import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import {
+  GitCommonStateAccessError,
+  RepositoryGitCommonStatePublisher,
+} from "../lib/git-common-state.js";
 import { canonicalize, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
@@ -460,6 +463,13 @@ const DeliveryTopRemedyRefusalSchema = z.strictObject({
     protectedBaseRef: z.string().min(1),
   }),
 });
+const OperationalStateAccessRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.enum(["operational-state-not-readable", "operational-state-not-writable"]),
+  storage: z.literal("repository-git-common"),
+  cause: z.enum(["permission-denied", "read-only-filesystem"]),
+  recommendedActionText: z.string().min(1),
+});
 
 const ResultSchema = z.union([
   DeliveryRecoveryResultV1Schema,
@@ -605,6 +615,7 @@ const ResultSchema = z.union([
   ContributionRefusalSchema,
   ContainmentRefusalSchema,
   DeliveryLifecycleContributionRefusalSchema,
+  OperationalStateAccessRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({
     status: z.literal("refused"),
@@ -615,6 +626,35 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), paths: z.array(z.string()).optional() }),
 ]);
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
+
+function operationalStateAccessRefusal(
+  error: GitCommonStateAccessError,
+): z.infer<typeof OperationalStateAccessRefusalSchema> {
+  const causeText = error.failureCause === "read-only-filesystem"
+    ? "the filesystem is read-only"
+    : "the process was denied access";
+  if (error.access === "write") {
+    return {
+      status: "refused",
+      reason: "operational-state-not-writable",
+      storage: "repository-git-common",
+      cause: error.failureCause,
+      recommendedActionText:
+        `ARC could not write repository-scoped operational state in the repository's shared Git metadata because ${causeText}. `
+        + "Ensure the invoking process can write the logical repository, including its shared Git directory, "
+        + "or use its approved elevated-execution path, then retry.",
+    };
+  }
+  return {
+    status: "refused",
+    reason: "operational-state-not-readable",
+    storage: "repository-git-common",
+    cause: error.failureCause,
+    recommendedActionText:
+      `ARC could not read repository-scoped operational state from the repository's shared Git metadata because ${causeText}. `
+      + "Ensure the invoking process can read the logical repository, including its shared Git directory, then retry.",
+  };
+}
 
 export interface DeliveryExecutionOptions { readonly input?: string; readonly json?: boolean }
 
@@ -743,8 +783,14 @@ export async function handleDeliveryExecution(
   let result: unknown;
   try {
     result = await deps.execute(command, request.data, interaction);
-  } catch {
-    emit(deps, command, { status: "refused", reason: "execution-unavailable" });
+  } catch (error) {
+    emit(
+      deps,
+      command,
+      error instanceof GitCommonStateAccessError
+        ? operationalStateAccessRefusal(error)
+        : { status: "refused", reason: "execution-unavailable" },
+    );
     return;
   }
   const parsed = ResultSchema.safeParse(result);

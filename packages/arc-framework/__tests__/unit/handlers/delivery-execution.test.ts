@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
+import { GitCommonStateAccessError } from "../../../src/lib/git-common-state.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -153,6 +154,70 @@ describe("delivery execution handler", () => {
       reason: "execution-unavailable",
     });
     expect(executeExit).toHaveBeenCalledWith(1);
+  });
+
+  it("surfaces a repository-state write denial with an actionable typed remedy", async () => {
+    const state = deliveryStateFixture();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleDeliveryExecution("position", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })),
+      execute: vi.fn().mockRejectedValue(
+        new GitCommonStateAccessError("write", "read-only-filesystem"),
+      ),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery position",
+      status: "refused",
+      reason: "operational-state-not-writable",
+      storage: "repository-git-common",
+      cause: "read-only-filesystem",
+      recommendedActionText:
+        "ARC could not write repository-scoped operational state in the repository's shared Git metadata because "
+        + "the filesystem is read-only. Ensure the invoking process can write the logical repository, including "
+        + "its shared Git directory, or use its approved elevated-execution path, then retry.",
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("surfaces a repository-state read denial with an actionable typed remedy", async () => {
+    const state = deliveryStateFixture();
+    const write = vi.fn();
+
+    await handleDeliveryExecution("position", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })),
+      execute: vi.fn().mockRejectedValue(
+        new GitCommonStateAccessError("read", "permission-denied"),
+      ),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery position",
+      status: "refused",
+      reason: "operational-state-not-readable",
+      storage: "repository-git-common",
+      cause: "permission-denied",
+      recommendedActionText:
+        "ARC could not read repository-scoped operational state from the repository's shared Git metadata because "
+        + "the process was denied access. Ensure the invoking process can read the logical repository, including "
+        + "its shared Git directory, then retry.",
+    });
   });
 
   it("preserves an operator refresh plan through its strict command envelope", async () => {
