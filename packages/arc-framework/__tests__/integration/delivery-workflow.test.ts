@@ -109,6 +109,9 @@ describe("packaged delivery workflow", () => {
     expect(positionDispatch).toMatch(
       /operation-active[\s\S]*arc delivery reconcile - --json[\s\S]*Every other\s+refusal stops/u,
     );
+    expect(positionDispatch).toMatch(
+      /review-fix-routing-required[\s\S]*plan-review-fix[\s\S]*recommendedActionText[\s\S]*Every other\s+refusal stops/u,
+    );
     expect(reviewSection).toMatch(
       /native-stack-required[\s\S]*delivery-native-land-select[\s\S]*mode: sequential[\s\S]*canonical remaining chain/iu,
     );
@@ -155,6 +158,12 @@ describe("packaged delivery workflow", () => {
     const reviewFixPublish = reviewSection.indexOf("arc delivery review-fix publish", reviewFixPlan);
     expect(reviewFixPlan).toBeLessThan(reviewFixPublish);
     expect(reviewFixPublish).toBeLessThan(rematerialize);
+    expect(reviewSection).toMatch(
+      /Before authoring or publishing any approved correction[\s\S]*delivery remains bound[\s\S]*selected member[\s\S]*approved scope[\s\S]*never infer/iu,
+    );
+    expect(reviewSection).toMatch(
+      /already-authored terminal correction[\s\S]*authoring\s+movement only[\s\S]*not public position authority[\s\S]*registered route[\s\S]*selected member's derived candidate ref/iu,
+    );
     expect(reviewSection).toContain("plan, repository, remote, and selected-member locators");
     expect(reviewSection).toMatch(
       /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
