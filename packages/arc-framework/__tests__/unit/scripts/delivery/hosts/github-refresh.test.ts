@@ -81,6 +81,48 @@ describe("GitHub provider refresh adapter", () => {
     expect(nativeObserved).toBe(false);
   });
 
+  it("adopts absent refresh candidates and finishes a partially completed cleanup", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const candidates = plan.members.slice(0, 2).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      ref: `refs/arc/delivery-refresh-candidates/${plan.planId}/${member.chunkKey}`,
+      head: oid(String(index + 4)),
+    }));
+    const refs = new Map([[candidates[1]!.ref, candidates[1]!.head]]);
+    const calls: Array<{ readonly args: readonly string[]; readonly cwd: string | undefined }> = [];
+    const git: GitExec = async (_command, args, options) => {
+      calls.push({ args: [...args], cwd: options?.cwd });
+      if (args[0] === "rev-parse") {
+        const subject = args.at(-1)!;
+        const ref = subject.slice(0, -"^{commit}".length);
+        const head = refs.get(ref);
+        if (head === undefined) {
+          throw Object.assign(new Error("missing refresh candidate"), { exitCode: 1, stderr: "" });
+        }
+        return { stdout: `${head}\n` };
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        expect(refs.get(args[2]!)).toBe(args[3]);
+        refs.delete(args[2]!);
+        return { stdout: "" };
+      }
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+    const port = new GhDeliveryProviderRefreshPort({
+      git,
+      gh: { run: async () => { throw new Error("unused"); } },
+      nativeStack: { observe: async () => ({ status: "unsupported" }) },
+      checkoutPath: "/repo",
+      remote: "origin",
+    });
+
+    await expect(port.cleanup(candidates)).resolves.toEqual({ status: "cleaned" });
+    await expect(port.cleanup(candidates)).resolves.toEqual({ status: "cleaned" });
+    expect(calls.filter(({ args }) => args[0] === "update-ref").map(({ args }) => args.slice(2)))
+      .toEqual([[candidates[1]!.ref, candidates[1]!.head]]);
+    expect(calls.every(({ cwd }) => cwd === "/repo")).toBe(true);
+  });
+
   it("imports dependent refresh candidates without granting provider push authority", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
@@ -159,7 +201,13 @@ describe("GitHub provider refresh adapter", () => {
       if (args[0] === "rev-parse") {
         const ref = args.at(-1)!;
         const tree = ref.endsWith("^{tree}");
-        const plain = tree ? ref.slice(0, -"^{tree}".length) : ref;
+        const commit = ref.endsWith("^{commit}");
+        const plain = tree
+          ? ref.slice(0, -"^{tree}".length)
+          : commit ? ref.slice(0, -"^{commit}".length) : ref;
+        if (commit && plain.startsWith("refs/arc/delivery-refresh-candidates/") && !imported.has(plain)) {
+          throw Object.assign(new Error("missing refresh candidate"), { exitCode: 1, stderr: "" });
+        }
         const head = plain === `refs/heads/${targetName}`
           ? target.head
           : imported.get(plain) ?? plain;
@@ -321,7 +369,13 @@ describe("GitHub provider refresh adapter", () => {
       if (args[0] === "rev-parse") {
         const ref = args.at(-1)!;
         const tree = ref.endsWith("^{tree}");
-        const plain = tree ? ref.slice(0, -"^{tree}".length) : ref;
+        const commit = ref.endsWith("^{commit}");
+        const plain = tree
+          ? ref.slice(0, -"^{tree}".length)
+          : commit ? ref.slice(0, -"^{commit}".length) : ref;
+        if (commit && plain.startsWith("refs/arc/delivery-refresh-candidates/") && !imported.has(plain)) {
+          throw Object.assign(new Error("missing refresh candidate"), { exitCode: 1, stderr: "" });
+        }
         const branchIndex = before.members.findIndex((member) => member.ref === plain);
         const head = plain === `refs/heads/${targetName}`
           ? target.head
