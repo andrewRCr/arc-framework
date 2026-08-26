@@ -207,7 +207,11 @@ const PublishSchema = MaterializeSchema.extend({
     body: z.string().trim().min(1),
   }),
 });
-const PositionSchema = z.strictObject({ planId: DeliveryPlanIdSchema, facts: DeliveryPositionFactsV1Schema });
+const PositionSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+});
 const ReconcileSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -1922,7 +1926,9 @@ async function executeDeliveryCommand(
     if (plan.status !== "ok" || plan.value === null || state.status !== "ok" || state.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
-    return routeDeliveryPosition(plan.value, state.value.value, parsed.facts);
+    const observed = await observePosition(plan.value, state.value, parsed.repository, parsed.remote);
+    if (observed.status !== "observed") return { status: "refused", reason: "position-unavailable" };
+    return routeDeliveryPosition(plan.value, state.value.value, observed.facts);
   }
   if (command === "land-prepare" || command === "land-apply") {
     const parsed = (command === "land-prepare" ? LandPrepareSchema : LandApplySchema).parse(request);

@@ -89,20 +89,27 @@ describe("delivery execution handler", () => {
   });
 
   it("rejects malformed input before execution and invalid service output at the boundary", async () => {
+    const state = deliveryStateFixture();
     const execute = vi.fn();
     const firstWrite = vi.fn();
     await handleDeliveryExecution("position", { input: "-" }, undefined, {
-      readText: vi.fn().mockResolvedValue("{}"), execute, write: firstWrite, setExitCode: vi.fn(),
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+      })),
+      execute,
+      write: firstWrite,
+      setExitCode: vi.fn(),
     });
     expect(execute).not.toHaveBeenCalled();
     expect(JSON.parse(firstWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-command-input");
 
     const secondWrite = vi.fn();
-    const state = deliveryStateFixture();
     await handleDeliveryExecution("position", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: state.planId,
-        facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+        repository: "owner/repo",
+        remote: "origin",
       })),
       execute: vi.fn().mockResolvedValue({ status: "invented" }),
       write: secondWrite,
@@ -134,7 +141,8 @@ describe("delivery execution handler", () => {
     await handleDeliveryExecution("position", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: state.planId,
-        facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+        repository: "owner/repo",
+        remote: "origin",
       })),
       execute: vi.fn().mockRejectedValue(new Error("execution failed")),
       write: executeWrite,
