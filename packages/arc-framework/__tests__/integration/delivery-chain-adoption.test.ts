@@ -127,6 +127,20 @@ describe("delivery chain ancestry adoption", () => {
     expect((await git(["diff", "--name-only", memberOne, first.head])).split("\n").filter(Boolean))
       .toEqual(["residual.txt", "second.txt"]);
 
+    const commitTreeCalls = calls.filter((args) => args[0] === "commit-tree").length;
+    const retried = await adoptGitDeliveryChain({
+      exec,
+      topRef,
+      commonBase: await coordinate(base),
+      highestMember: await coordinate(memberOne),
+      finalCandidate: await coordinate(completeCandidate),
+      lifecyclePaths: [],
+      top: { head: first.head, tree: first.tree },
+    });
+    expect(retried).toEqual({ status: "adopted", head: first.head, tree: first.tree });
+    expect(await git(["rev-parse", topRef])).toBe(first.head);
+    expect(calls.filter((args) => args[0] === "commit-tree")).toHaveLength(commitTreeCalls);
+
     const second = await adoptGitDeliveryChain({
       exec,
       topRef,
