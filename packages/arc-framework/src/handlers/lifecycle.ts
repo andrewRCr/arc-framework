@@ -2590,20 +2590,64 @@ export async function handleAttest(
     return;
   }
   let lastCompleted: string | null = null;
-  let taskListClosed = false;
   const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
-  if (taskListPath !== null) {
-    try {
-      const taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
-      const terminal = resolveLastCompletedTask(taskList);
-      if (terminal.status === "found") {
-        lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
-      }
-      taskListClosed = resolveTaskListCursor(taskList).status === "no-open-task";
-    } catch {
-      // Candidate attestation does not become unavailable solely because the
-      // human-orientation cursor cannot be refreshed from its task list.
-    }
+  if (taskListPath === null) {
+    refuseWithRemedy(
+      `\`arc attest\` requires a canonical task-list binding for \`${input.name}\`.`,
+      spineRemedy(
+        "Candidate attestation requires a resolvable, structurally closed task list.",
+        "Restore the task-list binding and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  let taskList: string;
+  try {
+    taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
+  } catch {
+    refuseWithRemedy(
+      `\`arc attest\` requires the canonical task list for \`${input.name}\` to be readable.`,
+      spineRemedy(
+        "Candidate attestation requires a resolvable, structurally closed task list.",
+        "Restore the task list and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const taskCursor = resolveTaskListCursor(taskList);
+  if (taskCursor.status === "malformed") {
+    refuseWithRemedy(
+      `\`arc attest\` cannot use the malformed task list for \`${input.name}\` at line `
+        + `${taskCursor.error.line}: ${taskCursor.error.message}`,
+      spineRemedy(
+        "Candidate attestation requires a structurally closed task list.",
+        "Repair the task-list structure and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  if (taskCursor.status === "found") {
+    const current = `Task ${taskCursor.cursor.leaf.id} — ${taskCursor.cursor.leaf.title}`;
+    refuseWithRemedy(
+      `\`arc attest\` cannot attest \`${input.name}\` while task remains open: ${current}.`,
+      spineRemedy(
+        "Candidate attestation begins only after canonical task execution is closed.",
+        "Complete the current task and work-unit verification, then attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const terminal = resolveLastCompletedTask(taskList);
+  if (terminal.status === "found") {
+    lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
   }
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
 
@@ -2687,7 +2731,7 @@ export async function handleAttest(
       if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
         orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
       }
-      if (taskListClosed && priorMeta.nextTask !== null) {
+      if (priorMeta.nextTask !== null) {
         orientation["Next Task"] = "[none]";
       }
       metaContent = Object.keys(orientation).length === 0

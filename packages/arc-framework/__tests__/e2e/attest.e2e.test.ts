@@ -125,16 +125,23 @@ describe("arc attest", () => {
       const meta = await readFile(metaPath, "utf8");
       await writeFile(metaPath, meta.replace("- **Task List:** `tasks-example.md`", "- **Task List:** [none]"));
     }],
-  ] as const)("preserves Next Task when %s", async (_label, arrange) => {
+  ] as const)("refuses Candidate attestation when %s", async (_label, arrange) => {
     repository = await createAttestFixture();
     await arrange(repository);
     await git(repository, ["add", "-A"]);
 
     const result = await runArc(["attest", "example", "--json"], repository);
 
-    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    expect(result.exitCode, JSON.stringify(result)).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/task[ -]list|task remains open|malformed/iu),
+      remedy: { argv: ["arc", "attest", "example"] },
+    });
     const meta = await readFile(join(repository, ".arc", "active", "meta-example.md"), "utf8");
     expect(meta).toContain("- **Next Task:** Task 1.1 — Verification complete");
+    expect(meta).not.toMatch(/- \*\*Candidate:\*\* `sha256:/u);
+    expect(meta).toContain("- **Current Workflow:** [none]");
   });
 
   it.each([
