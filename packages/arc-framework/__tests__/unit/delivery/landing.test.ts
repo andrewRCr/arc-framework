@@ -657,6 +657,70 @@ describe("delivery landing", () => {
     expect(JSON.stringify(current.value)).not.toMatch(/approval|reviewVerdict/u);
   });
 
+  it("returns the exact landed member for teardown after applied sequential recovery", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const first = {
+      ...fixture.members[0]!,
+      changeRequest: { providerId: "github", changeRequestId: "401" },
+    };
+    const state = { ...fixture, members: [first, ...fixture.members.slice(1)] };
+    const before = { target: state.target, members: [first] };
+    const effect = {
+      providerId: "github",
+      repository: "andrewRCr/arc-framework",
+      changeRequestId: "401",
+      headSha: first.coordinates!.head,
+      baseRef: "main",
+      targetRef: "refs/heads/main",
+      strategy: "merge" as const,
+      mergePolicy,
+    };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "operation-applied-sequential",
+      kind: "land",
+      mode: "sequential",
+      affectedDeliverableIds: [first.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested: { ...before, target: { ...state.target!, ref: "refs/heads/main" } },
+      effect,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve sequential landing");
+    const landed = { head: "d".repeat(40), tree: "e".repeat(40) };
+
+    const result = await reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: { observe: async () => ({
+        status: "observed" as const,
+        value: {
+          outcome: "applied" as const,
+          observation: {
+            kind: "land" as const,
+            effect,
+            outcome: "applied" as const,
+            snapshot: {
+              target: { ref: "refs/heads/main", coordinates: landed },
+              members: [first],
+            },
+          },
+        },
+      }) },
+      stateStore: { publish: async (_planId, value) => ({
+        status: "ok" as const,
+        value: { revision: 9, value },
+      }) },
+    });
+
+    expect(DeliveryRecoveryResultV1Schema.parse(result)).toMatchObject({
+      status: "applied",
+      nextAction: "teardown-member",
+      selectedDeliverableId: first.deliverableId,
+      state: { revision: 9, value: { activeOperation: null } },
+    });
+  });
+
   it("maps every exact non-application to one typed rerun and its preserve-or-clear transition", async () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
