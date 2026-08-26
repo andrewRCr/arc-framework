@@ -312,8 +312,10 @@ arc delivery position - --json
 Dispatch only on its typed route. `review-member` enters the review and landing path below with the returned
 `selectedDeliverableId`. `teardown-member` skips review and landing and enters the teardown path below with its
 exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. `operation-active` invokes
-`arc delivery reconcile - --json` with the same locators and follows the recovery dispatch above. Every other
-refusal stops.
+`arc delivery reconcile - --json` with the same locators and follows the recovery dispatch above.
+`review-fix-routing-required` with `nextAction: plan-review-fix` renders its `recommendedActionText`, then enters
+the correction route below only after the correction's approved scope supplies the selected member. Never infer
+that selection from terminal branch movement. Every other refusal stops.
 
 For `review-member`, settle exact member review authority above with the returned `selectedDeliverableId`. Only its
 `settled / continue-reconcile` result returns here for ordinary landing preparation.
@@ -400,16 +402,18 @@ exact `operationId`. Recovery recognizes an already-created local merge and alre
 the final state transition. Any other retryable result follows its precomposed action, and every refused or blocked
 result stops without adopting ambiguous movement. Base movement alone never invokes this arm.
 
-After an approved member-review fix is ready to apply, select the mutation route before authoring replacement
-candidates:
+Before authoring or publishing any approved correction while the canonical delivery remains bound, identify the
+selected member from the correction's approved scope and select the mutation route. Never infer the selected member
+from terminal branch movement:
 
 ```bash
 arc delivery review-fix plan - --json
 ```
 
 Supply only the plan, repository, remote, and selected-member locators. `planned / provider-refresh` means a fresh
-read found the canonical remaining chain exactly registered. Author the approved change only on the selected member's
-derived candidate ref, run its ordinary project gates, then invoke:
+read found the canonical remaining chain exactly registered. An already-authored terminal correction is authoring
+movement only, not public position authority or member selection. On the registered route, project the exact approved
+correction onto the selected member's derived candidate ref, run its ordinary project gates, then invoke:
 
 ```bash
 arc delivery review-fix publish - --json

@@ -1324,21 +1324,21 @@ structural guarantee rather than operator discipline.
           correctly refused that movement, but its generic `position-unavailable` result did not direct the agent
           into the existing review-fix planner that can safely project the correction into the selected member.
 
-        - `[ ]` **6.11.R.l Make delivery-window correction entry mechanically actionable**
+        - `[x]` **6.11.R.l Make delivery-window correction entry mechanically actionable**
 
             - _Goal:_ Every approved correction to a bound, published delivery enters member-aware review-fix
               planning before replacement content is authored or published, while public position remains exact
               and provider-neutral.
-            - _Outcome:_ Public position distinguishes proved append-only terminal authoring from unavailable
-              position and returns an actionable review-fix-planning route. The delivery workflow requires an
-              explicitly selected owning member, handles an already-authored terminal correction without treating
-              it as public position authority, and preserves the registered/unregistered authoring split.
+            - _Outcome:_ Public position now distinguishes proved append-only terminal authoring from unavailable
+              position and returns a typed, precomposed review-fix-planning route. The spec and shipped workflow
+              require an explicitly selected owning member for every approved bound-delivery correction, treat an
+              already-authored terminal correction only as authoring input, and preserve both mutation routes.
 
         - `[ ]` **6.11.R.m Revalidate the amended Member 6 boundary** — validate criteria at member scope
 
             - _Goal:_ Re-run the Member 6 criteria over the correction-entry amendment and retain prior evidence
               for unchanged refresh, landing, cleanup, and recovery loci.
-            - _Outcome:_ Member 6 criteria report.
+            - _Approach:_ Apply `validate-criteria` at delivery-member scope after the correction-entry task closes.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 

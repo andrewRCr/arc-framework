@@ -264,6 +264,12 @@ interlock authority and drops whole-stack serialization.
   never a git-mechanics narration in prose. No step introduces an attended stop beyond the finding-disposition
   approval that triggered it.
 
+  **Amended 2026-08-26 after correction-entry dogfood exposed an ordering ambiguity:** once a canonical delivery is
+  bound, D5.8's presentation-aware planner selects the mutation route before replacement content is authored or
+  published. The singleton apply / verify / commit / push ordering above remains unchanged outside a bound delivery;
+  inside one, the approved correction still supplies the owning member and one approval still covers the selected
+  route's mechanical tail.
+
 ### D3 — Terminal integration: a typed delivery arm of the checkpoint spine
 
 The ancestry-merge construction (D1.2) plus merge-commit member landings advance the recomputed merge-base between
@@ -674,6 +680,16 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   final suffix-plus-top state write installs the settled terminal coordinate. Public position, ordinary refresh
   planning and adoption, complete-remainder execution, and every unproved movement remain exact; no provider-specific
   authority, pre-settlement terminal rebind, or new state transition is introduced.
+
+  **Amended 2026-08-26 after correction-entry dogfood exposed an opaque public refusal:** every approved correction
+  to a bound delivery — not only a member-review finding — identifies its owning selected member from the approved
+  correction scope and invokes review-fix planning before authoring or publishing replacement content. ARC never
+  infers the member from branch position. The registered route projects the exact correction onto the selected
+  member's derived candidate; the unregistered route first carries it on the top authoring locus and then recuts the
+  complete suffix. An already-authored append-only top correction is authoring input only, never public position or
+  selection authority. When public position proves exactly that terminal-authoring movement, it returns
+  `review-fix-routing-required` with `nextAction: plan-review-fix` and precomposed guidance; every other exactness and
+  refusal rule remains unchanged.
 
 - **D5.9 ARC-triggered provider-native refresh — amended 2026-08-25 after self-delivery exposed the
   external-only actuation gap.** This amendment supersedes D5.7's external-only rule and D5.8's external-refresh
