@@ -32,6 +32,8 @@ export type DeliveryTaskCoverageIssue =
   | { readonly kind: "unknown-task-reference"; readonly taskId: string; readonly memberIndex: number }
   | { readonly kind: "work-unit-verification-task-assigned"; readonly memberIndex: number }
   | { readonly kind: "member-task-order"; readonly memberIndices: readonly number[] }
+  | { readonly kind: "member-verification-task-boundary"; readonly memberIndices: readonly number[] }
+  | { readonly kind: "member-verification-task-unbound"; readonly taskIds: readonly string[] }
   | { readonly kind: "entry-changed" };
 
 /** Result of entry-sensitive task coverage validation. */
@@ -73,6 +75,10 @@ export function validateDeliveryTaskCoverage(
   }
   const memberTaskOrder = findMemberTaskOrderIssue(input);
   if (memberTaskOrder !== null) issues.push(memberTaskOrder);
+  const memberVerificationTaskBoundary = findMemberVerificationTaskBoundaryIssue(input);
+  if (memberVerificationTaskBoundary !== null) issues.push(memberVerificationTaskBoundary);
+  const memberVerificationTaskUnbound = findMemberVerificationTaskUnboundIssue(input);
+  if (memberVerificationTaskUnbound !== null) issues.push(memberVerificationTaskUnbound);
   if (input.entry === "from-tasks") {
     issues.push(...uncovered.map((taskId) => ({
       kind: "uncovered-assignable-task" as const,
@@ -89,6 +95,67 @@ export function validateDeliveryTaskCoverage(
     status: "valid",
     advisories: uncovered.map((taskId) => ({ kind: "uncovered-assignable-task", taskId })),
   };
+}
+
+function findMemberVerificationTaskBoundaryIssue(
+  input: DeliveryTaskCoverageInput,
+): Extract<DeliveryTaskCoverageIssue, {
+  readonly kind: "member-verification-task-boundary";
+}> | null {
+  const taskById = new Map(input.tasks.map((task, position) => [task.taskId, { ...task, position }]));
+  const offendingMemberIndices = input.memberTaskIds.flatMap((taskIds, memberIndex) => {
+    const finalTask = findFinalAssignableTask(taskIds, taskById);
+    if (finalTask === undefined) return [];
+    return finalTask.role.kind === "verification" && finalTask.role.scope === "member"
+      ? []
+      : [memberIndex];
+  });
+
+  if (offendingMemberIndices.length === 0) return null;
+  return {
+    kind: "member-verification-task-boundary",
+    memberIndices: offendingMemberIndices,
+  };
+}
+
+function findMemberVerificationTaskUnboundIssue(
+  input: DeliveryTaskCoverageInput,
+): Extract<DeliveryTaskCoverageIssue, {
+  readonly kind: "member-verification-task-unbound";
+}> | null {
+  const taskById = new Map(input.tasks.map((task, position) => [task.taskId, { ...task, position }]));
+  const memberBoundaryTaskIds = new Set(input.memberTaskIds.flatMap((taskIds) => {
+    const finalTask = findFinalAssignableTask(taskIds, taskById);
+    return finalTask === undefined ? [] : [finalTask.taskId];
+  }));
+  const unboundTaskIds = input.tasks.flatMap((task) => (
+    task.role.kind === "verification"
+      && task.role.scope === "member"
+      && !memberBoundaryTaskIds.has(task.taskId)
+      ? [task.taskId]
+      : []
+  ));
+
+  if (unboundTaskIds.length === 0) return null;
+  return {
+    kind: "member-verification-task-unbound",
+    taskIds: unboundTaskIds,
+  };
+}
+
+function findFinalAssignableTask(
+  taskIds: readonly string[],
+  taskById: ReadonlyMap<string, DeliveryTaskCoverageInput["tasks"][number] & {
+    readonly position: number;
+  }>,
+) {
+  return [...new Set(taskIds)]
+    .flatMap((taskId) => {
+      const task = taskById.get(taskId);
+      return task !== undefined && isDeliveryTaskAssignable(task) ? [task] : [];
+    })
+    .sort((left, right) => left.position - right.position)
+    .at(-1);
 }
 
 function findMemberTaskOrderIssue(
