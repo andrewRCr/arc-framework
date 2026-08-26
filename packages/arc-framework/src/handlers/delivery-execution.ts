@@ -470,6 +470,15 @@ const OperationalStateAccessRefusalSchema = z.strictObject({
   cause: z.enum(["permission-denied", "read-only-filesystem"]),
   recommendedActionText: z.string().min(1),
 });
+const ReviewFixRoutingRequiredRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("review-fix-routing-required"),
+  nextAction: z.literal("plan-review-fix"),
+  recommendedActionText: z.string().min(1),
+});
+
+const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns the approved correction, then run "
+  + "`arc delivery review-fix plan` before authoring or publishing replacement content.";
 
 const ResultSchema = z.union([
   DeliveryRecoveryResultV1Schema,
@@ -616,6 +625,7 @@ const ResultSchema = z.union([
   ContainmentRefusalSchema,
   DeliveryLifecycleContributionRefusalSchema,
   OperationalStateAccessRefusalSchema,
+  ReviewFixRoutingRequiredRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({
     status: z.literal("refused"),
@@ -2052,8 +2062,16 @@ async function executeDeliveryCommand(
     if (state.value.value.activeOperation !== null) {
       return deriveDeliveryPosition(plan.value, state.value.value, undefined);
     }
-    const observed = await observePosition(plan.value, state.value, parsed.repository, parsed.remote);
+    const observed = await observePosition(plan.value, state.value, parsed.repository, parsed.remote, "review-fix");
     if (observed.status !== "observed") return { status: "refused", reason: "position-unavailable" };
+    if (observed.facts.terminalAuthoringMovement !== undefined) {
+      return {
+        status: "refused",
+        reason: "review-fix-routing-required",
+        nextAction: "plan-review-fix",
+        recommendedActionText: REVIEW_FIX_ROUTING_REQUIRED_TEXT,
+      };
+    }
     return routeDeliveryPosition(plan.value, state.value.value, observed.facts);
   }
   if (command === "land-prepare" || command === "land-apply") {
