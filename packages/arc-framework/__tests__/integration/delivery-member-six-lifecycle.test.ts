@@ -624,8 +624,8 @@ describe("member-six semantic native fallback lifecycle", () => {
     let selectionOutput = "";
     const selectRequest = {
       planId: plan.planId,
-      facts: deliveryFacts(clearedRecords.current().value),
       repository: "owner/repo",
+      remote: "origin",
       mergeAction: "direct",
       explicitAtomic: true,
     } as const;
@@ -633,7 +633,11 @@ describe("member-six semantic native fallback lifecycle", () => {
       readText: async () => JSON.stringify(selectRequest),
       execute: async (_command, request) => {
         const parsed = request as typeof selectRequest;
-        const position = deriveDeliveryPosition(plan, clearedRecords.current().value, parsed.facts);
+        const position = deriveDeliveryPosition(
+          plan,
+          clearedRecords.current().value,
+          deliveryFacts(clearedRecords.current().value),
+        );
         if (position.status !== "derived") return { status: "blocked", reason: position.reason };
         const firstRemaining = plan.members[position.position.landedPrefix.length];
         if (firstRemaining === undefined) return { status: "blocked", reason: "member-set-mismatch" };
@@ -663,6 +667,7 @@ describe("member-six semantic native fallback lifecycle", () => {
       setExitCode: () => { throw new Error("canonical registered remainder must select a native arm"); },
     });
     expect(Object.hasOwn(selectRequest, "members")).toBe(false);
+    expect(Object.hasOwn(selectRequest, "facts")).toBe(false);
     expect(JSON.parse(selectionOutput)).toMatchObject({
       status: "selected",
       arm: "linked-atomic",
