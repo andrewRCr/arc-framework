@@ -3,6 +3,7 @@
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryEligibilityCoordinates } from "./eligibility.js";
 import type { DeliveryNativeStackObservation } from "./native-stack.js";
+import type { DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 import { deriveDeliveryProviderRefreshSubject } from "./provider-refresh-observation.js";
 import { executeDeliverySuffixRewrite } from "./suffix-reconciliation.js";
@@ -29,6 +30,7 @@ export type DeliveryReviewFixRouteResult =
 export function planDeliveryReviewFixRoute(input: {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryStateV1;
+  readonly facts: DeliveryPositionFactsV1;
   readonly selectedDeliverableId: string;
   readonly observation: DeliveryNativeStackObservation;
 }): DeliveryReviewFixRouteResult {
@@ -40,7 +42,11 @@ export function planDeliveryReviewFixRoute(input: {
       recommendedActionText: "Restore one exact idle delivery state before routing the review fix.",
     };
   }
-  const subject = deriveDeliveryProviderRefreshSubject({ plan: input.plan, state: input.state });
+  const subject = deriveDeliveryProviderRefreshSubject({
+    plan: input.plan,
+    state: input.state,
+    facts: input.facts,
+  });
   if (subject.status === "refused") {
     return {
       status: "refused",
@@ -94,7 +100,14 @@ export interface DeliveryReviewFixPublicationDependencies {
   observeCandidateRef(): Promise<DeliveryEligibilityCoordinates | null>;
   readAncestry(ancestor: string, descendant: string): Promise<"ancestor" | "not-ancestor" | "unresolvable">;
   revalidateLifecycle(): Promise<{ readonly status: "ok" | "refused" }>;
-  reobservePresentation(): Promise<DeliveryNativeStackObservation>;
+  reobserveAuthority(): Promise<
+    | {
+        readonly status: "observed";
+        readonly facts: DeliveryPositionFactsV1;
+        readonly observation: DeliveryNativeStackObservation;
+      }
+    | { readonly status: "refused" }
+  >;
   rewriteRef(input: {
     readonly ref: string;
     readonly beforeHead: string;
@@ -123,6 +136,7 @@ export type DeliveryReviewFixPublicationResult =
 export async function publishSelectedDeliveryReviewFix(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly facts: DeliveryPositionFactsV1;
   readonly selectedDeliverableId: string;
   readonly candidateRef: string;
   readonly expectedCandidateRef: string;
@@ -131,6 +145,7 @@ export async function publishSelectedDeliveryReviewFix(input: {
   const route = planDeliveryReviewFixRoute({
     plan: input.plan,
     state: input.current.value,
+    facts: input.facts,
     selectedDeliverableId: input.selectedDeliverableId,
     observation: input.observation,
   });
@@ -177,11 +192,14 @@ export async function publishSelectedDeliveryReviewFix(input: {
       },
     }],
   };
+  const reobserved = await deps.reobserveAuthority();
+  if (reobserved.status === "refused") return { status: "refused", reason: "route-moved" };
   const reobservedRoute = planDeliveryReviewFixRoute({
     plan: input.plan,
     state: input.current.value,
+    facts: reobserved.facts,
     selectedDeliverableId: input.selectedDeliverableId,
-    observation: await deps.reobservePresentation(),
+    observation: reobserved.observation,
   });
   if (reobservedRoute.status === "refused" || reobservedRoute.route !== "provider-refresh") {
     return { status: "refused", reason: "route-moved" };

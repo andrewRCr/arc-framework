@@ -353,9 +353,9 @@ candidates:
 arc delivery review-fix plan - --json
 ```
 
-Supply only the plan, repository, and selected-member locators. `planned / provider-refresh` means a fresh read found
-the canonical remaining chain exactly registered. Author the approved change on only the selected member's derived
-candidate ref, run its ordinary project gates, then invoke:
+Supply only the plan, repository, remote, and selected-member locators. `planned / provider-refresh` means a fresh
+read found the canonical remaining chain exactly registered. Author the approved change only on the selected member's
+derived candidate ref, run its ordinary project gates, then invoke:
 
 ```bash
 arc delivery review-fix publish - --json
