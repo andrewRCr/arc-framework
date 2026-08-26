@@ -1178,7 +1178,9 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
     - Exact applied state adopts and clears only after any immediately owed owner-specific observation is complete.
       The highest-member teardown therefore retains its existing reservation through fresh top-request observation
       and returns `terminal-checkpoint`, `retarget`, or `reopen-and-retarget`; other applied operations clear once
-      their existing postcondition is established.
+      their existing postcondition is established. Applied sequential landing returns the existing
+      `teardown-member` continuation with the reservation's exact affected member before ordinary position may
+      select later work; the workflow never reconstructs that selector.
     - Ambiguous, unavailable, partial, pending, or persistence-failed state retains the reservation and returns an
       informative stop. Rerunning after the external fact settles repeats the same observation idempotently.
 

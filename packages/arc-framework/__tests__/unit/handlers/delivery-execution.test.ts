@@ -864,6 +864,36 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves the applied sequential-land teardown continuation", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const result = {
+      status: "applied" as const,
+      state: { revision: 9, value: state },
+      nextAction: "teardown-member" as const,
+      selectedDeliverableId,
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery reconcile",
+      ...result,
+    });
+  });
+
   it("serializes every recovery action-selector arm and rejects malformed pairings", async () => {
     const plan = deliveryStackPlanFixture();
     const affectedDeliverableIds = [plan.members[0]!.deliverableId];

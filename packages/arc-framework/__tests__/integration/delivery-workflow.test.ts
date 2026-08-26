@@ -171,6 +171,9 @@ describe("packaged delivery workflow", () => {
     expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
     expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
     expect(terminalTail).toMatch(/explicit[\s\S]*arc delivery top-remedy[\s\S]*terminal-checkpoint/iu);
+    expect(recoverySection).toMatch(
+      /applied \/ teardown-member[\s\S]*selectedDeliverableId[\s\S]*arc delivery teardown[\s\S]*before[\s\S]*ordinary position/iu,
+    );
     expect(recoverySection).toMatch(/applied \/ read-position[\s\S]*arc delivery position/iu);
     expect(recoverySection).not.toContain("retryable / read-position");
     for (const arm of [

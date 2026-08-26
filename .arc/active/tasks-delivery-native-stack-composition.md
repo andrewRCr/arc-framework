@@ -780,6 +780,35 @@ comparator and trivially accepted.
                       both shipped copies and their guard now consume every strict action/transition/selector arm, and
                       the primary recheck resolves criterion 4 without another adversarial cycle.
 
+        - _Forward amendment (2026-08-25):_ Final whole-work-unit verification proved that an applied interrupted
+          sequential landing cleared into ordinary position before the landed member's required teardown. In a stack
+          of three or more members, position selects the next member and loses the only exact teardown selector.
+
+        - `[x]` **5.7.R.f Preserve the owed teardown after applied sequential recovery**
+
+            - Applied sequential recovery now clears only into a strict `teardown-member` continuation carrying the
+              reservation-derived landed member. Both workflow copies consume that selector before ordinary position;
+              other applied operations and highest-member teardown retain their existing continuations.
+
+        - `[x]` **5.7.R.g Revalidate the amended Member 5 boundary** — validate criteria at member scope
+
+            - _Criteria slice:_ `Success Criteria > Member 5 — terminal-integration`.
+            - _Span:_ retained Member 5 report plus the exact applied-sequential recovery patch over `6c1e05ce8`;
+              reachability is the complete current tree. Boundary-order deviation: final work-unit verification
+              surfaced the recovery gap after the original boundary; the bounded repair absorbs no Member 6 work.
+            - _Criterion 1:_ `[x]` — the ordinary checkpoint/interlock/merge composition is unchanged and remains
+              covered by the terminal workflow and recovery suite.
+            - _Criterion 2:_ `[x]` — retained bindings, member teardown, and highest-member top observation remain
+              intact; applied sequential recovery now supplies the exact landed member to that teardown path.
+            - _Criterion 3:_ `[x]` — Candidate applicability, exact terminal reconciliation, and rerunnable checkpoint
+              behavior are unchanged.
+            - _Criterion 4:_ `[x]` — the strict recovery result now routes applied sequential landing directly to
+              `teardown-member`; all other applied, retryable, highest-teardown, and ambiguous arms retain their
+              closed behavior across reducer, handler, workflow, and real-CLI recovery coverage.
+            - _Summary:_ four met, zero superseded, zero unresolved. Success Criteria markers remain unchanged for
+              terminal verification; the approved verification sequence reserves the fresh companion for the final
+              whole-target pass rather than duplicating it at this amended member boundary.
+
 - _Outcome:_ Member 5 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 5 — terminal-integration`.
