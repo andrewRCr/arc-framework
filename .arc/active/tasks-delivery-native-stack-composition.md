@@ -1399,15 +1399,14 @@ structural guarantee rather than operator discipline.
           based on that new live predecessor while delivery state correctly retains the dependent's old pre-refresh
           base. Refresh preflight compared those distinct facts for equality and refused before native restacking.
 
-        - `[ ]` **6.11.R.p Validate native refresh against the live provider chain**
+        - `[x]` **6.11.R.p Validate native refresh against the live provider chain**
 
             - _Goal:_ Provider-native refresh admits the intentional selected-member intermediate state without
               relaxing exact member-head, request, branch, order, target, or contribution checks.
-            - Derive each expected live base from the freshly observed target and predecessor heads rather than the
-              dependent member's stale stored base. Preserve the state snapshot as rewrite authority, not provider
-              presentation authority.
-            - Add a provider-adapter regression that reproduces the live `gh stack checkout` / `view` semantics after
-              the selected predecessor advances, plus the existing exact refusal boundaries around foreign movement.
+            - _Outcome:_ Pre-refresh validation now binds provider bases to the freshly observed target and current
+              predecessor heads while retaining stored coordinates as rewrite authority. The adapter regression
+              advances a selected member over a stale dependent base and preserves foreign branch and
+              branch-to-predecessor chain refusals.
 
         - `[ ]` **6.11.R.q Revalidate the native-refresh entry boundary** — validate criteria at member scope
 
