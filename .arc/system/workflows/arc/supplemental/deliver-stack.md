@@ -180,9 +180,10 @@ Immediately after the fresh native observation, select the service-owned arm:
 arc delivery native land-select - --json
 ```
 
-The selector request carries no member coordinates. It derives the exact plan-ordered non-terminal remainder from
-current plan/state facts before fresh provider observation. An `unlinked` arm or a preceding
-`downgrade-required` result invokes the presentation-only degradation verb:
+The selector request carries only the plan, repository, remote, and merge-choice inputs — no member coordinates or
+position facts. The handler freshly observes position from canonical plan/state, then derives the exact plan-ordered
+non-terminal remainder before provider observation. An `unlinked` arm or a preceding `downgrade-required` result
+invokes the presentation-only degradation verb:
 
 ```bash
 arc delivery native unlink - --json
@@ -195,6 +196,9 @@ stops. A `linked-single` or explicitly selected direct `linked-atomic` result ad
 ```bash
 arc delivery native land-prepare - --json
 ```
+
+The request carries the selected arm, operation identity, and repository, remote, and protected-target locators —
+never position facts. The handler freshly reobserves position before reserving the native effect.
 
 Render the returned exact member/head set and consequence verbatim, including the atomic residual race. The terminal
 member is never included. Every displayed head has independently passed the existing readiness, review, check, and
@@ -257,6 +261,9 @@ For `review-member`, run the existing review sequence with the exact delivery-me
 The vehicle binds the review to the exact head supplied by delivery; no second member-review verb or delivery-owned
 review evidence exists. Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable,
 and settle findings through `review-triage` and `review-response` before preparing a landing.
+
+The preparation request carries that selection plus plan, repository, remote, target, lock, and tree locators — no
+position facts. The handler freshly reobserves position before preparing the singleton effect.
 
 ```bash
 arc delivery land prepare - --json
@@ -394,8 +401,8 @@ arc delivery teardown - --json
 ```
 
 The request carries the position result's exact `selectedDeliverableId` plus the current plan, repository, protected
-target, remote, and freshly observed position facts. This makes `teardown-member` idempotent after reconciliation;
-never select a member from prose or provider order.
+target, and remote locators — no position facts. The handler freshly reobserves position before teardown, making
+`teardown-member` idempotent after reconciliation; never select a member from prose or provider order.
 
 The CLI retains the exact member binding, deletes the proven remote branch, and, after the highest non-terminal
 member, immediately reobserves the top request. Follow only its returned `nextAction`:
