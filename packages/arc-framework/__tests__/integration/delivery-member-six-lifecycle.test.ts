@@ -62,6 +62,7 @@ interface RefreshFixture {
   readonly repository: string;
   readonly plan: ReturnType<typeof deliveryStackPlanFixture>;
   readonly initial: { readonly revision: number; readonly value: DeliveryStateV1 };
+  readonly facts: DeliveryPositionFactsV1;
   readonly subject: DeliveryProviderRefreshSubject;
   readonly originalTop: string;
   readonly refreshedMember: string;
@@ -165,7 +166,8 @@ async function createRefreshFixture(input: { readonly conflict?: boolean } = {})
       },
     ],
   });
-  const subjectResult = deriveDeliveryProviderRefreshSubject({ plan, state: value });
+  const facts = { target: value.target, members: value.members, landedDeliverableIds: [] };
+  const subjectResult = deriveDeliveryProviderRefreshSubject({ plan, state: value, facts });
   if (subjectResult.status !== "derived") throw new Error("refresh subject fixture must derive");
   const subject = subjectResult.subject;
   const observeRemote = async (ref: string) => {
@@ -236,6 +238,7 @@ async function createRefreshFixture(input: { readonly conflict?: boolean } = {})
     repository,
     plan,
     initial: { revision: 7, value },
+    facts,
     subject,
     originalTop,
     refreshedMember,
@@ -318,6 +321,7 @@ describe("member-six refresh adoption lifecycle", () => {
       current: fixture.initial,
       repository: "owner/repo",
       scope: { kind: "complete-remainder" },
+      facts: fixture.facts,
     }, {
       preparation: { prepare: async () => ({
         status: "prepared",

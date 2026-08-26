@@ -115,6 +115,93 @@ describe("session-init delivery position facts", () => {
       });
   });
 
+  it("recognizes append-only terminal authoring movement only for the review-fix observation", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const terminalIndex = initial.members.length - 1;
+    const terminal = initial.members[terminalIndex]!;
+    const binding = { providerId: "github", changeRequestId: "402" };
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => index === terminalIndex
+        ? { ...member, changeRequest: binding }
+        : member),
+    };
+    const dependencies = exactDependencies(state);
+    const advanced = { head: "f".repeat(40), tree: "e".repeat(40) };
+    await dependencies.materializeTarget(advanced);
+    const terminalBranch = terminal.ref!.replace(/^refs\/heads\//u, "");
+    dependencies.remoteHeads[terminalBranch] = advanced.head;
+    dependencies.localCommits[advanced.head] = true;
+    const observedRequest = {
+      status: "observed",
+      request: {
+        binding,
+        repository: "owner/repository",
+        headRepository: "owner/repository",
+        headRef: terminalBranch,
+        headSha: advanced.head,
+        baseRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
+        state: "open",
+        draft: true,
+      },
+    } as const;
+    dependencies.host.readRequest.mockResolvedValue(observedRequest);
+
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
+      .resolves.toEqual({ status: "refused" });
+    dependencies.host.readRequest.mockResolvedValue({
+      ...observedRequest,
+      request: { ...observedRequest.request, headSha: terminal.coordinates!.head },
+    });
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toEqual({ status: "refused" });
+    dependencies.host.readRequest.mockResolvedValue(observedRequest);
+
+    dependencies.localCommits[advanced.head] = false;
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toEqual({ status: "refused" });
+    dependencies.localCommits[advanced.head] = true;
+
+    const exactExec = dependencies.exec.getMockImplementation();
+    if (exactExec === undefined) throw new Error("fixture git boundary is missing");
+    dependencies.exec.mockImplementation(async (command, args, options) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+        throw new Error("ancestry unavailable");
+      }
+      return exactExec(command, args, options);
+    });
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toEqual({ status: "refused" });
+    dependencies.exec.mockImplementation(async (command, args, options) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+        throw Object.assign(new Error("not an ancestor"), { exitCode: 1, stderr: "" });
+      }
+      return exactExec(command, args, options);
+    });
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toEqual({ status: "refused" });
+    dependencies.exec.mockImplementation(exactExec);
+
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toMatchObject({
+      status: "observed",
+      facts: {
+        members: state.members,
+        terminalAuthoringMovement: {
+          deliverableId: terminal.deliverableId,
+          before: terminal.coordinates,
+          after: { ...advanced, base: terminal.coordinates!.base },
+        },
+      },
+    });
+  });
+
   it("fails closed when a remote member head is unavailable", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
@@ -566,5 +653,8 @@ describe("session-init delivery position facts", () => {
     ));
     await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, moved))
       .resolves.toEqual({ status: "refused" });
+    await expect(observeRepositoryDeliveryPosition(plan, reserved.state, 8, moved, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toEqual({ status: "refused" });
   });
 });

@@ -9,7 +9,11 @@ import type {
   DeliveryContributionProofResult,
   DeliveryContributionRefusal,
 } from "./contribution-proof.js";
-import type { DeliveryEligibilityRefusal, DeliveryEligibilitySnapshot } from "./eligibility.js";
+import type {
+  DeliveryEligibilityCoordinates,
+  DeliveryEligibilityRefusal,
+  DeliveryEligibilitySnapshot,
+} from "./eligibility.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type {
   DeliveryOperationSnapshotV1,
@@ -293,9 +297,11 @@ export async function completeDeliverySuffixMutationTail(input: {
   readonly rematerialized: DeliverySuffixRematerializedResult;
   readonly commonBase: DeliveryContributionCoordinate;
   readonly topRef: string;
+  readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
   readonly finalCandidate: DeliveryContributionCoordinate | undefined;
   readonly lifecyclePaths: readonly string[];
 }, dependencies: {
+  readAncestry(ancestor: string, descendant: string): Promise<"ancestor" | "not-ancestor" | "unresolvable">;
   adoptTop(input: {
     readonly topRef: string;
     readonly commonBase: DeliveryContributionCoordinate;
@@ -331,33 +337,38 @@ export async function completeDeliverySuffixMutationTail(input: {
   const highestMember = current.value.members.at(-2);
   if (current.value.activeOperation !== null || terminal?.coordinates === null || terminal?.ref === null
     || terminal === undefined || highestMember?.coordinates === null || highestMember === undefined
-    || terminal.ref !== input.topRef || input.finalCandidate === undefined) {
+    || terminal.ref !== input.topRef || input.top.ref !== input.topRef || input.finalCandidate === undefined) {
     return { status: "refused", reason: "projection-invalid" };
   }
   const terminalCoordinates = terminal.coordinates;
   const highestCoordinates = highestMember.coordinates;
+  const topMoved = terminalCoordinates.head !== input.top.head;
+  if ((!topMoved && terminalCoordinates.tree !== input.top.tree)
+    || (topMoved && await dependencies.readAncestry(terminalCoordinates.head, input.top.head) !== "ancestor")) {
+    return { status: "refused", reason: "adoption-refused" };
+  }
   const alreadyRebound = terminalCoordinates.base === highestCoordinates.head;
   const adoption = alreadyRebound
-    ? { status: "adopted" as const, head: terminalCoordinates.head, tree: terminalCoordinates.tree }
+    ? { status: "adopted" as const, head: input.top.head, tree: input.top.tree }
     : await dependencies.adoptTop({
         topRef: input.topRef,
         commonBase: input.commonBase,
         highestMember: highestCoordinates,
         finalCandidate: input.finalCandidate,
         lifecyclePaths: input.lifecyclePaths,
-        top: terminalCoordinates,
+        top: input.top,
       });
   if (adoption.status !== "adopted") {
     return { status: "refused", reason: "adoption-refused" };
   }
-  if (adoption.tree !== terminalCoordinates.tree) return { status: "refused", reason: "content-changed" };
+  if (adoption.tree !== input.top.tree) return { status: "refused", reason: "content-changed" };
   const publication = await dependencies.publishTop({
     ref: input.topRef,
-    beforeHead: terminalCoordinates.head,
+    beforeHead: input.top.head,
     requestedHead: adoption.head,
   });
   if (publication.status === "refused") return { status: "refused", reason: "top-publication-refused" };
-  if (alreadyRebound) return input.rematerialized;
+  if (alreadyRebound && !topMoved) return input.rematerialized;
 
   const parsed = DeliveryStateV1Schema.safeParse({
     ...current.value,

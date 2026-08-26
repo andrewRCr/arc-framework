@@ -9,6 +9,7 @@ import {
   DeliveryOperationSnapshotV1Schema,
   DeliveryPlanV1Schema,
   DeliveryStateV1Schema,
+  DeliveryTerminalAuthoringMovementV1Schema,
   type DeliveryPlanV1,
   type DeliveryStateV1,
 } from "./schema.js";
@@ -22,6 +23,7 @@ export const DeliveryPositionFactsV1Schema = DeliveryOperationSnapshotV1Schema.e
     "landed deliverables must be distinct",
   ),
   targetMovement: z.literal("append-only").optional(),
+  terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
 });
 export type DeliveryPositionFactsV1 = z.infer<typeof DeliveryPositionFactsV1Schema>;
 

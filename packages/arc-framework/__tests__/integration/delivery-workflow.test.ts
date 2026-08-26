@@ -155,6 +155,7 @@ describe("packaged delivery workflow", () => {
     const reviewFixPublish = reviewSection.indexOf("arc delivery review-fix publish", reviewFixPlan);
     expect(reviewFixPlan).toBeLessThan(reviewFixPublish);
     expect(reviewFixPublish).toBeLessThan(rematerialize);
+    expect(reviewSection).toContain("plan, repository, remote, and selected-member locators");
     expect(reviewSection).toMatch(
       /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
     );
