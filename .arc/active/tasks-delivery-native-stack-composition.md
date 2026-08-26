@@ -194,7 +194,7 @@ copy together.
 - _Outcome:_ The installation recipe, Configurable classifier, self-hosting manifest, and init/update contract tests
   now carry `validate-criteria.md`; the package and project method bodies begin aligned.
 
-### `[ ]` **1.8 Close delivery member 1** — validate criteria at member scope
+### `[x]` **1.8 Close delivery member 1** — validate criteria at member scope
 
 - _Goal:_ Member 1's criteria group is walked at its own boundary, over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -241,11 +241,26 @@ copy together.
           authoring, composition, fingerprints, handlers, and refusals; regenerated the live revision-1 plan and
           revision-32 state with stable deliverable bindings, and made repeated projection renders idempotent.
 
-    - `[ ]` **1.8.R.b Revalidate the amended Member 1 boundary**
+    - `[x]` **1.8.R.b Revalidate the amended Member 1 boundary**
 
-        - Run the complete Member 1 criteria walk over the original evidence plus the role/scope amendment, retaining
-          prior reports for unchanged loci and recording fresh coverage of the canonical-plan and current-delivery
-          regeneration seams.
+        - _Criteria slice:_ `Success Criteria > Member 1 — member-boundary-verification`.
+        - _Span:_ original diff `45b0e9393..c22890a42`; amendment `f9fac0ea9..adb7de941`; Task 1.8.R.b corrections
+          `adb7de941..working tree`; reachability through the current working tree; boundary-order deviation: the
+          approved forward amendment reopened Member 1 after the original boundary.
+        - _Criterion:_ `Success Criteria > Member 1 — member-boundary-verification > 1`; _State:_ `[~]`;
+          _Evidence:_ D7.2b supersedes only the ordinary-implementation-task shape from D7.2a. The member-scoped
+          criteria walk, grouped evidence, unchanged Success Criteria markers, terminal seam disposition, declared
+          method reachability, ordered member ranges, and authored-partition carrier remain in force; member closeout
+          is now represented by its actual verification role.
+        - _Criterion:_ `Success Criteria > Member 1 — member-boundary-verification > 2`; _State:_ `[x]`;
+          _Evidence:_ ordered roles and open verification scopes flow through extraction, schemas, coverage,
+          fingerprints, composition, handlers, and plan revalidation. Coverage requires every member to close on a
+          member verifier and every member verifier to close at least one owning member while preserving adjacent
+          boundary sharing. The regenerated revision validates with eight exact member boundaries, one terminal
+          unassigned work-unit verifier, no unbound verifier, and state revision 32 bound to the same plan digest.
+        - _Summary:_ one met, one superseded, zero unresolved. Both Heavy adversarial passes were consumed; the final
+          confirmed finding was corrected and the settled criteria, workflows, current plan, and state were reread
+          coherently without a third pass.
 
 ## **Phase 2:** Structural contribution identity
 

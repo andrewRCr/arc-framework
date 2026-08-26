@@ -79,6 +79,9 @@ describe("prepublication workflow boundary", () => {
       expect(verification).toContain("member-groups: recorded delivery-member criteria reports");
       expect(verification).toContain("seams: task list's Cross-member seams group");
       expect(verification).not.toContain("criteria: task list's complete Success Criteria section");
+      expect(verification).toContain("member-scope verification tasks");
+      expect(verification).toContain("sole terminal work-unit verification task");
+      expect(verification).not.toContain("without becoming additional verification tasks");
       expect(taskLoop).toContain("    - validate-criteria");
       expect(taskLoop).not.toContain("    - adversarial-review");
       expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");

@@ -73,10 +73,11 @@ describe("delivery composition checks", () => {
     ];
     expect(validateDeliveryCompositionCoverage({
       entry: "from-tasks",
-      tasks: ["1.1", "1.2", "1.3"].map((taskId) => ({
-        taskId,
-        role: { kind: "implementation" as const },
-      })),
+      tasks: [
+        { taskId: "1.1", role: { kind: "verification" as const, scope: "member" } },
+        { taskId: "1.2", role: { kind: "implementation" as const } },
+        { taskId: "1.3", role: { kind: "verification" as const, scope: "member" } },
+      ],
       members,
     })).toEqual({
       status: "refused",
@@ -84,10 +85,11 @@ describe("delivery composition checks", () => {
     });
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",
-      tasks: ["1.1", "1.2", "1.3"].map((taskId) => ({
-        taskId,
-        role: { kind: "implementation" as const },
-      })),
+      tasks: [
+        { taskId: "1.1", role: { kind: "verification" as const, scope: "member" } },
+        { taskId: "1.2", role: { kind: "implementation" as const } },
+        { taskId: "1.3", role: { kind: "verification" as const, scope: "member" } },
+      ],
       members,
     })).toEqual({
       status: "valid",
@@ -104,7 +106,7 @@ describe("delivery composition checks", () => {
       entry: "from-tasks",
       tasks: ["1.1", "1.2"].map((taskId) => ({
         taskId,
-        role: { kind: "implementation" as const },
+        role: { kind: "verification" as const, scope: "member" },
       })),
       members: [
         { chunkKey: "first", taskIds: ["1.1"] },
@@ -116,7 +118,7 @@ describe("delivery composition checks", () => {
   it("refuses a member with no closing task even when all tasks are covered elsewhere", () => {
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",
-      tasks: [{ taskId: "1.1", role: { kind: "implementation" } }],
+      tasks: [{ taskId: "1.1", role: { kind: "verification", scope: "member" } }],
       members: [
         { chunkKey: "attributed", taskIds: ["1.1"] },
         { chunkKey: "review-fixes", taskIds: [] },

@@ -44,7 +44,11 @@ const OTHER_PLAN_ID = "9cd88752-ef99-4e21-a41f-234bc98f35e0";
 function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
   const taskDigest = canonicalDigest({ goal: "Implement" });
   const parents = [
-    { taskId: "1.1", semanticDigest: taskDigest, role: { kind: "implementation" as const } },
+    {
+      taskId: "1.1",
+      semanticDigest: taskDigest,
+      role: { kind: "verification" as const, scope: "member" },
+    },
     {
       taskId: "2.1",
       semanticDigest: null,

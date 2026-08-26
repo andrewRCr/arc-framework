@@ -13,8 +13,9 @@ arc:
 # Workflow: Verify Completion
 
 Every task list ends with a verification phase containing a single task that points here. Delivery-member closing
-tasks may fire criteria validation at member scope without becoming additional verification tasks or loading this
-workflow. The terminal task description is intentionally thin — this workflow is the authoritative protocol.
+tasks fire criteria validation as member-scope verification tasks without loading this workflow. They remain distinct
+from the sole terminal work-unit verification task. The terminal task description is intentionally thin — this
+workflow is the authoritative protocol.
 Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
 was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
 

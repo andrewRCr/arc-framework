@@ -225,8 +225,9 @@ Use the provisional coverage to emit the delivery-aware task shape:
 - Open each affected phase preamble with one `**Delivery member:**` pointer carrying the ordinal and backticked chunk
   key per member represented there, before `_Purpose:_`. The pointer orients the reader; coverage remains assignment
   authority.
-- End each member's task range with an ordinary implementation parent assigned to that member. Its Goal is the
-  member-scope criteria walk through `validate-criteria`; it is not another verification task and adds no phase.
+- End each member's task range with a member-scope verification parent assigned to that member and carrying the exact
+  `— validate criteria at member scope` suffix. Its Goal is the member-scope criteria walk through
+  `validate-criteria`; it stays distinct from the sole terminal work-unit verification task and adds no phase.
 - Group Success Criteria beneath the member headings, followed by `### Cross-member seams`. Assign each criterion
   to the earliest boundary that can see its evidence; criteria with no visible member boundary go to the seam group.
 
@@ -424,8 +425,9 @@ pre-save checklist and bundles the commit.
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
-- [ ] Delivery member ranges, when present, end in ordinary implementation parents assigned through coverage;
-      they fire `validate-criteria` at member scope and do not add verification tasks or phases
+- [ ] Delivery member ranges, when present, end in member-scope verification parents assigned through coverage and
+      carrying the exact `— validate criteria at member scope` suffix; they add no phase and stay distinct from the
+      sole terminal work-unit verification task
 - [ ] All "carry as context" findings from the grounding audit are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task bodies read as a coherent forward artifact — no audit / correction / "pending" / amendment

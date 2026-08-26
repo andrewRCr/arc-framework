@@ -29,7 +29,9 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
     tasks: {
       parents: [
         { taskId: "1.1", role: { kind: "implementation" } },
-        { taskId: "1.2", role: { kind: "implementation" } },
+        { taskId: "1.2", role: { kind: "verification", scope: "member" } },
+        { taskId: "1.3", role: { kind: "implementation" } },
+        { taskId: "1.4", role: { kind: "verification", scope: "member" } },
         { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
       ],
     },
@@ -40,7 +42,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         chunkKey: "first",
         title: "First member",
         contract: "Publish the first contract.",
-        taskIds: ["1.1"],
+        taskIds: ["1.1", "1.2"],
         designElementIds: ["detailed:R1"],
         mainlineLandability: "independently-landable",
       },
@@ -48,7 +50,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         chunkKey: "second",
         title: "Second member",
         contract: "Publish the second contract.",
-        taskIds: ["1.2"],
+        taskIds: ["1.3", "1.4"],
         designElementIds: ["detailed:R2"],
         mainlineLandability: "integration-only",
       },
@@ -78,8 +80,18 @@ function constructionInput(overrides: Partial<Parameters<typeof constructDeliver
     },
     {
       taskId: "1.2",
+      semanticDigest: canonicalDigest({ goal: "Verify first" }),
+      role: { kind: "verification" as const, scope: "member" },
+    },
+    {
+      taskId: "1.3",
       semanticDigest: canonicalDigest({ goal: "Second" }),
       role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.4",
+      semanticDigest: canonicalDigest({ goal: "Verify second" }),
+      role: { kind: "verification" as const, scope: "member" },
     },
     {
       taskId: "2.1",
@@ -186,13 +198,37 @@ describe("constructDeliveryPlanRevision", () => {
   it("carries retrofit coverage gaps as advisories", () => {
     const authoring = authoringInput();
     authoring.entry = "from-branch";
-    authoring.members[1]!.taskIds = ["1.1"];
+    authoring.members[1]!.taskIds = ["1.4"];
 
     const result = constructDeliveryPlanRevision(constructionInput({ authoring }));
 
     expect(result).toMatchObject({
       status: "constructed",
-      advisories: [{ kind: "uncovered-assignable-task", taskId: "1.2" }],
+      advisories: [{ kind: "uncovered-assignable-task", taskId: "1.3" }],
+    });
+  });
+
+  it("refuses a member whose final assigned task is not a member verifier", () => {
+    const input = constructionInput();
+    const authoredTask = input.authoring.tasks.parents.find((task) => task.taskId === "1.2");
+    if (authoredTask === undefined) throw new Error("expected authored task");
+    authoredTask.role = { kind: "implementation" };
+    const parents = input.taskInventory.parents.map((task) => task.taskId === "1.2"
+      ? { ...task, role: { kind: "implementation" as const } }
+      : task);
+
+    const result = constructDeliveryPlanRevision({
+      ...input,
+      taskInventory: {
+        ...input.taskInventory,
+        parents,
+        inventoryDigest: canonicalDigest(parents),
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      issues: [{ code: "member-verification-task-boundary" }],
     });
   });
 });
@@ -296,14 +332,18 @@ describe("validateDeliveryPlanRevision", () => {
   });
 
   it("re-derives member fingerprints from current task roles", () => {
-    const first = constructedPlan();
-    const next = constructionInput({ predecessor: first });
+    const authoring = authoringInput();
+    const first = constructedPlan(authoring);
+    const next = constructionInput({
+      authoring: structuredClone(authoring),
+      predecessor: first,
+    });
     const authoredTask = next.authoring.tasks.parents.find((task) => task.taskId === "1.1");
     if (authoredTask === undefined) throw new Error("expected authored task");
-    authoredTask.role = { kind: "verification", scope: "member" };
+    authoredTask.role = { kind: "verification", scope: "segment" };
     const parents = next.taskInventory.parents.map((task) => (
       task.taskId === "1.1"
-        ? { ...task, role: { kind: "verification" as const, scope: "member" } }
+        ? { ...task, role: { kind: "verification" as const, scope: "segment" } }
         : task
     ));
     const result = constructDeliveryPlanRevision({
