@@ -53,7 +53,6 @@ import { adoptGitDeliveryChain } from "../lib/delivery/chain-adoption.js";
 import { absorbGitDeliveryChain } from "../lib/delivery/chain-absorption.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
-  DeliveryPositionFactsV1Schema,
   deriveDeliveryPosition,
   resolveDeliveryPredecessorHead,
   routeDeliveryPosition,
@@ -231,9 +230,9 @@ const PreparedLandingSchema = z.strictObject({
 });
 const LandPrepareSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
-  facts: DeliveryPositionFactsV1Schema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
   repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
   baseRef: RefSchema,
   targetRef: RefSchema,
   releaseMergeLock: z.boolean(),
@@ -268,7 +267,6 @@ const RematerializeSchema = MaterializeSchema.extend({
 const TeardownSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   deliverableId: DeliveryCanonicalDigestSchema,
-  facts: DeliveryPositionFactsV1Schema,
   repository: z.string().min(1),
   protectedTargetRef: RefSchema,
   remote: z.string().min(1).default("origin"),
@@ -305,8 +303,8 @@ const NativeLandingMemberSchema = z.strictObject({
 });
 const NativeSelectSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
-  facts: DeliveryPositionFactsV1Schema,
   repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
   mergeAction: z.enum(["direct", "queue"]),
   explicitAtomic: z.boolean(),
 });
@@ -317,9 +315,14 @@ const NativeSelectionSchema = z.strictObject({
   recommendedActionText: z.string().min(1),
 });
 const NativePrepareSchema = z.strictObject({
-  planId: DeliveryPlanIdSchema, operationId: z.string().min(1), selection: NativeSelectionSchema,
-  facts: DeliveryPositionFactsV1Schema, repository: z.string().min(1), baseRef: z.string().min(1),
-  targetRef: RefSchema, treeRoot: z.string().min(1),
+  planId: DeliveryPlanIdSchema,
+  operationId: z.string().min(1),
+  selection: NativeSelectionSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  baseRef: z.string().min(1),
+  targetRef: RefSchema,
+  treeRoot: z.string().min(1),
 });
 const NativeMergeRequestSchema = z.strictObject({
   repository: z.string().min(1), topChangeRequestId: z.string().min(1), topHeadSha: GitObjectIdSchema,
@@ -1530,7 +1533,15 @@ async function executeDeliveryCommand(
     if (planRead.status !== "ok" || planRead.value === null || stateRead.status !== "ok" || stateRead.value === null) {
       return { status: "blocked", reason: "delivery-unavailable", recommendedActionText: "Restore canonical delivery state before selecting a landing arm." };
     }
-    const position = deriveDeliveryPosition(planRead.value, stateRead.value.value, parsed.facts);
+    const observed = await observePosition(planRead.value, stateRead.value, parsed.repository, parsed.remote);
+    if (observed.status !== "observed") {
+      return {
+        status: "blocked",
+        reason: "position-unavailable",
+        recommendedActionText: "Restore fresh delivery position before selecting a landing arm.",
+      };
+    }
+    const position = deriveDeliveryPosition(planRead.value, stateRead.value.value, observed.facts);
     if (position.status !== "derived") {
       return { status: "blocked", reason: position.reason, recommendedActionText: "Refresh exact delivery position before selecting a landing arm." };
     }
@@ -1623,8 +1634,16 @@ async function executeDeliveryCommand(
           recommendedActionText: "Restore readable repository merge policy before preparing a native landing.",
         };
       }
+      const observed = await observePosition(plan, current, prepare.repository, prepare.remote);
+      if (observed.status !== "observed") {
+        return {
+          status: "blocked",
+          reason: "position-unavailable",
+          recommendedActionText: "Restore fresh delivery position before preparing a native landing.",
+        };
+      }
       return reserveNativeDeliveryLanding({
-        plan, current, operationId: prepare.operationId, facts: prepare.facts,
+        plan, current, operationId: prepare.operationId, facts: observed.facts,
         selection: prepare.selection, repository: prepare.repository, baseRef: prepare.baseRef,
         targetRef: prepare.targetRef, mergePolicy,
       }, {
@@ -1926,6 +1945,9 @@ async function executeDeliveryCommand(
     if (plan.status !== "ok" || plan.value === null || state.status !== "ok" || state.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
+    if (state.value.value.activeOperation !== null) {
+      return deriveDeliveryPosition(plan.value, state.value.value, undefined);
+    }
     const observed = await observePosition(plan.value, state.value, parsed.repository, parsed.remote);
     if (observed.status !== "observed") return { status: "refused", reason: "position-unavailable" };
     return routeDeliveryPosition(plan.value, state.value.value, observed.facts);
@@ -1982,10 +2004,14 @@ async function executeDeliveryCommand(
       if (mergePolicy === null) {
         return { status: "refused", reason: "merge-policy-unavailable" };
       }
+      const observed = await observePosition(plan, stateRead.value, prepare.repository, prepare.remote);
+      if (observed.status !== "observed") {
+        return { status: "refused", reason: "position-unavailable" };
+      }
       return prepareDeliveryLanding({
         plan,
         current: stateRead.value,
-        facts: prepare.facts,
+        facts: observed.facts,
         selectedDeliverableId: prepare.selectedDeliverableId,
         repository: prepare.repository,
         baseRef: prepare.baseRef,
@@ -2618,21 +2644,24 @@ async function executeDeliveryCommand(
     });
   }
   const parsed = TeardownSchema.parse(request);
-    const [planRead, stateRead] = await Promise.all([
-      planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId),
-    ]);
-    if (planRead.status !== "ok" || planRead.value === null || stateRead.status !== "ok" || stateRead.value === null) {
-      return { status: "refused", reason: "delivery-unavailable" };
-    }
+  const [planRead, stateRead] = await Promise.all([
+    planStore.readCurrent(parsed.planId), stateStore.read(parsed.planId),
+  ]);
+  if (planRead.status !== "ok" || planRead.value === null || stateRead.status !== "ok" || stateRead.value === null) {
+    return { status: "refused", reason: "delivery-unavailable" };
+  }
+  const observed = await observePosition(planRead.value, stateRead.value, parsed.repository, parsed.remote);
+  if (observed.status !== "observed") return { status: "refused", reason: "position-unavailable" };
   return teardownLandedDeliveryMember({
-      plan: planRead.value,
-      current: stateRead.value,
-      facts: parsed.facts,
-      deliverableId: parsed.deliverableId,
-      repository: parsed.repository,
-      protectedTargetRef: parsed.protectedTargetRef,
-      host: new GhDeliveryHostPort(hostedGhRunner),
-      deleteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
-      stateStore,
+    plan: planRead.value,
+    current: stateRead.value,
+    facts: observed.facts,
+    deliverableId: parsed.deliverableId,
+    repository: parsed.repository,
+    protectedTargetRef: parsed.protectedTargetRef,
+    host: new GhDeliveryHostPort(hostedGhRunner),
+    deleteLocalRef: (input) => deleteDeliveryLocalRef({ exec, ...input }),
+    deleteRemoteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
+    stateStore,
   });
 }
