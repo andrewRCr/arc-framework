@@ -79,7 +79,10 @@ describe("packaged delivery workflow", () => {
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
     expect(nativeSection).toMatch(/native unlink[\s\S]*fresh `unlinked`[\s\S]*ordinary singleton/iu);
     expect(nativeSection).toMatch(
-      /selector request carries no member coordinates[\s\S]*current plan\/state facts[\s\S]*provider observation/iu,
+      /selector request carries only[\s\S]*no member coordinates or[\s\S]*position facts[\s\S]*handler freshly observes position[\s\S]*provider observation/iu,
+    );
+    expect(nativeSection).toMatch(
+      /selected arm[\s\S]*never position facts[\s\S]*handler freshly reobserves position[\s\S]*native effect/iu,
     );
     expect(nativeSection).not.toContain("only the plan, request, and remote locators");
     expect(packaged).toContain("never enters the delivery plan or state");
@@ -109,6 +112,9 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toMatch(
       /native-stack-required[\s\S]*delivery-native-land-select[\s\S]*mode: sequential[\s\S]*canonical remaining chain/iu,
+    );
+    expect(reviewSection).toMatch(
+      /preparation request[\s\S]*no[\s\S]*position facts[\s\S]*handler freshly reobserves position[\s\S]*singleton effect/iu,
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
@@ -188,7 +194,9 @@ describe("packaged delivery workflow", () => {
     );
     expect(recoverySection).toMatch(/workflow prose infers neither a selector nor a[\s\S]*recovery policy/iu);
     expect(recoverySection).toMatch(/unlisted action\/transition\/selector pairing[\s\S]*stops/iu);
-    expect(reviewSection).toMatch(/teardown-member[\s\S]*selectedDeliverableId[\s\S]*arc delivery teardown/iu);
+    expect(reviewSection).toMatch(
+      /teardown-member[\s\S]*selectedDeliverableId[\s\S]*arc delivery teardown[\s\S]*no position facts[\s\S]*handler freshly reobserves position/iu,
+    );
     expect(terminalSection).not.toContain("`integration-interlock`");
     expect(packaged).not.toMatch(/if\s+.*(?:state|status)\s*==/iu);
     const nativeObserve = packaged.indexOf("arc delivery native observe");

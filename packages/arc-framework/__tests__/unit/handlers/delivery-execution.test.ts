@@ -574,17 +574,13 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(output)).toMatchObject({ status: "unlinked" });
   });
 
-  it("accepts state-bound native selection and rejects caller-authored member coordinates", async () => {
+  it("accepts locator-only native selection and rejects caller-authored position data", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const request = {
       planId: plan.planId,
-      facts: {
-        target: state.target,
-        members: state.members,
-        landedDeliverableIds: [],
-      },
       repository: "owner/repo",
+      remote: "origin",
       mergeAction: "direct",
       explicitAtomic: false,
     };
@@ -617,6 +613,27 @@ describe("delivery execution handler", () => {
     });
     expect(rejectedExecute).not.toHaveBeenCalled();
     expect(JSON.parse(rejectedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+
+    const rejectedFactsExecute = vi.fn();
+    const rejectedFactsWrite = vi.fn();
+    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        ...request,
+        facts: {
+          target: state.target,
+          members: state.members,
+          landedDeliverableIds: [],
+        },
+      })),
+      execute: rejectedFactsExecute,
+      write: rejectedFactsWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(rejectedFactsExecute).not.toHaveBeenCalled();
+    expect(JSON.parse(rejectedFactsWrite.mock.calls[0]?.[0] as string)).toMatchObject({
       status: "refused",
       reason: "invalid-command-input",
     });

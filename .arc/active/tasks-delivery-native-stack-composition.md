@@ -948,7 +948,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1147,10 +1147,41 @@ structural guarantee rather than operator discipline.
               reconciliation. Built-CLI real-repository coverage pins all three routes, and both shipped workflow
               copies supply only locators before dispatching the typed result.
 
-        - `[ ]` **6.11.R.h Revalidate the executable position seam**
+        - `[x]` **6.11.R.h Revalidate the executable position seam**
 
-            - Rerun the Member 6 criteria walk over the bounded public-command amendment and current bound delivery,
-              retaining earlier refresh/native evidence for unchanged loci.
+            - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+            - _Span:_ retained original Member 6, D5.9, fallback, and recovery evidence; bounded public-position
+              amendment `d6d842332..125a58191` plus the exact current worktree patch. Reachability is the complete
+              current tree. Boundary-order deviation: D9.8 and its finding repairs close the public execution seam
+              after the original member boundary without widening the bounded diff into unrelated later work.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+              _Evidence:_ the amendment changes position composition and downstream request authority only; the
+              demand-driven refresh trigger still leaves protected-base movement advisory.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+              _Evidence:_ D5.9 still supersedes only the external-only invocation clause, while attended external
+              observation and adoption remain executable.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+              _Evidence:_ complete native-suffix reconciliation and per-member structural proof are unchanged.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+              _Evidence:_ public native selection now composes fresh position facts from locators before deriving
+              the canonical remainder; exact sequential no-effect still clears into that selector.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+              _Evidence:_ exact non-terminal registration, dependent-top filtering, and singleton degradation are
+              unchanged; the real CLI fixture now exposes the terminal request required by full position observation.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+              _Evidence:_ native-link disclosure and host-silent decline are unchanged.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+              _Evidence:_ provider preparation, reservation, bottom-up publication, contiguous-prefix recovery,
+              terminal settlement, cleanup, and attended fallback are unchanged.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+              _Evidence:_ position, sequential prepare, native select/prepare, and teardown accept locators rather
+              than caller facts and compose the existing observer at the handler boundary. Clean, unavailable, and
+              active-operation position routes plus successful native reservation and destructive teardown run
+              through the built CLI; both workflow copies prohibit caller-authored position facts.
+            - _Summary:_ seven met, one intentionally superseded, zero unresolved. Heavy companion pass one exposed
+              active-reservation masking and pass two exposed downstream caller-facts authority; both were repaired,
+              and the primary post-settle reread found no residual seam break at the two-pass cap. Success Criteria
+              markers remain unchanged for terminal verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 

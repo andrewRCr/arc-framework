@@ -442,18 +442,12 @@ describe("delivery terminal recovery", () => {
     await expect(git(repository, ["ls-remote", "--exit-code", "origin", "refs/heads/delivery/member-1"]))
       .resolves.toContain(fixture.triggerHead);
 
-    const facts = {
-      target: restored.value.target,
-      members: restored.value.members,
-      landedDeliverableIds: [plan.members[0]!.deliverableId],
-    };
     const teardown = await runArcWithStdin(
       ["delivery", "teardown", "-", "--json"],
       repository,
       `${JSON.stringify({
         planId: fixture.planId,
         deliverableId: plan.members[0]!.deliverableId,
-        facts,
         repository: "owner/repo",
         protectedTargetRef: "refs/heads/main",
         remote: "origin",
