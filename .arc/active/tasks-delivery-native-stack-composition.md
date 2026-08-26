@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1394,6 +1394,26 @@ structural guarantee rather than operator discipline.
               cursorless closeout recovery, and refusal of ambiguous authority. The prior Member 6 report remains
               authoritative because neither its delivery criteria nor its implementation union changed.
 
+        - _Forward amendment (2026-08-26):_ Live self-delivery proved that provider refresh cannot enter its normal
+          selected-member continuation. After the selected member advances, the provider reports its dependent as
+          based on that new live predecessor while delivery state correctly retains the dependent's old pre-refresh
+          base. Refresh preflight compared those distinct facts for equality and refused before native restacking.
+
+        - `[ ]` **6.11.R.p Validate native refresh against the live provider chain**
+
+            - _Goal:_ Provider-native refresh admits the intentional selected-member intermediate state without
+              relaxing exact member-head, request, branch, order, target, or contribution checks.
+            - Derive each expected live base from the freshly observed target and predecessor heads rather than the
+              dependent member's stale stored base. Preserve the state snapshot as rewrite authority, not provider
+              presentation authority.
+            - Add a provider-adapter regression that reproduces the live `gh stack checkout` / `view` semantics after
+              the selected predecessor advances, plus the existing exact refusal boundaries around foreign movement.
+
+        - `[ ]` **6.11.R.q Revalidate the native-refresh entry boundary** — validate criteria at member scope
+
+            - _Goal:_ Focused adapter, execution, and real-CLI evidence proves selected-member publication can enter
+              provider-native dependent refresh while prior Member 6 evidence remains authoritative elsewhere.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
@@ -1675,7 +1695,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
   with one skipped (10,926 tests passed with one skipped), the package build, and diff hygiene all passed. Focused
@@ -1737,6 +1757,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - _Reopened 2026-08-26 after lifecycle closeout dogfood:_ Tasks 6.11.R.n-o make exact task authority, cursorless
   verification closeout recovery, and closed-task Candidate attestation one deterministic chain. Preserve prior
   member reports and rerun the new cross-member seam plus terminal quality and union checks.
+
+- _Reopened 2026-08-26 after native-refresh dogfood:_ Tasks 6.11.R.p-q correct the provider-base observation model
+  that blocked the selected-member dependent-refresh transition before restacking. Revalidate Member 6, the exact
+  provider boundary, and the terminal union without re-deriving unchanged member reports.
 
 - _Settled 2026-08-26 after final adversarial verification:_ exact same-highest ancestry adoption now returns the
   existing top rather than synthesizing another commit behind a preserved terminal publish reservation. Provider
