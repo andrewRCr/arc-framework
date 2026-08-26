@@ -31,6 +31,8 @@ that needs private convergence. Withdrawing returns it to Candidate-bearing `Act
 - Currently on the WU's `<type>/<name>` branch (per [`branch-format`][branch-format])
 - `.arc/active/meta-{name}.md` exists and shows `**State:** Integrating`
 - The WU's PR is open and **not merged** (a draft PR still qualifies; a merged PR does not)
+- The canonical task list has exactly the intended shape: a found executable cursor for `--task`, or
+  `no-open-task` when reopening directly to Candidate preparation
 
 ---
 
@@ -57,7 +59,12 @@ arc reopen {name} --keep-pr  # convert the PR to a draft instead
 arc reopen {name} --keep-pr --task "Task X.Y.R — ..."  # return to reopened task execution
 ```
 
-The executor fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
+Before mutation, the executor resolves the canonical task list. `--task` must equal
+`Task {cursor.id} — {cursor.title}` for the current executable leaf; without `--task`, the list must resolve
+`no-open-task`. Missing, unreadable, unbound, malformed, mismatched, or mode-inconsistent task authority refuses
+with the exact corrective boundary.
+
+The executor then fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
 `**Next Action:**` pointer, and fires the `withdraw-pr` side-effect — `gh pr close` (default) or
 `gh pr ready --undo` (`--keep-pr`). Without `--task`, `**Next Task:**` stays `[none]` and `Current Workflow`
 returns to `prepare-work-unit`. With an exact `--task`, the transition writes that orientation and clears
@@ -102,8 +109,9 @@ under `--keep-pr`, so the draft PR carries it.
 
 ### 4) Resume execution or Candidate preparation
 
-With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the reopened task and complete work-unit
-verification before establishing a new Candidate lineage root. Without `--task`, the WU is back in
+With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the exact canonical cursor. When the final
+task closes, session init and recovery project `verify-work-unit` until Candidate attestation. Without `--task`, the
+already-closed WU is back in
 Candidate-bearing `**State:** Active`, which projects `sessionType: prepublication` and `workflow:
 prepare-work-unit`; return to [`prepare-work-unit.md`][prepare]. Candidate currentness and review procedures account
 for head-changing fixes; never route from the cleared narrative `**Next Action:**` field.
