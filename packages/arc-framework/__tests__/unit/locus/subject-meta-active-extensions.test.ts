@@ -378,6 +378,37 @@ describe("checkout subject active-extension seam", () => {
     expect(projector).not.toHaveBeenCalled();
   });
 
+  it("projects a closed Active task list as execution verification closeout", async () => {
+    resolverInputs.length = 0;
+    const { options, files } = fixture();
+    files.set(
+      `${options.cwd}/.arc/active/tasks-demo.md`,
+      "## **Phase 1:** Verification\n\n### `[x]` **1.1 Complete verification**\n",
+    );
+
+    const result = await projectCheckoutSubjectMeta(options);
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "execution",
+      workflow: "verify-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: null,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "execution",
+      executionStage: "verification-closeout",
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).not.toContainEqual({
+      path: ".arc/active/tasks-demo.md",
+      readMode: { kind: "partial-strategic" },
+    });
+  });
+
   it("preserves the exact durable Active prepublication boundary on recovery", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");

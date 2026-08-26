@@ -199,6 +199,16 @@ the later delivery state records the first external binding and is not the inten
   operation inputs, not independent ARC sessions: they carry no work-unit lifecycle artifacts, mint no second
   roster authority, and never borrow or fabricate the originating checkout's load set. Delivery-member ownership
   resolves only at the exact review-gate read sites D11.1 names.
+  **Amended 2026-08-26 after reopened self-delivery exposed a cursorless execution interval:** the originating
+  checkout's lifecycle projection distinguishes task execution from execution closeout using the canonical task-list
+  cursor, without adding a persisted phase flag. A found cursor projects `process-task-loop`; a structurally valid
+  `no-open-task` result while no current Candidate exists projects `verify-work-unit`, including its full recovery
+  load set. Recovery accepts that exact cursorless closeout state and no other cursorless execution state. Reopening
+  with `--task` requires the supplied task narrative to equal the current executable cursor; reopening without it
+  requires a closed task list. Candidate attestation requires the canonical task list to resolve and prove
+  `no-open-task`, so malformed, missing, unbound, unreadable, or still-open execution cannot enter prepublication.
+  These are CLI-derived lifecycle facts over storage-neutral resolved records; workflow prose only invokes the
+  typed verbs and follows the projected workflow.
 - **D1.6 Terminal binding.** The terminal member binds at publish exactly like any other member — `ref`,
   `changeRequest`, and `coordinates` are populated when its pull request opens. This replaces the current
   materialization rule, where the terminal is deliberately left unbound
@@ -1805,6 +1815,11 @@ added.
     through a provider adapter at the handler boundary. Workflows never author observation facts; unavailable
     observation and active-operation recovery remain typed stops, while a clean bound delivery returns the exact
     next member, teardown, or terminal route (D9.8).
+31. Reopened execution is mechanically continuous from one exact open task through a cursorless work-unit
+    verification closeout and into a newly attested Candidate. `reopen --task` accepts only the canonical executable
+    cursor, no-task reopen accepts only a closed task list, session init and compaction recovery project
+    `verify-work-unit` for the exact `no-open-task` pre-attestation interval, and `arc attest` refuses every task-list
+    state except a structurally proven close (D1.5).
 
 ## Open Questions
 

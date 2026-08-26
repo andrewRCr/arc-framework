@@ -1373,6 +1373,27 @@ structural guarantee rather than operator discipline.
                   one re-ran the complete eight-criterion rubric, returned no findings, and converged cleanly.
                   Success Criteria markers remain unchanged for terminal verification.
 
+        - _Forward amendment (2026-08-26):_ Closing the last reopened task correctly produced a structurally valid
+          `no-open-task` cursor before Candidate attestation, but session recovery still required an open cursor and
+          stopped. The same audit found that reopen accepted narrative task authority and attestation tolerated
+          unresolved or still-open task lists, leaving the complete reopen-to-Candidate cycle mechanically porous.
+
+        - `[x]` **6.11.R.n Make reopened execution closeout deterministic and exact**
+
+            - _Goal:_ Reopened execution reaches work-unit verification and Candidate preparation through one
+              storage-neutral, mechanically proven lifecycle chain.
+            - Canonical cursor authority now selects task work or cursorless verification closeout, drives the
+              matching load set and recovery contract, and leaves active meta free of a duplicate phase flag.
+              Reopen and attestation refuse every unproved task orientation before lifecycle mutation.
+
+        - `[x]` **6.11.R.o Revalidate the reopened lifecycle boundary**
+
+            - _Goal:_ Focused vertical evidence proves the amended execution-to-prepublication seam without
+              reopening unrelated delivery design.
+            - Lifecycle, load-set, recovery, attestation, and real-CLI regressions prove exact task re-entry,
+              cursorless closeout recovery, and refusal of ambiguous authority. The prior Member 6 report remains
+              authoritative because neither its delivery criteria nor its implementation union changed.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
@@ -1657,15 +1678,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 ### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
-  with one skipped (10,913 tests passed with one skipped), the package build, and diff hygiene all passed. The final
-  delivery-focused settlement slice passed 104 tests across eight files, including both interruption regressions.
-- _Success criteria:_ 30 total: 28 met, two superseded, and none unresolved. Eight member reports were carried without
-  re-derivation; the terminal walk covered all five cross-member criteria and union coherence over merge base
-  `0b8e87285`, reachable head `bde9e6264`, and the final staged D1.2b/D5.9 settlement. The plan-present, state-absent
-  production proof forces reservation, publication transition, integration dispatch, first-member state binding,
-  and hosted fan-out in order. The final fresh-context Heavy companion's two majors were source-confirmed and fixed:
-  exact same-highest publication retry and already-completed refresh-candidate cleanup now converge without changing
-  their durable subjects. No open material finding remains. Provider refresh is implemented and tested; no live
+  with one skipped (10,926 tests passed with one skipped), the package build, and diff hygiene all passed. Focused
+  lifecycle, load-set, recovery, attestation, and real-CLI regressions cover the reopened closeout amendment.
+- _Success criteria:_ 31 total: 29 met, two superseded, and none unresolved. Eight member reports were carried without
+  re-derivation; the terminal walk revalidated union coherence and all cross-member seams over merge base
+  `0b8e87285` plus the current tree. The new seam proves exact task re-entry, cursorless `verify-work-unit` recovery,
+  and closed-list Candidate attestation. Prior whole-work-unit review evidence remains authoritative; no further
+  adversarial pass was added after the Heavy pass cap. Provider refresh is implemented and tested; no live
   provider-refresh exercise is claimed.
 - _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
   and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
@@ -1714,6 +1733,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - _Reopened 2026-08-26 after correction-entry dogfood:_ Tasks 6.11.R.l-m make proved append-only terminal authoring
   return an actionable, member-selected review-fix route and revalidate the amended Member 6 boundary without
   relaxing exact public position.
+
+- _Reopened 2026-08-26 after lifecycle closeout dogfood:_ Tasks 6.11.R.n-o make exact task authority, cursorless
+  verification closeout recovery, and closed-task Candidate attestation one deterministic chain. Preserve prior
+  member reports and rerun the new cross-member seam plus terminal quality and union checks.
 
 - _Settled 2026-08-26 after final adversarial verification:_ exact same-highest ancestry adoption now returns the
   existing top rather than synthesizing another commit behind a preserved terminal publish reservation. Provider
@@ -1888,6 +1911,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
 
 ### Cross-member seams
+
+- `[x]` Reopened execution is mechanically continuous from one exact open task through cursorless work-unit
+  verification closeout and into a newly attested Candidate. Reopen derives exact task authority from the canonical
+  cursor, session init and recovery project `verify-work-unit` for only the structurally closed pre-attestation
+  interval, and attestation refuses open or unresolved task lists.
 
 - `[x]` An approved review fix routes from the canonical remaining chain's fresh provider presentation: exact
   registered delivery publishes only the selected member, delegates the mechanical suffix refresh, and adopts the

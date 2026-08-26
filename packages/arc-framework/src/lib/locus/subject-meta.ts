@@ -195,6 +195,11 @@ export async function projectCheckoutSubjectMeta(options: {
         realpath: (path) => options.io.realpath(path),
         lstat: (path) => options.io.lstat(path),
       });
+  const executionStage = sessionType === "execution" && taskCursor?.status === "no-open-task"
+    ? "verification-closeout"
+    : sessionType === "execution"
+      ? "task-work"
+      : null;
   const cohortDocPath = await resolveActiveCohortDocPath({
     cwd: options.cwd,
     activeMetaPath: expectedPath,
@@ -206,7 +211,7 @@ export async function projectCheckoutSubjectMeta(options: {
     owner: normalizePointer(record.owner),
     branch: normalizePointer(record.branch),
     sessionType,
-    workflow: workflowFor(sessionType),
+    workflow: workflowFor(sessionType, executionStage),
     stage: planningStage,
     taskListPath,
     taskCursor,
@@ -220,6 +225,7 @@ export async function projectCheckoutSubjectMeta(options: {
       metaPath: expectedPath,
       sessionType,
       planningStage,
+      executionStage,
       taskListPath,
       activeExtensions: options.activeExtensions ?? [],
       cohortDocPath,
@@ -236,9 +242,14 @@ function normalizePointer(value: string | null): string | null {
   return value === null || value === "" || value === "[none]" ? null : value;
 }
 
-function workflowFor(sessionType: SessionType | null): string | null {
+function workflowFor(
+  sessionType: SessionType | null,
+  executionStage: "task-work" | "verification-closeout" | null,
+): string | null {
   if (sessionType === "planning") return "planning";
-  if (sessionType === "execution") return "process-task-loop";
+  if (sessionType === "execution") {
+    return executionStage === "verification-closeout" ? "verify-work-unit" : "process-task-loop";
+  }
   if (sessionType === "prepublication") return "prepare-work-unit";
   if (sessionType === "integration") return "integrate-work-unit";
   return null;

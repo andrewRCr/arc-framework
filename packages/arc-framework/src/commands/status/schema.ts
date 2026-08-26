@@ -906,9 +906,12 @@ function phaseAcceptsBoundary(
 
 function workflowForSessionType(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
+  taskCursor: z.infer<typeof TaskListCursorFileResultSchema> | null,
 ): string | null {
   if (sessionType === "planning") return "planning";
-  if (sessionType === "execution") return "process-task-loop";
+  if (sessionType === "execution") {
+    return taskCursor?.status === "no-open-task" ? "verify-work-unit" : "process-task-loop";
+  }
   if (sessionType === "prepublication") return "prepare-work-unit";
   if (sessionType === "integration") return "integrate-work-unit";
   return null;
@@ -940,7 +943,11 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
         message: "must match the resolved session phase",
       });
     }
-    if (activeSession.currentWorkflow !== workflowForSessionType(activeSession.sessionType)) {
+    const projectedTaskCursor = value.taskCursor?.ok === true ? value.taskCursor.value : null;
+    if (activeSession.currentWorkflow !== workflowForSessionType(
+      activeSession.sessionType,
+      projectedTaskCursor,
+    )) {
       context.addIssue({
         code: "custom",
         path: ["active", "value", "currentWorkflow"],
@@ -962,7 +969,10 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
         message: "must match the resolved session phase",
       });
     }
-    if (derivedContext.workflow !== workflowForSessionType(derivedContext.sessionType)) {
+    if (derivedContext.workflow !== workflowForSessionType(
+      derivedContext.sessionType,
+      derivedContext.taskCursor,
+    )) {
       context.addIssue({
         code: "custom",
         path: ["derivedLocusState", "value", "active", "context", "workflow"],
@@ -1129,7 +1139,9 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
     const cursorlessPhaseTaskCursorAllowed = value.recoveryFrame.ok
       && value.recoveryFrame.value.kind === "resolved"
       && (value.recoveryFrame.value.sessionType === "prepublication"
-        || value.recoveryFrame.value.sessionType === "integration");
+        || value.recoveryFrame.value.sessionType === "integration"
+        || (value.recoveryFrame.value.sessionType === "execution"
+          && value.recoveryFrame.value.workflow === "verify-work-unit"));
     const taskCursorPresent = Object.hasOwn(value, "taskCursor");
     if (!taskCursorPresent && taskCursorRequired) {
       context.addIssue({
