@@ -657,6 +657,24 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   rematerialization and provider adoption retain their existing distinct recovery actions. No provider mutation
   submission, provider-specific durable field, second operation kind, or migration reader is introduced.
 
+  **Amended 2026-08-25 after reopened self-delivery exposed a terminal-authoring false refusal:** review-fix
+  planning and complete rematerialization may recognize movement of the terminal top only when its ref and request
+  binding remain exact, the request is open, the request and remote name the same freshly materialized head, and
+  the recorded terminal head is its ancestor. The observation preserves the recorded terminal coordinate as the
+  canonical delivery binding and marks the live head only as append-only authoring movement; public position,
+  non-terminal movement, rewritten ancestry, mismatched request or remote facts, and unavailable evidence retain
+  their existing refusal. Rematerialization reobserves the live top through eligibility, uses that coordinate as
+  the lease and content-neutral absorption baseline, and installs the final terminal coordinate only in the
+  existing suffix-plus-top state write. No pre-rematerialization rebind or new state transition is introduced.
+
+  **Amended 2026-08-26 after registered self-delivery exposed an incomplete continuation:** the exact registered
+  review-fix route carries the same proven terminal-authoring movement through its dependent-suffix refresh. The
+  idle continuation reobserves under review-fix authority, retains the live terminal coordinate with the refresh
+  reservation as its absorption and publication lease baseline, and reuses that baseline on recovery. Only the
+  final suffix-plus-top state write installs the settled terminal coordinate. Public position, ordinary refresh
+  planning and adoption, complete-remainder execution, and every unproved movement remain exact; no provider-specific
+  authority, pre-settlement terminal rebind, or new state transition is introduced.
+
 - **D5.9 ARC-triggered provider-native refresh — amended 2026-08-25 after self-delivery exposed the
   external-only actuation gap.** This amendment supersedes D5.7's external-only rule and D5.8's external-refresh
   continuation while preserving external refresh observation and adoption as a complete fallback. When refresh
@@ -664,7 +682,9 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   provider-neutral preparation capability for either the complete remaining registered suffix or the dependent
   suffix above one already-published selected member. The capability receives exact target, ref, request, head,
   tree, and predecessor coordinates; it returns only an exact proposed target-and-suffix snapshot or a closed
-  refusal. Provider stack identity and command output are routing evidence, never mutation authority.
+  refusal. The remaining-suffix boundary comes from fresh landed-position authority over the retained bindings;
+  a binding's continued presence is historical execution evidence under D9.1, never an unlanded discriminator.
+  Provider stack identity and command output are routing evidence, never mutation authority.
 
   The GitHub reference adapter prepares that proposal in a clean isolated repository. It imports the exact remote
   stack, validates the provider view against the supplied subject, and invokes the official stack refresh

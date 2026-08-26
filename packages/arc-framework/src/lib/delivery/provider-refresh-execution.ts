@@ -4,6 +4,7 @@ import type { DeliveryContributionProofResult } from "./contribution-proof.js";
 import { canonicalize } from "../kernel/index.js";
 import { reserveDeliveryOperation, validateDeliveryActiveOperation } from "./operation.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
+import type { DeliveryPositionFactsV1 } from "./position.js";
 import type {
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
@@ -172,6 +173,7 @@ export async function executeDeliveryProviderRefresh(_input: {
   readonly repository: string;
   readonly scope?: DeliveryProviderRefreshExecutionScope;
   readonly operationId?: string;
+  readonly facts?: DeliveryPositionFactsV1;
 }, _deps: DeliveryProviderRefreshExecutionDependencies): Promise<ExecuteDeliveryProviderRefreshResult> {
   const input = _input;
   const deps = _deps;
@@ -179,11 +181,20 @@ export async function executeDeliveryProviderRefresh(_input: {
   let candidates: readonly DeliveryProviderRefreshCandidate[];
 
   if (input.current.value.activeOperation === null) {
-    if (input.operationId !== undefined || input.scope === undefined || input.repository === "") {
+    if (input.operationId !== undefined || input.scope === undefined || input.facts === undefined
+      || input.repository === "") {
       return { status: "refused", reason: "invalid-input" };
     }
-    const derived = deriveDeliveryProviderRefreshSubject({ plan: input.plan, state: input.current.value });
+    const derived = deriveDeliveryProviderRefreshSubject({
+      plan: input.plan,
+      state: input.current.value,
+      facts: input.facts,
+    });
     if (derived.status !== "derived") return { status: "refused", reason: derived.reason };
+    const terminalAuthoringMovement = input.facts.terminalAuthoringMovement;
+    if (terminalAuthoringMovement !== undefined && input.scope.kind !== "dependent-suffix") {
+      return { status: "refused", reason: "invalid-input" };
+    }
     if (input.scope.kind === "dependent-suffix"
       && !derived.subject.affectedDeliverableIds.includes(input.scope.selectedDeliverableId)) {
       return { status: "refused", reason: "selected-member-invalid" };
@@ -246,6 +257,7 @@ export async function executeDeliveryProviderRefresh(_input: {
       expectedStateRevision: input.current.revision,
       before: derived.subject.before,
       requested: requested.data,
+      ...(terminalAuthoringMovement === undefined ? {} : { terminalAuthoringMovement }),
     });
     if (reserved.status !== "reserved") {
       const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);

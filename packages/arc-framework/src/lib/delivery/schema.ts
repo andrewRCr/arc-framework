@@ -187,6 +187,16 @@ export const DeliveryMemberCoordinatesV1Schema = z.strictObject({
 });
 export type DeliveryMemberCoordinatesV1 = z.infer<typeof DeliveryMemberCoordinatesV1Schema>;
 
+/** Proven append-only terminal movement retained as a provider-refresh lease baseline. */
+export const DeliveryTerminalAuthoringMovementV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  before: DeliveryMemberCoordinatesV1Schema,
+  after: DeliveryMemberCoordinatesV1Schema,
+});
+export type DeliveryTerminalAuthoringMovementV1 = z.infer<
+  typeof DeliveryTerminalAuthoringMovementV1Schema
+>;
+
 /** One provider-owned change-request handle bound to a delivery member. */
 export const DeliveryChangeRequestV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
@@ -305,6 +315,7 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("rewrite"),
     mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+    terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("teardown"),

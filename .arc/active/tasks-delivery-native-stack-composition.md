@@ -1029,8 +1029,9 @@ structural guarantee rather than operator discipline.
 
     - `[x]` **6.11.R Revalidate provider-native refresh and the amended Member 6 boundary**
 
-        - The amended member report binds the original Member 6 union, D5.9, and the exact fallback repair; it
-          resolves six criteria as met and criterion 2 as intentionally superseded.
+        - The amended member reports bind the original Member 6 union, D5.9, and the exact fallback and
+          retained-prefix repairs; the final walk resolves seven criteria as met and criterion 2 as intentionally
+          superseded.
         - The Heavy fresh-context companion completed two full-rubric passes, with the confirmed fallback finding
           repaired and pass two returning no findings.
         - The reopened-execution return path now closes its exact `Next Task` only from a proven completed cursor;
@@ -1211,6 +1212,112 @@ structural guarantee rather than operator discipline.
               active-reservation masking and pass two exposed downstream caller-facts authority; both were repaired,
               and the primary post-settle reread found no residual seam break at the two-pass cap. Success Criteria
               markers remain unchanged for terminal verification.
+
+        - _Forward amendment (2026-08-25):_ Final whole-work-unit verification proved that remaining-suffix
+          derivation treated only null bindings as landed even though D9.1 retains exact landed bindings. Every
+          post-first-landing refresh subject therefore began with a merged or deleted member and could not be
+          observed as an open registered suffix.
+
+        - `[x]` **6.11.R.i Derive refresh subjects from fresh landed position**
+
+            - Refresh and review-fix commands now compose fresh position facts at the handler boundary and derive
+              only the current non-terminal remainder, while retained landed bindings remain historical evidence.
+              Core, execution, provider, lifecycle, and built-CLI regressions prove the post-first-landing route.
+
+        - `[x]` **6.11.R.j Revalidate the amended Member 6 boundary** — validate criteria at member scope
+
+            - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+            - _Span:_ retained Member 6 boundary reports through Task 6.11.R.h plus the exact retained-prefix repair
+              over `6c1e05ce8`; reachability is the complete current tree. Boundary-order deviation: final
+              whole-work-unit verification supplied the D5.9 / D9.1 repair after the original member boundary; the
+              bounded member walk excludes the concurrent Member 5 recovery repair.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+              _Evidence:_ demand-driven planning still leaves protected-base movement advisory and requires a real
+              refusal or explicit operator choice before selecting the freshly observed remaining suffix.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+              _Evidence:_ D5.9 still supersedes only the external-only invocation clause. Attended external refresh
+              adoption remains executable and now derives its exact remaining subject from fresh position facts.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+              _Evidence:_ native landing still reconciles and structurally proves every member in the complete
+              rewritten remainder before admitting new heads.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+              _Evidence:_ position authority now selects the canonical current non-terminal remainder despite
+              retained landed bindings; exact semantic no-effect still returns sequential landing to fresh native
+              selection without conflating stale-suffix refresh.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+              _Evidence:_ registration remains exactly non-terminal, filters the dependent top, and degrades a
+              singleton registered remainder to the host-silent unlinked route.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+              _Evidence:_ native-link still discloses review invalidation before opt-in, while decline remains an
+              accepted zero-host-call result.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+              _Evidence:_ provider-invoked planning, idle execution, and external adoption derive only the freshly
+              observed remaining suffix; reserved partial-publication recovery continues from its exact durable
+              subject. Publication, top settlement, cleanup, and atomic state adoption are unchanged.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+              _Evidence:_ public position, refresh, and review-fix commands compose Git and host facts from plan,
+              state, repository, and remote locators. A built-CLI landed-prefix scenario excludes the retained
+              landed member from both refresh and review-fix subjects; the pre-fix derivation failed that scenario
+              behaviorally, while unavailable observation and active-operation recovery remain typed stops.
+            - _Summary:_ seven met, one intentionally superseded, zero unresolved. Focused verification passed 59
+              tests across the core, handler, provider, workflow, lifecycle, and built CLI; the complete Tier 3 gate
+              passed 850 test files and 10,903 tests with one skip each. Success Criteria markers remain unchanged
+              for terminal verification; the approved fresh-context companion is reserved for the whole-work-unit
+              pass.
+
+        - _Forward amendment (2026-08-25):_ Reopened self-delivery advanced the terminal authoring branch beyond its
+          retained delivery binding. Exact public position correctly refused, but review-fix planning and
+          rematerialization reused that strict read and therefore could not execute D5.8's required recovery path.
+
+        - `[x]` **6.11.R.k Restore append-only terminal-authoring re-entry** — validate criteria at member scope
+
+            - _Goal:_ A normally reopened work unit can route and complete its review-fix rematerialization while
+              preserving exact public position and refusing every unproved terminal or non-terminal movement.
+
+            - _Outcome:_ Member 6 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                - _Span:_ retained Member 6 reports through Task 6.11.R.j plus the exact terminal-authoring and
+                  selected-change recovery repair over `6c1e05ce8`; reachability is the complete current tree.
+                  Boundary-order deviation: reopened self-delivery and its fresh companion supplied this repair
+                  after the original member boundary; the bounded walk excludes concurrent Member 5 recovery and
+                  unrelated dogfood corrections.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                  _Evidence:_ refresh remains demand-driven, and append-only protected-base movement stays advisory
+                  rather than creating a delivery freeze or refresh obligation.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                  _Evidence:_ D5.9 still supersedes only the external-only invocation clause; attended external
+                  observation and adoption remain executable through exact settlement.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                  _Evidence:_ native landing still reconciles and structurally proves every member in the complete
+                  rewritten remainder before admitting new coordinates.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                  _Evidence:_ fresh landed-position authority selects the canonical current remainder, and exact
+                  semantic no-effect still returns sequential landing to native selection without authorizing
+                  stale-suffix refresh.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                  _Evidence:_ registration remains exactly non-terminal, filters the dependent top, and degrades a
+                  singleton registered remainder to the host-silent unlinked route.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                  _Evidence:_ native-link still discloses review invalidation before opt-in, while decline remains
+                  an accepted zero-host-call result.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                  _Evidence:_ registered review-fix execution now carries only freshly proved append-only terminal
+                  movement into its dependent provider-refresh reservation, uses that live top for absorption and
+                  publication leasing, and retains it across recovery until the final suffix-plus-top state write.
+                  Interrupted selected-member publication reuses the same narrow observation authority and resumes
+                  the mandatory dependent refresh after adoption. Provider preparation, bottom-up publication,
+                  contiguous-prefix recovery, candidate cleanup, attended fallback, and provider neutrality remain
+                  intact.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+                  _Evidence:_ public position and ordinary complete-remainder refresh remain exact and caller-fact
+                  free. Only review-fix-owned planning, rematerialization, dependent refresh, and rewrite recovery
+                  admit the exact open-request descendant; every unproved terminal or non-terminal movement still
+                  refuses.
+                - _Summary:_ seven met, one intentionally superseded, zero unresolved. Fresh companion pass one
+                  exposed the registered continuation break; pass two re-ran the full rubric and exposed the
+                  selected-change recovery break. Both were source-confirmed and repaired, and the primary
+                  post-settle walk found no remaining Member 6 gap at the Heavy two-pass cap. Success Criteria
+                  markers remain unchanged for terminal verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -1540,6 +1647,14 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   workaround with scoped task roles; Tasks 6.11.R.g-h make the public position route self-observing. Preserve prior
   evidence for unchanged loci, then rerun the amended member boundaries, cross-member seams, union coherence,
   quality gates, and work-unit review over the new Candidate root.
+
+- _Reopened 2026-08-25 after final whole-work-unit verification:_ Tasks 5.7.R.f-g preserve the exact teardown
+  continuation after applied sequential recovery, and Tasks 6.11.R.i-j derive post-landing refresh subjects from
+  fresh position rather than cleared bindings. Rerun both affected member boundaries before terminal verification.
+
+- _Reopened 2026-08-25 after terminal-authoring dogfood:_ Task 6.11.R.k restores the D5.8 review-fix and
+  rematerialization path after an append-only top advance while leaving ordinary position exact. Rerun Member 6 and
+  terminal verification over the repaired union.
 
 ---
 

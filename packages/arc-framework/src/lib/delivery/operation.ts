@@ -13,6 +13,7 @@ import {
   DeliveryOperationSnapshotV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
+  DeliveryTerminalAuthoringMovementV1Schema,
   DeliveryTopRemedyEffectV1Schema,
   type DeliveryActiveOperationV1,
   type DeliveryOperationSnapshotV1,
@@ -33,6 +34,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       ...reservationFields,
       kind: z.literal("rewrite"),
       mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+      terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
     }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({
@@ -194,6 +196,16 @@ function followsPlanOrder(plan: DeliveryPlanV1, deliverableIds: readonly string[
   return true;
 }
 
+function terminalAuthoringMovementMatchesState(
+  state: DeliveryStateV1,
+  movement: z.infer<typeof DeliveryTerminalAuthoringMovementV1Schema>,
+): boolean {
+  const terminal = state.members.at(-1);
+  return terminal !== undefined && terminal.deliverableId === movement.deliverableId
+    && terminal.coordinates !== null
+    && canonicalize(terminal.coordinates) === canonicalize(movement.before);
+}
+
 /**
  * Validate the one active operation carried by a published state revision.
  *
@@ -228,6 +240,11 @@ export function validateDeliveryActiveOperation(
           || canonicalize(candidateIds) !== canonicalize(allStateIds)))) {
       return { status: "blocked", reason: "state-invalid" };
     }
+  }
+  if (operation.kind === "rewrite" && operation.terminalAuthoringMovement !== undefined
+    && (operation.mode !== "provider-refresh"
+      || !terminalAuthoringMovementMatchesState(parsedState.data, operation.terminalAuthoringMovement))) {
+    return { status: "blocked", reason: "state-invalid" };
   }
   if (current.revision !== operation.stateRevision + 1
     || operation.boundPlanDigest !== parsedState.data.boundPlan.planDigest
@@ -354,6 +371,14 @@ export function reserveDeliveryOperation(
       }
     }
   }
+  if (parsedRequest.data.kind === "rewrite" && parsedRequest.data.terminalAuthoringMovement !== undefined
+    && (parsedRequest.data.mode !== "provider-refresh"
+      || !terminalAuthoringMovementMatchesState(
+        parsedState.data,
+        parsedRequest.data.terminalAuthoringMovement,
+      ))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
   if (canonicalize(snapshotFromState(parsedState.data, parsedRequest.data.affectedDeliverableIds))
     !== canonicalize(parsedRequest.data.before)) {
     return { status: "refused", reason: "before-state-mismatch" };
@@ -372,6 +397,10 @@ export function reserveDeliveryOperation(
       ...(parsedRequest.data.kind === "rewrite" || parsedRequest.data.kind === "land"
         || parsedRequest.data.kind === "teardown"
         ? { mode: parsedRequest.data.mode }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.terminalAuthoringMovement !== undefined
+        ? { terminalAuthoringMovement: parsedRequest.data.terminalAuthoringMovement }
         : {}),
       ...(parsedRequest.data.kind === "teardown"
         ? { candidateHeads: parsedRequest.data.candidateHeads }

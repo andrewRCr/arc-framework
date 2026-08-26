@@ -9,6 +9,10 @@ import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
+function positionFacts(state: DeliveryStateV1, landedDeliverableIds: string[] = []) {
+  return { target: state.target, members: state.members, landedDeliverableIds };
+}
+
 function fixture() {
   const plan = deliveryFourMemberStackPlanFixture();
   const initial = deliveryStateFixture(plan);
@@ -26,10 +30,12 @@ describe("delivery review-fix routing", () => {
   it("routes exact registered and unregistered presentation without guessing", () => {
     const { plan, state } = fixture();
     const selectedDeliverableId = plan.members[1]!.deliverableId;
+    const facts = positionFacts(state, [plan.members[0]!.deliverableId]);
 
     expect(planDeliveryReviewFixRoute({
       plan,
       state,
+      facts,
       selectedDeliverableId,
       observation: { status: "registered", stackNumber: 42 },
     })).toMatchObject({
@@ -42,6 +48,7 @@ describe("delivery review-fix routing", () => {
     expect(planDeliveryReviewFixRoute({
       plan,
       state,
+      facts,
       selectedDeliverableId,
       observation: { status: "unregistered" },
     })).toMatchObject({
@@ -66,7 +73,9 @@ describe("delivery review-fix routing", () => {
     ];
 
     for (const observation of observations) {
-      expect(planDeliveryReviewFixRoute({ plan, state, selectedDeliverableId, observation }))
+      expect(planDeliveryReviewFixRoute({
+        plan, state, facts: positionFacts(state), selectedDeliverableId, observation,
+      }))
         .toMatchObject({ status: "refused", reason: `presentation-${observation.status}` });
     }
   });
@@ -82,6 +91,7 @@ describe("delivery review-fix routing", () => {
     const result = await publishSelectedDeliveryReviewFix({
       plan,
       current: { revision: 7, value: state },
+      facts: positionFacts(state),
       selectedDeliverableId: selected.deliverableId,
       candidateRef,
       expectedCandidateRef: candidateRef,
@@ -91,7 +101,11 @@ describe("delivery review-fix routing", () => {
       observeCandidateRef: async () => candidate,
       readAncestry: async () => "ancestor",
       revalidateLifecycle: async () => ({ status: "ok" }),
-      reobservePresentation: async () => ({ status: "registered", stackNumber: 42 }),
+      reobserveAuthority: async () => ({
+        status: "observed",
+        facts: positionFacts(state),
+        observation: { status: "registered", stackNumber: 42 },
+      }),
       rewriteRef,
       observePublishedMember: async () => true,
       stateStore: { publish: async (_planId, value, revision) => {
@@ -127,6 +141,7 @@ describe("delivery review-fix routing", () => {
     const common = {
       plan,
       current: { revision: 7, value: state },
+      facts: positionFacts(state),
       selectedDeliverableId: selected.deliverableId,
       candidateRef,
       expectedCandidateRef: candidateRef,
@@ -137,7 +152,11 @@ describe("delivery review-fix routing", () => {
       observeCandidateRef: async () => candidate,
       readAncestry: async () => "ancestor" as const,
       revalidateLifecycle: async () => ({ status: "ok" as const }),
-      reobservePresentation: async () => ({ status: "registered" as const, stackNumber: 42 }),
+      reobserveAuthority: async () => ({
+        status: "observed" as const,
+        facts: positionFacts(state),
+        observation: { status: "registered" as const, stackNumber: 42 },
+      }),
       rewriteRef: async () => ({ status: "rewritten" as const }),
       observePublishedMember: async () => true,
       stateStore: { publish: async (_planId: string, value: DeliveryStateV1, revision: number) => ({
