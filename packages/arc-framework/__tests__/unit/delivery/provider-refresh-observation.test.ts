@@ -7,6 +7,10 @@ import {
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
+function positionFacts(state: ReturnType<typeof deliveryStateFixture>, landedDeliverableIds: string[] = []) {
+  return { target: state.target, members: state.members, landedDeliverableIds };
+}
+
 function subjectFixture() {
   const plan = deliveryFourMemberStackPlanFixture();
   const fixture = deliveryStateFixture(plan);
@@ -17,7 +21,7 @@ function subjectFixture() {
       changeRequest: { providerId: "github", changeRequestId: String(700 + index) },
     })),
   };
-  const result = deriveDeliveryProviderRefreshSubject({ plan, state });
+  const result = deriveDeliveryProviderRefreshSubject({ plan, state, facts: positionFacts(state) });
   if (result.status !== "derived") throw new Error("refresh subject must derive");
   return { plan, state, subject: result.subject };
 }
@@ -28,15 +32,18 @@ describe("delivery provider refresh observation", () => {
     const fixture = deliveryStateFixture(plan);
     const state = {
       ...fixture,
-      members: fixture.members.map((member, index) => index === 0
-        ? { ...member, ref: null, changeRequest: null, coordinates: null }
-        : {
-            ...member,
-            changeRequest: { providerId: "github", changeRequestId: String(700 + index) },
-          }),
+      members: fixture.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(700 + index) },
+      })),
+    };
+    const facts = {
+      target: state.target,
+      members: state.members,
+      landedDeliverableIds: [state.members[0]!.deliverableId],
     };
 
-    expect(deriveDeliveryProviderRefreshSubject({ plan, state })).toMatchObject({
+    expect(deriveDeliveryProviderRefreshSubject({ plan, state, facts })).toMatchObject({
       status: "derived",
       subject: {
         landedPrefix: [plan.members[0]!.deliverableId],

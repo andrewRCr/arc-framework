@@ -39,7 +39,15 @@ function memberSnapshot(state: DeliveryStateV1, index: number) {
   };
 }
 
-type ActiveOperationScenario = "review-fix" | "native" | "provider-refresh-partial";
+type ActiveOperationScenario =
+  | "review-fix"
+  | "native"
+  | "provider-refresh-partial"
+  | "landed-prefix"
+  | "terminal-authoring"
+  | "registered-terminal-authoring"
+  | "selected-change-terminal-authoring-before"
+  | "selected-change-terminal-authoring-applied";
 
 async function positionFixture(activeOperation?: ActiveOperationScenario) {
   const repository = await createTempRepo("arc-delivery-position-");
@@ -69,21 +77,35 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   await git(repository, ["commit", "-m", "member three"]);
   const thirdHead = await git(repository, ["rev-parse", "HEAD"]);
   const thirdTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+  await writeFile(join(repository, "reopened-work.txt"), "append-only terminal authoring\n");
+  await git(repository, ["add", "reopened-work.txt"]);
+  await git(repository, ["commit", "-m", "continue terminal authoring"]);
+  const advancedThirdHead = await git(repository, ["rev-parse", "HEAD"]);
   const refreshedFirstHead = await git(repository, [
     "commit-tree", firstTree, "-p", targetHead, "-m", "refreshed member one",
   ]);
   const refreshedSecondHead = await git(repository, [
     "commit-tree", secondTree, "-p", refreshedFirstHead, "-m", "refreshed member two",
   ]);
+  const selectedFirstHead = await git(repository, [
+    "commit-tree", firstTree, "-p", firstHead, "-m", "selected member review fix",
+  ]);
   const publishedFirstHead = activeOperation === "provider-refresh-partial"
     ? refreshedFirstHead
-    : firstHead;
+    : activeOperation === "selected-change-terminal-authoring-applied"
+      ? selectedFirstHead
+      : firstHead;
+  const terminalAuthoring = activeOperation === "terminal-authoring"
+    || activeOperation === "registered-terminal-authoring"
+    || activeOperation === "selected-change-terminal-authoring-before"
+    || activeOperation === "selected-change-terminal-authoring-applied";
+  const publishedThirdHead = terminalAuthoring ? advancedThirdHead : thirdHead;
   await git(repository, [
     "push", "origin",
     `${targetHead}:refs/heads/main`,
     `${publishedFirstHead}:refs/heads/member-1`,
     `${secondHead}:refs/heads/member-2`,
-    `${thirdHead}:refs/heads/member-3`,
+    `${publishedThirdHead}:refs/heads/member-3`,
   ]);
 
   const plan = deliveryThreeMemberStackPlanFixture();
@@ -110,7 +132,9 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
       {
         deliverableId: plan.members[2]!.deliverableId,
         ref: "refs/heads/member-3",
-        changeRequest: null,
+        changeRequest: terminalAuthoring
+          ? { providerId: "github", changeRequestId: "403" }
+          : null,
         coordinates: { base: secondHead, head: thirdHead, tree: thirdTree },
       },
     ],
@@ -172,7 +196,11 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     if (reserved.status !== "reserved") throw new Error("position fixture native reservation refused");
     expect(await states.publish(plan.planId, reserved.state, 1)).toMatchObject({ status: "ok" });
   } else if (activeOperation === "provider-refresh-partial") {
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    const derived = deriveDeliveryProviderRefreshSubject({
+      plan,
+      state,
+      facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+    });
     if (derived.status !== "derived") throw new Error("position fixture refresh subject must derive");
     const requested = {
       target: derived.subject.before.target,
@@ -197,20 +225,57 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     expect(reserved.status).toBe("reserved");
     if (reserved.status !== "reserved") throw new Error("position fixture refresh reservation refused");
     expect(await states.publish(plan.planId, reserved.state, 1)).toMatchObject({ status: "ok" });
+  } else if (activeOperation === "selected-change-terminal-authoring-before"
+    || activeOperation === "selected-change-terminal-authoring-applied") {
+    const before = { target: state.target, members: [memberSnapshot(state, 0)] };
+    const requested = {
+      target: state.target,
+      members: [{
+        ...memberSnapshot(state, 0),
+        coordinates: { base: targetHead, head: selectedFirstHead, tree: firstTree },
+      }],
+    };
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "interrupted-selected-change-operation",
+      kind: "rewrite",
+      mode: "selected-change",
+      affectedDeliverableIds: [state.members[0]!.deliverableId],
+      expectedStateRevision: 1,
+      before,
+      requested,
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") throw new Error("selected-change fixture reservation refused");
+    expect(await states.publish(plan.planId, reserved.state, 1)).toMatchObject({ status: "ok" });
   }
 
   const fakeBin = join(repository, "fake-bin");
   const fakeGh = join(fakeBin, "gh");
   await mkdir(fakeBin);
-  const request = (number: number, headRef: string, headSha: string, baseRef: string) => JSON.stringify({
+  const request = (
+    number: number,
+    headRef: string,
+    headSha: string,
+    baseRef: string,
+    state: "open" | "merged" = "open",
+  ) => JSON.stringify({
     number,
-    state: "open",
-    merged: false,
+    state: state === "merged" ? "closed" : "open",
+    merged: state === "merged",
     draft: true,
     head: { ref: headRef, sha: headSha, repo: { full_name: "owner/repo" } },
     base: { ref: baseRef, repo: { full_name: "owner/repo" } },
-    merge_commit_sha: null,
+    merge_commit_sha: state === "merged" ? headSha : null,
   });
+  const registeredStack = JSON.stringify([{
+    number: 901,
+    base: { ref: "main" },
+    pull_requests: [
+      JSON.parse(request(401, "member-1", publishedFirstHead, "main")) as unknown,
+      JSON.parse(request(402, "member-2", secondHead, "member-1")) as unknown,
+      JSON.parse(request(403, "member-3", publishedThirdHead, "member-2")) as unknown,
+    ],
+  }]);
   await writeFile(fakeGh, [
     "#!/bin/sh",
     "if [ \"${ARC_FAKE_TARGET_UNAVAILABLE:-0}\" = \"1\" ]; then exit 1; fi",
@@ -222,10 +287,27 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: targetTree } })}'`,
     "    ;;",
     "  repos/owner/repo/pulls/401)",
-    `    printf '%s\\n' '${request(401, "member-1", publishedFirstHead, "main")}'`,
+    `    printf '%s\\n' '${request(
+      401,
+      "member-1",
+      publishedFirstHead,
+      "main",
+      activeOperation === "landed-prefix" ? "merged" : "open",
+    )}'`,
     "    ;;",
     "  repos/owner/repo/pulls/402)",
-    `    printf '%s\\n' '${request(402, "member-2", secondHead, "member-1")}'`,
+    `    printf '%s\\n' '${request(
+      402,
+      "member-2",
+      secondHead,
+      activeOperation === "landed-prefix" ? "main" : "member-1",
+    )}'`,
+    "    ;;",
+    "  repos/owner/repo/pulls/403)",
+    `    printf '%s\\n' '${request(403, "member-3", publishedThirdHead, "member-2")}'`,
+    "    ;;",
+    "  repos/owner/repo/stacks)",
+    `    printf '%s\\n' '${activeOperation === "registered-terminal-authoring" ? registeredStack : "[]"}'`,
     "    ;;",
     "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
     "esac",
@@ -236,6 +318,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     repository,
     plan,
     states,
+    selectedFirstHead,
     env: { PATH: `${fakeBin}:${process.env.PATH ?? ""}` },
     request: JSON.stringify({ planId: plan.planId, repository: "owner/repo", remote: "origin" }),
   };
@@ -264,6 +347,201 @@ describe("arc delivery position", () => {
       nextAction: "review-member",
       selectedDeliverableId: fixture.plan.members[0]!.deliverableId,
     });
+  });
+
+  it("keeps retained landed bindings outside public refresh and review-fix subjects", async () => {
+    const fixture = await positionFixture("landed-prefix");
+    const refresh = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        trigger: { kind: "operator-choice" },
+        mechanics: "operator-initiated",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(refresh.exitCode, `${refresh.stderr}\n${refresh.stdout}`).toBe(0);
+    expect(JSON.parse(refresh.stdout)).toMatchObject({
+      command: "delivery refresh plan",
+      status: "refresh-required",
+      plannedSuffix: [fixture.plan.members[1]!.deliverableId],
+    });
+
+    const reviewFix = await runArcWithStdin(
+      ["delivery", "review-fix", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId: fixture.plan.members[1]!.deliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(reviewFix.exitCode, `${reviewFix.stderr}\n${reviewFix.stdout}`).toBe(0);
+    expect(JSON.parse(reviewFix.stdout)).toMatchObject({
+      command: "delivery review-fix plan",
+      status: "planned",
+      route: "rematerialize",
+      selectedDeliverableId: fixture.plan.members[1]!.deliverableId,
+      affectedDeliverableIds: [fixture.plan.members[1]!.deliverableId],
+    });
+  });
+
+  it("routes review-fix planning through an append-only terminal authoring advance", async () => {
+    const fixture = await positionFixture("terminal-authoring");
+    const position = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+    expect(position.exitCode).toBe(1);
+    expect(JSON.parse(position.stdout)).toMatchObject({
+      command: "delivery position",
+      status: "refused",
+      reason: "position-unavailable",
+    });
+
+    const reviewFix = await runArcWithStdin(
+      ["delivery", "review-fix", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId: fixture.plan.members[0]!.deliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(reviewFix.exitCode, `${reviewFix.stderr}\n${reviewFix.stdout}`).toBe(0);
+    expect(JSON.parse(reviewFix.stdout)).toMatchObject({
+      command: "delivery review-fix plan",
+      status: "planned",
+      route: "rematerialize",
+      selectedDeliverableId: fixture.plan.members[0]!.deliverableId,
+    });
+  });
+
+  it("continues a registered review fix through append-only terminal authoring", async () => {
+    const fixture = await positionFixture("registered-terminal-authoring");
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const reviewFix = await runArcWithStdin(
+      ["delivery", "review-fix", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(reviewFix.exitCode, `${reviewFix.stderr}\n${reviewFix.stdout}`).toBe(0);
+    expect(JSON.parse(reviewFix.stdout)).toMatchObject({
+      command: "delivery review-fix plan",
+      status: "planned",
+      route: "provider-refresh",
+      selectedDeliverableId,
+    });
+
+    const refresh = await runArcWithStdin(
+      ["delivery", "refresh", "execute", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(refresh.exitCode).toBe(1);
+    expect(JSON.parse(refresh.stdout)).toMatchObject({
+      command: "delivery refresh execute",
+      status: "refused",
+      reason: "unsupported",
+    });
+
+    const completeRemainder = await runArcWithStdin(
+      ["delivery", "refresh", "execute", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "complete-remainder" },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(completeRemainder.exitCode).toBe(1);
+    expect(JSON.parse(completeRemainder.stdout)).toMatchObject({
+      command: "delivery refresh execute",
+      status: "refused",
+      reason: "position-mismatch",
+    });
+  });
+
+  it("clears an unapplied selected review fix while terminal authoring remains append-only", async () => {
+    const fixture = await positionFixture("selected-change-terminal-authoring-before");
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-review-fix-publish",
+      selector: {
+        operationKind: "rewrite",
+        mode: "selected-change",
+        affectedDeliverableIds: [fixture.plan.members[0]!.deliverableId],
+      },
+    });
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
+      status: "ok",
+      value: { revision: 3, value: { activeOperation: null } },
+    });
+  });
+
+  it("continues an applied selected review fix into dependent refresh after interruption", async () => {
+    const fixture = await positionFixture("selected-change-terminal-authoring-applied");
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "applied",
+      nextAction: "execute-provider-refresh",
+      selectedDeliverableId,
+      verification: {
+        memberDeliverableIds: [selectedDeliverableId],
+        tier1Required: true,
+      },
+    });
+    const state = await fixture.states.read(fixture.plan.planId);
+    expect(state).toMatchObject({
+      status: "ok",
+      value: { revision: 3, value: { activeOperation: null } },
+    });
+    expect(state.status === "ok" && state.value?.value.members[0]?.coordinates?.head)
+      .toBe(fixture.selectedFirstHead);
   });
 
   it("returns a typed refusal when fresh observation is unavailable", async () => {
