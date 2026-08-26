@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1319,6 +1319,27 @@ structural guarantee rather than operator discipline.
                   post-settle walk found no remaining Member 6 gap at the Heavy two-pass cap. Success Criteria
                   markers remain unchanged for terminal verification.
 
+        - _Forward amendment (2026-08-26):_ Self-delivery proved that an approved correction to a bound, published
+          stack can be authored on the terminal branch before the owning member is selected. Exact public position
+          correctly refused that movement, but its generic `position-unavailable` result did not direct the agent
+          into the existing review-fix planner that can safely project the correction into the selected member.
+
+        - `[ ]` **6.11.R.l Make delivery-window correction entry mechanically actionable**
+
+            - _Goal:_ Every approved correction to a bound, published delivery enters member-aware review-fix
+              planning before replacement content is authored or published, while public position remains exact
+              and provider-neutral.
+            - _Outcome:_ Public position distinguishes proved append-only terminal authoring from unavailable
+              position and returns an actionable review-fix-planning route. The delivery workflow requires an
+              explicitly selected owning member, handles an already-authored terminal correction without treating
+              it as public position authority, and preserves the registered/unregistered authoring split.
+
+        - `[ ]` **6.11.R.m Revalidate the amended Member 6 boundary** — validate criteria at member scope
+
+            - _Goal:_ Re-run the Member 6 criteria over the correction-entry amendment and retain prior evidence
+              for unchanged refresh, landing, cleanup, and recovery loci.
+            - _Outcome:_ Member 6 criteria report.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
@@ -1656,6 +1677,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - _Reopened 2026-08-25 after terminal-authoring dogfood:_ Task 6.11.R.k restores the D5.8 review-fix and
   rematerialization path after an append-only top advance while leaving ordinary position exact. Rerun Member 6 and
   terminal verification over the repaired union.
+
+- _Reopened 2026-08-26 after correction-entry dogfood:_ Tasks 6.11.R.l-m make proved append-only terminal authoring
+  return an actionable, member-selected review-fix route and revalidate the amended Member 6 boundary without
+  relaxing exact public position.
 
 - _Settled 2026-08-26 after final adversarial verification:_ exact same-highest ancestry adoption now returns the
   existing top rather than synthesizing another commit behind a preserved terminal publish reservation. Provider

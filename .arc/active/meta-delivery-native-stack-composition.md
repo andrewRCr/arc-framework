@@ -15,7 +15,7 @@
 
 - **Current Workflow:** [none]
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 6.11.R.k — Make delivery-window correction entry mechanically actionable
+- **Next Task:** Task 6.11.R.l — Make delivery-window correction entry mechanically actionable
 - **Blockers:** [none]
 
 - **Next Action:** [none]
